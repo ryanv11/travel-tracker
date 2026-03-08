@@ -1,0 +1,188 @@
+FROM:     COO
+TO:       BACKEND
+DATE:     2026-03-07
+SUBJECT:  Security Addendum — Required additions to your Phase 1 implementation
+
+This message is an addendum to your spec (20260307_1700-COO-backend-spec.txt).
+All items below are REQUIRED for your Phase 1 implementation — they are not optional.
+Your acceptance criteria are extended by the items in SEC-01 through SEC-10.
+
+The full security specification is at: _project/security-spec.md
+Read it in full before starting. This message summarises what you implement now.
+
+================================================================================
+ADDITIONAL PACKAGES
+================================================================================
+
+Add to package.json (production dependencies):
+  helmet              — HTTP security headers
+  express-rate-limit  — API rate limiting
+  zod                 — Input validation
+
+Add to package.json (devDependencies):
+  @types/helmet       — TypeScript types
+
+================================================================================
+ADDITIONAL DELIVERABLES
+================================================================================
+
+  O. src/backend/middleware/validate.ts       — Zod validation middleware
+  P. src/backend/middleware/auth.ts           — Auth stub (Phase 2 hook)
+  Q. src/backend/middleware/error-handler.ts  — Safe global error handler
+  R. src/backend/validation/common.ts         — Shared Zod primitives
+  S. src/backend/validation/trips.schemas.ts  — Trip validation schemas
+  T. src/backend/validation/places.schemas.ts
+  U. src/backend/validation/items.schemas.ts
+  V. src/backend/validation/cities.schemas.ts
+  W. src/backend/validation/admin.schemas.ts
+  X. src/backend/validation/map.schemas.ts
+
+================================================================================
+CHANGES TO server.ts STARTUP ORDER
+================================================================================
+
+Register middleware in this exact order (security middleware must come first):
+
+  1. helmet()              — HTTP security headers (SEC-01)
+  2. cors(config)          — CORS allowlist (SEC-02)
+  3. express.json({ limit: '100kb' })    — body parser with size limit (SEC-05)
+  4. express.urlencoded({ extended: true, limit: '100kb' })
+  5. rateLimit(config)     — rate limiter on /api/ prefix (SEC-07)
+  6. authenticate          — auth stub on /api/ prefix (SEC-09)
+  7. route handlers        — (existing from original spec)
+  8. errorHandler          — MUST be last (SEC-06)
+
+For full implementation of each, see _project/security-spec.md.
+
+================================================================================
+CORS CONFIGURATION (replaces the allow-all approach in original spec)
+================================================================================
+
+Do not use cors() with no options. Use the allowlist pattern from SEC-02.
+
+Read ALLOWED_ORIGINS from process.env. Default:
+  'http://localhost:5173,http://localhost:3001'
+
+Add to .env.local:
+  ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3001
+
+Add to .env.example:
+  ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3001  # comma-separated
+
+================================================================================
+LOCALHOST BINDING (replaces default Express behaviour)
+================================================================================
+
+Bind to HOST env var (default: 127.0.0.1). See SEC-03.
+
+Add to .env.local:   HOST=127.0.0.1
+Add to .env.example: HOST=127.0.0.1
+
+================================================================================
+INPUT VALIDATION — APPLY TO EVERY ENDPOINT
+================================================================================
+
+Every POST and PATCH endpoint must use validateBody(Schema) middleware.
+Every endpoint with non-trivial query params must use validateQuery(Schema).
+
+See SEC-04 in the security spec for:
+  - The full validateBody/validateQuery middleware implementation
+  - The common.ts shared primitives (zName, zIsoDate, zHexColor, zRating, etc.)
+  - An example CreateTripSchema with the cross-field end_date >= start_date refinement
+
+The validation middleware must be applied BEFORE the route handler function —
+not inside it. Pattern:
+
+  router.post('/', validateBody(CreateTripSchema), async (req, res) => { ... });
+
+The route handler can then trust req.body is already validated and coerced.
+
+================================================================================
+ERROR HANDLING — REPLACE ANY AD-HOC ERROR RETURNS
+================================================================================
+
+Define a set of typed application errors that the global handler recognises:
+
+  // src/backend/errors.ts
+  export class NotFoundError extends Error {
+    statusCode = 404;
+    constructor(resource: string) { super(`${resource} not found`); }
+  }
+
+  export class LockError extends Error {
+    statusCode = 403;
+    constructor() { super('Trip is locked'); }
+  }
+
+  export class ConflictError extends Error {
+    statusCode = 409;
+    constructor(msg: string) { super(msg); }
+  }
+
+  export class ValidationError extends Error {
+    statusCode = 400;
+    constructor(msg: string) { super(msg); }
+  }
+
+Route handlers throw these errors; the global errorHandler catches them.
+This keeps route handlers clean and ensures consistent error shapes.
+
+================================================================================
+LOGGING RULE — NON-NEGOTIABLE
+================================================================================
+
+Never log req.body or res.body. This is personal travel data.
+
+What to log (examples):
+  console.info('[API]', req.method, req.path, res.statusCode, `${duration}ms`);
+  console.error('[ERROR]', err.message, err.stack);   // server-side only
+
+What NOT to log:
+  console.log('[DEBUG] body:', req.body);              // FORBIDDEN
+  console.log('[DEBUG] response:', JSON.stringify(result));  // FORBIDDEN
+
+================================================================================
+NPM AUDIT — REQUIRED BEFORE CLOSING
+================================================================================
+
+Before writing your completion report, run:
+  npm audit
+
+Any HIGH or CRITICAL vulnerabilities must be resolved.
+Flag any MODERATE findings in your completion report to COO.
+Do not skip this step.
+
+================================================================================
+UPDATED ACCEPTANCE CRITERIA
+================================================================================
+
+In addition to the 12 criteria in the original spec, your work is not complete
+until all of the following are true:
+
+  13. GET / (or any non-API route) response includes these headers:
+        X-Content-Type-Options: nosniff
+        X-Frame-Options: DENY
+        Referrer-Policy: no-referrer
+
+  14. A request from an origin NOT in ALLOWED_ORIGINS receives:
+        HTTP 500 (or CORS error) — browser blocks the preflight
+
+  15. The server binds to 127.0.0.1, not 0.0.0.0.
+      Confirmed by checking the listening address in the startup log.
+
+  16. POST /api/trips with a body exceeding 100KB receives HTTP 413.
+
+  17. POST /api/trips with missing or invalid fields receives HTTP 400 with
+      structured field-level errors in the 'details' key.
+
+  18. POST /api/trips with end_date < start_date receives HTTP 400.
+
+  19. Any unhandled server error returns HTTP 500 with:
+        { "error": "Internal server error" }
+      No stack trace or internal message in the response body.
+
+  20. src/backend/middleware/auth.ts exists with the Phase 2 TODO stub.
+
+  21. npm audit shows zero HIGH or CRITICAL vulnerabilities.
+
+================================================================================

@@ -1,0 +1,151 @@
+BACKEND PARK DOC — 2026-03-08
+PROJECT: Travel Tracker
+SESSION: Phase 1 implementation complete
+
+================================================================================
+WHAT WAS ACCOMPLISHED THIS SESSION
+================================================================================
+
+Implemented the complete Travel Tracker Express API (Phase 1). Starting from a
+pre-existing database schema (Drizzle ORM + @libsql/client + SQLite), built:
+
+INFRASTRUCTURE:
+  - src/backend/server.ts — Express entry point with all security middleware in
+    correct order (helmet → cors → json → rate-limit → auth → routes → errorHandler)
+  - src/backend/errors.ts — Typed error classes (NotFoundError, LockError,
+    ConflictError, ValidationError) used throughout routes
+  - src/backend/middleware/validate.ts — Zod validation middleware
+    NOTE: Two compatibility bugs fixed:
+      1. Express v5: req.query is read-only → use Object.defineProperty
+      2. Zod v4: error.errors renamed to error.issues
+  - src/backend/middleware/auth.ts — Phase 2 stub
+  - src/backend/middleware/error-handler.ts — Global handler + asyncHandler wrapper
+
+VALIDATION SCHEMAS:
+  - src/backend/validation/common.ts — Shared primitives (zName, zIsoDate, etc.)
+  - src/backend/validation/trips.schemas.ts
+  - src/backend/validation/places.schemas.ts
+  - src/backend/validation/items.schemas.ts
+  - src/backend/validation/cities.schemas.ts
+  - src/backend/validation/admin.schemas.ts
+  - src/backend/validation/map.schemas.ts
+
+ROUTES:
+  - src/backend/routes/trips.ts — Full CRUD + status transitions + lock/unlock
+  - src/backend/routes/places.ts — Nested under trips (mergeParams: true)
+  - src/backend/routes/items.ts — Nested under trips, with extension row helpers
+  - src/backend/routes/cities.ts — Search, create, carry-forward, city items
+  - src/backend/routes/map.ts — Map shading endpoints
+  - src/backend/routes/admin.ts — Admin CRUD factory + country/region management
+  - src/backend/routes/items-helper.ts — Shared fetchItemsWithExtensions()
+
+SERVICES:
+  - src/backend/services/geocoding.service.ts — Nominatim, 1.1s rate limit, offline-safe
+  - src/backend/services/shading.service.ts — computeState() per spec, in-memory config cache
+  - src/backend/services/items.service.ts — assertNotLocked, ensureExperienceExtension,
+    executeCarryForward
+  - src/backend/services/startup.service.ts — seedAdminData, seedCountries, seedRegions
+
+DATA FILES:
+  - data/countries.json — 250 ISO 3166-1 countries (25 with region tier enabled)
+  - data/regions.json   — 72 regions: US (51), AU (8), CA (13)
+  - geo/countries.json  — Natural Earth admin-0 GeoJSON (839 KB)
+  - geo/regions.json    — Natural Earth admin-1 GeoJSON (40 MB)
+  - src/backend/db/seed-data.ts — Extracted seed constants (avoids duplication)
+
+CI/DOCS:
+  - .github/workflows/security.yml — npm audit (HIGH+) + Gitleaks + Semgrep
+  - jobs/backend/tech/20260307-api-reference.md — Full API reference
+
+================================================================================
+KNOWN ISSUES / TECH DEBT
+================================================================================
+
+1. NPM AUDIT: 4 moderate vulns in drizzle-kit (dev dep only — esbuild dev server
+   CORS issue GHSA-67mh-4wv8-2f99). Zero HIGH/CRITICAL. Defer upgrade until
+   drizzle-kit changelog confirms compatibility.
+
+2. CARRY-FORWARD EXECUTION: No POST endpoint to execute carry-forward. Service
+   function exists (executeCarryForward in items.service.ts). Awaiting COO
+   direction. Documented in completion report.
+
+3. CITY PATCH: No PATCH /api/cities/:id endpoint. Mentioned in corrections
+   ("region_id can be set later via PATCH"). Awaiting COO direction.
+
+4. PLACES ACTIVITIES QUERY BUG (cosmetic): The GET /api/trips/:tripId/places
+   handler has a double-query pattern for activities that runs two DB queries
+   when placeIds.length > 1. The second query uses eq(tripPlaces.tripId, tripId)
+   but tripPlaces is not in the FROM clause of that query — this should use
+   inArray(tripPlaceActivitiesMap.tripPlaceId, placeIds). Works in practice
+   because the second query runs only for >1 places. Could be refactored to a
+   single clean inArray query. Not blocking.
+
+================================================================================
+OPEN QUESTIONS SENT TO COO
+================================================================================
+
+1. CARRY-FORWARD EXECUTION ENDPOINT — does COO want it now or Phase 2?
+   Proposed: POST /api/trips/:tripId/places/:placeId/carry-forward
+   Body: { source_item_ids: number[] }
+
+2. CITY PATCH ENDPOINT — does COO want it now or Phase 2?
+
+================================================================================
+WHERE TO RESUME (IF NEEDED)
+================================================================================
+
+If returning to this thread for Phase 1 fixes:
+  1. Read jobs/COO/inbox/ for any new direction
+  2. Read this park doc + jobs/backend/context/current.txt
+  3. Start server: npm run start
+  4. Check the 2 open questions status
+
+If implementing Phase 2 (auth):
+  - src/backend/middleware/auth.ts has the Phase 2 stub with TODO comments
+  - Security spec is at _project/security-spec.md
+
+================================================================================
+FILE INVENTORY (CREATED/MODIFIED THIS SESSION)
+================================================================================
+
+Created:
+  src/backend/server.ts
+  src/backend/errors.ts
+  src/backend/middleware/validate.ts
+  src/backend/middleware/auth.ts
+  src/backend/middleware/error-handler.ts
+  src/backend/validation/common.ts
+  src/backend/validation/trips.schemas.ts
+  src/backend/validation/places.schemas.ts
+  src/backend/validation/items.schemas.ts
+  src/backend/validation/cities.schemas.ts
+  src/backend/validation/admin.schemas.ts
+  src/backend/validation/map.schemas.ts
+  src/backend/routes/trips.ts
+  src/backend/routes/places.ts
+  src/backend/routes/items.ts
+  src/backend/routes/cities.ts
+  src/backend/routes/map.ts
+  src/backend/routes/admin.ts
+  src/backend/routes/items-helper.ts
+  src/backend/services/geocoding.service.ts
+  src/backend/services/shading.service.ts
+  src/backend/services/items.service.ts
+  src/backend/services/startup.service.ts
+  src/backend/db/seed-data.ts
+  data/countries.json
+  data/regions.json
+  geo/countries.json (839 KB)
+  geo/regions.json   (40 MB)
+  .github/workflows/security.yml
+  jobs/backend/tech/20260307-api-reference.md
+  jobs/COO/inbox/20260308_0900-BACKEND-complete.txt
+  jobs/frontend/inbox/20260308_0900-BACKEND-api-ready.txt
+
+Modified:
+  src/backend/db/seed.ts   — imports from seed-data.ts instead of inline constants
+  package.json             — added dev/start scripts; installed new packages
+  .env.local               — added HOST, ALLOWED_ORIGINS
+  .env.example             — added HOST, ALLOWED_ORIGINS documentation
+
+================================================================================

@@ -5,6 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsx watch src/backend/server.ts",
+    "start": "tsx src/backend/server.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/backend/db/seed.ts",
@@ -12,11 +14,19 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.38.3",
-    "pg": "^8.11.3"
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.0",
+    "helmet": "^8.1.0",
+    "pg": "^8.11.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/helmet": "^0.0.48",
     "@types/node": "^20.11.5",
     "@types/pg": "^8.11.0",
     "drizzle-kit": "^0.30.4",

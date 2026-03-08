@@ -1,0 +1,180 @@
+FROM:     COO
+TO:       BACKEND
+DATE:     2026-03-07
+SUBJECT:  Corrections — Two gaps identified before you begin
+
+Read this before starting your implementation. Two corrections to the spec.
+
+================================================================================
+CORRECTION 1 — FIRST-LAUNCH SEED: STARTUP MUST INCLUDE ADMIN DATA
+================================================================================
+
+PROBLEM:
+  The original BACKEND spec defines this startup sequence:
+    1. getDb()
+    2. startupService.seedCountries()
+    3. geocodingService.processQueue()
+
+  This is incomplete. trip_categories, activities, companions, and
+  map_shading_config are seeded by `npm run db:seed` — a manual script.
+  If a user starts the app without first running that script, these tables
+  will be empty. The app would launch with no trip categories, no companions,
+  no shading config — unusable on first launch.
+
+CORRECTION:
+  The startup service must also seed admin data if the tables are empty.
+  Import and call the same seed functions used by the DATABASE seed script,
+  or call the script directly. Do NOT require the user to run `db:seed` manually.
+
+  Updated startup sequence:
+    1. getDb()                                    — verify DB connection
+    2. startupService.seedAdminData()             — seeds trip_categories,
+                                                    activities, companions,
+                                                    map_shading_config
+                                                    (idempotent — safe to call
+                                                    every startup via
+                                                    onConflictDoNothing)
+    3. startupService.seedCountries()             — seeds countries if empty
+    4. startupService.seedRegions()               — seeds regions if empty
+                                                    (see Correction 2)
+    5. geocodingService.processQueue()            — resolve pending cities
+    6. schedule geocoding every 15 minutes
+
+  The admin seed data is already implemented in src/backend/db/seed.ts.
+  Import and call those functions directly — do not duplicate the data.
+
+  Log each seeding step at info level (e.g. "Admin data: already seeded, skipping").
+
+================================================================================
+CORRECTION 2 — REGIONS NOT SEEDED + REGION_ID IS OPTIONAL (NOT REQUIRED)
+================================================================================
+
+PROBLEM:
+  The original BACKEND spec states: "if country.region_tier_enabled = 1,
+  region_id must be provided [when creating a city]."
+
+  This is wrong for two reasons:
+    a) No region data is pre-loaded for region-tier countries. A user would
+       be unable to create any city in the US, Australia, or Canada without
+       first manually creating all 50 states / 8 states / 13 provinces
+       via the admin panel. That is terrible UX.
+    b) The BRD says "up to three levels" (GE-01). "Up to" means optional.
+
+CORRECTION A — RELAX THE REGION_ID REQUIREMENT:
+  region_id is OPTIONAL on city creation even when region_tier_enabled = 1.
+  Enforce only the inverse rule: if country.region_tier_enabled = 0,
+  region_id MUST be NULL (reject with 400 if supplied).
+
+  A city without a region_id in a region-tier country:
+    - Is valid and fully usable for trip and item logging
+    - Appears in country-level shading queries
+    - Does NOT appear in region-level shading (no region to roll up to)
+    - Can have a region_id set later via PATCH if the user adds one
+
+CORRECTION B — SEED REGIONS FOR US, AU, CA ON FIRST LAUNCH:
+  The startup service must seed regions for the three countries where
+  pre-populating regions is essential for usable UX. All others can be
+  added by the user via the admin panel.
+
+  Create: data/regions.json (same pattern as data/countries.json)
+
+  File format:
+    [
+      { "country_code": "US", "name": "Alabama" },
+      { "country_code": "US", "name": "Alaska" },
+      ...
+    ]
+
+  startupService.seedRegions() implementation:
+    - Count rows in regions table.
+    - If > 0: log "Regions already seeded, skipping" and return.
+    - If 0: load data/regions.json and insert all rows.
+    - Use onConflictDoNothing() (no unique constraint on name+country, so
+      just check count > 0 before inserting).
+    - Log "✓ Regions seeded ({count} rows)"
+
+REGIONS TO SEED (data/regions.json):
+
+  UNITED STATES (51 entries — 50 states + DC):
+    Alabama, Alaska, Arizona, Arkansas, California, Colorado, Connecticut,
+    Delaware, Florida, Georgia, Hawaii, Idaho, Illinois, Indiana, Iowa,
+    Kansas, Kentucky, Louisiana, Maine, Maryland, Massachusetts, Michigan,
+    Minnesota, Mississippi, Missouri, Montana, Nebraska, Nevada,
+    New Hampshire, New Jersey, New Mexico, New York, North Carolina,
+    North Dakota, Ohio, Oklahoma, Oregon, Pennsylvania, Rhode Island,
+    South Carolina, South Dakota, Tennessee, Texas, Utah, Vermont,
+    Virginia, Washington, West Virginia, Wisconsin, Wyoming,
+    District of Columbia
+
+  AUSTRALIA (8 entries):
+    New South Wales, Victoria, Queensland, South Australia,
+    Western Australia, Tasmania, Australian Capital Territory,
+    Northern Territory
+
+  CANADA (13 entries):
+    Ontario, Quebec, British Columbia, Alberta, Manitoba, Saskatchewan,
+    Nova Scotia, New Brunswick, Newfoundland and Labrador,
+    Prince Edward Island, Northwest Territories, Yukon, Nunavut
+
+  TOTAL: 72 entries in data/regions.json
+
+  For all other region-tier countries (DE, IN, JP, BR, etc.):
+    Leave empty — user adds regions via admin panel as needed.
+    This is acceptable because these countries are less likely to be
+    primary destinations requiring regional distinction from day one.
+
+================================================================================
+CORRECTION 3 — CI PIPELINE (SEC-13): BACKEND OWNS SETUP
+================================================================================
+
+  The security spec (SEC-13) requires secret scanning, dependency scanning,
+  and SAST to be running in CI before Phase 1 beta. BACKEND is responsible
+  for configuring the CI pipeline.
+
+  Set up GitHub Actions (or equivalent) with these steps:
+    1. npm audit --audit-level=high
+    2. Gitleaks secret scanning
+    3. Semgrep SAST (p/typescript, p/react, p/nodejs, p/owasp-top-ten)
+
+  Create: .github/workflows/security.yml
+
+  This must be done before closing your thread. The CI pipeline running
+  green (with any false positives suppressed and documented) is an
+  acceptance criterion. Add it to your completion report.
+
+================================================================================
+UPDATED ACCEPTANCE CRITERIA (in addition to 21 from previous specs)
+================================================================================
+
+  22. On first launch from a completely clean database (empty tables except
+      the schema), the app starts and all admin tables are populated
+      automatically — no manual `npm run db:seed` required.
+
+  23. On first launch, the regions table contains at least the 51 US entries,
+      8 AU entries, and 13 CA entries.
+
+  24. POST /api/cities with a valid country_code for a region-tier country
+      but no region_id succeeds (201) rather than failing with 400.
+
+  25. POST /api/cities with a region_id for a country where
+      region_tier_enabled = 0 fails with 400.
+
+  26. .github/workflows/security.yml (or equivalent CI config) exists and
+      runs npm audit + SAST on push/PR.
+
+================================================================================
+SUMMARY OF ALL CORRECTIONS
+================================================================================
+
+  Original spec:    20260307_1700-COO-backend-spec.txt
+  Addendum 1:       20260307_1710-COO-security-addendum.txt
+  Addendum 2 (this): 20260307_1720-COO-corrections.txt
+
+  Changes:
+    - Startup sequence: add seedAdminData() + seedRegions() steps
+    - City creation: region_id optional even when region_tier_enabled = 1
+    - New file: data/regions.json (72 rows: US, AU, CA)
+    - New file: .github/workflows/security.yml
+    - Acceptance criteria extended from 21 to 26
+
+================================================================================

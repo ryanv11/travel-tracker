@@ -1,0 +1,788 @@
+FROM:     COO
+TO:       BACKEND
+DATE:     2026-03-07
+SUBJECT:  BACKEND Spec — Express API, Business Logic, and Geocoding Service
+
+DATABASE is complete. All acceptance criteria have been verified. You are cleared
+to begin immediately.
+
+================================================================================
+SOURCE DOCUMENTS — READ ALL BEFORE STARTING
+================================================================================
+
+  1. jobs/architect/tech/20260307-tech-blueprint.md         (v1.0 — AUTHORITATIVE)
+  2. jobs/architect/tech/20260307-ER-schema.md              (v1.1)
+  3. jobs/architect/tech/20260307-map-shading-spec.md       (v1.0)
+  4. jobs/architect/tech/20260307-architecture-decisions-log.md  (ADL-01 to ADL-14)
+  5. _project/travel-tracker-BRD.md                        (v2.3)
+  6. src/backend/db/schema.ts                               (DATABASE — implemented)
+  7. src/backend/db/index.ts                                (DATABASE — implemented)
+
+================================================================================
+IMPORTANT: DRIVER SUBSTITUTION NOTE
+================================================================================
+
+  The DATABASE spec recommended better-sqlite3 as the SQLite driver.
+  DATABASE substituted @libsql/client instead (approved by COO). This affects you:
+
+  - DB connection is already working via @libsql/client + Drizzle ORM
+  - You do NOT touch db/index.ts or db/schema.ts
+  - Import the DB instance as: import { getDb } from './db/index.js'
+  - @libsql/client is async — all DB operations are async/await, not synchronous
+  - Do not install or reference better-sqlite3 anywhere in BACKEND code
+
+================================================================================
+YOUR DELIVERABLES
+================================================================================
+
+You will produce exactly these artefacts:
+
+  A. src/backend/server.ts              — Express app + startup sequence
+  B. src/backend/routes/trips.ts        — Trip CRUD + status transitions
+  C. src/backend/routes/places.ts       — Place management per trip
+  D. src/backend/routes/items.ts        — Item CRUD + type-specific fields
+  E. src/backend/routes/cities.ts       — City search + carry-forward query
+  F. src/backend/routes/map.ts          — Shading endpoints
+  G. src/backend/routes/admin.ts        — Admin panel endpoints
+  H. src/backend/services/geocoding.service.ts  — Nominatim integration
+  I. src/backend/services/shading.service.ts    — computeState() + bulk queries
+  J. src/backend/services/items.service.ts      — carry-forward, lazy extension rows
+  K. src/backend/services/startup.service.ts    — country seed + geocoding queue init
+  L. data/countries.json                — Bundled country data (see §DELIVERABLE K)
+  M. geo/countries.json                 — Natural Earth admin-0 GeoJSON (bundled)
+  N. geo/regions.json                   — Natural Earth admin-1 GeoJSON (bundled)
+
+  Plus: API documentation in jobs/backend/tech/20260307-api-reference.md
+  covering every endpoint, every parameter, every response shape, every error.
+  FRONTEND must be able to implement from this document alone without asking BACKEND.
+
+================================================================================
+DELIVERABLE A — src/backend/server.ts
+================================================================================
+
+This is the Express app entry point. It must not contain business logic.
+
+RESPONSIBILITIES:
+  - Create Express application
+  - Register middleware: cors, express.json, express.urlencoded, request logging
+  - Register route handlers at correct prefixes (see Route Registration below)
+  - Serve geo/ as static files at /geo/
+  - Start HTTP server on PORT from process.env (default 3001)
+  - Run startup sequence on launch (see §STARTUP SEQUENCE)
+  - Handle uncaught errors with a global error handler that logs and returns
+    { error: 'Internal server error' } with status 500
+
+ROUTE REGISTRATION:
+  app.use('/api/trips',       tripsRouter)
+  app.use('/api/cities',      citiesRouter)
+  app.use('/api/map',         mapRouter)
+  app.use('/api/admin',       adminRouter)
+  // Items and places are nested under trips — see routes below
+
+STATIC FILES:
+  app.use('/geo', express.static(path.join(__dirname, '../../geo')))
+
+STARTUP SEQUENCE (run in this order, log each step):
+  1. Call getDb() to initialise and verify the database connection
+  2. Call startupService.seedCountries() — see §DELIVERABLE K
+  3. Call geocodingService.processQueue() — resolve any pending city coordinates
+  4. Schedule geocodingService.processQueue() to run every 15 minutes
+  5. Log "Travel Tracker API ready on port {PORT}"
+
+CORS:
+  For beta: allow all origins (cors() with no options).
+  Note: For production, restrict origins via ALLOWED_ORIGINS env var —
+  but do not implement this now; mark it as a TODO comment.
+
+PACKAGES REQUIRED (add to package.json):
+  express              — web framework
+  cors                 — CORS middleware
+  @types/express       — TypeScript types (devDependency)
+  @types/cors          — TypeScript types (devDependency)
+  node-fetch           — HTTP client for Nominatim (or use built-in fetch if Node ≥18)
+
+Check Node version first. Node 18+ has built-in fetch. If running Node 18+,
+use globalThis.fetch — do not add node-fetch as a dependency.
+Check with: node --version
+
+================================================================================
+DELIVERABLE B — src/backend/routes/trips.ts
+================================================================================
+
+ENDPOINTS:
+
+  GET /api/trips
+    Query params: status (optional), category_id (optional), activity_id (optional)
+    Returns: Array of trips with their categories, companions, and activities.
+    Order: start_date DESC.
+    Joins: trip_categories_map → trip_categories, trip_companions_map → companions,
+           trip_activities_map → activities.
+    Response shape:
+      [{
+        id, name, start_date, end_date, status, photo_album_ref,
+        created_at, updated_at,
+        categories: [{ id, name }],
+        companions:  [{ id, name }],
+        activities:  [{ id, name }]
+      }]
+
+  POST /api/trips
+    Body: {
+      name: string (required),
+      start_date: string (required, YYYY-MM-DD),
+      end_date: string (required, YYYY-MM-DD),
+      photo_album_ref?: string,
+      category_ids?: number[],
+      companion_ids?: number[],
+      activity_ids?: number[]
+    }
+    Validation:
+      - name non-empty
+      - start_date and end_date present and valid ISO dates
+      - end_date >= start_date (BRD note — SQLite cannot enforce this)
+    Action:
+      - Insert trip
+      - Insert rows in trip_categories_map, trip_companions_map, trip_activities_map
+      - Return created trip with categories, companions, activities
+    Response: 201, same shape as GET item (see below)
+
+  GET /api/trips/:id
+    Returns: Single trip with categories, companions, activities, AND places with
+             their cities and items.
+    Response shape:
+      {
+        id, name, start_date, end_date, status, photo_album_ref, ...,
+        categories: [...], companions: [...], activities: [...],
+        places: [{
+          id, city_id, created_at,
+          city: { id, name, country_code, region_id, latitude, longitude, geocode_status },
+          activities: [{ id, name }],
+          items: [{
+            id, item_type, status, notes, is_carried_forward,
+            carried_from_item_id, created_at, updated_at,
+            // type-specific fields merged in from extension table:
+            // flights: airline, flight_number, departure_airport, arrival_airport,
+            //          departure_datetime, arrival_datetime, booking_reference, seat
+            // hotels: property_name, address, check_in_date, check_out_date,
+            //         booking_reference, confirmation_number, rating, post_visit_notes
+            // car_rentals: provider, pickup_location, dropoff_location,
+            //              pickup_datetime, dropoff_datetime, booking_reference, vehicle_class
+            // restaurants: name, neighbourhood_area, cuisine_type, source,
+            //              rating, post_visit_notes
+            // experiences: rating, post_visit_notes
+            // note: no extension fields
+          }]
+        }]
+      }
+    Error: 404 if not found
+
+  PATCH /api/trips/:id
+    Body: Partial trip fields (name, start_date, end_date, photo_album_ref,
+          category_ids, companion_ids, activity_ids)
+    Locked trip check: if trip.status = 'locked' → 403 { error: 'Trip is locked' }
+    Validation: same as POST
+    Action: Update provided fields. If category_ids/companion_ids/activity_ids provided,
+            replace all existing associations (delete + reinsert).
+    Response: 200, updated trip (same shape as GET)
+
+  PATCH /api/trips/:id/status
+    Body: { status: 'planning' | 'active' | 'review_pending' | 'locked' }
+    Status transition rules (enforce strictly — return 400 on invalid transition):
+      planning       → active          (allowed)
+      planning       → review_pending  (allowed — user may skip active for past trips)
+      active         → review_pending  (allowed)
+      review_pending → locked          (allowed — RV-04)
+      review_pending → planning        (allowed — user cancels review)
+      locked         → review_pending  (allowed — TR-07: unlock)
+      All other transitions: 400 { error: 'Invalid status transition from X to Y' }
+    Response: 200, updated trip
+
+  PATCH /api/trips/:id/lock   (convenience alias for status → locked)
+    Locked trip check: already locked → 400
+    Shortcut: sets status = 'locked'. Same as PATCH /status.
+
+  PATCH /api/trips/:id/unlock (convenience alias for status → review_pending)
+    Must currently be locked → 400 if not locked.
+    Sets status = 'review_pending'. Same as PATCH /status.
+
+================================================================================
+DELIVERABLE C — src/backend/routes/places.ts
+================================================================================
+
+These are nested under /api/trips/:tripId/places.
+
+  GET /api/trips/:tripId/places
+    Returns all places for a trip with city details and activity tags.
+    Error: 404 if trip not found.
+
+  POST /api/trips/:tripId/places
+    Locked trip check → 403 if locked
+    Body: { city_id: number }
+    Validation:
+      - city must exist (404 if not)
+      - (trip_id, city_id) must be unique — 409 if trip already has this city
+    Response: 201, new place record with city
+
+  DELETE /api/trips/:tripId/places/:placeId
+    Locked trip check → 403 if locked
+    Action: Delete the trip_place row (CASCADE deletes items and activity maps)
+    Response: 204 No Content
+    Error: 404 if place not found on trip
+
+  POST /api/trips/:tripId/places/:placeId/activities
+    Body: { activity_id: number }
+    Response: 201
+    Error: 409 if already tagged
+
+  DELETE /api/trips/:tripId/places/:placeId/activities/:activityId
+    Response: 204
+
+================================================================================
+DELIVERABLE D — src/backend/routes/items.ts
+================================================================================
+
+Nested under /api/trips/:tripId/items.
+
+  GET /api/trips/:tripId/items
+    Query params:
+      place_id (optional integer) — filter to specific place
+      type (optional) — filter by item_type
+      status (optional) — filter by status
+    Returns: Array of items with type-specific extension fields merged in.
+    JOIN logic: for each item, LEFT JOIN the appropriate extension table based on
+    item_type, then merge fields into a flat response object.
+    Order: created_at DESC
+
+  POST /api/trips/:tripId/items
+    Locked trip check → 403 if locked
+    Body: {
+      trip_place_id?: number,     // NULL = trip-level item
+      item_type: string (required),
+      status?: string (default 'consider'),
+      notes?: string,
+      is_carried_forward?: boolean (default false),
+      carried_from_item_id?: number,
+      // type-specific fields (flat, merged):
+      // flights: airline, flight_number, departure_airport, arrival_airport,
+      //          departure_datetime, arrival_datetime, booking_reference, seat
+      // hotels: property_name, address, check_in_date, check_out_date,
+      //         booking_reference, confirmation_number
+      //         (rating and post_visit_notes NOT set on create — only via PATCH)
+      // car_rentals: provider, pickup_location, dropoff_location,
+      //              pickup_datetime, dropoff_datetime, booking_reference, vehicle_class
+      // restaurants: name, neighbourhood_area, cuisine_type, source
+      //              (rating and post_visit_notes NOT set on create)
+      // experiences: (no type-specific fields on create — lazy extension creation)
+      // note: (no extension fields)
+    }
+    Validation:
+      - item_type must be valid
+      - is_carried_forward and carried_from_item_id must be consistent (ADL-13):
+          if is_carried_forward = true, carried_from_item_id must be provided
+          if carried_from_item_id provided, is_carried_forward must be true
+      - item_experiences: do NOT create extension row on create (ADL-14, lazy creation)
+    Action: Insert items row, then insert type-specific extension row (if applicable,
+            and not an experience item)
+    Response: 201, full item with extension fields
+
+  PATCH /api/trips/:tripId/items/:itemId
+    Locked trip check → 403 if locked
+    Body: Partial item fields + partial extension fields (merged, flat)
+    Special handling for ratings and post_visit_notes on experiences:
+      - If item_type = 'experience' and rating or post_visit_notes is being set,
+        check if item_experiences row exists. If not, create it (lazy creation — ADL-14).
+    Special handling for hotels/restaurants:
+      - rating and post_visit_notes may be set here (RV-03, post-trip review)
+    Response: 200, full updated item with extension fields
+
+  DELETE /api/trips/:tripId/items/:itemId
+    Locked trip check → 403 if locked
+    Action: Delete items row (CASCADE deletes extension row)
+    Response: 204
+
+================================================================================
+DELIVERABLE E — src/backend/routes/cities.ts
+================================================================================
+
+  GET /api/cities
+    Query params:
+      q (required) — search string, minimum 2 characters
+      country_code (optional) — restrict to country
+    Behaviour:
+      1. Search local cities table first: WHERE name LIKE '%q%' (case-insensitive)
+         Include country_code and region_id in results.
+      2. If local results are fewer than 5, also check if Nominatim should be queried.
+         (Do NOT automatically trigger Nominatim from this endpoint — return local results
+         only. Nominatim is triggered when the user creates a new city, not when searching.)
+      3. Return local results ordered by name.
+    Response: [{ id, name, country_code, region_id, latitude, longitude, geocode_status }]
+    Error: 400 if q is missing or < 2 chars
+
+  POST /api/cities
+    Body: {
+      name: string (required),
+      country_code: string (required, must exist in countries table),
+      region_id?: number (required if region_tier_enabled = 1 for that country)
+    }
+    Validation:
+      - country must exist
+      - if country.region_tier_enabled = 1, region_id must be provided and belong to country
+      - if country.region_tier_enabled = 0, region_id must be NULL (BACKEND enforces — ADL note)
+    Action:
+      - Insert city with geocode_status = 'pending'
+      - Immediately attempt geocoding (if internet available): geocodingService.resolveCity(id)
+      - If geocoding succeeds: update latitude, longitude, geocode_status = 'resolved'
+      - If geocoding fails (offline): leave as pending, will be retried on next queue run
+    Response: 201, city record (may have geocode_status = 'pending' if offline)
+
+  GET /api/cities/:id/carry-forward
+    Returns: All items with status = 'next_time' for prior trips that include this city.
+    Uses the SQL from ER schema §6.2.
+    Response shape:
+      [{
+        id, item_type, status, notes,
+        source_trip_name, source_trip_end_date,
+        // type-specific display fields:
+        restaurant_name, hotel_property_name  (nullable)
+      }]
+
+  GET /api/cities/:id/items
+    Query params:
+      type (optional) — filter by item_type
+      min_rating (optional integer 1-5) — filter by rating
+    Returns: All completed items at this city across all trips. Uses SQL from ER schema §6.1.
+    Response shape:
+      [{
+        id, item_type, status, notes,
+        trip_name, trip_start_date,
+        // type-specific fields:
+        restaurant_name, restaurant_rating, restaurant_post_visit_notes,
+        hotel_property_name, hotel_rating, hotel_post_visit_notes,
+        experience_rating, experience_post_visit_notes
+      }]
+    Order: rating DESC NULLS LAST (computed across types via COALESCE)
+
+================================================================================
+DELIVERABLE F — src/backend/routes/map.ts
+================================================================================
+
+  GET /api/map/shading
+    Returns: Shading state for all countries.
+    Uses shadingService.getAllCountryShading().
+    Response shape:
+      [{
+        country_code: string,
+        state_key: string,   // one of the 7 states (including 'never_visited')
+        color_hex: string,   // from map_shading_config (or null for 'never_visited')
+        display_name: string // from map_shading_config (or 'Never visited')
+      }]
+    Implementation note: never_visited countries get default color_hex: null, display_name: 'Never visited'.
+    The config table has 6 rows (never_visited is not stored — handle it in code).
+
+  GET /api/map/shading/countries/:countryCode
+    Returns: Shading state for a single country + region breakdown if region_tier_enabled.
+    Response:
+      {
+        country_code, state_key, color_hex, display_name,
+        regions: [{
+          region_id, region_name, state_key, color_hex, display_name
+        }]  // empty array if region_tier_enabled = 0
+      }
+
+  GET /api/map/shading/regions/:countryCode
+    Returns: Shading state for all regions in a country.
+    Error: 404 if country not found, 400 if region_tier_enabled = 0.
+    Uses shadingService.getRegionShading(countryCode).
+    Response: [{ region_id, region_name, state_key, color_hex, display_name }]
+
+  GET /api/map/shading/config
+    Returns: All rows from map_shading_config.
+    Response: [{ state_key, display_name, color_hex, updated_at }]
+
+  PATCH /api/map/shading/config/:stateKey
+    Body: { display_name?: string, color_hex?: string }
+    Validation: color_hex must be valid 6-digit hex (#RRGGBB)
+    Response: 200, updated config row
+
+================================================================================
+DELIVERABLE G — src/backend/routes/admin.ts
+================================================================================
+
+All four admin list types follow an identical CRUD pattern. Implement all four.
+Soft-delete only — never hard-delete these records (AD-06).
+
+PATTERN (repeat for categories, activities, companions):
+
+  GET    /api/admin/{resource}           — list all (active + inactive)
+  GET    /api/admin/{resource}/active    — list active only
+  POST   /api/admin/{resource}           — create (name required; must be unique)
+  PATCH  /api/admin/{resource}/:id       — update name or is_active
+  DELETE /api/admin/{resource}/:id       — soft-delete: set is_active = 0
+                                           (return 400 if already inactive)
+
+Resources: categories, activities, companions
+
+COUNTRY ADMIN:
+
+  GET /api/admin/countries
+    Returns: All countries with their region_tier_enabled and region_tier_label.
+    Order: name ASC.
+
+  PATCH /api/admin/countries/:countryCode
+    Body: { region_tier_enabled?: boolean, region_tier_label?: string }
+    Validation: if region_tier_enabled = true, region_tier_label must be provided
+    Response: 200, updated country
+
+  GET /api/admin/countries/:countryCode/regions
+    Returns: All regions for a country.
+
+  POST /api/admin/countries/:countryCode/regions
+    Body: { name: string }
+    Validation: country must have region_tier_enabled = 1
+    Response: 201
+
+  PATCH /api/admin/countries/:countryCode/regions/:regionId
+    Body: { name: string }
+    Response: 200
+
+================================================================================
+DELIVERABLE H — src/backend/services/geocoding.service.ts
+================================================================================
+
+Nominatim integration. Handles city coordinate resolution.
+
+INTERFACE:
+  geocodingService.resolveCity(cityId: number): Promise<boolean>
+    — Attempt to resolve a single city's coordinates via Nominatim.
+    — Returns true if resolved, false if failed/offline.
+
+  geocodingService.processQueue(): Promise<void>
+    — Process all cities with geocode_status = 'pending'.
+    — Called on startup and every 15 minutes.
+    — Uses the geocoding queue SQL from ER schema §6.3.
+
+NOMINATIM COMPLIANCE (ADL-10 — non-negotiable):
+  - User-Agent header: 'TravelTracker/1.0 (personal-use-app)'
+  - Maximum 1 request per second (enforce with a sleep between requests)
+  - Never re-query a city that has geocode_status = 'resolved'
+  - Store results permanently — no re-querying (results are already stored in cities table)
+
+NETWORK DETECTION:
+  Before querying Nominatim, attempt a HEAD request to nominatim.openstreetmap.org
+  with a short timeout (3 seconds). If it fails, log and return false — do not surface
+  the error to the user (GE-12).
+
+NOMINATIM REQUEST:
+  URL: https://nominatim.openstreetmap.org/search
+  Params: q="{city_name}, {country_name}", format=json, limit=1, addressdetails=0
+  Extract: lat and lon from first result.
+  On empty results: do not update geocode_status — retry on next queue run.
+  Update geocode_attempted_at on every attempt (success or failure).
+
+RATE LIMITING:
+  Process queue entries sequentially with a 1100ms delay between requests
+  (100ms buffer above the 1 request/second limit).
+
+ERROR HANDLING:
+  All Nominatim errors are logged but never propagate to any API response.
+  The geocoding service is fire-and-forget from the perspective of any caller.
+
+================================================================================
+DELIVERABLE I — src/backend/services/shading.service.ts
+================================================================================
+
+Map shading state computation. This is critical business logic — implement exactly
+per the shading spec (jobs/architect/tech/20260307-map-shading-spec.md).
+
+CORE FUNCTION:
+  function computeState(
+    completedCount: number,
+    planningCount: number,
+    hasActive: boolean
+  ): string {
+    if (hasActive)                                         return 'active';
+    if (completedCount >= 2 && planningCount > 0)          return 'visited_multiple_planning';
+    if (completedCount >= 2 && planningCount === 0)        return 'visited_multiple';
+    if (completedCount === 1 && planningCount > 0)         return 'visited_once_planning';
+    if (completedCount === 1 && planningCount === 0)       return 'visited_once';
+    if (completedCount === 0 && planningCount > 0)         return 'planned';
+    return 'never_visited';
+  }
+
+  CRITICAL: 'completed' includes trips with status = 'review_pending' OR 'locked'.
+  Do not treat 'review_pending' trips as unvisited (see shading spec §1).
+
+EXPORTS:
+  shadingService.getAllCountryShading(): Promise<CountryShadingResult[]>
+    — Run the bulk country query (shading spec §4.1), apply computeState() to each row,
+      look up color_hex and display_name from map_shading_config for non-never_visited rows,
+      return full result set.
+
+  shadingService.getRegionShading(countryCode: string): Promise<RegionShadingResult[]>
+    — Run the region query (shading spec §5.1), apply computeState() per row.
+
+  shadingService.getCityShading(cityId: number): Promise<ShadingResult>
+    — Run the single-city query (shading spec §3.1), apply computeState().
+
+  The shading config (map_shading_config table) should be loaded once and cached
+  in memory on service initialisation. Invalidate cache when PATCH to /api/map/shading/config
+  is received.
+
+================================================================================
+DELIVERABLE J — src/backend/services/items.service.ts
+================================================================================
+
+Business logic for item operations.
+
+CARRY-FORWARD (IT-07):
+
+  itemsService.executeCarryForward(
+    sourceCityId: number,
+    targetTripId: number,
+    targetTripPlaceId: number,
+    sourceItemIds: number[]
+  ): Promise<Item[]>
+    — For each sourceItemId, create a new item on the target trip/place:
+        * item_type: same as source
+        * status: 'consider'
+        * notes: copied from source
+        * is_carried_forward: true
+        * carried_from_item_id: sourceItemId
+    — Copy extension fields from source item (e.g. restaurant name, cuisine, area)
+      but NOT rating or post_visit_notes (those are about the previous visit)
+    — Return the newly created items
+
+LAZY EXTENSION ROW (ADL-14):
+
+  itemsService.ensureExperienceExtension(itemId: number): Promise<void>
+    — If item_experiences row does not exist for itemId, insert an empty one.
+    — Called by the PATCH /items/:itemId handler before updating rating/post_visit_notes.
+
+LOCKED TRIP GUARD:
+  itemsService.assertNotLocked(tripId: number): Promise<void>
+    — Load trip status. If 'locked', throw a typed LockError.
+    — Thrown error is caught by route handler and returned as 403.
+
+================================================================================
+DELIVERABLE K — src/backend/services/startup.service.ts  +  data/countries.json
+================================================================================
+
+This service runs once at startup to ensure the countries table is populated.
+
+COUNTRY SEEDING (GE-04, GE-05, GE-06):
+
+  startupService.seedCountries(): Promise<void>
+    — Count rows in countries table.
+    — If > 0: log "Countries already seeded, skipping" and return.
+    — If 0: load data/countries.json and insert all rows.
+    — Use onConflictDoNothing() for idempotency.
+    — Log "✓ Countries seeded ({count} rows)"
+
+DATA FILE: data/countries.json
+  You must create this file. It contains all ~195 countries with their region tier config.
+  Format:
+    [
+      {
+        "country_code": "US",
+        "name": "United States",
+        "region_tier_enabled": 1,
+        "region_tier_label": "State"
+      },
+      ...
+    ]
+
+  REGION TIER ENABLED (region_tier_enabled = 1) — countries where regions add value:
+
+    Country          | Label
+    -----------------+----------
+    US               | State
+    AU               | State
+    CA               | Province
+    IN               | State
+    BR               | State
+    MX               | State
+    DE               | State
+    AR               | Province
+    CN               | Province
+    ZA               | Province
+    NG               | State
+    ET               | Region
+    RU               | Oblast
+    JP               | Prefecture
+    ID               | Province
+    PK               | Province
+    BD               | Division
+    PH               | Province
+    MY               | State
+    TH               | Province
+    MM               | Region
+    VN               | Province
+    KR               | Province
+    UZ               | Region
+    KZ               | Region
+
+  All other countries: region_tier_enabled = 0, region_tier_label = NULL.
+
+  Include the full ISO 3166-1 alpha-2 country list. Use the standard country names.
+  This is a one-time data entry task — accuracy matters.
+
+  A good source for the full country list:
+  https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes
+  Cross-reference country_code values against the Natural Earth GeoJSON properties
+  to ensure they match (the GeoJSON uses ISO 3166-1 alpha-2 in the 'ISO_A2' property).
+
+  Note: Some Natural Earth features use -99 for Antarctica and disputed territories.
+  Include these as best you can. They will not match trip data so shading is moot,
+  but they should be present for completeness.
+
+================================================================================
+DELIVERABLES M, N — geo/countries.json  +  geo/regions.json
+================================================================================
+
+Natural Earth GeoJSON boundary files. These are served as static assets by Express
+at /geo/countries.json and /geo/regions.json.
+
+DOWNLOAD SOURCES:
+  Countries: https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson
+  Regions:   https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson
+
+  Download these files and place them at:
+    geo/countries.json
+    geo/regions.json
+
+  Do not modify the GeoJSON content. Commit these files.
+
+  Note on file size: ne_10m_admin_1_states_provinces is ~4MB. This is acceptable
+  for a bundled app asset. Commit it to the repo.
+
+  If the above GitHub URLs are unavailable, the authoritative source is:
+    https://www.naturalearthdata.com/downloads/110m-cultural-vectors/
+    https://www.naturalearthdata.com/downloads/10m-cultural-vectors/
+
+  The key properties FRONTEND uses:
+    countries.json: feature.properties.ISO_A2 → matches countries.country_code
+    regions.json:   feature.properties.iso_3166_2 → region reference (informational)
+
+================================================================================
+API DOCUMENTATION — jobs/backend/tech/20260307-api-reference.md
+================================================================================
+
+Write a complete API reference document. For every endpoint include:
+  - HTTP method and path
+  - Description
+  - Query parameters (name, type, required/optional, description)
+  - Request body schema (if applicable)
+  - Response body schema (full shape, all fields)
+  - HTTP status codes returned (including all error cases)
+  - Example request + response
+
+This document is the contract between BACKEND and FRONTEND. FRONTEND must not
+need to ask you what a field does or what a status code means.
+
+================================================================================
+RESPONSE CONVENTIONS
+================================================================================
+
+Successful responses:
+  200 OK         — successful GET or PATCH
+  201 Created    — successful POST (include Location header when practical)
+  204 No Content — successful DELETE
+
+Error responses (always JSON):
+  { "error": "Human-readable message" }
+  400 Bad Request      — validation failure, invalid input
+  403 Forbidden        — trip is locked
+  404 Not Found        — resource not found
+  409 Conflict         — uniqueness violation (e.g. duplicate city on trip)
+  500 Internal Server Error — unexpected error (log details server-side, do not expose)
+
+All timestamps in responses are ISO 8601 format (e.g. "2026-03-07T14:30:00Z").
+
+================================================================================
+WHAT BACKEND DOES NOT DO
+================================================================================
+
+These are FRONTEND responsibilities. Do not implement them:
+  - React components, JSX, or any UI code
+  - Map rendering
+  - Form validation (beyond what's needed for API correctness)
+  - Client-side caching
+  - Browser localStorage or sessionStorage
+
+These are post-MVP. Do not implement:
+  - Authentication or authorisation
+  - Notifications (N-01 through N-04)
+  - Data import tooling
+  - Trip companion access
+
+If you are unsure whether something is in scope, flag it in your outbox to COO.
+Do not guess. Do not implement undocumented features.
+
+================================================================================
+ACCEPTANCE CRITERIA
+================================================================================
+
+Your work is not complete until all of the following are true:
+
+  1. npm run dev starts the Express server without errors. Server logs database
+     connection mode and port on startup.
+
+  2. All endpoints listed in this spec return correct responses for happy-path
+     requests (tested manually with curl or Postman against the running server).
+
+  3. Locked trip protection is enforced: any write to a locked trip's items,
+     places, or core fields returns 403.
+
+  4. Status transition enforcement: only allowed transitions succeed;
+     invalid transitions return 400 with a clear message.
+
+  5. Carry-forward: POST with accepted source items creates new items with
+     is_carried_forward = true, status = 'consider', and carried_from_item_id set.
+
+  6. Shading: GET /api/map/shading returns a result for every country in the
+     countries table. The state key matches the expected state given known trip data
+     (test: create a trip, lock it, verify the country shows 'visited_once').
+
+  7. Geocoding service starts on app launch, processes any pending cities,
+     and does not crash the app if Nominatim is unreachable.
+
+  8. Countries table is populated on first launch (seedCountries runs if table empty).
+
+  9. geo/countries.json and geo/regions.json are present and served correctly
+     by GET /geo/countries.json and GET /geo/regions.json.
+
+  10. API reference document is complete and covers all endpoints.
+
+  11. Code meets Shared Standards 1–4:
+      - Inline comments on all non-obvious logic
+      - Docstrings on all exported functions and service methods
+      - No hardcoded values
+      - No manual DB edits
+
+  12. All changes committed to Git per Shared Standards 14–18.
+
+================================================================================
+ADD THESE SCRIPTS TO package.json
+================================================================================
+
+  "dev":    "tsx watch src/backend/server.ts"
+  "start":  "tsx src/backend/server.ts"
+
+  tsx is already installed (used by DATABASE). No new package needed.
+
+================================================================================
+DEPENDENCIES AND BLOCKERS
+================================================================================
+
+  You are not blocked. Begin immediately.
+
+  FRONTEND is waiting on you. As soon as your API is functional, FRONTEND begins.
+  Your API reference doc is the FRONTEND's green light — complete it.
+
+  When complete: write to jobs/COO/inbox/ and jobs/frontend/inbox/ as follows:
+    - COO: confirmation that all deliverables are done and acceptance criteria met.
+      Flag any open questions or deviations.
+    - FRONTEND: notification that the API is ready, with a pointer to your API
+      reference doc and a brief summary of the base URL and key patterns.
+
+================================================================================

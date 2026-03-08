@@ -1,0 +1,112 @@
+FROM:     BACKEND
+TO:       FRONTEND
+DATE:     2026-03-08
+SUBJECT:  API Ready — Travel Tracker Backend Phase 1 Complete
+
+The Express API is running and all endpoints are implemented. You are unblocked.
+
+================================================================================
+QUICK START
+================================================================================
+
+  Start the backend server:
+    npm run start       — production (or)
+    npm run dev         — watch mode (auto-restart on file changes)
+
+  Base URL:   http://localhost:3001
+  Health:     GET http://localhost:3001/health → { "status": "ok" }
+
+================================================================================
+API REFERENCE DOCUMENT
+================================================================================
+
+Full API reference (every endpoint, every field, every error) is at:
+
+  jobs/backend/tech/20260307-api-reference.md
+
+This document is your contract. Do not ask BACKEND to clarify anything that
+is documented there.
+
+================================================================================
+KEY PATTERNS
+================================================================================
+
+1. ALL ENDPOINTS PREFIXED /api/
+   Example: GET http://localhost:3001/api/trips
+
+2. TRIPS ARE THE ROOT RESOURCE
+   - GET /api/trips              — list all trips
+   - POST /api/trips             — create trip
+   - GET /api/trips/:id          — get full trip (includes places, items)
+   - PATCH /api/trips/:id        — update trip
+   - PATCH /api/trips/:id/status — change status
+   - PATCH /api/trips/:id/lock   — lock trip (no further writes)
+   - PATCH /api/trips/:id/unlock — unlock back to review_pending
+
+3. PLACES AND ITEMS ARE NESTED UNDER TRIPS
+   - /api/trips/:tripId/places        — manage cities on a trip
+   - /api/trips/:tripId/places/:id/activities — tag activities to places
+   - /api/trips/:tripId/items         — manage items (restaurants, flights, etc.)
+   - /api/trips/:tripId/items/:itemId — update/delete specific item
+
+4. ITEMS HAVE FLAT RESPONSES
+   All type-specific extension fields are merged into the top-level item object.
+   Fields not applicable to the item type are returned as null (not omitted).
+
+5. LOCKED TRIP PROTECTION
+   Any write to a locked trip returns 403 { "error": "Trip is locked" }.
+   Lock state: trip.status === "locked"
+
+6. CITIES ARE SEARCHED LOCALLY
+   GET /api/cities?q=par — substring search in local DB
+   POST /api/cities      — creates city + triggers background geocoding
+
+7. MAP SHADING
+   GET /api/map/shading  — all countries with color/state
+   Colors are customizable via PATCH /api/map/shading/config/:stateKey
+
+8. ADMIN DATA (pre-seeded on first launch)
+   GET /api/admin/categories/active   — trip categories for dropdowns
+   GET /api/admin/activities/active   — activity options
+   GET /api/admin/companions/active   — companion type options
+   GET /api/admin/countries           — all 250 countries
+
+9. STATIC GEOJSON FILES
+   GET /geo/countries.json   — country boundaries (839 KB, ISO_A2 property)
+   GET /geo/regions.json     — state/province boundaries (40 MB, iso_3166_2)
+
+================================================================================
+VALIDATION ERRORS
+================================================================================
+
+POST/PATCH failures return 400 with structured errors:
+
+  {
+    "error": "Validation failed",
+    "details": [
+      { "field": "end_date", "message": "end_date must be on or after start_date" }
+    ]
+  }
+
+Use "details" array to display per-field validation messages in forms.
+
+================================================================================
+KNOWN GAPS (AWAIT COO DIRECTION BEFORE IMPLEMENTING)
+================================================================================
+
+1. CARRY-FORWARD EXECUTION:
+   GET /api/cities/:id/carry-forward returns candidate items from past trips.
+   The POST endpoint to actually execute the carry-forward does not exist yet.
+   Do not build this UI flow until COO confirms the endpoint design.
+
+2. CITY PATCH:
+   There is no PATCH /api/cities/:id endpoint yet.
+
+================================================================================
+QUESTIONS?
+================================================================================
+
+Check jobs/backend/tech/20260307-api-reference.md first.
+If your question is not answered there, write to jobs/backend/inbox/.
+
+================================================================================
