@@ -40,6 +40,13 @@ AT THE END OF EVERY THREAD, YOU MUST:
 5. Update _project/dependency-graph.txt if any task statuses have changed
 6. Update _project/project-plan.txt if phase or priorities have changed
 
+GIT REQUIREMENT FOR ALL SPECS:
+Every spec written for a worker job must include the following as the final steps before closing the thread:
+1. Stage all changes: git add .
+2. Commit with a descriptive message: git commit -m "[JOBID] description"
+3. Push to GitHub: git push
+4. Confirm the push was successful before writing the Park Document
+
 PARK DOCUMENT FORMAT:
 * Date and thread summary
 * Decisions made and rationale

@@ -20,3 +20,12 @@ QUALITY
 ARCHITECTURE
 12. All decisions must be made with future migration to a hosted web app and iOS app in mind.
 13. The data model is the most critical asset — no schema changes without Architect review.
+
+GIT AND VERSION CONTROL
+14. Every job must commit all changes to Git as the final step of closing a thread, before writing the Park Document.
+15. Commit messages must be descriptive and follow this format:
+    [JOBID] Short description of what was done
+    Example: [DATABASE] Add schema v1 — trips, places, items and geographic hierarchy
+16. Never commit broken or incomplete code — if a thread ends mid-task, commit what works and document the incomplete state clearly in the Park Document and context file.
+17. Never commit secrets, API keys or environment variables — these go in .env files which are in .gitignore.
+18. After committing, confirm the push was successful before closing the thread.
