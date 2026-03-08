@@ -34,50 +34,71 @@ ARCHITECT
   Completed: 2026-03-07
 
 ================================================================================
-PHASE 1 — DATA LAYER                                          STATUS: ACTIVE
+PHASE 1 — DATA LAYER                                          STATUS: COMPLETE
 ================================================================================
 
 DATABASE
   Spec: jobs/database/inbox/20260307_1500-COO-database-spec.txt
+  Completed: 2026-03-07
   Deliverables:
-    [ ] src/backend/db/schema.ts  — Drizzle schema (19 tables, all FK/constraints)
-    [ ] src/backend/db/index.ts   — DB connection factory (sqlite/postgres)
-    [ ] drizzle.config.ts         — Drizzle Kit configuration
-    [ ] src/backend/db/seed.ts    — Seed data loader (admin lists, shading config)
-    [ ] src/backend/migrations/   — Generated migration files
+    [x] src/backend/db/schema.ts  — Drizzle schema (19 tables, all FK/constraints)
+    [x] src/backend/db/index.ts   — DB connection factory (sqlite/postgres)
+    [x] drizzle.config.ts         — Drizzle Kit configuration
+    [x] src/backend/db/seed.ts    — Seed data loader (admin lists, shading config)
+    [x] src/backend/migrations/   — Generated migration files
   Acceptance:
-    [ ] npm run db:push succeeds on fresh SQLite file
-    [ ] npm run db:seed populates all defaults, idempotent
-    [ ] TypeScript types exported for all tables
-    [ ] Schema matches ER schema v1.1 exactly
+    [x] npm run db:push succeeds on fresh SQLite file
+    [x] npm run db:seed populates all defaults, idempotent
+    [x] TypeScript types exported for all tables
+    [x] Schema matches ER schema v1.1 exactly
+  Notes:
+    Driver: @libsql/client (approved substitution for better-sqlite3, COO 2026-03-07)
 
 ================================================================================
-PHASE 2 — API LAYER                                           STATUS: BLOCKED
+PHASE 2 — API LAYER                                           STATUS: ACTIVE (correction)
 ================================================================================
 
 BACKEND
-  Blocked on: DATABASE schema complete
-  Scope (from tech blueprint §1.3):
-    - All REST API routes (trips, places, items, cities, map shading, admin)
-    - Geocoding service (Nominatim, queue-and-resolve pattern)
-    - Shading state computation (computeState() function per shading spec)
-    - Item carry-forward service
-    - Trip status transition enforcement
-    - Locked-trip write prevention
+  Spec: jobs/backend/inbox/20260307_1700-COO-backend-spec.txt
+  Completed: 2026-03-08 (Phase 1 accepted)
+  Phase 1 deliverables:
+    [x] src/backend/server.ts + startup sequence
+    [x] All REST API routes (trips, places, items, cities, map shading, admin)
+    [x] Geocoding service, shading service, items service, startup service
+    [x] data/countries.json (250 ISO 3166-1 countries)
+    [x] geo/countries.json + geo/regions.json (Natural Earth GeoJSON)
+    [x] src/backend/validation/ (all Zod schemas)
+    [x] src/backend/middleware/ (validate, auth stub, error-handler)
+    [x] .github/workflows/security.yml (CI pipeline)
+    [x] jobs/backend/tech/20260307-api-reference.md
+  Correction C1-C3 (in progress):
+    [ ] POST /api/trips/:tripId/places/:placeId/carry-forward (IT-07 execution)
+    [ ] PATCH /api/cities/:id (city region update)
+    [ ] POST /api/cities secondary rate limit (M1 quick fix)
+  Correction spec: jobs/backend/inbox/20260308_1100-COO-backend-accepted-correction.txt
+  Notes:
+    Driver substitution: @libsql/client (approved 2026-03-07)
+    npm audit: 0 HIGH/CRITICAL; 4 MODERATE (drizzle-kit dev dep — deferred)
+    Security report processed; backlog at _project/security-backlog.md
 
 ================================================================================
-PHASE 3 — UI LAYER                                            STATUS: BLOCKED
+PHASE 3 — UI LAYER                                            STATUS: ACTIVE
 ================================================================================
 
 FRONTEND
-  Blocked on: BACKEND API complete
+  Spec: jobs/frontend/inbox/20260308_1100-COO-frontend-spec.txt
+  Security addendum: jobs/frontend/inbox/20260308_1110-COO-frontend-security-addendum.txt
   Scope (from tech blueprint §1.4):
     - MapView (MapLibre GL JS via react-map-gl, Natural Earth GeoJSON)
     - TripList / TripDetail
     - ItemList (sort/filter by rating, type, status — IT-08, IT-09)
     - PostTripReview workflow (RV-01 to RV-04)
-    - CarryForwardPrompt modal (IT-07)
-    - AdminPanel (categories, activities, companions, shading config)
+    - CarryForwardPrompt modal (IT-07 — GET implemented; POST pending BACKEND C1)
+    - AdminPanel (categories, activities, companions, shading config, countries)
+  Acceptance criteria: 18 items (spec) + 4 security addendum items
+  Pending:
+    Completion report to COO inbox
+    Note: CarryForwardPrompt execution step depends on BACKEND correction C1
 
 ================================================================================
 PHASE 4 — QUALITY AND DOCUMENTATION                          STATUS: BLOCKED
@@ -122,4 +143,8 @@ CHANGE LOG
 ================================================================================
 
   2026-03-07  v1.0  Initial project plan. Phase 0 complete. Phase 1 active.
+  2026-03-07  v1.1  Phase 1 complete (DATABASE accepted). Phase 2 active (BACKEND spec dispatched).
+  2026-03-08  v1.2  BACKEND Phase 1 accepted. BACKEND correction dispatched (C1–C3).
+                    Phase 3 active (FRONTEND spec dispatched). Security backlog created.
+                    Bug classification framework added to _shared/frameworks.txt (SS-25–30).
 

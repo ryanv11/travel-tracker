@@ -1,0 +1,190 @@
+FROM:     COO
+TO:       BACKEND
+DATE:     2026-03-08
+SUBJECT:  Phase 1 Accepted — Correction Required for Two Missing Endpoints
+
+================================================================================
+SECTION 1 — ACCEPTANCE
+================================================================================
+
+BACKEND Phase 1 deliverables are ACCEPTED.
+
+All 26 acceptance criteria have been reviewed and verified:
+  - Criteria 1–12 (core spec): PASSED
+  - Criteria 13–21 (security addendum): PASSED
+  - Criteria 22–26 (corrections addendum): PASSED
+
+Security report (20260308_1000) acknowledged and processed — see Section 3.
+
+The deviations documented in your completion report are approved:
+  1. CORS allowlist overrides original "allow all" spec — correct and required.
+  2. Helmet frameguard: DENY — correct.
+  3. Zod v4 error.issues — correct adaptation.
+  4. Express v5 req.query workaround — noted and acceptable.
+  5. regions.json covers US/AU/CA only — matches Correction 2 exactly.
+
+================================================================================
+SECTION 2 — CORRECTION: TWO MISSING ENDPOINTS
+================================================================================
+
+BACKEND correctly flagged two open items. COO has made the design decisions.
+Implement both endpoints before closing this correction thread.
+
+--------------------------------------------------------------------------------
+CORRECTION C1: Carry-Forward Execution Endpoint (IT-07)
+--------------------------------------------------------------------------------
+
+Endpoint:     POST /api/trips/:tripId/places/:placeId/carry-forward
+Purpose:      Execute carry-forward — create Consider items from selected Next
+              time items at the source city and attach them to the specified
+              target trip/place.
+
+Request body (application/json):
+  {
+    "source_item_ids": number[]    // IDs of items to carry forward. Min 1.
+  }
+
+Validation (Zod — add to validation/cities.schemas.ts or items.schemas.ts):
+  - source_item_ids: z.array(z.number().int().positive()).min(1)
+  - Strict schema — reject unexpected fields
+
+Pre-conditions to verify before executing:
+  1. :tripId exists — 404 if not
+  2. :placeId exists and belongs to :tripId — 404 if not
+  3. Target trip is NOT locked — 403 if locked (use assertNotLocked())
+  4. Each source item in source_item_ids exists — 400 if any ID is invalid
+  5. targetTripPlaceId = :placeId, targetTripId = :tripId
+
+Execution:
+  Call executeCarryForward() from items.service.ts with:
+    {
+      sourceCityId: city ID of :placeId (look up from trip_places JOIN cities),
+      targetTripId: :tripId,
+      targetTripPlaceId: :placeId,
+      sourceItemIds: body.source_item_ids
+    }
+
+Response 201 Created:
+  {
+    "created_item_ids": number[],   // IDs of newly created items
+    "count": number                 // number of items created
+  }
+
+Error responses:
+  400 — validation failure (bad IDs, empty array, unknown fields)
+  403 — target trip is locked
+  404 — trip or place not found
+
+Location in codebase:
+  Add to src/backend/routes/cities.ts (or create a new carry-forward route
+  — COO preference is cities.ts since the source context is a city, but BACKEND
+  may place it in items.ts if that is architecturally cleaner).
+  Update jobs/backend/tech/20260307-api-reference.md to document this endpoint.
+
+--------------------------------------------------------------------------------
+CORRECTION C2: City PATCH Endpoint
+--------------------------------------------------------------------------------
+
+Endpoint:     PATCH /api/cities/:id
+Purpose:      Allow updating a city's region_id after creation. Required when
+              a city was created without a region_id and the user later assigns
+              the region, or for general city corrections.
+
+Request body (application/json — partial update, all fields optional):
+  {
+    "region_id": number | null    // Set or clear the region association
+  }
+
+Validation:
+  - region_id: z.number().int().positive().nullable().optional()
+  - Strict schema — reject unexpected fields
+  - If region_id is provided (non-null), verify the region exists in the
+    regions table — 400 if region_id does not exist
+
+Response 200 OK:
+  {
+    "id": number,
+    "name": string,
+    "country_code": string,
+    "region_id": number | null,
+    "latitude": number | null,
+    "longitude": number | null,
+    "geocode_status": string
+  }
+
+Error responses:
+  400 — validation failure or region_id not found
+  404 — city not found
+
+Location: Add to src/backend/routes/cities.ts.
+Document in jobs/backend/tech/20260307-api-reference.md.
+
+================================================================================
+SECTION 3 — SECURITY REPORT ACKNOWLEDGEMENT
+================================================================================
+
+Security report processed by COO. Decisions recorded below.
+
+FINDING H3 (SQLite plaintext): ACCEPTED AS-IS. Decision confirmed. No action.
+FINDING H1 (No authentication): Phase 2 hard gate. Auth stub is correct for now.
+FINDING H2 (No HTTPS): Phase 2 hard gate. Correct for localhost-only Phase 1.
+FINDING M3 (trust proxy): Phase 2 pre-flight. Record it — no action now.
+FINDING L1 (admin role separation): Phase 2 design input. No action now.
+FINDING L3 (cookie security): Phase 2 pre-flight checklist. No action now.
+FINDING M1 (geocoding rate limit): Quick fix. Implement alongside C1 in this correction.
+  Rationale: minimal effort, correct to implement before FRONTEND can hit the
+  endpoint. POST /api/cities carries meaningful geocoding cost per call.
+  Implementation: add a secondary rateLimit() at POST /api/cities: max 20/min
+  (not the 10/min suggestion — user may legitimately create many cities when
+  entering historical trip data). Configure independently of the global limiter.
+FINDING M2 (LIKE wildcard): Backlog. No action now.
+FINDING L2 (request timeout): Backlog. No action now.
+FINDING L5 (CSP unsafe-inline): Backlog. No action now.
+NPM AUDIT (drizzle-kit esbuild): Deferred. Own sprint when drizzle-kit confirms
+  compatibility with 0.31.9. No action now.
+
+Ongoing security practice (Section 5 of your report): AGREED. That policy is
+formally adopted and will be enforced.
+
+================================================================================
+SECTION 4 — ACCEPTANCE CRITERIA FOR THIS CORRECTION
+================================================================================
+
+AC-C1:  POST /api/trips/:tripId/places/:placeId/carry-forward is implemented.
+        With valid body: returns 201 { created_item_ids, count }.
+        Created items have: status = 'consider', is_carried_forward = 1,
+        carried_from_item_id = source item ID.
+        With empty source_item_ids: returns 400.
+        With locked target trip: returns 403.
+        With invalid trip or place: returns 404.
+
+AC-C2:  PATCH /api/cities/:id is implemented.
+        With valid region_id: updates and returns 200 city object.
+        With non-existent region_id: returns 400.
+        With city not found: returns 404.
+        With null region_id: clears region, returns 200.
+
+AC-C3:  POST /api/cities rate limit: 20 req/min independent of global limiter.
+
+AC-C4:  jobs/backend/tech/20260307-api-reference.md updated to document both
+        new endpoints (C1 and C2).
+
+AC-C5:  npm audit clean (no new HIGH/CRITICAL). If any new moderate
+        vulnerabilities introduced by any package changes, report to COO.
+
+AC-C6:  All changes committed to git and pushed.
+
+================================================================================
+SECTION 5 — SEQUENCE
+================================================================================
+
+FRONTEND has been unblocked and is starting on features that do not depend
+on C1 (MapView, TripList, TripDetail, ItemList, AdminPanel, PostTripReview).
+
+FRONTEND has been instructed to implement the CarryForwardPrompt modal LAST
+and to leave the execution step as a TODO until C1 is available.
+
+Complete C1, C2, C3 and notify COO + FRONTEND when done.
+FRONTEND does not need to pause — corrections are parallel to their work.
+
+================================================================================

@@ -29,3 +29,93 @@ GIT AND VERSION CONTROL
 16. Never commit broken or incomplete code — if a thread ends mid-task, commit what works and document the incomplete state clearly in the Park Document and context file.
 17. Never commit secrets, API keys or environment variables — these go in .env files which are in .gitignore.
 18. After committing, confirm the push was successful before closing the thread.
+
+SECURITY
+19. All jobs must read _project/security-spec.md at initialisation. It is a binding project document,
+    not optional reading. Phase 1 security controls (SEC-01 to SEC-13) are mandatory requirements,
+    not guidelines. Any implementation that conflicts with these controls is a defect.
+20. npm audit must be run before closing any thread in which packages were installed or updated.
+    HIGH or CRITICAL vulnerabilities block thread closure — resolve them or flag to COO immediately.
+    MODERATE vulnerabilities must be reported to COO in the closing report; COO decides whether to block.
+21. Never introduce SQL string concatenation. All database queries must go through the ORM or use
+    parameterised statements. String-concatenated SQL is a blocking defect with no exceptions.
+22. Never use dangerouslySetInnerHTML in any React component. This is a blocking defect.
+    If you believe it is genuinely required, flag to COO before implementing. It has not been required yet.
+
+SPEC REVIEW
+23. Before beginning implementation of any spec, COO may designate a downstream reviewer for that spec.
+    If you receive a review request:
+      - Your scope is narrow: flag blockers, missing dependencies, and interface mismatches only.
+      - Do not propose design changes or style preferences — that is not your brief.
+      - Do not contact the spec author directly — report all findings to COO outbox.
+      - Complete your review in the same thread it was requested.
+    If you are not asked to review, do not provide unsolicited feedback on other jobs' specs.
+
+24. Spec review is not a veto. COO adjudicates all reviewer feedback and decides what changes to make.
+    A reviewer flagging a concern does not block the spec — it informs COO's decision.
+
+BUG DISCOVERY AND CLASSIFICATION
+25. Every bug, defect, or anomaly discovered during implementation must be immediately
+    classified using the following severity scale:
+
+      TRIVIAL   — cosmetic or minor issue; no functional impact; safe to defer.
+                  Examples: spelling in a log message, unnecessary console.log,
+                  a missing comment, a variable name that could be clearer.
+
+      MINOR     — functional gap or edge-case error; does not affect primary workflows;
+                  can be scheduled for next sprint.
+                  Examples: a filter that returns one extra row in an unlikely edge case,
+                  a non-critical API field that defaults to the wrong value.
+
+      MAJOR     — meaningful functional defect; affects a core workflow or data integrity
+                  but is containable; should be fixed this sprint.
+                  Examples: a PATCH endpoint that fails to update a required field,
+                  a validation rule that is missing for an important but non-critical input.
+
+      CRITICAL  — data loss, data corruption, security vulnerability, or breakage of a
+                  primary user-facing workflow. Must be fixed before any further work
+                  proceeds. Notify COO immediately regardless of current task.
+                  Examples: a DELETE cascade that removes more rows than intended,
+                  a SQL injection surface, a status transition that skips a required guard.
+
+26. MANDATORY RE-EVALUATION: Any bug initially classified TRIVIAL must be re-evaluated
+    before the investigator moves on. Ask the following questions:
+      a) Does this touch shared state, a FK relationship, or a query used elsewhere?
+      b) Could this produce incorrect data that is silently persisted?
+      c) Does this affect behaviour under the load or data conditions expected in production?
+      d) Is this symptom pointing to a deeper root cause that has not been found yet?
+    If any answer is yes, reclassify immediately. Do not let momentum keep a bug at TRIVIAL
+    when evidence points to something larger.
+
+27. RECLASSIFICATION IS NOT OPTIONAL: If a bug's actual severity is discovered to be higher
+    than its initial classification — at any point during investigation or implementation —
+    the bug must be reclassified immediately. Reclassification upward triggers the following:
+      - TRIVIAL → MINOR:    Note in current thread. No immediate COO action required.
+      - TRIVIAL → MAJOR:    Pause current task. Write to COO outbox before proceeding.
+      - TRIVIAL → CRITICAL: Stop all other work. Write to COO outbox immediately.
+                             Do not self-authorise fixes to CRITICAL bugs without COO review.
+      - MINOR → MAJOR:      Pause current task. Write to COO outbox.
+      - MINOR → CRITICAL:   Stop all other work. Write to COO outbox immediately.
+      - MAJOR → CRITICAL:   Stop all other work. Write to COO outbox immediately.
+    The reason for the reclassification must be clearly documented: what you initially
+    thought, what you found, and why the severity changed.
+
+28. NO DEFERRED SUBSTANTIAL BUGS: A bug initially classified as TRIVIAL that reclassifies
+    to MAJOR or CRITICAL may never be deferred back to a later sprint. Once the true severity
+    is known, it is treated as its actual severity — not its original classification.
+    "I thought it was trivial" is not a justification for deferring a MAJOR or CRITICAL fix.
+
+29. BUG REPORT FORMAT: When writing to COO outbox about a MAJOR or CRITICAL bug, include:
+      INITIAL CLASSIFICATION: (what you first thought it was)
+      ACTUAL CLASSIFICATION:  (what it turned out to be)
+      DISCOVERY CONTEXT:      (what you were doing when you found the root cause)
+      SYMPTOM:                (what the bug does or fails to do)
+      ROOT CAUSE:             (the underlying code or design issue)
+      SCOPE:                  (what else in the codebase could be affected)
+      PROPOSED FIX:           (your recommendation — COO decides whether to approve)
+      BLOCKING:               (does this block the current thread or downstream jobs?)
+
+30. BUG TRACKING IN PARK DOCUMENTS: All bugs discovered during a thread — regardless of
+    severity — must be listed in the Park Document under a "Bugs Discovered" section.
+    Format: [SEVERITY] Short description — disposition (fixed | deferred | escalated to COO)
+    Bugs that were reclassified must note both the initial and final classification.

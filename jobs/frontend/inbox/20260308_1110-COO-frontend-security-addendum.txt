@@ -1,0 +1,94 @@
+FROM:     COO
+TO:       FRONTEND
+DATE:     2026-03-08
+SUBJECT:  Security Addendum — FRONTEND Phase 1
+
+Read alongside the main FRONTEND spec (20260308_1100-COO-frontend-spec.txt).
+Security requirements in Section 8 of the spec are authoritative and binding.
+This addendum provides additional context and clarifies scope.
+
+================================================================================
+SECURITY CONTROLS APPLICABLE TO FRONTEND
+================================================================================
+
+FRONTEND is responsible for the client-side portion of SEC-12.
+All other Phase 1 security controls (SEC-01 through SEC-11, SEC-13) are
+BACKEND's responsibility and are already implemented.
+
+--------------------------------------------------------------------------------
+SEC-12 (FRONTEND PORTION) — OUTPUT ENCODING / XSS PREVENTION
+--------------------------------------------------------------------------------
+
+THIS CONTROL IS MANDATORY. Any violation is a blocking defect.
+
+React's JSX rendering auto-escapes all user-supplied string values when rendered
+as text content. This protection is nullified by dangerouslySetInnerHTML.
+
+RULE 1: NEVER USE dangerouslySetInnerHTML.
+  Not in components, not in tests, not "just temporarily."
+  If you believe there is a legitimate need, stop and write to COO outbox.
+  There is no known scenario in this project where it is required.
+
+RULE 2: SANITISE ALL USER-SUPPLIED URLs before rendering as <a href>.
+  The only Phase 1 user-supplied URL is: trip.photo_album_ref.
+  Use urlSanitiser.ts (spec §3) to validate scheme before rendering.
+  Allowed: 'https://' | 'file://'
+  Rejected (render as plain text or omit link): everything else.
+  Attack vectors being mitigated: javascript: protocol injection, data: URIs.
+
+RULE 3: MAP LABELS AND POPUPS must use MapLibre's rendering API.
+  User data that appears in map labels (city names, trip names, etc.) must go
+  through MapLibre's layout property "text-field" or be rendered in React
+  outside the canvas element.
+  NEVER: element.innerHTML = userSuppliedString inside a MapLibre callback.
+
+RULE 4: REUSE BACKEND ZOD SCHEMAS for client-side validation.
+  Import Zod schemas from src/backend/validation/ for all form validation.
+  Do not write parallel validation logic. This prevents client/server drift
+  and ensures the same allowlists, string constraints, and cross-field rules
+  apply on both sides.
+  Note: this is a quality AND security control — it prevents bypassing server
+  validation intent through a more permissive client-side implementation.
+
+--------------------------------------------------------------------------------
+SEC-10 — DEPENDENCY SECURITY (FRONTEND)
+--------------------------------------------------------------------------------
+
+Run npm audit before submitting your completion report.
+HIGH or CRITICAL vulnerabilities block thread closure.
+MODERATE vulnerabilities: report to COO in your completion report. COO decides.
+
+Do not install packages from non-npm sources.
+Do not install packages with known HIGH/CRITICAL advisories at install time.
+If a required package has a vulnerability, report to COO before proceeding.
+
+--------------------------------------------------------------------------------
+NO OTHER SEC CONTROLS ARE FRONTEND'S RESPONSIBILITY IN PHASE 1
+--------------------------------------------------------------------------------
+
+SEC-01 through SEC-09 (headers, CORS, rate limiting, auth, etc.) are enforced
+by BACKEND middleware. FRONTEND does not need to implement any of these.
+FRONTEND makes fetch() calls — BACKEND handles all transport-layer controls.
+
+SEC-11 (SQL injection): no database access in FRONTEND. Not applicable.
+SEC-13 (CI pipeline): already set up by BACKEND (.github/workflows/security.yml).
+  FRONTEND changes will run through the existing pipeline automatically.
+
+================================================================================
+ACCEPTANCE CRITERIA (SECURITY)
+================================================================================
+
+These supplement AC-18 in the main spec:
+
+  SEC-AC-1: grep -r "dangerouslySetInnerHTML" src/frontend/ returns no results.
+
+  SEC-AC-2: urlSanitiser.ts exists and sanitiseUrl() is called wherever
+            photo_album_ref is rendered as a link.
+
+  SEC-AC-3: MapLibre map popups and labels do not use innerHTML injection.
+            Any MapLibre overlay content uses React components or MapLibre
+            layout properties only.
+
+  SEC-AC-4: npm audit: zero HIGH or CRITICAL. Report any MODERATE to COO.
+
+================================================================================

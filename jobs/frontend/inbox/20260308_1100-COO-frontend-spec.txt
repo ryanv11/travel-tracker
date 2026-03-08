@@ -1,0 +1,726 @@
+FROM:     COO
+TO:       FRONTEND
+DATE:     2026-03-08
+SUBJECT:  Phase 3 — FRONTEND Spec v1.0
+
+BACKEND Phase 1 is accepted. FRONTEND is unblocked. Begin immediately.
+
+================================================================================
+REQUIRED READING BEFORE STARTING
+================================================================================
+
+  1. _shared/frameworks.txt            — Shared coding and quality standards
+  2. _project/security-spec.md         — SEC-12 applies to FRONTEND (XSS, URL sanitisation)
+  3. jobs/architect/tech/20260307-tech-blueprint.md  — Section 1.4 (frontend), Section 2 (mapping)
+  4. _project/travel-tracker-BRD.md    — Feature requirements (authoritative)
+  5. jobs/backend/tech/20260307-api-reference.md     — API contract (your source of truth)
+
+Do not deviate from the architecture in the tech blueprint without COO approval.
+Do not build features not in the BRD.
+
+================================================================================
+SECTION 1 — OVERVIEW
+================================================================================
+
+Build the React + TypeScript SPA frontend for Travel Tracker.
+
+Target: http://localhost:5173 (Vite dev server, points to Express API at :3001)
+Build output: dist/ (static files served by Express in production / Electron)
+
+Tech stack (from tech-blueprint.md §1.4 — not open for substitution):
+  - React 18 + TypeScript
+  - Vite (build tool)
+  - TanStack Query (React Query) v5 — server state management
+  - MapLibre GL JS + react-map-gl — mapping
+  - MapTiler — tile provider (key from env: VITE_MAPTILER_KEY)
+  - Zod — import shared schemas from src/backend/validation/ for client-side
+    validation (same rules, zero drift)
+
+No Redux. No custom state management beyond React Query + useState/useReducer.
+No UI component library is specified — keep the UI clean and functional.
+Plain CSS or CSS modules are acceptable. Do not add a heavyweight design system.
+
+================================================================================
+SECTION 2 — ENVIRONMENT CONFIGURATION
+================================================================================
+
+All environment-specific values go in .env.local (never hardcoded in source).
+
+Required environment variables:
+
+  VITE_API_BASE_URL=http://localhost:3001
+    Base URL for all API calls. Every fetch in the app must use this variable.
+    No hardcoded http://localhost:3001 in any component or hook file.
+
+  VITE_MAPTILER_KEY=<user-provided>
+    MapTiler API key for vector tile requests.
+    Do not commit a real key. Add a placeholder to .env.example.
+
+Create or update:
+  .env.example     — document both vars with placeholder values
+  vite.config.ts   — configure Vite if not already present (proxy /api → :3001
+                     for dev, or let React fetch directly using VITE_API_BASE_URL)
+
+================================================================================
+SECTION 3 — DIRECTORY STRUCTURE
+================================================================================
+
+Follow the structure defined in tech-blueprint.md §5 exactly:
+
+  src/frontend/
+    main.tsx              — React entry point
+    App.tsx               — root component, router, QueryClientProvider
+    components/           — reusable UI components
+      Map/
+        MapView.tsx       — MapLibre GL JS integration
+        CountryLayer.tsx  — GeoJSON layer + feature-state shading
+        RegionLayer.tsx   — region-level shading layer
+        CityMarkers.tsx   — city pin layer
+      TripList/
+        TripList.tsx
+        TripCard.tsx
+      TripDetail/
+        TripDetail.tsx
+        PlaceSection.tsx
+        ItemCard.tsx
+        ItemForm.tsx      — unified item create/edit form (type-aware)
+      PostTripReview/
+        ReviewPanel.tsx
+        ReviewItemRow.tsx
+      CarryForward/
+        CarryForwardModal.tsx
+      Admin/
+        AdminPanel.tsx
+        CategoryTab.tsx
+        ActivityTab.tsx
+        CompanionTab.tsx
+        ShadingTab.tsx
+        CountryTab.tsx
+      shared/
+        StatusBadge.tsx
+        RatingStars.tsx
+        ConfirmDialog.tsx
+        LoadingSpinner.tsx
+        ErrorMessage.tsx
+    pages/
+      MapPage.tsx
+      TripsPage.tsx
+      TripDetailPage.tsx
+      AdminPage.tsx
+    hooks/
+      useTrips.ts         — React Query hooks for trips resource
+      usePlaces.ts        — hooks for places resource
+      useItems.ts         — hooks for items resource
+      useCities.ts        — hooks for city search and carry-forward
+      useMapShading.ts    — hooks for /api/map/shading
+      useAdmin.ts         — hooks for all admin endpoints
+    types/
+      api.ts              — TypeScript types matching API response shapes
+                            (derive from Drizzle InferSelectModel where possible)
+    utils/
+      apiClient.ts        — centralised fetch wrapper (uses VITE_API_BASE_URL)
+      urlSanitiser.ts     — SEC-12: safe URL rendering (https:// and file:// only)
+
+COO note on shared types: Drizzle exports InferSelectModel<typeof tableName>.
+Import these from src/backend/db/schema.ts to avoid duplicating type definitions.
+If you need a subset or API-shaped version, define it in src/frontend/types/api.ts
+and extend or pick from the Drizzle types.
+
+================================================================================
+SECTION 4 — API CLIENT PATTERN
+================================================================================
+
+Create src/frontend/utils/apiClient.ts.
+
+All API calls go through this module — never call fetch() directly in a component.
+This ensures VITE_API_BASE_URL is applied consistently and error handling is uniform.
+
+  const BASE = import.meta.env.VITE_API_BASE_URL;
+
+  export async function apiGet<T>(path: string): Promise<T> { ... }
+  export async function apiPost<T>(path: string, body: unknown): Promise<T> { ... }
+  export async function apiPatch<T>(path: string, body: unknown): Promise<T> { ... }
+  export async function apiDelete(path: string): Promise<void> { ... }
+
+Handle 4xx/5xx responses: throw an Error with the API's error.message (or
+"Unexpected error" for 5xx). React Query will catch and expose this via
+query.error.
+
+================================================================================
+SECTION 5 — REACT QUERY PATTERNS
+================================================================================
+
+One hook file per resource in src/frontend/hooks/. Each hook wraps a React Query
+useQuery or useMutation.
+
+Pattern:
+  // useTrips.ts
+  export function useTrips(filters?: { status?: string }) {
+    return useQuery({ queryKey: ['trips', filters], queryFn: () => apiGet('/api/trips?...') });
+  }
+  export function useTrip(id: number) {
+    return useQuery({ queryKey: ['trips', id], queryFn: () => apiGet(`/api/trips/${id}`) });
+  }
+  export function useCreateTrip() {
+    const qc = useQueryClient();
+    return useMutation({
+      mutationFn: (data) => apiPost('/api/trips', data),
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['trips'] }),
+    });
+  }
+
+Rules:
+  - Query keys are arrays. Always include resource name + filters/IDs.
+  - On successful mutation, invalidate the relevant query keys so the UI refreshes.
+  - Never call API functions directly in components — always through hooks.
+
+================================================================================
+SECTION 6 — FEATURE SPECIFICATIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+6.1 MAP VIEW (MapPage.tsx + MapView.tsx)
+--------------------------------------------------------------------------------
+
+Reference: tech-blueprint.md §2, BRD §5.3, §5.4
+
+MapLibre GL JS is rendered via react-map-gl (MapLibre adapter).
+Library: react-map-gl (use the MapLibre variant — NOT the Mapbox variant).
+  Docs: https://visgl.github.io/react-map-gl/ (select "MapLibre" driver)
+
+Tile source: MapTiler
+  Style URL (or tiles URL):
+    https://api.maptiler.com/maps/streets-v2/style.json?key={VITE_MAPTILER_KEY}
+
+GeoJSON sources:
+  countries: GET /geo/countries.json (839 KB — load once, cache in memory)
+  regions:   GET /geo/regions.json  (load lazily on zoom — 40 MB, do not preload)
+
+Country shading (MP-01 through MP-06):
+  1. Fetch GET /api/map/shading → array of { countryCode, stateKey, colorHex }
+  2. Add countries GeoJSON as a MapLibre source ('countries-source')
+  3. Add a fill layer ('countries-fill') driven by feature-state:
+       "fill-color": ["case",
+         ["==", ["feature-state", "stateKey"], "active"], <active_color>,
+         ["==", ["feature-state", "stateKey"], "visited_multiple_planning"], <color>,
+         ...
+         "transparent"  // never_visited fallback
+       ]
+     COO note: prefer driving colour from the API response directly rather than
+     hardcoding. After the shading API returns, call:
+       map.setFeatureState(
+         { source: 'countries-source', id: countryCode },
+         { stateKey, colorHex }
+       )
+     Then use a data expression referencing feature-state.colorHex for fill-color.
+  4. The "never_visited" state has colorHex = null — render with no fill (transparent).
+  5. Active state overrides all others (MP-06) — API returns the correct stateKey;
+     the frontend does not need to implement override logic itself.
+
+Country identification in GeoJSON:
+  Natural Earth admin-0 file uses property ISO_A2 for the 2-letter country code.
+  Match on feature.properties.ISO_A2.
+  The feature-state id must match the ISO_A2 value.
+
+Region shading (MP-02):
+  Load lazily when map zoom >= 4 (approximate threshold).
+  GET /api/map/shading/regions/:countryCode for the visible country.
+  Apply to regions GeoJSON layer (similar feature-state pattern).
+  Region GeoJSON uses iso_3166_2 property for region code matching.
+
+City markers (MP-02):
+  Fetch resolved cities (geocode_status = 'resolved') via:
+    GET /api/trips — then extract cities from trip places, OR
+    use a client-side cache of all cities encountered during the session.
+  COO note: there is no standalone GET /api/cities list endpoint.
+    Use cities from loaded trips, or add your own query if needed.
+    Discuss with COO before adding a new endpoint — the API reference is the contract.
+  Render city markers as MapLibre symbol layer (not HTML markers — performance).
+  Do not render pins for cities with geocode_status = 'pending' (GE-13).
+
+Click behaviour (MP-03, GE-09):
+  Click country → open a sidebar showing all trips that include that country.
+  Click region → open sidebar filtered to that region.
+  Click city marker → open sidebar filtered to that city.
+  Sidebar shows a list of TripCard components. Clicking a card navigates to TripDetail.
+
+--------------------------------------------------------------------------------
+6.2 TRIP LIST (TripsPage.tsx + TripList.tsx)
+--------------------------------------------------------------------------------
+
+Reference: BRD §5.1, TR-01 through TR-10
+
+Default view: all trips ordered by start_date descending.
+
+Filters (TR-10):
+  - Status: All | Planning | Active | Review Pending | Locked
+  - Category: dropdown of active categories (GET /api/admin/categories/active)
+  - Activity: dropdown of active activities (GET /api/admin/activities/active)
+  Filters update the GET /api/trips query params.
+
+Each TripCard shows: name, date range, status badge, companion list, categories.
+Status badge uses StatusBadge shared component with colour coding:
+  planning → blue, active → green, review_pending → orange, locked → grey.
+
+Actions per card:
+  - Click → navigate to /trips/:id
+  - Edit button → open create/edit form (same form as create, pre-filled)
+  - (Delete is NOT in the BRD — do not add it)
+
+Create trip:
+  Button "New Trip" opens a modal form.
+  Fields (TR-01 through TR-04):
+    name (required, string)
+    start_date (required, ISO 8601 date string)
+    end_date (required, ISO 8601 date string, >= start_date)
+    photo_album_ref (optional, URL string)
+    category_ids (multi-select from active categories)
+    companion_ids (multi-select from active companions)
+    activity_ids (multi-select from active activities)
+  Validation: reuse schema from src/backend/validation/trips.schemas.ts.
+  Submit → POST /api/trips → on success, invalidate trips query, close modal.
+
+--------------------------------------------------------------------------------
+6.3 TRIP DETAIL (TripDetailPage.tsx + TripDetail.tsx)
+--------------------------------------------------------------------------------
+
+Reference: BRD §5.1, §5.5, TR-05 through TR-09
+
+URL: /trips/:id
+
+Load: GET /api/trips/:id → returns trip with places[] and items[] nested.
+
+Layout:
+  - Header: trip name, dates, status badge, edit button (if not locked), lock button (if review_pending)
+  - Companion and category badges
+  - Places section: list of PlaceSection components, one per place
+    Each PlaceSection shows city name, country, activity tags, and items for that place
+  - Add Place button (if not locked)
+
+Add Place flow:
+  1. User types city name → city search (GET /api/cities?q=...) with debounce.
+  2. Results dropdown: existing cities in DB first, then allow "Add new: [city name]"
+  3. If creating new: POST /api/cities { name, country_code, region_id? }
+     Country must be selected (dropdown from /api/admin/countries).
+  4. After city resolved: POST /api/trips/:id/places { city_id }
+  5. On success: invalidate trip query. New place appears.
+  6. If city has carry-forward candidates: trigger CarryForwardModal (6.6).
+     Check: GET /api/cities/:cityId/carry-forward before adding the place.
+     If response array length > 0, open modal after place is added.
+
+Edit trip (TR-05):
+  If trip is not locked: show edit button that opens the same form as create,
+  pre-populated with current values.
+  Submit → PATCH /api/trips/:id.
+
+Status transitions (TR-06, TR-07):
+  Allow only valid transitions. The valid-transition map is:
+    planning → [active, review_pending]
+    active → [review_pending]
+    review_pending → [locked, planning]
+    locked → [review_pending]  (unlock action)
+  Show only the transitions that are valid for the current status.
+  Locked trip: all write controls are hidden or disabled. Show "Read-only — trip is locked."
+  Lock action: calls PATCH /api/trips/:id/lock.
+  Unlock action: calls PATCH /api/trips/:id/unlock. Requires user confirmation:
+    "Unlock this trip? It will return to Review Pending status."
+
+Items (IT-01 through IT-05):
+  See Section 6.4 for ItemForm spec.
+  Items are displayed grouped by place (PlaceSection).
+  Within each place, items are listed with their type icon and status.
+  Add item: "Add Item" button per place (if not locked).
+  Edit item: click item → open ItemForm pre-filled (if not locked).
+  Delete item: delete button with confirmation dialog (if not locked).
+
+--------------------------------------------------------------------------------
+6.4 ITEM MANAGEMENT (ItemForm.tsx + ItemCard.tsx)
+--------------------------------------------------------------------------------
+
+Reference: BRD §5.5, §5.6, IT-01 through IT-09
+
+Item types: restaurant | hotel | flight | car_rental | experience | note
+
+ItemForm is a single form component that is type-aware.
+Step 1: user selects item type (if creating). Once selected, the form renders
+the appropriate fields.
+Step 2: user fills fields. All fields described below.
+
+COMMON FIELDS (all types):
+  status (required): Consider | Confirmed | Completed | Cancelled | Next time
+  notes (optional): multiline text
+
+RESTAURANT (IT-01, RS-01 through RS-03):
+  name (required)
+  neighbourhood_area (optional)
+  cuisine_type (optional)
+  source (optional — how the user heard about it)
+  [If status = Completed]: rating (1–5 integer, RatingStars component), post_visit_notes
+
+HOTEL (HT-01 through HT-04):
+  property_name (required)
+  address (optional)
+  check_in_date (optional, date)
+  check_out_date (optional, date, must be >= check_in_date)
+  booking_reference (optional)
+  confirmation_number (optional)
+  [If status = Completed]: rating (1–5 integer), post_visit_notes
+  Display calculated duration (check_out - check_in days) when both dates are set (HT-02).
+
+FLIGHT (FL-01 through FL-03):
+  airline (optional)
+  flight_number (optional)
+  departure_airport (optional)
+  arrival_airport (optional)
+  departure_datetime (optional, datetime)
+  arrival_datetime (optional, datetime)
+  booking_reference (optional)
+  seat (optional)
+
+CAR RENTAL (CR-01 through CR-02):
+  provider (optional)
+  pickup_location (optional)
+  dropoff_location (optional)
+  pickup_datetime (optional, datetime)
+  dropoff_datetime (optional, datetime)
+  booking_reference (optional)
+  vehicle_class (optional)
+
+EXPERIENCE (EX-01):
+  [No type-specific fields beyond common]
+  [If status = Completed]: rating (1–5 integer), post_visit_notes
+
+NOTE:
+  [No type-specific fields beyond notes]
+
+Create: POST /api/trips/:tripId/items
+Update: PATCH /api/trips/:tripId/items/:itemId
+Delete: DELETE /api/trips/:tripId/items/:itemId
+
+Validation: Zod schemas from src/backend/validation/items.schemas.ts.
+
+RatingStars component: renders 1–5 clickable stars. Accepts value (1–5 | null)
+and onChange callback. Null = unrated (show empty stars).
+
+--------------------------------------------------------------------------------
+6.5 ITEM LIST WITH SORT/FILTER (IT-08, IT-09)
+--------------------------------------------------------------------------------
+
+Reference: BRD IT-08, IT-09
+
+ItemList view: accessible from:
+  a) Within TripDetail — all items for a trip (grouped by place)
+  b) City view — all items across all trips for a given city
+     (GET /api/cities/:id/items — returns all completed items at a city)
+
+Filters:
+  - Type: All | Restaurant | Hotel | Flight | Car Rental | Experience | Note
+  - Status: All | Consider | Confirmed | Completed | Cancelled | Next time
+
+Sort (for types that have ratings — restaurant, hotel, experience):
+  - Sort by: Default (creation order) | Rating High→Low | Rating Low→High
+
+When sorted by rating, items without a rating appear at the end.
+
+The ItemList component accepts items[] as a prop and handles filtering/sorting
+client-side (no additional API calls needed for filter/sort).
+
+--------------------------------------------------------------------------------
+6.6 POST-TRIP REVIEW (ReviewPanel.tsx — RV-01 through RV-04)
+--------------------------------------------------------------------------------
+
+Reference: BRD §5.8
+
+Accessible from TripDetail when trip.status = 'review_pending'.
+Button: "Start Post-Trip Review" opens ReviewPanel (can be full-page or modal).
+
+ReviewPanel layout:
+  - Header: "Post-Trip Review — [trip name]"
+  - For each place in the trip:
+    - Place header (city name, country)
+    - For each item at that place: ReviewItemRow
+  - Lock Trip button at bottom
+
+ReviewItemRow shows:
+  - Item name/type and current status
+  - Status selector: dropdown for all 5 statuses (update one at a time or bulk)
+  - If type supports rating (restaurant, hotel, experience):
+    - RatingStars component (shows current rating)
+    - post_visit_notes textarea
+  - Changes: PATCH /api/trips/:tripId/items/:itemId on each change (not batched)
+
+Bulk status update:
+  - "Mark all as Completed" button applies Completed to all non-cancelled items in one pass.
+  - Each item is updated individually via PATCH (no batch endpoint exists).
+
+Lock trip (RV-04):
+  Button "Complete Review & Lock Trip" → PATCH /api/trips/:id/lock.
+  Requires confirmation: "This will lock the trip. No further edits will be possible
+  without unlocking. Continue?"
+  On success: close ReviewPanel, navigate to TripDetail (now locked).
+
+--------------------------------------------------------------------------------
+6.7 CARRY-FORWARD MODAL (CarryForwardModal.tsx — IT-07)
+--------------------------------------------------------------------------------
+
+Reference: BRD IT-07
+
+Triggered: when adding a place to a trip, if GET /api/cities/:cityId/carry-forward
+returns a non-empty array (items with status = 'next_time' from previous trips).
+
+IMPORTANT: The carry-forward execution endpoint (POST) is pending BACKEND
+correction C1. Implement the modal LAST, after all other features are complete.
+The GET (candidates) endpoint is available. Leave the execution step as a
+clearly commented TODO referencing "BACKEND C1 endpoint required."
+
+Modal design:
+  Title: "Carry-forward suggestions for [city name]"
+  Body: list of candidate items from GET /api/cities/:cityId/carry-forward
+        Each item shows: type, name (e.g. restaurant name), original trip name and date
+        Checkbox per item (default: all checked)
+  Buttons:
+    "Carry Forward Selected" — DISABLED (TODO: BACKEND C1 endpoint pending)
+                               Show tooltip: "Feature coming soon — endpoint pending"
+    "Skip" — dismiss modal without carrying forward anything
+
+When C1 is available:
+  POST /api/trips/:tripId/places/:placeId/carry-forward
+    { source_item_ids: selectedIds }
+  On success: show "X items added to your trip as suggestions."
+  Invalidate trip items query.
+
+--------------------------------------------------------------------------------
+6.8 ADMIN PANEL (AdminPage.tsx + AdminPanel.tsx)
+--------------------------------------------------------------------------------
+
+Reference: BRD §5.9, AD-01 through AD-06
+
+URL: /admin
+
+Tabbed interface. Five tabs:
+
+  TAB 1 — CATEGORIES (trip categories)
+    List: GET /api/admin/categories (all, including inactive)
+    Show: name, is_active status
+    Add: POST /api/admin/categories { name }
+    Edit name: PATCH /api/admin/categories/:id { name }
+    Deactivate: PATCH /api/admin/categories/:id { is_active: false }
+    Re-activate: PATCH /api/admin/categories/:id { is_active: true }
+    Delete: PATCH /api/admin/categories/:id (soft delete via API)
+    AD-06: deactivated items are shown greyed-out, not removed from the list.
+
+  TAB 2 — ACTIVITIES
+    Same CRUD pattern as Categories.
+    Endpoint group: /api/admin/activities
+
+  TAB 3 — COMPANIONS
+    Same CRUD pattern.
+    Endpoint group: /api/admin/companions
+
+  TAB 4 — MAP SHADING (AD-04, MP-04)
+    List: GET /api/admin/shading-config (6 rows — one per non-never-visited state)
+    Show: state key, display name, colour swatch (filled div with colorHex)
+    Edit colour: colour picker input (type="color") per row.
+      On change: PATCH /api/map/shading/config/:stateKey { color_hex: "#RRGGBB" }
+      Immediately updates colour on the map (invalidate map shading query).
+    Display name is read-only in the UI — it is set by the seed data and not
+    editable in Phase 1.
+
+  TAB 5 — COUNTRIES (AD-05, GE-07)
+    List: GET /api/admin/countries (all 250 countries)
+    Show: country name, country code, region_tier_name, region_tier_enabled toggle
+    Toggle region tier: PATCH /api/admin/countries/:countryCode
+      { region_tier_enabled: true | false }
+    Region tier name (e.g. "State", "Province") is read-only — from seed data.
+    Note: toggling region_tier_enabled affects whether regions are shown on the
+    map for that country — no client-side behaviour changes needed; the API drives this.
+
+================================================================================
+SECTION 7 — ROUTING
+================================================================================
+
+Use React Router v6. Routes:
+
+  /           — redirect to /map
+  /map        — MapPage (MapView full-screen)
+  /trips      — TripsPage (TripList)
+  /trips/:id  — TripDetailPage
+  /admin      — AdminPage
+
+Navigation bar: persistent top or side nav with links to Map, Trips, Admin.
+Active route is highlighted.
+
+================================================================================
+SECTION 8 — SECURITY REQUIREMENTS (SEC-12)
+================================================================================
+
+These are non-negotiable. Any violation is a blocking defect.
+
+8.1 NO dangerouslySetInnerHTML ANYWHERE.
+    React's JSX auto-escapes all string values. Do not bypass this.
+    If you believe dangerouslySetInnerHTML is needed, stop and contact COO.
+    It has never been necessary in this project and is a security violation.
+
+8.2 URL SCHEME VALIDATION for any user-supplied URL rendered as a link.
+    The only user-supplied URL field is: trip.photo_album_ref
+    Before rendering as <a href={...}>, validate the scheme:
+      Only 'https://' and 'file://' are permitted.
+      Reject 'javascript:', 'data:', 'vbscript:', and anything else.
+    Implementation: src/frontend/utils/urlSanitiser.ts
+      export function sanitiseUrl(url: string | null): string | null {
+        if (!url) return null;
+        if (url.startsWith('https://') || url.startsWith('file://')) return url;
+        return null; // do not render as a link
+      }
+    Use this function everywhere photo_album_ref is rendered. If sanitiseUrl()
+    returns null, render the value as plain text or do not render a link at all.
+
+8.3 MAP LABELS AND POPUPS use MapLibre's text rendering API.
+    Do not inject user data (e.g. city names, trip names) into HTML via innerHTML.
+    Use MapLibre's layout property "text-field" for labels, or React-rendered text
+    outside the map canvas for popups.
+
+8.4 BACKEND ZOD SCHEMAS as the source of truth for form validation.
+    Import and reuse schemas from src/backend/validation/ for client-side validation.
+    Do not write duplicate validation logic. One definition, zero drift.
+
+================================================================================
+SECTION 9 — CODING STANDARDS (from _shared/frameworks.txt)
+================================================================================
+
+  1. All components: TypeScript interfaces for props (no `any`).
+  2. All hooks: docstring describing inputs and return value.
+  3. No hardcoded values — all config via env vars or constants files.
+  4. npm audit before closing the thread. HIGH/CRITICAL block thread close.
+  5. VITE_API_BASE_URL used everywhere — never http://localhost:3001 in source.
+  6. npm run build must succeed without errors or TypeScript warnings before submission.
+
+================================================================================
+SECTION 10 — ACCEPTANCE CRITERIA
+================================================================================
+
+All 18 criteria must be met before marking FRONTEND Phase 1 complete.
+
+SETUP
+AC-01  npm run dev starts the Vite server without errors.
+       App loads at http://localhost:5173.
+       No TypeScript errors on startup (tsc --noEmit passes).
+       npm run build succeeds and produces a dist/ directory.
+
+AC-02  VITE_API_BASE_URL configures the API base. No hardcoded localhost URLs
+       in any component, hook, or utility file.
+
+MAP VIEW
+AC-03  World map renders with correct country shading on load.
+       GET /api/map/shading is called once on mount.
+       Countries with stateKey = 'never_visited' have no fill (transparent).
+       Countries with colorHex have fill matching that hex value.
+       Changing shading config in Admin panel updates the map within one query
+       invalidation cycle (no page reload required).
+
+AC-04  Clicking a country opens a sidebar listing all trips for that country.
+       Clicking a trip in the sidebar navigates to TripDetail.
+
+TRIP MANAGEMENT
+AC-05  TripList shows all trips in start_date descending order.
+       Filters by status, category_id, activity_id work correctly.
+       New Trip form creates a trip via POST /api/trips and it appears in the list.
+       Edit trip via PATCH /api/trips/:id. Changes persist.
+
+AC-06  TripDetail loads correctly for a given trip ID.
+       All places, items, status, companions, categories are displayed.
+       Status transitions in UI allow only valid transitions
+       (planning → active, planning → review_pending, etc.).
+       Locked trip shows read-only state. All edit controls are hidden or disabled.
+
+AC-07  Add Place flow: city search, create new city, add to trip all work.
+       New place appears in TripDetail after creation.
+
+ITEMS
+AC-08  Items of all 6 types (restaurant, hotel, flight, car_rental,
+       experience, note) can be created with correct type-specific fields.
+       POST /api/trips/:tripId/items succeeds for all types.
+
+AC-09  Items can be edited via PATCH /api/trips/:tripId/items/:itemId.
+       Rating and post_visit_notes fields appear and save for applicable types
+       when status = Completed.
+
+AC-10  Item delete works. Confirmation dialog is shown before deletion.
+       DELETE /api/trips/:tripId/items/:itemId called on confirm.
+
+AC-11  ItemList sort and filter work client-side.
+       Restaurants/hotels/experiences can be sorted by rating high→low, low→high.
+       Filter by type and status behave correctly.
+
+POST-TRIP REVIEW
+AC-12  ReviewPanel appears for trips in review_pending status.
+       All items for the trip are shown.
+       Status can be updated on each item (PATCH per item).
+       Rating and post_visit_notes can be set for applicable item types.
+       "Complete Review & Lock Trip" calls PATCH /api/trips/:id/lock.
+       After locking, trip is in read-only state.
+
+ADMIN PANEL
+AC-13  Categories tab: list, add, edit, deactivate, re-activate all work.
+       Deactivated items appear greyed-out.
+       Deactivated categories do not appear in the trip creation form dropdowns.
+       (Get active categories via /api/admin/categories/active for forms.)
+
+AC-14  Activities and Companions tabs: same CRUD as Categories.
+
+AC-15  Map Shading tab: colour picker for each shading state.
+       PATCH /api/map/shading/config/:stateKey updates the colour.
+       Map shading updates without page reload.
+
+AC-16  Countries tab: all 250 countries listed.
+       Region tier toggle works via PATCH /api/admin/countries/:countryCode.
+
+CARRY-FORWARD (partial)
+AC-17  When adding a place where carry-forward candidates exist,
+       GET /api/cities/:cityId/carry-forward is called.
+       If response.length > 0, CarryForwardModal opens.
+       Modal shows candidate items with checkboxes.
+       "Carry Forward Selected" button is rendered but clearly disabled with
+       tooltip "Feature coming soon — endpoint pending".
+       "Skip" closes the modal without error.
+
+SECURITY
+AC-18  No dangerouslySetInnerHTML in any component (grep check).
+       photo_album_ref rendered as link only if scheme is https:// or file://.
+       Invalid schemes render as plain text.
+       Map labels and popups do not use innerHTML injection.
+
+================================================================================
+SECTION 11 — OPEN FLAGS FOR FRONTEND TO NOTE
+================================================================================
+
+FLAG-F1: BACKEND CORRECTION C1 (carry-forward POST endpoint) is being
+  implemented in parallel. Implement CarryForwardModal last and leave
+  the execute step as a commented TODO.
+
+FLAG-F2: GET /api/cities as a list endpoint does not exist.
+  City data comes from trip places embedded in GET /api/trips/:id.
+  For the map city pins, build a client-side set of cities from all loaded trips.
+  If you need a list endpoint, write to COO outbox — do not add it unilaterally.
+
+FLAG-F3: PATCH /api/cities/:id (BACKEND correction C2) is pending.
+  The city PATCH is not needed for Phase 1 FRONTEND scope.
+
+================================================================================
+SECTION 12 — CLOSING REQUIREMENTS
+================================================================================
+
+When all acceptance criteria are met:
+  1. Run npm audit. HIGH/CRITICAL block submission. MODERATE: report to COO.
+  2. Run npm run build (must succeed, no errors).
+  3. Run tsc --noEmit (must pass).
+  4. Commit all changes: [FRONTEND] Short description
+  5. Push to GitHub. Confirm push successful.
+  6. Write completion report to jobs/COO/inbox/ with:
+       - Status of each acceptance criterion
+       - Any deviations from spec (what and why)
+       - npm audit findings (severity, package, recommendation)
+       - Any open questions or blockers encountered
+       - Pointer to the git commit hash
+
+================================================================================

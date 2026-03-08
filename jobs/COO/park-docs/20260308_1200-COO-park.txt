@@ -1,0 +1,187 @@
+COO PARK DOCUMENT
+Date:   2026-03-08
+Thread: BACKEND acceptance, FRONTEND dispatch, bug classification framework
+
+================================================================================
+WHAT HAPPENED THIS THREAD
+================================================================================
+
+1. BACKEND PHASE 1 REVIEWED AND ACCEPTED
+   Reviewed both inbox messages:
+     - 20260308_0900-BACKEND-complete.txt (completion report, 26 AC status)
+     - 20260308_1000-BACKEND-security-report.txt (full security sweep)
+   Spot-checked key deliverables directly in source:
+     - server.ts: correct middleware order, 127.0.0.1 binding, all SEC controls ✅
+     - shading.service.ts: computeState() implements all 7 states correctly ✅
+     - items.service.ts: carry-forward copies fields; omits rating/notes ✅
+     - trips.ts: status transitions enforced; locked trip throws LockError ✅
+     - places.ts: activities query guards empty placeIds array ✅
+     - error-handler.ts: 5xx returns generic message; 4xx returns err.message ✅
+     - auth.ts: passthrough stub with clear Phase 2 TODO ✅
+   All 26 acceptance criteria: PASSED.
+
+2. BACKEND CORRECTION DISPATCHED (C1–C3)
+   Two open flags from BACKEND's completion report resolved:
+     C1: POST /api/trips/:tripId/places/:placeId/carry-forward
+         COO made the endpoint design decision (URL, body, response, errors).
+         executeCarryForward() service exists — BACKEND adds the HTTP surface only.
+     C2: PATCH /api/cities/:id
+         Simple update endpoint. BACKEND adds validation + route.
+   Additional item added:
+     C3: POST /api/cities independent rate limit (20 req/min, not 10 as suggested
+         — user may create many cities when entering historical data).
+   Correction spec: jobs/backend/inbox/20260308_1100-COO-backend-accepted-correction.txt
+
+3. BACKEND SECURITY REPORT PROCESSED
+   All findings reviewed and dispositioned:
+     H1/H2 (auth, HTTPS): Phase 2 hard gates — recorded in security backlog.
+     H3 (SQLite plaintext): Accepted as-is — COO decision confirmed and documented.
+     M1 (geocoding rate limit): Included in correction C3.
+     M2 (LIKE wildcard): Backlog — low effort, low risk.
+     M3 (trust proxy): Phase 2 pre-flight — recorded.
+     L1–L5: Backlog or Phase 2 design inputs.
+     npm audit 4 × MODERATE (drizzle-kit esbuild): Deferred pending drizzle-kit upgrade.
+   Security backlog created: _project/security-backlog.md
+   BACKEND security policy (ongoing practice, Section 5 of their report): Adopted.
+
+4. FRONTEND SPEC DISPATCHED
+   Comprehensive FRONTEND spec written covering:
+     - Tech stack (React 18 + TypeScript + Vite + TanStack Query + MapLibre)
+     - Full directory structure matching tech blueprint §5
+     - Environment config (VITE_API_BASE_URL, VITE_MAPTILER_KEY)
+     - apiClient.ts pattern (no raw fetch in components)
+     - React Query hook pattern (one hook file per resource)
+     - All 6 features: MapView, TripList, TripDetail, ItemList,
+       PostTripReview, CarryForwardPrompt (partial), AdminPanel (5 tabs)
+     - Routing (React Router v6)
+     - Security requirements (SEC-12: no dangerouslySetInnerHTML, URL sanitiser,
+       MapLibre text rendering, Zod schema reuse)
+     - 18 acceptance criteria (numbered, testable)
+   Spec: jobs/frontend/inbox/20260308_1100-COO-frontend-spec.txt
+   Security addendum: jobs/frontend/inbox/20260308_1110-COO-frontend-security-addendum.txt
+
+   Note: BACKEND had already notified FRONTEND they were unblocked
+   (jobs/frontend/inbox/20260308_0900-BACKEND-api-ready.txt). COO spec
+   arrived in the same thread — this is acceptable.
+
+5. BUG CLASSIFICATION FRAMEWORK WRITTEN
+   User requested a framework to handle bugs that start as trivial but turn out
+   to be substantial. Framework written as Shared Standards 25–30 in
+   _shared/frameworks.txt. Covers:
+     SS-25: Severity scale (TRIVIAL / MINOR / MAJOR / CRITICAL)
+     SS-26: Mandatory re-evaluation before closing any bug as TRIVIAL
+     SS-27: Reclassification triggers and escalation paths by severity delta
+     SS-28: No deferred substantial bugs (severity known = severity treated)
+     SS-29: Bug report format for COO outbox (MAJOR and CRITICAL)
+     SS-30: Bug tracking in park documents
+
+6. PROJECT FILES UPDATED
+   - _project/project-plan.txt → v1.2
+   - _project/dependency-graph.txt → v1.2
+   - _project/travel-tracker-BRD.md → header fixed (v2.2 → v2.3)
+   - jobs/COO/context/current.txt → updated (previous archived to history/)
+   - _project/security-backlog.md → CREATED (v1.0)
+   - _shared/frameworks.txt → SS-25 to SS-30 added
+
+================================================================================
+STATE AT PARK
+================================================================================
+
+  Phase 1 (DATA LAYER):   COMPLETE
+  Phase 2 (API LAYER):    ACTIVE — BACKEND correction C1-C3 in progress
+  Phase 3 (UI LAYER):     ACTIVE — FRONTEND has spec, no blockers (except carry-forward C1)
+
+  COO inbox:  EMPTY (BACKEND completion + security report archived)
+  BACKEND correction: outstanding, awaiting completion
+  FRONTEND: working, no blockers
+
+================================================================================
+KEY DECISIONS MADE THIS THREAD
+================================================================================
+
+  1. BACKEND Phase 1 ACCEPTED
+     Rationale: All 26 ACs verified. Code spot-check confirms correctness on
+     all critical paths. Deviations (CORS override, Helmet frameguard, Zod v4
+     issues adaptation) were appropriate and correctly documented.
+
+  2. Carry-forward POST endpoint URL design
+     Chose: POST /api/trips/:tripId/places/:placeId/carry-forward
+     Rationale: Follows the nested resource pattern (place is the destination
+     context). Body carries source_item_ids. Keeps endpoint semantics clear
+     (this is about what you are carrying INTO a place, not FROM a city).
+
+  3. City POST rate limit set to 20/min (not 10 as BACKEND suggested)
+     Rationale: A user entering historical trip data may create many cities
+     in rapid succession. 10/min is too restrictive for that workflow.
+     20/min still protects Nominatim from abuse.
+
+  4. CarryForwardPrompt execution step left as TODO in FRONTEND spec
+     Rationale: BACKEND correction C1 runs in parallel with FRONTEND.
+     FRONTEND can implement all other features without blocking on C1.
+     Better to unblock FRONTEND immediately than wait for C1 to be complete.
+
+  5. Bug classification framework adopted (SS-25–30)
+     Rationale: Pattern of trivial-to-substantial reclassification observed
+     across BACKEND and ARCHITECT threads. Framework addresses discovery,
+     mandatory re-evaluation, reclassification escalation, and documentation
+     requirements. Applies to all jobs from this date forward.
+
+  6. SQLite plaintext at rest: ACCEPTED AS-IS (confirmed from BACKEND's decision)
+     Rationale: Personal travel data, low sensitivity, OS-level FileVault mitigates.
+
+  7. BRD header inconsistency: corrected v2.2 → v2.3
+     Rationale: The BRD content reflects v2.3 (EX-01 is listed in changelog)
+     but the header was never updated. Corrected for traceability.
+
+================================================================================
+OPEN FLAGS
+================================================================================
+
+  FLAG-01: objective.txt, job-registry.txt, document-index.txt remain empty.
+           Non-blocking.
+
+  BACKEND-C1: Carry-forward POST endpoint — in progress.
+              FRONTEND must not attempt to call this until BACKEND confirms.
+
+  BACKEND-C2: PATCH /api/cities/:id — in progress. Not needed for FRONTEND Phase 1.
+
+================================================================================
+NEXT COO ACTIONS (resume from here)
+================================================================================
+
+  1. Check COO inbox for:
+       a) BACKEND correction completion (C1-C3) — then notify FRONTEND
+       b) FRONTEND completion report
+  2. When BACKEND C1 done: write to FRONTEND inbox to unblock carry-forward execution
+  3. Review FRONTEND deliverables (18 AC checklist):
+       - Spot-check MapView feature-state application
+       - Verify urlSanitiser.ts exists and is used for photo_album_ref
+       - Grep for dangerouslySetInnerHTML (must return 0 results)
+       - Verify AdminPanel all 5 tabs functional
+       - Verify PostTripReview locks trip correctly
+       - Check carry-forward modal: GET works, execution button disabled with TODO note
+  4. If FRONTEND accepted: notify QA + DOCS, dispatch QA spec
+  5. If FRONTEND returned: log defects with specific corrections
+
+================================================================================
+FILES MODIFIED THIS THREAD
+================================================================================
+
+  Created:  jobs/backend/inbox/20260308_1100-COO-backend-accepted-correction.txt
+  Created:  _project/security-backlog.md
+  Created:  jobs/frontend/inbox/20260308_1100-COO-frontend-spec.txt
+  Created:  jobs/frontend/inbox/20260308_1110-COO-frontend-security-addendum.txt
+  Modified: _shared/frameworks.txt (SS-25 to SS-30 added)
+  Modified: _project/project-plan.txt (v1.1 → v1.2)
+  Modified: _project/dependency-graph.txt (v1.1 → v1.2)
+  Modified: _project/travel-tracker-BRD.md (header v2.2 → v2.3)
+  Modified: jobs/COO/context/current.txt
+  Archived: jobs/COO/inbox/20260308_0900-BACKEND-complete.txt
+            → jobs/COO/history/20260308_0900-BACKEND-complete.txt
+  Archived: jobs/COO/inbox/20260308_1000-BACKEND-security-report.txt
+            → jobs/COO/history/20260308_1000-BACKEND-security-report.txt
+  Archived: jobs/COO/context/current.txt (previous)
+            → jobs/COO/history/20260307_1700-COO-context.txt
+  Created:  jobs/COO/park-docs/20260308_1200-COO-park.txt (this file)
+
+================================================================================

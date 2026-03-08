@@ -1,0 +1,100 @@
+COO PARK DOCUMENT
+Date:   2026-03-07
+Thread: BACKEND spec dispatch — Phase 2 activation
+
+================================================================================
+WHAT HAPPENED THIS THREAD
+================================================================================
+
+1. DATABASE ACCEPTED
+   Reviewed and accepted all DATABASE deliverables against the acceptance criteria
+   in the spec. All 7 criteria passed. Driver substitution (@libsql/client for
+   better-sqlite3) approved — documented and non-blocking.
+   Inbox message archived to: jobs/COO/history/20260307_1600-DATABASE-schema-complete.txt
+
+2. BACKEND SPEC DISPATCHED
+   Wrote comprehensive BACKEND spec covering:
+     - Express server setup and startup sequence
+     - All 6 route files (trips, places, items, cities, map, admin)
+     - 3 business logic services (geocoding, shading, items)
+     - 1 startup service (country seed + geocoding queue init)
+     - Country bundled data specification (data/countries.json, ~195 rows)
+     - Natural Earth GeoJSON bundle requirement (geo/ directory)
+     - API reference documentation requirement (for FRONTEND)
+     - Full acceptance criteria (12 items)
+   Spec at: jobs/backend/inbox/20260307_1700-COO-backend-spec.txt
+
+3. PROJECT PLAN UPDATED
+   Phase 1 marked COMPLETE. Phase 2 marked ACTIVE.
+   project-plan.txt updated to v1.1.
+
+4. COO CONTEXT UPDATED
+   jobs/COO/context/current.txt reflects new phase status.
+
+================================================================================
+STATE AT PARK
+================================================================================
+
+  Phase 1 (DATA LAYER):  COMPLETE
+  Phase 2 (API LAYER):   ACTIVE — BACKEND has spec, no blockers
+
+  COO inbox:  EMPTY (DATABASE inbox message archived)
+  COO outbox: N/A this thread
+
+================================================================================
+KEY DECISIONS MADE THIS THREAD
+================================================================================
+
+  1. @libsql/client driver substitution — APPROVED
+     Rationale: better-sqlite3 lacks Node.js v24 prebuilt binaries.
+     @libsql/client is pure JS/WASM, equivalent for all use cases.
+     BACKEND spec updated to reflect async DB operations.
+
+  2. Country seed responsibility assigned to BACKEND (not DATABASE)
+     Rationale: countries table is seeded at first launch (GE-04), not as static
+     admin seed data. BACKEND startup service is the correct owner.
+     BACKEND spec includes data/countries.json format + region tier decisions.
+
+  3. Natural Earth GeoJSON bundled as part of BACKEND deliverables
+     Rationale: Files need to be committed to repo and served by Express static.
+     BACKEND owns the geo/ directory per tech blueprint ADL-09.
+
+================================================================================
+OPEN FLAGS
+================================================================================
+
+  FLAG-01: objective.txt, job-registry.txt, document-index.txt still empty.
+           Non-blocking. Available on request.
+
+  BACKEND-NOTE-01: data/countries.json requires BACKEND to populate ~195 rows.
+  The spec provides the region_tier_enabled decisions for 25 significant countries.
+  BACKEND must fill in all remaining countries from ISO 3166 reference.
+  COO should verify completeness and correctness when reviewing BACKEND output.
+
+================================================================================
+NEXT COO ACTIONS (resume from here)
+================================================================================
+
+  1. Check jobs/COO/inbox/ for BACKEND completion report
+  2. Review BACKEND deliverables per acceptance criteria (12 items in spec)
+  3. Spot-check: API reference doc completeness, shading logic, carry-forward,
+     locked trip guard, country seed data
+  4. If accepted: notify FRONTEND, dispatch FRONTEND spec
+  5. FRONTEND scope (from tech blueprint §1.4):
+       MapView, TripList/TripDetail, ItemList, PostTripReview,
+       CarryForwardPrompt, AdminPanel
+
+================================================================================
+FILES MODIFIED THIS THREAD
+================================================================================
+
+  Created:  jobs/COO/history/20260307_1600-DATABASE-schema-complete.txt
+  Deleted:  jobs/COO/inbox/20260307_1600-DATABASE-schema-complete.txt
+  Created:  jobs/backend/inbox/20260307_1700-COO-backend-spec.txt
+  Created:  jobs/backend/inbox/20260307_1710-COO-security-addendum.txt
+  Created:  _project/security-spec.md (v1.0 — binding on all jobs)
+  Modified: _project/project-plan.txt (v1.0 → v1.1)
+  Modified: jobs/COO/context/current.txt
+  Created:  jobs/COO/park-docs/20260307_1700-COO-park.txt (this file)
+
+================================================================================

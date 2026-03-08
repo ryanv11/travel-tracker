@@ -1,0 +1,138 @@
+COO CONTEXT — 2026-03-07
+PROJECT: Travel Tracker
+CURRENT STATUS: Phase 2 — BACKEND spec + security addendum dispatched, awaiting implementation
+
+================================================================================
+PHASE STATUS
+================================================================================
+
+  PHASE 0 (FOUNDATION)    — COMPLETE
+  PHASE 1 (DATA LAYER)    — COMPLETE
+  PHASE 2 (API LAYER)     — ACTIVE (BACKEND working)
+  PHASE 3 (UI LAYER)      — BLOCKED on BACKEND
+  PHASE 4 (QA/DOCS)       — BLOCKED on FRONTEND
+  PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
+
+================================================================================
+ACTIVE JOBS
+================================================================================
+
+BACKEND
+  Status:   Spec + security addendum dispatched. No blockers. Awaiting implementation.
+  Spec:     jobs/backend/inbox/20260307_1700-COO-backend-spec.txt
+  Security: jobs/backend/inbox/20260307_1710-COO-security-addendum.txt
+  Corrections: jobs/backend/inbox/20260307_1720-COO-corrections.txt
+  Delivers:
+    src/backend/server.ts
+    src/backend/routes/ (trips, places, items, cities, map, admin)
+    src/backend/services/ (geocoding, shading, items, startup)
+    src/backend/middleware/ (validate, auth stub, error-handler)
+    src/backend/validation/ (common + per-resource Zod schemas)
+    data/countries.json (bundled country data, ~195 rows)
+    data/regions.json (US 51 + AU 8 + CA 13 = 72 rows)
+    geo/countries.json + geo/regions.json (Natural Earth GeoJSON)
+    .github/workflows/security.yml (CI pipeline — SEC-13)
+    jobs/backend/tech/20260307-api-reference.md (API docs for FRONTEND)
+  Acceptance criteria: 26 items (12 spec + 9 security + 5 corrections)
+  Waiting:
+    Completion report to COO inbox
+    FRONTEND notification that API is ready + pointer to API reference doc
+
+================================================================================
+COMPLETED JOBS
+================================================================================
+
+ARCHITECT — COMPLETE
+  All deliverables accepted. 4 documents in jobs/architect/tech/.
+  ADL-01 to ADL-14 recorded.
+
+DATABASE — COMPLETE (accepted 2026-03-07)
+  All 5 deliverables implemented and verified.
+  Driver substitution: @libsql/client instead of better-sqlite3 (COO approved).
+  Review archived: jobs/COO/history/20260307_1600-DATABASE-schema-complete.txt
+
+================================================================================
+BLOCKED JOBS
+================================================================================
+
+  FRONTEND     — Waiting on BACKEND API complete + API reference doc
+  QA           — Waiting on FRONTEND
+  DOCS         — Waiting on FRONTEND (stable features)
+
+================================================================================
+BRD STATUS
+================================================================================
+
+  Current version: 2.3 (Approved)
+  File: _project/travel-tracker-BRD.md
+  No outstanding supplements. No open questions.
+
+================================================================================
+ARCHITECT DELIVERABLES — STATUS
+================================================================================
+
+  20260307-ER-schema.md (v1.1)           — ACCEPTED
+  20260307-map-shading-spec.md (v1.0)    — ACCEPTED
+  20260307-tech-blueprint.md (v1.0)      — ACCEPTED
+  20260307-architecture-decisions-log.md — ACCEPTED (ADL-01 to ADL-14)
+
+================================================================================
+PROJECT FILES STATUS
+================================================================================
+
+  _project/travel-tracker-BRD.md     — v2.3, approved
+  _project/dependency-graph.txt       — v1.1, current
+  _project/project-plan.txt           — v1.1, updated this thread
+  _project/security-spec.md           — v1.1, updated this thread (binding on all jobs)
+  _project/seed-data.txt              — complete (used in DATABASE spec)
+  _project/objective.txt              — empty (FLAG-01 — not blocking)
+  _project/job-registry.txt           — empty (FLAG-01 — not blocking)
+  _project/document-index.txt         — empty (FLAG-01 — not blocking)
+
+  FLAG-01: objective.txt, job-registry.txt, document-index.txt remain empty.
+  Still not blocking. COO can populate if requested.
+
+================================================================================
+OPEN DECISIONS / FLAGS
+================================================================================
+
+  FLAG-01: Empty project files (objective.txt, job-registry.txt,
+           document-index.txt). Non-blocking. Can draft on request.
+
+  BACKEND-NOTE-01: BACKEND spec references countries.json country list (~195
+  countries). BACKEND is responsible for creating data/countries.json with
+  correct region_tier_enabled defaults. COO provided the significant cases
+  in the spec. BACKEND must complete the full list from ISO 3166 reference.
+
+================================================================================
+LAST PARK DOC
+================================================================================
+
+  jobs/COO/park-docs/20260307_1700-COO-park.txt (will be written this thread)
+
+================================================================================
+NEXT COO THREAD — RECOMMENDED STARTING POINT
+================================================================================
+
+  1. Check jobs/COO/inbox/ for BACKEND completion report
+  2. Review key BACKEND deliverables (21 acceptance criteria):
+       - server.ts starts without errors (npm run dev)
+       - All endpoints from spec are present
+       - API reference doc is complete
+       - geo/countries.json and geo/regions.json are present
+       - data/countries.json has all ~195 countries
+  3. Spot-check business logic correctness:
+       - Shading computeState() handles all 7 states correctly
+       - Locked trip returns 403 on writes
+       - Carry-forward creates items with correct fields
+  4. Spot-check security controls (SEC-01 to SEC-10):
+       - Helmet headers present in responses
+       - CORS blocks disallowed origins
+       - Server bound to 127.0.0.1
+       - POST with oversized body returns 413
+       - POST with bad fields returns 400 with field-level errors
+       - auth.ts stub exists
+       - npm audit clean
+  4. If accepted: notify FRONTEND, dispatch FRONTEND spec
+  5. If sent back: log defects, return to BACKEND with specific corrections
+

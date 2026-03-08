@@ -1,15 +1,15 @@
-COO CONTEXT — 2026-03-07
+COO CONTEXT — 2026-03-08
 PROJECT: Travel Tracker
-CURRENT STATUS: Phase 1 — DATABASE spec dispatched, awaiting implementation
+CURRENT STATUS: Phase 2 correction + Phase 3 active (FRONTEND working)
 
 ================================================================================
 PHASE STATUS
 ================================================================================
 
   PHASE 0 (FOUNDATION)    — COMPLETE
-  PHASE 1 (DATA LAYER)    — ACTIVE (DATABASE working)
-  PHASE 2 (API LAYER)     — BLOCKED on DATABASE
-  PHASE 3 (UI LAYER)      — BLOCKED on BACKEND
+  PHASE 1 (DATA LAYER)    — COMPLETE
+  PHASE 2 (API LAYER)     — ACTIVE (BACKEND correction C1-C3 in progress)
+  PHASE 3 (UI LAYER)      — ACTIVE (FRONTEND working — spec dispatched)
   PHASE 4 (QA/DOCS)       — BLOCKED on FRONTEND
   PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
 
@@ -17,91 +17,115 @@ PHASE STATUS
 ACTIVE JOBS
 ================================================================================
 
-DATABASE
-  Status:   Spec dispatched. No blockers. Awaiting implementation.
-  Spec:     jobs/database/inbox/20260307_1500-COO-database-spec.txt
-  Delivers: schema.ts, index.ts, drizzle.config.ts, seed.ts, migrations/
-  Waiting:  Completion confirmation to COO inbox + BACKEND notification
+BACKEND (correction)
+  Status:   Correction dispatched 2026-03-08. Awaiting completion.
+  Spec:     jobs/backend/inbox/20260308_1100-COO-backend-accepted-correction.txt
+  Implements:
+    C1: POST /api/trips/:tripId/places/:placeId/carry-forward
+    C2: PATCH /api/cities/:id
+    C3: POST /api/cities independent rate limit (20 req/min)
+  When done: notify COO inbox + notify FRONTEND inbox (C1 available)
 
-ARCHITECT
-  Status:   COMPLETE. All deliverables accepted. Spec fully reviewed.
-  Outputs:  jobs/architect/tech/ (4 documents)
+FRONTEND
+  Status:   Spec dispatched 2026-03-08. No blockers (except carry-forward execution).
+  Spec:     jobs/frontend/inbox/20260308_1100-COO-frontend-spec.txt
+  Security: jobs/frontend/inbox/20260308_1110-COO-frontend-security-addendum.txt
+  Delivers:
+    src/frontend/ — full React SPA (MapView, TripList, TripDetail, ItemList,
+                    PostTripReview, CarryForwardPrompt, AdminPanel)
+  Acceptance criteria: 18 (spec) + 4 (security addendum)
+  Note: CarryForwardPrompt execution step (AC-17) depends on BACKEND C1.
+        FRONTEND implements GET flow + disabled button until C1 available.
+  Waiting:
+    Completion report to COO inbox
+    After acceptance: notify QA + DOCS, dispatch QA spec
+
+================================================================================
+COMPLETED JOBS
+================================================================================
+
+ARCHITECT — COMPLETE
+  All deliverables accepted. 4 documents in jobs/architect/tech/.
+  ADL-01 to ADL-14 recorded.
+
+DATABASE — COMPLETE (accepted 2026-03-07)
+  All 5 deliverables verified. @libsql/client driver substitution approved.
+
+BACKEND PHASE 1 — COMPLETE (accepted 2026-03-08)
+  All 26 acceptance criteria met.
+  Phase 1 deliverables: server.ts, all 7 routes, 4 services, middleware,
+    validation schemas, data/countries.json (250), geo/ GeoJSON,
+    .github/workflows/security.yml, API reference doc.
+  npm audit: 0 HIGH/CRITICAL; 4 MODERATE (drizzle-kit, deferred).
+  Security report reviewed; backlog at _project/security-backlog.md.
+  2 open flags resolved: C1 and C2 dispatched as correction.
 
 ================================================================================
 BLOCKED JOBS
 ================================================================================
 
-  BACKEND      — Waiting on DATABASE schema complete
-  FRONTEND     — Waiting on BACKEND API complete
-  QA           — Waiting on FRONTEND
-  DOCS         — Waiting on FRONTEND (stable features)
+  QA      — Waiting on FRONTEND
+  DOCS    — Waiting on FRONTEND (stable features)
+
+================================================================================
+KEY OPEN ITEMS
+================================================================================
+
+  BACKEND-C1:  POST carry-forward execution endpoint — in progress, BACKEND correction
+  BACKEND-C2:  PATCH /api/cities/:id — in progress, BACKEND correction
+  BACKEND-C3:  POST /api/cities rate limit — quick fix, part of correction
+
+  FLAG-01:  objective.txt, job-registry.txt, document-index.txt still empty.
+            Non-blocking. Available on request.
+  FLAG-BRD: BRD header was showing v2.2; corrected to v2.3 this thread.
 
 ================================================================================
 BRD STATUS
 ================================================================================
 
-  Current version: 2.3 (Approved)
+  Current version: 2.3 (Approved) — header now corrected from 2.2 → 2.3
   File: _project/travel-tracker-BRD.md
-  Changes from v2.2:
-    - EX-01 added (Experience ratings: 1–5 stars, post-visit notes)
-    - IT-08 updated to include experiences in rating sort/filter
   No outstanding supplements. No open questions.
-
-================================================================================
-ARCHITECT DELIVERABLES — REVIEW STATUS
-================================================================================
-
-  20260307-ER-schema.md (v1.1)           — ACCEPTED
-  20260307-map-shading-spec.md (v1.0)    — ACCEPTED
-  20260307-tech-blueprint.md (v1.0)      — ACCEPTED
-  20260307-architecture-decisions-log.md — ACCEPTED (ADL-01 to ADL-14)
-
-================================================================================
-PO QUESTIONS — STATUS (all resolved)
-================================================================================
-
-  Q1. Desktop packaging         — ANSWERED (Electron; BRD v2.2)
-  Q2. Rating scale              — ANSWERED (1–5 stars; BRD v2.2)
-  Q3. Geographic data source    — ANSWERED + AMENDED (Natural Earth; BRD v2.2)
-  Q4. Next time carry-forward   — ANSWERED (BRD v2.2)
-  OQ-A1. Experience ratings     — ANSWERED (yes, 1–5 stars; BRD v2.3)
-  No open questions remain.
 
 ================================================================================
 PROJECT FILES STATUS
 ================================================================================
 
-  _project/travel-tracker-BRD.md     — v2.3, approved
-  _project/dependency-graph.txt       — v1.1, current
-  _project/project-plan.txt           — v1.0, written this thread
-  _project/objective.txt              — empty (FLAG-01 — not blocking)
-  _project/job-registry.txt           — empty (FLAG-01 — not blocking)
-  _project/document-index.txt         — empty (FLAG-01 — not blocking)
-  _project/seed-data.txt              — complete (used in DATABASE spec)
+  _project/travel-tracker-BRD.md     — v2.3, header corrected this thread
+  _project/dependency-graph.txt       — v1.2, current
+  _project/project-plan.txt           — v1.2, updated this thread
+  _project/security-spec.md           — v1.1, binding on all jobs
+  _project/security-backlog.md        — NEW this thread (v1.0)
+  _project/seed-data.txt              — complete
+  _shared/frameworks.txt              — SS-25 to SS-30 added (bug classification)
 
   FLAG-01: objective.txt, job-registry.txt, document-index.txt remain empty.
-  Still not blocking. COO can populate if requested.
-
-================================================================================
-ISSUES / FLAGS
-================================================================================
-
-  FLAG-01: Empty project files (objective.txt, job-registry.txt,
-           document-index.txt). Non-blocking. Can draft on request.
-
-================================================================================
-LAST PARK DOC
-================================================================================
-
-  jobs/COO/park-docs/20260307_1500-COO-park.txt (written this thread)
 
 ================================================================================
 NEXT COO THREAD — RECOMMENDED STARTING POINT
 ================================================================================
 
-  1. Check jobs/COO/inbox/ for DATABASE completion report
-  2. Review DATABASE deliverables against acceptance criteria in the spec
-  3. If accepted: write BACKEND spec, notify BACKEND to begin
-  4. If sent back: log defects, return to DATABASE with specific corrections
-  5. Consider populating FLAG-01 files if requested
+  Priority order:
+  1. Check jobs/COO/inbox/ for:
+       a) BACKEND correction completion (C1-C3)
+       b) FRONTEND completion report
+  2. If BACKEND C1 is done: notify FRONTEND inbox so they can complete
+     the carry-forward execution step in CarryForwardModal.
+  3. Review FRONTEND deliverables per 18 acceptance criteria:
+       - npm run dev and npm run build both succeed
+       - MapView renders with correct shading (feature-state applied)
+       - TripList/TripDetail CRUD all work
+       - Items of all 6 types can be created
+       - PostTripReview locks the trip correctly
+       - AdminPanel all 5 tabs functional
+       - CarryForwardPrompt: GET works; execution disabled with TODO note
+       - No dangerouslySetInnerHTML (grep check)
+       - photo_album_ref URL sanitisation in place
+  4. Spot-check security:
+       - urlSanitiser.ts exists and is used
+       - Map labels do not use innerHTML
+       - npm audit clean
+  5. If FRONTEND accepted: notify QA, dispatch QA spec
+  6. If FRONTEND sent back: log defects with specific corrections
 
+================================================================================

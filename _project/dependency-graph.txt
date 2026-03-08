@@ -1,6 +1,6 @@
 TRAVEL TRACKER — DEPENDENCY GRAPH
-Version: 1.1 (Architect deliverables complete — DATABASE unblocked)
-Date: 2026-03-07
+Version: 1.2 (BACKEND Phase 1 accepted — FRONTEND unblocked)
+Date: 2026-03-08
 Author: COO
 
 ================================================================================
@@ -31,8 +31,8 @@ PHASE 0 — FOUNDATION
 PHASE 1 — DATA LAYER
 ================================================================================
 
-  [DATABASE] — READY
-    Status:   Spec dispatched 2026-03-07. No blockers. Begin immediately.
+  [DATABASE] — COMPLETE
+    Status:   All deliverables accepted 2026-03-07.
     Spec:     jobs/database/inbox/20260307_1500-COO-database-spec.txt
     Delivers: Drizzle schema (schema.ts), DB connection factory (index.ts),
               Drizzle config, seed data loader, migration files
@@ -42,21 +42,26 @@ PHASE 1 — DATA LAYER
 PHASE 2 — API LAYER
 ================================================================================
 
-  [BACKEND] — BLOCKED on DATABASE
-    Prerequisite: DATABASE schema complete, schema.ts types exported
+  [BACKEND] — ACTIVE (correction C1–C3 in progress)
+    Phase 1 accepted: 2026-03-08. Correction dispatched same date.
+    Correction items:
+      C1: POST /api/trips/:tripId/places/:placeId/carry-forward
+      C2: PATCH /api/cities/:id
+      C3: POST /api/cities secondary rate limit
     Delivers: REST API (trips, places, items, admin, map shading endpoints),
               business logic (shading state computation, item carry-forward,
               trip status transitions, geocoding service, locked-trip enforcement)
-    Blocks:   FRONTEND
+    Blocks:   FRONTEND (carry-forward execution only — all other features unblocked)
 
 ================================================================================
 PHASE 3 — UI LAYER
 ================================================================================
 
-  [FRONTEND] — BLOCKED on BACKEND
-    Prerequisite: BACKEND API complete (or core endpoints agreed and stubbed)
+  [FRONTEND] — ACTIVE (spec dispatched 2026-03-08)
+    Spec: jobs/frontend/inbox/20260308_1100-COO-frontend-spec.txt
+    Prerequisite: BACKEND Phase 1 (complete). BACKEND C1 needed for carry-forward execution only.
     Delivers: Map view, trip management UI, place/item management, post-trip
-              review workflow, admin panel
+              review workflow, admin panel, carry-forward modal (partial pending C1)
     Blocks:   QA
 
 ================================================================================
@@ -98,9 +103,9 @@ CURRENT STATUS SUMMARY
   Job            Status     Blocked On         Notes
   ----------     --------   ----------         -----
   ARCHITECT      COMPLETE   —                  All deliverables accepted
-  DATABASE       READY      —                  Spec dispatched 2026-03-07
-  BACKEND        BLOCKED    DATABASE           —
-  FRONTEND       BLOCKED    BACKEND            —
+  DATABASE       COMPLETE   —                  Accepted 2026-03-07
+  BACKEND        ACTIVE     —                  Phase 1 accepted; correction C1-C3 in progress
+  FRONTEND       ACTIVE     —                  Spec dispatched 2026-03-08; C1 needed for carry-forward
   QA             BLOCKED    FRONTEND           —
   DOCS           BLOCKED    FRONTEND           —
   INTEGRATIONS   PENDING    QA (post-MVP)      —
@@ -114,4 +119,8 @@ CHANGE LOG
   2026-03-07  v1.1  ARCHITECT marked COMPLETE. DATABASE moved to READY.
                     DATABASE spec dispatched. BRD updated to v2.3 (EX-01).
                     Architecture Decisions Log updated (ADL-14).
+  2026-03-08  v1.2  DATABASE marked COMPLETE. BACKEND Phase 1 accepted; correction
+                    dispatched (C1-C3). FRONTEND unblocked — spec dispatched.
+                    Security backlog created (_project/security-backlog.md).
+                    Bug classification framework added (_shared/frameworks.txt SS-25-30).
 

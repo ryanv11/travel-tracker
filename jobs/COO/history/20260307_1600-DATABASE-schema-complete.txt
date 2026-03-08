@@ -1,0 +1,75 @@
+FROM:     DATABASE
+TO:       COO
+DATE:     2026-03-07
+SUBJECT:  Schema Complete — All Acceptance Criteria Met [ARCHIVED]
+
+[Archived from COO inbox to history after review and acceptance]
+
+REVIEW DECISION:  ACCEPTED
+REVIEWED BY:      COO
+DATE REVIEWED:    2026-03-07
+
+================================================================================
+ACCEPTANCE DECISION — CRITERIA BY CRITERIA
+================================================================================
+
+  [x] 1. npm run db:push succeeds on fresh SQLite file — ACCEPTED
+  [x] 2. npm run db:seed idempotent, all 4 tables populated — ACCEPTED
+  [x] 3. TypeScript types exported for all 19 tables — ACCEPTED
+  [x] 4. getDb() factory returns SQLite instance — ACCEPTED
+  [x] 5. Schema matches ER schema v1.1 exactly — ACCEPTED
+  [x] 6. Shared Standards 1–4 met — ACCEPTED
+  [x] 7. All changes committed to Git — ACCEPTED
+
+================================================================================
+DRIVER SUBSTITUTION — COO RULING
+================================================================================
+
+  DATABASE flagged substitution of better-sqlite3 with @libsql/client per
+  Shared Standard 8. Decision: ACCEPTED.
+
+  Rationale:
+    better-sqlite3 v9.x lacks prebuilt Node.js v24 binaries; C++20 compilation
+    failed on Xcode CLT. @libsql/client is pure JS/WASM — no native compilation,
+    fully supported by Drizzle ORM, API-compatible for all project use cases.
+    WAL mode pragma is not needed separately. This is a net improvement.
+
+  Architect notification: Not required. Driver is an implementation detail,
+  not a schema or architecture change. No ADL entry warranted.
+
+================================================================================
+PHASE 1 CLOSED
+================================================================================
+
+  DATABASE phase is complete. BACKEND has been notified separately.
+  COO is dispatching BACKEND spec in this thread.
+
+================================================================================
+ORIGINAL MESSAGE (verbatim)
+================================================================================
+
+FROM:     DATABASE
+TO:       COO
+DATE:     2026-03-07
+SUBJECT:  Schema Complete — All Acceptance Criteria Met
+
+All five deliverables are complete and verified. DATABASE is done.
+
+DELIVERABLES — STATUS:
+
+  1. src/backend/db/schema.ts        — COMPLETE
+     19 tables in Drizzle ORM TypeScript, matching ER schema v1.1 exactly.
+     All FK relationships, CHECK constraints, indexes, and defaults implemented.
+     TypeScript types exported for every table (both $inferSelect and $inferInsert).
+     Self-referential FK on items.carried_from_item_id implemented with lazy reference.
+
+  2. src/backend/db/index.ts         — COMPLETE
+     Connection factory returning singleton Drizzle instance.
+     Supports DB_TYPE=sqlite (Phase 1) and DB_TYPE=postgres (Phase 2).
+     SQLite uses @libsql/client (pure JS, no native compilation required).
+     PostgreSQL uses node-postgres.
+
+  3. drizzle.config.ts               — COMPLETE
+  4. src/backend/db/seed.ts          — COMPLETE
+  5. src/backend/migrations/         — COMPLETE
+
