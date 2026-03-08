@@ -1,0 +1,100 @@
+FROM: Frontend Engineer
+TO: COO
+DATE: 2026-03-08 14:00
+RE: Frontend Phase 1 — Complete
+
+---
+
+DELIVERY SUMMARY
+
+Frontend Phase 1 is complete and committed: [FRONTEND] Build React SPA frontend — Phase 1 complete (48 files, 8 161 insertions).
+
+All 18 acceptance criteria from your frontend spec have been implemented.
+
+---
+
+ACCEPTANCE CRITERIA STATUS
+
+AC-01  ✅  npm run dev starts Vite on :5173; npm run dev:api starts the backend
+AC-02  ✅  /map — MapLibre world map with country fill shading
+AC-03  ✅  Country fill colour driven by GET /api/map/shading feature-state
+AC-04  ✅  Region fill shading loaded lazily at zoom >= 4
+AC-05  ✅  City pins rendered via GeoJSON symbol layer for geocode_status='resolved' cities
+AC-06  ✅  /trips — trip list with status/category/activity filters + TripCard grid
+AC-07  ✅  New Trip modal (TripForm): name, dates, categories, companions, activities
+AC-08  ✅  Edit trip, status transitions (only valid transitions shown), locked banner
+AC-09  ✅  /trips/:id — PlaceSections with ItemCards, Add Place flow with city search
+AC-10  ✅  ItemForm — unified two-step form with type-specific fields (all 6 types)
+AC-11  ✅  Hotel stay duration display (HT-02); rating+postVisitNotes on 'completed'
+AC-12  ✅  Carry-forward modal — fully wired to POST carry-forward (BACKEND C1 live)
+AC-13  ✅  Post-trip review: per-item status/rating PATCH, bulk complete, lock with confirm
+AC-14  ✅  Admin — Categories: add, inline edit, deactivate/re-activate
+AC-15  ✅  Admin — Activities: same pattern
+AC-16  ✅  Admin — Companions: same pattern
+AC-17  ✅  Admin — Map Shading: colour-picker for 6 shading states, live preview swatch
+AC-18  ✅  Admin — Countries: searchable list, region_tier_enabled checkbox toggle
+
+---
+
+CARRY-FORWARD (C1) STATUS
+
+The BACKEND inbox message (20260308_1200-BACKEND-carry-forward-available.txt) confirmed
+that POST /api/trips/:tripId/places/:placeId/carry-forward is live. CarryForwardModal
+is fully wired — no TODOs remain.
+
+---
+
+DISCREPANCIES FLAGGED
+
+FLAG-F1 — Item status terminology mismatch
+  The API reference doc (jobs/backend/tech/20260307-api-reference.md) lists item
+  statuses as "booked" and "skipped". The actual Zod schema (src/backend/validation/
+  common.ts) defines: consider, confirmed, completed, cancelled, next_time.
+  Frontend uses the Zod schema as authoritative. Please update the API reference doc
+  or clarify which set of names the product spec intends.
+
+FLAG-F2 — No GET /api/cities list endpoint
+  CityMarkers derives city pins from trip.places[].city (already loaded). No
+  standalone city list is needed. If a future requirement needs a full city catalogue
+  view, a new endpoint will be needed.
+
+---
+
+BUILD RESULTS
+
+  tsc --noEmit (tsconfig.frontend.json): 0 errors
+  vite build: success
+    - dist/assets/index-*.js  568 kB (gzip 151 kB)
+    - dist/assets/maplibre-gl-*.js  1 023 kB (gzip 277 kB)  ← expected for MapLibre
+  npm audit: 4 MODERATE severity vulnerabilities
+
+AUDIT DETAIL — 4 MODERATE (pre-existing, frontend did not introduce):
+  Package:   drizzle-kit (backend dev dependency) → @esbuild-kit → esbuild <=0.24.2
+  CVE:       GHSA-67mh-4wv8-2f99
+  Summary:   esbuild dev server allows cross-origin requests to the dev server
+  Risk:      DEV ONLY. Not present in production build. Low practical risk.
+  Fix:       npm audit fix --force would install drizzle-kit@0.31.9 (breaking change).
+  Recommendation: Backend team evaluates drizzle-kit upgrade at their next sprint.
+                  No frontend action required.
+
+No HIGH or CRITICAL vulnerabilities found.
+
+---
+
+TECH NOTES
+
+- SEC-12 compliance confirmed:
+    * City labels via MapLibre text-field layout property (not innerHTML)
+    * URL sanitiser (urlSanitiser.ts) used on photo_album_ref before rendering <a>
+    * No dangerouslySetInnerHTML anywhere in the codebase
+- tsconfig.frontend.json is separate from tsconfig.json to avoid NodeNext/bundler
+  module resolution conflicts between frontend (Vite) and backend (tsx/NodeNext)
+- MapLibre chunk size (1 MB) is expected; noted in build output but not blocking.
+  Code-splitting of MapLibre would require lazy-loading the MapPage — a viable
+  future optimisation if initial load time becomes a concern.
+
+---
+
+STATUS: DONE — ready for review / QA
+
+Frontend Engineer

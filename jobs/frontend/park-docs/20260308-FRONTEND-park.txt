@@ -1,0 +1,108 @@
+FRONTEND PARK DOCUMENT
+Date: 2026-03-08
+Session: Phase 1 build — complete
+
+=== WHAT WAS ACCOMPLISHED ===
+
+Built the full React 18 + TypeScript SPA frontend for the Travel Tracker.
+
+Packages installed (runtime):
+  react, react-dom, react-router-dom v6
+  @tanstack/react-query v5
+  maplibre-gl, react-map-gl (MapLibre adapter)
+
+Packages installed (dev):
+  vite, @vitejs/plugin-react
+  @types/react, @types/react-dom
+
+Files created (44 new source files):
+
+  CONFIG
+    index.html
+    vite.config.ts          — Vite with proxy /api+/geo → :3001
+    tsconfig.frontend.json  — separate tsconfig (moduleResolution: bundler)
+    src/frontend/vite-env.d.ts
+
+  UTILS + TYPES
+    src/frontend/utils/urlSanitiser.ts   — SEC-12 https:// guard
+    src/frontend/utils/apiClient.ts      — typed fetch wrapper
+    src/frontend/types/api.ts            — all API response types
+
+  HOOKS (6 files)
+    useTrips.ts, usePlaces.ts, useItems.ts, useCities.ts,
+    useMapShading.ts, useAdmin.ts
+
+  SHARED COMPONENTS (5 files)
+    StatusBadge, RatingStars, ConfirmDialog, LoadingSpinner, ErrorMessage
+
+  MAP COMPONENTS (4 files)
+    MapView.tsx        — MapLibre map, shading, click handler
+    CountryLayer.tsx   — GeoJSON source + fill layer, feature-state shading
+    RegionLayer.tsx    — lazy-loaded region shading at zoom >= 4
+    CityMarkers.tsx    — symbol layer city pins (SEC-12: text-field not innerHTML)
+
+  TRIP COMPONENTS (8 files)
+    TripCard, TripList (list + filters + new trip button)
+    TripForm (create/edit modal with multi-select chips)
+    ItemCard, ItemForm (two-step unified form, all 6 types)
+    PlaceSection, TripDetail, AddPlaceFlow
+
+  CARRY FORWARD (1 file)
+    CarryForwardModal.tsx  — fully wired to BACKEND C1
+
+  POST-TRIP REVIEW (2 files)
+    ReviewItemRow.tsx, ReviewPanel.tsx
+
+  ADMIN (6 files)
+    CategoryTab, ActivityTab, CompanionTab, ShadingTab, CountryTab, AdminPanel
+
+  PAGES + APP (6 files)
+    MapPage, TripsPage, TripDetailPage, AdminPage, App.tsx, main.tsx
+
+=== BUILD RESULTS ===
+
+  tsc --noEmit (tsconfig.frontend.json): 0 errors
+  vite build: success (1 expected large-chunk warning for maplibre-gl)
+  npm audit: 4 MODERATE (all pre-existing drizzle-kit/esbuild, not introduced by frontend)
+
+=== KEY DECISIONS ===
+
+1. Separate tsconfig.frontend.json
+   The root tsconfig.json uses "moduleResolution": "NodeNext" for the backend.
+   Vite requires "bundler". Created separate tsconfig rather than breaking backend.
+
+2. Frontend types in api.ts (not imported from drizzle schema)
+   Avoided importing drizzle-orm/sqlite-core into the browser bundle by defining
+   standalone TypeScript interfaces in src/frontend/types/api.ts.
+
+3. C1 carry-forward fully implemented
+   The BACKEND inbox message confirmed the carry-forward POST endpoint was live.
+   CarryForwardModal is fully wired, not left as a TODO.
+
+4. Item status follows Zod schema (not API reference doc)
+   The API reference doc uses "booked"/"skipped" — inconsistent with the Zod
+   zItemStatus enum (consider/confirmed/completed/cancelled/next_time).
+   Frontend uses the schema as authoritative. Flagged to COO as FLAG-F1.
+
+5. onCountryClick is optional on MapView
+   MapPage has no current use for country selection; made it optional with ?. syntax.
+
+=== OPEN ITEMS ===
+
+FLAG-F1: Item status terminology mismatch (API doc vs Zod schema) — reported to COO.
+FLAG-F2: No /api/cities list endpoint — not needed, cities derived from trip.places.
+AUDIT:   4 MODERATE npm findings in drizzle-kit — flagged to COO for backend decision.
+
+=== HOW TO RESUME ===
+
+1. Read: jobs/frontend/context/current.txt
+2. Read: jobs/COO/inbox/ for any new instructions
+3. If QA found bugs: read the bug report, fix, re-run tsc + build, recommit
+4. If new features requested: check API reference for available endpoints
+
+Run the app:
+  Terminal 1: npm run dev:api   (backend on :3001)
+  Terminal 2: npm run dev       (frontend on :5173)
+  Open: http://localhost:5173
+
+=== END PARK DOCUMENT ===
