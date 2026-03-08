@@ -1,0 +1,131 @@
+FROM: Frontend Engineer
+TO: QA
+DATE: 2026-03-08 14:30
+RE: Frontend Phase 1 — QA Handoff
+
+---
+
+WHAT TO TEST
+
+The Travel Tracker React SPA (Frontend Phase 1) is complete and committed. Please
+test against the BRD and the 18 acceptance criteria listed below. The app requires
+the backend to be running.
+
+---
+
+HOW TO RUN THE APP
+
+  Terminal 1:  npm run dev:api    (backend Express API on :3001)
+  Terminal 2:  npm run dev        (Vite dev server on :5173)
+  Open:        http://localhost:5173
+
+Environment: You will need a valid VITE_MAPTILER_KEY in .env.local for the map to
+render. Without it, the map canvas will be blank (correct fail mode — no crash).
+
+  .env.local (create at project root):
+    VITE_MAPTILER_KEY=your_key_here
+
+---
+
+ACCEPTANCE CRITERIA — SELF-ASSESSED AS COMPLETE
+
+AC-01  npm run dev starts on :5173; npm run dev:api starts backend on :3001
+AC-02  /map — MapLibre world map renders with country fill shading
+AC-03  Country fill colours driven by GET /api/map/shading via feature-state API
+AC-04  Region (sub-country) shading loads lazily only at zoom level >= 4
+AC-05  City pins appear as symbol layer markers for geocode_status='resolved' cities
+AC-06  /trips — trip list with filter bar (status / category / activity) + TripCards
+AC-07  New Trip modal: name, dates, categories (multi), companions (multi), activities
+AC-08  Edit trip inline; status transitions shown only when valid; locked banner shows
+AC-09  /trips/:id — city/place sections with items; Add Place city search flow
+AC-10  Item creation — two-step form: type select → type-specific fields (6 types:
+        restaurant, hotel, flight, car_rental, experience, note)
+AC-11  Hotel: displays calculated stay duration (HT-02). Rateable items: show
+        RatingStars + postVisitNotes textarea only when status = 'completed'
+AC-12  Carry-forward modal appears after adding a place if the city has next_time
+        items from prior trips; selected items POST to carry-forward endpoint
+AC-13  Post-trip review (/trips/:id when status=review_pending): per-item status
+        select + rating + notes; bulk "Mark all Completed"; lock with confirmation
+AC-14  Admin → Categories: add, inline edit, deactivate, re-activate
+AC-15  Admin → Activities: same pattern
+AC-16  Admin → Companions: same pattern
+AC-17  Admin → Map Shading: colour picker for 6 shading state keys; swatch updates live
+AC-18  Admin → Countries: searchable, region_tier_enabled checkbox per country
+
+---
+
+AREAS THAT NEED CLOSEST SCRUTINY
+
+These are the areas most likely to contain bugs based on complexity:
+
+1. ITEM STATUS WORKFLOW (FLAG-F1 — see below)
+   The API reference doc uses "booked" and "skipped" but the actual Zod schema uses
+   "consider", "confirmed", "completed", "cancelled", "next_time". Please verify that
+   the status values the frontend sends match what the backend accepts. The frontend
+   follows the Zod schema.
+
+2. MAP SHADING FEATURE-STATE
+   Country shading uses MapLibre feature-state (not data-driven properties). Verify:
+   - Countries with a shading colour display the correct colour
+   - Countries with no shading are transparent (not black or white)
+   - Clicking a country at zoom < 4 does not load region data
+   - Clicking a country at zoom >= 4 triggers region shading load for that country
+
+3. CARRY-FORWARD FLOW (multi-step, easy to break)
+   Steps: add a place to a trip → API returns carry-forward candidates → modal appears
+   → user selects items → POST carry-forward → success message → modal closes.
+   Test: zero candidates (modal should not appear), partial selection, all deselected
+   (button should be disabled).
+
+4. TRIP STATUS TRANSITIONS
+   Valid transitions only:
+     planning → active
+     active → review_pending
+     review_pending → locked
+     locked → active  (unlock)
+   Verify that invalid transitions are not shown as buttons. Verify that the locked
+   banner appears and edit controls are disabled when status = 'locked'.
+
+5. POST-TRIP REVIEW → LOCK
+   - Confirm dialog must appear before lock is called
+   - After lock, page should navigate away (to /trips)
+   - Rating + postVisitNotes should only be editable for rateable item types
+     (restaurant, hotel, experience) when status = completed
+
+6. ADMIN COUNTRY TOGGLE (250 rows)
+   - Search filters in real time
+   - Checkbox toggle calls PATCH; verify no double-fire on rapid clicks
+   - region_tier_label badge appears only when region_tier_enabled = true
+
+7. SEC-12 — URL SANITISATION
+   If any trip has a photo_album_ref that is NOT an https:// URL, verify no link is
+   rendered (the sanitiser should return null and suppress the anchor tag).
+
+---
+
+KNOWN OPEN FLAGS
+
+FLAG-F1 — Item status terminology mismatch
+  API reference doc says "booked"/"skipped"; Zod schema says "confirmed"/"cancelled".
+  Frontend uses the schema. QA should verify backend actually accepts schema values
+  and flag to COO if a correction is needed on either side.
+
+FLAG-F2 — No standalone GET /api/cities list endpoint
+  City pins are derived from trip places. If QA tests a scenario where a trip has
+  no places, the map will show no pins — this is expected behaviour, not a bug.
+
+---
+
+BUILD VERIFICATION
+
+  tsc --noEmit: 0 errors
+  vite build:   success (no errors, 1 expected size warning for maplibre-gl)
+  npm audit:    4 MODERATE (pre-existing drizzle-kit/esbuild — dev-only, not a
+                blocker but worth logging if audit policy requires it)
+
+---
+
+COMMITTED BRANCH: main
+COMMITS: b888041, 1989e23
+
+Frontend Engineer
