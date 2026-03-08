@@ -1,0 +1,125 @@
+TRAVEL TRACKER — PROJECT PLAN
+Version: 1.0
+Date: 2026-03-07
+Author: COO
+
+================================================================================
+PROJECT OBJECTIVE
+================================================================================
+
+Build a personal travel tracker desktop application for macOS. The user logs
+trips, places, and items (restaurants, hotels, flights, experiences, etc.),
+and views their travel history on an interactive world map with country/region
+shading based on visit history.
+
+Launch target: Packaged .app (Electron). Beta runs localhost-in-browser.
+Future: Hosted web app, iOS app — with no code changes required.
+
+Reference: _project/travel-tracker-BRD.md (v2.3)
+
+================================================================================
+PHASE 0 — FOUNDATION                                          STATUS: COMPLETE
+================================================================================
+
+ARCHITECT
+  Deliverables:
+    [x] ER schema v1.1 (all 19 tables, indexes, constraints, key queries)
+    [x] Map shading computation spec v1.0 (7 states, 3 geo levels, SQL queries)
+    [x] Technology blueprint v1.0 (stack, rationale, migration paths, structure)
+    [x] Architecture decisions log (ADL-01 to ADL-14)
+  Open Questions:
+    [x] OQ-A1: Experience ratings — RESOLVED (PO confirmed yes)
+  BRD:
+    [x] Updated to v2.3 (EX-01 added, IT-08 updated)
+  Completed: 2026-03-07
+
+================================================================================
+PHASE 1 — DATA LAYER                                          STATUS: ACTIVE
+================================================================================
+
+DATABASE
+  Spec: jobs/database/inbox/20260307_1500-COO-database-spec.txt
+  Deliverables:
+    [ ] src/backend/db/schema.ts  — Drizzle schema (19 tables, all FK/constraints)
+    [ ] src/backend/db/index.ts   — DB connection factory (sqlite/postgres)
+    [ ] drizzle.config.ts         — Drizzle Kit configuration
+    [ ] src/backend/db/seed.ts    — Seed data loader (admin lists, shading config)
+    [ ] src/backend/migrations/   — Generated migration files
+  Acceptance:
+    [ ] npm run db:push succeeds on fresh SQLite file
+    [ ] npm run db:seed populates all defaults, idempotent
+    [ ] TypeScript types exported for all tables
+    [ ] Schema matches ER schema v1.1 exactly
+
+================================================================================
+PHASE 2 — API LAYER                                           STATUS: BLOCKED
+================================================================================
+
+BACKEND
+  Blocked on: DATABASE schema complete
+  Scope (from tech blueprint §1.3):
+    - All REST API routes (trips, places, items, cities, map shading, admin)
+    - Geocoding service (Nominatim, queue-and-resolve pattern)
+    - Shading state computation (computeState() function per shading spec)
+    - Item carry-forward service
+    - Trip status transition enforcement
+    - Locked-trip write prevention
+
+================================================================================
+PHASE 3 — UI LAYER                                            STATUS: BLOCKED
+================================================================================
+
+FRONTEND
+  Blocked on: BACKEND API complete
+  Scope (from tech blueprint §1.4):
+    - MapView (MapLibre GL JS via react-map-gl, Natural Earth GeoJSON)
+    - TripList / TripDetail
+    - ItemList (sort/filter by rating, type, status — IT-08, IT-09)
+    - PostTripReview workflow (RV-01 to RV-04)
+    - CarryForwardPrompt modal (IT-07)
+    - AdminPanel (categories, activities, companions, shading config)
+
+================================================================================
+PHASE 4 — QUALITY AND DOCUMENTATION                          STATUS: BLOCKED
+================================================================================
+
+QA
+  Blocked on: FRONTEND core features complete
+  Scope: Test plan per feature, test execution, defect reports, sign-off
+
+DOCS
+  Blocked on: Feature set stable
+  Scope: User guide, admin panel guide, setup and launch instructions
+
+================================================================================
+PHASE 5 — INTEGRATIONS                                       STATUS: PENDING
+================================================================================
+
+Post-MVP. Not on critical path. Architecture must not block this.
+  Scope: Notification engine (N-01 to N-04), future third-party integrations
+
+================================================================================
+CRITICAL PATH
+================================================================================
+
+  ARCHITECT → DATABASE → BACKEND → FRONTEND → QA → release
+                                                  ↘ DOCS (parallel)
+
+================================================================================
+KEY DECISIONS (summary — full log in architect/tech/ADL)
+================================================================================
+
+  Stack:        TypeScript / Node.js / Express / Drizzle ORM / React / Vite
+  Database:     SQLite (Phase 1) → PostgreSQL (Phase 2, config change only)
+  Desktop:      Electron (.app release); localhost-in-browser (beta)
+  Mapping:      MapLibre GL JS + MapTiler tiles + Natural Earth GeoJSON (bundled)
+  Geocoding:    Nominatim (offline-tolerant queue-and-resolve)
+  Shading:      Computed at query time — never stored
+  Items:        Base table + per-type extension tables
+
+================================================================================
+CHANGE LOG
+================================================================================
+
+  2026-03-07  v1.0  Initial project plan. Phase 0 complete. Phase 1 active.
+

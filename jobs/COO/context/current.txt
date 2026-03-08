@@ -1,71 +1,107 @@
 COO CONTEXT — 2026-03-07
 PROJECT: Travel Tracker
-CURRENT STATUS: Phase 0 — Architect spec + all PO answers dispatched, no blockers
+CURRENT STATUS: Phase 1 — DATABASE spec dispatched, awaiting implementation
 
 ================================================================================
-ACTIVE TASKS
+PHASE STATUS
 ================================================================================
+
+  PHASE 0 (FOUNDATION)    — COMPLETE
+  PHASE 1 (DATA LAYER)    — ACTIVE (DATABASE working)
+  PHASE 2 (API LAYER)     — BLOCKED on DATABASE
+  PHASE 3 (UI LAYER)      — BLOCKED on BACKEND
+  PHASE 4 (QA/DOCS)       — BLOCKED on FRONTEND
+  PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
+
+================================================================================
+ACTIVE JOBS
+================================================================================
+
+DATABASE
+  Status:   Spec dispatched. No blockers. Awaiting implementation.
+  Spec:     jobs/database/inbox/20260307_1500-COO-database-spec.txt
+  Delivers: schema.ts, index.ts, drizzle.config.ts, seed.ts, migrations/
+  Waiting:  Completion confirmation to COO inbox + BACKEND notification
 
 ARCHITECT
-  Status:   Spec + PO answers + Q3 amendment all delivered. No blockers.
-            Architect should proceed to deliverables.
-  Inbox:    jobs/architect/inbox/20260307_1000-COO-architect-spec.txt
-            jobs/architect/inbox/20260307_1100-COO-architect-answers.txt
-            jobs/architect/inbox/20260307_1115-COO-architect-q3-amendment.txt
-  Waiting:  ER schema, map shading spec, tech stack rec, mapping library rec,
-            architecture decisions log, any remaining open questions
+  Status:   COMPLETE. All deliverables accepted. Spec fully reviewed.
+  Outputs:  jobs/architect/tech/ (4 documents)
 
 ================================================================================
-ALL OTHER JOBS
+BLOCKED JOBS
 ================================================================================
 
-  DATABASE, BACKEND, FRONTEND, QA, DOCS  — BLOCKED on ARCHITECT
-  INTEGRATIONS                            — PENDING (post-MVP)
-
-================================================================================
-PO QUESTIONS — STATUS
-================================================================================
-
-  Q1. Desktop packaging         — ANSWERED and in BRD v2.2 (OQ-02 updated)
-  Q2. Rating scale              — ANSWERED and in BRD v2.2 (RS-03, HT-04,
-                                  IT-08, IT-09)
-  Q3. Geographic data source    — ANSWERED + AMENDED and in BRD v2.2
-                                  (GE-10 through GE-13)
-  Q4. Next time carry-forward   — ANSWERED and in BRD v2.2 (IT-07 revised)
+  BACKEND      — Waiting on DATABASE schema complete
+  FRONTEND     — Waiting on BACKEND API complete
+  QA           — Waiting on FRONTEND
+  DOCS         — Waiting on FRONTEND (stable features)
 
 ================================================================================
 BRD STATUS
 ================================================================================
 
-  Current version: 2.2 (Approved)
+  Current version: 2.3 (Approved)
   File: _project/travel-tracker-BRD.md
-  All PO-confirmed requirements from this thread are now in the BRD.
-  No outstanding supplements.
+  Changes from v2.2:
+    - EX-01 added (Experience ratings: 1–5 stars, post-visit notes)
+    - IT-08 updated to include experiences in rating sort/filter
+  No outstanding supplements. No open questions.
+
+================================================================================
+ARCHITECT DELIVERABLES — REVIEW STATUS
+================================================================================
+
+  20260307-ER-schema.md (v1.1)           — ACCEPTED
+  20260307-map-shading-spec.md (v1.0)    — ACCEPTED
+  20260307-tech-blueprint.md (v1.0)      — ACCEPTED
+  20260307-architecture-decisions-log.md — ACCEPTED (ADL-01 to ADL-14)
+
+================================================================================
+PO QUESTIONS — STATUS (all resolved)
+================================================================================
+
+  Q1. Desktop packaging         — ANSWERED (Electron; BRD v2.2)
+  Q2. Rating scale              — ANSWERED (1–5 stars; BRD v2.2)
+  Q3. Geographic data source    — ANSWERED + AMENDED (Natural Earth; BRD v2.2)
+  Q4. Next time carry-forward   — ANSWERED (BRD v2.2)
+  OQ-A1. Experience ratings     — ANSWERED (yes, 1–5 stars; BRD v2.3)
+  No open questions remain.
+
+================================================================================
+PROJECT FILES STATUS
+================================================================================
+
+  _project/travel-tracker-BRD.md     — v2.3, approved
+  _project/dependency-graph.txt       — v1.1, current
+  _project/project-plan.txt           — v1.0, written this thread
+  _project/objective.txt              — empty (FLAG-01 — not blocking)
+  _project/job-registry.txt           — empty (FLAG-01 — not blocking)
+  _project/document-index.txt         — empty (FLAG-01 — not blocking)
+  _project/seed-data.txt              — complete (used in DATABASE spec)
+
+  FLAG-01: objective.txt, job-registry.txt, document-index.txt remain empty.
+  Still not blocking. COO can populate if requested.
 
 ================================================================================
 ISSUES / FLAGS
 ================================================================================
 
-  FLAG-01: Several project files found to be empty on initialisation:
-  objective.txt, job-registry.txt, project-plan.txt, document-index.txt.
-  Not blocking for now. COO can draft initial versions from BRD if requested.
-
-  FLAG-02: Old project artefacts (National DC Dashboard) — RESOLVED.
+  FLAG-01: Empty project files (objective.txt, job-registry.txt,
+           document-index.txt). Non-blocking. Can draft on request.
 
 ================================================================================
 LAST PARK DOC
 ================================================================================
 
-  jobs/COO/park-docs/20260307_1000-COO-park.txt
-  Note: Park doc predates Q3 amendment and BRD v2.2. Next park doc should
-  capture the full thread including these updates.
+  jobs/COO/park-docs/20260307_1500-COO-park.txt (written this thread)
 
 ================================================================================
 NEXT COO THREAD — RECOMMENDED STARTING POINT
 ================================================================================
 
-  1. Check jobs/architect/outbox/ for Architect deliverables
-  2. Review each deliverable against spec before approving
-  3. Write DATABASE spec to unblock next phase
-  4. Consider populating empty project files (FLAG-01) if requested
+  1. Check jobs/COO/inbox/ for DATABASE completion report
+  2. Review DATABASE deliverables against acceptance criteria in the spec
+  3. If accepted: write BACKEND spec, notify BACKEND to begin
+  4. If sent back: log defects, return to DATABASE with specific corrections
+  5. Consider populating FLAG-01 files if requested
 

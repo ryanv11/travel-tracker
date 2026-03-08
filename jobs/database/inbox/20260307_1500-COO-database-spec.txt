@@ -1,0 +1,314 @@
+FROM:     COO
+TO:       DATABASE
+DATE:     2026-03-07
+SUBJECT:  DATABASE Spec — Schema Implementation, Migrations, and Seed Data
+
+ARCHITECT has delivered all Phase 0 outputs. No open questions remain. You are
+cleared to begin.
+
+================================================================================
+SOURCE DOCUMENTS — READ ALL BEFORE STARTING
+================================================================================
+
+  1. jobs/architect/tech/20260307-ER-schema.md            (v1.1 — AUTHORITATIVE)
+  2. jobs/architect/tech/20260307-tech-blueprint.md        (v1.0)
+  3. jobs/architect/tech/20260307-architecture-decisions-log.md  (ADL-01 to ADL-14)
+  4. _project/travel-tracker-BRD.md                       (v2.3)
+  5. _project/seed-data.txt
+
+================================================================================
+YOUR DELIVERABLES
+================================================================================
+
+You will produce exactly five artefacts. Nothing more, nothing less.
+
+  1. src/backend/db/schema.ts         — Drizzle schema (all tables)
+  2. src/backend/db/index.ts          — Database connection factory
+  3. drizzle.config.ts                — Drizzle Kit configuration
+  4. src/backend/db/seed.ts           — Seed data loader script
+  5. src/backend/migrations/          — Generated migration files (via drizzle-kit)
+
+================================================================================
+DELIVERABLE 1 — src/backend/db/schema.ts
+================================================================================
+
+This file is the single source of truth for the database schema. It is defined
+in Drizzle ORM TypeScript syntax. All tables from ER schema v1.1 must be
+represented here — not in raw SQL files, not anywhere else.
+
+TABLES TO IMPLEMENT (in this order to satisfy FK dependencies):
+
+  Geographic:
+    - countries           (§1.1 of ER schema)
+    - regions             (§1.2)
+    - cities              (§1.3)
+
+  Admin and config:
+    - trip_categories     (§2.1)
+    - activities          (§2.2)
+    - companions          (§2.3)
+    - map_shading_config  (§2.4)
+
+  Trips:
+    - trips               (§3.1)
+    - trip_categories_map (§3.2)
+    - trip_companions_map (§3.3)
+    - trip_activities_map (§3.4)
+
+  Places:
+    - trip_places              (§4.1)
+    - trip_place_activities_map (§4.2)
+
+  Items:
+    - items             (§5.1)
+    - item_flights      (§5.2)
+    - item_hotels       (§5.3)
+    - item_car_rentals  (§5.4)
+    - item_restaurants  (§5.5)
+    - item_experiences  (§5.6 — added in v1.1, do not omit)
+
+DRIZZLE SYNTAX REQUIREMENTS:
+
+  SQLite tables:      use sqliteTable() from 'drizzle-orm/sqlite-core'
+  PostgreSQL tables:  use pgTable() from 'drizzle-orm/pg-core'
+
+  The schema file must use conditional imports or a unified approach so the
+  same file works for both engines. Recommended pattern:
+
+    Use the Drizzle "dialect-aware" table definitions:
+    Define all tables twice (sqliteTable + pgTable) behind a discriminated
+    union export driven by DB_TYPE, OR use Drizzle's built-in multi-dialect
+    support with a shared schema builder. Review Drizzle docs for the current
+    recommended pattern for SQLite↔PostgreSQL shared schemas.
+
+  Column type mappings (SQLite → PostgreSQL via Drizzle):
+    TEXT    → text()
+    INTEGER → integer()
+    REAL    → real()
+    All timestamps: text() in SQLite, timestamp() in PostgreSQL
+    Drizzle handles this abstraction — do not write raw type strings.
+
+  Constraints to implement from ER schema:
+    - All PRIMARY KEYs
+    - All FOREIGN KEYs with ON DELETE CASCADE where specified
+    - All CHECK constraints (e.g. is_active IN (0,1), status IN (...))
+    - All UNIQUE constraints
+    - All DEFAULT values
+    - All partial indexes (e.g. cities geocode_status = 'pending')
+
+  Indexes:
+    Implement all indexes from the ER schema. Use Drizzle's index() builder.
+    Named indexes must match the ER schema names exactly (e.g. idx_cities_country).
+
+  Exports:
+    Export every table definition AND its inferred TypeScript types:
+      export type Country = typeof countries.$inferSelect;
+      export type NewCountry = typeof countries.$inferInsert;
+    Do this for every table. BACKEND will import these types to ensure
+    BACKEND and DATABASE are always in sync without manual duplication.
+
+IMPORTANT — WHAT IS NOT IN THIS FILE:
+  - No business logic
+  - No seed data
+  - No API calls
+  - No migration code (drizzle-kit generates that separately)
+
+================================================================================
+DELIVERABLE 2 — src/backend/db/index.ts
+================================================================================
+
+This file exports a function that returns a Drizzle ORM database instance for
+the correct engine based on the DB_TYPE environment variable.
+
+Required behaviour:
+  - Read DB_TYPE from process.env (values: 'sqlite' | 'postgres')
+  - If DB_TYPE = 'sqlite': create a better-sqlite3 connection to SQLITE_PATH
+  - If DB_TYPE = 'postgres': create a node-postgres connection to DATABASE_URL
+  - Return a typed Drizzle instance wrapping the connection
+  - If DB_TYPE is missing or invalid: throw a clear error on startup
+
+Pattern to follow (from tech blueprint §1.2, ADL-04):
+  The BACKEND connection is abstracted behind a factory so that changing
+  DB_TYPE is the complete and total scope of the database migration.
+  No other file should ever import 'better-sqlite3' or 'pg' directly —
+  all database access goes through the Drizzle instance exported by this file.
+
+Environment variables this file reads:
+  DB_TYPE      'sqlite' | 'postgres'
+  SQLITE_PATH  Absolute path to the .db file (sqlite only)
+  DATABASE_URL PostgreSQL connection string (postgres only)
+
+Startup validation:
+  Log which database engine and path is being used on startup (at info level).
+  This makes it immediately obvious in logs which mode is active.
+
+================================================================================
+DELIVERABLE 3 — drizzle.config.ts
+================================================================================
+
+Drizzle Kit configuration file. Used by `drizzle-kit generate` (create migration
+files) and `drizzle-kit push` (apply schema directly to database).
+
+Must configure:
+  - dialect based on DB_TYPE (read from .env)
+  - schema: './src/backend/db/schema.ts'
+  - out: './src/backend/migrations/' (migration output directory)
+  - dbCredentials based on DB_TYPE:
+      sqlite: { url: SQLITE_PATH }
+      postgres: { url: DATABASE_URL }
+
+================================================================================
+DELIVERABLE 4 — src/backend/db/seed.ts
+================================================================================
+
+A standalone TypeScript script that populates default admin list data on first
+launch. This script is idempotent — running it twice must not create duplicates.
+
+DATA TO SEED (from _project/seed-data.txt):
+
+  trip_categories (11 rows):
+    Ski Trip, Honeymoon, Summer Holiday, City Break, Road Trip,
+    Business, Family, Adventure, Beach Holiday, Cultural, Other
+
+  activities (17 rows):
+    Skiing, Snowboarding, Dining, Hiking, Beach Day, Cooking Class,
+    Wine Tasting, Sightseeing, Museum, Cycling, Sailing, Surfing,
+    Snorkelling / Diving, Shopping, Live Music / Events, Spa / Wellness, Other
+
+  companions (7 rows):
+    Solo, Partner, Partner + Friends, Family, Friends,
+    Work / Conference, Other
+
+  map_shading_config (6 rows — state_key values are fixed constants):
+    state_key                    | display_name                       | color_hex
+    active                       | Active                             | #2196F3
+    planned                      | Planned                            | #CE93D8
+    visited_once                 | Visited once                       | #A5D6A7
+    visited_once_planning        | Visited once + planning            | #66BB6A
+    visited_multiple             | Visited multiple times             | #2E7D32
+    visited_multiple_planning    | Visited multiple times + planning  | #F9A825
+
+  NOTE: 'never_visited' is NOT a row in map_shading_config. It has no shading
+  and is handled in application code only (MP-05).
+
+IDEMPOTENCY REQUIREMENT:
+  Use INSERT OR IGNORE (SQLite) or INSERT ... ON CONFLICT DO NOTHING (PostgreSQL).
+  Drizzle supports this via `.onConflictDoNothing()`. Use this — do not check for
+  existence first (that is two queries instead of one).
+
+INVOCATION:
+  This script must be runnable via: npm run db:seed
+  Add the appropriate script to package.json.
+
+  The script should print a confirmation line for each table seeded, e.g.:
+    ✓ trip_categories seeded (11 rows attempted)
+    ✓ activities seeded (17 rows attempted)
+    ✓ companions seeded (7 rows attempted)
+    ✓ map_shading_config seeded (6 rows attempted)
+
+================================================================================
+DELIVERABLE 5 — src/backend/migrations/
+================================================================================
+
+Generate initial migration files using drizzle-kit.
+
+Command:
+  npx drizzle-kit generate
+
+This creates SQL migration files in src/backend/migrations/. Commit these files.
+Do not manually edit the generated migration files.
+
+The migration is applied with:
+  npx drizzle-kit push
+
+Or via a package.json script: npm run db:push
+
+Add both scripts to package.json:
+  "db:generate" : "drizzle-kit generate"
+  "db:push"     : "drizzle-kit push"
+  "db:seed"     : "ts-node src/backend/db/seed.ts"
+
+================================================================================
+WHAT DATABASE DOES NOT DO
+================================================================================
+
+These are BACKEND responsibilities. Do not implement them:
+  - Geocoding service (Nominatim calls, pending queue processing)
+  - Shading state computation (computeState() logic)
+  - Item carry-forward logic
+  - Trip status transition enforcement
+  - Locked-trip write prevention
+  - Any Express routes or middleware
+  - Any React components
+
+If you are unsure whether something is DATABASE or BACKEND scope, stop and
+flag it in your outbox to COO. Do not guess.
+
+================================================================================
+ACCEPTANCE CRITERIA
+================================================================================
+
+Your work is not complete until all of the following are true:
+
+  1. `npm run db:push` creates all tables, indexes, and constraints in a fresh
+     SQLite file with zero errors.
+
+  2. `npm run db:seed` populates all four admin tables with the correct default
+     data. Running it a second time does not produce duplicate rows or errors.
+
+  3. TypeScript types are exported from schema.ts for every table (both
+     $inferSelect and $inferInsert).
+
+  4. src/backend/db/index.ts returns a Drizzle instance for DB_TYPE=sqlite
+     without error when SQLITE_PATH points to a valid (or new) file path.
+
+  5. The schema exactly matches ER schema v1.1:
+     - All 19 tables present (countries, regions, cities, trip_categories,
+       activities, companions, map_shading_config, trips, trip_categories_map,
+       trip_companions_map, trip_activities_map, trip_places,
+       trip_place_activities_map, items, item_flights, item_hotels,
+       item_car_rentals, item_restaurants, item_experiences)
+     - All FK relationships correct (especially ON DELETE CASCADE where specified)
+     - All CHECK constraints present
+     - All indexes named correctly and defined on the correct columns
+     - Partial index on cities(geocode_status) WHERE geocode_status = 'pending'
+
+  6. Code meets Shared Standards 1–4:
+     - Inline comments explaining intent (not just mechanics)
+     - Docstrings on all functions
+     - No hardcoded values
+     - All schema changes via migration (no manual DB edits)
+
+  7. All changes committed to Git per Shared Standards 14–18 before closing.
+
+================================================================================
+DEPENDENCIES AND BLOCKERS
+================================================================================
+
+  You are not blocked. Begin immediately.
+
+  BACKEND is waiting on you. Do not start work you are not scoped for,
+  but do not let scope uncertainty become an excuse for delay. If you
+  have a question, flag it to COO outbox and continue with the parts
+  you are certain about.
+
+  When complete: write to jobs/COO/inbox/ and jobs/backend/inbox/ as follows:
+    - COO: confirmation that all deliverables are done and acceptance criteria met
+    - BACKEND: notification that DATABASE schema is ready, with a brief summary
+      of what to import from schema.ts and db/index.ts
+
+================================================================================
+PACKAGES REQUIRED
+================================================================================
+
+  Add to package.json (if not already present):
+    drizzle-orm         — ORM core
+    drizzle-kit         — Migration tooling (devDependency)
+    better-sqlite3      — SQLite driver
+    @types/better-sqlite3  — TypeScript types (devDependency)
+    pg                  — PostgreSQL driver (for Phase 2 readiness)
+    @types/pg           — TypeScript types (devDependency)
+    ts-node             — For running seed.ts directly (devDependency)
+    dotenv              — For loading .env in scripts
+
+================================================================================

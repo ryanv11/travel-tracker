@@ -1,5 +1,5 @@
 TRAVEL TRACKER — DEPENDENCY GRAPH
-Version: 1.0 (COO First Pass)
+Version: 1.1 (Architect deliverables complete — DATABASE unblocked)
 Date: 2026-03-07
 Author: COO
 
@@ -8,28 +8,34 @@ LEGEND
 ================================================================================
 
   → = blocks (right-side node cannot begin until left-side node delivers)
-  [READY]   = no blockers, may begin
-  [BLOCKED] = cannot begin — waiting on named dependency
-  [PENDING] = not yet started, will be scheduled
+  [COMPLETE] = all deliverables accepted, no open actions
+  [ACTIVE]   = currently working
+  [READY]    = no blockers, spec dispatched, may begin
+  [BLOCKED]  = cannot begin — waiting on named dependency
+  [PENDING]  = not yet started, will be scheduled
 
 ================================================================================
-PHASE 0 — FOUNDATION (Current Phase)
+PHASE 0 — FOUNDATION
 ================================================================================
 
-  [ARCHITECT] — READY
-    Status:   Awaiting spec delivery (spec dispatched this thread)
-    Delivers: Data model, map shading logic, tech blueprint, mapping library
-              recommendation, desktop packaging recommendation, architecture
-              decisions log, open questions for project owner
-    Blocks:   DATABASE, BACKEND, FRONTEND, QA, DOCS
+  [ARCHITECT] — COMPLETE
+    Status:   All deliverables accepted. OQ-A1 resolved. No open actions.
+    Delivered: 2026-03-07
+      - 20260307-ER-schema.md (v1.1 — includes item_experiences)
+      - 20260307-map-shading-spec.md (v1.0)
+      - 20260307-tech-blueprint.md (v1.0)
+      - 20260307-architecture-decisions-log.md (ADL-01 to ADL-14)
+    Blocks:   DATABASE (unblocked), BACKEND, FRONTEND, QA, DOCS
 
 ================================================================================
 PHASE 1 — DATA LAYER
 ================================================================================
 
-  [DATABASE] — BLOCKED on ARCHITECT
-    Prerequisite: Architect data model and schema specification
-    Delivers: Migration scripts, schema implementation, seed data loader
+  [DATABASE] — READY
+    Status:   Spec dispatched 2026-03-07. No blockers. Begin immediately.
+    Spec:     jobs/database/inbox/20260307_1500-COO-database-spec.txt
+    Delivers: Drizzle schema (schema.ts), DB connection factory (index.ts),
+              Drizzle config, seed data loader, migration files
     Blocks:   BACKEND
 
 ================================================================================
@@ -37,10 +43,10 @@ PHASE 2 — API LAYER
 ================================================================================
 
   [BACKEND] — BLOCKED on DATABASE
-    Prerequisite: DATABASE schema complete and seeded
+    Prerequisite: DATABASE schema complete, schema.ts types exported
     Delivers: REST API (trips, places, items, admin, map shading endpoints),
               business logic (shading state computation, item carry-forward,
-              trip status transitions)
+              trip status transitions, geocoding service, locked-trip enforcement)
     Blocks:   FRONTEND
 
 ================================================================================
@@ -89,20 +95,23 @@ CRITICAL PATH
 CURRENT STATUS SUMMARY
 ================================================================================
 
-  Job            Status     Blocked On
-  ----------     ------     ----------
-  ARCHITECT      ACTIVE     — (spec dispatched 2026-03-07)
-  DATABASE       BLOCKED    ARCHITECT
-  BACKEND        BLOCKED    DATABASE
-  FRONTEND       BLOCKED    BACKEND
-  QA             BLOCKED    FRONTEND
-  DOCS           BLOCKED    FRONTEND
-  INTEGRATIONS   PENDING    QA (post-MVP)
-  COO            ACTIVE     —
+  Job            Status     Blocked On         Notes
+  ----------     --------   ----------         -----
+  ARCHITECT      COMPLETE   —                  All deliverables accepted
+  DATABASE       READY      —                  Spec dispatched 2026-03-07
+  BACKEND        BLOCKED    DATABASE           —
+  FRONTEND       BLOCKED    BACKEND            —
+  QA             BLOCKED    FRONTEND           —
+  DOCS           BLOCKED    FRONTEND           —
+  INTEGRATIONS   PENDING    QA (post-MVP)      —
+  COO            ACTIVE     —                  —
 
 ================================================================================
 CHANGE LOG
 ================================================================================
 
   2026-03-07  v1.0  Initial graph — COO thread 1
+  2026-03-07  v1.1  ARCHITECT marked COMPLETE. DATABASE moved to READY.
+                    DATABASE spec dispatched. BRD updated to v2.3 (EX-01).
+                    Architecture Decisions Log updated (ADL-14).
 
