@@ -1,0 +1,22 @@
+SHARED FRAMEWORKS
+
+CODING STANDARDS
+1. All code must include inline comments explaining intent, not just mechanics.
+2. All functions must have a docstring or equivalent describing inputs, outputs and purpose.
+3. No hardcoded values — all configuration goes in config files or the database.
+4. Every database change must have a corresponding migration script, never manual edits.
+
+COMMUNICATION
+5. Every job closes its thread by updating its context/current.txt and writing a Park Document.
+6. Jobs communicate via inbox/outbox only — never assume verbal instruction carries over between threads.
+7. The COO is the single source of truth for project status and task sequencing.
+8. If a job encounters a blocker or makes a decision outside its spec, it must flag it in its outbox to COO immediately — do not proceed past a blocker without COO sign-off.
+
+QUALITY
+9. No feature is marked complete until it matches the spec written by COO.
+10. The Architect's technical blueprint is the authoritative technical reference — any deviation must be approved by COO and documented in the Architect's tech folder.
+11. QA sign-off is required before COO marks any feature done.
+
+ARCHITECTURE
+12. All decisions must be made with future migration to a hosted web app and iOS app in mind.
+13. The data model is the most critical asset — no schema changes without Architect review.

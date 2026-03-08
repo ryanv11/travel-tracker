@@ -1,0 +1,81 @@
+FROM:     COO
+TO:       ARCHITECT
+DATE:     2026-03-07
+SUBJECT:  Amendment to Q3 — Geocoding: offline-tolerant queue-and-resolve
+REF:      jobs/architect/inbox/20260307_1100-COO-architect-answers.txt (Q3)
+
+Amends the Q3 geocoding direction. Supersedes the Q3 section of the answers
+message. All other answers stand unchanged.
+
+================================================================================
+REVISED Q3 — GEOGRAPHIC DATA SOURCE: OFFLINE-TOLERANT GEOCODING
+================================================================================
+
+The project owner's requirement is that a missing internet connection must
+never interrupt the user's workflow. The app must handle the offline case
+silently and resolve it in the background when connectivity is restored.
+
+DESIGN DIRECTION:
+
+  CITY ENTRY (user-facing):
+    When the user enters a new city during trip logging, the app searches
+    the local city database first. If the city is not found locally and no
+    internet is available, the app creates the city record immediately with
+    the name and a geocode_status of PENDING — and lets the user continue
+    uninterrupted. No error, no block, no forced wait.
+
+  GEOCODING QUEUE:
+    Any city record with geocode_status = PENDING is queued for resolution.
+    When internet connectivity is detected (on app start, on network change,
+    or on a periodic background check), the app processes the queue:
+      - Calls Nominatim for each pending city
+      - On success: populates latitude, longitude, sets geocode_status = RESOLVED
+      - On failure: retries next time; failure does not surface to the user
+        unless it persists across multiple sessions
+
+  DATA MODEL IMPLICATION — cities table must include:
+    - geocode_status: enum PENDING | RESOLVED
+    - latitude: nullable (null until resolved)
+    - longitude: nullable (null until resolved)
+    - geocode_attempted_at: timestamp of last attempt (for retry logic)
+
+  FRONTEND BEHAVIOUR for PENDING cities:
+    - The city appears normally in all trip and item views — it is fully usable
+    - No map pin is rendered for PENDING cities (coordinates unknown)
+    - If the map view is open when coordinates resolve, the pin should appear
+      without requiring a manual refresh (FRONTEND to handle gracefully)
+    - No error state is shown to the user; PENDING is a silent background state
+
+  WHEN INTERNET IS AVAILABLE AND CITY IS ALREADY IN LOCAL DB:
+    No geocoding call is made. City coordinates are already stored. Fast path.
+
+  WHEN INTERNET IS AVAILABLE AND CITY IS NEW:
+    Nominatim is called immediately. City is created with geocode_status =
+    RESOLVED and coordinates populated. No queue entry needed.
+
+  WHEN INTERNET IS NOT AVAILABLE AND CITY IS NEW:
+    City is created immediately with geocode_status = PENDING. User continues.
+    Queue entry created. Resolved silently on next connectivity.
+
+================================================================================
+IMPACT ON ARCHITECTURE DECISIONS LOG
+================================================================================
+
+Add to your architecture decisions log:
+
+  DECISION: Offline-tolerant city geocoding via queue-and-resolve pattern
+  RATIONALE: Project owner requirement that absent internet must never block
+    the user's workflow. City records are created immediately regardless of
+    connectivity; coordinates are enriched asynchronously.
+  IMPLICATION: BACKEND needs a geocoding service component with connectivity
+    detection and retry logic. FRONTEND must render gracefully for cities
+    with null coordinates (no map pin, no error).
+  FUTURE: If the app is ever migrated to a hosted environment, the geocoding
+    queue becomes a background job — the same pattern, different runtime.
+
+================================================================================
+NO OTHER CHANGES
+================================================================================
+
+Q1, Q2, and Q4 answers are unchanged. Proceed with your deliverables.
+

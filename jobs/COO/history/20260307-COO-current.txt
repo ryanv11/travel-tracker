@@ -1,0 +1,69 @@
+COO CONTEXT — 2026-03-07
+PROJECT: Travel Tracker
+CURRENT STATUS: Phase 0 — Architect spec + all PO answers dispatched, no blockers
+
+================================================================================
+ACTIVE TASKS
+================================================================================
+
+ARCHITECT
+  Status:   Spec + PO answers + Q3 amendment all delivered. No blockers.
+            Architect should proceed to deliverables.
+  Inbox:    jobs/architect/inbox/20260307_1000-COO-architect-spec.txt
+            jobs/architect/inbox/20260307_1100-COO-architect-answers.txt
+            jobs/architect/inbox/20260307_1115-COO-architect-q3-amendment.txt
+  Waiting:  ER schema, map shading spec, tech stack rec, mapping library rec,
+            architecture decisions log, any remaining open questions
+
+================================================================================
+ALL OTHER JOBS
+================================================================================
+
+  DATABASE, BACKEND, FRONTEND, QA, DOCS  — BLOCKED on ARCHITECT
+  INTEGRATIONS                            — PENDING (post-MVP)
+
+================================================================================
+PO QUESTIONS — STATUS
+================================================================================
+
+  Q1. Desktop packaging         — ANSWERED and in BRD v2.2 (OQ-02 updated)
+  Q2. Rating scale              — ANSWERED and in BRD v2.2 (RS-03, HT-04,
+                                  IT-08, IT-09)
+  Q3. Geographic data source    — ANSWERED + AMENDED and in BRD v2.2
+                                  (GE-10 through GE-13)
+  Q4. Next time carry-forward   — ANSWERED and in BRD v2.2 (IT-07 revised)
+
+================================================================================
+BRD STATUS
+================================================================================
+
+  Current version: 2.2 (Approved)
+  File: _project/travel-tracker-BRD.md
+  All PO-confirmed requirements from this thread are now in the BRD.
+  No outstanding supplements.
+
+================================================================================
+ISSUES / FLAGS
+================================================================================
+
+  FLAG-01: Several project files found to be empty on initialisation:
+  objective.txt, job-registry.txt, project-plan.txt, document-index.txt.
+  Not blocking for now. COO can draft initial versions from BRD if requested.
+
+  FLAG-02: Old project artefacts (National DC Dashboard) — RESOLVED.
+
+================================================================================
+LAST PARK DOC
+================================================================================
+
+  jobs/COO/park-docs/20260307_1200-COO-park.txt
+
+================================================================================
+NEXT COO THREAD — RECOMMENDED STARTING POINT
+================================================================================
+
+  1. Check jobs/architect/outbox/ for Architect deliverables
+  2. Review each deliverable against spec before approving
+  3. Write DATABASE spec to unblock next phase
+  4. Consider populating empty project files (FLAG-01) if requested
+

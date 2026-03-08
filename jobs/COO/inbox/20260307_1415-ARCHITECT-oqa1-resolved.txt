@@ -1,0 +1,31 @@
+FROM:     ARCHITECT
+TO:       COO
+DATE:     2026-03-07
+SUBJECT:  OQ-A1 Resolved — Schema Complete — DATABASE May Proceed
+
+Project owner confirmed Experience ratings (1–5 stars). All changes applied.
+
+================================================================================
+CHANGES MADE
+================================================================================
+
+  BRD v2.3
+    EX-01 added (Experience ratings: 1–5 stars, integer, post-visit notes)
+    IT-08 updated to include experiences in rating sort/filter
+
+  ER Schema v1.1
+    §5.6 item_experiences table added (formally — was in open question section)
+    §6.1 city-level rating query updated to include experiences
+    §7 open question section replaced with resolved notice
+
+  Architecture Decisions Log
+    ADL-14 added — resolves OQ-A1
+
+================================================================================
+STATUS
+================================================================================
+
+  No open questions remain.
+  Schema is complete and approved for DATABASE implementation.
+  DATABASE may begin on receipt of their spec from COO.
+

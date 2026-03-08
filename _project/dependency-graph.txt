@@ -1,0 +1,108 @@
+TRAVEL TRACKER — DEPENDENCY GRAPH
+Version: 1.0 (COO First Pass)
+Date: 2026-03-07
+Author: COO
+
+================================================================================
+LEGEND
+================================================================================
+
+  → = blocks (right-side node cannot begin until left-side node delivers)
+  [READY]   = no blockers, may begin
+  [BLOCKED] = cannot begin — waiting on named dependency
+  [PENDING] = not yet started, will be scheduled
+
+================================================================================
+PHASE 0 — FOUNDATION (Current Phase)
+================================================================================
+
+  [ARCHITECT] — READY
+    Status:   Awaiting spec delivery (spec dispatched this thread)
+    Delivers: Data model, map shading logic, tech blueprint, mapping library
+              recommendation, desktop packaging recommendation, architecture
+              decisions log, open questions for project owner
+    Blocks:   DATABASE, BACKEND, FRONTEND, QA, DOCS
+
+================================================================================
+PHASE 1 — DATA LAYER
+================================================================================
+
+  [DATABASE] — BLOCKED on ARCHITECT
+    Prerequisite: Architect data model and schema specification
+    Delivers: Migration scripts, schema implementation, seed data loader
+    Blocks:   BACKEND
+
+================================================================================
+PHASE 2 — API LAYER
+================================================================================
+
+  [BACKEND] — BLOCKED on DATABASE
+    Prerequisite: DATABASE schema complete and seeded
+    Delivers: REST API (trips, places, items, admin, map shading endpoints),
+              business logic (shading state computation, item carry-forward,
+              trip status transitions)
+    Blocks:   FRONTEND
+
+================================================================================
+PHASE 3 — UI LAYER
+================================================================================
+
+  [FRONTEND] — BLOCKED on BACKEND
+    Prerequisite: BACKEND API complete (or core endpoints agreed and stubbed)
+    Delivers: Map view, trip management UI, place/item management, post-trip
+              review workflow, admin panel
+    Blocks:   QA
+
+================================================================================
+PHASE 4 — QUALITY AND DOCUMENTATION (Parallel)
+================================================================================
+
+  [QA] — BLOCKED on FRONTEND
+    Prerequisite: FRONTEND core features complete
+    Delivers: Test plan, test execution, defect reports, sign-off per feature
+    Blocks:   —
+
+  [DOCS] — BLOCKED on FRONTEND (core features stable)
+    Prerequisite: Feature set stable enough to document
+    Delivers: User guide, admin panel guide, setup and launch instructions
+    Blocks:   —
+
+================================================================================
+PHASE 5 — INTEGRATIONS (MVP+ and Future — Out of Scope for MVP)
+================================================================================
+
+  [INTEGRATIONS] — BLOCKED on QA (core app stable)
+    Prerequisite: Core app passes QA sign-off
+    Scope:    Phase 2 notification engine (NF-08), Phase 3 future integrations
+    Note:     Explicitly out of scope for MVP. Architecture must not block this.
+
+================================================================================
+CRITICAL PATH
+================================================================================
+
+  ARCHITECT → DATABASE → BACKEND → FRONTEND → QA → (release)
+                                                  ↘ DOCS (parallel to QA)
+
+  INTEGRATIONS is post-MVP — not on the critical path for Phase 1.
+
+================================================================================
+CURRENT STATUS SUMMARY
+================================================================================
+
+  Job            Status     Blocked On
+  ----------     ------     ----------
+  ARCHITECT      ACTIVE     — (spec dispatched 2026-03-07)
+  DATABASE       BLOCKED    ARCHITECT
+  BACKEND        BLOCKED    DATABASE
+  FRONTEND       BLOCKED    BACKEND
+  QA             BLOCKED    FRONTEND
+  DOCS           BLOCKED    FRONTEND
+  INTEGRATIONS   PENDING    QA (post-MVP)
+  COO            ACTIVE     —
+
+================================================================================
+CHANGE LOG
+================================================================================
+
+  2026-03-07  v1.0  Initial graph — COO thread 1
+

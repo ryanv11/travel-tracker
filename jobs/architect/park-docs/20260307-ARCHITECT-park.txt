@@ -1,0 +1,61 @@
+ARCHITECT PARK DOCUMENT
+Date: 2026-03-07
+Thread: First Architect thread — Travel Tracker Phase 0 blueprint
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+First Architect thread. Received three COO inbox messages: the Phase 1 spec,
+the project owner answers to Q1-Q4, and the Q3 amendment (offline-tolerant
+geocoding). Read the BRD v2.2 in full. Produced all four deliverables. One
+open question (OQ-A1) flagged to COO before DATABASE begins. Blueprint
+complete and routed to COO inbox.
+
+================================================================================
+DECISIONS MADE (ADL-01 through ADL-13)
+================================================================================
+
+ADL-01  TypeScript throughout. Python rejected due to Electron packaging complexity.
+ADL-02  Express.js backend. Fastify rejected (familiarity/ecosystem).
+ADL-03  Drizzle ORM. Prisma rejected (SQLite parity). Raw SQL rejected (type safety).
+ADL-04  SQLite local → PostgreSQL hosted. Migration = config change only.
+ADL-05  REST API. GraphQL rejected (one client, predictable data needs).
+ADL-06  Electron for release; localhost-in-browser for beta. Tauri rejected
+        (Rust backend incompatible with "same code" constraint).
+ADL-07  MapLibre GL JS. Leaflet rejected (raster tiles, poor choropleth).
+        Google Maps rejected (cost, API key).
+ADL-08  MapTiler free tier for vector tiles.
+ADL-09  Natural Earth GeoJSON bundled (countries.json + regions.json).
+ADL-10  Nominatim geocoding, offline-tolerant queue-and-resolve (BRD GE-12).
+ADL-11  Extension table pattern (Option B) for item type-specific fields.
+        Option C (JSON) rejected because rating columns must be indexable (IT-08).
+ADL-12  Shading states computed at query time — never stored.
+ADL-13  Carry-forward uses dual field: is_carried_forward + carried_from_item_id.
+
+================================================================================
+DELIVERABLES PRODUCED
+================================================================================
+
+  jobs/architect/tech/20260307-ER-schema.md
+  jobs/architect/tech/20260307-map-shading-spec.md
+  jobs/architect/tech/20260307-tech-blueprint.md
+  jobs/architect/tech/20260307-architecture-decisions-log.md
+  jobs/COO/inbox/20260307_1400-ARCHITECT-blueprint-complete.txt
+
+================================================================================
+OPEN QUESTIONS FLAGGED
+================================================================================
+
+  OQ-A1: Experience ratings — should item_experiences extension table be added?
+         Architect recommends YES. Route to project owner via COO.
+         DATABASE must not begin until resolved.
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT ARCHITECT THREAD
+================================================================================
+
+  1. Check jobs/architect/inbox/ for COO feedback or DATABASE schema questions
+  2. If OQ-A1 resolved as YES: produce item_experiences DDL as amendment
+  3. Review DATABASE schema implementation when submitted to COO
+

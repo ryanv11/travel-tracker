@@ -1,0 +1,55 @@
+SEED DATA — DEFAULT ADMIN LIST VALUES
+
+These are the default values to be loaded into the app on first launch.
+All lists are manageable by the user via the admin panel after installation.
+
+TRIP CATEGORIES
+- Ski Trip
+- Honeymoon
+- Summer Holiday
+- City Break
+- Road Trip
+- Business
+- Family
+- Adventure
+- Beach Holiday
+- Cultural
+- Other
+
+ACTIVITIES
+- Skiing
+- Snowboarding
+- Dining
+- Hiking
+- Beach Day
+- Cooking Class
+- Wine Tasting
+- Sightseeing
+- Museum
+- Cycling
+- Sailing
+- Surfing
+- Snorkelling / Diving
+- Shopping
+- Live Music / Events
+- Spa / Wellness
+- Other
+
+COMPANIONS
+- Solo
+- Partner
+- Partner + Friends
+- Family
+- Friends
+- Work / Conference
+- Other
+
+MAP SHADING STATES — DEFAULT COLOURS
+(All colours are user-configurable via admin panel)
+- Active (currently here): Bright blue — #2196F3
+- Planned (not yet visited): Light purple — #CE93D8
+- Visited once: Light green — #A5D6A7
+- Visited once + planning: Medium green — #66BB6A
+- Visited multiple times: Dark green — #2E7D32
+- Visited multiple times + planning: Gold — #F9A825
+- Never visited: No shading

@@ -1,0 +1,133 @@
+COO PARK DOCUMENT
+Date: 2026-03-07
+Thread: First COO thread — Travel Tracker project initialisation (complete)
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+Full initialisation thread for the Travel Tracker project. BRD v2.1 was in
+place on entry. Folder structure and all system prompts were present. Several
+project files were empty (objective.txt, job-registry.txt, project-plan.txt,
+document-index.txt) — flagged but not blocking. Old artefacts from an
+unrelated project (National DC Dashboard) were found in COO and Architect
+inboxes — project owner deleted them. All four project owner questions were
+answered within the thread. The BRD was updated to v2.2 (Approved) before
+thread close. The Architect was handed off within this thread.
+
+================================================================================
+DECISIONS MADE AND RATIONALE
+================================================================================
+
+1. DEPENDENCY CHAIN: ARCHITECT → DATABASE → BACKEND → FRONTEND → QA/DOCS → INTEGRATIONS
+   Rationale: linear critical path is the only valid option — no job can
+   meaningfully begin without the Architect's data model and tech blueprint.
+   QA and DOCS can run in parallel once FRONTEND has stable features.
+   INTEGRATIONS is explicitly post-MVP.
+
+2. SHADING STATES ARE COMPUTED, NOT STORED
+   Map shading state for any location is derived from trip data at query time.
+   Defined "completed trip" as status in (Review Pending, Locked) — Review
+   Pending trips have happened and must count toward visit state.
+
+3. PLACE = CITY-LEVEL ASSOCIATION
+   "Place" in the BRD is interpreted as a trip-place association at city level.
+   Country and region shading roll up from city visits. Architect to confirm.
+
+4. GEOCODING: QUEUE-AND-RESOLVE PATTERN (GE-12)
+   Cities with no internet at entry time are created immediately (PENDING).
+   Coordinates resolved silently in background when connectivity returns.
+   User is never interrupted. Confirmed by project owner.
+
+5. Q1 — DESKTOP PACKAGING: TARGET .APP, LOCALHOST FOR BETA
+   Tech stack must support both modes with zero code change between them.
+   Packaging is a delivery step, not an architectural decision. Architect to
+   recommend Electron or Tauri.
+
+6. Q2 — RATINGS: 1–5 STARS, RESTAURANTS AND HOTELS, SORT + FILTER REQUIRED
+   Rating sort/filter applies at trip level and city level (cross-visit).
+   Confirmed as a new functional requirement not in BRD v2.1. Added to v2.2.
+
+7. Q3 — GEOGRAPHY: BUNDLED POLYGONS + NOMINATIM GEOCODING
+   Country/region boundaries bundled (Natural Earth). Cities geocoded via
+   Nominatim on first entry, stored permanently. Offline-tolerant via
+   queue-and-resolve pattern (see decision 4).
+
+8. Q4 — CARRY-FORWARD: AUTO-SUGGEST WITH CARRIED_FROM FLAG
+   Prompt presented on new trip creation to a previously visited city.
+   User confirms per item. Carried-forward items flagged with
+   carried_from_item_id and is_carried_forward in data model.
+
+================================================================================
+SPECS WRITTEN
+================================================================================
+
+  jobs/architect/inbox/20260307_1000-COO-architect-spec.txt
+    Five-task spec: data model (1a–1e), map shading logic (2), tech stack (3),
+    mapping library (4), project owner questions (5).
+    Status: Delivered.
+
+  jobs/architect/inbox/20260307_1100-COO-architect-answers.txt
+    Formal answers to all four project owner questions. New rating sort/filter
+    requirement included. Q3 geocoding direction included.
+    Status: Delivered.
+
+  jobs/architect/inbox/20260307_1115-COO-architect-q3-amendment.txt
+    Q3 amendment: offline-tolerant queue-and-resolve geocoding pattern.
+    Cities created immediately in PENDING state; resolved in background.
+    Status: Delivered.
+
+================================================================================
+OTHER FILES WRITTEN THIS THREAD
+================================================================================
+
+  _project/dependency-graph.txt              (new — v1.0)
+  _project/travel-tracker-BRD.md             (updated to v2.2 — Approved)
+  jobs/COO/context/current.txt               (updated)
+  jobs/COO/history/20260307-COO-current.txt  (archived)
+  jobs/COO/park-docs/20260307_1000-COO-park.txt  (interim — superseded by this doc)
+  jobs/COO/park-docs/20260307_1200-COO-park.txt  (this file — final thread record)
+
+================================================================================
+BRD v2.2 CHANGES (from v2.1)
+================================================================================
+
+  GE-10–GE-13  Geographic data: bundled polygons, Nominatim geocoding,
+               offline-tolerant queue-and-resolve, PENDING city behaviour
+  IT-07        Carry-forward: full behaviour spec including auto-prompt,
+               per-item confirmation, carried_from_item_id flag
+  IT-08–IT-09  Rating sort and filter (new requirement)
+  HT-04        Hotel ratings: 1–5 stars, integer (mirrors RS-03)
+  RS-03        Rating scale made explicit: 1–5 stars, integer
+  OQ-02        PO direction on packaging recorded
+  Section 13   Change log added
+
+================================================================================
+OUTPUTS REVIEWED THIS THREAD
+================================================================================
+
+  None — first thread, no job has produced output yet.
+
+================================================================================
+ISSUES — OPEN
+================================================================================
+
+  FLAG-01: Empty project files
+    objective.txt, job-registry.txt, project-plan.txt, document-index.txt
+    all contain no content. Not blocking. COO can draft from BRD if requested.
+    STATUS: Open.
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT COO THREAD
+================================================================================
+
+  1. Check jobs/architect/outbox/ for Architect deliverables
+  2. Review each deliverable against spec:
+     - ER schema vs BRD v2.2 (GE-01–13, TR, IT, FL, HT, CR, RS, AD)
+     - Shading computation vs section 5.4 and COO-defined rules in spec
+     - Tech stack: confirm migration path is explicit and testable
+     - Mapping library: confirm tile provider and GeoJSON source are named
+  3. If Architect output approved: write DATABASE spec to unblock next phase
+  4. If Architect flags remaining questions: route to project owner
+  5. Resolve FLAG-01 if project owner requests populated project files
+

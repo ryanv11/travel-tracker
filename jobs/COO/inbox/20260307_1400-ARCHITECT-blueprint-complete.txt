@@ -1,0 +1,89 @@
+FROM:     ARCHITECT
+TO:       COO
+DATE:     2026-03-07
+SUBJECT:  Blueprint Complete — All Deliverables Ready for Review
+
+All deliverables from the Phase 1 spec are complete and saved to
+jobs/architect/tech/. One open question is flagged for the project owner.
+
+================================================================================
+DELIVERABLES PRODUCED
+================================================================================
+
+  1. jobs/architect/tech/20260307-ER-schema.md
+     Full entity-relationship schema with SQL DDL for all tables, indexes,
+     constraints, and key queries. Covers: geographic hierarchy (countries,
+     regions, cities), admin config tables, trips and all junction tables,
+     trip_places, items and four extension tables (flights, hotels, car
+     rentals, restaurants). Design decisions documented inline.
+
+  2. jobs/architect/tech/20260307-map-shading-spec.md
+     Formalised computation rules for all seven shading states. Bulk SQL
+     queries for country-level, region-level, and city-level shading.
+     Performance notes. State key reference table with defaults.
+
+  3. jobs/architect/tech/20260307-tech-blueprint.md
+     Full technology stack with rationale: TypeScript throughout, Express.js
+     backend, Drizzle ORM (SQLite→PostgreSQL), React + Vite frontend,
+     Electron packaging, MapLibre GL JS mapping, MapTiler tiles, Natural Earth
+     GeoJSON. Explicit migration paths: beta→release, local→hosted, hosted→iOS.
+     Project directory structure. Environment configuration spec.
+
+  4. jobs/architect/tech/20260307-architecture-decisions-log.md
+     Thirteen decisions recorded (ADL-01 through ADL-13). One open question
+     flagged (OQ-A1 — see below).
+
+================================================================================
+OPEN QUESTION — REQUIRES PROJECT OWNER INPUT
+================================================================================
+
+OQ-A1: SHOULD EXPERIENCES BE RATEABLE?
+
+The BRD covers ratings for Restaurants (RS-03) and Hotels (HT-04). The BRD
+is silent on Experiences. If Experience ratings are confirmed, the schema
+requires a minimal item_experiences extension table:
+
+    CREATE TABLE item_experiences (
+        item_id          INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+        rating           INTEGER CHECK (rating BETWEEN 1 AND 5),
+        post_visit_notes TEXT
+    );
+
+This is a non-breaking addition. It does not affect any existing table.
+
+Architect recommendation: Add it. The pattern is already established for
+restaurants and hotels. The user will almost certainly want to rate a cooking
+class or a museum visit. Not adding it now will generate a schema change
+request at the first round of testing.
+
+ACTION REQUIRED: Please route to project owner before DATABASE begins
+implementation. DATABASE must not start until this is resolved.
+
+================================================================================
+SUMMARY OF DESIGN DECISIONS
+================================================================================
+
+  Stack:       TypeScript / Node.js / Express / Drizzle ORM / React / Vite
+  Database:    SQLite (local) → PostgreSQL (hosted) — config change only
+  Desktop:     Electron (release); localhost-in-browser (beta)
+  Mapping:     MapLibre GL JS + MapTiler tiles + Natural Earth GeoJSON (bundled)
+  Geocoding:   Nominatim (offline-tolerant queue-and-resolve)
+  Shading:     Computed at query time — never stored
+  Items:       Base table + per-type extension tables (Option B)
+  Carry-fwd:   is_carried_forward + carried_from_item_id dual field
+
+================================================================================
+READINESS FOR NEXT JOBS
+================================================================================
+
+  DATABASE:   Ready to implement once OQ-A1 is resolved. Full DDL is in
+              the ER schema document. No further Architect input needed.
+
+  BACKEND:    Can begin designing API routes and service layer from the
+              tech blueprint. Should not start until DATABASE schema is
+              confirmed (Shared Standard 13).
+
+  FRONTEND:   Can begin component structure planning from the tech blueprint
+              project structure and API endpoint list. Should not start until
+              BACKEND API is confirmed.
+

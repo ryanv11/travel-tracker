@@ -1,0 +1,122 @@
+COO PARK DOCUMENT
+Date: 2026-03-07
+Thread: First COO thread — Travel Tracker project initialisation
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+First COO thread for the Travel Tracker project. Project had been set up with
+folder structure and all system prompts in place. The BRD (v2.1) and seed data
+were present and complete. Several project files were empty (objective.txt,
+job-registry.txt, project-plan.txt, document-index.txt). Old artefacts from an
+unrelated project (National DC Dashboard) were found in COO and Architect
+inboxes — project owner confirmed deletion before this thread completed.
+
+This thread initialised the COO, produced the dependency graph, and dispatched
+the first spec to the Architect.
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+1. DEPENDENCY CHAIN CONFIRMED
+   ARCHITECT → DATABASE → BACKEND → FRONTEND → QA/DOCS (parallel) → INTEGRATIONS
+   Rationale: linear critical path; QA and DOCS can run in parallel once
+   FRONTEND has stable features; INTEGRATIONS is post-MVP.
+
+2. ARCHITECT IS THE ONLY ACTIVE JOB
+   All other jobs remain blocked until Architect delivers the data model,
+   tech blueprint, and mapping recommendation.
+   Rationale: no DATABASE schema can be written, no BACKEND API can be designed,
+   and no FRONTEND can be planned without the Architect's foundational decisions.
+
+3. SHADING STATES ARE COMPUTED, NOT STORED
+   The map shading state for any location is derived from trip data at query
+   time. It is not stored as a field anywhere. This was codified into the
+   Architect spec. The COO has defined the computation rules (Task 2 of spec)
+   to give the Architect a clear starting point, but the Architect may refine
+   them.
+
+4. DEFINITION OF "COMPLETED TRIP" FOR SHADING PURPOSES
+   Trips with status Review Pending count as "completed" for shading purposes
+   (along with Locked). Rationale: a Review Pending trip has already happened;
+   excluding it would cause a gap in map shading between trip end date and
+   review completion.
+
+5. "PLACE" IS A CITY-LEVEL ENTITY
+   The COO has interpreted the BRD definition of "Place" as a city-level
+   trip-place association. Country and region shading roll up from city-level
+   visits. The Architect is asked to confirm or challenge this interpretation.
+
+6. Q1 (DESKTOP PACKAGING) FLAGGED AS A POTENTIAL BLOCKER
+   NF-01 ("local Mac desktop app") is ambiguous about whether a packaged .app
+   or a browser-at-localhost is required. This has been included in the
+   Architect spec as Task 5, Q1, and flagged as a potential blocker that may
+   need project owner resolution before the Architect can finalise the
+   technology stack.
+
+================================================================================
+SPECS WRITTEN
+================================================================================
+
+  jobs/architect/inbox/20260307_1000-COO-architect-spec.txt
+    Tasks: 1a-1e (data model), Task 2 (map shading logic), Task 3 (tech
+    stack), Task 4 (mapping library), Task 5 (questions for project owner)
+    Status: Delivered to Architect inbox, not yet started
+
+================================================================================
+OTHER FILES WRITTEN THIS THREAD
+================================================================================
+
+  _project/dependency-graph.txt          (new — v1.0)
+  jobs/COO/context/current.txt           (updated)
+  jobs/COO/park-docs/20260307_1000-COO-park.txt  (this file)
+
+================================================================================
+OUTPUTS REVIEWED THIS THREAD
+================================================================================
+
+  None — this was the initialisation thread. No job has produced output yet.
+
+================================================================================
+PENDING REVIEWS EXPECTED
+================================================================================
+
+  ARCHITECT deliverables (data model, shading spec, tech stack, mapping lib
+  recommendation, architecture decisions log, open questions list).
+  No ETA. Project owner needs to run the Architect thread next.
+
+================================================================================
+ISSUES FLAGGED
+================================================================================
+
+  FLAG-01: Empty project files
+    objective.txt, job-registry.txt, project-plan.txt, document-index.txt
+    all exist but contain no content. Not blocking for now but should be
+    populated before other jobs need them. COO can draft from BRD if requested.
+    STATUS: Open — no action taken this thread.
+
+  FLAG-02: Old project artefacts (National DC Dashboard)
+    Pre-existing files from an unrelated project were found in COO inbox
+    and Architect inbox on initialisation. Project owner confirmed deletion.
+    STATUS: Resolved.
+
+  FLAG-03: Q1 desktop packaging — potential blocker
+    NF-01 ambiguity may require project owner input before Architect can
+    finalise the tech stack. Embedded in Architect spec Task 5, Q1.
+    STATUS: Open — awaiting Architect assessment of whether this is a hard
+    blocker or whether they can design under both scenarios.
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT COO THREAD
+================================================================================
+
+  1. Check jobs/architect/outbox/ for Architect deliverables
+  2. If Q1 (desktop packaging) has been flagged as a hard blocker by the
+     Architect: route it to the project owner immediately — do not wait
+  3. If Architect deliverables received: review each against the spec, then
+     write a DATABASE spec to unblock the next phase
+  4. Compile all Architect open questions (Task 5) and route to project owner
+  5. Consider populating the empty project files (FLAG-01) if time allows
+

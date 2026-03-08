@@ -1,0 +1,180 @@
+FROM:     COO
+TO:       ARCHITECT
+DATE:     2026-03-07
+SUBJECT:  Project Owner Answers — Q1 through Q4 plus one new requirement
+REF:      jobs/architect/inbox/20260307_1000-COO-architect-spec.txt (Task 5)
+
+The project owner has answered all four questions from Task 5 of your spec.
+One new requirement has also been confirmed. Details below.
+
+================================================================================
+Q1 — DESKTOP PACKAGING
+================================================================================
+
+ANSWER: Target is a native .app (packaged), but localhost-in-browser is
+acceptable for the beta phase.
+
+DESIGN DIRECTION:
+  - Design and build the tech stack to run as a local server + browser UI
+    (no packaging) for the beta / development phase
+  - The architecture must support wrapping in Electron or Tauri later as a
+    packaging step — with zero code changes
+  - Packaging is a delivery decision, not an architectural one. The same
+    BACKEND and FRONTEND code must work whether running bare at localhost or
+    wrapped in a desktop shell
+  - Recommend and specify which packager (Electron or Tauri) is the better
+    fit for the eventual .app, given the rest of your tech stack
+
+IMPLICATION: This is actually a clean constraint. Start simple (localhost),
+package later. Your tech stack recommendation must make this transition
+explicit and trivially achievable.
+
+================================================================================
+Q2 — RATING SCALE
+================================================================================
+
+ANSWER: 1–5 stars (integer). User wants to be able to sort and filter items
+by rating — described as "particularly important for places we've visited a lot."
+
+DESIGN IMPLICATIONS:
+  - Rating field: integer, 1–5, nullable (unrated items have no rating, not
+    a zero)
+  - Rating applies to: Restaurant (RS-03 — already in BRD)
+  - Rating also applies to: Hotel — assumed yes by COO, not contradicted by
+    project owner. Treat as confirmed unless you have a reason to challenge it.
+  - Sort by rating must be supported at the item list level within a trip and
+    within a city/place view across multiple trips
+  - Filter by rating (e.g. "show only 4-star or above") must be supported in
+    the same contexts
+  - This is particularly relevant for the city view when a location has been
+    visited multiple times — the user wants to surface the best-rated items
+    across all visits
+
+NEW REQUIREMENT — note for BACKEND and FRONTEND:
+  This sort/filter capability is not in the current BRD (v2.1). It has been
+  confirmed by the project owner as a requirement. Design for it. COO will
+  note it as a BRD supplement. Specifically:
+    - BACKEND query endpoints for items must support sort_by=rating and
+      filter_by=min_rating parameters
+    - FRONTEND item views (trip-level and city-level) must expose sort/filter
+      controls for rating
+  Flag this to COO outbox if it has any data model implication you did not
+  anticipate.
+
+================================================================================
+Q3 — GEOGRAPHIC DATA SOURCE
+================================================================================
+
+DIRECTION: "Hands off" — the user should not need to manually enter or
+configure any geographic data. The experience must be seamless.
+
+RECOMMENDED APPROACH (COO direction, Architect to confirm or propose
+alternative):
+
+  LAYER 1 — Country and region boundary polygons (for map shading):
+    Bundle with the app. Natural Earth public-domain dataset. Stable,
+    comprehensive, ~5–15MB depending on resolution. No lookup required.
+    Default country configurations (Region tier enabled/disabled, tier label)
+    are also bundled as seed data (see _project/seed-data.txt — to be expanded
+    for countries).
+
+  LAYER 2 — City coordinates (for pins and trip logging):
+    On-demand geocoding with local persistence.
+    - When the user logs a new city for the first time, the app queries
+      OpenStreetMap Nominatim (free, no API key required, privacy-friendly)
+    - City name, country, region, latitude, and longitude are returned and
+      stored locally in the database
+    - All subsequent references to that city are from the local database —
+      no further network call
+    - City search uses the local database first; falls back to Nominatim API
+      only if the city is not already stored
+    - Internet is required only for first-time city entry (consistent with
+      NF-02: map tiles also require internet)
+    - Once stored, all city data is available fully offline
+
+  CITY SEARCH UX (for FRONTEND — flag in architecture decisions log):
+    When the user types a city name during trip entry, the app should:
+    1. Search the local city database (fast, offline)
+    2. If no match, query Nominatim and show results for selection
+    3. On selection, store city data locally
+    This provides the "hands off" experience — the user types a name, selects
+    from a dropdown, and the coordinates are handled automatically.
+
+  OPEN QUESTION FOR ARCHITECT:
+    Nominatim has a usage policy (1 request/second, user-agent required, no
+    bulk use). For a personal single-user app this is entirely within policy.
+    Confirm this is acceptable, or propose an alternative geocoding source
+    if you see a risk.
+
+    If you believe a bundled city dataset (e.g. GeoNames major cities,
+    ~10MB for population > 15,000) is preferable over API geocoding, state
+    your reasoning. Both are acceptable — the project owner's requirement
+    is "hands off", not a specific implementation.
+
+================================================================================
+Q4 — "NEXT TIME" CARRY-FORWARD (IT-07)
+================================================================================
+
+ANSWER: Auto-suggest confirmed. Items must be flagged as carried forward.
+
+DESIGN DIRECTION:
+  - When the user creates a new trip to a city where prior "Next time" items
+    exist, the app automatically presents those items as suggestions to carry
+    forward as "Consider" items on the new trip
+  - The user confirms which suggestions to accept (not silent/automatic — a
+    UI prompt with a checklist)
+  - Carried-forward items must be visually distinguishable from items the
+    user entered fresh — they are flagged as "carried forward"
+  - This flag must persist on the item record (it is data, not just a
+    display hint)
+
+DATA MODEL IMPLICATION:
+  The items table (or extension) needs:
+    - carried_from_item_id: FK to the source item (nullable — null for
+      fresh entries). This preserves lineage and allows the UI to display
+      "carried forward from [trip name]."
+    - is_carried_forward: boolean (true/false). Redundant with
+      carried_from_item_id being non-null, but useful for simple queries.
+      COO recommends including both — confirm or simplify if you prefer.
+
+  Carry-forward operates at city level: "Next time" items from any prior
+  trip that included this city are eligible for carry-forward to any new
+  trip that also includes this city.
+
+================================================================================
+SUMMARY OF ANSWERS
+================================================================================
+
+  Q1  Packaging:     Target .app; localhost acceptable for beta. Same code
+                     in both modes. Architect to specify packager (Electron
+                     or Tauri) and migration step.
+
+  Q2  Rating:        1–5 stars, integer, nullable. Applies to Restaurant and
+                     Hotel (assumed). Sort and filter by rating required in
+                     item views. New requirement — design for it.
+
+  Q3  Geography:     Hands off. Bundle country/region polygons (Natural Earth).
+                     Cities: geocode via Nominatim on first entry, persist
+                     locally. Architect to confirm or propose alternative.
+
+  Q4  Carry-forward: Auto-suggest on new trip creation to same city.
+                     User confirms suggestions. Items flagged with
+                     carried_from_item_id and is_carried_forward.
+
+================================================================================
+NEXT ACTION
+================================================================================
+
+You now have answers to all questions from Task 5. Proceed with your
+deliverables as specified in the original spec. If you have additional
+blockers, route them to COO outbox immediately — do not proceed past a
+blocker without COO sign-off.
+
+Expected deliverables (route to jobs/COO/inbox/):
+  1. Entity-relationship schema
+  2. Map shading computation specification
+  3. Technology stack recommendation (with packaging recommendation)
+  4. Mapping library recommendation
+  5. Architecture decisions log
+  6. Any remaining open questions
+

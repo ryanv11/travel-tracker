@@ -1,0 +1,512 @@
+FROM:     COO
+TO:       ARCHITECT
+DATE:     2026-03-07
+SUBJECT:  Phase 1 Spec — Data Model, Map Shading Logic, and Technology Selection
+PRIORITY: High — no other job can begin until this work is complete
+
+================================================================================
+CONTEXT
+================================================================================
+
+This is the first active task for the Travel Tracker project. You are the
+critical path. DATABASE, BACKEND, and FRONTEND are all blocked on your
+deliverables.
+
+Read all of the following before beginning:
+
+  _project/travel-tracker-BRD.md     Full requirements (v2.1)
+  _project/seed-data.txt             Default admin list values and shading colours
+  _shared/frameworks.txt             Project-wide standards
+
+Project summary:
+  - Personal travel tracking desktop app for macOS. Single user: Ryan.
+  - Core features: world map with visit shading, trip logging, place and item
+    management (restaurants, hotels, flights, car rentals, experiences, notes),
+    post-trip review workflow, admin panel for configurable lists
+  - Phase 1 MVP: local Mac app, SQLite, no internet required for core features.
+    Map tiles require internet (NF-02).
+  - OneDrive sync of the SQLite file across personal devices (NF-04)
+  - Phase 2: migrate to hosted web app. Hard constraint: no rebuild (NF-05)
+  - Phase 3: iOS app. Hard constraint: no rebuild (NF-06)
+
+================================================================================
+TASK 1 — DATA MODEL
+================================================================================
+
+Design the full entity-relationship model for the system. Provide a structured
+schema description: table names, columns, data types, constraints, foreign keys,
+and indexes. Flag every design decision with your rationale.
+
+--------------------------------------------------------------------------------
+1a. GEOGRAPHIC HIERARCHY
+--------------------------------------------------------------------------------
+
+The app uses a three-tier geographic structure: Country → Region → City.
+See BRD sections 5.2 (GE-01 through GE-09).
+
+  - Countries table: country code, name, whether Region tier is enabled for
+    this country, and what the Region tier is called (State / Province /
+    Territory / etc.)
+  - Regions table: links to parent country. Only populated for countries
+    with the Region tier enabled.
+  - Cities table: links to parent country (always) and parent region (where
+    the Region tier is enabled). Must store latitude and longitude for map pin
+    placement.
+
+Design decisions to address:
+
+  GEOGRAPHIC DATA SOURCE — this is a question that will need project owner
+  input (see Task 5), but provide your recommended approach and design
+  accordingly. Options:
+
+    Option A — Fully bundled: ship with a static dataset of all countries,
+      major regions, and key cities pre-loaded. No external service needed.
+      City coordinates included in the bundle.
+
+    Option B — User-entered: user creates city records on-the-fly when
+      logging trips. No pre-populated data. User enters coordinates manually
+      or the app geocodes on lookup.
+
+    Option C — Hybrid (recommended starting point): core countries and
+      regions are bundled (small, stable dataset). Cities are created on
+      entry, with coordinates populated via a geocoding API call (requires
+      internet at entry time, stored locally after that).
+
+  Provide your recommendation and design for the option you choose. If you
+  make an assumption, document it clearly.
+
+  DEFAULT COUNTRY CONFIGURATION (GE-05, GE-06): the app ships knowing which
+  countries have Region tiers and what they are called (US→States,
+  Australia→States, Canada→Provinces, India→States, most of Europe→disabled).
+  This implies either a bundled countries table or a seed data file. Design
+  for whichever fits your geographic data source recommendation.
+
+--------------------------------------------------------------------------------
+1b. TRIPS
+--------------------------------------------------------------------------------
+
+Core entity. See BRD TR-01 through TR-10.
+
+Required attributes:
+  - Name, start date, end date
+  - Status: Planning | Active | Review Pending | Locked
+  - Photo album reference (text/URL — no file storage, reference only, PH-01)
+  - created_at, updated_at
+
+Required many-to-many relationships (each from user-managed admin lists):
+  - Trip Categories (TR-03)
+  - Activities at trip level (TR-04 — activities can also attach to a
+    specific place within the trip; design both)
+  - Companions (TR-02)
+
+Locked behaviour (TR-06, TR-07):
+  - Locked trips are read-only. The data model should support an explicit
+    lock flag (or rely on the status field) — state your recommendation.
+
+Multiple trips to the same place are separate dated records — there is no
+deduplication at the trip level (TR-08).
+
+--------------------------------------------------------------------------------
+1c. PLACES (Trip-Place associations)
+--------------------------------------------------------------------------------
+
+Per the BRD definition, a "Place" is a country and/or city visited within a
+trip. Multiple places can belong to one trip (TR-01: "one or more destinations").
+
+Design requirements:
+  - A trip has one or more places
+  - Each place is associated with a city (which implies region and country
+    via the geographic hierarchy — do not store country/region redundantly)
+  - Activities can attach at place level as well as trip level (TR-04)
+  - "Next time" item carry-forward (IT-07) operates at place level — when
+    creating a new trip to the same city, "Next time" items from prior trips
+    to that city can be carried forward
+
+Key design question: should Place be a standalone entity (places table with
+its own ID, referenced by trips via a junction table), or should the trip-place
+junction table itself carry the place-level metadata? Design whichever you
+recommend and explain why.
+
+--------------------------------------------------------------------------------
+1d. ITEMS
+--------------------------------------------------------------------------------
+
+Items are logged against a trip, or against a specific place within a trip.
+See BRD IT-01 through IT-07 and the type-specific fields in BRD 5.6.
+
+  Item types:   Restaurant, Hotel, Flight, Car Rental, Experience, Note
+  Item status:  Consider | Confirmed | Completed | Cancelled | Next time
+
+All items share:
+  - trip_id (required)
+  - trip_place_id (optional — item may be trip-level rather than place-level)
+  - item_type
+  - status
+  - notes (free text — all types, IT-04)
+  - created_at, updated_at
+
+Type-specific structured fields (see BRD 5.6 for full field lists):
+
+  Flight:      airline, flight_number, departure_airport, arrival_airport,
+               departure_datetime, arrival_datetime, booking_reference, seat
+               (FL-01, FL-02) — each flight leg is a separate item (FL-01)
+
+  Hotel:       property_name, address, check_in_date, check_out_date,
+               booking_reference, confirmation_number (HT-01)
+               Duration is calculated, not stored (HT-02)
+
+  Car rental:  provider, pickup_location, dropoff_location, pickup_datetime,
+               dropoff_datetime, booking_reference, vehicle_class (CR-01)
+
+  Restaurant:  name, neighbourhood_area, cuisine_type, source
+               (RS-01)
+               When Completed: rating, post_visit_notes (RS-03)
+
+  Experience:  no structured fields beyond the base item
+  Note:        no structured fields beyond the base item
+
+Design decision required — how to model type-specific fields:
+
+  Option A — Single wide table: one items table with all type-specific
+    columns, nullable where not applicable to the current type.
+    Pro: simple queries. Con: many nullable columns, hard to enforce type
+    integrity, table gets wide as new types are added.
+
+  Option B — Base + extension tables: items table holds shared fields;
+    one extension table per type (item_flights, item_hotels, etc.) with a
+    1:1 FK relationship to items.
+    Pro: normalised, enforces required fields per type. Con: joins required.
+
+  Option C — Base table + JSON column for type-specific attributes:
+    items table holds shared fields plus a type_data column (TEXT in SQLite,
+    JSONB in PostgreSQL). Type-specific fields stored as structured JSON.
+    Pro: flexible, works identically in SQLite and PostgreSQL, easy migration.
+    Con: cannot index or query individual type-specific fields efficiently
+    without JSON path operators (PostgreSQL has these; SQLite is limited).
+
+  Provide your recommendation with rationale. Consider the migration path
+  (SQLite → PostgreSQL) as a factor.
+
+Item carry-forward (IT-07): design whether items need a carried_from_item_id
+reference column, or whether this is a pure application-layer operation with
+no data model implication. State your decision.
+
+--------------------------------------------------------------------------------
+1e. ADMIN AND CONFIG TABLES
+--------------------------------------------------------------------------------
+
+The following reference lists are user-managed via the admin panel (AD-01
+through AD-06). All lists support add, edit, rename, and deactivate (not
+hard delete — deactivated items are hidden from entry forms but preserved
+on existing records).
+
+  - trip_categories (id, name, is_active)
+  - activities (id, name, is_active)
+  - companions (id, name, is_active)
+  - map_shading_config: one row per shading state (state_key, display_name,
+    color_hex, is_active). State keys are fixed (Active, Planned, etc.) —
+    the user configures the colour and display name, not the states themselves.
+  - country_config: extends the countries table to track per-country Region
+    tier settings (which can be overridden by the user per GE-07)
+
+Design the soft-delete pattern consistently across all admin lists.
+
+================================================================================
+TASK 2 — MAP SHADING STATES AND COMPUTATION LOGIC
+================================================================================
+
+The BRD defines 7 shading states (including Never Visited as the default).
+See BRD sections 5.3 and 5.4.
+
+The shading state for any country, region, or city is COMPUTED from trip
+data — it is not stored as a field. Define the computation logic that BACKEND
+will implement, including the priority order and the definitions used.
+
+COMPUTATION RULES (implement in this priority order):
+
+  1. Active — any trip with status=Active includes this location
+     → overrides all other states (MP-06)
+
+  2. Visited multiple + planning — trips to this location include:
+     2+ "completed" trips AND 1+ "planning" trips
+
+  3. Visited multiple — 2+ "completed" trips, 0 "planning" trips
+
+  4. Visited once + planning — exactly 1 "completed" trip AND 1+ "planning"
+     trips
+
+  5. Visited once — exactly 1 "completed" trip, 0 "planning" trips
+
+  6. Planned — 0 "completed" trips, 1+ "planning" trips
+
+  7. Never visited — 0 completed, 0 planning, 0 active (no trips logged)
+     → this is the default; no shading is rendered
+
+DEFINITIONS:
+  "completed trip" = a trip with status in (Review Pending, Locked)
+     Rationale: a trip in "Review Pending" has already happened — the user
+     just hasn't finalised the record yet. It should count as visited.
+  "planning trip"  = a trip with status = Planning
+  "active trip"    = a trip with status = Active
+
+ROLLUP LOGIC (country and region shading):
+  - Country shading is computed by rolling up from all cities within that
+    country that have been visited
+  - Region shading is computed by rolling up from all cities within that
+    region that have been visited
+  - A country or region is "visited" if any city within it meets the
+    visited threshold
+  - The shading state at country/region level should reflect the aggregate
+    state of all cities within it (e.g. a country is "Visited multiple times"
+    if any city within it has 2+ completed trips)
+
+Specify the database queries BACKEND will need to compute shading states
+efficiently at country, region, and city level. Flag any recommended indexes.
+
+Note: shading colours are stored in the map_shading_config table. The
+computation logic returns a state_key (e.g. "visited_once"), which BACKEND
+maps to the configured hex colour for rendering.
+
+================================================================================
+TASK 3 — TECHNOLOGY RECOMMENDATIONS
+================================================================================
+
+Hard constraints (non-negotiable per BRD):
+  NF-01  Local Mac desktop app — no internet for core features
+  NF-02  Map view requires internet for tile rendering
+  NF-03  Data stored locally as SQLite
+  NF-04  SQLite file storable on OneDrive for single-user sync
+  NF-05  Must migrate to hosted web app without a rebuild
+  NF-06  Must migrate to iOS without a rebuild
+  NF-07  Must support future trip companion access without structural changes
+  NF-08  Must support future notification engine without structural changes
+
+--------------------------------------------------------------------------------
+3a. DATABASE LAYER
+--------------------------------------------------------------------------------
+
+Recommend:
+  - SQLite for Phase 1 local operation (assumed in BRD — confirm or propose
+    alternative)
+  - ORM or query layer that abstracts the database engine so the same query
+    code works with SQLite locally and PostgreSQL when hosted
+  - Migration tooling: how will DATABASE manage schema migrations without
+    manual edits (Shared Standard 4)?
+
+--------------------------------------------------------------------------------
+3b. BACKEND / API LAYER
+--------------------------------------------------------------------------------
+
+Recommend a web framework that:
+  - Runs as a local server (localhost:PORT) for Phase 1
+  - Deploys to a hosted environment with configuration changes only — not
+    code changes (the migration constraint)
+  - Produces a clean REST API that FRONTEND consumes identically in both
+    local and hosted modes
+  - Supports future multi-user authentication without structural changes
+    (NF-07)
+
+State whether you recommend REST or GraphQL and why.
+
+--------------------------------------------------------------------------------
+3c. FRONTEND FRAMEWORK
+--------------------------------------------------------------------------------
+
+Recommend a framework that:
+  - Runs in-browser (locally or hosted) — the same build works in both
+    environments
+  - Integrates cleanly with the recommended mapping library (Task 4)
+  - Supports component-based UI development for: map view, trip list, trip
+    detail, item management, admin panel
+
+The frontend must be a standard web app — no desktop-specific APIs. It must
+work identically whether the backend is running at localhost or a hosted URL.
+
+--------------------------------------------------------------------------------
+3d. DESKTOP APP PACKAGING — OPEN QUESTION FOR PROJECT OWNER
+--------------------------------------------------------------------------------
+
+This decision must be resolved before the blueprint is finalised. See Task 5,
+Question Q1.
+
+NF-01 says "Local Mac desktop app." This is ambiguous about whether a packaged
+.app is required or whether a browser-at-localhost is acceptable. Provide your
+recommendation under BOTH scenarios so the project owner can make an informed
+decision:
+
+  Option A — No packaging (local server + browser):
+    BACKEND runs as a server process. User opens localhost:PORT in browser.
+    A macOS LaunchAgent can start the server automatically at login.
+    Migration to hosted: same code, different deployment target.
+    iOS: wrap FRONTEND in Capacitor WebView — minimal code change.
+    Pros: simplest build, smallest footprint, cleanest migration path.
+    Cons: not a native .app experience; requires a browser tab, not dock icon.
+
+  Option B — Electron or Tauri wrapper:
+    Packages BACKEND + FRONTEND into a double-clickable .app.
+    Provides native dock icon, window management, macOS menu bar.
+    Migration to hosted: remove wrapper, deploy same web code to server.
+    iOS: FRONTEND is already web-compatible; wrap in Capacitor or React Native.
+    Pros: genuine desktop app experience.
+    Cons: Electron is heavyweight (~150MB); Tauri is lighter but requires Rust.
+          Adds build complexity. Packaging and auto-update infrastructure needed.
+
+  State which you prefer and why, given the migration constraints.
+
+--------------------------------------------------------------------------------
+3e. MIGRATION PATH
+--------------------------------------------------------------------------------
+
+Describe explicitly:
+  - What changes when migrating from Phase 1 (local) to Phase 2 (hosted):
+    which files/configs change, and what stays the same
+  - How iOS (Phase 3) is achieved without a rebuild
+  - Whether companion access (NF-07) and notifications (NF-08) require
+    architectural additions at Phase 1 or only application-layer additions
+    at Phase 2
+
+================================================================================
+TASK 4 — MAPPING LIBRARY RECOMMENDATION
+================================================================================
+
+The map view requires (BRD sections 5.3, 5.4):
+  - World map with country-level polygon shading (choropleth) — 7 states
+  - Zoom to reveal region-level shading (where enabled) and city-level pins
+  - Click on country, region, or city to view associated trip entries (MP-03)
+  - Shading colours configurable per state, applied at render time from config
+  - Internet required for tile rendering (NF-02); app logic and data are local
+  - Must run in a browser (local or hosted — same frontend code)
+
+This is Open Question OQ-01 from the BRD. Your recommendation will be treated
+as the architectural decision.
+
+Evaluate:
+
+  Leaflet.js + OpenStreetMap
+    Free, open source, mature, large community. Raster tiles. Good GeoJSON
+    support for polygon shading. Simpler API. Raster shading transitions at
+    zoom levels are less smooth.
+
+  MapLibre GL JS + OpenStreetMap vector tiles
+    Free, open source fork of Mapbox GL JS. Vector tiles. WebGL rendering.
+    Smooth zoom through country → region → city. Better choropleth rendering.
+    More powerful styling. Requires a vector tile provider (MapTiler free tier
+    in development; self-hosted or low-cost CDN for production).
+
+  Google Maps JavaScript API
+    Polished and familiar. Requires API key. Has usage costs at scale.
+    Choropleth shading requires custom GeoJSON overlay work (not built-in).
+    Less suitable for open-source/low-cost personal project.
+
+  Other options worth raising (Mapbox GL JS, D3.js for map only, etc.)
+
+For each option you evaluate, state:
+  - Tile provider needed and cost implications
+  - GeoJSON boundary data source for country/region polygons
+  - Suitability for choropleth shading at country and region level
+  - Suitability for city-level pin markers with click events
+  - Compatibility with your recommended frontend framework
+
+Make a clear recommendation and justify it. Note any dependencies your
+recommendation creates for the DATABASE or BACKEND layer.
+
+================================================================================
+TASK 5 — QUESTIONS FOR THE PROJECT OWNER
+================================================================================
+
+The following questions have been identified by the COO. Add any additional
+questions you identify during your analysis. Only flag genuine decision points
+that belong to the project owner — do not ask questions you can answer within
+the BRD or by making a documented assumption.
+
+Route your questions to COO outbox. The COO will compile and route them.
+
+Questions already identified:
+
+  Q1. DESKTOP APP PACKAGING (potential blocker — must answer before blueprint)
+      NF-01 says "local Mac desktop app." Does Ryan expect:
+        a) A double-clickable .app installed in /Applications (requires
+           Electron or Tauri packaging), or
+        b) A browser tab at localhost that opens automatically when a
+           background server starts (simpler, no native packaging)?
+      This is the single biggest technical architecture decision and should
+      be resolved before the blueprint is finalised.
+
+  Q2. RATING SCALE (important — affects data model)
+      BRD RS-03 says completed restaurants can have a rating. What format?
+        a) 1–5 stars
+        b) 1–10 numeric
+        c) 0–10 with decimal (e.g. 8.5)
+        d) Free text notes only (no numeric rating)
+      Should hotels also be rateable (not currently mentioned in BRD)?
+
+  Q3. GEOGRAPHIC DATA SOURCE (important — affects data model and INTEGRATIONS)
+      The map needs country boundary polygons and city coordinate data.
+        a) Fully bundled — ship with Natural Earth GeoJSON boundaries and
+           a static city dataset. No external service needed. (~30-50MB
+           bundled data.)
+        b) User-entered — user creates cities manually, enters coordinates
+           themselves. Simple, no external dependency.
+        c) Hybrid — boundaries bundled; city coordinates fetched via a
+           geocoding API when the user logs a new city (requires internet
+           at entry time, stored locally after). Better UX but adds a
+           service dependency.
+
+  Q4. NEXT TIME CARRY-FORWARD — IT-07 (important — affects UX design)
+      When the user creates a new trip to a city where prior "Next time"
+      items exist, should the app:
+        a) Automatically prompt the user with a list of "Next time" items
+           from prior trips to that city, offering to carry them forward
+           as "Consider" items (requires a user confirmation step), or
+        b) Require the user to manually locate and copy "Next time" items
+           from prior trip records?
+
+================================================================================
+DELIVERABLES EXPECTED
+================================================================================
+
+Route the following to jobs/COO/inbox/ when complete. Use the naming format:
+  YYYYMMDD_HHMM-ARCHITECT-[topic].txt
+
+  1. Entity-relationship schema
+     Table definitions, column types, constraints, FK relationships, indexes
+     for all entities in Tasks 1a–1e.
+
+  2. Map shading computation specification
+     Formalised rules, query patterns, and indexing recommendations for
+     BACKEND to implement. (Based on Task 2 above.)
+
+  3. Technology stack recommendation
+     Framework choices with rationale for each layer. Migration path
+     description (local → hosted → iOS). Explicit answer on packaging.
+
+  4. Mapping library recommendation
+     Chosen library with rationale, tile provider recommendation, GeoJSON
+     data source recommendation.
+
+  5. Architecture decisions log (first version)
+     A structured log of every material design decision made, with the
+     options considered and the rationale for the choice. This becomes the
+     authoritative reference for all future jobs.
+
+  6. Open questions for project owner
+     Any additional questions beyond the Q1–Q4 list above. Flag clearly
+     which are blockers (cannot finalise blueprint without) vs. important
+     (can proceed with documented assumption).
+
+================================================================================
+NOTES
+================================================================================
+
+  - The migration constraint (no rebuild for web and iOS) is the single most
+    important architectural decision. Make it explicit and testable.
+  - The data model is the most critical asset in the project. Shared Standard 13
+    applies: no schema changes without Architect review once work begins.
+  - Keep Phase 1 scope tight. Do not engineer for Phase 3 unless a Phase 1
+    decision would otherwise block it.
+  - The BRD status is "Pending sign-off." Treat it as authoritative for
+    design purposes. If you find contradictions, gaps, or ambiguities, flag
+    them to COO outbox rather than resolving them silently.
+  - If any question in Task 5 is a hard blocker, flag it immediately to COO
+    outbox — do not wait until you have completed all other tasks.
+

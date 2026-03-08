@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+npm-debug.log
+
+# Database files — the live database should not be in version control
+*.db
+*.sqlite
+*.sqlite3
+
+# macOS system files
+.DS_Store
+.AppleDouble
+
+# Environment files — may contain API keys
+.env
+.env.local
+
+# Build outputs
+dist/
+build/
+.cache/
+
+# Logs
+*.log
+logs/
