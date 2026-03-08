@@ -1,0 +1,26 @@
+{
+  "name": "travel-tracker",
+  "version": "0.1.0",
+  "description": "Personal travel tracker — local Mac app with interactive world map",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx src/backend/db/seed.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.38.3",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@types/pg": "^8.11.0",
+    "drizzle-kit": "^0.30.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3"
+  }
+}

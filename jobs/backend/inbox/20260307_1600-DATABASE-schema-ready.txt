@@ -1,0 +1,96 @@
+FROM:     DATABASE
+TO:       BACKEND
+DATE:     2026-03-07
+SUBJECT:  Schema Ready — DATABASE Phase 1 Complete
+
+The database schema is implemented and verified. BACKEND can begin as soon
+as COO dispatches your spec.
+
+================================================================================
+WHAT'S AVAILABLE
+================================================================================
+
+  src/backend/db/schema.ts     — All 19 tables as Drizzle ORM TypeScript
+  src/backend/db/index.ts      — getDb() factory + schema re-exports
+  src/backend/migrations/      — Migration files (applied to dev.db already)
+
+================================================================================
+HOW TO USE
+================================================================================
+
+  Primary import (recommended — gives you everything):
+
+    import { getDb } from './db/index.js';
+
+    // TypeScript types (import what you need):
+    import type {
+      Trip, NewTrip,
+      TripPlace, NewTripPlace,
+      Item, NewItem,
+      ItemRestaurant, ItemHotel, ItemFlight, ItemCarRental, ItemExperience,
+      City, Country, Region,
+      // ... etc.
+    } from './db/index.js';
+
+    const db = getDb();
+
+  Example queries:
+
+    // All trips, newest first
+    const trips = await db.select().from(trips).orderBy(desc(trips.startDate));
+
+    // Trip with its places
+    const withPlaces = await db
+      .select()
+      .from(trips)
+      .leftJoin(tripPlaces, eq(tripPlaces.tripId, trips.id))
+      .where(eq(trips.id, tripId));
+
+================================================================================
+IMPORTANT CONSTRAINTS — ENFORCE IN BACKEND
+================================================================================
+
+  1. Locked trips (status = 'locked') must be read-only.
+     BACKEND enforces this — no schema-level lock exists.
+     Check trip status before any write; return 403 if locked.
+
+  2. Carry-forward integrity (ADL-13):
+     is_carried_forward = 1 requires carried_from_item_id IS NOT NULL, and
+     vice versa. Schema CHECK only validates the boolean — BACKEND must
+     validate both fields are set together when creating carried items.
+
+  3. start_date <= end_date:
+     SQLite cannot enforce cross-column date comparison in CHECK.
+     BACKEND must validate this on trip create/update.
+
+  4. region_id must be NULL for cities in countries where region_tier_enabled = 0.
+     BACKEND must enforce this when creating cities.
+
+  5. item_experiences lazy row:
+     Do NOT create an item_experiences row when creating an Experience item.
+     Create it only when the user first adds a rating or post-visit note (ADL-14).
+
+  6. SQLITE_PATH format: file:./path.db or file:/abs/path.db (libSQL URL scheme).
+     This is set in .env.local — BACKEND inherits the same .env.local.
+
+================================================================================
+SCHEMA HIGHLIGHTS FOR YOUR REFERENCE
+================================================================================
+
+  Item types:   'restaurant' | 'hotel' | 'flight' | 'car_rental' | 'experience' | 'note'
+  Item status:  'consider' | 'confirmed' | 'completed' | 'cancelled' | 'next_time'
+  Trip status:  'planning' | 'active' | 'review_pending' | 'locked'
+  Geo status:   'pending' | 'resolved'
+
+  Extension tables (joined on item_id = items.id):
+    item_flights      — airline, airports, datetimes, booking ref, seat
+    item_hotels       — property, dates, booking ref, rating (1-5), notes
+    item_car_rentals  — provider, locations, datetimes, booking ref, class
+    item_restaurants  — name, area, cuisine, source, rating (1-5), notes
+    item_experiences  — rating (1-5), post_visit_notes  [lazy creation]
+
+  Items with type 'note' use only the base items table (no extension).
+
+  Key cross-trip queries are pre-written in the ER schema document:
+    jobs/architect/tech/20260307-ER-schema.md  §6.1, §6.2, §6.3
+

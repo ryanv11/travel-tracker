@@ -1,0 +1,112 @@
+PARK DOCUMENT — DATABASE
+Date: 2026-03-07
+Thread: DATABASE Thread 1 — Schema Implementation
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+First DATABASE thread. Received COO spec, read all source documents, and
+implemented all five deliverables from scratch. All acceptance criteria verified.
+
+================================================================================
+SOURCE DOCUMENTS READ
+================================================================================
+
+  - jobs/architect/tech/20260307-ER-schema.md (v1.1) — primary reference
+  - jobs/architect/tech/20260307-tech-blueprint.md (v1.0)
+  - jobs/architect/tech/20260307-architecture-decisions-log.md
+  - _project/travel-tracker-BRD.md (v2.3)
+  - _project/seed-data.txt
+  - _shared/frameworks.txt
+  - jobs/database/inbox/20260307_1500-COO-database-spec.txt
+
+================================================================================
+DELIVERABLES PRODUCED
+================================================================================
+
+  1. src/backend/db/schema.ts — Drizzle ORM schema, 19 tables
+  2. src/backend/db/index.ts  — Connection factory (sqlite/postgres)
+  3. drizzle.config.ts        — Drizzle Kit configuration
+  4. src/backend/db/seed.ts   — Seed data loader, idempotent
+  5. src/backend/migrations/0000_open_electro.sql — Generated migration
+
+  All five deliverables copied to jobs/database/tech/ for reference.
+
+================================================================================
+PROJECT FILES CREATED (project root)
+================================================================================
+
+  package.json       — Dependencies and npm scripts
+  tsconfig.json      — TypeScript configuration
+  .gitignore         — Updated with db-wal and env.local additions
+  .env.example       — Configuration template (committed)
+  .env.local         — Local dev values (gitignored, file:./dev.db)
+  dev.db             — SQLite dev database (gitignored)
+
+================================================================================
+DECISIONS MADE THIS THREAD
+================================================================================
+
+  DECISION: Use @libsql/client instead of better-sqlite3
+  REASON: better-sqlite3 v9.x has no prebuilt binaries for Node.js v24
+  and fails to compile from source (C++20 requirement not met by Xcode
+  Command Line Tools on this machine).
+  ALTERNATIVE: @libsql/client — pure JavaScript/WASM, no compilation,
+  fully supported by Drizzle ORM, identical query API.
+  IMPACT: SQLITE_PATH must use libSQL URL format (file:./path.db).
+  This is documented in .env.example and in index.ts docstring.
+  FLAGGED TO COO: Yes — noted in completion report.
+  ARCHITECT REVIEW NEEDED: No — this is a driver implementation detail,
+  not a schema or architecture change.
+
+  DECISION: Use tsx instead of ts-node for seed script execution
+  REASON: ts-node ESM loader is broken on Node.js v24. tsx is the
+  recommended modern replacement and handles TypeScript ESM correctly.
+  IMPACT: package.json db:seed script uses tsx.
+
+================================================================================
+ACCEPTANCE CRITERIA — ALL MET
+================================================================================
+
+  [x] 1. npm run db:push succeeds on fresh SQLite file
+  [x] 2. npm run db:seed populates all defaults, idempotent
+  [x] 3. TypeScript types exported for all tables ($inferSelect + $inferInsert)
+  [x] 4. DB_TYPE=sqlite returns Drizzle instance without error
+  [x] 5. Schema matches ER schema v1.1 (all 19 tables, FKs, constraints, indexes)
+  [x] 6. Shared Standards 1–4 met (comments, docstrings, no hardcoding, migrations)
+  [x] 7. Changes committed to Git
+
+================================================================================
+VERIFICATION LOG
+================================================================================
+
+  drizzle-kit generate → 19 tables detected, migration file generated
+  drizzle-kit push     → "✓ Changes applied" on fresh dev.db
+  npm run db:seed (1)  → trip_categories=11, activities=17,
+                         companions=7, map_shading_config=6
+  npm run db:seed (2)  → same output, no errors, no duplicates
+  sqlite_master query  → 19 application tables + sqlite_sequence confirmed
+  shading config check → all 6 state_keys with correct hex values;
+                         'never_visited' correctly absent
+
+================================================================================
+BACKEND NOTES (documented in BACKEND inbox message)
+================================================================================
+
+  Critical backend constraints (schema cannot enforce):
+  1. Locked trips must be read-only (check status before writes)
+  2. carry-forward: is_carried_forward=1 ↔ carried_from_item_id IS NOT NULL
+  3. start_date ≤ end_date validation
+  4. region_id NULL when country.region_tier_enabled = 0
+  5. item_experiences: lazy row creation (only on first rating/note add)
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT DATABASE THREAD
+================================================================================
+
+  None expected for Phase 1 unless COO returns work with defects.
+  Phase 2 work will be: PostgreSQL schema variant and one-time data
+  migration script (SQLite export → PostgreSQL import). COO will spec this
+  when the project reaches Phase 2 deployment.
+

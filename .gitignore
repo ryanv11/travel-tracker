@@ -11,9 +11,15 @@ npm-debug.log
 .DS_Store
 .AppleDouble
 
-# Environment files — may contain API keys
+# Environment files — may contain API keys or machine-specific paths
 .env
 .env.local
+.env.production
+.env*.local
+
+# SQLite WAL mode sidecar files
+*.db-shm
+*.db-wal
 
 # Build outputs
 dist/
