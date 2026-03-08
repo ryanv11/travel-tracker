@@ -7,7 +7,7 @@
  */
 
 import { Router } from 'express';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import {
   getDb,
   trips,
@@ -65,9 +65,10 @@ placesRouter.get(
       .leftJoin(cities, eq(cities.id, tripPlaces.cityId))
       .where(eq(tripPlaces.tripId, tripId));
 
-    // Fetch place activities
+    // Fetch all activity tags for every place in one query.
+    // inArray handles 0-length safely (returns []).
     const placeIds = placesRows.map((p) => p.id);
-    const placeActivities =
+    const allPlaceActivities =
       placeIds.length > 0
         ? await db
             .select({
@@ -77,22 +78,8 @@ placesRouter.get(
             })
             .from(tripPlaceActivitiesMap)
             .leftJoin(activities, eq(activities.id, tripPlaceActivitiesMap.activityId))
-            .where(eq(tripPlaceActivitiesMap.tripPlaceId, placeIds[0]))
+            .where(inArray(tripPlaceActivitiesMap.tripPlaceId, placeIds))
         : [];
-
-    // For multiple placeIds, do a broader query
-    const allPlaceActivities =
-      placeIds.length > 1
-        ? await db
-            .select({
-              tripPlaceId: tripPlaceActivitiesMap.tripPlaceId,
-              id: activities.id,
-              name: activities.name,
-            })
-            .from(tripPlaceActivitiesMap)
-            .leftJoin(activities, eq(activities.id, tripPlaceActivitiesMap.activityId))
-            .where(eq(tripPlaces.tripId, tripId))
-        : placeActivities;
 
     const result = placesRows.map((p) => ({
       id: p.id,
