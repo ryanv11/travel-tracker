@@ -24,3 +24,10 @@ export const CityItemsQuerySchema = z.object({
     .optional(),
   min_rating: z.coerce.number().int().min(1).max(5).optional(),
 });
+
+/** Schema for PATCH /api/cities/:id (C2) */
+export const PatchCitySchema = z
+  .object({
+    region_id: z.number().int().positive().nullable().optional(),
+  })
+  .strict();

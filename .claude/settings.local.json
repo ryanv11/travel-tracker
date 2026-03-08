@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(claude mcp list)"
+      "Bash(claude mcp list)",
+      "Bash(git push)",
+      "Bash(npm run db:push)",
+      "Bash(node --loader ts-node/esm --env-file=.env.local src/backend/db/seed.ts)",
+      "Bash(npm install --save-dev tsx)",
+      "Bash(npm run db:seed)",
+      "Bash(git -C /Users/ryanv/Library/CloudStorage/OneDrive-Personal/Work/ClaudeCode/my-project status)",
+      "Bash(git -C /Users/ryanv/Library/CloudStorage/OneDrive-Personal/Work/ClaudeCode/my-project add .gitignore .env.example drizzle.config.ts package.json package-lock.json tsconfig.json src/ jobs/database/context/current.txt jobs/database/park-docs/ jobs/database/tech/ jobs/COO/inbox/20260307_1600-DATABASE-schema-complete.txt jobs/backend/inbox/)",
+      "Bash(git -C:*)",
+      "Bash(node --version)",
+      "Bash(npm install express cors helmet express-rate-limit zod)",
+      "Bash(npm install --save-dev @types/express @types/cors @types/helmet)",
+      "Bash(npm audit)",
+      "Bash(npm install express cors helmet express-rate-limit zod @types/express @types/cors @types/helmet)",
+      "Bash(timeout 15 npm run dev)",
+      "Bash(curl -sI http://localhost:3001/health)",
+      "Bash(curl -s http://localhost:3001/health)"
     ]
   }
 }

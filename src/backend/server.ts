@@ -110,6 +110,16 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
+// C3 / SEC-M1: Secondary rate limit for POST /api/cities — 20 req/min (geocoding cost)
+// Independent of global limiter; configured separately as each city creation triggers geocoding.
+const citiesCreateLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.post('/api/cities', citiesCreateLimiter);
+
 // 5. Auth stub — Phase 2 hook (SEC-09)
 app.use('/api/', authenticate);
 

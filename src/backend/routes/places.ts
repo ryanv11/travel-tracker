@@ -15,11 +15,14 @@ import {
   cities,
   tripPlaceActivitiesMap,
   activities,
+  items,
 } from '../db/index.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
 import { CreatePlaceSchema, AddPlaceActivitySchema } from '../validation/places.schemas.js';
-import { NotFoundError, LockError, ConflictError } from '../errors.js';
+import { CarryForwardBodySchema } from '../validation/items.schemas.js';
+import { NotFoundError, LockError, ConflictError, ValidationError } from '../errors.js';
+import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
 
 const placesRouter = Router({ mergeParams: true });
 export default placesRouter;
@@ -181,6 +184,58 @@ placesRouter.delete(
     await db.delete(tripPlaces).where(eq(tripPlaces.id, placeId));
 
     res.status(204).send();
+  }),
+);
+
+// ----------------------------------------------------------------
+// POST /api/trips/:tripId/places/:placeId/carry-forward  (C1 — IT-07 execution)
+// ----------------------------------------------------------------
+placesRouter.post(
+  '/:placeId/carry-forward',
+  validateBody(CarryForwardBodySchema),
+  asyncHandler(async (req, res) => {
+    const tripId = parseInt(req.params.tripId, 10);
+    const placeId = parseInt(req.params.placeId, 10);
+    if (isNaN(tripId) || isNaN(placeId)) throw new NotFoundError('Place');
+
+    const db = getDb();
+
+    // Verify placeId exists and belongs to tripId — also retrieves cityId
+    const placeRows = await db
+      .select({ id: tripPlaces.id, cityId: tripPlaces.cityId })
+      .from(tripPlaces)
+      .where(and(eq(tripPlaces.id, placeId), eq(tripPlaces.tripId, tripId)))
+      .limit(1);
+    if (!placeRows.length) throw new NotFoundError('Place');
+
+    const { cityId } = placeRows[0];
+
+    // Verify target trip exists and is not locked (throws 404 / 403 as appropriate)
+    await assertNotLocked(tripId);
+
+    // Verify all source item IDs exist
+    const { source_item_ids: sourceItemIds } = req.body as { source_item_ids: number[] };
+    const foundItems = await db
+      .select({ id: items.id })
+      .from(items)
+      .where(inArray(items.id, sourceItemIds));
+
+    if (foundItems.length !== sourceItemIds.length) {
+      throw new ValidationError('One or more source_item_ids do not exist');
+    }
+
+    // Execute carry-forward
+    const createdIds = await executeCarryForward({
+      sourceCityId: cityId,
+      targetTripId: tripId,
+      targetTripPlaceId: placeId,
+      sourceItemIds,
+    });
+
+    res.status(201).json({
+      created_item_ids: createdIds,
+      count: createdIds.length,
+    });
   }),
 );
 

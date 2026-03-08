@@ -79,3 +79,10 @@ export const ListItemsQuerySchema = z.object({
   type: zItemType.optional(),
   status: zItemStatus.optional(),
 });
+
+/** Schema for POST /api/trips/:tripId/places/:placeId/carry-forward (C1) */
+export const CarryForwardBodySchema = z
+  .object({
+    source_item_ids: z.array(z.number().int().positive()).min(1),
+  })
+  .strict();

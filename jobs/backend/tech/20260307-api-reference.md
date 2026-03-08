@@ -1,7 +1,7 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.0
-**Date:** 2026-03-07
+**Version:** 1.1
+**Date:** 2026-03-08 (updated: C1 carry-forward execution, C2 city PATCH)
 **Base URL:** `http://localhost:3001`
 **Author:** BACKEND
 
@@ -505,6 +505,52 @@ Remove an activity tag from a trip place.
 
 ---
 
+### POST /api/trips/:tripId/places/:placeId/carry-forward
+
+Execute carry-forward — create `consider` items on the target trip/place from selected `next_time` items at the source city. Used in the CarryForward flow (IT-07) after the user selects items from `GET /api/cities/:id/carry-forward`.
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tripId` | integer | Target trip ID |
+| `placeId` | integer | Target place ID (must belong to `tripId`) |
+
+**Request Body:**
+```json
+{
+  "source_item_ids": [14, 17, 22]
+}
+```
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `source_item_ids` | integer[] | **Yes** | Array of item IDs to carry forward. Must have at least 1 element. All IDs must exist. |
+
+**Behaviour:**
+
+For each source item, a new item is created with:
+- `status = "consider"`
+- `is_carried_forward = 1` (true)
+- `carried_from_item_id = <source item ID>`
+- `item_type` and `notes` copied from source
+- Type-specific extension fields copied (restaurant: name, neighbourhood_area, cuisine_type, source; hotel: property_name, address, check_in/out dates, booking_reference, confirmation_number)
+- `rating` and `post_visit_notes` are **NOT** copied (start fresh on new trip)
+
+**Response: `201 Created`**
+```json
+{
+  "created_item_ids": [45, 46, 47],
+  "count": 3
+}
+```
+
+**Errors:**
+- `400` — `source_item_ids` is empty, contains non-integer values, or one or more IDs do not exist
+- `403` — target trip is locked
+- `404` — trip or place not found (or place does not belong to trip)
+
+---
+
 ## Items
 
 Items are nested under trips. Each item has a `trip_place_id` (optional — if null, the item is a trip-level item not tied to a specific place).
@@ -807,6 +853,52 @@ Create a new city. Geocoding is attempted immediately and asynchronously; the re
 **Errors:**
 - `400` — validation failure, or `region_id` provided for a non-region-tier country
 - `404` — country or region not found
+
+---
+
+### PATCH /api/cities/:id
+
+Update a city's `region_id`. Useful when a city was created without a region and the region is later assigned, or to correct a region assignment.
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | City ID |
+
+**Request Body** (all fields optional — only `region_id` is patchable):
+```json
+{
+  "region_id": 5
+}
+```
+
+To clear the region:
+```json
+{
+  "region_id": null
+}
+```
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `region_id` | integer \| null | No | If provided (non-null), must exist in the `regions` table. If null, clears the region association. If omitted entirely, region is unchanged. |
+
+**Response: `200 OK`**
+```json
+{
+  "id": 5,
+  "name": "Sydney",
+  "country_code": "AU",
+  "region_id": 5,
+  "latitude": -33.8698439,
+  "longitude": 151.2082848,
+  "geocode_status": "resolved"
+}
+```
+
+**Errors:**
+- `400` — validation failure, or `region_id` does not exist in regions table
+- `404` — city not found
 
 ---
 
@@ -1297,6 +1389,8 @@ Natural Earth admin-1 states/provinces GeoJSON (~40 MB). Feature `properties.iso
 | `400` | `"carried_from_item_id required when is_carried_forward is true"` | Carry-forward inconsistency |
 | `400` | `"is_carried_forward must be true when carried_from_item_id is set"` | Carry-forward inconsistency |
 | `400` | `"region_id must not be provided for countries without region tier"` | Region ID on non-region-tier country |
+| `400` | `"region_id does not exist"` | PATCH /api/cities/:id with a region_id not in regions table |
+| `400` | `"One or more source_item_ids do not exist"` | POST carry-forward with invalid item IDs |
 | `400` | `"Country does not have region tier enabled"` | POST region on non-region-tier country |
 | `400` | `"[Resource] is already inactive"` | DELETE on already-inactive admin item |
 | `403` | `"Trip is locked"` | Write to a locked trip |
@@ -1316,4 +1410,4 @@ Natural Earth admin-1 states/provinces GeoJSON (~40 MB). Feature `properties.iso
 
 ---
 
-*API Reference v1.0 — Travel Tracker BACKEND — 2026-03-07*
+*API Reference v1.1 — Travel Tracker BACKEND — 2026-03-08 (C1: POST carry-forward execution; C2: PATCH /api/cities/:id)*

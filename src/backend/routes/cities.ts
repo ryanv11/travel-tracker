@@ -25,6 +25,7 @@ import {
   CreateCitySchema,
   SearchCitiesQuerySchema,
   CityItemsQuerySchema,
+  PatchCitySchema,
 } from '../validation/cities.schemas.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { resolveCity } from '../services/geocoding.service.js';
@@ -134,6 +135,60 @@ citiesRouter.post(
       latitude: result.latitude,
       longitude: result.longitude,
       geocode_status: result.geocodeStatus,
+    });
+  }),
+);
+
+// ----------------------------------------------------------------
+// PATCH /api/cities/:id  (C2)
+// ----------------------------------------------------------------
+citiesRouter.patch(
+  '/:id',
+  validateBody(PatchCitySchema),
+  asyncHandler(async (req, res) => {
+    const cityId = parseInt(req.params.id, 10);
+    if (isNaN(cityId)) throw new NotFoundError('City');
+
+    const db = getDb();
+
+    // Verify city exists
+    const cityRows = await db.select().from(cities).where(eq(cities.id, cityId)).limit(1);
+    if (!cityRows.length) throw new NotFoundError('City');
+
+    const { region_id } = req.body as { region_id?: number | null };
+
+    // If region_id is provided (non-null), verify the region exists
+    if (region_id != null) {
+      const regionRows = await db
+        .select({ id: regions.id })
+        .from(regions)
+        .where(eq(regions.id, region_id))
+        .limit(1);
+      if (!regionRows.length) throw new ValidationError('region_id does not exist');
+    }
+
+    const now = new Date().toISOString();
+    // Only update region_id if the field was present in the request body
+    const setValues =
+      'region_id' in req.body
+        ? { regionId: region_id ?? null, updatedAt: now }
+        : { updatedAt: now };
+
+    const updated = await db
+      .update(cities)
+      .set(setValues)
+      .where(eq(cities.id, cityId))
+      .returning();
+
+    const city = updated[0];
+    res.json({
+      id: city.id,
+      name: city.name,
+      country_code: city.countryCode,
+      region_id: city.regionId,
+      latitude: city.latitude,
+      longitude: city.longitude,
+      geocode_status: city.geocodeStatus,
     });
   }),
 );

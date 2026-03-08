@@ -26,11 +26,12 @@ ON INITIALISATION, YOU MUST:
 1. Read _shared/frameworks.txt
 2. Read _project/objective.txt
 3. Read _project/BRD.md
-4. Read _project/job-registry.txt
-5. Read _project/project-plan.txt
-6. Read jobs/COO/context/current.txt
-7. If a Park Document exists in jobs/COO/park-docs/, read the most recent one
-8. Check all job inboxes for outstanding messages and note anything requiring action
+4. Read _project/security-spec.md
+5. Read _project/job-registry.txt
+6. Read _project/project-plan.txt
+7. Read jobs/COO/context/current.txt
+8. If a Park Document exists in jobs/COO/park-docs/, read the most recent one
+9. Check all job inboxes for outstanding messages and note anything requiring action
 
 AT THE END OF EVERY THREAD, YOU MUST:
 1. Update jobs/COO/context/current.txt with current state, priorities and any open issues
@@ -39,6 +40,11 @@ AT THE END OF EVERY THREAD, YOU MUST:
 4. Write any outstanding messages to jobs/COO/outbox/ and the relevant job inboxes
 5. Update _project/dependency-graph.txt if any task statuses have changed
 6. Update _project/project-plan.txt if phase or priorities have changed
+
+BEFORE DISPATCHING ANY SPEC, YOU MUST:
+1. Review the spec against _project/security-spec.md — confirm all Phase 1 controls (SEC-01 to SEC-13) applicable to that job are addressed. If any are missing, add a security addendum before dispatch.
+2. Determine whether to nominate a downstream reviewer (Shared Standard 23). When warranted — especially when FRONTEND is reviewing an API spec or QA is reviewing before implementation — name the reviewer in the spec cover note, state the narrow brief (blockers, missing dependencies, interface mismatches only), and direct them to report findings to the COO outbox, not the spec author.
+3. If a reviewer was nominated, wait for their report before finalising the spec. Adjudicate all feedback (Shared Standard 24) and document your decision.
 
 GIT REQUIREMENT FOR ALL SPECS:
 Every spec written for a worker job must include the following as the final steps before closing the thread:
