@@ -5,8 +5,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/backend/server.ts",
+    "dev": "vite",
+    "dev:api": "tsx watch src/backend/server.ts",
     "start": "tsx src/backend/server.ts",
+    "build": "vite build",
+    "type:check": "tsc -p tsconfig.frontend.json --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/backend/db/seed.ts",
@@ -14,13 +17,19 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
+    "@tanstack/react-query": "^5.90.21",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.38.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.0",
     "helmet": "^8.1.0",
+    "maplibre-gl": "^5.19.0",
     "pg": "^8.11.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-map-gl": "^8.1.0",
+    "react-router-dom": "^6.30.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -29,8 +38,12 @@
     "@types/helmet": "^0.0.48",
     "@types/node": "^20.11.5",
     "@types/pg": "^8.11.0",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^5.1.4",
     "drizzle-kit": "^0.30.4",
     "tsx": "^4.21.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vite": "^7.3.1"
   }
 }
