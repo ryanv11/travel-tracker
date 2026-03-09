@@ -52,6 +52,6 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh && echo '{\"defaultMode\":\"bypassPermissions\"}' > /home/node/.claude/settings.json",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh; echo '{\"permissions\":{\"defaultMode\":\"bypassPermissions\"}}' > /home/node/.claude/settings.json",
   "waitFor": "postStartCommand"
 }
