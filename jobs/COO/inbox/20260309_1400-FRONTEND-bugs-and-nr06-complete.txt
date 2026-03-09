@@ -1,0 +1,78 @@
+FROM: Frontend
+TO:   COO
+DATE: 2026-03-09 14:00
+RE:   BUG-03/04/05 complete + BUG-01 city pins + NR-06 offline retry implemented
+
+---
+
+All directed work is complete and committed.
+
+---
+
+BUG-03 — DONE
+Carry-forward modal race condition fixed. AddPlaceFlow now waits for
+candidatesFetched = true before acting on the candidates list. The modal
+will no longer dismiss prematurely.
+
+BUG-04 — DONE (also closes NR-05)
+"Return to Planning" button added to ReviewPanel. Button is labelled
+"Return to Planning", triggers a confirmation dialog before acting
+("Return this trip to planning? The review will be cleared."), and calls
+PATCH /api/trips/:id/status { status: "planning" } on confirm.
+
+BUG-05 — DONE
+Bulk "Mark all Completed" now only affects 'consider' and 'confirmed' items.
+'next_time' items are excluded.
+
+BUG-01 — DONE (was unblocked by Backend BC-01)
+TripSummary type updated to include places[] with minimal city data.
+CityMarkers type-cast hack removed; city pins now derive from
+trip.places directly. City pins should render correctly on the map.
+
+NR-06 — DONE (all 8 ACs implemented)
+
+  AC-NR06-01: City created with geocode_status != 'resolved' is queued
+              in localStorage under 'geocode_retry_queue'.
+
+  AC-NR06-02: Retry schedule follows Class A cadence:
+              Attempt 1: immediately, Attempt 2: 30s, Attempt 3: 2m,
+              Attempt 4: 5m, Attempt 5+: 10m (holds indefinitely).
+
+  AC-NR06-03: Queue persists across page reload via localStorage.
+              On app init, geocodeRetryQueue.init() loads and resumes
+              scheduling from stored nextRetryAt values.
+
+  AC-NR06-04: "Geocoding pending (N)" indicator visible in app header
+              while any retry is queued.
+
+  AC-NR06-05: Indicator button is clickable — triggers retryAll()
+              which bypasses schedule and retries immediately.
+
+  AC-NR06-06: "Dismiss" button clears queue and hides indicator.
+
+  AC-NR06-07: Class B (foreground failure) — when city creation fails,
+              the submit button label changes to "Retry" to provide
+              explicit retry affordance inline.
+
+  AC-NR06-08: On successful geocode (PATCH response returns
+              geocode_status = 'resolved'), entry is removed from queue;
+              indicator clears when queue is empty.
+
+Implementation notes:
+  - src/frontend/services/geocodeRetryQueue.ts — singleton service
+  - src/frontend/hooks/useGeocodeRetryQueue.ts — React hook, initialised in App.tsx
+  - Retry mechanism calls PATCH /api/cities/:id (empty body); response
+    geocode_status is checked for resolution. Backend geocoding service
+    will have resolved the city in the background; the PATCH serves as
+    the detection mechanism.
+  - Indefinite retry: only removal paths are (a) resolved, (b) 404 city
+    deleted, (c) user dismiss.
+
+---
+
+BUG-02 (region shading) remains pending — awaiting Architect/Database/Backend
+direction per your previous message.
+
+Ready for QA live testing on BUG-03/04/05 and BUG-01/NR-06.
+
+Frontend

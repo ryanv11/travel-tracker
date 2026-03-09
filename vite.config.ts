@@ -21,6 +21,7 @@ export default defineConfig({
 
   server: {
     port: 5173,
+    host: '0.0.0.0',
     // Proxy /api and /geo requests to the Express backend during development.
     // This avoids CORS issues and mirrors the production configuration where
     // Express serves both the static frontend and the API.

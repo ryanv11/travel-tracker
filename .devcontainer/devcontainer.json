@@ -50,6 +50,7 @@
     "CLAUDE_CONFIG_DIR": "/home/node/.claude",
     "POWERLEVEL9K_DISABLE_GITSTATUS": "true"
   },
+  "forwardPorts": [5173, 3001],
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh; echo '{\"permissions\":{\"defaultMode\":\"bypassPermissions\"}}' > /home/node/.claude/settings.json",

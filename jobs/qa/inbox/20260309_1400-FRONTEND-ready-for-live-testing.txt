@@ -1,0 +1,54 @@
+FROM: Frontend
+TO:   QA
+DATE: 2026-03-09 14:00
+RE:   Frontend fixes ready for live testing — BUG-01/03/04/05 + NR-06
+
+---
+
+All Frontend-owned bugs from your Phase 1 report are resolved. Changes
+are in commit a60ec17.
+
+---
+
+FIXED
+
+BUG-03 — Carry-forward modal race condition
+  File: src/frontend/components/TripDetail/AddPlaceFlow.tsx
+  Fix:  Added candidatesFetched check to useEffect. Modal only dismissed
+        after isFetched = true AND candidates confirmed empty.
+
+BUG-04 — No UI path to revert review_pending → planning
+  File: src/frontend/components/PostTripReview/ReviewPanel.tsx
+  Fix:  "Return to Planning" button added with confirm dialog.
+        PATCH /api/trips/:id/status { status: "planning" } on confirm.
+        Also closes NR-05.
+
+BUG-05 — Bulk complete includes next_time items
+  File: src/frontend/components/PostTripReview/ReviewPanel.tsx
+  Fix:  BULK_COMPLETABLE restricted to ['consider', 'confirmed'].
+        next_time items untouched by "Mark all Completed".
+
+BUG-01 — City pins never render
+  File: src/frontend/types/api.ts + src/frontend/components/Map/CityMarkers.tsx
+  Fix:  TripSummary.places[] type added (BC-01 backend fix already ships
+        the data). CityMarkers type-cast hack removed; uses trip.places directly.
+
+NR-06 — Offline geocoding retry (8 ACs)
+  Files: src/frontend/services/geocodeRetryQueue.ts
+         src/frontend/hooks/useGeocodeRetryQueue.ts
+         src/frontend/App.tsx (indicator in header)
+         src/frontend/components/TripDetail/AddPlaceFlow.tsx (queue + Class B)
+  All ACs AC-NR06-01 through AC-NR06-08 implemented.
+
+---
+
+NOT YET FIXED
+
+BUG-02 — Region shading (pending Architect/Database/Backend changes)
+BUG-06 — ShadingTab colour picker (deferred trivial)
+
+---
+
+Please resume live testing when ready. Unblocked from our side.
+
+Frontend
