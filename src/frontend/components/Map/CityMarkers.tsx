@@ -10,7 +10,7 @@
 import React, { useMemo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import type { SymbolLayerSpecification } from 'maplibre-gl';
-import type { TripSummary, City } from '../../types/api';
+import type { TripSummary } from '../../types/api';
 
 interface CityMarkersProps {
   /** All loaded trip summaries — cities are extracted from their places. */
@@ -26,11 +26,7 @@ function buildCityGeoJSON(trips: TripSummary[]): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = [];
 
   for (const trip of trips) {
-    // TripSummary doesn't include places — CityMarkers is passed trips for
-    // context but city data must come from the full trip detail.
-    // In practice, MapPage loads full TripDetail and casts it here.
-    const places = (trip as unknown as { places?: { city: City }[] }).places ?? [];
-    for (const place of places) {
+    for (const place of trip.places) {
       const city = place.city;
       if (
         city &&

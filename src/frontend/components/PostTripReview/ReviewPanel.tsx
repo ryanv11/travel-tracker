@@ -9,17 +9,18 @@ import React, { useState } from 'react';
 import { ReviewItemRow } from './ReviewItemRow';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ErrorMessage } from '../shared/ErrorMessage';
-import { useLockTrip } from '../../hooks/useTrips';
+import { useLockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
 import { useUpdateItem } from '../../hooks/useItems';
 import type { TripDetail, Item, ItemStatus } from '../../types/api';
 
 interface ReviewPanelProps {
   trip: TripDetail;
-  /** Called after trip is locked to return to TripDetail. */
+  /** Called after trip is locked or returned to planning. */
   onClose: () => void;
 }
 
-const NON_CANCELLED: ItemStatus[] = ['consider', 'confirmed', 'completed', 'next_time'];
+// BUG-05: next_time items must not be bulk-completed
+const BULK_COMPLETABLE: ItemStatus[] = ['consider', 'confirmed'];
 
 /**
  * Renders the full post-trip review panel for a review_pending trip.
@@ -29,7 +30,9 @@ const NON_CANCELLED: ItemStatus[] = ['consider', 'confirmed', 'completed', 'next
  */
 export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
   const [showConfirmLock, setShowConfirmLock] = useState(false);
+  const [showConfirmReturnToPlanning, setShowConfirmReturnToPlanning] = useState(false);
   const lockTrip = useLockTrip();
+  const returnToPlanning = useUpdateTripStatus();
   const updateItem = useUpdateItem();
 
   const handleLock = async () => {
@@ -38,10 +41,17 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
     onClose();
   };
 
-  /** Marks all non-cancelled items as 'completed' (one PATCH per item). */
+  // BUG-04: allow reverting review_pending → planning
+  const handleReturnToPlanning = async () => {
+    await returnToPlanning.mutateAsync({ id: trip.id, status: 'planning' });
+    setShowConfirmReturnToPlanning(false);
+    onClose();
+  };
+
+  /** BUG-05: only bulk-complete consider/confirmed items — not next_time */
   const handleMarkAllCompleted = async () => {
     const allItems: Item[] = trip.places.flatMap((p) => p.items);
-    const toUpdate = allItems.filter((item) => NON_CANCELLED.includes(item.status) && item.status !== 'completed');
+    const toUpdate = allItems.filter((item) => BULK_COMPLETABLE.includes(item.status));
     for (const item of toUpdate) {
       await updateItem.mutateAsync({ tripId: trip.id, itemId: item.id, data: { status: 'completed' } });
     }
@@ -79,19 +89,30 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
       ))}
 
       {lockTrip.error && <ErrorMessage error={lockTrip.error} />}
+      {returnToPlanning.error && <ErrorMessage error={returnToPlanning.error} />}
 
-      {/* Lock button */}
-      <div style={{ marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-        <button type="button" onClick={onClose} style={{ padding: '9px 18px', border: '1px solid #D1D5DB', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}>
-          Back to Trip
-        </button>
+      {/* Action buttons */}
+      <div style={{ marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() => setShowConfirmLock(true)}
-          style={{ padding: '9px 18px', background: '#DC2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+          onClick={() => setShowConfirmReturnToPlanning(true)}
+          disabled={returnToPlanning.isPending}
+          style={{ padding: '9px 18px', border: '1px solid #D1D5DB', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}
         >
-          Complete Review &amp; Lock Trip
+          Return to Planning
         </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button type="button" onClick={onClose} style={{ padding: '9px 18px', border: '1px solid #D1D5DB', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}>
+            Back to Trip
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowConfirmLock(true)}
+            style={{ padding: '9px 18px', background: '#DC2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+          >
+            Complete Review &amp; Lock Trip
+          </button>
+        </div>
       </div>
 
       <ConfirmDialog
@@ -101,6 +122,16 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
         confirmLabel="Lock Trip"
         onConfirm={() => { void handleLock(); }}
         onCancel={() => setShowConfirmLock(false)}
+      />
+
+      {/* BUG-04: Return to Planning confirmation */}
+      <ConfirmDialog
+        isOpen={showConfirmReturnToPlanning}
+        title="Return to planning?"
+        message="Return this trip to planning? The review will be cleared."
+        confirmLabel="Return to Planning"
+        onConfirm={() => { void handleReturnToPlanning(); }}
+        onCancel={() => setShowConfirmReturnToPlanning(false)}
       />
     </div>
   );

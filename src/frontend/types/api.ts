@@ -183,6 +183,13 @@ export interface TripPlaceNoItems extends Omit<TripPlace, 'items'> {}
 // TRIPS
 // ============================================================
 
+/** Minimal place shape included in TripSummary for map city-pin rendering (BC-01). */
+export interface TripSummaryPlace {
+  id: number;
+  city_id: number;
+  city: City;
+}
+
 export interface TripSummary {
   id: number;
   name: string;
@@ -195,6 +202,8 @@ export interface TripSummary {
   categories: AssocCategory[];
   companions: AssocCompanion[];
   activities: AssocActivity[];
+  /** Minimal places data for city-pin rendering on MapPage (BC-01). */
+  places: TripSummaryPlace[];
 }
 
 export interface TripDetail extends TripSummary {

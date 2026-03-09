@@ -14,6 +14,7 @@ import { MapPage } from './pages/MapPage';
 import { TripsPage } from './pages/TripsPage';
 import { TripDetailPage } from './pages/TripDetailPage';
 import { AdminPage } from './pages/AdminPage';
+import { useGeocodeRetryQueue } from './hooks/useGeocodeRetryQueue';
 
 const navLinkStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties => ({
   textDecoration: 'none',
@@ -29,6 +30,8 @@ const navLinkStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties 
  * Root application component with navigation and route definitions.
  */
 export function App() {
+  const { pendingCount, retryAll, dismiss } = useGeocodeRetryQueue();
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       {/* Navigation bar */}
@@ -56,6 +59,37 @@ export function App() {
         <NavLink to="/admin" style={navLinkStyle}>
           Admin
         </NavLink>
+
+        {/* NR-06: offline geocoding indicator */}
+        {pendingCount > 0 && (
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              title="Geocoding pending — click to retry now"
+              onClick={retryAll}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '5px',
+                padding: '4px 10px', border: '1px solid #D97706',
+                borderRadius: '6px', background: '#FEF3C7', color: '#92400E',
+                fontSize: '12px', cursor: 'pointer', fontWeight: 500,
+              }}
+            >
+              ☁ Geocoding pending ({pendingCount})
+            </button>
+            <button
+              type="button"
+              title="Dismiss — stop retrying"
+              onClick={dismiss}
+              style={{
+                padding: '4px 8px', border: '1px solid #D1D5DB',
+                borderRadius: '6px', background: '#fff', color: '#6B7280',
+                fontSize: '11px', cursor: 'pointer',
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* Page content */}

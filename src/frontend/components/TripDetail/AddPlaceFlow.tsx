@@ -15,6 +15,7 @@ import { useCarryForwardCandidates } from '../../hooks/useCities';
 import { useCountries } from '../../hooks/useAdmin';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
 import type { City } from '../../types/api';
 
 interface AddPlaceFlowProps {
@@ -62,7 +63,7 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   const { data: countries = [] } = useCountries();
   const addPlace = useAddPlace();
   const createCity = useCreateCity();
-  const { data: carryForwardCandidates = [] } = useCarryForwardCandidates(
+  const { data: carryForwardCandidates = [], isFetched: candidatesFetched } = useCarryForwardCandidates(
     addedCityId ?? undefined,
   );
 
@@ -73,24 +74,28 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
   }, [query]);
 
-  // After place is added, check for carry-forward candidates
+  // BUG-03: wait for query to settle before acting on empty candidates list
   useEffect(() => {
-    if (addedPlaceId !== null && addedCityId !== null && !showCarryForward) {
+    if (addedPlaceId !== null && addedCityId !== null && !showCarryForward && candidatesFetched) {
       if (carryForwardCandidates.length > 0) {
         setShowCarryForward(true);
       } else {
-        // No candidates — close flow
+        // Query settled and no candidates — close flow
         onClose();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carryForwardCandidates, addedPlaceId]);
+  }, [carryForwardCandidates, addedPlaceId, candidatesFetched]);
 
   const handleSelectCity = async (city: City) => {
     try {
       const place = await addPlace.mutateAsync({ tripId, cityId: city.id });
       setAddedPlaceId(place.id);
       setAddedCityId(city.id);
+      // NR-06: queue geocoding retry if city wasn't resolved yet
+      if (city.geocode_status !== 'resolved') {
+        geocodeRetryQueue.add(city);
+      }
     } catch { /* shown via addPlace.error */ }
   };
 
@@ -104,7 +109,7 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     try {
       const city = await createCity.mutateAsync(data);
       await handleSelectCity(city);
-    } catch { /* shown via createCity.error */ }
+    } catch { /* shown via createCity.error — Retry button available (Class B, NR-06) */ }
   };
 
   const mutationError = addPlace.error ?? createCity.error;
@@ -184,8 +189,9 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
               <button type="button" onClick={() => setShowNewCityForm(false)} style={{ padding: '8px 14px', border: '1px solid #D1D5DB', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}>
                 Back
               </button>
+              {/* NR-06 Class B: when there's an error, button becomes "Retry" affordance */}
               <button type="submit" disabled={createCity.isPending || addPlace.isPending} style={{ padding: '8px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
-                {createCity.isPending || addPlace.isPending ? 'Adding…' : 'Add City & Place'}
+                {createCity.isPending || addPlace.isPending ? 'Adding…' : mutationError ? 'Retry' : 'Add City & Place'}
               </button>
             </div>
           </form>
