@@ -9,7 +9,7 @@
 import { z } from 'zod';
 
 /** Non-empty trimmed string */
-export const zName = z.string().trim().min(1, 'Name must not be empty').max(255);
+export const zName = z.string().trim().min(1, 'Name must not be empty').max(200);
 
 /** ISO 8601 date string YYYY-MM-DD */
 export const zIsoDate = z

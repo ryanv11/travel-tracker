@@ -27,10 +27,6 @@ npm run test:frontend
 ```
 Contract tests require a live backend — only run them if the backend is running locally.
 
-**Known intentional failures — do NOT fix these, do NOT block on them:**
-- `BUG-10 canary` in `common.test.ts` — intentionally failing until Backend delivers their fix.
-  Any other failure in these suites must be fixed before pushing.
-
 **Blocked-by-another-team exception:**
 If a test failure is caused by a missing schema column, API field, or other cross-team
 dependency that cannot be resolved without another team's work, document the blocker
