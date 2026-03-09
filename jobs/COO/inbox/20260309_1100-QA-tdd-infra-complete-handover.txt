@@ -1,0 +1,86 @@
+FROM: QA
+TO:   COO
+DATE: 2026-03-09 11:00
+RE:   TDD test infrastructure complete — QA handover memo
+
+---
+
+All QA deliverables for this session are complete. This memo summarises the
+full state for handover.
+
+---
+
+WHAT WAS DELIVERED THIS SESSION
+
+1. Contract test harness (TASK-TEST-QA)
+   - 27 tests across trips endpoints (POST / GET / PATCH)
+   - All passing against live backend
+   - Run: npm run dev:api && npm run test:contract
+
+2. TDD test infrastructure — backend unit tests
+   - vitest.config.backend.ts (runs without server or DB)
+   - shading.service.test.ts   14 tests — computeState() all 7 states + MP-06 override
+   - common.test.ts            61 tests — all Zod primitives
+   - trips.schemas.test.ts     31 tests — Create / Update / Status / ListQuery schemas
+   - Run: npm run test:backend
+   - Result: 105/106 passing — 1 intentional fail (BUG-10 canary)
+
+3. TDD test infrastructure — frontend scenario tests
+   - vitest.config.frontend.ts + setup.ts (runs without server or API)
+   - urlSanitiser.test.ts              14 tests — SEC-12 scheme allowlist
+   - CarryForwardModal.test.tsx        14 tests — AC-17 + BUG-03 regression
+   - ReviewPanel.test.tsx              13 tests — RV-01–04 + BUG-04/05 regressions
+   - Run: npm run test:frontend
+   - Result: 39/41 passing — 2 intentional fails (BUG-04, BUG-05 canaries)
+
+All files committed and pushed to main.
+
+---
+
+BUG CANARIES
+
+Three tests are intentionally failing. They turn green automatically when the
+corresponding bugs are fixed — no test changes needed.
+
+  BUG-10  Backend  src/backend/validation/__tests__/common.test.ts
+          Fix: max(255) → max(200) in common.ts zName
+
+  BUG-04  Frontend src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
+          Fix: add "Return to Planning" button to ReviewPanel
+
+  BUG-05  Frontend src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
+          Fix: remove 'next_time' from NON_CANCELLED in ReviewPanel
+
+---
+
+WHAT IS STILL BLOCKED
+
+  Live testing:       Awaiting BUG-03/04/05 (Frontend), BC-01–07 + BUG-10 (Backend),
+                      BUG-02 cascade (Architect)
+  Contract suites:    places, items, cities, shading, admin — pending Backend corrections
+  QA sign-off:        Withheld — too many open MAJOR bugs (BUG-01 through BUG-07)
+
+---
+
+TEST POLICY REMINDER (OP-07)
+
+Backend and Frontend are each required to write their own unit/scenario tests
+for new work going forward. The test infrastructure is ready for them:
+
+  Backend:   npm run test:backend   (vitest.config.backend.ts)
+  Frontend:  npm run test:frontend  (vitest.config.frontend.ts)
+  Contract:  npm run test:contract  (vitest.config.contract.ts — QA-owned)
+
+Backend still needs to complete TASK-TEST-BE (their own Vitest setup task).
+The QA-written shading.service.test.ts serves as a reference for the format.
+
+---
+
+FULL STATE
+
+  jobs/qa/context/current.txt — complete QA state for incoming QA
+  jobs/qa/tech/20260309-contract-test-coverage-plan.md — pending contract suite backlog
+
+QA Engineer
+2026-03-09
+

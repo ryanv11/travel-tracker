@@ -1,22 +1,50 @@
 QA CONTEXT — 2026-03-09
 PROJECT: Travel Tracker
-CURRENT STATUS: Contract test harness live. Awaiting bug fixes to resume live testing.
+CURRENT STATUS: All QA deliverables complete. Awaiting bug fixes from Backend, Frontend, and Architect to resume live testing and extend contract test suites.
 
 ================================================================================
-ACTIVE TASKS
+COMPLETED DELIVERABLES
 ================================================================================
 
 TASK-TEST-QA: COMPLETE (2026-03-09)
-  - vitest.config.contract.ts created
+  - vitest.config.contract.ts
   - tests/contract/_setup.ts + trips.contract.test.ts (27 tests, all passing)
   - Coverage plan: jobs/qa/tech/20260309-contract-test-coverage-plan.md
   - npm run test:contract (requires backend running: npm run dev:api)
 
-LIVE TESTING: BLOCKED
-  - Awaiting Frontend: BUG-03, BUG-04, BUG-05 fixes
-  - Awaiting Backend: BC-01 through BC-07 + BUG-10 fix (correction round 2)
-  - Awaiting Architect: BUG-02 cascade (iso_3166_2 migration)
-  - Environment: npm ci fix issued — should unblock devcontainer live testing
+TASK-TDD-INFRA: COMPLETE (2026-03-09)
+  Backend unit tests (npm run test:backend — no server required):
+    - vitest.config.backend.ts
+    - src/backend/services/__tests__/shading.service.test.ts   (14 tests)
+    - src/backend/validation/__tests__/common.test.ts          (61 tests, 1 BUG-10 canary)
+    - src/backend/validation/__tests__/trips.schemas.test.ts   (31 tests)
+    Total: 106 tests / 105 passing / 1 intentional fail (BUG-10)
+
+  Frontend scenario tests (npm run test:frontend — no server required):
+    - vitest.config.frontend.ts + src/frontend/__tests__/setup.ts
+    - src/frontend/utils/__tests__/urlSanitiser.test.ts                          (14 tests)
+    - src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx  (14 tests)
+    - src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx      (13 tests, 2 canaries)
+    Total: 41 tests / 39 passing / 2 intentional fails (BUG-04, BUG-05)
+
+  Test policy: jobs/_project/test-policy.md (OP-07)
+  Framework: Vitest 4 + React Testing Library + supertest
+
+================================================================================
+BUG CANARIES (intentionally failing — turn green when bugs fixed)
+================================================================================
+
+  BUG-10  src/backend/validation/__tests__/common.test.ts
+          "BUG-10: rejects a name longer than 200 characters"
+          Fix: change max(255) → max(200) in src/backend/validation/common.ts
+
+  BUG-04  src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
+          "BUG-04 regression: renders a 'Return to Planning' button"
+          Fix: add Return to Planning button to ReviewPanel.tsx
+
+  BUG-05  src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
+          "BUG-05 regression: 'Mark all Completed' does NOT patch next_time items"
+          Fix: remove 'next_time' from NON_CANCELLED in ReviewPanel.tsx
 
 ================================================================================
 OPEN BUGS
@@ -33,15 +61,17 @@ OPEN BUGS
 | BUG-07 | MAJOR   | Direction issued (BC-02/03)   | Backend  |
 | BUG-08 | TRIVIAL | Direction issued (BC-05)      | Backend  |
 | BUG-09 | MINOR   | Direction issued (BC-04)      | Backend  |
-| BUG-10 | MINOR   | NEW — reported 2026-03-09     | Backend  |
+| BUG-10 | MINOR   | Direction issued              | Backend  |
 | FLAG-F1| DOC     | Direction issued (BC-06)      | Backend  |
 | ENV    | —       | Fix issued (npm ci)           | QA       |
 
-BUG-10 DETAIL:
-  zName schema uses max(255); API reference and BRD say max 200 chars.
-  Trip name > 200 chars accepted with 201 Created. Should be 400.
-  Fix: change max(255) → max(200) in src/backend/validation/common.ts.
-  Absorbed into Backend correction round 2.
+================================================================================
+LIVE TESTING: BLOCKED
+================================================================================
+
+  - Awaiting Frontend: BUG-03, BUG-04, BUG-05 fixes
+  - Awaiting Backend: BC-01 through BC-07 + BUG-10 (correction round 2)
+  - Awaiting Architect: BUG-02 cascade (iso_3166_2 migration)
 
 ================================================================================
 CONTRACT TEST STATUS
@@ -49,7 +79,6 @@ CONTRACT TEST STATUS
 
   Passing: 27/27 (trips endpoints)
   Pending suites: places, items, cities, shading, admin
-  Next suites to write: after BC-01 through BC-07 confirmed (regression tests)
 
   Key behaviours verified:
     - Locked trip returns 403 (not 423 — COO spec had error)
@@ -66,12 +95,25 @@ AC STATUS (Frontend Phase 1)
   NEEDS LIVE TEST:       AC-01–03, AC-06–11, AC-14–18
 
 ================================================================================
-NEXT STEPS
+NEXT STEPS (for incoming QA)
 ================================================================================
 
-  1. When BUG-03/04/05 fixed by Frontend → resume live testing of unblocked ACs
-  2. When BC-01 through BC-07 complete → add places + items contract tests
-     (including BUG-01 summary shape regression, FLAG-F1 status term regression)
-  3. When BUG-02 cascade complete → add shading.contract.test.ts with
-     iso_3166_2 assertion on region objects
-  4. When all fixes verified in live testing → issue QA sign-off or further findings
+  1. When BUG-03/04/05 fixed by Frontend:
+       → Resume live testing of AC-01–03, AC-06–11, AC-14–18
+       → Verify BUG-04 and BUG-05 canary tests now pass
+
+  2. When BC-01 through BC-07 + BUG-10 complete (Backend correction round 2):
+       → Add places.contract.test.ts and items.contract.test.ts
+       → Assert BUG-01 summary shape (places array present)
+       → Assert FLAG-F1 status terms (BC-06 correction)
+       → Verify BUG-10 canary test now passes
+
+  3. When BUG-02 cascade complete (Architect + Backend):
+       → Add shading.contract.test.ts with iso_3166_2 assertion on region objects
+
+  4. When all fixes verified in live testing:
+       → Issue QA sign-off memo to COO
+
+  5. Backend still needs to complete TASK-TEST-BE (own Vitest setup per test-policy.md):
+       → vitest.config.backend.ts is ready; they need to add their own service tests
+       → Sample: src/backend/services/__tests__/shading.service.test.ts (use as reference)
