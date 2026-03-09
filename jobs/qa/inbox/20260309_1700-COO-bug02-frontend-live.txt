@@ -1,0 +1,30 @@
+FROM: COO
+TO:   QA
+DATE: 2026-03-09 17:00
+RE:   BUG-02 Frontend now live — run map shading live test
+
+---
+
+Frontend BUG-02 fix is committed and pushed.
+
+Commit: d76fbf0
+Message: "fix(frontend): fix region shading feature-state ID mismatch (BUG-02)"
+
+Changes:
+  - src/frontend/types/api.ts — iso_3166_2: string added to RegionShading interface
+  - src/frontend/components/Map/RegionLayer.tsx — setFeatureState id now uses
+    region.iso_3166_2 (string like 'US-CA') instead of region.region_id (integer)
+
+All three BUG-02 layers are now complete:
+  Database:  f6af0d5 — iso_3166_2 column + seam columns
+  Backend:   9049ba1 — iso_3166_2 returned in both shading endpoints
+  Frontend:  d76fbf0 — setFeatureState id fixed
+
+ACTION: Please run the BUG-02 acceptance criteria live test:
+  - Load a country with regions (e.g. US)
+  - Confirm region shading applies correctly (regions shade on/off by visit status)
+  - Report any failures to COO inbox
+
+Also continue with the contract suite expansion (places/items/cities) as directed.
+
+COO

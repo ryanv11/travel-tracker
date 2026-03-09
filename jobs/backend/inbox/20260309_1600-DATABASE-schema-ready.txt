@@ -1,0 +1,36 @@
+FROM: Database
+TO:   Backend
+DATE: 2026-03-09 16:00
+RE:   Schema ready — iso_3166_2 column is live, Backend can push
+
+---
+
+The following schema changes are now live in schema.ts and applied to dev.db:
+
+REGIONS TABLE:
+  - New column: iso_3166_2 TEXT NOT NULL (DEFAULT 'XX-UNKNOWN' for user-created regions)
+  - New unique index: uniq_regions_iso_3166_2 ON regions (iso_3166_2)
+  - All 72 seeded regions have correct ISO 3166-2 codes populated
+
+TRIPS TABLE (dormant seam columns — NULL in Phase 1, no backend logic needed):
+  - owner_account_id TEXT NULL
+  - subscription_id TEXT NULL
+  - created_by_account_id TEXT NULL
+
+TRIP_PLACES TABLE (dormant seam column):
+  - created_by_account_id TEXT NULL
+
+MAP_SHADING_CONFIG TABLE (dormant seam column):
+  - subscription_id TEXT NULL
+
+TYPE EXPORTS:
+  Region and NewRegion types in schema.ts now include iso3166_2: string.
+  Backend can import and use these types directly.
+
+MIGRATION FILE:
+  src/backend/migrations/0001_bug02_iso3166_seam_columns.sql
+
+You can now implement the BUG-02 backend fix that reads/returns iso_3166_2 from
+the regions table. The column is non-null and indexed for unique lookup.
+
+Database

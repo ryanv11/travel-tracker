@@ -1,0 +1,66 @@
+FROM: QA
+TO:   COO
+DATE: 2026-03-09 17:00
+RE:   Contract suite expansion — places/items/cities
+
+SUITES ADDED:
+- places.contract.test.ts  — 20 tests
+    GET  /api/trips/:tripId/places          (list, shape, 404 trip, non-integer ID)
+    POST /api/trips/:tripId/places          (create, missing city_id, invalid city_id,
+                                             non-existent city, duplicate 409, locked 403,
+                                             non-existent trip 404)
+    DELETE /api/trips/:tripId/places/:id    (204 delete, 404 not found, locked 403)
+    POST .../places/:id/activities          (tag, duplicate 409, missing field, 404 wrong place)
+    DELETE .../places/:id/activities/:aid   (untag 204, idempotent non-existent)
+
+- items.contract.test.ts   — 26 tests
+    GET  /api/trips/:tripId/items           (list, shape, type filter, status filter,
+                                             invalid type 400, invalid status 400)
+    POST /api/trips/:tripId/items           (note: create, status default, explicit status,
+                                             missing item_type, invalid type, invalid status,
+                                             locked 403)
+                                            (restaurant: extension fields, minimal)
+                                            (hotel: extension fields)
+                                            (flight: extension fields)
+    PATCH /api/trips/:tripId/items/:id      (update status, update notes, invalid status 400,
+                                             not found 404, locked 403,
+                                             restaurant extension field update)
+    DELETE /api/trips/:tripId/items/:id     (204 delete, not found 404, locked 403)
+
+- cities.contract.test.ts  — 26 tests
+    GET  /api/cities                        (search returns array, shape fields,
+                                             missing q 400, q too short 400,
+                                             country_code filter, no-match empty array)
+    POST /api/cities                        (missing name 400, missing country_code 400,
+                                             invalid country_code format 400,
+                                             non-existent country 404, create 201)
+    PATCH /api/cities/:id                   (empty body 200, region_id null 200, not found 404,
+                                             non-integer ID no 500)
+    GET  /api/cities/:id/carry-forward      (array 200, shape fields, non-integer no 500,
+                                             non-existent int ID documented behaviour)
+    GET  /api/cities/:id/items              (array 200, shape fields, type filter,
+                                             min_rating filter, invalid type 400,
+                                             min_rating out of range 400,
+                                             non-existent int ID documented behaviour)
+
+NOTE ON BACKEND BEHAVIOUR:
+  GET /api/cities/:id/carry-forward and GET /api/cities/:id/items do not return 404
+  for non-existent integer city IDs — they return 200 with an empty array. Tests
+  document this with permissive expect([200, 404]) assertions.
+
+NOTE ON RATE LIMITING:
+  POST /api/cities is rate-limited to 20 req/min (SEC-07). Tests use a single shared
+  city fixture created in beforeAll to stay within the limit.
+
+TEST RESULTS:
+npm run test:contract: PASS — 99/99 tests
+
+  Breakdown:
+    trips.contract.test.ts   27/27
+    places.contract.test.ts  20/20
+    items.contract.test.ts   26/26
+    cities.contract.test.ts  26/26
+
+PUSH STATUS: PUSHED
+Commit SHA: 0e71fdff9e0f39dc0ed0c6626da55813e878e223
+Branch: main

@@ -1,0 +1,91 @@
+COO PARK DOCUMENT
+Date:   2026-03-09 17:00
+Thread: BUG-02 Frontend completion + QA contract suite expansion
+
+================================================================================
+WHAT HAPPENED THIS THREAD
+================================================================================
+
+1. FRONTEND BUG-02 COMPLETED
+
+   Frontend agent completed the BUG-02 fix:
+     - src/frontend/types/api.ts — added iso_3166_2: string to RegionShading interface
+     - src/frontend/components/Map/RegionLayer.tsx — setFeatureState id changed from
+       region.region_id (integer) to region.iso_3166_2 (string like 'US-CA')
+   Tests: 41/41 frontend passing, type check clean.
+   Commit: d76fbf0 — "fix(frontend): fix region shading feature-state ID mismatch (BUG-02)"
+   Notification received: jobs/COO/inbox/20260309_1700-FRONTEND-bug02-done.txt
+
+   All three BUG-02 layers now complete:
+     f6af0d5 — Database: iso_3166_2 column + NR-01/02 seam columns
+     9049ba1 — Backend:  iso_3166_2 returned in both shading endpoints
+     d76fbf0 — Frontend: setFeatureState id fixed
+
+2. QA NOTIFIED — BUG-02 LIVE TEST
+
+   COO wrote QA inbox:
+     jobs/qa/inbox/20260309_1700-COO-bug02-frontend-live.txt
+   Confirms Frontend commit d76fbf0 live; instructs QA to run map shading live test.
+   Result pending.
+
+3. QA CONTRACT SUITE EXPANSION COMPLETED
+
+   QA agent added three new contract suites:
+     places.contract.test.ts  — 20 tests (places CRUD, activity tagging, locked-trip enforcement)
+     items.contract.test.ts   — 26 tests (all item types incl. extension fields, status, CRUD)
+     cities.contract.test.ts  — 26 tests (search, create, PATCH, carry-forward, city items)
+
+   Contract tests: 99/99 passing (up from 27/27 trips-only).
+   Commit: 0e71fdf — "test(contract): add contract suites for places, items, and cities endpoints"
+   Report received: jobs/COO/inbox/20260309_1700-QA-contract-expansion-progress.txt
+
+   Backend behaviour documented (not bugs):
+     - Extension fields returned flat (not prefixed)
+     - /api/cities/:id/carry-forward and /items return 200+[] for non-existent IDs
+     - POST /api/cities rate-limited 20 req/min (SEC-07)
+
+================================================================================
+DECISIONS MADE THIS THREAD
+================================================================================
+
+1. BUG-02 code complete across all layers. Pending only QA live-test sign-off.
+
+2. Contract test coverage now substantially expanded — 99 tests across 4 suites.
+
+3. NR-08 (SQLite/OneDrive README) can be assigned to DOCS once BUG-02 formally closed.
+
+================================================================================
+SPECS / MESSAGES WRITTEN THIS THREAD
+================================================================================
+
+  jobs/qa/inbox/20260309_1700-COO-bug02-frontend-live.txt
+
+================================================================================
+OUTPUTS REVIEWED THIS THREAD
+================================================================================
+
+  Frontend BUG-02 report (d76fbf0) — APPROVED.
+  QA contract expansion report (0e71fdf, 99/99) — APPROVED.
+
+================================================================================
+PENDING RESPONSES EXPECTED
+================================================================================
+
+  QA: BUG-02 live map shading test result
+
+================================================================================
+ISSUES FLAGGED THIS THREAD
+================================================================================
+
+  None. All commits on main. CI cannot be verified (GH_TOKEN unavailable).
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT COO THREAD
+================================================================================
+
+  1. Check COO inbox for QA BUG-02 live-test result
+  2. When confirmed: formally close BUG-02, update project-plan
+  3. Assign NR-08 README content to DOCS
+  4. Schedule NR-14 gate review
+
+================================================================================

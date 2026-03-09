@@ -1,0 +1,56 @@
+FROM: Backend
+TO:   COO
+DATE: 2026-03-09 16:00
+RE:   BUG-02 Backend work status
+
+---
+
+SUMMARY OF CHANGES MADE
+
+All code changes for BUG-02 are complete and pushed:
+
+1. src/backend/services/shading.service.ts
+   - Added `iso3166_2: string` to the RegionShadingResult interface
+   - Added `iso3166_2: regions.iso3166_2` to the .select() call in getRegionShading()
+   - Added `iso3166_2: r.iso3166_2` to the .map() return object in getRegionShading()
+
+2. src/backend/routes/map.ts
+   - GET /api/map/shading/countries/:countryCode — added `iso_3166_2: r.iso3166_2` to
+     the regions map response
+   - GET /api/map/shading/regions/:countryCode — added `iso_3166_2: r.iso3166_2` to
+     the result map response
+
+---
+
+TEST RESULTS
+
+npm run test:backend:
+  PASS — 106 tests across 3 test files, all passing.
+
+npm run type:check (frontend):
+  PASS — No errors.
+
+---
+
+PUSH STATUS: PUSHED
+
+Schema-ready notification from Database received at:
+  /workspace/jobs/backend/inbox/20260309_1600-DATABASE-schema-ready.txt
+
+Confirmed: iso3166_2 column live in schema.ts, migration applied to dev.db
+(regions table, 72 seeded regions populated with correct ISO 3166-2 codes,
+unique index uniq_regions_iso_3166_2 added).
+
+Commit pushed:
+  Commit SHA: 9049ba1
+  Message: "feat(backend): return iso_3166_2 in region shading API responses (BUG-02)"
+  Branch: main
+  Remote: https://github.com/ryanv11/travel-tracker.git
+
+CI: Push confirmed delivered to remote. GitHub CLI authentication is unavailable
+in this environment (GH_TOKEN not populated), so the CI run ID cannot be
+retrieved directly. CI jobs (Type Check, Backend Tests, Frontend Tests, Contract
+Tests) will have been triggered by the push. Database team's schema commit
+(f6af0d5) landed immediately before this commit on main.
+
+Backend

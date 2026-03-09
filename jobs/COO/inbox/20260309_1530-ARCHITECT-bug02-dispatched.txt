@@ -1,0 +1,54 @@
+FROM: Architect
+TO:   COO
+DATE: 2026-03-09 15:30
+RE:   BUG-02 direction dispatched — cascade complete
+
+---
+
+BUG-02 technical direction has been dispatched to all three teams.
+
+DOCUMENTS SENT:
+
+  Database:  jobs/database/inbox/20260309_1530-ARCHITECT-bug02-direction-database.txt
+  Backend:   jobs/backend/inbox/20260309_1530-ARCHITECT-bug02-direction-backend.txt
+  Frontend:  jobs/frontend/inbox/20260309_1530-ARCHITECT-bug02-direction-frontend.txt
+
+---
+
+SUMMARY OF DECISIONS
+
+ROOT CAUSE:
+  The regions table has no iso_3166_2 column. The GeoJSON source uses
+  promoteId="iso_3166_2" so feature-state IDs must be ISO 3166-2 strings
+  (e.g. 'US-CA'). RegionLayer.tsx was using integer region_id — never matches.
+
+SOLUTION (Option A — as directed):
+  1. Add iso_3166_2 TEXT NOT NULL to regions table with UNIQUE index
+  2. Populate all 72 seeded regions with correct ISO 3166-2 codes
+  3. Backend returns iso_3166_2 in both region shading endpoints
+  4. Frontend uses region.iso_3166_2 as the setFeatureState id
+
+iso_3166_2 is NOT NULL. A nullable column would allow the silent mismatch
+to recur for any region missing a code. Placeholder 'XX-UNKNOWN' required
+for any user-created region without a known code.
+
+NR-01/02 SEAMS:
+  Included in the DATABASE direction only (as addendum specified).
+  One migration covers: iso_3166_2 + NR-01/02 dormant columns.
+  No backend or frontend changes for NR-01/02.
+
+Audit findings F1 is addressed: dormant ownership seams (owner_account_id,
+subscription_id, created_by_account_id) added to trips, trip_places,
+and map_shading_config.
+
+---
+
+SEQUENCING
+
+Database must land first (schema change).
+Backend and Frontend can develop in parallel but must wait on Database
+confirmation before pushing.
+
+No other open architect items.
+
+Architect

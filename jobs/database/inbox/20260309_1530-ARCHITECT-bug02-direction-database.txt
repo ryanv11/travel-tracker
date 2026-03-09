@@ -1,0 +1,228 @@
+FROM: Architect
+TO:   Database
+DATE: 2026-03-09 15:30
+RE:   BUG-02 Direction — Single migration: iso_3166_2 + NR-01/02 seams
+
+---
+
+OVERVIEW
+
+One migration file covering:
+  1. iso_3166_2 column on regions table (BUG-02 root fix)
+  2. Seed data update — iso_3166_2 populated for all 72 seeded regions (BUG-02)
+  3. Dormant ownership seam columns on trips (NR-01, NR-02)
+  4. Dormant ownership seam column on trip_places (NR-02, audit F1)
+  5. Dormant subscription seam on map_shading_config (NR-01)
+
+Do NOT create a second migration for NR-01/02. All changes go in one file.
+
+---
+
+PART 1 — REGIONS TABLE: iso_3166_2 COLUMN (BUG-02)
+
+WHAT:
+  Add column  iso_3166_2  TEXT  NOT NULL  to the regions table.
+
+CONSTRAINT:
+  NOT NULL. Every seeded region must receive a correct ISO 3166-2 code.
+  A nullable column would allow silent mismatches — this is the exact failure
+  mode we are fixing.
+
+  If a user-created region (i.e. a region added via the app, not seeded) has
+  no ISO code, use the placeholder 'XX-UNKNOWN'. This keeps NOT NULL
+  enforceable while making unknowns visible.
+
+INDEX:
+  Add a UNIQUE index on iso_3166_2. Each code must appear at most once.
+  Name it: uniq_regions_iso_3166_2
+
+SCHEMA CHANGE (add to regions table in schema.ts):
+  iso3166_2: text('iso_3166_2').notNull(),
+
+  And in the table options:
+  uniqueIndex('uniq_regions_iso_3166_2').on(t.iso3166_2)
+
+MIGRATION SQL (raw, for drizzle-kit migration file):
+  ALTER TABLE regions ADD COLUMN iso_3166_2 TEXT NOT NULL DEFAULT 'XX-UNKNOWN';
+  CREATE UNIQUE INDEX uniq_regions_iso_3166_2 ON regions (iso_3166_2);
+
+  Then UPDATE statements to populate correct codes (see seed data below).
+  After UPDATE, the DEFAULT clause on the column can remain — it covers any
+  future user-created regions until a proper geocoding integration is added.
+
+---
+
+PART 2 — SEED DATA UPDATE (BUG-02)
+
+Update data/regions.json to include iso_3166_2 in every record.
+The startup.service.ts seedRegions() function must also be updated to read
+and insert iso_3166_2 from the JSON (fresh installs).
+
+For existing databases, the migration UPDATE statements below apply the codes.
+
+COMPLETE MAPPING — 72 regions:
+
+US States (51):
+  Alabama              → US-AL
+  Alaska               → US-AK
+  Arizona              → US-AZ
+  Arkansas             → US-AR
+  California           → US-CA
+  Colorado             → US-CO
+  Connecticut          → US-CT
+  Delaware             → US-DE
+  District of Columbia → US-DC
+  Florida              → US-FL
+  Georgia              → US-GA
+  Hawaii               → US-HI
+  Idaho                → US-ID
+  Illinois             → US-IL
+  Indiana              → US-IN
+  Iowa                 → US-IA
+  Kansas               → US-KS
+  Kentucky             → US-KY
+  Louisiana            → US-LA
+  Maine                → US-ME
+  Maryland             → US-MD
+  Massachusetts        → US-MA
+  Michigan             → US-MI
+  Minnesota            → US-MN
+  Mississippi          → US-MS
+  Missouri             → US-MO
+  Montana              → US-MT
+  Nebraska             → US-NE
+  Nevada               → US-NV
+  New Hampshire        → US-NH
+  New Jersey           → US-NJ
+  New Mexico           → US-NM
+  New York             → US-NY
+  North Carolina       → US-NC
+  North Dakota         → US-ND
+  Ohio                 → US-OH
+  Oklahoma             → US-OK
+  Oregon               → US-OR
+  Pennsylvania         → US-PA
+  Rhode Island         → US-RI
+  South Carolina       → US-SC
+  South Dakota         → US-SD
+  Tennessee            → US-TN
+  Texas                → US-TX
+  Utah                 → US-UT
+  Vermont              → US-VT
+  Virginia             → US-VA
+  Washington           → US-WA
+  West Virginia        → US-WV
+  Wisconsin            → US-WI
+  Wyoming              → US-WY
+
+Australia States/Territories (8):
+  New South Wales              → AU-NSW
+  Victoria                     → AU-VIC
+  Queensland                   → AU-QLD
+  South Australia              → AU-SA
+  Western Australia            → AU-WA
+  Tasmania                     → AU-TAS
+  Australian Capital Territory → AU-ACT
+  Northern Territory           → AU-NT
+
+Canada Provinces/Territories (13):
+  Ontario                      → CA-ON
+  Quebec                       → CA-QC
+  British Columbia             → CA-BC
+  Alberta                      → CA-AB
+  Manitoba                     → CA-MB
+  Saskatchewan                 → CA-SK
+  Nova Scotia                  → CA-NS
+  New Brunswick                → CA-NB
+  Newfoundland and Labrador    → CA-NL
+  Prince Edward Island         → CA-PE
+  Northwest Territories        → CA-NT
+  Yukon                        → CA-YT
+  Nunavut                      → CA-NU
+
+Migration UPDATE SQL pattern:
+  UPDATE regions SET iso_3166_2 = 'US-AL' WHERE country_code = 'US' AND name = 'Alabama';
+  UPDATE regions SET iso_3166_2 = 'US-AK' WHERE country_code = 'US' AND name = 'Alaska';
+  ... (one UPDATE per region — see full list above)
+
+---
+
+PART 3 — NR-01/02 DORMANT SEAM COLUMNS
+
+These columns are invisible to all application logic in Phase 1.
+No backend changes. No frontend changes. Dormant only.
+
+TRIPS TABLE — add:
+  owner_account_id   TEXT  NULL   -- future: account that owns this trip
+  subscription_id    TEXT  NULL   -- future: subscription this trip belongs to
+  created_by_account_id  TEXT  NULL  -- future: who created the trip
+
+TRIP_PLACES TABLE — add:
+  created_by_account_id  TEXT  NULL  -- future: who added this place
+
+MAP_SHADING_CONFIG TABLE — add:
+  subscription_id    TEXT  NULL   -- future: settings are subscription-scoped
+
+CONSTRAINTS:
+  - All NULL in Phase 1. No foreign key constraints (no accounts table).
+  - No indexes on these columns in Phase 1.
+  - Do not add DEFAULT values — NULL is correct.
+
+SCHEMA.TS CHANGES:
+  trips table: add three columns before createdAt:
+    ownerAccountId: text('owner_account_id'),
+    subscriptionId: text('subscription_id'),
+    createdByAccountId: text('created_by_account_id'),
+
+  tripPlaces table: add before createdAt:
+    createdByAccountId: text('created_by_account_id'),
+
+  mapShadingConfig table: add before updatedAt:
+    subscriptionId: text('subscription_id'),
+
+---
+
+PART 4 — STARTUP.SERVICE.TS UPDATE
+
+The seedRegions() function currently reads:
+  const regionData = JSON.parse(rawData) as Array<{
+    country_code: string;
+    name: string;
+  }>;
+  ...
+  regionData.map((r) => ({
+    countryCode: r.country_code,
+    name: r.name,
+  }))
+
+Update to also read and insert iso_3166_2:
+  const regionData = JSON.parse(rawData) as Array<{
+    country_code: string;
+    name: string;
+    iso_3166_2: string;
+  }>;
+  ...
+  regionData.map((r) => ({
+    countryCode: r.country_code,
+    name: r.name,
+    iso3166_2: r.iso_3166_2,
+  }))
+
+---
+
+DELIVERY CHECKLIST
+
+  [ ] schema.ts — regions table: iso3166_2 column + unique index
+  [ ] schema.ts — trips table: ownerAccountId, subscriptionId, createdByAccountId
+  [ ] schema.ts — tripPlaces table: createdByAccountId
+  [ ] schema.ts — mapShadingConfig table: subscriptionId
+  [ ] data/regions.json — add iso_3166_2 field to all 72 records
+  [ ] startup.service.ts — seedRegions() reads + inserts iso_3166_2
+  [ ] drizzle-kit migration generated (npm run db:push or drizzle-kit generate)
+  [ ] Migration includes UPDATE statements for existing data
+  [ ] Type exports updated in schema.ts for Region/NewRegion
+
+Run npm run test:backend after completing. Confirm all pass.
+Notify COO inbox when done.
+
+Architect

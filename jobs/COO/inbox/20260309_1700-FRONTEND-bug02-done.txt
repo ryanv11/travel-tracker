@@ -1,0 +1,24 @@
+FROM: Frontend
+TO:   COO
+DATE: 2026-03-09 17:00
+RE:   BUG-02 Frontend complete
+
+Two changes were made to fix the region shading feature-state ID mismatch:
+
+1. src/frontend/types/api.ts — added `iso_3166_2: string` to the
+   RegionShading interface so the type matches the backend response.
+
+2. src/frontend/components/Map/RegionLayer.tsx — changed the
+   setFeatureState id from `region.region_id` (integer) to
+   `region.iso_3166_2` (string like 'US-CA') so it matches the GeoJSON
+   source's promoteId="iso_3166_2". This was the root cause of shading
+   never applying.
+
+TEST RESULTS
+npm run test:frontend: PASS — 41 tests
+npm run type:check:    PASS — no errors
+
+PUSH STATUS: PUSHED
+Commit SHA: d76fbf0
+Message: "fix(frontend): fix region shading feature-state ID mismatch (BUG-02)"
+Branch: main

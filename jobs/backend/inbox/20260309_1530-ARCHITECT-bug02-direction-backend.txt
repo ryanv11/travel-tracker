@@ -1,0 +1,117 @@
+FROM: Architect
+TO:   Backend
+DATE: 2026-03-09 15:30
+RE:   BUG-02 Direction — Return iso_3166_2 in region shading responses
+
+---
+
+OVERVIEW
+
+Region shading is broken because RegionLayer.tsx applies feature-state using
+integer region_id values (e.g. 1) but the GeoJSON uses ISO 3166-2 codes
+(e.g. 'US-CA') as feature IDs via promoteId="iso_3166_2". They never match.
+
+Database is adding an iso_3166_2 column to the regions table. Backend must
+return this column in all region shading API responses.
+
+DEPENDENCY: Wait for Database to confirm the migration is applied and the
+column exists before merging backend changes. You can develop in parallel but
+do not push until the schema change is in place.
+
+---
+
+CHANGE 1 — shading.service.ts: include iso_3166_2 in region queries
+
+File: src/backend/services/shading.service.ts
+
+The RegionShadingResult interface and getRegionShading() function currently
+return region_id and region_name. Add iso3166_2:
+
+  export interface RegionShadingResult extends ShadingResult {
+    regionId: number;
+    regionName: string;
+    iso3166_2: string;          // ← ADD THIS
+  }
+
+In getRegionShading(), the .select() call must include:
+  iso3166_2: regions.iso3166_2,   // ← ADD TO SELECT
+
+And in the .map() at the end:
+  return {
+    regionId: r.regionId,
+    regionName: r.regionName,
+    iso3166_2: r.iso3166_2,       // ← ADD TO RETURN
+    ...buildResult(stateKey, config),
+  };
+
+---
+
+CHANGE 2 — map.ts routes: include iso_3166_2 in JSON responses
+
+File: src/backend/routes/map.ts
+
+Two endpoints return region shading. Both must include iso_3166_2:
+
+A) GET /api/map/shading/countries/:countryCode
+   Current:
+     regions: regionShading.map((r) => ({
+       region_id: r.regionId,
+       region_name: r.regionName,
+       state_key: r.stateKey,
+       color_hex: r.colorHex,
+       display_name: r.displayName,
+     })),
+
+   Change to:
+     regions: regionShading.map((r) => ({
+       region_id: r.regionId,
+       region_name: r.regionName,
+       iso_3166_2: r.iso3166_2,    // ← ADD
+       state_key: r.stateKey,
+       color_hex: r.colorHex,
+       display_name: r.displayName,
+     })),
+
+B) GET /api/map/shading/regions/:countryCode
+   Current:
+     result.map((r) => ({
+       region_id: r.regionId,
+       region_name: r.regionName,
+       state_key: r.stateKey,
+       color_hex: r.colorHex,
+       display_name: r.displayName,
+     }))
+
+   Change to:
+     result.map((r) => ({
+       region_id: r.regionId,
+       region_name: r.regionName,
+       iso_3166_2: r.iso3166_2,    // ← ADD
+       state_key: r.stateKey,
+       color_hex: r.colorHex,
+       display_name: r.displayName,
+     }))
+
+---
+
+NO OTHER BACKEND CHANGES REQUIRED
+
+- NR-01/02 seam columns (owner_account_id, subscription_id, etc.) are
+  dormant schema additions only. No backend logic changes for those.
+- No PATCH endpoint changes needed. Cities endpoint is not affected.
+- The carry-forward or city-creation endpoints are not affected.
+
+---
+
+DELIVERY CHECKLIST
+
+  [ ] shading.service.ts — RegionShadingResult.iso3166_2 added
+  [ ] shading.service.ts — getRegionShading() SELECT + return updated
+  [ ] map.ts — GET /api/map/shading/countries/:countryCode includes iso_3166_2
+  [ ] map.ts — GET /api/map/shading/regions/:countryCode includes iso_3166_2
+  [ ] npm run test:backend — all pass
+  [ ] npm run type:check — no errors
+
+Notify COO inbox when done.
+
+Architect

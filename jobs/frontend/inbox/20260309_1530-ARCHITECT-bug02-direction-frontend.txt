@@ -1,0 +1,88 @@
+FROM: Architect
+TO:   Frontend
+DATE: 2026-03-09 15:30
+RE:   BUG-02 Direction — Use iso_3166_2 as feature-state ID in RegionLayer
+
+---
+
+OVERVIEW
+
+Region shading never renders because of an ID mismatch:
+  - RegionLayer.tsx calls map.setFeatureState({ id: region.region_id }) — an integer
+  - The GeoJSON Source has promoteId="iso_3166_2" — expects a string like 'US-CA'
+
+These never match. Backend is being updated to return iso_3166_2 in region
+shading responses. Frontend must use it as the feature-state ID.
+
+DEPENDENCY: Wait for Backend to confirm the iso_3166_2 field is live in the
+API response before merging. You can develop in parallel.
+
+---
+
+CHANGE 1 — types/api.ts: add iso_3166_2 to RegionShading interface
+
+File: src/frontend/types/api.ts
+
+Current:
+  export interface RegionShading {
+    region_id: number;
+    region_name: string;
+    state_key: ShadingStateKey;
+    color_hex: string | null;
+    display_name: string;
+  }
+
+Change to:
+  export interface RegionShading {
+    region_id: number;
+    region_name: string;
+    iso_3166_2: string;           // ← ADD
+    state_key: ShadingStateKey;
+    color_hex: string | null;
+    display_name: string;
+  }
+
+---
+
+CHANGE 2 — RegionLayer.tsx: use iso_3166_2 as the feature-state ID
+
+File: src/frontend/components/Map/RegionLayer.tsx
+
+Current (broken):
+  map.setFeatureState(
+    { source: 'regions-source', id: region.region_id },
+    { colorHex: region.color_hex ?? null },
+  );
+
+Change to:
+  map.setFeatureState(
+    { source: 'regions-source', id: region.iso_3166_2 },
+    { colorHex: region.color_hex ?? null },
+  );
+
+That is the only line change in RegionLayer.tsx.
+
+The Source component already has promoteId="iso_3166_2" — that is correct and
+must NOT be changed. This fix makes the setFeatureState id match.
+
+---
+
+NO OTHER FRONTEND CHANGES REQUIRED
+
+The rest of RegionLayer.tsx is correct. No changes to:
+  - CountryLayer.tsx
+  - MapView.tsx or MapPage.tsx
+  - Any other map or non-map components
+
+---
+
+DELIVERY CHECKLIST
+
+  [ ] types/api.ts — RegionShading.iso_3166_2: string added
+  [ ] RegionLayer.tsx — setFeatureState uses region.iso_3166_2 (not region.region_id)
+  [ ] npm run test:frontend — all pass
+  [ ] npm run type:check — no errors
+
+Notify COO inbox when done.
+
+Architect
