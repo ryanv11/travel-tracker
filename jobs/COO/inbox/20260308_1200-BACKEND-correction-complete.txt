@@ -1,0 +1,123 @@
+FROM:     BACKEND
+TO:       COO
+DATE:     2026-03-08
+SUBJECT:  Correction C1-C3 Complete — All Acceptance Criteria Met
+
+================================================================================
+SECTION 1 — SUMMARY
+================================================================================
+
+All three correction items have been implemented, documented and pushed.
+Commit: 3e27383 on main.
+
+================================================================================
+SECTION 2 — DELIVERABLES
+================================================================================
+
+--------------------------------------------------------------------------------
+C1: POST /api/trips/:tripId/places/:placeId/carry-forward
+--------------------------------------------------------------------------------
+
+Implemented in:  src/backend/routes/places.ts (architecturally correct location
+                 — endpoint is under /api/trips, not /api/cities)
+
+Logic:
+  1. Parse tripId, placeId from path params (NaN → 404)
+  2. Query trip_places WHERE id=placeId AND trip_id=tripId to verify both
+     exist and belong together, and retrieve cityId (→ 404 if not found)
+  3. assertNotLocked(tripId) — verifies trip exists and is not locked
+     (→ 404 if trip gone; → 403 if locked)
+  4. Verify all source_item_ids exist in items table
+     (→ 400 if any ID invalid)
+  5. Call executeCarryForward() from items.service.ts
+  6. Return 201 { created_item_ids, count }
+
+Schema: CarryForwardBodySchema added to validation/items.schemas.ts
+  - source_item_ids: z.array(z.number().int().positive()).min(1)
+  - .strict() — rejects unexpected fields
+
+Placement note: COO spec noted preference for cities.ts but acknowledged
+items.ts as acceptable if architecturally cleaner. The endpoint URL
+(/api/trips/:tripId/places/:placeId/carry-forward) is nested under trips,
+and the places router already has mergeParams: true — placing it in places.ts
+is the cleanest and most consistent location. All preconditions from the spec
+are enforced in full.
+
+--------------------------------------------------------------------------------
+C2: PATCH /api/cities/:id
+--------------------------------------------------------------------------------
+
+Implemented in:  src/backend/routes/cities.ts
+
+Logic:
+  1. Parse cityId from path (NaN → 404)
+  2. Verify city exists (→ 404 if not)
+  3. Validate body with PatchCitySchema (strict, region_id optional)
+  4. If region_id non-null: verify it exists in regions table (→ 400 if not)
+  5. Detect whether region_id was present in request body:
+     - Omitted: only update updatedAt (region unchanged)
+     - null: clear region_id
+     - integer: set region_id
+  6. Return 200 full city object
+
+Schema: PatchCitySchema added to validation/cities.schemas.ts
+  - region_id: z.number().int().positive().nullable().optional()
+  - .strict()
+
+--------------------------------------------------------------------------------
+C3: POST /api/cities secondary rate limit
+--------------------------------------------------------------------------------
+
+Implemented in:  src/backend/server.ts
+
+  const citiesCreateLimiter = rateLimit({ windowMs: 60_000, max: 20, ... });
+  app.post('/api/cities', citiesCreateLimiter);
+
+Independent of global 300 req/min limiter. Addresses SEC-M1.
+
+================================================================================
+SECTION 3 — ACCEPTANCE CRITERIA VERIFICATION
+================================================================================
+
+AC-C1: POST carry-forward — COMPLETE
+  - Valid body → 201 { created_item_ids, count }
+  - created items have status='consider', is_carried_forward=1,
+    carried_from_item_id=source item ID (via executeCarryForward())
+  - Empty source_item_ids → 400 (Zod .min(1))
+  - Invalid IDs → 400 (length check against DB query)
+  - Locked target trip → 403 (assertNotLocked)
+  - Invalid trip or place → 404
+
+AC-C2: PATCH /api/cities/:id — COMPLETE
+  - Valid region_id → 200 city object with updated region_id
+  - Non-existent region_id → 400 ("region_id does not exist")
+  - City not found → 404
+  - null region_id → clears region, returns 200
+
+AC-C3: POST /api/cities rate limit → 20 req/min, independent — COMPLETE
+
+AC-C4: API reference updated to v1.1 — COMPLETE
+  - POST /api/trips/:tripId/places/:placeId/carry-forward documented
+  - PATCH /api/cities/:id documented
+  - New error strings added to Error Reference table
+  - Footer and version header updated
+
+AC-C5: npm audit — COMPLETE
+  0 new HIGH/CRITICAL vulnerabilities.
+  Same 4 moderate (drizzle-kit/esbuild) — already deferred per security backlog.
+
+AC-C6: Committed and pushed — COMPLETE
+  Commit: 3e27383
+  Branch: main
+  Push: confirmed
+
+================================================================================
+SECTION 4 — NOTES FOR FRONTEND
+================================================================================
+
+C1 is now available. FRONTEND can implement the CarryForwardPrompt execution
+step (AC-17) — the disabled TODO placeholder can now be completed.
+
+Endpoint details are in the API reference v1.1 (jobs/backend/tech/20260307-api-reference.md).
+
+================================================================================

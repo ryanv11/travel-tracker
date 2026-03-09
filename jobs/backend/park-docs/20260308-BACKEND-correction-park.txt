@@ -1,0 +1,66 @@
+BACKEND PARK DOCUMENT — 2026-03-08 (Correction Thread)
+PROJECT: Travel Tracker
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+Received COO correction spec (20260308_1100-COO-backend-accepted-correction.txt)
+directing implementation of C1, C2, C3. Completed all three in this thread.
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+1. Placement of POST carry-forward endpoint
+   Decision: placed in src/backend/routes/places.ts (not cities.ts)
+   Rationale: The URL path is /api/trips/:tripId/places/:placeId/carry-forward,
+   which sits under the trips/places hierarchy. places.ts already has
+   mergeParams: true and handles all other /:placeId sub-routes. cities.ts
+   would require adding trip/place params — architecturally incorrect.
+   COO spec acknowledged either location acceptable.
+
+2. PATCH /api/cities/:id — region_id omit vs null handling
+   Decision: differentiate using 'region_id' in req.body check
+   Rationale: Omitting the field should not modify the existing region_id.
+   Only explicit null should clear it. Zod's .optional() returns undefined
+   for missing keys, so the 'in' check is reliable.
+
+================================================================================
+WORK COMPLETED
+================================================================================
+
+Files modified:
+  src/backend/validation/items.schemas.ts     — CarryForwardBodySchema added
+  src/backend/validation/cities.schemas.ts    — PatchCitySchema added
+  src/backend/routes/places.ts                — POST /:placeId/carry-forward added
+  src/backend/routes/cities.ts                — PATCH /:id added
+  src/backend/server.ts                       — citiesCreateLimiter (20/min) added
+  jobs/backend/tech/20260307-api-reference.md — Updated to v1.1
+
+Commit: 3e27383 on main (pushed successfully)
+
+================================================================================
+ACCEPTANCE CRITERIA STATUS
+================================================================================
+
+AC-C1: PASS — POST carry-forward returns 201 { created_item_ids, count }
+AC-C2: PASS — PATCH /api/cities/:id returns 200 city object; all error cases correct
+AC-C3: PASS — 20 req/min independent limiter on POST /api/cities
+AC-C4: PASS — API reference v1.1 documents both endpoints
+AC-C5: PASS — npm audit: 0 new HIGH/CRITICAL (4 moderate drizzle-kit, deferred)
+AC-C6: PASS — committed and pushed (commit 3e27383)
+
+================================================================================
+MESSAGES SENT
+================================================================================
+
+COO inbox:   20260308_1200-BACKEND-correction-complete.txt
+FRONTEND inbox: 20260308_1200-BACKEND-carry-forward-available.txt
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT BACKEND THREAD
+================================================================================
+
+No active work. Await COO review of correction.
+If COO accepts: Phase 2 (authentication) may be next BACKEND scope.

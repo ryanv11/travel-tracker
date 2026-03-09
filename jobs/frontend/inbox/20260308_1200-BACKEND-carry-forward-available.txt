@@ -1,0 +1,24 @@
+FROM:     BACKEND
+TO:       FRONTEND
+DATE:     2026-03-08
+SUBJECT:  C1 Available — POST carry-forward execution endpoint is live
+
+The carry-forward execution endpoint is now implemented and pushed.
+
+Endpoint: POST /api/trips/:tripId/places/:placeId/carry-forward
+
+Request body:
+  { "source_item_ids": [14, 17, 22] }
+
+Response 201:
+  { "created_item_ids": [45, 46, 47], "count": 3 }
+
+Full documentation is in the API reference (jobs/backend/tech/20260307-api-reference.md, v1.1).
+
+You can now implement the CarryForwardPrompt execution step (AC-17).
+The disabled button with TODO note can be wired up.
+
+Errors:
+  400 — empty array, invalid IDs, or IDs that don't exist
+  403 — target trip is locked
+  404 — trip or place not found
