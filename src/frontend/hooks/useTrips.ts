@@ -21,7 +21,7 @@ export interface TripFormData {
   name: string;
   start_date: string;
   end_date: string;
-  photo_album_ref?: string | null;
+  photo_album_ref?: string;
   category_ids?: number[];
   companion_ids?: number[];
   activity_ids?: number[];

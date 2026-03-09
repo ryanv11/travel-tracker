@@ -86,7 +86,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
       name: name.trim(),
       start_date: startDate,
       end_date: endDate,
-      photo_album_ref: photoRef.trim() || null,
+      photo_album_ref: photoRef.trim() || undefined,
       category_ids: selectedCategoryIds,
       companion_ids: selectedCompanionIds,
       activity_ids: selectedActivityIds,

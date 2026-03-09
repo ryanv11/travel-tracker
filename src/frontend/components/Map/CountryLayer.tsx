@@ -65,10 +65,7 @@ export function CountryLayer({ shadingData }: CountryLayerProps) {
     if (!map || shadingData.length === 0) return;
 
     const applyShading = () => {
-      if (!map.isSourceLoaded('countries-source')) return;
-
       for (const entry of shadingData) {
-        // Only set colorHex when it's non-null (never_visited has null)
         map.setFeatureState(
           { source: 'countries-source', id: entry.country_code },
           {
@@ -79,11 +76,20 @@ export function CountryLayer({ shadingData }: CountryLayerProps) {
       }
     };
 
-    // The source may already be loaded, or we wait for the event
+    // Filter sourcedata events to our specific source to avoid consuming
+    // the event on MapTiler tile sources that load first.
+    const onSourceData = (e: { sourceId?: string; isSourceLoaded?: boolean }) => {
+      if (e.sourceId === 'countries-source' && map.isSourceLoaded('countries-source')) {
+        applyShading();
+        map.off('sourcedata', onSourceData);
+      }
+    };
+
     if (map.isSourceLoaded('countries-source')) {
       applyShading();
     } else {
-      map.once('sourcedata', applyShading);
+      map.on('sourcedata', onSourceData);
+      return () => { map.off('sourcedata', onSourceData); };
     }
   }, [map, shadingData]);
 
