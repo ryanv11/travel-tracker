@@ -1,34 +1,77 @@
-QA CONTEXT — 2026-03-08
+QA CONTEXT — 2026-03-09
 PROJECT: Travel Tracker
-CURRENT STATUS: Frontend Phase 1 static code review complete. QA sign-off withheld.
+CURRENT STATUS: Contract test harness live. Awaiting bug fixes to resume live testing.
 
-ACTIVE TASKS:
-- Awaiting Frontend fixes for BUG-03 (carry-forward race condition), BUG-04 (Return to Planning button), BUG-05 (next_time excluded from bulk complete)
-- Awaiting COO direction on BUG-01 (city pins — cross-team design decision)
-- Awaiting Architect decision on BUG-02 (region shading ID mismatch — schema change required)
-- Awaiting Backend fix for BUG-07 (207 TypeScript errors), BUG-08 (dead coalesce import), BUG-09 (tsconfig rootDir defect), FLAG-F1 (API reference doc)
-- Live testing blocked: need `npm ci` in devcontainer + .env.local with MAPTILER_KEY + 4 MAJOR bugs fixed first
+================================================================================
+ACTIVE TASKS
+================================================================================
 
-OPEN BUGS:
-- BUG-01 MAJOR: City markers never appear (TripSummary has no places) — awaiting COO direction
-- BUG-02 MAJOR: Region shading broken (DB integer IDs ≠ ISO 3166-2 codes) — awaiting Architect
-- BUG-03 MAJOR: Carry-forward modal never shown (race condition in AddPlaceFlow) — Frontend
-- BUG-04 MAJOR: No UI path to revert review_pending → planning — Frontend
-- BUG-05 MINOR: Mark all Completed includes next_time items — Frontend (one-line fix)
-- BUG-06 TRIVIAL: ShadingTab colour picker uses uncontrolled defaultValue — Frontend
-- BUG-07 MAJOR: Backend 207 TypeScript errors, no type-check script — Backend
-- BUG-08 TRIVIAL: Dead coalesce import in cities.ts — Backend
-- BUG-09 MINOR: Main tsconfig.json drizzle.config.ts outside rootDir — Backend
-- FLAG-F1 DOC: API reference uses booked/skipped instead of confirmed/cancelled — Backend
+TASK-TEST-QA: COMPLETE (2026-03-09)
+  - vitest.config.contract.ts created
+  - tests/contract/_setup.ts + trips.contract.test.ts (27 tests, all passing)
+  - Coverage plan: jobs/qa/tech/20260309-contract-test-coverage-plan.md
+  - npm run test:contract (requires backend running: npm run dev:api)
 
-LAST PARK DOC: jobs/qa/park-docs/20260308-QA-park.txt
-LAST THREAD: Frontend Phase 1 static code review (2026-03-08)
+LIVE TESTING: BLOCKED
+  - Awaiting Frontend: BUG-03, BUG-04, BUG-05 fixes
+  - Awaiting Backend: BC-01 through BC-07 + BUG-10 fix (correction round 2)
+  - Awaiting Architect: BUG-02 cascade (iso_3166_2 migration)
+  - Environment: npm ci fix issued — should unblock devcontainer live testing
 
-ENVIRONMENT NOTE: node_modules installed on macOS (darwin-arm64); devcontainer is Linux (arm64).
-@esbuild/linux-arm64 missing. Run `npm ci` in container before live testing.
+================================================================================
+OPEN BUGS
+================================================================================
 
-AC STATUS SUMMARY:
-- PASS (code verified): SEC-12
-- FAIL: AC-05 (BUG-01), AC-12 (BUG-03)
-- PARTIAL FAIL: AC-04 (BUG-02), AC-08 (BUG-04), AC-13 (BUG-04, BUG-05)
-- NEEDS LIVE TEST: AC-01 through AC-03, AC-06 through AC-11, AC-14 through AC-18
+| ID     | Sev     | Status                        | Owner    |
+|--------|---------|-------------------------------|----------|
+| BUG-01 | MAJOR   | Direction issued (BC-01)      | Backend  |
+| BUG-02 | MAJOR   | Direction issued (Architect)  | Architect|
+| BUG-03 | MAJOR   | Direction issued              | Frontend |
+| BUG-04 | MAJOR   | Direction issued              | Frontend |
+| BUG-05 | MINOR   | Direction issued              | Frontend |
+| BUG-06 | TRIVIAL | Deferred                      | —        |
+| BUG-07 | MAJOR   | Direction issued (BC-02/03)   | Backend  |
+| BUG-08 | TRIVIAL | Direction issued (BC-05)      | Backend  |
+| BUG-09 | MINOR   | Direction issued (BC-04)      | Backend  |
+| BUG-10 | MINOR   | NEW — reported 2026-03-09     | Backend  |
+| FLAG-F1| DOC     | Direction issued (BC-06)      | Backend  |
+| ENV    | —       | Fix issued (npm ci)           | QA       |
+
+BUG-10 DETAIL:
+  zName schema uses max(255); API reference and BRD say max 200 chars.
+  Trip name > 200 chars accepted with 201 Created. Should be 400.
+  Fix: change max(255) → max(200) in src/backend/validation/common.ts.
+  Absorbed into Backend correction round 2.
+
+================================================================================
+CONTRACT TEST STATUS
+================================================================================
+
+  Passing: 27/27 (trips endpoints)
+  Pending suites: places, items, cities, shading, admin
+  Next suites to write: after BC-01 through BC-07 confirmed (regression tests)
+
+  Key behaviours verified:
+    - Locked trip returns 403 (not 423 — COO spec had error)
+    - Invalid status enum in query returns 400 (strict validation — correct)
+    - review_pending → planning transition works (NR-05/BUG-04 regression green)
+
+================================================================================
+AC STATUS (Frontend Phase 1)
+================================================================================
+
+  PASS (code verified):  SEC-12
+  FAIL:                  AC-05 (BUG-01), AC-12 (BUG-03)
+  PARTIAL FAIL:          AC-04 (BUG-02), AC-08 (BUG-04), AC-13 (BUG-04, BUG-05)
+  NEEDS LIVE TEST:       AC-01–03, AC-06–11, AC-14–18
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+  1. When BUG-03/04/05 fixed by Frontend → resume live testing of unblocked ACs
+  2. When BC-01 through BC-07 complete → add places + items contract tests
+     (including BUG-01 summary shape regression, FLAG-F1 status term regression)
+  3. When BUG-02 cascade complete → add shading.contract.test.ts with
+     iso_3166_2 assertion on region objects
+  4. When all fixes verified in live testing → issue QA sign-off or further findings

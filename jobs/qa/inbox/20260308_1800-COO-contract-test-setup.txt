@@ -1,0 +1,156 @@
+FROM: COO
+TO:   QA
+DATE: 2026-03-08 18:00
+RE:   TASK-TEST-QA — Set up contract test harness; define QA test ownership model
+
+---
+
+POLICY CONTEXT
+
+A new test-first development policy (OP-07) has been adopted, effective immediately
+for all new work. This task defines QA's role in the test framework and sets up
+the contract test harness.
+
+Full policy: _project/test-policy.md
+
+---
+
+QA'S ROLE IN THE TEST MODEL
+
+  Agents (Backend, Frontend) write tests that cover their own implementation.
+  QA owns two things on top of that:
+
+  1. CONTRACT TESTS — API-level assertions that verify the backend honours its
+     published contract. These are independent of backend implementation tests.
+     They test the HTTP interface, not the service internals.
+
+  2. EXTENSION — When agents deliver test files, QA reviews them and adds
+     edge cases, negative paths, and boundary conditions that the agent did
+     not cover. QA extends; QA does not replace.
+
+  QA sign-off requires:
+    - Agent test suite passing (npm run test:backend)
+    - QA contract test suite passing (npm run test:contract)
+    - Live testing of ACs that cannot be covered by automated tests
+
+---
+
+SCOPE OF WORK
+
+1. CREATE CONTRACT TEST DIRECTORY
+
+     tests/
+       contract/
+         trips.contract.test.ts
+         cities.contract.test.ts
+         places.contract.test.ts
+         items.contract.test.ts
+         shading.contract.test.ts
+         admin.contract.test.ts
+
+   These live in a top-level tests/ directory (not inside src/), as they are
+   QA-owned and cross-cutting.
+
+2. ADD vitest.config.contract.ts
+
+   At project root:
+
+     import { defineConfig } from 'vitest/config'
+
+     export default defineConfig({
+       test: {
+         name: 'contract',
+         include: ['tests/contract/**/*.test.ts'],
+         environment: 'node',
+         globals: true,
+       },
+     })
+
+3. ADD NPM SCRIPTS
+
+   In package.json (coordinate with Backend on this):
+     "test:contract":       "vitest run --config vitest.config.contract.ts"
+     "test:contract:watch": "vitest --config vitest.config.contract.ts"
+
+4. WRITE ONE SAMPLE CONTRACT TEST TO PROVE SETUP WORKS
+
+   Write trips.contract.test.ts with real supertest assertions against the
+   running backend. The test suite must start the server (or connect to a
+   running instance) and make real HTTP calls.
+
+   Minimum assertions for trips.contract.test.ts:
+
+     POST /api/trips
+       - 201 with valid body (name, start_date, end_date)
+       - 400 with missing required field (name omitted)
+       - 400 with invalid date format
+
+     GET /api/trips
+       - 200 with array response
+       - Response shape includes: id, name, status, start_date, end_date
+
+     GET /api/trips/:id
+       - 200 with valid id
+       - 404 with non-existent id
+
+     PATCH /api/trips/:id (locked trip)
+       - 423 when trip status is 'locked'
+       - Response body includes error message indicating lock
+
+     GET /api/trips/:id/summary (TripSummary)
+       - 200 response
+       - Shape includes: id, name, status, places (array)     ← BUG-01 fix verification
+       - places items include: city_id, city_name, lat, lng
+
+   The test must pass: `npm run test:contract` exits 0.
+   Note: this requires the backend server to be running. Document the setup
+   step in your completion report (e.g. "start server with npm run dev:api
+   before running contract tests").
+
+5. CONTRACT TEST COVERAGE PLAN
+
+   After the sample test is working, provide a coverage plan listing which
+   contract assertions you will add for each endpoint group, covering:
+     - All status codes documented in the API reference
+     - Locked-trip rejections (423) for all write endpoints
+     - TripSummary shape including places (BUG-01 verification)
+     - iso_3166_2 on region objects in shading endpoint (BUG-02 verification)
+     - Carry-forward: source item flagged is_carried_forward = true
+     - City rate limit: 21st request in 60 seconds returns 429
+
+   This coverage plan becomes the QA test backlog for the contract layer.
+
+---
+
+GOING FORWARD — YOUR ROLE PER DELIVERY
+
+When an agent (Backend or Frontend) delivers new work:
+  1. Receive their test files and run them: npm run test:backend
+  2. Review the test cases — identify missing edge cases and negative paths
+  3. Add QA extensions directly to their test files OR to your contract tests
+  4. Run the full suite before issuing sign-off
+
+You do not need to write all tests from scratch. Your job is to ensure the
+combined suite (agent tests + QA extensions + contract tests) covers the
+business-critical paths before sign-off is issued.
+
+---
+
+SEQUENCING
+
+This task can begin now — it does not depend on the current bug fix round.
+The contract test setup is independent of BUG-03/04/05 fixes.
+
+When Backend completes TASK-TEST-BE (Vitest setup), coordinate to ensure
+npm scripts and config files don't conflict.
+
+Completion report should include:
+  - vitest.config.contract.ts path
+  - tests/contract/ directory structure
+  - trips.contract.test.ts with all assertions passing
+  - Output of `npm run test:contract` showing pass
+  - Contract coverage plan (which endpoints, which assertions, in what order)
+
+Notify COO inbox when complete.
+
+COO

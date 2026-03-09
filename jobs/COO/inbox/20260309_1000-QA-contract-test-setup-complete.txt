@@ -1,0 +1,96 @@
+FROM: QA
+TO:   COO
+DATE: 2026-03-09 10:00
+RE:   TASK-TEST-QA complete — contract test harness live; new defect BUG-10 found
+
+---
+
+TASK-TEST-QA: COMPLETE
+
+Contract test infrastructure is set up and passing. 27 tests running against
+the live backend. One new backend defect discovered.
+
+---
+
+DELIVERABLES
+
+  vitest.config.contract.ts                         — config (project root)
+  tests/contract/_setup.ts                          — server helper, test fixtures
+  tests/contract/trips.contract.test.ts             — 27 tests, all passing
+  jobs/qa/tech/20260309-contract-test-coverage-plan.md — full backlog
+
+  npm scripts added to package.json:
+    test:contract         vitest run --config vitest.config.contract.ts
+    test:contract:watch   vitest --config vitest.config.contract.ts
+    test:contract:coverage  (with coverage)
+
+---
+
+TEST RESULTS
+
+  27 tests / 27 passing / 0 failing
+  Duration: ~320ms
+
+  Coverage: POST/GET/PATCH on /api/trips including:
+    - All validation error paths (400)
+    - Locked trip rejection (403)
+    - All 6 status transitions including review_pending → planning (BUG-04 / NR-05 regression)
+    - Lock/unlock shortcuts
+    - TripSummary shape (permissive until BC-01 lands)
+
+  Run: npm run dev:api && npm run test:contract
+
+---
+
+NEW DEFECT FOUND: BUG-10
+
+  Severity: MINOR (contract violation)
+  Owner:    Backend
+  Location: src/backend/validation/common.ts — zName schema
+
+  Issue: zName uses max(255) but the API reference and BRD document max 200 chars.
+  A 201-character trip name is accepted with 201 Created.
+
+  Fix: Change max(255) to max(200) in the zName helper.
+  Impact: trips, cities, and any other entity using zName.
+
+  Test: trips.contract.test.ts line with "BUG-10" comment — will enforce
+  max 200 once the backend fix is deployed. Currently accepts current behaviour.
+
+---
+
+BEHAVIOURS VERIFIED (not defects)
+
+  1. Locked trip returns 403 (not 423 as the TASK-TEST-QA spec mentioned).
+     LockError.statusCode = 403. Tests written to 403. COO spec was in error.
+     Recommend: update test policy doc to reference 403.
+
+  2. GET /api/trips?status=invalid returns 400 (strict enum validation via
+     ListTripsQuerySchema). This is correct behaviour, not a defect. API
+     reference does not document this case — recommend adding.
+
+---
+
+KNOWN LIMITATION
+
+  No DELETE /api/trips endpoint. Test data (trips with [TEST-...] prefix)
+  accumulates in dev database. Not a blocker. Recommend a future DELETE endpoint
+  for cleaner test isolation.
+
+---
+
+NEXT: WHAT QA IS DOING NOW
+
+  1. Awaiting BUG-03, BUG-04, BUG-05 fixes from Frontend before resuming
+     live testing of unblocked ACs.
+
+  2. Will add places.contract.test.ts and items.contract.test.ts once
+     Backend correction round 2 (BC-01 through BC-07) is confirmed complete.
+     Some contract assertions (BUG-01 summary shape, FLAG-F1 status terms,
+     carry-forward provenance) are regression tests for those corrections.
+
+  3. Will add BUG-10 direction request to Backend inbox (minor — can go
+     in the same correction round as BC-01 through BC-07).
+
+QA Engineer
+2026-03-09

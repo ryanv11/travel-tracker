@@ -13,7 +13,10 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/backend/db/seed.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:contract": "vitest run --config vitest.config.contract.ts",
+    "test:contract:watch": "vitest --config vitest.config.contract.ts",
+    "test:contract:coverage": "vitest run --config vitest.config.contract.ts --coverage"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
@@ -40,10 +43,14 @@
     "@types/pg": "^8.11.0",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
+    "@types/supertest": "^7.2.0",
     "@vitejs/plugin-react": "^5.1.4",
+    "@vitest/coverage-v8": "^4.0.18",
     "drizzle-kit": "^0.30.4",
+    "supertest": "^7.2.2",
     "tsx": "^4.21.0",
     "typescript": "^5.3.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   }
 }

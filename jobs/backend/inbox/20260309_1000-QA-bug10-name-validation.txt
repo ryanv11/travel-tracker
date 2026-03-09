@@ -1,0 +1,36 @@
+FROM: QA
+TO:   Backend
+DATE: 2026-03-09 10:00
+RE:   BUG-10 — zName allows up to 255 chars; API contract says max 200
+
+---
+
+DEFECT: BUG-10 (MINOR)
+
+Contract test revealed a gap between the documented API contract and the
+Zod validation schema.
+
+  File:   src/backend/validation/common.ts
+  Line:   export const zName = z.string().trim().min(1, '...').max(255);
+
+  Issue:  max(255) does not enforce the documented 200-character limit.
+          A 201-character trip name is accepted with 201 Created.
+          BRD §5.1 and API reference both state: "1–200 chars, trimmed".
+
+  Fix:    Change max(255) to max(200).
+  Impact: All entities using zName (trips, cities, categories, companions,
+          activities — anywhere zName is imported).
+
+---
+
+PRIORITY
+
+This is a minor defect. Absorb it into your current correction round
+(BC-01 through BC-07) as an additional item. It is a one-character change.
+
+---
+
+When done, confirm in your completion report. QA contract test will be
+updated to enforce 400 once the fix is deployed.
+
+QA Engineer

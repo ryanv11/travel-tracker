@@ -1,0 +1,119 @@
+FROM: COO
+TO:   Backend
+DATE: 2026-03-08 18:00
+RE:   TASK-TEST-BE — Set up Vitest test framework (going forward only)
+
+---
+
+POLICY CONTEXT
+
+A new test-first development policy (OP-07) has been adopted, effective immediately
+for all new work. This task sets up the test infrastructure so the policy can be
+executed. It is a one-time setup task.
+
+Full policy: _project/test-policy.md
+
+This task is SEPARATE from your current correction round 2 (BC-01 through BC-07).
+Complete correction round 2 first. This setup task follows.
+
+---
+
+SCOPE OF WORK
+
+1. INSTALL VITEST
+
+   Add to devDependencies:
+     vitest
+     @vitest/coverage-v8     (for coverage reports if needed)
+     supertest               (for API integration tests)
+     @types/supertest
+
+   Command: npm install --save-dev vitest @vitest/coverage-v8 supertest @types/supertest
+
+2. CREATE vitest.config.backend.ts
+
+   Place at project root. Scope it to backend source only:
+
+     import { defineConfig } from 'vitest/config'
+
+     export default defineConfig({
+       test: {
+         name: 'backend',
+         include: ['src/backend/**/*.test.ts'],
+         environment: 'node',
+         globals: true,
+       },
+     })
+
+3. ADD NPM SCRIPTS
+
+   In package.json:
+     "test:backend":       "vitest run --config vitest.config.backend.ts"
+     "test:backend:watch": "vitest --config vitest.config.backend.ts"
+     "test:backend:coverage": "vitest run --config vitest.config.backend.ts --coverage"
+
+4. CREATE TEST DIRECTORY STRUCTURE
+
+   Mirror the source structure under src/backend/:
+
+     src/backend/
+       services/
+         __tests__/
+           shadingService.test.ts     ← sample test (see below)
+           carryForwardService.test.ts
+           geocodingService.test.ts
+
+   Tests live alongside the code they test (co-location), not in a top-level
+   tests/ directory. This makes ownership clear.
+
+5. WRITE ONE SAMPLE TEST TO PROVE SETUP WORKS
+
+   Write a real test for the shading computation logic — this is a pure
+   function and ideal for unit testing. Minimum assertions:
+
+   shadingService.test.ts:
+     - Given no trips: country shading state is 'never_visited'
+     - Given one locked trip: state is 'visited_once'
+     - Given two locked trips: state is 'visited_multiple'
+     - Given one locked trip + one planning trip: state is 'visited_once_planning'
+     - Given an active trip: state is 'active' (overrides all others)
+
+   These map directly to the 6 shading states in BRD §5.4.
+
+   The test must pass: `npm run test:backend` exits 0.
+
+6. GOING FORWARD — NEW WORK REQUIRES TESTS
+
+   From this task onward, every new service method, correction, or business
+   logic change you deliver must include tests. The completion report must
+   include the test file paths and `npm run test:backend` passing.
+
+   Currently in flight (BC-01 through BC-07) are EXEMPT from this requirement
+   — they were dispatched before the policy was adopted.
+
+---
+
+WHAT NOT TO DO
+
+- Do not write tests for existing shipped code retroactively.
+  The ROI is low; the priority is setup + going-forward coverage.
+- Do not write tests for Express route handlers at this stage — that is
+  the contract test layer, which QA owns (separate task TASK-TEST-QA).
+- Do not aim for 100% line coverage. Cover business rules and error paths.
+
+---
+
+DELIVERY
+
+Complete BC-01 through BC-07 first, then deliver this task.
+
+When done, your completion report should include:
+  - Confirmation that npm install succeeded and package.json updated
+  - vitest.config.backend.ts file path
+  - npm script names added
+  - shadingService.test.ts (or equivalent) with all assertions passing
+  - Output of `npm run test:backend` showing pass
+
+Notify COO inbox when complete.
+
+COO
