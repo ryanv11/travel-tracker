@@ -1,0 +1,53 @@
+FROM: COO
+TO:   Backend
+DATE: 2026-03-09 15:00
+RE:   BUG-10 fix — zName max length 200
+
+---
+
+TASK: Fix BUG-10 (MINOR severity — contract violation)
+
+BUG-10 was discovered by QA during contract testing. A canary test already
+exists in the backend test suite and is intentionally failing. Your job is
+to fix the defect so the canary turns green.
+
+---
+
+DEFECT
+
+  File:   src/backend/validation/common.ts
+  Schema: zName helper
+
+  Current:  z.string().trim().min(1).max(255)
+  Required: z.string().trim().min(1).max(200)
+
+  The BRD (Section 3) and API reference both specify max 200 chars for
+  name fields. The current max(255) violates this contract.
+
+  Impact: trips, cities, and any other entity using zName.
+
+---
+
+FIX
+
+  Change max(255) → max(200) in the zName helper.
+  That is the complete change. No other modifications required.
+
+---
+
+VERIFICATION
+
+  Run: npm run test:backend
+  Expected: 106/106 passing (BUG-10 canary at common.test.ts:69 turns green)
+
+---
+
+Also run: npm run type:check:backend
+
+---
+
+When done:
+  - Commit and push
+  - Notify COO inbox with result
+
+COO

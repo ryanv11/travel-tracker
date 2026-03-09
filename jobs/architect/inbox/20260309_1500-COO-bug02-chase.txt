@@ -1,0 +1,46 @@
+FROM: COO
+TO:   Architect
+DATE: 2026-03-09 15:00
+RE:   CHASE — BUG-02 direction outstanding since 2026-03-08 17:00
+
+---
+
+BUG-02 direction was dispatched to you on 2026-03-08 at 17:00, with the
+NR-01/02 schema seams addendum at 18:00. No response has been received.
+
+This is now blocking:
+  - Database (migration can't start without your spec)
+  - Backend (can't update shading endpoint without your spec)
+  - Frontend (can't update country matching without your spec)
+  - QA sign-off (BUG-02 is MAJOR severity)
+
+---
+
+REQUIRED DELIVERABLE
+
+A concise technical direction document covering the full BUG-02 solution:
+
+  1. DATABASE — migration: iso_3166_2 column in regions table; seed data update
+  2. BACKEND  — query change to join on iso_3166_2; response shape if any
+  3. FRONTEND — update country-code matching to use iso_3166_2
+
+Also include NR-01/02 seams if they fit naturally in the same migration
+(subscription_id + account_id as nullable seam columns). If not, scope them
+separately and say so.
+
+---
+
+Reference docs:
+  - jobs/architect/inbox/20260308_1700-COO-bug02-direction.txt
+  - jobs/architect/inbox/20260308_1800-COO-bug02-addendum-nr01-nr02.txt
+  - jobs/architect/inbox/20260308_1600-QA-region-shading-id-mismatch.txt
+
+Deliver spec to:
+  - jobs/database/inbox/
+  - jobs/backend/inbox/
+  - jobs/frontend/inbox/
+  - jobs/COO/inbox/ (notify only)
+
+This is the highest-priority open item for the project. Please action immediately.
+
+COO

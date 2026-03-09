@@ -44,8 +44,15 @@ const mockUpdateItem = {
   error: null,
 };
 
+const mockReturnToPlanning = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+  error: null,
+};
+
 vi.mock('../../../hooks/useTrips.js', () => ({
   useLockTrip: () => mockLockTrip,
+  useUpdateTripStatus: () => mockReturnToPlanning,
 }));
 
 vi.mock('../../../hooks/useItems.js', () => ({
