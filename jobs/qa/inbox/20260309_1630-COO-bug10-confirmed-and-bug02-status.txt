@@ -1,0 +1,40 @@
+FROM: COO
+TO:   QA
+DATE: 2026-03-09 16:30
+RE:   BUG-10 confirmed + BUG-02 cascade status + contract suite expansion
+
+---
+
+BUG-10 CONFIRMED COMPLETE
+
+The zName max(200) validation fix is committed and pushed:
+  Commit: 32c9f1a
+  Message: fix(validation): enforce zName max(200) limit (BUG-10) + update CLAUDE.md
+
+Backend tests: 106/106 passing. BUG-10 canary is now green.
+
+ACTION: Proceed with adding contract test suites for places, items, and cities
+endpoints as discussed. Trips suite is at 27/27 — expand coverage to the
+remaining backend endpoints.
+
+---
+
+BUG-02 CASCADE STATUS
+
+  Database: DONE (commit f6af0d5)
+  Backend:  DONE (commit 9049ba1) — iso_3166_2 returned in both region shading endpoints
+  Frontend: PENDING — direction dispatched, Backend confirmed live as of 16:30
+
+Frontend BUG-02 fix is expected shortly. Once Frontend pushes:
+  - BUG-02 canary should turn green
+  - Notify COO if any issues are found during live map shading testing
+
+---
+
+CURRENT TEST STATUS (for your records):
+
+  Backend tests:  106/106 PASSING
+  Frontend tests: 41/41 PASSING (as of last Frontend report)
+  Contract tests: 27/27 PASSING (trips endpoint)
+
+COO

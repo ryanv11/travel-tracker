@@ -1,6 +1,6 @@
-COO CONTEXT — 2026-03-09 (updated 16:30)
+COO CONTEXT — 2026-03-09 (updated 15:00)
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-10 DONE. BUG-02 Database+Backend DONE, Frontend pending.
+CURRENT STATUS: QA unblocked — live testing in progress; BUG-02 + BUG-10 final outstanding
 
 ================================================================================
 PHASE STATUS
@@ -9,30 +9,38 @@ PHASE STATUS
   PHASE 0 (FOUNDATION)    — COMPLETE
   PHASE 1 (DATA LAYER)    — COMPLETE
   PHASE 2 (API LAYER)     — COMPLETE (corrections BC-01–07 complete)
-  PHASE 3 (UI LAYER)      — SUBSTANTIALLY COMPLETE (BUG-02 Frontend pending)
-  PHASE 4 (QA/DOCS)       — ACTIVE — live testing in progress
+  PHASE 3 (UI LAYER)      — SUBSTANTIALLY COMPLETE (BUG-02 pending)
+  PHASE 4 (QA/DOCS)       — ACTIVE — live testing unblocked as of 2026-03-09
   PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
 
 ================================================================================
 ACTIVE JOBS
 ================================================================================
 
-FRONTEND
-  Status:   BUG-02 direction dispatched (Architect 15:30). Backend confirmed live
-            16:30 (COO unblock message sent). Awaiting Frontend fix + push.
-  Task:     src/frontend/types/api.ts — add iso_3166_2: string to RegionShading
-            src/frontend/components/Map/RegionLayer.tsx — use region.iso_3166_2
-            as setFeatureState id (not region.region_id)
-  Spec:     jobs/frontend/inbox/20260309_1530-ARCHITECT-bug02-direction-frontend.txt
-            jobs/frontend/inbox/20260309_1630-COO-bug02-backend-live.txt
-  Tests:    npm run test:frontend — all pass; npm run type:check — no errors
+BACKEND
+  Status:   BUG-10 direction dispatched 2026-03-09 15:00. Awaiting fix + push.
+  Task:     Change zName max(255) → max(200) in src/backend/validation/common.ts
+  Spec:     jobs/backend/inbox/20260309_1500-COO-bug10-direction.txt
+  Test:     npm run test:backend → expect 106/106 (canary at common.test.ts:69)
   When done: notify COO inbox
 
+ARCHITECT (ESCALATED)
+  Status:   BUG-02 direction dispatched 2026-03-08 17:00. No response as of
+            2026-03-09 15:00. Escalation sent.
+  Task:     Spec iso_3166_2 solution for Database + Backend + Frontend.
+            Include NR-01/02 seams if possible in same migration.
+  Spec:     jobs/architect/inbox/20260308_1700-COO-bug02-direction.txt
+            jobs/architect/inbox/20260308_1800-COO-bug02-addendum-nr01-nr02.txt
+            jobs/architect/inbox/20260309_1500-COO-bug02-chase.txt (escalation)
+  Blocked:  Database, Backend, Frontend on BUG-02 cascade.
+
 QA
-  Status:   Active — live testing in progress. BUG-10 now confirmed green.
-            QA instructed to expand contract suites to places/items/cities.
-  Direction: jobs/qa/inbox/20260309_1630-COO-bug10-confirmed-and-bug02-status.txt
-  BUG-02:   Awaiting Frontend fix before map shading can be live-tested.
+  Status:   Unblocked as of 2026-03-09 14:00 (Frontend notified QA directly).
+            Now testing BUG-01/03/04/05 ACs + NR-06 live.
+            BUG-02 and BUG-10 still failing (Backend + Architect blocked).
+  Canaries: BUG-10 (backend) intentionally failing — turns green after Backend fix.
+            BUG-04/05 (frontend) — NOW GREEN (all 41 frontend tests pass).
+  Next:     QA to add places/items/cities contract suites after Backend BUG-10 confirmed.
 
 ================================================================================
 OPEN BUGS
@@ -40,10 +48,11 @@ OPEN BUGS
 
 | ID      | Severity | Status                        | Owner     |
 |---------|----------|-------------------------------|-----------|
-| BUG-02  | MAJOR    | Frontend work pending          | Frontend  |
+| BUG-02  | MAJOR    | Architect spec overdue (chase) | Architect |
 | BUG-06  | TRIVIAL  | Deferred (safe)               | —         |
+| BUG-10  | MINOR    | Direction issued 2026-03-09   | Backend   |
 
-CLOSED THIS SESSION / PRIOR:
+CLOSED THIS SESSION:
 | BUG-01  | MAJOR    | DONE — BC-01 + Frontend fix   | —         |
 | BUG-03  | MAJOR    | DONE — Frontend               | —         |
 | BUG-04  | MAJOR    | DONE — Frontend (also NR-05)  | —         |
@@ -51,7 +60,6 @@ CLOSED THIS SESSION / PRIOR:
 | BUG-07  | MAJOR    | DONE — BC-02/03/04            | —         |
 | BUG-08  | TRIVIAL  | DONE — BC-05                  | —         |
 | BUG-09  | MINOR    | DONE — BC-02/04               | —         |
-| BUG-10  | MINOR    | DONE — commit 32c9f1a         | —         |
 | FLAG-F1 | DOC      | DONE — BC-06                  | —         |
 | NR-06   | —        | DONE — Frontend (8 ACs)       | —         |
 
@@ -60,8 +68,8 @@ TEST STATUS
 ================================================================================
 
   Frontend tests:  41/41 PASSING  (npm run test:frontend)
-  Backend tests:  106/106 PASSING (BUG-10 canary now green)
-  Contract tests:   27/27 PASSING (trips endpoint) — QA expanding coverage
+  Backend tests:  105/106 passing — 1 intentional fail: BUG-10 canary
+  Contract tests:   27/27 passing (trips endpoint) — more suites pending QA
 
 ================================================================================
 BRD STATUS
@@ -73,8 +81,7 @@ BRD STATUS
          Status: ACCEPTED 2026-03-08. COO sign-off recorded.
 
   Beta-mandatory open items:
-    - NR-01/02: Subscription + account seams — DATABASE DONE (seam columns added
-                in BUG-02 migration f6af0d5). Schema-level seam complete.
+    - NR-01/02: Subscription + account seams — pending BUG-02 Architect spec
     - NR-08:    SQLite/OneDrive operating constraint — assign to DOCS when unblocked
     - NR-14:    Pre-shared-access hardening gate — formal go/no-go before any non-owner access
 
@@ -85,7 +92,7 @@ AUDIT STATUS
   External audit: jobs/COO/inbox/travel-tracker-project-audit.txt (REVIEWED 2026-03-08)
 
   Finding dispositions:
-    F1 (Phase 2 seams):   CLOSED — NR-01/02 dormant columns added in BUG-02 migration
+    F1 (Phase 2 seams):   OPEN — pending BUG-02 cascade (NR-01/02 included)
     F2 (accounts model):  CLOSED
     F3 (delegated admin): DEFERRED — Phase 3
     F4 (OneDrive):        OPEN — NR-08 pending DOCS
@@ -98,15 +105,18 @@ NEXT COO ACTIONS (resume from here)
 ================================================================================
 
   WAITING ON:
-  1. Frontend: BUG-02 fix (use iso_3166_2 in RegionLayer). Notification to COO inbox.
+  1. Backend: BUG-10 fix (zName max 200). Notification to COO inbox.
+  2. Architect: BUG-02 spec dispatch to Database/Backend/Frontend/COO.
+     ESCALATED — highest priority open item.
 
-  WHEN BUG-02 FRONTEND FIX CONFIRMED:
-  2. QA to run live map shading test (BUG-02 acceptance criteria).
-  3. Confirm BUG-02 fully closed across all layers.
-  4. Update dependency-graph and project-plan.
+  WHEN BUG-02 ARCHITECT SPEC ARRIVES:
+  3. Confirm spec cascaded to Database, Backend, Frontend inboxes.
+  4. Track cascade completion across all three teams.
+
+  WHEN BUG-10 BACKEND FIX CONFIRMED:
+  5. Write QA inbox to add places/items/cities contract suites.
 
   STANDING:
-  5. QA: expand contract suites to places/items/cities (direction sent 16:30).
   6. NR-08: Assign README content to DOCS when QA sign-off obtained.
   7. NR-14: Gate review before any non-owner access.
 

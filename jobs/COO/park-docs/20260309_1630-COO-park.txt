@@ -1,0 +1,109 @@
+COO PARK DOCUMENT
+Date:   2026-03-09 16:30
+Thread: BUG-02 cascade review + BUG-10 confirmation + QA expansion direction
+
+================================================================================
+WHAT HAPPENED THIS THREAD
+================================================================================
+
+1. INBOX PROCESSED — THREE NEW MESSAGES
+
+   a) 20260309_1530-ARCHITECT-bug02-dispatched.txt
+      Architect confirmed BUG-02 technical direction dispatched to all three teams:
+        Database:  jobs/database/inbox/20260309_1530-ARCHITECT-bug02-direction-database.txt
+        Backend:   jobs/backend/inbox/20260309_1530-ARCHITECT-bug02-direction-backend.txt
+        Frontend:  jobs/frontend/inbox/20260309_1530-ARCHITECT-bug02-direction-frontend.txt
+      Architect confirmed no other open items on their side.
+
+   b) 20260309_1600-DATABASE-bug02-done.txt
+      Database confirmed BUG-02 complete:
+        - iso_3166_2 TEXT NOT NULL added to regions table with UNIQUE index
+        - NR-01/02 dormant seam columns added to trips, trip_places, map_shading_config
+        - 72 region records populated with correct ISO 3166-2 codes
+        - Migration applied to dev.db
+        - 106/106 backend tests passing (BUG-10 canary unexpectedly green)
+        - Commit f6af0d5 pushed to main
+
+   c) 20260309_1600-BACKEND-bug02-done.txt
+      Backend confirmed BUG-02 complete:
+        - iso_3166_2 returned in both /api/map/shading/countries/:countryCode
+          and /api/map/shading/regions/:countryCode
+        - 106/106 backend tests passing
+        - npm run type:check — no errors
+        - Commit 9049ba1 pushed to main
+
+2. BUG-10 CONFIRMED FROM GIT LOG
+
+   Commit 32c9f1a (most recent) — "fix(validation): enforce zName max(200) limit
+   (BUG-10) + update CLAUDE.md" — confirmed present in git log.
+   BUG-10 was dispatched to Backend at 15:00; fix confirmed delivered.
+   Backend tests: 106/106 (canary now green). BUG-10 formally CLOSED.
+
+3. FRONTEND UNBLOCKED FOR BUG-02
+
+   Backend is live. COO wrote Frontend inbox:
+     jobs/frontend/inbox/20260309_1630-COO-bug02-backend-live.txt
+   Confirms Backend commit, restates the two required changes, and delivery criteria.
+
+4. QA EXPANSION DIRECTION SENT
+
+   COO wrote QA inbox:
+     jobs/qa/inbox/20260309_1630-COO-bug10-confirmed-and-bug02-status.txt
+   Confirms BUG-10 green. Instructs QA to expand contract suites to places/items/cities.
+   Notes BUG-02 Frontend pending — QA to test map shading once Frontend lands.
+
+================================================================================
+DECISIONS MADE THIS THREAD
+================================================================================
+
+1. BUG-10 closed. No further action required.
+
+2. NR-01/02 CLOSED at schema level. The BUG-02 migration includes the dormant
+   ownership seam columns (owner_account_id, subscription_id, created_by_account_id).
+   This satisfies the beta-mandatory schema seam requirement. Full account/subscription
+   wiring remains Phase 2/5.
+
+3. Audit finding F1 marked CLOSED. Dormant ownership seams are now in the schema.
+
+================================================================================
+SPECS / MESSAGES WRITTEN THIS THREAD
+================================================================================
+
+  jobs/frontend/inbox/20260309_1630-COO-bug02-backend-live.txt
+  jobs/qa/inbox/20260309_1630-COO-bug10-confirmed-and-bug02-status.txt
+
+================================================================================
+OUTPUTS REVIEWED THIS THREAD
+================================================================================
+
+  Database BUG-02 report — APPROVED. Schema, migration, and seed data complete.
+  Backend BUG-02 report  — APPROVED. API response updated, tests and type check pass.
+  Architect dispatch note — NOTED. Cascade complete, no open architect items.
+
+================================================================================
+PENDING RESPONSES EXPECTED
+================================================================================
+
+  FRONTEND:  BUG-02 fix (RegionLayer iso_3166_2) — awaiting completion notification
+  QA:        Contract suite expansion (places/items/cities) — awaiting progress
+
+================================================================================
+ISSUES FLAGGED THIS THREAD
+================================================================================
+
+  None. Progress is clean. CI cannot be checked (GH_TOKEN unavailable in devcontainer)
+  but all local tests pass and commits are pushed. CI check should be performed when
+  token is available.
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT COO THREAD
+================================================================================
+
+  1. Check COO inbox for Frontend BUG-02 completion notification
+  2. When Frontend lands: confirm QA live-tests map shading (BUG-02 ACs)
+  3. Check QA inbox for contract suite expansion progress
+  4. When all BUG-02 layers confirmed: formally close BUG-02, update project-plan
+  5. Assign NR-08 README content to DOCS (SQLite/OneDrive constraint)
+  6. Schedule NR-14 gate review before any non-owner access
+
+================================================================================

@@ -1,0 +1,31 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-09 16:30
+RE:   BUG-02 — Backend confirmed live, you are unblocked
+
+---
+
+Backend BUG-02 work is complete and pushed.
+
+Commit: 9049ba1
+Message: feat(backend): return iso_3166_2 in region shading API responses (BUG-02)
+
+Both region shading endpoints now return iso_3166_2 in their response payloads:
+  GET /api/map/shading/countries/:countryCode — regions array, each item includes iso_3166_2
+  GET /api/map/shading/regions/:countryCode   — result array, each item includes iso_3166_2
+
+You are unblocked. Proceed with the Architect's direction:
+  jobs/frontend/inbox/20260309_1530-ARCHITECT-bug02-direction-frontend.txt
+
+Required changes (summary):
+  1. src/frontend/types/api.ts — add iso_3166_2: string to RegionShading interface
+  2. src/frontend/components/Map/RegionLayer.tsx — use region.iso_3166_2 as setFeatureState id
+
+Acceptance criteria before notifying COO:
+  [ ] npm run test:frontend — all pass
+  [ ] npm run type:check — no errors
+  [ ] Committed and pushed to main
+
+Notify COO inbox when complete.
+
+COO
