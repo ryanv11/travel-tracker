@@ -130,6 +130,7 @@ mapRouter.get(
       regions: regionShading.map((r) => ({
         region_id: r.regionId,
         region_name: r.regionName,
+        iso_3166_2: r.iso3166_2,
         state_key: r.stateKey,
         color_hex: r.colorHex,
         display_name: r.displayName,
@@ -164,6 +165,7 @@ mapRouter.get(
       result.map((r) => ({
         region_id: r.regionId,
         region_name: r.regionName,
+        iso_3166_2: r.iso3166_2,
         state_key: r.stateKey,
         color_hex: r.colorHex,
         display_name: r.displayName,

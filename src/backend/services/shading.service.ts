@@ -36,6 +36,7 @@ export interface CountryShadingResult extends ShadingResult {
 export interface RegionShadingResult extends ShadingResult {
   regionId: number;
   regionName: string;
+  iso3166_2: string;
 }
 
 type ShadingConfigMap = Map<string, { colorHex: string; displayName: string }>;
@@ -194,6 +195,7 @@ export async function getRegionShading(
     .select({
       regionId: regions.id,
       regionName: regions.name,
+      iso3166_2: regions.iso3166_2,
       hasActive: sql<number>`MAX(CASE WHEN ${trips.status} = 'active' THEN 1 ELSE 0 END)`,
       completedCount: sql<number>`COUNT(DISTINCT CASE WHEN ${trips.status} IN ('review_pending', 'locked') THEN ${trips.id} END)`,
       planningCount: sql<number>`COUNT(DISTINCT CASE WHEN ${trips.status} = 'planning' THEN ${trips.id} END)`,
@@ -214,6 +216,7 @@ export async function getRegionShading(
     return {
       regionId: r.regionId,
       regionName: r.regionName,
+      iso3166_2: r.iso3166_2,
       ...buildResult(stateKey, config),
     };
   });
