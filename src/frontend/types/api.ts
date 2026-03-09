@@ -223,6 +223,7 @@ export interface CountryShading {
 
 export interface RegionShading {
   region_id: number;
+  iso_3166_2: string;
   region_name: string;
   state_key: ShadingStateKey;
   color_hex: string | null;

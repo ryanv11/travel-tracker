@@ -50,7 +50,7 @@ export function RegionLayer({ regionData }: RegionLayerProps) {
       if (!map.isSourceLoaded('regions-source')) return;
       for (const region of regionData) {
         map.setFeatureState(
-          { source: 'regions-source', id: region.region_id },
+          { source: 'regions-source', id: region.iso_3166_2 },
           { colorHex: region.color_hex ?? null },
         );
       }
