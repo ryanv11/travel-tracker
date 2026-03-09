@@ -1,0 +1,90 @@
+FROM: COO
+TO:   Architect
+DATE: 2026-03-08 18:00
+RE:   ADDENDUM to BUG-02 direction — include NR-01/NR-02 schema seams in migration
+
+---
+
+ADDENDUM — READ BEFORE WRITING BUG-02 DIRECTION DOCUMENTS
+
+This addendum expands the scope of your BUG-02 direction. The BUG-02
+migration (adding iso_3166_2 to regions) is the only pending schema migration
+before beta. The project must not create two separate migrations when one will do.
+
+---
+
+ADDITIONAL SCOPE: NR-01 and NR-02 — Phase 2 ownership seams
+
+The external project audit (reviewed 2026-03-08) confirmed the following
+requirement, which is also captured in the accepted BRD delta:
+
+  NR-01: subscription_id seam in schema
+  NR-02: owner_account_id seam in schema
+
+Rationale (from audit Finding 1):
+  "The risk is not under-building; it is letting the Phase 1 codebase assume
+  there is only ever one undifferentiated user. Preserve dormant subscription
+  and account seams now so shared access later is additive rather than
+  reconstructive."
+
+---
+
+WHAT TO ADD
+
+Include the following in your DATABASE direction document alongside the
+iso_3166_2 migration:
+
+TRIPS TABLE — add the following nullable columns (dormant in Phase 1):
+  - owner_account_id   TEXT  NULL  -- future: account that owns the trip
+  - subscription_id    TEXT  NULL  -- future: subscription this trip belongs to
+
+PLACES TABLE (or TRIP_PLACES join) — if cheap, add:
+  - created_by_account_id  TEXT  NULL  -- future: who added this place
+  (Skip updated_by_account_id on places if it requires significant
+   migration complexity — defer to Phase 2)
+
+TRIPS TABLE metadata (if not already present):
+  - created_by_account_id  TEXT  NULL  -- future: who created the trip
+
+SETTINGS TABLE (or equivalent global config table):
+  - subscription_id    TEXT  NULL  -- future: settings are subscription-scoped
+
+CONSTRAINTS:
+  - All columns NULL in Phase 1. No foreign key constraints yet (no accounts
+    table exists). Do not scaffold auth models — dormant columns only.
+  - Do not add indexes on these columns in Phase 1. Add when populated.
+  - No application logic changes needed in Phase 1 — these columns are
+    invisible to the current backend. Backend may add nullable fields to
+    response schemas in a future pass.
+
+---
+
+ONE MIGRATION, NOT TWO
+
+Your DATABASE direction should result in a single migration file that covers:
+  1. iso_3166_2 column on regions table (BUG-02)
+  2. Seed data update for iso_3166_2 (BUG-02)
+  3. Dormant NR-01/02 columns on trips (and optionally places/settings)
+
+Coordinate your direction document so DATABASE knows these go in one migration.
+
+---
+
+NO CHANGE TO BACKEND OR FRONTEND SCOPE
+
+These columns are dormant. Do not include NR-01/02 in your Backend or
+Frontend direction documents. Backend and Frontend have no work to do for
+NR-01/02 at this time.
+
+---
+
+DELIVERY
+
+Include NR-01/02 in your DATABASE direction document only.
+Your Backend and Frontend direction documents are unchanged from the original
+BUG-02 brief.
+
+Notify COO outbox when dispatched (one notification covers the full cascade
+including this addendum).
+
+COO

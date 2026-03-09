@@ -1,0 +1,130 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-08 18:00
+RE:   NR-06 — Offline retry policy specification (geocoding)
+
+---
+
+REQUIREMENT
+
+NR-06 (accepted BRD delta, 2026-03-08): The application must implement a
+defined offline retry policy for geocoding operations, with progressive
+backoff, user-visible state, and manual reconnect affordance.
+
+This spec must be implemented before the Frontend phase is declared complete.
+It is a beta-mandatory requirement.
+
+---
+
+PRODUCT RULE SET
+
+1. RETRY CLASSES
+
+  Class A — Background geocode (user not waiting)
+    Trigger: City POST or PATCH where geocoding fails due to network/timeout.
+    Behaviour: Retry silently in background per schedule below.
+    User state: Subtle offline indicator appears; no blocking modal.
+
+  Class B — Foreground geocode (user is waiting on a result)
+    Trigger: User explicitly triggers a city lookup and network fails.
+    Behaviour: Immediate failure message; offer manual retry button.
+    User state: Inline error with "Retry" affordance.
+
+2. RETRY SCHEDULE (applies to Class A)
+
+  Attempt 1:  Immediately on failure
+  Attempt 2:  30 seconds
+  Attempt 3:  2 minutes
+  Attempt 4:  5 minutes
+  Attempt 5+: 10 minutes (hold at this cadence indefinitely)
+
+  Policy: Retry indefinitely. Do NOT discard the pending geocode operation.
+  Rationale: A user may be offline for hours (travel, rural, flight).
+  The city record already exists in the database; the geocode result
+  enriches it. Loss of the retry is loss of data enrichment.
+
+3. RESTART PERSISTENCE
+
+  Pending geocode retry state must survive a page reload.
+  Implementation: Store pending geocode operations in localStorage under
+  the key `geocode_retry_queue`. On app init, read queue and resume
+  retrying from where the schedule left off.
+
+  Queue entry shape:
+    {
+      cityId: string,
+      cityName: string,
+      countryCode: string,
+      attemptCount: number,
+      nextRetryAt: ISO8601 string
+    }
+
+  On successful geocode: remove entry from queue and persist updated city
+  to backend. On 404 (city deleted): remove entry and discard silently.
+
+4. USER-VISIBLE STATE
+
+  While any Class A retry is queued:
+    - Show a small offline/sync indicator (e.g. cloud-with-slash icon or
+      "Geocoding pending" text) in the application header or status bar.
+    - Do not block any user action. The app remains fully usable.
+
+  Manual reconnect affordance:
+    - The offline indicator must be clickable/tappable.
+    - On click: immediately attempt all pending retries (ignore schedule).
+    - This allows a user who just reconnected to force immediate resolution
+      without waiting for the next scheduled attempt.
+
+  On successful resolution of all queued items:
+    - Indicator disappears.
+    - No success toast required (silent success is acceptable).
+
+5. PERMANENT FAILURE DEFINITION
+
+  There is no permanent failure for geocoding in Phase 1.
+  Retry indefinitely. The only reasons to remove a queue entry are:
+    (a) Successful geocode — resolved.
+    (b) City record deleted by user — discard silently.
+    (c) User explicitly cancels (see below).
+
+  Manual cancel affordance:
+    - From the offline indicator, provide a "Dismiss / stop retrying" option.
+    - On dismiss: clear the retry queue and hide the indicator.
+    - This is the only path to stopping retries.
+    - Rationale: Do not auto-expire retry attempts; the user decides when
+      to give up on enriching the data.
+
+---
+
+IMPLEMENTATION GUIDANCE
+
+- Use a single service/hook (e.g. useGeocodeRetryQueue or geocodeRetryService)
+  to manage queue, scheduling, and persistence.
+- Do not couple this to any specific page or component — it runs app-wide.
+- The retry service should be initialised in App.tsx or equivalent root.
+- Geocoding calls should go through this service so all failures are captured.
+
+---
+
+ACCEPTANCE CRITERIA (NR-06)
+
+  AC-NR06-01: City geocode failure queues a retry entry in localStorage.
+  AC-NR06-02: Retry schedule follows Class A cadence (30s, 2m, 5m, 10m+).
+  AC-NR06-03: Queue survives page reload; retries resume on next app init.
+  AC-NR06-04: Offline indicator visible while any retry is pending.
+  AC-NR06-05: Offline indicator is clickable and triggers immediate retry.
+  AC-NR06-06: Manual dismiss clears the queue and hides the indicator.
+  AC-NR06-07: Class B (foreground) failures show inline error + Retry button.
+  AC-NR06-08: Successful geocode removes entry from queue; indicator clears.
+
+---
+
+SEQUENCING
+
+Implement NR-06 after BUG-03/04/05 fixes are complete.
+NR-06 does not depend on BUG-01 or BUG-02.
+
+Notify COO inbox when NR-06 is implemented and AC-NR06-01 through AC-NR06-08
+can be demonstrated.
+
+COO

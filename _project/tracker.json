@@ -1,0 +1,660 @@
+{
+  "meta": {
+    "project": "Travel Tracker",
+    "version": "1.0",
+    "updated": "2026-03-08"
+  },
+  "items": [
+
+    // ─── PHASES ──────────────────────────────────────────────────────────────
+    {
+      "id": "PHASE-0",
+      "type": "phase",
+      "title": "Foundation — Architecture & Blueprint",
+      "status": "done",
+      "owner": "architect",
+      "priority": "P0",
+      "brdRefs": [],
+      "phase": 0,
+      "notes": "ER schema v1.1, map shading spec, tech blueprint, ADL-01–14. Completed 2026-03-07."
+    },
+    {
+      "id": "PHASE-1",
+      "type": "phase",
+      "title": "Data Layer — Database Schema & Migrations",
+      "status": "done",
+      "owner": "database",
+      "priority": "P0",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "19-table Drizzle schema, @libsql/client driver, seed data. Completed 2026-03-07."
+    },
+    {
+      "id": "PHASE-2",
+      "type": "phase",
+      "title": "API Layer — Backend REST API",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P0",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Phase 1 accepted. C1-C3 done (commit 3e27383). Correction round 2 dispatched (BC-01–07)."
+    },
+    {
+      "id": "PHASE-3",
+      "type": "phase",
+      "title": "UI Layer — React Frontend SPA",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": [],
+      "phase": 3,
+      "notes": "Static review done. 4 MAJOR bugs in fix round. QA live testing blocked pending fixes."
+    },
+    {
+      "id": "PHASE-4",
+      "type": "phase",
+      "title": "QA & Documentation",
+      "status": "blocked",
+      "owner": "qa",
+      "priority": "P0",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "QA static review done; sign-off withheld. Live testing blocked on BUG-03/04/05 fixes. Docs blocked on stable features."
+    },
+    {
+      "id": "PHASE-5",
+      "type": "phase",
+      "title": "Integrations — Notification Engine",
+      "status": "pending",
+      "owner": "integrations",
+      "priority": "P2",
+      "brdRefs": ["N-01","N-02","N-03","N-04"],
+      "phase": 5,
+      "notes": "Post-MVP. Not on critical path."
+    },
+
+    // ─── BRD CORE FEATURE GROUPS ─────────────────────────────────────────────
+    {
+      "id": "FEAT-TR",
+      "type": "feature",
+      "title": "Trip Management",
+      "status": "blocked",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["TR-01","TR-02","TR-03","TR-04","TR-05","TR-06","TR-07","TR-08","TR-09","TR-10"],
+      "phase": 3,
+      "notes": "Backend: done. Frontend: implemented. BUG-04 blocks TR-06/07 (status transitions). Needs QA live test."
+    },
+    {
+      "id": "FEAT-GE",
+      "type": "feature",
+      "title": "Geographic Hierarchy",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["GE-01","GE-02","GE-03","GE-04","GE-05","GE-06","GE-07","GE-08","GE-09","GE-10","GE-11","GE-12","GE-13"],
+      "phase": 3,
+      "notes": "GE-01–11 implemented. GE-12/13 (offline geocoding queue) depends on NR-06 implementation."
+    },
+    {
+      "id": "FEAT-MP",
+      "type": "feature",
+      "title": "Map View",
+      "status": "blocked",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["MP-01","MP-02","MP-03","MP-04","MP-05","MP-06"],
+      "phase": 3,
+      "notes": "MP-01 (country shading) needs live test. MP-02 (region shading) blocked by BUG-02. MP-03–06 needs live test."
+    },
+    {
+      "id": "FEAT-IT",
+      "type": "feature",
+      "title": "Item Logging",
+      "status": "blocked",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["IT-01","IT-02","IT-03","IT-04","IT-05","IT-06","IT-07","IT-08","IT-09"],
+      "phase": 3,
+      "notes": "IT-01–06 implemented. IT-07 (carry-forward) blocked by BUG-03. IT-08/09 (rating sort) needs live test."
+    },
+    {
+      "id": "FEAT-FL",
+      "type": "feature",
+      "title": "Flights",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["FL-01","FL-02","FL-03"],
+      "phase": 3,
+      "notes": "Backend and frontend implemented. Awaiting QA live test."
+    },
+    {
+      "id": "FEAT-HT",
+      "type": "feature",
+      "title": "Hotels",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["HT-01","HT-02","HT-03","HT-04"],
+      "phase": 3,
+      "notes": "Backend and frontend implemented. Awaiting QA live test."
+    },
+    {
+      "id": "FEAT-CR",
+      "type": "feature",
+      "title": "Car Rentals",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["CR-01","CR-02"],
+      "phase": 3,
+      "notes": "Backend and frontend implemented. Awaiting QA live test."
+    },
+    {
+      "id": "FEAT-RS",
+      "type": "feature",
+      "title": "Restaurants",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["RS-01","RS-02","RS-03"],
+      "phase": 3,
+      "notes": "Backend and frontend implemented. Awaiting QA live test."
+    },
+    {
+      "id": "FEAT-EX",
+      "type": "feature",
+      "title": "Experiences",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["EX-01"],
+      "phase": 3,
+      "notes": "Backend and frontend implemented. Awaiting QA live test."
+    },
+    {
+      "id": "FEAT-PH",
+      "type": "feature",
+      "title": "Photos",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["PH-01","PH-02"],
+      "phase": 3,
+      "notes": "Photo album reference field implemented. Awaiting QA live test."
+    },
+    {
+      "id": "FEAT-RV",
+      "type": "feature",
+      "title": "Post-Trip Review",
+      "status": "blocked",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["RV-01","RV-02","RV-03","RV-04"],
+      "phase": 3,
+      "notes": "RV-04 (lock trip) partially affected by BUG-04 (no return-to-planning path). BUG-05 affects bulk status update."
+    },
+    {
+      "id": "FEAT-AD",
+      "type": "feature",
+      "title": "Admin & Settings Panel",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["AD-01","AD-02","AD-03","AD-04","AD-05","AD-06"],
+      "phase": 3,
+      "notes": "All 5 tabs implemented. Awaiting QA live test."
+    },
+    {
+      "id": "FEAT-NF",
+      "type": "feature",
+      "title": "Non-Functional Requirements",
+      "status": "in_progress",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": ["NF-01","NF-02","NF-03","NF-04","NF-05","NF-06","NF-07","NF-08"],
+      "phase": 3,
+      "notes": "NF-01–03 met. NF-04 (OneDrive) documented via NR-08. NF-05–08 (future migration paths) preserved by architecture. NR-06 (offline retry) in progress."
+    },
+
+    // ─── BUGS ────────────────────────────────────────────────────────────────
+    {
+      "id": "BUG-01",
+      "type": "bug",
+      "title": "City pins never render — TripSummary missing places data",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P0",
+      "brdRefs": ["GE-11","MP-02"],
+      "phase": 3,
+      "notes": "Resolution: BC-01 — add minimal city data to TripSummary response. Backend correction round 2 dispatched. Frontend fix (city pins) blocked until BC-01 complete."
+    },
+    {
+      "id": "BUG-02",
+      "type": "bug",
+      "title": "Region shading broken — DB region_id ≠ ISO 3166-2 codes",
+      "status": "in_progress",
+      "owner": "architect",
+      "priority": "P0",
+      "brdRefs": ["MP-02","GE-02"],
+      "phase": 3,
+      "notes": "Resolution: Option A — add iso_3166_2 column to regions table. Architect direction dispatched. Cascade to Database + Backend + Frontend. Single migration with NR-01/02 seams."
+    },
+    {
+      "id": "BUG-03",
+      "type": "bug",
+      "title": "Carry-forward modal race condition — modal never shown",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["IT-07"],
+      "phase": 3,
+      "notes": "Fix: check isFetched/isLoading before acting on empty candidates list in AddPlaceFlow. Frontend-only fix."
+    },
+    {
+      "id": "BUG-04",
+      "type": "bug",
+      "title": "No UI path to revert review_pending → planning",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["TR-06","TR-07","RV-01","NR-05"],
+      "phase": 3,
+      "notes": "Fix: add Return to Planning button + confirm dialog to ReviewPanel. Frontend-only fix. Also closes NR-05."
+    },
+    {
+      "id": "BUG-05",
+      "type": "bug",
+      "title": "Mark all Completed incorrectly includes next_time items",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["IT-03","RV-02"],
+      "phase": 3,
+      "notes": "Fix: remove 'next_time' from NON_CANCELLED array in handleMarkAllCompleted. One-line fix."
+    },
+    {
+      "id": "BUG-06",
+      "type": "bug",
+      "title": "ShadingTab colour picker uses uncontrolled defaultValue",
+      "status": "deferred",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": ["MP-04"],
+      "phase": 3,
+      "notes": "Trivial cosmetic issue. Picker doesn't re-sync on re-render; swatch updates correctly. Safe to defer post-beta."
+    },
+    {
+      "id": "BUG-07",
+      "type": "bug",
+      "title": "Backend — 207 TypeScript errors, no type:check:backend script",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "108x TS2349 (Drizzle union type), 39x TS2554, 27x TS2345, 22x TS7006. Resolved by BC-02/03/04. No runtime impact but blocks type safety going forward."
+    },
+    {
+      "id": "BUG-08",
+      "type": "bug",
+      "title": "Dead coalesce import from drizzle-orm (doesn't exist in v0.38.3)",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Never called in file body; no runtime crash. Remove import. Resolved by BC-05."
+    },
+    {
+      "id": "BUG-09",
+      "type": "bug",
+      "title": "Main tsconfig.json rootDir defect — prevents backend type-check",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "drizzle.config.ts is outside rootDir. Blocks tsc from reaching backend source. Resolved by BC-04."
+    },
+    {
+      "id": "FLAG-F1",
+      "type": "bug",
+      "title": "API reference uses wrong item status terms (booked/skipped)",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["IT-03"],
+      "phase": 2,
+      "notes": "API reference doc says 'booked' and 'skipped'. Correct terms are 'confirmed' and 'cancelled' (matches Zod schema + DB). Resolved by BC-06. Doc change only."
+    },
+    {
+      "id": "ENV",
+      "type": "bug",
+      "title": "esbuild platform mismatch — live testing blocked in devcontainer",
+      "status": "in_progress",
+      "owner": "qa",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "node_modules installed on macOS; devcontainer runs Linux. Fix: run npm ci inside container. COO issued fix to QA. devcontainer.json should add npm ci as post-create command."
+    },
+
+    // ─── BACKEND CORRECTIONS ROUND 2 ─────────────────────────────────────────
+    {
+      "id": "BC-01",
+      "type": "task",
+      "title": "Add minimal places data to TripSummary response",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P0",
+      "brdRefs": ["GE-11"],
+      "phase": 2,
+      "notes": "Unblocks BUG-01 (city pins). Frontend awaiting this before implementing city pin fix."
+    },
+    {
+      "id": "BC-02",
+      "type": "task",
+      "title": "Add tsconfig.backend.json",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Resolves BUG-07/09. Backend-specific TypeScript config to isolate type-checking."
+    },
+    {
+      "id": "BC-03",
+      "type": "task",
+      "title": "Add type:check:backend npm script",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Resolves BUG-07. Enables CI to catch backend type errors going forward."
+    },
+    {
+      "id": "BC-04",
+      "type": "task",
+      "title": "Fix main tsconfig.json rootDir defect",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Resolves BUG-09. drizzle.config.ts placement outside rootDir causing tsc failure."
+    },
+    {
+      "id": "BC-05",
+      "type": "task",
+      "title": "Remove dead coalesce import from drizzle-orm",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Resolves BUG-08. Dead import; no runtime impact."
+    },
+    {
+      "id": "BC-06",
+      "type": "task",
+      "title": "Fix API reference doc — confirmed/cancelled not booked/skipped",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["IT-03"],
+      "phase": 2,
+      "notes": "Resolves FLAG-F1. Documentation fix only."
+    },
+    {
+      "id": "BC-07",
+      "type": "task",
+      "title": "Update API reference for new TripSummary shape",
+      "status": "in_progress",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Reflects BC-01 change to TripSummary response schema."
+    },
+
+    // ─── NR REQUIREMENTS (Delta BRD) ─────────────────────────────────────────
+    {
+      "id": "NR-01",
+      "type": "requirement",
+      "title": "Future tenancy seam — subscription_id in schema",
+      "status": "in_progress",
+      "owner": "database",
+      "priority": "P1",
+      "brdRefs": ["NF-07"],
+      "phase": 1,
+      "notes": "Architect addendum dispatched 2026-03-08 18:00. To be included in BUG-02 migration. Dormant nullable column — no application logic changes."
+    },
+    {
+      "id": "NR-02",
+      "type": "requirement",
+      "title": "Future identity seam — owner_account_id in schema",
+      "status": "in_progress",
+      "owner": "database",
+      "priority": "P1",
+      "brdRefs": ["NF-07"],
+      "phase": 1,
+      "notes": "Architect addendum dispatched 2026-03-08 18:00. To be included in BUG-02 migration alongside NR-01."
+    },
+    {
+      "id": "NR-03",
+      "type": "requirement",
+      "title": "Trip ownership metadata — created_by/updated_by (lightweight)",
+      "status": "pending",
+      "owner": "database",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "Accepted lightweight only (2 nullable columns max). If it requires auth scaffolding, defer to Phase 2. Not yet specced."
+    },
+    {
+      "id": "NR-04",
+      "type": "requirement",
+      "title": "Carry-forward provenance — is_carried_forward, carried_from_item_id",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["IT-07"],
+      "phase": 2,
+      "notes": "Backend sets is_carried_forward and carried_from_item_id in executeCarryForward(). Confirmed substantially met. Closed."
+    },
+    {
+      "id": "NR-05",
+      "type": "requirement",
+      "title": "Soft trip lock semantics — deliberate unlock action required",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["TR-07","RV-04"],
+      "phase": 3,
+      "notes": "Covered by BUG-04 fix (Return to Planning button). Will be closed when BUG-04 is resolved."
+    },
+    {
+      "id": "NR-06",
+      "type": "requirement",
+      "title": "Offline retry policy — progressive backoff, indefinite, manual cancel",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["GE-12","GE-13"],
+      "phase": 3,
+      "notes": "Spec dispatched to Frontend 2026-03-08 18:00. 8 ACs defined. Implement after BUG-03/04/05."
+    },
+    {
+      "id": "NR-07",
+      "type": "requirement",
+      "title": "App offline indicator — lightweight status affordance",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["GE-12"],
+      "phase": 3,
+      "notes": "Accepted Phase 1 but may slip under scope pressure. Single status affordance only. Covered within NR-06 spec (offline indicator section)."
+    },
+    {
+      "id": "NR-08",
+      "type": "requirement",
+      "title": "SQLite + OneDrive operating constraint in README before beta",
+      "status": "pending",
+      "owner": "docs",
+      "priority": "P1",
+      "brdRefs": ["NF-04"],
+      "phase": 4,
+      "notes": "Single-device active; OneDrive for backup/export only. Must be in README before beta. Assign to DOCS when unblocked."
+    },
+    {
+      "id": "NR-09",
+      "type": "requirement",
+      "title": "Subscription admin boundary — separate from trip-level permissions",
+      "status": "deferred",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": ["NF-07"],
+      "phase": 2,
+      "notes": "Phase 2 requirement. No Phase 1 implementation. Architecture preserves seam."
+    },
+    {
+      "id": "NR-10",
+      "type": "requirement",
+      "title": "Delegated trip management — trip-scoped permissions",
+      "status": "deferred",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": ["NF-07"],
+      "phase": 2,
+      "notes": "Phase 2 requirement. No Phase 1 implementation."
+    },
+    {
+      "id": "NR-11",
+      "type": "requirement",
+      "title": "Global reference data protection",
+      "status": "deferred",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Phase 2 requirement. Additive changes safe; destructive changes tightly controlled."
+    },
+    {
+      "id": "NR-12",
+      "type": "requirement",
+      "title": "Archive instead of hard delete for structured lists",
+      "status": "deferred",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": ["AD-06"],
+      "phase": 2,
+      "notes": "Phase 2 requirement. Current Phase 1 uses deactivate/is_active which is aligned."
+    },
+    {
+      "id": "NR-13",
+      "type": "requirement",
+      "title": "Global settings risk control — owner/admin only for destructive changes",
+      "status": "deferred",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 2,
+      "notes": "Phase 2 requirement. No Phase 1 implementation."
+    },
+    {
+      "id": "NR-14",
+      "type": "requirement",
+      "title": "Pre-shared-access hardening gate — formal go/no-go before non-owner access",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": ["NF-07"],
+      "phase": 1,
+      "notes": "Phase 1.5 gate. Must be completed before access expands beyond owner. Checklist: auth, authorization, storage model, secrets, operational controls. Not yet specced."
+    },
+    {
+      "id": "NR-15",
+      "type": "requirement",
+      "title": "Speed without rebuild principle — no shortcuts that double Phase 2 rework",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "Adopted as standing design review criterion 2026-03-08. Applied retroactively as review lens."
+    },
+
+    // ─── OP REQUIREMENTS (Governance) ────────────────────────────────────────
+    {
+      "id": "OP-01",
+      "type": "requirement",
+      "title": "Bring QA forward — start before frontend completion",
+      "status": "done",
+      "owner": "qa",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "In effect immediately 2026-03-08. QA began static review while frontend was completing."
+    },
+    {
+      "id": "OP-02",
+      "type": "requirement",
+      "title": "Contract-based test design from API contract",
+      "status": "done",
+      "owner": "qa",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "In effect immediately 2026-03-08. QA test plan built from API reference."
+    },
+    {
+      "id": "OP-03",
+      "type": "requirement",
+      "title": "Shared regression pack — carry-forward, lock/unlock, city creation",
+      "status": "done",
+      "owner": "qa",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "In effect immediately 2026-03-08. QA test plan includes regression scenarios."
+    },
+    {
+      "id": "OP-04",
+      "type": "requirement",
+      "title": "Definition of done uplift — scenario validation required for business-critical flows",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "In effect immediately 2026-03-08."
+    },
+    {
+      "id": "OP-05",
+      "type": "requirement",
+      "title": "Backend hotspot sign-off — carry-forward, city patching, write protection",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "In effect immediately 2026-03-08. Applied to backend correction C1-C3 sign-off."
+    },
+    {
+      "id": "OP-06",
+      "type": "requirement",
+      "title": "Pre-access hardening checklist — tied to NR-14",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "Single checklist. Not yet written. Required before Phase 1.5 gate."
+    }
+
+  ]
+}
