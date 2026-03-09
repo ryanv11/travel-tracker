@@ -1,7 +1,7 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.1
-**Date:** 2026-03-08 (updated: C1 carry-forward execution, C2 city PATCH)
+**Version:** 1.2
+**Date:** 2026-03-09 (updated: C3 TripSummary places field, item status confirmed/cancelled correction)
 **Base URL:** `http://localhost:3001`
 **Author:** BACKEND
 
@@ -93,9 +93,9 @@ Items attached to trip places have one of these types. Each has type-specific fi
 | `status` | Meaning |
 |---------|---------|
 | `"consider"` | On the shortlist, not yet decided |
-| `"booked"` | Confirmed/booked |
+| `"confirmed"` | Confirmed/booked |
 | `"completed"` | Done — visited/used |
-| `"skipped"` | Decided not to do |
+| `"cancelled"` | Decided not to do |
 | `"next_time"` | Flagged for a future trip to this city |
 
 ### Trip Status Values
@@ -147,10 +147,27 @@ List all trips with their associations.
     "updated_at": "2026-03-07T14:30:00.000Z",
     "categories": [{ "id": 4, "name": "City Break" }],
     "companions": [{ "id": 2, "name": "Partner" }],
-    "activities": [{ "id": 3, "name": "Dining" }, { "id": 7, "name": "Sightseeing" }]
+    "activities": [{ "id": 3, "name": "Dining" }, { "id": 7, "name": "Sightseeing" }],
+    "places": [
+      {
+        "id": 1,
+        "city_id": 1,
+        "city": {
+          "id": 1,
+          "name": "Paris",
+          "country_code": "FR",
+          "region_id": null,
+          "latitude": 48.8566,
+          "longitude": 2.3522,
+          "geocode_status": "resolved"
+        }
+      }
+    ]
   }
 ]
 ```
+
+> **Note on `places` in list response:** The list endpoint includes a minimal `places` array (city coordinates only — no `activities` or `items`) to support map city-pin rendering without requiring a full trip detail fetch.
 
 Returns an empty array `[]` if no trips match.
 
@@ -191,7 +208,7 @@ Create a new trip.
 
 **Response: `201 Created`**
 
-Same shape as a single item from `GET /api/trips`, with all associations included.
+Same shape as a single item from `GET /api/trips`, with all associations and `places` included. On creation, `places` will be `[]`.
 
 ```json
 {
@@ -205,7 +222,8 @@ Same shape as a single item from `GET /api/trips`, with all associations include
   "updated_at": "2026-03-07T14:30:00.000Z",
   "categories": [{ "id": 4, "name": "City Break" }],
   "companions": [{ "id": 2, "name": "Partner" }],
-  "activities": [{ "id": 3, "name": "Dining" }, { "id": 7, "name": "Sightseeing" }]
+  "activities": [{ "id": 3, "name": "Dining" }, { "id": 7, "name": "Sightseeing" }],
+  "places": []
 }
 ```
 
@@ -304,7 +322,7 @@ Update an existing trip (partial update). Cannot update a locked trip.
 
 > **Note on associations:** When `category_ids`, `companion_ids`, or `activity_ids` are provided, they **replace** the entire existing association set (delete + reinsert). To remove all categories, send `"category_ids": []`.
 
-**Response: `200 OK`** — updated trip in same shape as `GET /api/trips`
+**Response: `200 OK`** — updated trip in same shape as `GET /api/trips` (includes `places`)
 
 **Errors:**
 - `400` — validation failure
@@ -1410,4 +1428,4 @@ Natural Earth admin-1 states/provinces GeoJSON (~40 MB). Feature `properties.iso
 
 ---
 
-*API Reference v1.1 — Travel Tracker BACKEND — 2026-03-08 (C1: POST carry-forward execution; C2: PATCH /api/cities/:id)*
+*API Reference v1.2 — Travel Tracker BACKEND — 2026-03-09 (C3: TripSummary places field; item status confirmed/cancelled correction)*

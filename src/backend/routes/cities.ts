@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { eq, and, like, inArray, coalesce, desc, sql } from 'drizzle-orm';
+import { eq, and, like, inArray, desc, sql } from 'drizzle-orm';
 import {
   getDb,
   cities,

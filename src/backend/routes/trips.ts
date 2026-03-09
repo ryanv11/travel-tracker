@@ -128,9 +128,41 @@ async function getTripAssociations(tripId: number) {
   return { categories: cats, companions: comps, activities: acts };
 }
 
-/** Build the standard trip response shape (list item — no places) */
+/** Build the standard trip response shape (list item — minimal places for city pins) */
 async function buildTripResponse(trip: typeof trips.$inferSelect) {
-  const assoc = await getTripAssociations(trip.id);
+  const db = getDb();
+  const [assoc, placesRows] = await Promise.all([
+    getTripAssociations(trip.id),
+    db
+      .select({
+        id: tripPlaces.id,
+        cityId: tripPlaces.cityId,
+        cityName: cities.name,
+        cityCountryCode: cities.countryCode,
+        cityRegionId: cities.regionId,
+        cityLatitude: cities.latitude,
+        cityLongitude: cities.longitude,
+        cityGeocodeStatus: cities.geocodeStatus,
+      })
+      .from(tripPlaces)
+      .leftJoin(cities, eq(cities.id, tripPlaces.cityId))
+      .where(eq(tripPlaces.tripId, trip.id)),
+  ]);
+
+  const places = placesRows.map((p) => ({
+    id: p.id,
+    city_id: p.cityId,
+    city: {
+      id: p.cityId,
+      name: p.cityName,
+      country_code: p.cityCountryCode,
+      region_id: p.cityRegionId,
+      latitude: p.cityLatitude,
+      longitude: p.cityLongitude,
+      geocode_status: p.cityGeocodeStatus,
+    },
+  }));
+
   return {
     id: trip.id,
     name: trip.name,
@@ -141,6 +173,7 @@ async function buildTripResponse(trip: typeof trips.$inferSelect) {
     created_at: trip.createdAt,
     updated_at: trip.updatedAt,
     ...assoc,
+    places,
   };
 }
 

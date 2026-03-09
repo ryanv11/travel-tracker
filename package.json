@@ -10,6 +10,7 @@
     "start": "tsx src/backend/server.ts",
     "build": "vite build",
     "type:check": "tsc -p tsconfig.frontend.json --noEmit",
+    "type:check:backend": "tsc -p tsconfig.backend.json --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/backend/db/seed.ts",
