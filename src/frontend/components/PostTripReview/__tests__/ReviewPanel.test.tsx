@@ -70,11 +70,11 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     item_type: 'restaurant',
     status: 'consider',
     notes: null,
-    restaurant_name: 'Test Restaurant',
+    name: 'Test Restaurant',
     neighbourhood_area: null,
     cuisine_type: null,
     source: null,
-    hotel_property_name: null,
+    property_name: null,
     address: null,
     check_in_date: null,
     check_out_date: null,
@@ -106,14 +106,16 @@ function makeItem(overrides: Partial<Item> = {}): Item {
 function makePlace(items: Item[], overrides: Partial<TripPlace> = {}): TripPlace {
   return {
     id: 1,
-    trip_id: 10,
     city_id: 5,
+    activities: [],
     city: {
       id: 5,
       name: 'Tokyo',
       country_code: 'JP',
       region_id: null,
-      created_at: '2024-01-01T00:00:00Z',
+      latitude: null,
+      longitude: null,
+      geocode_status: 'pending' as const,
     },
     items,
     created_at: '2024-01-01T00:00:00Z',
@@ -245,7 +247,7 @@ describe('ReviewPanel', () => {
 
     // Verify next_time item (301) was NOT patched
     const patchedIds = mockUpdateMutateAsync.mock.calls.map(
-      (call: [{ itemId: number }]) => call[0].itemId,
+      (call) => (call[0] as { itemId: number }).itemId,
     );
     expect(patchedIds).not.toContain(301);
   });
@@ -264,7 +266,7 @@ describe('ReviewPanel', () => {
     });
 
     const patchedIds = mockUpdateMutateAsync.mock.calls.map(
-      (call: [{ itemId: number }]) => call[0].itemId,
+      (call) => (call[0] as { itemId: number }).itemId,
     );
     expect(patchedIds).toContain(401);
     expect(patchedIds).toContain(402);

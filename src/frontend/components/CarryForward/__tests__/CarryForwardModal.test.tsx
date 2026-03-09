@@ -48,6 +48,7 @@ vi.mock('../../../hooks/usePlaces.js', () => ({
 const candidate1: CarryForwardCandidate = {
   id: 101,
   item_type: 'restaurant',
+  status: 'next_time',
   restaurant_name: 'Sukiyabashi Jiro',
   hotel_property_name: null,
   notes: null,
@@ -58,6 +59,7 @@ const candidate1: CarryForwardCandidate = {
 const candidate2: CarryForwardCandidate = {
   id: 102,
   item_type: 'experience',
+  status: 'next_time',
   restaurant_name: null,
   hotel_property_name: null,
   notes: 'Tokyo DisneySea — book early',
