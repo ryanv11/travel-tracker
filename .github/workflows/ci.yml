@@ -53,9 +53,16 @@ jobs:
           node-version: "20"
           cache: "npm"
       - run: npm ci
+      - name: Initialise database schema
+        run: npm run db:push
+        env:
+          DB_TYPE: sqlite
+          SQLITE_PATH: file:./dev.db
       - name: Start backend server
         run: npm run start &
         env:
+          DB_TYPE: sqlite
+          SQLITE_PATH: file:./dev.db
           PORT: 3001
       - name: Wait for backend to be ready
         run: |
