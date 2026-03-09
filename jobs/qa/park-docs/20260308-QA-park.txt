@@ -1,0 +1,135 @@
+QA PARK DOCUMENT — 2026-03-08
+PROJECT: Travel Tracker
+THREAD: Frontend Phase 1 — Static Code Review
+
+---
+
+WORK COMPLETED THIS THREAD
+
+Completed full static code review of the Frontend Phase 1 React SPA
+(commits b888041, 1989e23). Also reviewed backend source for TypeScript
+quality issues raised by user observation.
+
+No live testing was performed — environment blocked by esbuild platform
+mismatch (see below) and 4 MAJOR code bugs that must be fixed first.
+
+---
+
+FILES REVIEWED
+
+Frontend:
+  src/frontend/types/api.ts
+  src/frontend/utils/urlSanitiser.ts
+  src/frontend/hooks/useCities.ts, usePlaces.ts, useMapShading.ts,
+    useTrips.ts, useAdmin.ts, useItems.ts
+  src/frontend/pages/MapPage.tsx, TripDetailPage.tsx, TripsPage.tsx
+  src/frontend/components/Map/MapView.tsx, CountryLayer.tsx,
+    RegionLayer.tsx, CityMarkers.tsx
+  src/frontend/components/TripList/TripCard.tsx, TripList.tsx
+  src/frontend/components/TripDetail/TripDetail.tsx, AddPlaceFlow.tsx,
+    ItemForm.tsx, PlaceSection.tsx
+  src/frontend/components/CarryForward/CarryForwardModal.tsx
+  src/frontend/components/PostTripReview/ReviewPanel.tsx, ReviewItemRow.tsx
+  src/frontend/components/Admin/CountryTab.tsx, ShadingTab.tsx
+  src/frontend/App.tsx
+
+Backend (for TypeScript quality review):
+  src/backend/db/index.ts, schema.ts
+  src/backend/validation/common.ts, items.schemas.ts, trips.schemas.ts
+  src/backend/routes/cities.ts, admin.ts, trips.ts, items.ts, places.ts
+  src/backend/services/shading.service.ts, items.service.ts
+  tsconfig.json, tsconfig.frontend.json
+
+Project reference:
+  _project/travel-tracker-BRD.md, security-spec.md, objective.txt
+  _shared/frameworks.txt
+  jobs/architect/tech/20260307-tech-blueprint.md
+  jobs/backend/tech/20260307-api-reference.md
+
+---
+
+BUGS FOUND
+
+| ID | Severity | Summary | Status |
+|----|----------|---------|--------|
+| BUG-01 | MAJOR | City markers never appear (TripSummary has no places) | Reported to Frontend, Backend, COO |
+| BUG-02 | MAJOR | Region shading broken (DB integer IDs ≠ ISO 3166-2 codes) | Reported to Frontend, Architect, COO |
+| BUG-03 | MAJOR | Carry-forward modal never shown (race condition in AddPlaceFlow) | Reported to Frontend, COO |
+| BUG-04 | MAJOR | No UI path to revert review_pending → planning | Reported to Frontend, COO |
+| BUG-05 | MINOR | Mark all Completed includes next_time items | Reported to Frontend |
+| BUG-06 | TRIVIAL | ShadingTab colour picker uses uncontrolled defaultValue | Reported to Frontend |
+| BUG-07 | MAJOR | Backend: 207 TypeScript errors, no type-check script | Reported to Backend, COO |
+| BUG-08 | TRIVIAL | Dead coalesce import in cities.ts (not in drizzle-orm v0.38.3) | Reported to Backend |
+| BUG-09 | MINOR | Main tsconfig.json: drizzle.config.ts outside rootDir breaks tsc --noEmit | Reported to Backend |
+| FLAG-F1 | DOC | API reference lists booked/skipped; code correctly uses confirmed/cancelled | Reported to Backend |
+
+---
+
+AC STATUS AFTER STATIC REVIEW
+
+PASS (code verified): SEC-12 (URL sanitisation in TripCard)
+FAIL: AC-05 (BUG-01), AC-12 (BUG-03)
+PARTIAL FAIL: AC-04 (BUG-02), AC-08 (BUG-04), AC-13 (BUG-04, BUG-05)
+NEEDS LIVE TEST: AC-01, AC-02, AC-03, AC-06, AC-07, AC-09, AC-10, AC-11,
+                 AC-14, AC-15, AC-16, AC-17, AC-18
+
+---
+
+QA SIGN-OFF STATUS: NOT SIGNED OFF
+
+Cannot sign off on Frontend Phase 1. Minimum blockers for re-submission:
+1. BUG-03 fixed (carry-forward race condition) — Frontend-only, quick fix
+2. BUG-04 fixed (Return to Planning button in ReviewPanel) — Frontend-only
+3. BUG-05 fixed (next_time excluded from bulk complete) — one-line change
+4. BUG-01 design decision and fix (city pins) — needs COO direction
+5. BUG-02 design decision and fix (region IDs) — needs Architect + Database
+
+---
+
+OUTBOX MESSAGES SENT THIS THREAD
+
+jobs/COO/inbox/20260308_1600-QA-frontend-phase1-review-complete.txt
+jobs/COO/inbox/20260308_1630-QA-additional-findings-typescript.txt
+jobs/frontend/inbox/20260308_1600-QA-bug-reports-phase1.txt
+jobs/architect/inbox/20260308_1600-QA-region-shading-id-mismatch.txt
+jobs/backend/inbox/20260308_1600-QA-bug-reports-phase1.txt
+jobs/backend/inbox/20260308_1630-QA-typescript-errors-and-coalesce.txt
+
+---
+
+DELIVERABLES WRITTEN
+
+jobs/qa/tech/20260308-test-plan-frontend-phase1.md
+jobs/qa/tech/20260308-bug-report-frontend-phase1.md
+jobs/qa/park-docs/20260308-QA-park.txt (this file)
+
+---
+
+ENVIRONMENT BLOCKER
+
+node_modules were installed on macOS (darwin-arm64). Devcontainer is
+Linux (arm64). @esbuild/linux-arm64 is missing. tsx and vite commands
+fail with platform error. Live testing requires `npm ci` to be run
+inside the container.
+
+---
+
+NEXT STEPS (when bugs are fixed)
+
+1. Re-review the fixed commits (BUG-03, BUG-04, BUG-05 at minimum)
+2. Ensure live environment is set up (npm ci, .env.local with MAPTILER_KEY)
+3. Execute the full live test plan (all NEEDS LIVE TEST ACs)
+4. Verify BUG-01 and BUG-02 fixes in live testing
+5. Sign off or issue further defects
+
+---
+
+OPEN QUESTIONS REQUIRING COO DIRECTION
+
+Q1: How to resolve BUG-01 (city pins)? Three options described in bug report.
+Q2: Architect to confirm BUG-02 fix approach (iso_3166_2 column in regions).
+Q3: Should backend TypeScript errors (BUG-07) be addressed this sprint?
+Q4: devcontainer.json should add post-create `npm ci` — COO to direct.
+
+QA Engineer
+2026-03-08

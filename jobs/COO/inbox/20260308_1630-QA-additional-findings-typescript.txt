@@ -1,0 +1,82 @@
+FROM: QA
+TO: COO
+DATE: 2026-03-08 16:30
+RE: Additional findings — Backend has 207 TypeScript errors; live testing blocked by environment
+
+---
+
+Supplementary to my earlier report (20260308_1600-QA-frontend-phase1-review-complete.txt).
+
+---
+
+FINDING 1 — MAJOR: Backend TypeScript: 207 errors, no type-check script
+
+The backend has never been properly type-checked. `npm run type:check` only
+covers the frontend (`tsconfig.frontend.json`). The main `tsconfig.json`
+fails on the first line due to a config defect (drizzle.config.ts is outside
+rootDir), preventing tsc from reaching the backend source.
+
+When the config defect is bypassed, 207 backend TypeScript errors are found:
+- 108 x TS2349: Drizzle ORM union type (db.select/insert/update not callable)
+- 39 x TS2554: Drizzle argument count mismatch
+- 27 x TS2345: Express v5 params typed as string|string[] vs string
+- 22 x TS7006: Implicit any in callbacks
+- 1 x TS2305: coalesce imported from drizzle-orm — doesn't exist in v0.38.3
+
+The dominant error class (TS2349/2554) is a known Drizzle pattern when
+using a SQLite/Postgres union type for the db connection. These errors do
+not affect runtime behaviour with tsx, but mean the TypeScript compiler
+cannot catch real bugs in backend code going forward.
+
+The coalesce import (TS2305) is a dead import — never called in the file
+body — so no runtime crash, but it should be cleaned up.
+
+The frontend's TS2835 "file extension" errors are NOT real bugs. They only
+appear when frontend files are mistakenly checked with the backend's
+tsconfig. The frontend's own type-check (`tsconfig.frontend.json`) passes
+with 0 errors as claimed. No frontend code changes needed.
+
+RECOMMENDATION: Backend needs a `tsconfig.backend.json` and a
+`type:check:backend` script. The rootDir issue in the main tsconfig needs
+fixing. COO to decide whether BACKEND addresses this in the current sprint
+or a separate ticket.
+
+---
+
+FINDING 2 — ENVIRONMENT: npm run dev:api and npm run dev cannot run in devcontainer
+
+The node_modules were installed on macOS. The devcontainer runs Linux.
+The @esbuild/linux-arm64 package is absent. All tsx and vite commands fail
+with a platform error:
+  "You installed esbuild for another platform than the one you're currently using"
+
+Impact: QA cannot perform live testing in this environment until `npm ci`
+is run inside the container to reinstall the correct platform packages.
+
+This is a devcontainer setup issue — no code is broken. The CLAUDE.md or
+devcontainer.json should include `npm ci` as a post-create command.
+
+QA will proceed to live testing once either:
+(a) `npm ci` is run in the devcontainer, or
+(b) Testing is done on macOS where the node_modules are correct
+
+---
+
+REVISED COMPLETE BUG LIST
+
+| ID | Severity | Summary |
+|----|----------|---------|
+| BUG-01 | MAJOR | City pins never appear — TripSummary has no places |
+| BUG-02 | MAJOR | Region shading broken — DB region_id ≠ ISO 3166-2 codes |
+| BUG-03 | MAJOR | Carry-forward modal never shown — race condition |
+| BUG-04 | MAJOR | No UI path to revert review_pending → planning |
+| BUG-05 | MINOR | Mark all Completed includes next_time items |
+| BUG-06 | TRIVIAL | ShadingTab colour picker uncontrolled |
+| BUG-07 | MAJOR | Backend: 207 TypeScript errors, no type-check script |
+| BUG-08 | TRIVIAL | Dead import of coalesce (doesn't exist in drizzle-orm v0.38.3) |
+| BUG-09 | MINOR | Main tsconfig.json config defect (drizzle.config.ts outside rootDir) |
+| FLAG-F1 | DOC | API reference uses booked/skipped instead of confirmed/cancelled |
+| ENV | — | esbuild platform mismatch blocks live testing in devcontainer |
+
+QA Engineer
+2026-03-08

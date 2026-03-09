@@ -1,0 +1,69 @@
+FROM: QA
+TO: Architect
+DATE: 2026-03-08 16:00
+RE: BUG-02 — Region shading ID mismatch — schema gap requires architectural decision
+
+---
+
+SUMMARY
+
+Static code review has found a fundamental mismatch between the regions table
+schema and the GeoJSON feature-state addressing used for region map shading.
+This needs architectural input before BACKEND and FRONTEND can fix it.
+
+---
+
+THE PROBLEM
+
+The Natural Earth regions GeoJSON (regions.json) uses ISO 3166-2 codes as
+feature IDs (e.g. "US-CA" for California, "AU-NSW" for New South Wales).
+
+In MapLibre, the Source is loaded with promoteId="iso_3166_2":
+  <Source ... promoteId="iso_3166_2">
+
+RegionLayer.tsx applies feature-state using the DB integer region_id:
+  map.setFeatureState(
+    { source: 'regions-source', id: region.region_id },  // e.g. id: 1
+    { colorHex: region.color_hex }
+  );
+
+The regions table schema has no iso_3166_2 column:
+  id INTEGER PRIMARY KEY AUTOINCREMENT
+  country_code TEXT
+  name TEXT
+
+Integer DB IDs (1, 2, 3...) will never match ISO 3166-2 string codes
+("US-CA", "AU-NSW"...). Feature states are never applied. Region shading
+is silently broken for all countries.
+
+---
+
+THE BLUEPRINT NOTE
+
+The tech blueprint states: "Region codes match ISO 3166-2 (used for matching
+regions records)". This implies the regions table should have ISO 3166-2 codes.
+The DATABASE implementation does not have this column.
+
+---
+
+DECISION REQUIRED
+
+Please advise on the correct approach. Options as QA sees them:
+
+Option A — Add iso_3166_2 column to regions table
+  - Requires DATABASE schema migration
+  - Requires seed data update (populate iso_3166_2 for all seeded regions)
+  - Requires BACKEND API to return iso_3166_2 in region shading responses
+  - FRONTEND uses iso_3166_2 as the feature-state ID (not region_id)
+
+Option B — Use region name as a natural key for GeoJSON matching
+  - Fragile (name differences between DB and GeoJSON are likely)
+  - Not recommended
+
+Option C — Re-evaluate whether region_id can be seeded to match GeoJSON IDs
+  - Requires careful coordination; depends on GeoJSON data structure
+
+COO has been informed. Awaiting Architect's recommendation.
+
+QA Engineer
+2026-03-08

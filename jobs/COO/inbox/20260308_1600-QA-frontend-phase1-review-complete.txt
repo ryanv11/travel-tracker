@@ -1,0 +1,126 @@
+FROM: QA
+TO: COO
+DATE: 2026-03-08 16:00
+RE: Frontend Phase 1 — Static Code Review Complete — 4 MAJOR bugs, work cannot proceed to live testing
+
+---
+
+SUMMARY
+
+Static code review of the Frontend Phase 1 React SPA is complete.
+I cannot sign off on Phase 1. Four MAJOR bugs were found that block
+acceptance of core BRD requirements. Live testing has not been started —
+the code issues below must be fixed first.
+
+Full reports: jobs/qa/tech/20260308-bug-report-frontend-phase1.md
+Full test plan: jobs/qa/tech/20260308-test-plan-frontend-phase1.md
+
+---
+
+MAJOR BUGS (4) — BLOCK QA SIGN-OFF
+
+BUG-01: MAJOR — City markers never appear on map (AC-05 complete failure)
+  MapPage passes TripSummary[] (no places data) to CityMarkers. The component
+  uses a type-cast hack that always falls back to empty array. No city pins
+  will ever render. Requires a cross-team solution — options:
+  (a) New GET /api/cities/resolved endpoint (BACKEND), or
+  (b) Modified MapPage to load full trip details, or
+  (c) Include minimal city data in the TripSummary response.
+  Needs COO direction on which approach BACKEND should implement.
+
+BUG-02: MAJOR — Region shading completely broken (MP-02 complete failure)
+  RegionLayer sets feature-state using integer DB region_id values, but
+  the GeoJSON (regions.json) uses ISO 3166-2 string codes (e.g. "US-CA")
+  as feature IDs. These never match. No region will ever be shaded.
+  Root cause: the regions table has no iso_3166_2 column. This is a schema
+  defect — requires DATABASE migration + BACKEND API change + FRONTEND update.
+  Needs Architect review and COO sign-off before work begins.
+
+BUG-03: MAJOR — Carry-forward modal never shown (AC-12, IT-07 complete failure)
+  Race condition in AddPlaceFlow: useEffect fires before the carry-forward
+  candidates API query resolves, calling onClose() with an empty candidates
+  list. Modal is never displayed. IT-07 is completely broken.
+  Fix: check isFetched/isLoading before acting on empty candidates list.
+  FRONTEND-only fix, small change.
+
+BUG-04: MAJOR — No UI path to revert trip from review_pending to planning (AC-08, AC-13)
+  TripDetailPage renders ReviewPanel for review_pending trips. ReviewPanel
+  has no "Return to Planning" button. The valid backend transition
+  review_pending → planning is inaccessible from the UI.
+  Fix: add "Return to Planning" button + confirm dialog to ReviewPanel.
+  FRONTEND-only fix, small change.
+
+---
+
+MINOR BUG (1)
+
+BUG-05: MINOR — "Mark all Completed" incorrectly marks next_time items (AC-13)
+  handleMarkAllCompleted in ReviewPanel includes next_time items in the bulk
+  update. Items flagged as next_time should not be bulk-completed.
+  One-line fix: remove 'next_time' from the NON_CANCELLED array.
+
+---
+
+TRIVIAL BUG (1)
+
+BUG-06: TRIVIAL — ShadingTab colour picker uses uncontrolled defaultValue (AC-17)
+  Cosmetic: picker doesn't re-sync on re-render. Swatch updates correctly.
+  Safe to defer.
+
+---
+
+DOCUMENTATION ERROR
+
+FLAG-F1 RESOLVED: API reference doc uses wrong item status terms.
+  The API reference lists "booked" and "skipped" but the actual backend Zod
+  schema and DB schema use "confirmed" and "cancelled". Frontend, Zod schema,
+  DB schema all agree on confirmed/cancelled. API reference doc needs updating.
+  BACKEND to update their reference doc — no code changes required anywhere.
+
+---
+
+AC STATUS SUMMARY
+
+| AC | Description | Status |
+|----|-------------|--------|
+| AC-01 | App starts on :5173/:3001 | NEEDS LIVE TEST |
+| AC-02 | MapLibre world map renders | NEEDS LIVE TEST |
+| AC-03 | Country shading via feature-state | NEEDS LIVE TEST |
+| AC-04 | Region shading lazy-loads at zoom >= 4 | BLOCKED by BUG-02 |
+| AC-05 | City pins for resolved cities | FAIL — BUG-01 |
+| AC-06 | Trip list, filter bar, TripCards | NEEDS LIVE TEST |
+| AC-07 | New Trip modal | NEEDS LIVE TEST |
+| AC-08 | Edit trip, status transitions, locked banner | PARTIAL FAIL — BUG-04 |
+| AC-09 | City/place sections, Add Place flow | NEEDS LIVE TEST |
+| AC-10 | Item creation — two-step, 6 types | NEEDS LIVE TEST |
+| AC-11 | Hotel duration, rating on completed | NEEDS LIVE TEST |
+| AC-12 | Carry-forward modal | FAIL — BUG-03 |
+| AC-13 | Post-trip review → lock | PARTIAL FAIL — BUG-04, BUG-05 |
+| AC-14 | Admin → Categories | NEEDS LIVE TEST |
+| AC-15 | Admin → Activities | NEEDS LIVE TEST |
+| AC-16 | Admin → Companions | NEEDS LIVE TEST |
+| AC-17 | Admin → Map Shading colour picker | NEEDS LIVE TEST (see BUG-06) |
+| AC-18 | Admin → Countries search + toggle | NEEDS LIVE TEST |
+| SEC-12 | URL sanitisation | PASS (code verified) |
+
+---
+
+RECOMMENDATION
+
+1. Return Frontend Phase 1 to FRONTEND with the bug list. Priority:
+   - BUG-03 and BUG-04 are small FRONTEND-only fixes — quick turnaround.
+   - BUG-01 and BUG-02 require cross-team coordination; COO direction needed.
+   - BUG-05 is a one-line fix.
+
+2. Convene an Architect + Backend + Frontend discussion on BUG-01 (city pins)
+   and BUG-02 (region IDs) — these are architectural gaps that need a design
+   decision before implementation.
+
+3. Once fixes are committed, QA will proceed to live testing against the
+   remaining acceptance criteria.
+
+QA will not sign off on Frontend Phase 1 as complete until all MAJOR bugs are
+resolved and verified in live testing.
+
+QA Engineer
+2026-03-08

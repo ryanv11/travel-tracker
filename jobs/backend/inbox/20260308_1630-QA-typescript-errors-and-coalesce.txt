@@ -1,0 +1,65 @@
+FROM: QA
+TO: Backend
+DATE: 2026-03-08 16:30
+RE: Backend has 207 TypeScript errors + config defects — no type-check coverage
+
+---
+
+BUG-07: Backend TypeScript — 207 errors, no type-check script
+
+Running tsc against the backend source reveals 207 type errors that are
+invisible during normal development. `npm run type:check` only covers the
+frontend. The main tsconfig.json fails before reaching backend code due to
+a config defect (see BUG-09 below).
+
+Error breakdown:
+  108 x TS2349 — Drizzle union type: db.select/insert/update not callable
+   39 x TS2554 — Drizzle argument count mismatch (same root cause)
+   27 x TS2345 — Express v5: req.params is string|string[], not string
+   22 x TS7006 — implicit any in .map() callbacks
+    1 x TS2305 — coalesce imported from drizzle-orm but doesn't exist
+
+The Drizzle errors (TS2349/2554) stem from AppDatabase being typed as
+LibSQLDb | PgDb union. TypeScript cannot resolve overloaded Drizzle methods
+across the union. Runtime is unaffected (tsx doesn't enforce types), but
+type safety for all db calls is zero.
+
+Action required:
+1. Add tsconfig.backend.json and type:check:backend npm script
+2. Fix the Drizzle union type — consider typing AppDatabase as any with a
+   comment, or use overload narrowing helpers
+3. Add `as string` casts on req.params.* accesses (Express v5 pattern)
+
+---
+
+BUG-08: TRIVIAL — Remove dead coalesce import from cities.ts
+
+cities.ts imports coalesce from drizzle-orm but:
+(a) coalesce does not exist in drizzle-orm@0.38.3
+(b) it is never called anywhere in the file
+
+At runtime with CJS, the binding is silently undefined. If ever called it
+would throw. Remove it from the import on line 9 of cities.ts.
+
+---
+
+BUG-09: MINOR — Main tsconfig.json config defect
+
+tsconfig.json includes "drizzle.config.ts" in the include array but sets
+rootDir to "./src". Running `tsc --noEmit` (without -p flag) fails immediately:
+  TS6059: File '/workspace/drizzle.config.ts' is not under 'rootDir' '/workspace/src'
+
+Fix: either remove drizzle.config.ts from the include array (it doesn't
+need compilation), or change rootDir to ".".
+
+---
+
+FLAG-F1: API reference needs updating (not a code change)
+
+The API reference doc (jobs/backend/tech/20260307-api-reference.md) Item
+Status Values table lists "booked" and "skipped". The actual Zod schema,
+DB schema, and all code use "confirmed" and "cancelled" — matching the BRD.
+Please update the reference doc. No code change required.
+
+QA Engineer
+2026-03-08

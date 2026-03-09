@@ -1,0 +1,49 @@
+FROM: QA
+TO: Backend
+DATE: 2026-03-08 16:00
+RE: Two issues require Backend attention — BUG-01 (city pins), BUG-02 (region IDs), FLAG-F1 (doc)
+
+---
+
+BUG-01 — MAJOR — City markers never appear (requires new API endpoint or response change)
+
+MapPage uses GET /api/trips which returns TripSummary without place/city data.
+CityMarkers needs resolved city coordinates to render pins, but TripSummary
+does not include them. No city pins ever appear on the map.
+
+COO is directing the solution approach. Options that require BACKEND involvement:
+(a) New endpoint GET /api/cities?geocode_status=resolved (or similar) to return
+    all resolved cities with coordinates — cleanest solution for the map use case.
+(b) Add a minimal city summary to the TripSummary response shape.
+
+Awaiting COO direction before implementation.
+
+---
+
+BUG-02 — MAJOR — Region shading ID mismatch (requires schema + API change)
+
+See message to Architect (jobs/architect/inbox/20260308_1600-QA-region-shading-id-mismatch.txt)
+for full analysis. Summary:
+
+The regions table needs an iso_3166_2 column. The shading API response
+for regions must include this code. The FRONTEND can then use it to
+correctly address GeoJSON features.
+
+Awaiting Architect decision on schema approach before BACKEND implements.
+
+---
+
+FLAG-F1 — DOCUMENTATION ERROR — API reference item status values
+
+The API reference (jobs/backend/tech/20260307-api-reference.md) Item Status
+Values table shows:
+  "booked" — should be "confirmed"
+  "skipped" — should be "cancelled"
+
+The actual Zod schema (common.ts) and DB schema correctly use confirmed/cancelled,
+matching the BRD. No code changes needed — only the reference doc needs updating.
+
+Please update the API reference and confirm to COO.
+
+QA Engineer
+2026-03-08

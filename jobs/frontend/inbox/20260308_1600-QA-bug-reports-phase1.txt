@@ -1,0 +1,113 @@
+FROM: QA
+TO: Frontend
+DATE: 2026-03-08 16:00
+RE: Frontend Phase 1 — Bug Reports (4 MAJOR, 1 MINOR, 1 TRIVIAL)
+
+---
+
+Full reports in jobs/qa/tech/20260308-bug-report-frontend-phase1.md
+
+The following bugs were found during static code review. BUG-01 and BUG-02
+require cross-team involvement (see separate messages to Architect/Backend).
+BUG-03, BUG-04, and BUG-05 are Frontend-only fixes.
+
+---
+
+BUG-03 — MAJOR — Carry-forward modal never shown (AddPlaceFlow.tsx)
+
+Race condition: the useEffect that shows the CarryForwardModal fires before
+useCarryForwardCandidates query resolves. carryForwardCandidates defaults to []
+before the API call returns, causing onClose() to fire immediately.
+
+Fix: check isFetched (or isSuccess) from useCarryForwardCandidates before
+acting on an empty candidates array:
+
+  const {
+    data: carryForwardCandidates = [],
+    isFetched: candidatesFetched,
+  } = useCarryForwardCandidates(addedCityId ?? undefined);
+
+  useEffect(() => {
+    if (addedPlaceId !== null && addedCityId !== null && !showCarryForward
+        && candidatesFetched) {
+      if (carryForwardCandidates.length > 0) {
+        setShowCarryForward(true);
+      } else {
+        onClose();
+      }
+    }
+  }, [carryForwardCandidates, addedPlaceId, candidatesFetched]);
+
+File: src/frontend/components/TripDetail/AddPlaceFlow.tsx
+Lines: 65-87 (approx)
+
+---
+
+BUG-04 — MAJOR — No UI path to revert trip from review_pending to planning (ReviewPanel.tsx)
+
+TripDetailPage renders ReviewPanel for review_pending trips. ReviewPanel has no
+"Return to Planning" button. The valid backend transition review_pending →
+planning is inaccessible from the frontend.
+
+Fix: add a "Return to Planning" button + confirm dialog to ReviewPanel that
+calls PATCH /api/trips/:id/status with { status: "planning" }.
+
+File: src/frontend/components/PostTripReview/ReviewPanel.tsx
+
+---
+
+BUG-05 — MINOR — "Mark all as Completed" incorrectly marks next_time items (ReviewPanel.tsx)
+
+NON_CANCELLED includes 'next_time', so handleMarkAllCompleted bulk-updates
+next_time items to completed. Only consider and confirmed items should be bulk
+completable.
+
+Fix: change the constant to:
+  const BULK_COMPLETABLE: ItemStatus[] = ['consider', 'confirmed'];
+
+File: src/frontend/components/PostTripReview/ReviewPanel.tsx
+Line: 22
+
+---
+
+BUG-01 — MAJOR — City pins never appear on map (MapPage.tsx + CityMarkers.tsx)
+
+MapPage calls useTrips() which returns TripSummary[] (no places data).
+CityMarkers casts trips to TripDetail but the places array is always empty.
+City markers never render.
+
+This needs a cross-team solution — COO is directing. Requires either a new
+API endpoint or a change to the map data loading strategy.
+
+File: src/frontend/pages/MapPage.tsx, src/frontend/components/Map/CityMarkers.tsx
+
+---
+
+BUG-02 — MAJOR — Region shading ID mismatch (RegionLayer.tsx)
+
+RegionLayer uses integer DB region_id to address GeoJSON features that are
+identified by ISO 3166-2 string codes (e.g. "US-CA"). These never match.
+Region shading never applies.
+
+This requires a DATABASE schema change (add iso_3166_2 column to regions)
+and a BACKEND API change. COO is directing.
+
+File: src/frontend/components/Map/RegionLayer.tsx
+
+---
+
+BUG-06 — TRIVIAL — ShadingTab colour picker uncontrolled (ShadingTab.tsx)
+
+<input type="color"> uses defaultValue instead of value. The swatch updates
+correctly; the picker element doesn't re-sync on re-render. Low priority.
+
+File: src/frontend/components/Admin/ShadingTab.tsx
+Line: 41
+
+---
+
+Please fix BUG-03, BUG-04, and BUG-05 in priority order and notify QA when
+commits are ready for re-review.
+
+QA Engineer
+2026-03-08

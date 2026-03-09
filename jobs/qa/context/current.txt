@@ -1,7 +1,34 @@
-QA CONTEXT — 2026-03-07
+QA CONTEXT — 2026-03-08
 PROJECT: Travel Tracker
-CURRENT STATUS: Not yet started
-ACTIVE TASKS: None
-PENDING MESSAGES TO COO: None
-OPEN ISSUES: None
-LAST PARK DOC: None
+CURRENT STATUS: Frontend Phase 1 static code review complete. QA sign-off withheld.
+
+ACTIVE TASKS:
+- Awaiting Frontend fixes for BUG-03 (carry-forward race condition), BUG-04 (Return to Planning button), BUG-05 (next_time excluded from bulk complete)
+- Awaiting COO direction on BUG-01 (city pins — cross-team design decision)
+- Awaiting Architect decision on BUG-02 (region shading ID mismatch — schema change required)
+- Awaiting Backend fix for BUG-07 (207 TypeScript errors), BUG-08 (dead coalesce import), BUG-09 (tsconfig rootDir defect), FLAG-F1 (API reference doc)
+- Live testing blocked: need `npm ci` in devcontainer + .env.local with MAPTILER_KEY + 4 MAJOR bugs fixed first
+
+OPEN BUGS:
+- BUG-01 MAJOR: City markers never appear (TripSummary has no places) — awaiting COO direction
+- BUG-02 MAJOR: Region shading broken (DB integer IDs ≠ ISO 3166-2 codes) — awaiting Architect
+- BUG-03 MAJOR: Carry-forward modal never shown (race condition in AddPlaceFlow) — Frontend
+- BUG-04 MAJOR: No UI path to revert review_pending → planning — Frontend
+- BUG-05 MINOR: Mark all Completed includes next_time items — Frontend (one-line fix)
+- BUG-06 TRIVIAL: ShadingTab colour picker uses uncontrolled defaultValue — Frontend
+- BUG-07 MAJOR: Backend 207 TypeScript errors, no type-check script — Backend
+- BUG-08 TRIVIAL: Dead coalesce import in cities.ts — Backend
+- BUG-09 MINOR: Main tsconfig.json drizzle.config.ts outside rootDir — Backend
+- FLAG-F1 DOC: API reference uses booked/skipped instead of confirmed/cancelled — Backend
+
+LAST PARK DOC: jobs/qa/park-docs/20260308-QA-park.txt
+LAST THREAD: Frontend Phase 1 static code review (2026-03-08)
+
+ENVIRONMENT NOTE: node_modules installed on macOS (darwin-arm64); devcontainer is Linux (arm64).
+@esbuild/linux-arm64 missing. Run `npm ci` in container before live testing.
+
+AC STATUS SUMMARY:
+- PASS (code verified): SEC-12
+- FAIL: AC-05 (BUG-01), AC-12 (BUG-03)
+- PARTIAL FAIL: AC-04 (BUG-02), AC-08 (BUG-04), AC-13 (BUG-04, BUG-05)
+- NEEDS LIVE TEST: AC-01 through AC-03, AC-06 through AC-11, AC-14 through AC-18
