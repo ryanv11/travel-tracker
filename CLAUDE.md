@@ -14,10 +14,27 @@ npm run dev          # Vite frontend  → http://localhost:5173
 ```bash
 npm run test:backend           # Backend unit tests (Vitest)
 npm run test:frontend          # Frontend unit tests (Vitest)
-npm run test:contract          # Contract tests (Vitest)
+npm run test:contract          # Contract tests (Vitest — requires backend running)
 npm run type:check             # TypeScript type check (frontend)
 ```
-Always run the relevant test suite before pushing. All tests must pass.
+
+## Pre-push checklist (mandatory)
+Before every `git push`, run all four checks and iterate fixes until they pass:
+```bash
+npm run type:check
+npm run test:backend
+npm run test:frontend
+```
+Contract tests require a live backend — only run them if the backend is running locally.
+
+**Known intentional failures — do NOT fix these, do NOT block on them:**
+- `BUG-10 canary` in `common.test.ts` — intentionally failing until Backend delivers their fix.
+  Any other failure in these suites must be fixed before pushing.
+
+**Blocked-by-another-team exception:**
+If a test failure is caused by a missing schema column, API field, or other cross-team
+dependency that cannot be resolved without another team's work, document the blocker
+clearly in your commit message and push. Do not hold a push indefinitely for another team.
 
 ## Git workflow
 - Commit directly to `main` (pre-production — branching strategy to be adopted at prod deploy)
