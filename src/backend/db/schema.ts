@@ -78,6 +78,7 @@ export const regions = sqliteTable(
       .notNull()
       .references(() => countries.countryCode),
     name: text('name').notNull(), // e.g. 'California', 'New South Wales'
+    iso3166_2: text('iso_3166_2').notNull(),
     createdAt: text('created_at')
       .notNull()
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
@@ -85,7 +86,10 @@ export const regions = sqliteTable(
       .notNull()
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
-  (t) => [index('idx_regions_country').on(t.countryCode)],
+  (t) => [
+    index('idx_regions_country').on(t.countryCode),
+    uniqueIndex('uniq_regions_iso_3166_2').on(t.iso3166_2),
+  ],
 );
 
 /**
@@ -212,6 +216,7 @@ export const mapShadingConfig = sqliteTable(
     stateKey: text('state_key').primaryKey(),
     displayName: text('display_name').notNull(),
     colorHex: text('color_hex').notNull(), // e.g. '#2196F3' — validated by FRONTEND
+    subscriptionId: text('subscription_id'),
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
@@ -245,6 +250,9 @@ export const trips = sqliteTable(
     // Status progression: planning → active → review_pending → locked
     status: text('status').notNull().default('planning'),
     photoAlbumRef: text('photo_album_ref'), // URL or folder path — no file stored (PH-01)
+    ownerAccountId: text('owner_account_id'),
+    subscriptionId: text('subscription_id'),
+    createdByAccountId: text('created_by_account_id'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
@@ -346,6 +354,7 @@ export const tripPlaces = sqliteTable(
     cityId: integer('city_id')
       .notNull()
       .references(() => cities.id),
+    createdByAccountId: text('created_by_account_id'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),

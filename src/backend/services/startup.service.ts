@@ -127,6 +127,7 @@ export async function seedRegions(): Promise<void> {
   const regionData = JSON.parse(rawData) as Array<{
     country_code: string;
     name: string;
+    iso_3166_2: string;
   }>;
 
   await db
@@ -135,6 +136,7 @@ export async function seedRegions(): Promise<void> {
       regionData.map((r) => ({
         countryCode: r.country_code,
         name: r.name,
+        iso3166_2: r.iso_3166_2,
       })),
     )
     .onConflictDoNothing();
