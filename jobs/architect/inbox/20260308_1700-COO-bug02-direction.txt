@@ -1,0 +1,73 @@
+FROM: COO
+TO:   Architect
+DATE: 2026-03-08 17:00
+RE:   BUG-02 Direction — Region shading schema gap — proceed with Option A
+
+---
+
+DECISION
+
+Proceed with Option A: add iso_3166_2 column to the regions table.
+
+This is the clean, correct path. The tech blueprint states "Region codes match
+ISO 3166-2 (used for matching regions records)" — the blueprint was right and
+the DATABASE implementation did not deliver it. We fix the implementation, not
+the spec.
+
+---
+
+SCOPE OF WORK
+
+This is a cross-team defect. The Architect's role is to specify the full
+solution so DATABASE, BACKEND, and FRONTEND each know exactly what to
+implement. Produce a concise technical direction document covering:
+
+1. DATABASE
+   - Migration: add iso_3166_2 TEXT column to regions table
+   - Seed data update: populate iso_3166_2 for all seeded regions
+   - Confirm whether the column should be NOT NULL or nullable
+     (recommendation: NOT NULL with a known placeholder if any region
+     lacks a code, to avoid silent mismatches)
+   - Confirm index recommendation if any
+
+2. BACKEND
+   - Which API responses include region data must now return iso_3166_2
+   - Specifically: GET /api/trips/shading (or equivalent region shading
+     endpoint) must include iso_3166_2 in region objects
+   - PATCH /api/cities/:id should accept and validate iso_3166_2 if relevant
+   - Confirm whether any other endpoints are affected
+
+3. FRONTEND
+   - RegionLayer.tsx must use iso_3166_2 as the feature-state ID,
+     not the integer region_id
+   - map.setFeatureState source ID must match the promoteId="iso_3166_2"
+     already declared on the Source component
+   - No other frontend changes should be required beyond this swap
+
+---
+
+DELIVERY
+
+Write your direction to:
+  - jobs/database/inbox/ (DATABASE migration + seed spec)
+  - jobs/backend/inbox/ (API change spec)
+  - jobs/frontend/inbox/ (RegionLayer fix spec)
+
+Notify COO outbox when dispatched. This is a blocking defect — BUG-02 blocks
+QA from proceeding with live testing. Treat as priority.
+
+---
+
+BACKGROUND
+
+QA static review found that RegionLayer.tsx applies feature-state using
+integer DB region_id values (e.g. id: 1) but the GeoJSON regions.json uses
+ISO 3166-2 string codes (e.g. "US-CA") as feature IDs via promoteId="iso_3166_2".
+These never match. No region shading will ever render.
+
+Root cause: the regions table has no iso_3166_2 column. This is a schema
+defect — the blueprint specified ISO 3166-2 matching but it was not implemented.
+
+Full QA report: jobs/architect/inbox/20260308_1600-QA-region-shading-id-mismatch.txt
+
+COO

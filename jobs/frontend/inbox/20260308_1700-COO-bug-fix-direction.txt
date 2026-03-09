@@ -1,0 +1,104 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-08 17:00
+RE:   Bug fix direction — BUG-03, BUG-04, BUG-05 (immediate); BUG-01, BUG-02 (pending)
+
+---
+
+SUMMARY
+
+QA has returned Frontend Phase 1 with 4 MAJOR bugs. Two (BUG-03, BUG-04) are
+Frontend-only fixes and must be implemented immediately. BUG-05 is a one-line
+fix — include it in the same pass. BUG-01 and BUG-02 are blocked on Backend
+and Architect respectively; you will receive separate direction when those are
+ready.
+
+---
+
+BUG-03: MAJOR — Carry-forward modal race condition [IMPLEMENT NOW]
+
+Location: AddPlaceFlow component
+Problem:  useEffect fires before the carry-forward candidates API query
+          resolves. It sees an empty candidates array and calls onClose()
+          immediately. The modal is never shown.
+
+Fix:      Before acting on an empty candidates list, check that the query
+          has actually completed (isFetched === true or isLoading === false).
+          Only call onClose() when isFetched is true AND candidates is empty.
+          While isFetching or isLoading, do nothing — wait for the query.
+
+Acceptance: The carry-forward modal renders correctly when candidates exist.
+            onClose() is only called after the query has settled and candidates
+            are confirmed empty.
+
+---
+
+BUG-04: MAJOR — No UI path to revert review_pending → planning [IMPLEMENT NOW]
+
+Location: ReviewPanel component (rendered by TripDetailPage for review_pending trips)
+Problem:  ReviewPanel has no "Return to Planning" button. The backend supports
+          the review_pending → planning transition, but there is no way to
+          trigger it from the UI. AC-08 and AC-13 are partially failing.
+
+Fix:      Add a "Return to Planning" button to ReviewPanel.
+          - Button must show a confirmation dialog before acting
+            (e.g. "Return this trip to planning? The review will be cleared.")
+          - On confirm: call PATCH /api/trips/:id with { status: "planning" }
+          - On success: invalidate the trip query and navigate/refresh
+
+Acceptance: A review_pending trip can be reverted to planning status via the UI.
+            The transition requires explicit user confirmation.
+
+---
+
+BUG-05: MINOR — Mark all Completed incorrectly includes next_time items [IMPLEMENT NOW]
+
+Location: ReviewPanel — handleMarkAllCompleted
+Problem:  The NON_CANCELLED array used for bulk completion includes 'next_time'
+          items. next_time items should not be bulk-completed.
+
+Fix:      Remove 'next_time' from the NON_CANCELLED array (or equivalent
+          filter logic). Only items that are neither cancelled nor next_time
+          should be included in the bulk complete action.
+
+Acceptance: Bulk "Mark all Completed" does not change the status of next_time items.
+
+---
+
+BUG-01: MAJOR — City pins never appear [PENDING BACKEND]
+
+Root cause: MapPage passes TripSummary[] which carries no places data.
+            CityMarkers uses a type-cast hack that always resolves to empty array.
+
+COO direction to Backend: include minimal city data in TripSummary response
+(place_id, city_id, city_name, latitude, longitude per place).
+
+When Backend notifies you that the TripSummary shape has been updated:
+- Update MapPage to use the places array from TripSummary directly
+- Remove the type-cast hack in CityMarkers
+- CityMarkers should accept the places data from MapPage without casting
+
+You will receive a separate inbox message when Backend confirms this is ready.
+
+---
+
+BUG-02: MAJOR — Region shading broken [PENDING ARCHITECT + DATABASE + BACKEND]
+
+Root cause: RegionLayer.tsx uses integer region_id for feature-state IDs,
+            but the GeoJSON uses ISO 3166-2 string codes as feature IDs.
+            They never match.
+
+Architect has been directed to specify the full solution. The Frontend change
+will be small: swap region_id for iso_3166_2 as the feature-state ID in
+RegionLayer.tsx. You will receive a separate spec with full details.
+
+---
+
+DELIVERY
+
+1. Fix BUG-03, BUG-04, BUG-05 now. Commit together.
+2. Notify COO inbox when these three are done.
+3. Await separate direction on BUG-01 (Backend) and BUG-02 (Architect).
+4. When all 4 MAJOR bugs are resolved, notify QA inbox to resume live testing.
+
+COO

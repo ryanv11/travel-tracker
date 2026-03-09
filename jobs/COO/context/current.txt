@@ -1,6 +1,6 @@
-COO CONTEXT — 2026-03-08
+COO CONTEXT — 2026-03-08 (updated 17:00)
 PROJECT: Travel Tracker
-CURRENT STATUS: Phase 2 correction + Phase 3 active (FRONTEND working)
+CURRENT STATUS: QA active — Frontend Phase 1 bug fix round in progress
 
 ================================================================================
 PHASE STATUS
@@ -8,37 +8,66 @@ PHASE STATUS
 
   PHASE 0 (FOUNDATION)    — COMPLETE
   PHASE 1 (DATA LAYER)    — COMPLETE
-  PHASE 2 (API LAYER)     — ACTIVE (BACKEND correction C1-C3 in progress)
-  PHASE 3 (UI LAYER)      — ACTIVE (FRONTEND working — spec dispatched)
-  PHASE 4 (QA/DOCS)       — BLOCKED on FRONTEND
+  PHASE 2 (API LAYER)     — COMPLETE (C1-C3 signed off; new correction in progress)
+  PHASE 3 (UI LAYER)      — ACTIVE (FRONTEND fixing bugs; QA blocked pending fixes)
+  PHASE 4 (QA/DOCS)       — ACTIVE — QA static review done; live testing blocked
   PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
 
 ================================================================================
 ACTIVE JOBS
 ================================================================================
 
-BACKEND (correction)
-  Status:   Correction dispatched 2026-03-08. Awaiting completion.
-  Spec:     jobs/backend/inbox/20260308_1100-COO-backend-accepted-correction.txt
-  Implements:
-    C1: POST /api/trips/:tripId/places/:placeId/carry-forward
-    C2: PATCH /api/cities/:id
-    C3: POST /api/cities independent rate limit (20 req/min)
-  When done: notify COO inbox + notify FRONTEND inbox (C1 available)
+FRONTEND (bug fix)
+  Status:   BUG-03, BUG-04, BUG-05 direction dispatched 2026-03-08 17:00.
+            Awaiting completion + COO inbox notification.
+            BUG-01 fix pending Backend (TripSummary shape change).
+            BUG-02 fix pending Architect + Database + Backend cascade.
+  Spec:     jobs/frontend/inbox/20260308_1700-COO-bug-fix-direction.txt
 
-FRONTEND
-  Status:   Spec dispatched 2026-03-08. No blockers (except carry-forward execution).
-  Spec:     jobs/frontend/inbox/20260308_1100-COO-frontend-spec.txt
-  Security: jobs/frontend/inbox/20260308_1110-COO-frontend-security-addendum.txt
-  Delivers:
-    src/frontend/ — full React SPA (MapView, TripList, TripDetail, ItemList,
-                    PostTripReview, CarryForwardPrompt, AdminPanel)
-  Acceptance criteria: 18 (spec) + 4 (security addendum)
-  Note: CarryForwardPrompt execution step (AC-17) depends on BACKEND C1.
-        FRONTEND implements GET flow + disabled button until C1 available.
-  Waiting:
-    Completion report to COO inbox
-    After acceptance: notify QA + DOCS, dispatch QA spec
+BACKEND (correction round 2)
+  Status:   Direction dispatched 2026-03-08 17:00.
+  Implements:
+    BC-01: Add minimal places data to TripSummary response (BUG-01 fix)
+    BC-02/03: Add tsconfig.backend.json + type:check:backend script (BUG-07/09)
+    BC-04: Fix main tsconfig.json rootDir defect (BUG-09)
+    BC-05: Remove dead coalesce import (BUG-08)
+    BC-06: Fix API reference doc — confirmed/cancelled not booked/skipped (FLAG-F1)
+    BC-07: Update API reference for new TripSummary shape
+  Spec:     jobs/backend/inbox/20260308_1700-COO-bug01-typescript-direction.txt
+  When done: notify COO inbox + notify FRONTEND inbox (BUG-01 fix available)
+
+ARCHITECT (BUG-02 direction)
+  Status:   Direction dispatched 2026-03-08 17:00. Awaiting decision document
+            to be dispatched to Database, Backend, Frontend.
+  Task:     Specify full BUG-02 solution (Option A: iso_3166_2 column).
+            Write direction to jobs/database/inbox/, jobs/backend/inbox/,
+            jobs/frontend/inbox/. Notify COO outbox.
+  Spec:     jobs/architect/inbox/20260308_1700-COO-bug02-direction.txt
+
+QA
+  Status:   Governance changes in effect (OP-01 through OP-05).
+            Environment fix issued (npm ci in devcontainer).
+            Awaiting Frontend BUG-03/04/05 fixes to resume live testing.
+            BUG-01 and BUG-02 do NOT block resumption of other AC live tests.
+  Spec:     jobs/qa/inbox/20260308_1700-COO-governance-and-env.txt
+
+================================================================================
+OPEN BUGS (QA Phase 1 static review)
+================================================================================
+
+| ID     | Severity | Status               | Owner     |
+|--------|----------|----------------------|-----------|
+| BUG-01 | MAJOR    | Direction issued     | Backend   |
+| BUG-02 | MAJOR    | Direction issued     | Architect |
+| BUG-03 | MAJOR    | Direction issued     | Frontend  |
+| BUG-04 | MAJOR    | Direction issued     | Frontend  |
+| BUG-05 | MINOR    | Direction issued     | Frontend  |
+| BUG-06 | TRIVIAL  | Deferred (safe)      | —         |
+| BUG-07 | MAJOR    | Direction issued     | Backend   |
+| BUG-08 | TRIVIAL  | Direction issued     | Backend   |
+| BUG-09 | MINOR    | Direction issued     | Backend   |
+| FLAG-F1| DOC      | Direction issued     | Backend   |
+| ENV    | —        | Fix issued (npm ci)  | QA        |
 
 ================================================================================
 COMPLETED JOBS
@@ -50,82 +79,82 @@ ARCHITECT — COMPLETE
 
 DATABASE — COMPLETE (accepted 2026-03-07)
   All 5 deliverables verified. @libsql/client driver substitution approved.
+  NOTE: BUG-02 will require a migration (iso_3166_2 column). Pending Architect spec.
 
 BACKEND PHASE 1 — COMPLETE (accepted 2026-03-08)
   All 26 acceptance criteria met.
-  Phase 1 deliverables: server.ts, all 7 routes, 4 services, middleware,
-    validation schemas, data/countries.json (250), geo/ GeoJSON,
-    .github/workflows/security.yml, API reference doc.
-  npm audit: 0 HIGH/CRITICAL; 4 MODERATE (drizzle-kit, deferred).
-  Security report reviewed; backlog at _project/security-backlog.md.
-  2 open flags resolved: C1 and C2 dispatched as correction.
 
-================================================================================
-BLOCKED JOBS
-================================================================================
-
-  QA      — Waiting on FRONTEND
-  DOCS    — Waiting on FRONTEND (stable features)
-
-================================================================================
-KEY OPEN ITEMS
-================================================================================
-
-  BACKEND-C1:  POST carry-forward execution endpoint — in progress, BACKEND correction
-  BACKEND-C2:  PATCH /api/cities/:id — in progress, BACKEND correction
-  BACKEND-C3:  POST /api/cities rate limit — quick fix, part of correction
-
-  FLAG-01:  objective.txt, job-registry.txt, document-index.txt still empty.
-            Non-blocking. Available on request.
-  FLAG-BRD: BRD header was showing v2.2; corrected to v2.3 this thread.
+BACKEND CORRECTION C1-C3 — COMPLETE (accepted 2026-03-08)
+  C1: POST /api/trips/:tripId/places/:placeId/carry-forward
+  C2: PATCH /api/cities/:id
+  C3: POST /api/cities rate limit (20 req/min)
+  Commit: 3e27383
 
 ================================================================================
 BRD STATUS
 ================================================================================
 
-  Current version: 2.3 (Approved) — header now corrected from 2.2 → 2.3
+  Current version: 2.3 + delta (accepted 2026-03-08)
   File: _project/travel-tracker-BRD.md
-  No outstanding supplements. No open questions.
+  Delta: jobs/COO/inbox/travel-tracker-standalone-BRD-proposed-requirements.md
+         Status: ACCEPTED 2026-03-08. COO sign-off recorded in document.
+
+  Beta-mandatory additions (NR-01, NR-02, NR-05, NR-06, NR-08, NR-14):
+    - NR-01/02: Subscription_id + account seams in schema (pending Database/Backend work)
+    - NR-04: Substantially met (is_carried_forward, carried_from_item_id in place) — confirm
+    - NR-05: Soft lock semantics — explicit requirement, enforced by BUG-04 fix
+    - NR-06: Offline retry policy (progressive backoff, indefinite, manual cancel) — pending spec
+    - NR-08: SQLite/OneDrive operating constraint — must be in README before beta
+    - NR-14: Pre-shared-access hardening gate — formal go/no-go before any non-owner access
+
+  Governance additions (OP-01 to OP-05): IN EFFECT IMMEDIATELY.
+
+  Phase 2 baseline (not implemented Phase 1): NR-09, NR-10, NR-11, NR-12, NR-13.
 
 ================================================================================
-PROJECT FILES STATUS
+AUDIT STATUS
 ================================================================================
 
-  _project/travel-tracker-BRD.md     — v2.3, header corrected this thread
-  _project/dependency-graph.txt       — v1.2, current
-  _project/project-plan.txt           — v1.2, updated this thread
-  _project/security-spec.md           — v1.1, binding on all jobs
-  _project/security-backlog.md        — NEW this thread (v1.0)
-  _project/seed-data.txt              — complete
-  _shared/frameworks.txt              — SS-25 to SS-30 added (bug classification)
-
-  FLAG-01: objective.txt, job-registry.txt, document-index.txt remain empty.
+  External audit received: jobs/COO/inbox/travel-tracker-project-audit.md (summary)
+                           jobs/COO/inbox/travel-tracker-project-audit.docx (full — unread)
+  NOTE: DOCX cannot be read by available tools. User to provide text version for review.
+  Key themes (from summary): preserve Phase 2 seams now, engage QA earlier,
+    close C1-C3 before beta (done), define offline retry rules, separate
+    subscription admin from trip-level delegation.
 
 ================================================================================
-NEXT COO THREAD — RECOMMENDED STARTING POINT
+KEY OPEN ITEMS / FLAGS
 ================================================================================
 
-  Priority order:
-  1. Check jobs/COO/inbox/ for:
-       a) BACKEND correction completion (C1-C3)
-       b) FRONTEND completion report
-  2. If BACKEND C1 is done: notify FRONTEND inbox so they can complete
-     the carry-forward execution step in CarryForwardModal.
-  3. Review FRONTEND deliverables per 18 acceptance criteria:
-       - npm run dev and npm run build both succeed
-       - MapView renders with correct shading (feature-state applied)
-       - TripList/TripDetail CRUD all work
-       - Items of all 6 types can be created
-       - PostTripReview locks the trip correctly
-       - AdminPanel all 5 tabs functional
-       - CarryForwardPrompt: GET works; execution disabled with TODO note
-       - No dangerouslySetInnerHTML (grep check)
-       - photo_album_ref URL sanitisation in place
-  4. Spot-check security:
-       - urlSanitiser.ts exists and is used
-       - Map labels do not use innerHTML
-       - npm audit clean
-  5. If FRONTEND accepted: notify QA, dispatch QA spec
-  6. If FRONTEND sent back: log defects with specific corrections
+  NR-01/02: Subscription + account seams need Database schema work (new migration).
+            Architect should include in BUG-02 cascade or a separate spec.
+
+  NR-06:    Offline retry policy not yet specced for Frontend. Needs a spec before
+            Frontend phase completes.
+
+  NR-08:    SQLite/OneDrive operating constraint must appear in README before beta.
+            Assign to DOCS when unblocked.
+
+  AUDIT-DOCX: Full audit DOCX not yet reviewed — tools cannot read binary.
+              User to provide readable version.
+
+  FLAG-01:  objective.txt, job-registry.txt, document-index.txt still empty.
+            Non-blocking.
+
+================================================================================
+NEXT COO ACTIONS (resume from here)
+================================================================================
+
+  1. Resolve AUDIT-DOCX: ask user for text export of audit DOCX.
+  2. Await FRONTEND notification: BUG-03, BUG-04, BUG-05 fixes done.
+  3. Await BACKEND notification: BUG-01 fix + TypeScript + FLAG-F1 done.
+  4. Await ARCHITECT: BUG-02 solution document dispatched to teams.
+  5. When BUG-01 backend fix confirmed: write FRONTEND inbox to unblock city pins fix.
+  6. When BUG-02 architect spec dispatched: confirm cascade to Database, Backend, Frontend.
+  7. When BUG-03/04/05 fixed: write QA inbox to resume live testing.
+  8. Spec NR-06 (offline retry policy) for Frontend before Frontend phase closes.
+  9. Spec NR-01/02 (schema seams) for Database — coordinate with BUG-02 migration
+     to avoid two separate migrations if possible.
+  10. Assign NR-08 README content to DOCS when unblocked.
 
 ================================================================================

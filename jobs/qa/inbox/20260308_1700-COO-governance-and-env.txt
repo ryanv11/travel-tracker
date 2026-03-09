@@ -1,0 +1,95 @@
+FROM: COO
+TO:   QA
+DATE: 2026-03-08 17:00
+RE:   Governance changes in effect + environment fix + bug direction status
+
+---
+
+SECTION 1 — ENVIRONMENT FIX
+
+Run `npm ci` inside the devcontainer to reinstall node_modules for the Linux
+platform. The current node_modules were installed on macOS; the @esbuild/linux-arm64
+package is absent, which is why tsx and vite commands fail with a platform error.
+
+`npm ci` will pull the correct platform binaries. No code is broken — this is
+purely an environment setup issue.
+
+A post-create command will be added to devcontainer.json to prevent recurrence.
+
+---
+
+SECTION 2 — GOVERNANCE CHANGES — IN EFFECT IMMEDIATELY
+
+The following operational changes have been formally adopted as project delivery
+governance. They apply from this date forward.
+
+OP-01 — QA engagement starts earlier
+  QA involvement begins before frontend completion. Test design should start
+  from the API contract and workflow rules while development is still in progress.
+  The current situation (4 MAJORs found in static review, live testing blocked
+  by environment) is exactly what this prevents. We are correcting the model now.
+
+OP-02 — Contract-based test design
+  Create test scenarios from the API contract and key state transitions,
+  including negative-path and lock-state tests. Do not wait for a completed
+  frontend to begin this work.
+
+OP-03 — Shared regression pack
+  Informal developer unit checks are not sufficient. Build a shared regression
+  pack covering: carry-forward, trip lock/unlock, city creation, retry behavior,
+  and structured list changes. This pack should be runnable independently of
+  any single team's tooling.
+
+OP-04 — Definition of done uplift
+  Business-critical flows require unit tests + scenario validation before a
+  story is considered complete. BUG-03 (carry-forward race condition) is a
+  clear example of what scenario testing would have caught at development time.
+
+OP-05 — Backend hotspot sign-off
+  Backend corrections affecting carry-forward, city patching, or write protection
+  are release-relevant and require explicit COO sign-off before frontend closeout.
+  This is now standing procedure.
+
+---
+
+SECTION 3 — BUG DIRECTION STATUS
+
+For your awareness — COO direction has been issued to all teams:
+
+BUG-01 (city pins): Backend directed to include minimal city data in TripSummary.
+        Frontend will update MapPage once Backend confirms the new shape.
+
+BUG-02 (region shading): Architect directed to specify full solution (Option A:
+        add iso_3166_2 column + migration + seed + API + Frontend fix).
+        Will cascade to Database, Backend, and Frontend as separate specs.
+
+BUG-03 (carry-forward race condition): Frontend directed — small fix, implement now.
+
+BUG-04 (no revert to planning button): Frontend directed — small fix, implement now.
+
+BUG-05 (mark all completed includes next_time): Frontend directed — one-line fix.
+
+BUG-06 (colour picker uncontrolled): Confirmed safe to defer. No action.
+
+BUG-07/BUG-09 (TypeScript + tsconfig): Backend directed to fix tsconfig rootDir
+        defect, add tsconfig.backend.json, add type:check:backend script,
+        and resolve the error categories.
+
+BUG-08 (dead coalesce import): Backend directed to remove it.
+
+FLAG-F1 (API doc uses booked/skipped): Backend directed to update API reference.
+
+---
+
+SECTION 4 — WHEN TO RESUME LIVE TESTING
+
+QA should resume live testing once:
+  1. Environment is fixed (npm ci run in devcontainer)
+  2. Frontend has fixed BUG-03, BUG-04, BUG-05 and notified QA inbox
+  3. BUG-01 and BUG-02 fixes are confirmed by Backend/Architect cascade
+
+Do not wait for BUG-01 and BUG-02 to begin live testing of the remaining
+unblocked acceptance criteria. BUG-03, BUG-04, BUG-05 are quick fixes —
+resume as soon as those are confirmed and the environment is operational.
+
+COO

@@ -1,0 +1,103 @@
+FROM: COO
+TO:   Backend
+DATE: 2026-03-08 17:00
+RE:   BUG-01 direction (city pins) + TypeScript / tsconfig fixes + FLAG-F1 doc
+
+---
+
+SECTION 1 — BUG-01: City pins (Option C selected)
+
+DECISION: Implement Option C — include minimal city data in the TripSummary
+response.
+
+The city pins on MapPage use TripSummary[] as their data source. TripSummary
+currently carries no places data, so CityMarkers always falls back to an empty
+array. No city pins ever render. This is a complete failure of AC-05.
+
+Implement the following:
+
+  GET /api/trips (and GET /api/trips/:id summary variant, if applicable)
+  — include a "places" array in each TripSummary response
+  — each place object must include at minimum:
+      { place_id, city_id, city_name, latitude, longitude }
+  — this is the minimal set required for CityMarkers to render pins
+  — do not over-engineer: this is not a full place detail response
+
+Rationale for Option C over A/B:
+  - Option A (new GET /api/cities/resolved endpoint) adds a new cross-resource
+    endpoint and a second API call per map load — more complexity, more latency.
+  - Option B (MapPage loads full trip details) forces the UI into loading full
+    trip details just to render pins — wrong level of data for a map overview.
+  - Option C is the lowest-complexity path: the data is already available
+    server-side when building TripSummary; it's a join, not a new endpoint.
+
+Update the API reference doc to reflect the new TripSummary shape.
+
+Notify FRONTEND inbox when this is available so they can update MapPage.
+
+---
+
+SECTION 2 — BUG-07 / BUG-09: TypeScript errors and tsconfig defect
+
+The backend has never been properly type-checked. This must be resolved.
+
+Required fixes:
+
+1. Fix the rootDir defect in the main tsconfig.json
+   - drizzle.config.ts is outside rootDir, which causes tsc to fail before
+     reaching any backend source
+   - Either exclude drizzle.config.ts from the main tsconfig, or adjust rootDir
+     so it is included
+
+2. Add tsconfig.backend.json
+   - Separate backend type-checking config
+   - Should cover src/backend/** only
+
+3. Add a type:check:backend npm script
+   - Must run tsc against tsconfig.backend.json
+   - Must report errors without emitting output (--noEmit)
+
+4. On the 207 TypeScript errors once the config defect is bypassed:
+   - TS2349/TS2554 (Drizzle ORM union type, 147 errors): These are a known
+     Drizzle pattern when using a SQLite/Postgres union type for db. Address
+     by narrowing the db type to the specific driver in use (SQLite for Phase 1).
+     This eliminates the union and resolves the callability errors.
+   - TS2345 (Express v5 params typed as string|string[], 27 errors): Add
+     explicit string casts or narrow the param type at the handler boundary.
+   - TS7006 (implicit any in callbacks, 22 errors): Add explicit types to
+     callback parameters.
+
+5. BUG-08: Remove the dead coalesce import
+   - coalesce is imported from drizzle-orm but does not exist in v0.38.3
+   - It is never called — remove the import
+
+Goal: type:check:backend must pass with 0 errors before this correction
+is considered complete.
+
+---
+
+SECTION 3 — FLAG-F1: API reference documentation error
+
+The API reference doc uses "booked" and "skipped" as item status values.
+The actual Zod schema, DB schema, and frontend all use "confirmed" and
+"cancelled". Update the API reference to use the correct terms.
+
+This is a documentation change only — no code changes required.
+
+---
+
+ACCEPTANCE CRITERIA
+
+BC-01: GET /api/trips response includes places array with { place_id, city_id,
+        city_name, latitude, longitude } per place, per trip.
+BC-02: tsconfig.backend.json exists and covers src/backend/**
+BC-03: npm run type:check:backend exists and passes with 0 errors
+BC-04: Main tsconfig.json rootDir defect resolved
+BC-05: Dead coalesce import removed
+BC-06: API reference updated — no occurrences of "booked" or "skipped" as
+        item status values; correct terms are "confirmed" and "cancelled"
+BC-07: API reference updated to reflect new TripSummary shape (places array)
+
+Notify COO inbox and FRONTEND inbox on completion.
+
+COO

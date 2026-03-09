@@ -1,0 +1,159 @@
+COO PARK DOCUMENT
+Date:   2026-03-08 17:00
+Thread: QA Frontend Phase 1 review + Audit BRD delta acceptance + bug direction
+
+================================================================================
+WHAT HAPPENED THIS THREAD
+================================================================================
+
+1. BACKEND CORRECTION C1-C3 REVIEWED AND ACCEPTED
+   BACKEND completed all three corrections (commit 3e27383):
+     C1: POST /api/trips/:tripId/places/:placeId/carry-forward — COMPLETE
+     C2: PATCH /api/cities/:id — COMPLETE
+     C3: POST /api/cities rate limit (20 req/min) — COMPLETE
+   All acceptance criteria met. AC-C1 through AC-C6 verified.
+
+2. FRONTEND PHASE 1 QA STATIC REVIEW — NOT SIGNED OFF
+   QA completed static code review. Cannot sign off — 4 MAJOR bugs found.
+   Live testing not yet started. Full reports:
+     jobs/qa/tech/20260308-bug-report-frontend-phase1.md
+     jobs/qa/tech/20260308-test-plan-frontend-phase1.md
+
+   MAJOR bugs:
+     BUG-01: City pins never render — TripSummary has no places data
+     BUG-02: Region shading broken — DB region_id ≠ GeoJSON ISO 3166-2 codes
+     BUG-03: Carry-forward modal race condition — never shown
+     BUG-04: No UI path to revert review_pending → planning
+
+   Additional findings (QA supplementary report):
+     BUG-07: Backend — 207 TypeScript errors, no type:check:backend script
+     BUG-09: Main tsconfig.json rootDir defect preventing backend type-check
+     ENV:    esbuild platform mismatch blocks live testing in devcontainer
+
+3. EXTERNAL AUDIT RECEIVED — DELTA BRD ACCEPTED
+   Two new COO inbox files received from external auditor:
+     - travel-tracker-project-audit.md (summary only — DOCX is full version)
+     - travel-tracker-standalone-BRD-proposed-requirements.md
+
+   COO reviewed both documents and accepted the full delta BRD as a formal
+   addition to the project baseline (BRD v2.3 + delta, 2026-03-08).
+
+   DOCX NOTE: Binary DOCX cannot be read by available tools. Full audit review
+   deferred — user to provide a text export.
+
+4. BUG DIRECTION DISPATCHED TO ALL TEAMS
+   Four direction messages written:
+     - jobs/architect/inbox/20260308_1700-COO-bug02-direction.txt
+       → Architect to specify Option A (iso_3166_2 column) for BUG-02
+     - jobs/backend/inbox/20260308_1700-COO-bug01-typescript-direction.txt
+       → Backend: TripSummary shape (BUG-01) + TypeScript/tsconfig (BUG-07/09) + FLAG-F1
+     - jobs/frontend/inbox/20260308_1700-COO-bug-fix-direction.txt
+       → Frontend: BUG-03, BUG-04, BUG-05 immediate; BUG-01/02 pending
+     - jobs/qa/inbox/20260308_1700-COO-governance-and-env.txt
+       → QA: governance changes OP-01–05 in effect; npm ci env fix; bug status
+
+5. GOVERNANCE CHANGES ADOPTED (OP-01 to OP-05) — EFFECTIVE IMMEDIATELY
+   Operational changes from the audit delta BRD are now standing project policy:
+     OP-01: QA engagement before frontend completion
+     OP-02: Contract-based test design
+     OP-03: Shared regression pack
+     OP-04: Definition of done uplift (scenario validation required)
+     OP-05: Backend hotspot sign-off
+
+================================================================================
+DECISIONS MADE THIS THREAD
+================================================================================
+
+1. External audit delta BRD ACCEPTED IN FULL
+   All 15 NR requirements and 6 OP changes adopted as formal project baseline.
+
+2. Beta-mandatory Phase 1 requirements: NR-01, NR-02, NR-05, NR-06, NR-08, NR-14
+   These must be complete before beta is declared ready.
+
+3. NR-04 (carry-forward provenance): Substantially met — confirm and close.
+
+4. NR-03 (ownership metadata): Accept as lightweight only. Two nullable columns max.
+   If it requires auth scaffolding, defer to Phase 2.
+
+5. NR-07 (offline indicator): Accept as Phase 1 but may slip under scope pressure.
+   Single affordance only.
+
+6. Phase 2 baseline (no Phase 1 implementation): NR-09, NR-10, NR-11, NR-12, NR-13.
+
+7. BUG-01 resolution: Option C — include minimal city data in TripSummary.
+   Rationale: Lowest cross-team complexity. Data is already available server-side.
+   New endpoint (Option A) adds latency and complexity. Full trip detail load
+   (Option B) is the wrong data level for a map overview.
+
+8. BUG-02 resolution: Option A — add iso_3166_2 column to regions table.
+   Rationale: Clean, correct path. Blueprint specified ISO 3166-2 matching;
+   implementation must match. Architect to specify the cascade.
+
+9. Governance changes OP-01–05: In effect immediately.
+   Rationale: Static-review-only QA arriving after frontend completion is the
+   wrong model. The current situation demonstrates why. Corrected now.
+
+10. OP-06 hardening checklist: Tied directly to NR-14. Single checklist, not two.
+
+11. NR-15 (speed without rebuild principle): Adopted as standing design review
+    criterion. Applied retroactively as a review lens.
+
+================================================================================
+OPEN FLAGS
+================================================================================
+
+  AUDIT-DOCX: Full audit not yet reviewed. Tools cannot read DOCX.
+              USER ACTION NEEDED: provide text export of audit for COO review.
+
+  NR-01/02: Account/subscription schema seams need a Database migration.
+            Coordinate with BUG-02 migration to avoid two separate migrations.
+            Architect should be asked to include this in scope or a parallel spec.
+
+  NR-06: Offline retry policy not yet specced for Frontend.
+         COO must write a spec before Frontend phase closes.
+
+  NR-08: SQLite/OneDrive constraint must appear in README before beta.
+         Assign to DOCS when unblocked.
+
+  FLAG-01: objective.txt, job-registry.txt, document-index.txt remain empty.
+           Non-blocking.
+
+================================================================================
+PENDING RESPONSES EXPECTED
+================================================================================
+
+  FRONTEND:   BUG-03, BUG-04, BUG-05 fixes + COO notification
+  BACKEND:    TripSummary shape + TypeScript fixes + FLAG-F1 doc + COO/Frontend notification
+  ARCHITECT:  BUG-02 solution spec dispatched to Database, Backend, Frontend + COO notification
+  QA:         Resume live testing once env fixed and BUG-03/04/05 confirmed
+
+================================================================================
+FILES MODIFIED THIS THREAD
+================================================================================
+
+  Modified: jobs/COO/inbox/travel-tracker-standalone-BRD-proposed-requirements.md
+            (Status: Proposed → ACCEPTED; per-item COO decisions added)
+  Created:  jobs/architect/inbox/20260308_1700-COO-bug02-direction.txt
+  Created:  jobs/backend/inbox/20260308_1700-COO-bug01-typescript-direction.txt
+  Created:  jobs/frontend/inbox/20260308_1700-COO-bug-fix-direction.txt
+  Created:  jobs/qa/inbox/20260308_1700-COO-governance-and-env.txt
+  Modified: jobs/COO/context/current.txt (previous archived to history)
+  Archived: jobs/COO/context/current.txt → jobs/COO/history/20260308_1200-COO-context.txt
+  Created:  jobs/COO/park-docs/20260308_1700-COO-park.txt (this file)
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT COO THREAD
+================================================================================
+
+  1. Ask user to provide text export of travel-tracker-project-audit.docx
+  2. Check COO inbox for:
+       a) FRONTEND: BUG-03/04/05 fix completion
+       b) BACKEND: TripSummary + TypeScript correction completion
+       c) ARCHITECT: BUG-02 solution dispatch confirmation
+  3. When FRONTEND BUG-03/04/05 done: write QA inbox to resume live testing
+  4. When BACKEND BUG-01 fix done: write FRONTEND inbox to implement city pins fix
+  5. Spec NR-06 (offline retry policy) for Frontend before phase closes
+  6. Spec NR-01/02 (schema seams) for Database — coordinate with BUG-02 migration
+  7. Assign NR-08 README content to DOCS
+
+================================================================================
