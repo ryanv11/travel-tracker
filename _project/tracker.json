@@ -49,18 +49,18 @@
       "priority": "P0",
       "brdRefs": [],
       "phase": 3,
-      "notes": "Static review done. 4 MAJOR bugs in fix round. QA live testing blocked pending fixes."
+      "notes": "All P0 bugs closed (BUG-01–05). NR-06 done. PO testing surfaced BUG-11/12/13 + country shading spec change (SHADING-SPEC-01, awaiting PO clarification). QA live testing unblocked."
     },
     {
       "id": "PHASE-4",
       "type": "phase",
       "title": "QA & Documentation",
-      "status": "blocked",
+      "status": "in_progress",
       "owner": "qa",
       "priority": "P0",
       "brdRefs": [],
       "phase": 4,
-      "notes": "QA static review done; sign-off withheld. Live testing blocked on BUG-03/04/05 fixes. Docs blocked on stable features."
+      "notes": "ENV fix done (2026-03-09). README done (NR-08). QA live testing now unblocked. BUG-11/12/13 to be fixed before QA sign-off."
     },
     {
       "id": "PHASE-5",
@@ -224,56 +224,56 @@
       "id": "BUG-01",
       "type": "bug",
       "title": "City pins never render — TripSummary missing places data",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["GE-11","MP-02"],
       "phase": 3,
-      "notes": "Backend fix (BC-01) done 2026-03-09. TripSummary now includes places with city coords. Frontend fix (city pins) unblocked — frontend to implement."
+      "notes": "Backend fix (BC-01) done 2026-03-09. Frontend city pin fix done (a60ec17). Closed 2026-03-09."
     },
     {
       "id": "BUG-02",
       "type": "bug",
       "title": "Region shading broken — DB region_id ≠ ISO 3166-2 codes",
-      "status": "in_progress",
+      "status": "done",
       "owner": "architect",
       "priority": "P0",
       "brdRefs": ["MP-02","GE-02"],
       "phase": 3,
-      "notes": "Resolution: Option A — add iso_3166_2 column to regions table. Architect direction dispatched. Cascade to Database + Backend + Frontend. Single migration with NR-01/02 seams."
+      "notes": "All layers complete. DB migration (f6af0d5), backend API update (9049ba1), frontend feature-state fix (d76fbf0). Contract suites 99/99. Closed 2026-03-09."
     },
     {
       "id": "BUG-03",
       "type": "bug",
       "title": "Carry-forward modal race condition — modal never shown",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["IT-07"],
       "phase": 3,
-      "notes": "Fix: check isFetched/isLoading before acting on empty candidates list in AddPlaceFlow. Frontend-only fix."
+      "notes": "Fixed in a60ec17 — isFetched/isLoading guard added to AddPlaceFlow. Closed 2026-03-09."
     },
     {
       "id": "BUG-04",
       "type": "bug",
       "title": "No UI path to revert review_pending → planning",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["TR-06","TR-07","RV-01","NR-05"],
       "phase": 3,
-      "notes": "Fix: add Return to Planning button + confirm dialog to ReviewPanel. Frontend-only fix. Also closes NR-05."
+      "notes": "Fixed in a60ec17 — Return to Planning button + confirm dialog added to ReviewPanel. Also closes NR-05. Closed 2026-03-09."
     },
     {
       "id": "BUG-05",
       "type": "bug",
       "title": "Mark all Completed incorrectly includes next_time items",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["IT-03","RV-02"],
       "phase": 3,
-      "notes": "Fix: remove 'next_time' from NON_CANCELLED array in handleMarkAllCompleted. One-line fix."
+      "notes": "Fixed in a60ec17 — next_time removed from NON_CANCELLED array. Closed 2026-03-09."
     },
     {
       "id": "BUG-06",
@@ -334,12 +334,12 @@
       "id": "ENV",
       "type": "bug",
       "title": "esbuild platform mismatch — live testing blocked in devcontainer",
-      "status": "in_progress",
+      "status": "done",
       "owner": "qa",
       "priority": "P1",
       "brdRefs": [],
       "phase": 4,
-      "notes": "node_modules installed on macOS; devcontainer runs Linux. Fix: run npm ci inside container. COO issued fix to QA. devcontainer.json should add npm ci as post-create command."
+      "notes": "postCreateCommand: npm ci added to devcontainer.json. Closed 2026-03-09."
     },
 
     // ─── BACKEND CORRECTIONS ROUND 2 ─────────────────────────────────────────
@@ -426,23 +426,23 @@
       "id": "NR-01",
       "type": "requirement",
       "title": "Future tenancy seam — subscription_id in schema",
-      "status": "in_progress",
+      "status": "done",
       "owner": "database",
       "priority": "P1",
       "brdRefs": ["NF-07"],
       "phase": 1,
-      "notes": "Architect addendum dispatched 2026-03-08 18:00. To be included in BUG-02 migration. Dormant nullable column — no application logic changes."
+      "notes": "Included in BUG-02 migration (f6af0d5). Nullable column added. Closed 2026-03-09."
     },
     {
       "id": "NR-02",
       "type": "requirement",
       "title": "Future identity seam — owner_account_id in schema",
-      "status": "in_progress",
+      "status": "done",
       "owner": "database",
       "priority": "P1",
       "brdRefs": ["NF-07"],
       "phase": 1,
-      "notes": "Architect addendum dispatched 2026-03-08 18:00. To be included in BUG-02 migration alongside NR-01."
+      "notes": "Included in BUG-02 migration (f6af0d5). Nullable column added. Closed 2026-03-09."
     },
     {
       "id": "NR-03",
@@ -470,23 +470,23 @@
       "id": "NR-05",
       "type": "requirement",
       "title": "Soft trip lock semantics — deliberate unlock action required",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["TR-07","RV-04"],
       "phase": 3,
-      "notes": "Covered by BUG-04 fix (Return to Planning button). Will be closed when BUG-04 is resolved."
+      "notes": "Closed by BUG-04 fix (a60ec17). Return to Planning button added. Closed 2026-03-09."
     },
     {
       "id": "NR-06",
       "type": "requirement",
       "title": "Offline retry policy — progressive backoff, indefinite, manual cancel",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["GE-12","GE-13"],
       "phase": 3,
-      "notes": "Spec dispatched to Frontend 2026-03-08 18:00. 8 ACs defined. Implement after BUG-03/04/05."
+      "notes": "Implemented in a60ec17. Closed 2026-03-09."
     },
     {
       "id": "NR-07",
@@ -503,12 +503,12 @@
       "id": "NR-08",
       "type": "requirement",
       "title": "SQLite + OneDrive operating constraint in README before beta",
-      "status": "pending",
+      "status": "done",
       "owner": "docs",
       "priority": "P1",
       "brdRefs": ["NF-04"],
       "phase": 4,
-      "notes": "Single-device active; OneDrive for backup/export only. Must be in README before beta. Assign to DOCS when unblocked."
+      "notes": "README.md created 2026-03-09. Covers setup, OneDrive single-active constraint, multi-user scope note. Closed 2026-03-09."
     },
     {
       "id": "NR-09",
@@ -654,6 +654,85 @@
       "brdRefs": [],
       "phase": 1,
       "notes": "Single checklist. Not yet written. Required before Phase 1.5 gate."
+    },
+    {
+      "id": "OP-07",
+      "type": "requirement",
+      "title": "UI/UX expert review of frontend",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "PO direction 2026-03-09. Schedule after Phase 1 sign-off. Beta provides working baseline for UX review."
+    },
+
+    // ─── PO TESTING FEEDBACK (2026-03-09) ────────────────────────────────────
+    {
+      "id": "SHADING-SPEC-01",
+      "type": "requirement",
+      "title": "Country shading logic — whole country only if all regions visited",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P0",
+      "brdRefs": ["MP-01","GE-02"],
+      "phase": 3,
+      "notes": "PO direction 2026-03-09: country shading should only apply if (a) region tier disabled, (b) city has no region assigned, or (c) all regions in country have been visited. Overrides current spec §4 which colours on any city visit. OPEN QUESTION for PO: in case (c), does 'all regions visited' mean at least one city per region on a completed trip? Awaiting confirmation before dispatching architect spec amendment."
+    },
+    {
+      "id": "BUG-11",
+      "type": "bug",
+      "title": "Map shading not live — only updates on page refresh",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["MP-01","MP-02"],
+      "phase": 3,
+      "notes": "Root cause: trip/place mutations do not invalidate ['map','shading'] or ['map','regions'] cache keys. useMapShading has 5min stale time. Fix: add map shading cache invalidation to useCreateTrip, useUpdateTripStatus, useLockTrip, useUnlockTrip, useAddPlace, useRemovePlace mutations. Frontend-only fix."
+    },
+    {
+      "id": "BUG-12",
+      "type": "bug",
+      "title": "Trip list missing search by name and sort by date/name",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["TR-09","TR-10"],
+      "phase": 3,
+      "notes": "PO testing 2026-03-09. TR-10 covers filter by category/activity (may be implemented). Search by name and sort by date/name not covered by current TR-10 wording. BRD update needed to extend TR-10. Verify what filter bar currently exposes before speccing the fix."
+    },
+    {
+      "id": "BUG-13",
+      "type": "bug",
+      "title": "Map click-through not implemented — country/region/city clicks do nothing",
+      "status": "in_progress",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["MP-03","GE-09"],
+      "phase": 3,
+      "notes": "MP-03 and GE-09 require clicking a country/region/city to open associated trip entries. Component reference shows no click handler or navigation wiring in CountryLayer/RegionLayer/CityMarkers. Frontend to add click handlers that navigate to /trips filtered by country or region, or open a modal. Frontend-only fix."
+    },
+    {
+      "id": "FEAT-BD",
+      "type": "feature",
+      "title": "Bulk delete trips",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 3,
+      "notes": "PO direction 2026-03-09. Required for test data cleanup and general data management. Backend: needs DELETE /api/trips/:id (single) — verify if exists; may need bulk endpoint. Frontend: multi-select in TripList + delete confirmation dialog. Not yet specced."
+    },
+    {
+      "id": "FUTURE-01",
+      "type": "feature",
+      "title": "Import booking confirmations — flights, hotels, etc.",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 5,
+      "notes": "PO direction 2026-03-09. Explicitly deferred to later phase by PO. Parse booking confirmation emails/PDFs to pre-populate flight/hotel items. Add to BRD §9 (Future Features) at next BRD revision."
     }
 
   ]

@@ -54,6 +54,7 @@
   "forwardPorts": [5173, 3001],
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
+  "postCreateCommand": "npm ci",
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh; echo '{\"permissions\":{\"defaultMode\":\"bypassPermissions\"}}' > /home/node/.claude/settings.json",
   "waitFor": "postStartCommand"
 }

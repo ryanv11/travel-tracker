@@ -1,0 +1,97 @@
+COO CONTEXT SNAPSHOT — 2026-03-09 18:00
+PROJECT: Travel Tracker
+SESSION SUMMARY: Phase 1 status assessment + PO testing feedback triage + ENV/README/tracker close-out
+
+================================================================================
+ACTUAL STATE (reconciled against git log)
+================================================================================
+
+All P0 frontend bugs are CLOSED in code as of commit a60ec17:
+  BUG-01  City pins           — DONE
+  BUG-02  Region shading      — DONE (all layers, d114736)
+  BUG-03  Carry-forward race  — DONE
+  BUG-04  Return to planning  — DONE (also closes NR-05)
+  BUG-05  Mark all completed  — DONE
+  NR-06   Offline retry       — DONE
+
+ENV fix (devcontainer npm ci) — DONE: postCreateCommand added to devcontainer.json
+
+README (NR-08) — DONE: /workspace/README.md created with setup, OneDrive constraint,
+  multi-user scope note, tech stack.
+
+tracker.json — Updated to reflect all above closures. New items filed (see below).
+
+Contract test suite: 99/99 passing.
+
+================================================================================
+NEW ITEMS FILED FROM PO TESTING (2026-03-09)
+================================================================================
+
+SHADING-SPEC-01  [P0]  Country shading logic change
+  PO direction: country shading only if (a) region tier disabled, (b) city has no
+  region assigned, or (c) ALL regions in country visited.
+  *** OPEN QUESTION — UNANSWERED — BLOCKS SPEC DISPATCH ***
+  Question for PO: In case (c), does "all regions visited" mean at least one city
+  per region appearing in a completed trip? Confirm before architect spec amendment
+  is dispatched.
+  Owner: Architect (pending PO answer). Cascade: Backend SQL + Frontend (minor).
+
+BUG-11  [P0]  Map shading not live
+  Root cause: trip/place mutations don't invalidate ['map','shading'] cache.
+  Fix: add invalidation to all trip/place mutations. Frontend-only. Low effort.
+  Owner: Frontend.
+
+BUG-12  [P1]  Trip list missing search by name and sort
+  TR-10 may cover category/activity filter. Search by name + sort by date not
+  covered by current BRD wording. Verify implementation first, then extend TR-10.
+  Owner: Frontend + COO (BRD update).
+
+BUG-13  [P0]  Map click-through not implemented
+  MP-03 / GE-09 already require this. Not wired in CountryLayer/RegionLayer/CityMarkers.
+  Fix: click handlers → navigate to /trips?country=XX or filtered modal.
+  Owner: Frontend.
+
+FEAT-BD  [P1]  Bulk delete trips
+  No delete exists at all currently. Needs backend DELETE endpoint + frontend
+  multi-select UI. Not yet specced.
+  Owner: COO to spec → Backend + Frontend.
+
+FUTURE-01  [P3]  Import booking confirmations
+  PO explicitly deferred. Add to BRD §9 at next revision.
+
+OP-07  [P2]  UI/UX expert review
+  Post-Phase 1. Schedule after sign-off. Not a code task.
+
+================================================================================
+WHAT REMAINS FOR PHASE 1 SIGN-OFF
+================================================================================
+
+Critical path:
+  1. SHADING-SPEC-01 answer from PO → architect spec amendment → backend + frontend
+  2. BUG-11 (live shading)        — Frontend, low effort
+  3. BUG-13 (map click-through)   — Frontend, medium effort
+  4. BUG-12 (search/sort trips)   — Frontend + BRD update, medium effort
+  5. FEAT-BD (bulk delete)        — Spec needed first, then backend + frontend
+  6. QA live testing pass         — Unblocked by ENV fix. Full feature coverage.
+
+Not blocking sign-off (defer):
+  NR-03  created_by/updated_by   — P2, not specced, safe to defer Phase 2
+  NR-07  Offline indicator       — P2, may slip
+  BUG-06 Colour picker cosmetic  — P3, deferred
+  OP-06  Hardening checklist     — Required before access expands, not before beta
+
+================================================================================
+NEXT COO THREAD — RECOMMENDED START
+================================================================================
+
+  1. ASK PO: SHADING-SPEC-01 clarification (see open question above)
+  2. Dispatch BUG-11 and BUG-13 to Frontend — both unblocked, no spec needed
+  3. Spec FEAT-BD (bulk delete) → dispatch to Backend + Frontend
+  4. Review BUG-12 implementation first, then extend TR-10 in BRD
+  5. Unblock QA for live testing run (ENV fix is done)
+
+================================================================================
+LAST PARK DOC
+================================================================================
+
+  jobs/COO/park-docs/ — previous park at 20260308_1200-COO-park.txt
