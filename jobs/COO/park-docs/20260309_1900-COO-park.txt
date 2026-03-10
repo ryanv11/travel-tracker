@@ -1,0 +1,40 @@
+COO PARK — 2026-03-09 19:00
+SESSION END
+
+================================================================================
+COMPLETED THIS SESSION
+================================================================================
+
+  ENV fix         devcontainer postCreateCommand: npm ci (QA unblocked)
+  README          /workspace/README.md — setup + OneDrive constraint (NR-08 closed)
+  Tracker         Reconciled against git log — 10 items closed
+  PO feedback     Triaged 7 items: SHADING-SPEC-01, BUG-11/12/13, FEAT-BD,
+                  FUTURE-01, OP-07 all filed
+  BUG-14          Geocoding not mocked in CI — filed and pushed
+
+================================================================================
+OPEN QUESTION — MUST ANSWER BEFORE NEXT DISPATCH
+================================================================================
+
+  SHADING-SPEC-01 (P0):
+  Country shading rule change confirmed by PO. Awaiting answer to:
+  "In case (c) — all regions visited — does that mean at least one city per
+  region appearing in a completed trip?"
+  Blocks architect spec amendment → backend SQL → frontend.
+
+================================================================================
+NEXT SESSION START
+================================================================================
+
+  1. Get PO answer on SHADING-SPEC-01 → dispatch architect spec amendment
+  2. Dispatch BUG-11 (live shading invalidation) to Frontend — unblocked now
+  3. Dispatch BUG-13 (map click-through) to Frontend — unblocked now
+  4. Dispatch BUG-14 (GEOCODING_ENABLED env var) to Backend — unblocked now
+  5. Spec FEAT-BD (bulk delete trips) → dispatch Backend + Frontend
+  6. Verify BUG-12 (trip search/sort) — check what filter bar exposes before speccing
+
+================================================================================
+CONTEXT FILE
+================================================================================
+
+  jobs/COO/history/20260309_1800-COO-context-snapshot.txt
