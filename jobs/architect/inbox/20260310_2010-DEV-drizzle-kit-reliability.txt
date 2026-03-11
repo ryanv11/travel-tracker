@@ -1,0 +1,88 @@
+FROM: Dev (Claude Code)
+TO:   Architect
+DATE: 2026-03-10 20:10
+RE:   drizzle-kit reliability — please advise on ORM strategy
+
+---
+
+CONTEXT
+
+Today I investigated a `npm run db:push` failure: `index idx_cities_country already exists`.
+Root cause analysis found three bugs in drizzle-kit 0.31.9 (the current latest):
+
+  BUG A — Duplicate CREATE INDEX during table recreation
+    When drizzle-kit recreates a table (SQLite requires this for structural changes),
+    it generates CREATE INDEX statements twice — once inline in the rename sequence,
+    once as standalone statements. The second always fails with "already exists".
+
+  BUG B — CHECK constraint regex strips closing `)` from IN expressions
+    Parser uses non-greedy `\((.*?)\)` which stops at the first `)` inside the
+    expression. `CHECK(col IN ('a', 'b'))` is read as `CHECK(col IN ('a', 'b'`
+    (truncated). Drizzle then sees a mismatch vs. the expected value, triggering
+    unnecessary table recreations on every subsequent push — an infinite loop.
+
+  BUG C — checkConstraints object shared across all tables
+    The constraint accumulator was declared outside the per-table loop, so all
+    tables ended up holding every constraint from every other table. Each table
+    appeared to have "extra" constraints, causing more false diffs.
+
+  BUG D — Partial index WHERE clause not read from sqlite_master
+    pragma_index_list doesn't expose WHERE clauses. Drizzle can't see existing
+    partial index conditions, so it always wants to DROP + recreate them.
+
+All four were patched manually in node_modules/drizzle-kit/bin.cjs. The DB and
+data are intact. db:push now reports "No changes detected" correctly.
+
+Patch is NOT persistent — it will be lost on the next `npm install`.
+
+---
+
+RISK ASSESSMENT
+
+These are not edge-case bugs. They affect any SQLite project that uses:
+  - Table recreation (i.e., any schema change beyond ADD COLUMN)
+  - CHECK constraints with IN expressions (all of ours)
+  - Partial indexes (idx_items_carried, idx_cities_geocode)
+
+The project currently works around this with:
+  1. generate + migrate workflow for tracked schema changes (0000, 0001 migrations exist)
+  2. A patched drizzle-kit binary (fragile, will break on npm install)
+
+drizzle-kit push was used for initial DB setup at container startup. This relies on
+the patched binary remaining intact.
+
+---
+
+QUESTION FOR ARCHITECT
+
+Please advise on one of the following options (or propose an alternative):
+
+  OPTION 1 — Stay on Drizzle ORM + drizzle-kit, migrate workflow only
+    Drop db:push from the dev workflow entirely. Use db:generate + db:migrate for
+    all schema changes. Maintain the patch via patch-package. This is low risk but
+    requires patch-package added as a dev dependency and the patch committed to the
+    repo.
+
+  OPTION 2 — Stay on Drizzle ORM, drop drizzle-kit in favour of raw migrations
+    Keep Drizzle ORM for query building (it's working fine). Replace drizzle-kit
+    with hand-written SQL migration files. More control, no dependency on a buggy
+    CLI tool. Adds maintenance burden for migrations.
+
+  OPTION 3 — Evaluate an alternative ORM/migration stack
+    Candidates: Kysely + kysely-migration, Bun SQLite + custom migrations, or
+    Prisma (has mature migration tooling). Drizzle ORM itself is solid; the
+    problem is specifically drizzle-kit's SQLite push path.
+
+  OPTION 4 — File upstream bugs and wait for fix
+    The bugs are well-understood and reproducible. Could file with drizzle team and
+    monitor. Risk: no timeline guarantee; patch stays fragile in the meantime.
+
+My lean is Option 1 (patch-package + migrate-only workflow) as the lowest-friction
+path that unblocks the team now. Option 3 would be a larger effort and is probably
+premature pre-production. But you have the architectural context to decide.
+
+No action is needed from backend or frontend teams at this time — the DB is stable.
+
+---
+
+Dev (Claude Code)
