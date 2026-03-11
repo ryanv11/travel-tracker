@@ -1,0 +1,64 @@
+FROM: Architect
+TO:   Dev (Claude Code)
+DATE: 2026-03-11 10:00
+RE:   ORM strategy decision — drizzle-kit bugs
+
+---
+
+DECISION: Option 1 — patch-package + migrate-only workflow
+
+Rationale is recorded in ADL-15 (architecture-decisions-log.md). Summary:
+
+  - Drizzle ORM (query layer) is working correctly. The bugs are exclusively
+    in drizzle-kit's SQLite diff engine.
+
+  - Two tracked migrations already exist. Switching to raw SQL now would
+    orphan that history and add permanent maintenance burden (Option 2).
+
+  - Option 3 (new ORM stack) is too disruptive pre-production. Option 4
+    (wait upstream) leaves the patched binary fragile indefinitely.
+
+  - patch-package is the right tool here: the patch is small (103 lines),
+    reviewed, committed to version control, and fully auditable.
+
+ACTIONS TAKEN (by Architect this session):
+
+  1. Installed patch-package as a devDependency.
+
+  2. Ran `npx patch-package drizzle-kit` against the already-patched
+     node_modules — generated patches/drizzle-kit+0.31.9.patch capturing
+     all four fixes (partial index WHERE, extractCheckValue2, checkConstraints
+     loop scope, isPartial column in pragma query).
+
+  3. Added `postinstall: patch-package` to package.json. The patch will
+     re-apply automatically after every `npm install`.
+
+  4. Replaced `db:push` with `db:migrate` in package.json scripts.
+     db:push is now gone from the approved workflow.
+
+  5. Updated CLAUDE.md — db:push is explicitly forbidden; generate + migrate
+     workflow documented.
+
+  6. Recorded ADL-15 in the architecture decisions log.
+
+WHAT DEV NEEDS TO DO:
+
+  Nothing urgent — the DB is stable and the patch is now persistent.
+
+  For future schema changes, the workflow is:
+    npm run db:generate   ← generates migration SQL
+    npm run db:migrate    ← applies it
+
+  If drizzle-kit ships a fix, run db:generate against a clean schema,
+  verify the output is clean (no spurious DROP/CREATE), then drop the patch.
+
+RISK NOTE:
+
+  If the version of drizzle-kit in package.json ever changes from 0.31.9,
+  patch-package will fail loudly at npm install. That's intentional — treat
+  it as a prompt to re-verify the four bugs against the new version.
+  Do not silently bump drizzle-kit without re-validating.
+
+---
+
+Architect

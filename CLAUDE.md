@@ -54,9 +54,20 @@ gh run view <run-id> --log-failed   # if any job failed
 - Firewall allows: GitHub, npm registry, Anthropic API only
 - `.env.local` holds secrets — never commit it
 
+## Schema changes (Drizzle ORM)
+**Never use `db:push`.** Always use the migrate workflow:
+```bash
+npm run db:generate   # generate a new migration SQL file
+npm run db:migrate    # apply pending migrations
+```
+`db:push` is disabled. drizzle-kit has four SQLite bugs that cause it to loop infinitely;
+they are patched via `patches/drizzle-kit+0.31.9.patch` (auto-applied on `npm install`).
+See ADL-15 for full rationale.
+
 ## Key files
 - `src/backend/server.ts` — Express app entry point
 - `src/backend/db/schema.ts` — Drizzle schema
 - `src/frontend/main.tsx` — React entry point
 - `drizzle.config.ts` — DB config
 - `.github/workflows/` — CI/CD pipelines
+- `patches/drizzle-kit+0.31.9.patch` — drizzle-kit SQLite bug fixes (patch-package)

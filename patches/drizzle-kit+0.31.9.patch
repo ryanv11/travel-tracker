@@ -1,0 +1,103 @@
+diff --git a/node_modules/drizzle-kit/bin.cjs b/node_modules/drizzle-kit/bin.cjs
+index 327fdfd..8d48365 100755
+--- a/node_modules/drizzle-kit/bin.cjs
++++ b/node_modules/drizzle-kit/bin.cjs
+@@ -20757,6 +20757,7 @@ ${withStyle.errorWarning(
+     	  il.name as indexName,
+     	  ii.name as columnName,
+     	  il.[unique] as isUnique,
++    	  il.partial as isPartial,
+     	  il.seq as seq
+ 		FROM
+ 		  sqlite_master AS m,
+@@ -20766,6 +20767,12 @@ ${withStyle.errorWarning(
+ 		  m.type = 'table'
+     	  AND il.name NOT LIKE 'sqlite\\_autoindex\\_%' ESCAPE '\\'
+     	  AND ${filterIgnoredTablesByField("m.tbl_name")};`);
++      const partialIdxSqls = {};
++      const partialIdxRows = await db.query(`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND sql LIKE '% WHERE %'`);
++      for (const row of partialIdxRows) {
++        const whereMatch = row.sql && row.sql.match(/\bWHERE\b(.+)$/i);
++        if (whereMatch) partialIdxSqls[row.name] = whereMatch[1].trim();
++      }
+       for (const idxRow of idxs) {
+         const tableName = idxRow.tableName;
+         const constraintName = idxRow.indexName;
+@@ -20780,11 +20787,15 @@ ${withStyle.errorWarning(
+         if (typeof tableInResult.indexes[constraintName] !== "undefined" && columnName) {
+           tableInResult.indexes[constraintName].columns.push(columnName);
+         } else {
+-          tableInResult.indexes[constraintName] = {
++          const idxEntry = {
+             name: constraintName,
+             columns: columnName ? [columnName] : [],
+             isUnique
+           };
++          if (partialIdxSqls[constraintName]) {
++            idxEntry.where = partialIdxSqls[constraintName];
++          }
++          tableInResult.indexes[constraintName] = idxEntry;
+         }
+       }
+       if (progressCallback) {
+@@ -20820,10 +20831,17 @@ ${withStyle.errorWarning(
+       if (progressCallback) {
+         progressCallback("views", viewsCount, "done");
+       }
+-      const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
+-      const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
++      const extractCheckValue2 = (str2, fromIdx) => {
++        let d = 0, start = -1;
++        for (let i = fromIdx; i < str2.length; i++) {
++          if (str2[i] === '(') { if (d === 0) start = i; d++; }
++          else if (str2[i] === ')') { d--; if (d === 0) return str2.slice(start + 1, i); }
++        }
++        return '';
++      };
++      const namedCheckRe2 = /CONSTRAINT\s*["'`]?(\w+)["'`]?\s*CHECK\s*\(/gi;
++      const unnamedCheckRe2 = /CHECK\s*\(/gi;
+       let checkCounter = 0;
+-      const checkConstraints = {};
+       const checks = await db.query(`SELECT
+ 		  name as "tableName",
+ 		  sql as "sql"
+@@ -20833,23 +20851,22 @@ ${withStyle.errorWarning(
+       for (const check2 of checks) {
+         if (!tablesFilter(check2.tableName)) continue;
+         const { tableName, sql } = check2;
+-        let namedChecks = [...sql.matchAll(namedCheckPattern)];
+-        if (namedChecks.length > 0) {
+-          namedChecks.forEach(([_3, checkName, checkValue]) => {
+-            checkConstraints[checkName] = {
+-              name: checkName,
+-              value: checkValue.trim()
+-            };
+-          });
+-        } else {
+-          let unnamedChecks = [...sql.matchAll(unnamedCheckPattern)];
+-          unnamedChecks.forEach(([_3, checkValue]) => {
+-            let checkName = `${tableName}_check_${++checkCounter}`;
+-            checkConstraints[checkName] = {
+-              name: checkName,
+-              value: checkValue.trim()
+-            };
+-          });
++        const checkConstraints = {};
++        let m3, namedFound2 = false;
++        namedCheckRe2.lastIndex = 0;
++        while ((m3 = namedCheckRe2.exec(sql)) !== null) {
++          namedFound2 = true;
++          const checkName = m3[1];
++          const checkValue = extractCheckValue2(sql, m3.index + m3[0].length - 1);
++          checkConstraints[checkName] = { name: checkName, value: checkValue.trim() };
++        }
++        if (!namedFound2) {
++          unnamedCheckRe2.lastIndex = 0;
++          while ((m3 = unnamedCheckRe2.exec(sql)) !== null) {
++            const checkName = `${tableName}_check_${++checkCounter}`;
++            const checkValue = extractCheckValue2(sql, m3.index + m3[0].length - 1);
++            checkConstraints[checkName] = { name: checkName, value: checkValue.trim() };
++          }
+         }
+         checksCount += Object.values(checkConstraints).length;
+         if (progressCallback) {
