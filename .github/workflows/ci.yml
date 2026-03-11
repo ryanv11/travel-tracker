@@ -54,7 +54,7 @@ jobs:
           cache: "npm"
       - run: npm ci
       - name: Initialise database schema
-        run: npm run db:push
+        run: npm run db:migrate
         env:
           DB_TYPE: sqlite
           SQLITE_PATH: file:./dev.db
