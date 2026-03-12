@@ -1,8 +1,11 @@
 # Travel Tracker — Map Shading Computation Specification
-**Version:** 1.0
-**Date:** 2026-03-07
-**Author:** Architect
+**Version:** 1.1
+**Date:** 2026-03-11
+**Author:** Architect / COO amendment
 **Status:** Approved — implement in BACKEND
+
+**Amendment (v1.1 — 2026-03-11):** Country shading rule updated per PO direction
+(SHADING-SPEC-01). §4 replaced in full. §3 and §5 unchanged.
 
 ---
 
@@ -118,30 +121,115 @@ Apply `computeState()` to each row in application code. This is a single query f
 
 ## 4. Country-Level Shading Queries
 
+**v1.1 — Rule change.** Country shading now applies conditionally based on whether
+the region tier is enabled for a country. The old rule (shade country on any city
+visit) is preserved only for countries without a region tier.
+
+### 4.0 Country shading decision rule
+
+A country receives a shading state (anything other than `never_visited`) only when
+one or more of the following conditions is true:
+
+| Case | Condition | State computation |
+|------|-----------|-------------------|
+| **(a)** | `region_tier_enabled = 0` | Use all trip_places in the country |
+| **(b)** | `region_tier_enabled = 1` AND at least one city with `region_id IS NULL` has a trip_place | Use only trips touching unassigned cities |
+| **(c)** | `region_tier_enabled = 1` AND every region in the country has at least one trip_place (any trip, any status) | Use all trip_places in the country |
+
+Cases (b) and (c) are evaluated in priority order: if (c) is true, use all-city
+stats. If only (b) is true, use unregioned-city stats. If neither, return
+`never_visited`.
+
+**"Visited" for case (c):** A region counts as visited when any `trip_places` row
+exists for a city belonging to that region, regardless of trip status (planning,
+active, review_pending, or locked). This is consistent with how all other shading
+logic treats trip_places.
+
+---
+
 ### 4.1 All countries in bulk (world map load)
 
-A country's state is determined by the trips that visited **any** city within it. `COUNT(DISTINCT t.id)` ensures one trip visiting two cities in the same country counts as one completed trip, not two.
+This requires two queries merged in application code.
+
+**Query A — country trip stats (replaces old §4.1)**
+
+Adds `region_tier_enabled` and a second set of aggregate columns restricted to
+cities with no region assignment (`c.region_id IS NULL`).
 
 ```sql
 SELECT
-    c.country_code,
-    MAX(CASE WHEN t.status = 'active'                      THEN 1 ELSE 0 END) AS has_active,
-    COUNT(DISTINCT CASE WHEN t.status IN ('review_pending', 'locked') THEN t.id END) AS completed_count,
-    COUNT(DISTINCT CASE WHEN t.status = 'planning'         THEN t.id END) AS planning_count
+    co.country_code,
+    co.region_tier_enabled,
+    -- All-city trip stats
+    MAX(CASE WHEN t.status = 'active'                               THEN 1 ELSE 0 END) AS has_active,
+    COUNT(DISTINCT CASE WHEN t.status IN ('review_pending','locked') THEN t.id END)    AS completed_count,
+    COUNT(DISTINCT CASE WHEN t.status = 'planning'                  THEN t.id END)    AS planning_count,
+    -- Unregioned-city trip stats (cities with region_id IS NULL)
+    MAX(CASE WHEN c.region_id IS NULL AND t.status = 'active'                               THEN 1 ELSE 0 END) AS has_active_unregioned,
+    COUNT(DISTINCT CASE WHEN c.region_id IS NULL AND t.status IN ('review_pending','locked') THEN t.id END)    AS completed_unregioned,
+    COUNT(DISTINCT CASE WHEN c.region_id IS NULL AND t.status = 'planning'                  THEN t.id END)    AS planning_unregioned
 FROM countries co
 LEFT JOIN cities c       ON c.country_code = co.country_code
 LEFT JOIN trip_places tp ON tp.city_id = c.id
 LEFT JOIN trips t        ON t.id = tp.trip_id
-GROUP BY co.country_code;
+GROUP BY co.country_code, co.region_tier_enabled;
 ```
 
-Apply `computeState()` per row.
+**Query B — region visit coverage**
+
+Returns how many regions each country has and how many have been visited (case c
+check). Run once; join to Query A results in application code.
+
+```sql
+SELECT
+    r.country_code,
+    COUNT(DISTINCT r.id)                                         AS total_regions,
+    COUNT(DISTINCT CASE WHEN tp.id IS NOT NULL THEN r.id END)   AS visited_regions
+FROM regions r
+LEFT JOIN cities c       ON c.region_id = r.id
+LEFT JOIN trip_places tp ON tp.city_id = c.id   -- any trip, any status
+GROUP BY r.country_code;
+```
+
+**Application logic (TypeScript)**
+
+```typescript
+// Build a lookup: country_code → { totalRegions, visitedRegions }
+const coverage = new Map(regionRows.map(r => [r.countryCode, r]));
+
+for (const row of countryRows) {
+  let stateKey: string;
+
+  if (!row.regionTierEnabled) {
+    // Case (a): no region tier — shade on any visit
+    stateKey = computeState(row.completedCount, row.planningCount, row.hasActive === 1);
+
+  } else {
+    const cov = coverage.get(row.countryCode);
+    const allRegionsVisited =
+      cov !== undefined && cov.totalRegions > 0 && cov.visitedRegions === cov.totalRegions;
+
+    if (allRegionsVisited) {
+      // Case (c): every region visited — shade whole country from all-city stats
+      stateKey = computeState(row.completedCount, row.planningCount, row.hasActive === 1);
+
+    } else if (row.completedUnregioned > 0 || row.planningUnregioned > 0 || row.hasActiveUnregioned === 1) {
+      // Case (b): unassigned cities have trips — shade from those trips only
+      stateKey = computeState(row.completedUnregioned, row.planningUnregioned, row.hasActiveUnregioned === 1);
+
+    } else {
+      stateKey = 'never_visited';
+    }
+  }
+}
+```
 
 **Required index:** `idx_cities_country` on `cities(country_code)` — already defined.
 
 ### 4.2 Single country (used on click/drill-down)
 
-Replace `GROUP BY co.country_code` with `WHERE co.country_code = :country_code`.
+Apply the same two-query pattern but scope both queries to `co.country_code = :country_code`.
+Use the same TypeScript decision logic above for the single-row result.
 
 ---
 

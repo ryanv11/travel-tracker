@@ -672,12 +672,12 @@
       "id": "SHADING-SPEC-01",
       "type": "requirement",
       "title": "Country shading logic — whole country only if all regions visited",
-      "status": "pending",
+      "status": "done",
       "owner": "architect",
       "priority": "P0",
       "brdRefs": ["MP-01","GE-02"],
       "phase": 3,
-      "notes": "PO direction 2026-03-09: country shading should only apply if (a) region tier disabled, (b) city has no region assigned, or (c) all regions in country have been visited. Overrides current spec §4 which colours on any city visit. OPEN QUESTION for PO: in case (c), does 'all regions visited' mean at least one city per region on a completed trip? Awaiting confirmation before dispatching architect spec amendment."
+      "notes": "PO confirmed rule 2026-03-11. Spec amended to v1.1 (jobs/architect/tech/20260307-map-shading-spec.md). Backend shading.service.ts updated: getAllCountryShading/getCountryShading now implement 3-condition rule (a) tier disabled (b) unregioned cities (c) all regions visited. 'Visited' for case (c) = any trip_place regardless of status (PO confirmed COO interpretation). 14 new unit tests for computeCountryState(). 120/120 passing."
     },
     {
       "id": "BUG-11",
