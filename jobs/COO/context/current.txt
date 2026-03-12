@@ -1,7 +1,8 @@
-COO CONTEXT — 2026-03-09 (updated 17:00 post-QA)
+COO CONTEXT — 2026-03-11 13:00
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-02 all layers done + QA contract expansion complete.
-                Awaiting QA live map shading sign-off to formally close BUG-02.
+CURRENT STATUS: Phase 3 (UI) active. BUG-14 closed. Three P0/P1 bugs dispatched to
+                Frontend. SHADING-SPEC-01 dispatched to Architect. FEAT-BD backend
+                endpoint dispatched to Backend. Packaging/security report processed.
 
 ================================================================================
 PHASE STATUS
@@ -9,9 +10,9 @@ PHASE STATUS
 
   PHASE 0 (FOUNDATION)    — COMPLETE
   PHASE 1 (DATA LAYER)    — COMPLETE
-  PHASE 2 (API LAYER)     — COMPLETE (corrections BC-01–07 complete)
-  PHASE 3 (UI LAYER)      — COMPLETE (BUG-02 all layers confirmed d76fbf0)
-  PHASE 4 (QA/DOCS)       — ACTIVE — BUG-02 live test pending; contract suite complete
+  PHASE 2 (API LAYER)     — COMPLETE
+  PHASE 3 (UI LAYER)      — ACTIVE — BUG-11/12/13 in progress (dispatched)
+  PHASE 4 (QA/DOCS)       — ACTIVE — awaiting Phase 3 bug fixes before QA sign-off
   PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
 
 ================================================================================
@@ -19,33 +20,49 @@ ACTIVE JOBS
 ================================================================================
 
 FRONTEND
-  Status:   IDLE — BUG-02 complete. Commit d76fbf0 pushed.
+  Status:   ACTIVE — dispatched 2026-03-11 13:00
+  Work:     BUG-11 (P0 — map shading cache invalidation)
+            BUG-13 (P0 — map click-through / navigation)
+            BUG-12 (P1 — trip list search and sort)
+  Spec:     jobs/frontend/inbox/20260311_1300-COO-bug11-bug12-bug13.txt
+  Awaiting: Completion report to COO inbox
+
+ARCHITECT
+  Status:   ACTIVE — dispatched 2026-03-11 13:00
+  Work:     SHADING-SPEC-01 — country shading rule amendment
+  Spec:     jobs/architect/inbox/20260311_1300-COO-shading-spec01.txt
+  Awaiting: Spec amendment + confirmation of whether Backend needs a follow-up
+
+BACKEND
+  Status:   ACTIVE — dispatched 2026-03-11 13:00
+  Work:     FEAT-BD — DELETE /api/trips/:id endpoint
+  Spec:     jobs/backend/inbox/20260311_1300-COO-feat-bd-delete-trip.txt
+  Awaiting: Completion report to COO inbox; may also receive SHADING-SPEC-01
+            backend correction from Architect
 
 QA
-  Status:   Contract expansion DONE (99/99 passing, commit 0e71fdf).
-            BUG-02 live map shading test: notified at 17:00, result pending.
-  BUG-02 live test direction: jobs/qa/inbox/20260309_1700-COO-bug02-frontend-live.txt
+  Status:   STANDBY — awaiting Frontend BUG-11/12/13 fixes before Phase 3 sign-off
+  Last:     Contract tests 99/99 (0e71fdf). BUG-02 live test directed 20260309_1700.
+  Note:     BUG-02 closed in tracker (code complete + 99/99 contracts). Live test
+            was a formality — treated as DONE per tracker (commit chain f6af0d5,
+            9049ba1, d76fbf0).
 
 ================================================================================
 OPEN BUGS
 ================================================================================
 
-| ID      | Severity | Status                              | Owner |
-|---------|----------|-------------------------------------|-------|
-| BUG-02  | MAJOR    | Code complete — awaiting QA live-test | QA  |
-| BUG-06  | TRIVIAL  | Deferred (safe)                     | —     |
+| ID      | Severity | Status                                | Owner    |
+|---------|----------|---------------------------------------|----------|
+| BUG-11  | MAJOR    | Dispatched to Frontend (2026-03-11)   | Frontend |
+| BUG-12  | MINOR    | Dispatched to Frontend (2026-03-11)   | Frontend |
+| BUG-13  | MAJOR    | Dispatched to Frontend (2026-03-11)   | Frontend |
+| BUG-06  | TRIVIAL  | Deferred (safe, post-beta)            | —        |
 
-CLOSED THIS SESSION / PRIOR:
-| BUG-01  | MAJOR    | DONE — BC-01 + Frontend fix   | — |
-| BUG-03  | MAJOR    | DONE — Frontend               | — |
-| BUG-04  | MAJOR    | DONE — Frontend (also NR-05)  | — |
-| BUG-05  | MINOR    | DONE — Frontend               | — |
-| BUG-07  | MAJOR    | DONE — BC-02/03/04            | — |
-| BUG-08  | TRIVIAL  | DONE — BC-05                  | — |
-| BUG-09  | MINOR    | DONE — BC-02/04               | — |
-| BUG-10  | MINOR    | DONE — commit 32c9f1a         | — |
-| FLAG-F1 | DOC      | DONE — BC-06                  | — |
-| NR-06   | —        | DONE — Frontend (8 ACs)       | — |
+CLOSED:
+| BUG-01  through BUG-05 | DONE — all layers  |
+| BUG-07 through BUG-10  | DONE               |
+| FLAG-F1                | DONE               |
+| BUG-14                 | DONE — d7cc264     |
 
 ================================================================================
 TEST STATUS
@@ -53,24 +70,48 @@ TEST STATUS
 
   Frontend tests:  41/41  PASSING  (commit d76fbf0)
   Backend tests:  106/106 PASSING
-  Contract tests:  99/99  PASSING  (commit 0e71fdf — trips 27, places 20, items 26, cities 26)
+  Contract tests:  99/99  PASSING  (commit 0e71fdf)
 
 ================================================================================
-BUG-02 COMMIT CHAIN
+OPEN REQUIREMENTS
 ================================================================================
 
-  f6af0d5 — feat(db): add iso_3166_2 column to regions + NR-01/02 seam columns
-  9049ba1 — feat(backend): return iso_3166_2 in region shading API responses
-  d76fbf0 — fix(frontend): fix region shading feature-state ID mismatch
+| ID              | Status    | Notes                                           |
+|-----------------|-----------|-------------------------------------------------|
+| SHADING-SPEC-01 | Active    | Dispatched to Architect 2026-03-11              |
+| FEAT-BD         | Active    | Backend DELETE /api/trips/:id dispatched        |
+| NR-03           | Pending   | Trip ownership metadata — not yet specced       |
+| NR-07           | Pending   | Offline indicator — may slip under scope press  |
+| NR-14           | Pending   | Pre-access hardening gate (Phase 1.5 gate)      |
+| OP-06           | Pending   | Pre-access hardening checklist (tied to NR-14)  |
+| OP-07           | Pending   | UI/UX expert review (post-Phase 4 sign-off)     |
 
 ================================================================================
-QA FINDINGS — CONTRACT EXPANSION (for tracking)
+PACKAGING & SECURITY ROADMAP — RECEIVED 2026-03-11
 ================================================================================
 
-  Backend behaviour notes (documented in tests, not bugs):
-  - Item extension fields returned flat (e.g. `rating` not `restaurant_rating`)
-  - GET /api/cities/:id/carry-forward and /items return 200+[] for non-existent IDs (not 404)
-  - POST /api/cities rate-limited to 20 req/min (SEC-07)
+Architect submitted a packaging & security readiness report (archived to history).
+COO decision: this work is POST-Phase-4 sign-off. Sequencing as follows:
+
+  Phase 1 (Arch Foundation — do after Phase 4 QA sign-off):
+    - Hosted backend architecture (API-first, cloud-deployable)
+    - Auth layer (required before any hosted deployment)
+    - better-sqlite3 swap (replace @libsql/client for Electron compatibility)
+    - Environment-aware API base URL
+
+  Phase 2 (macOS .dmg packaging — after Arch Foundation):
+    - Electron scaffold + electron-builder
+    - DB bootstrapping (~/Library/Application Support)
+    - Code signing & notarization (if distributing beyond own machine)
+
+  Phase 3 (iOS — contingent on cloud deployment):
+    - Capacitor shell (reuses Vite build)
+    - Cloud API + Auth live
+
+  Phase 4 (Pre-production security audit)
+    - Full audit gate before public release
+
+No dispatch needed now. Will revisit after Phase 4 QA sign-off.
 
 ================================================================================
 BRD STATUS
@@ -80,36 +121,26 @@ BRD STATUS
   File: _project/travel-tracker-BRD.md
 
   Beta-mandatory open items:
-    - NR-01/02: CLOSED at schema level (seam columns in BUG-02 migration f6af0d5)
-    - NR-08:    SQLite/OneDrive operating constraint — assign to DOCS (unblocked once BUG-02 closed)
-    - NR-14:    Pre-shared-access hardening gate — formal go/no-go before any non-owner access
-
-================================================================================
-AUDIT STATUS
-================================================================================
-
-  Finding dispositions:
-    F1 (Phase 2 seams):   CLOSED — NR-01/02 dormant columns added in BUG-02 migration
-    F2 (accounts model):  CLOSED
-    F3 (delegated admin): DEFERRED — Phase 3
-    F4 (OneDrive):        OPEN — NR-08 pending DOCS
-    F5 (QA timing):       IN EFFECT — OP-01–05 adopted
-    F6 (C1-C3):           CLOSED
-    F7 (offline retry):   DONE — NR-06 implemented by Frontend
+    - NR-14: Pre-shared-access hardening gate (formal go/no-go before non-owner access)
+    - NR-08: DONE (README completed 2026-03-09)
+    - NR-01/02: DONE (seam columns added in BUG-02 migration)
 
 ================================================================================
 NEXT COO ACTIONS (resume from here)
 ================================================================================
 
   WAITING ON:
-  1. QA: BUG-02 live map shading test result (Frontend live as of 17:00)
+  1. Frontend: BUG-11 + BUG-13 (P0), BUG-12 (P1) completion report
+  2. Architect: SHADING-SPEC-01 spec amendment + backend dispatch decision
+  3. Backend: DELETE /api/trips/:id (FEAT-BD) completion report
+  4. Backend: may receive SHADING-SPEC-01 patch from Architect
 
-  WHEN QA CONFIRMS BUG-02 LIVE TEST PASSES:
-  2. Formally close BUG-02.
-  3. Assign NR-08 README content to DOCS.
-  4. Update dependency-graph and project-plan.
+  WHEN FRONTEND CONFIRMS BUG-11/12/13 DONE:
+  5. Dispatch QA for Phase 3 live sign-off (all features, all BRD acceptance criteria)
+  6. Spec FEAT-BD Frontend work (multi-select delete UI) — blocked on Backend completing endpoint first
 
   STANDING:
-  5. NR-14: Schedule formal gate review before any non-owner access.
+  7. NR-14: Schedule formal gate review before any non-owner access
+  8. NR-03: Decide whether to add trip ownership metadata before Phase 4 sign-off
 
 ================================================================================

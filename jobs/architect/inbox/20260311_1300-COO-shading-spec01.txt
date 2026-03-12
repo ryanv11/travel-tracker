@@ -1,0 +1,69 @@
+FROM: COO
+TO:   Architect
+DATE: 2026-03-11 13:00
+RE:   SHADING-SPEC-01 — country shading rule amendment, spec and dispatch
+
+---
+
+BACKGROUND
+PO testing on 2026-03-09 identified that the current country shading logic (shade
+country on any city visit) is incorrect. The PO specified the correct rule:
+
+  Country shading should apply ONLY when:
+    (a) region tier is disabled
+    (b) city has no region assigned
+    (c) all regions in the country have been visited
+
+The current spec §4 colours a country on any city visit — this must be amended.
+
+---
+
+OPEN QUESTION — COO RESOLUTION
+
+The PO asked: "In case (c), does 'all regions visited' mean at least one city per
+region on a completed trip?"
+
+COO interpretation (no PO clarification received in 48h; unblocking now):
+
+  A region is "visited" when any trip_place exists whose city belongs to that
+  region, regardless of trip status (planning, in_progress, or completed).
+
+Rationale: all other shading logic treats any trip_place as evidence of intent
+to visit or actual visit. Restricting country-level roll-up to completed trips
+only would create a confusing asymmetry (regions shade while planning; the country
+would not roll up until the trip is marked complete). The permissive interpretation
+is consistent with the existing model.
+
+Document this interpretation in the amended spec. If the PO later provides a
+different answer, the change is isolated to the SQL condition — no structural work.
+
+---
+
+YOUR DELIVERABLES
+
+1. SPEC AMENDMENT — update the map shading computation spec to reflect the new
+   country shading rule. The amended spec must define:
+
+   - The new 3-condition country shading logic (a/b/c above) in plain English
+   - Exact SQL or pseudo-SQL for condition (c): how to determine whether all
+     regions for a country have been visited
+   - How the existing 7-state shading model interacts with the amended rule
+   - Whether any shading states or SQL queries in the current backend shading
+     service need to change
+
+2. BACKEND SPEC — if the backend shading service requires changes, write a
+   targeted patch spec for Backend and send it to:
+     jobs/backend/inbox/20260311_HHMM-ARCHITECT-shading-spec01-backend.txt
+   Report to COO inbox (not directly to Backend) first so I can review.
+
+3. FRONTEND NOTE — if the frontend shading rendering logic needs changes beyond
+   cache invalidation (BUG-11, separately dispatched), flag it in your report.
+
+---
+
+DELIVERY
+Report to COO inbox when spec amendment is complete:
+  20260311_HHMM-ARCHITECT-shading-spec01-done.txt
+
+Include: summary of changes, confirmation of SQL logic for case (c), and whether
+Backend requires a correction dispatch.

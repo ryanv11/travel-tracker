@@ -1,0 +1,115 @@
+COO CONTEXT — 2026-03-09 (updated 17:00 post-QA)
+PROJECT: Travel Tracker
+CURRENT STATUS: BUG-02 all layers done + QA contract expansion complete.
+                Awaiting QA live map shading sign-off to formally close BUG-02.
+
+================================================================================
+PHASE STATUS
+================================================================================
+
+  PHASE 0 (FOUNDATION)    — COMPLETE
+  PHASE 1 (DATA LAYER)    — COMPLETE
+  PHASE 2 (API LAYER)     — COMPLETE (corrections BC-01–07 complete)
+  PHASE 3 (UI LAYER)      — COMPLETE (BUG-02 all layers confirmed d76fbf0)
+  PHASE 4 (QA/DOCS)       — ACTIVE — BUG-02 live test pending; contract suite complete
+  PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
+
+================================================================================
+ACTIVE JOBS
+================================================================================
+
+FRONTEND
+  Status:   IDLE — BUG-02 complete. Commit d76fbf0 pushed.
+
+QA
+  Status:   Contract expansion DONE (99/99 passing, commit 0e71fdf).
+            BUG-02 live map shading test: notified at 17:00, result pending.
+  BUG-02 live test direction: jobs/qa/inbox/20260309_1700-COO-bug02-frontend-live.txt
+
+================================================================================
+OPEN BUGS
+================================================================================
+
+| ID      | Severity | Status                              | Owner |
+|---------|----------|-------------------------------------|-------|
+| BUG-02  | MAJOR    | Code complete — awaiting QA live-test | QA  |
+| BUG-06  | TRIVIAL  | Deferred (safe)                     | —     |
+
+CLOSED THIS SESSION / PRIOR:
+| BUG-01  | MAJOR    | DONE — BC-01 + Frontend fix   | — |
+| BUG-03  | MAJOR    | DONE — Frontend               | — |
+| BUG-04  | MAJOR    | DONE — Frontend (also NR-05)  | — |
+| BUG-05  | MINOR    | DONE — Frontend               | — |
+| BUG-07  | MAJOR    | DONE — BC-02/03/04            | — |
+| BUG-08  | TRIVIAL  | DONE — BC-05                  | — |
+| BUG-09  | MINOR    | DONE — BC-02/04               | — |
+| BUG-10  | MINOR    | DONE — commit 32c9f1a         | — |
+| FLAG-F1 | DOC      | DONE — BC-06                  | — |
+| NR-06   | —        | DONE — Frontend (8 ACs)       | — |
+
+================================================================================
+TEST STATUS
+================================================================================
+
+  Frontend tests:  41/41  PASSING  (commit d76fbf0)
+  Backend tests:  106/106 PASSING
+  Contract tests:  99/99  PASSING  (commit 0e71fdf — trips 27, places 20, items 26, cities 26)
+
+================================================================================
+BUG-02 COMMIT CHAIN
+================================================================================
+
+  f6af0d5 — feat(db): add iso_3166_2 column to regions + NR-01/02 seam columns
+  9049ba1 — feat(backend): return iso_3166_2 in region shading API responses
+  d76fbf0 — fix(frontend): fix region shading feature-state ID mismatch
+
+================================================================================
+QA FINDINGS — CONTRACT EXPANSION (for tracking)
+================================================================================
+
+  Backend behaviour notes (documented in tests, not bugs):
+  - Item extension fields returned flat (e.g. `rating` not `restaurant_rating`)
+  - GET /api/cities/:id/carry-forward and /items return 200+[] for non-existent IDs (not 404)
+  - POST /api/cities rate-limited to 20 req/min (SEC-07)
+
+================================================================================
+BRD STATUS
+================================================================================
+
+  Current version: 2.3 + delta (accepted 2026-03-08)
+  File: _project/travel-tracker-BRD.md
+
+  Beta-mandatory open items:
+    - NR-01/02: CLOSED at schema level (seam columns in BUG-02 migration f6af0d5)
+    - NR-08:    SQLite/OneDrive operating constraint — assign to DOCS (unblocked once BUG-02 closed)
+    - NR-14:    Pre-shared-access hardening gate — formal go/no-go before any non-owner access
+
+================================================================================
+AUDIT STATUS
+================================================================================
+
+  Finding dispositions:
+    F1 (Phase 2 seams):   CLOSED — NR-01/02 dormant columns added in BUG-02 migration
+    F2 (accounts model):  CLOSED
+    F3 (delegated admin): DEFERRED — Phase 3
+    F4 (OneDrive):        OPEN — NR-08 pending DOCS
+    F5 (QA timing):       IN EFFECT — OP-01–05 adopted
+    F6 (C1-C3):           CLOSED
+    F7 (offline retry):   DONE — NR-06 implemented by Frontend
+
+================================================================================
+NEXT COO ACTIONS (resume from here)
+================================================================================
+
+  WAITING ON:
+  1. QA: BUG-02 live map shading test result (Frontend live as of 17:00)
+
+  WHEN QA CONFIRMS BUG-02 LIVE TEST PASSES:
+  2. Formally close BUG-02.
+  3. Assign NR-08 README content to DOCS.
+  4. Update dependency-graph and project-plan.
+
+  STANDING:
+  5. NR-14: Schedule formal gate review before any non-owner access.
+
+================================================================================

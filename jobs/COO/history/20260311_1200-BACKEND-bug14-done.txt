@@ -1,0 +1,40 @@
+FROM: Backend
+TO:   COO
+DATE: 2026-03-11 12:00
+RE:   BUG-14 fixed — GEOCODING_ENABLED env var, no more live Nominatim calls in CI
+
+---
+
+CHANGES MADE
+
+1. src/backend/services/geocoding.service.ts
+   - Added GEOCODING_ENABLED constant (process.env.GEOCODING_ENABLED !== 'false')
+   - resolveCity(): short-circuits and returns false when GEOCODING_ENABLED=false
+   - processQueue(): logs and returns immediately when GEOCODING_ENABLED=false
+   - No mock needed — env flag is the cleanest solution; tests already
+     assert geocode_status === 'pending' OR 'resolved', so both code paths pass
+
+2. .github/workflows/ci.yml (test-contract job)
+   - Added GEOCODING_ENABLED: false to the Start backend server env block
+   - Contract tests now run with geocoding disabled — no live Nominatim HTTP calls
+
+---
+
+TEST RESULTS
+
+npm run type:check:   PASS
+npm run test:backend: PASS — 106/106
+npm run test:frontend: PASS — 41/41
+
+Commit: d7cc264
+Message: "fix(backend): add GEOCODING_ENABLED env var to skip geocoding in CI (BUG-14)"
+Pushed to: main
+
+---
+
+BACKEND STATUS
+
+All open backend items are now resolved. PHASE-2 remains done.
+BUG-14 tracker entry updated to done.
+
+Backend

@@ -1,0 +1,81 @@
+COO PARK — 2026-03-11 14:00
+SESSION END
+
+================================================================================
+INBOX PROCESSED
+================================================================================
+
+  BUG-14 DONE (Backend, 2026-03-11 12:00):
+    Geocoding disabled via GEOCODING_ENABLED=false in CI. No live Nominatim calls.
+    Commit d7cc264. 106/106 backend tests pass. Tracker already updated. ARCHIVED.
+
+  Packaging & Security Readiness Report (Architect, 2026-03-11 10:00):
+    Four-phase roadmap: Arch Foundation → macOS .dmg → iOS → Security Audit.
+    Key decision: iOS in scope, hosted backend confirmed.
+    COO decision: defer all packaging work to post-Phase-4 QA sign-off.
+    Roadmap documented in context. ARCHIVED.
+
+  drizzle-kit DEV message in Architect inbox:
+    Already resolved — ADL-15 committed (patch-package + migrate-only workflow).
+    No COO action needed.
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+  SHADING-SPEC-01 PO open question:
+    PO asked 2026-03-09 whether "all regions visited" requires completed trips.
+    No response in 48 hours. COO resolved: "visited" = any trip_place exists for
+    a city in that region, regardless of trip status. Consistent with all other
+    shading logic. Documented in Architect dispatch. PO can override if needed —
+    change is isolated to one SQL condition.
+
+  FEAT-BD scope:
+    No bulk delete endpoint. Frontend will call DELETE /api/trips/:id per trip for
+    multi-select. Simpler, sufficient for Phase 1.
+
+  Packaging roadmap:
+    Post-Phase-4 work. No dispatches. Sequenced and documented in context.
+
+================================================================================
+SPECS WRITTEN AND DISPATCHED
+================================================================================
+
+  Frontend  — jobs/frontend/inbox/20260311_1300-COO-bug11-bug12-bug13.txt
+    BUG-11: map shading cache invalidation (P0)
+    BUG-13: map click-through navigation (P0)
+    BUG-12: trip list search and sort (P1)
+
+  Architect — jobs/architect/inbox/20260311_1300-COO-shading-spec01.txt
+    SHADING-SPEC-01: country shading rule amendment + COO interpretation
+    Architect to spec and optionally dispatch Backend if shading service needs changes
+
+  Backend   — jobs/backend/inbox/20260311_1300-COO-feat-bd-delete-trip.txt
+    FEAT-BD: DELETE /api/trips/:id with cascade + tests + API reference update
+
+================================================================================
+PENDING REVIEWS
+================================================================================
+
+  Awaiting:
+  - Frontend completion report (BUG-11/12/13)
+  - Architect SHADING-SPEC-01 completion + backend dispatch decision
+  - Backend FEAT-BD completion
+
+  On receipt of Frontend BUG-11/12/13 done:
+  - Review output then dispatch QA for Phase 3 live sign-off
+  - Spec FEAT-BD Frontend work (multi-select delete UI in TripList)
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT SESSION
+================================================================================
+
+  1. Check all job inboxes for completion reports
+  2. If Frontend done: review output → dispatch QA for Phase 3 sign-off
+  3. If Architect SHADING-SPEC-01 done: review → approve or redirect backend
+  4. If Backend FEAT-BD done: review → spec Frontend multi-select delete UI
+  5. Begin planning NR-14 (pre-access hardening gate) — this is a Phase 1.5 gate
+     that should be spec'd before Phase 4 QA sign-off to avoid a blocking
+     dependency when the user is ready to share access
+
+================================================================================

@@ -1,0 +1,120 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-11 13:00
+RE:   BUG-11, BUG-12, BUG-13 — fix dispatch
+
+---
+
+Three outstanding bugs from PO testing on 2026-03-09. All are Frontend-only fixes.
+BUG-11 and BUG-13 are P0 — fix these first. BUG-12 is P1.
+
+Pre-push checklist applies: npm run type:check + npm run test:frontend must pass.
+
+---
+
+BUG-11 (P0) — Map shading not live, only updates on page refresh
+================================================================
+
+ROOT CAUSE
+React Query cache is not invalidated when trips or places are mutated.
+useMapShading has a 5-minute stale time, so the map only refreshes stale data on
+next mount or manual refresh.
+
+FIX
+Add queryClient.invalidateQueries calls to the following mutations, in their
+onSuccess (or onSettled) callbacks:
+
+  - useCreateTrip          → invalidate ['map', 'shading'] and ['map', 'regions']
+  - useUpdateTripStatus    → invalidate ['map', 'shading'] and ['map', 'regions']
+  - useLockTrip            → invalidate ['map', 'shading'] and ['map', 'regions']
+  - useUnlockTrip          → invalidate ['map', 'shading'] and ['map', 'regions']
+  - useAddPlace            → invalidate ['map', 'shading'] and ['map', 'regions']
+  - useRemovePlace         → invalidate ['map', 'shading'] and ['map', 'regions']
+
+Verify the exact query key shapes by checking useMapShading and useMapRegions —
+match them exactly.
+
+ACCEPTANCE
+After mutating a trip or adding/removing a place, the map updates without a page
+refresh. No new tests required — this is a cache wiring fix.
+
+---
+
+BUG-13 (P0) — Map click-through not implemented
+================================================
+
+BRD REFERENCES: MP-03, GE-09
+
+ROOT CAUSE
+CountryLayer, RegionLayer, and CityMarkers have no click handlers. Clicking a
+shaded country, region, or city pin does nothing.
+
+FIX
+Add onClick handlers as follows:
+
+  Country click (MP-03):
+    Navigate to /trips with a country filter applied. The filter should show only
+    trips that include a place in the clicked country.
+
+    If the TripList page supports URL-based filtering (e.g. ?country=ES), use that.
+    If not, add support for a `country` query param that pre-populates the filter.
+
+  Region click (MP-03):
+    Same pattern — navigate to /trips filtered by the clicked region (using the
+    ISO 3166-2 code or region ID as the filter param).
+
+  City click (GE-09):
+    Navigate to /trips filtered by city, or open a modal listing trip entries for
+    that city. Choose whichever approach is consistent with the existing navigation
+    model.
+
+Interactivity guidance:
+  - Add cursor: pointer on hover to all clickable map layers
+  - Don't block the map pan/zoom — onClick only, no onDrag interference
+
+ACCEPTANCE
+  1. Clicking a shaded country navigates to or filters the trip list for that country
+  2. Clicking a shaded region navigates to or filters for that region
+  3. Clicking a city pin navigates to or opens trip entries for that city
+  4. Cursor changes to pointer on hover over any clickable element
+  5. Pan and zoom are unaffected
+
+---
+
+BUG-12 (P1) — Trip list missing search by name and sort by date/name
+====================================================================
+
+BRD REFERENCES: TR-09, TR-10
+
+VERIFICATION STEP (do before implementing)
+Inspect TripList and its filter bar. Document what filters and sort controls
+currently exist. In particular:
+  - Is there a text search / name search field? If yes, does it work correctly?
+  - Is there a sort control? If yes, which sort options are exposed?
+  - What does TR-10 expose currently (category/activity filter)?
+
+Report findings in your completion message.
+
+IMPLEMENTATION
+Add whatever is missing from the following set:
+  - Search by trip name (text input, filters the list as the user types)
+  - Sort by date (newest first / oldest first — default: newest first)
+  - Sort by name (A–Z / Z–A)
+
+Do not remove or change existing filter controls. Add to what is there.
+
+ACCEPTANCE
+  1. User can type in a search field to filter trips by name
+  2. User can sort by date (newest first or oldest first)
+  3. User can sort by name (A–Z or Z–A)
+  4. Existing category/activity/status filters remain intact
+  5. All existing frontend tests pass; add tests for new filter/sort logic
+
+---
+
+DELIVERY
+Report back to COO inbox when all three are done. Use format:
+
+  20260311_HHMM-FRONTEND-bug11-bug12-bug13-done.txt
+
+Include: what was changed, tests status, commit hash.

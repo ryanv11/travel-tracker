@@ -1,0 +1,68 @@
+FROM: COO
+TO:   Backend
+DATE: 2026-03-11 13:00
+RE:   FEAT-BD — add DELETE /api/trips/:id endpoint
+
+---
+
+BACKGROUND
+PO direction 2026-03-09: the app needs the ability to delete trips for test data
+cleanup and general data management. This requires a new backend endpoint.
+Tracker ID: FEAT-BD (P1).
+
+---
+
+ENDPOINT SPEC
+
+  DELETE /api/trips/:id
+
+  Path param validation (Zod):
+    id — positive integer; return 400 if invalid
+
+  Logic:
+    1. Verify the trip exists. If not found, return 404 with body:
+         { "error": "Trip not found" }
+    2. Delete the trip record. SQLite CASCADE handles all related data:
+         tripCategoriesMap, tripCompanionsMap, tripActivitiesMap (via tripId)
+         tripPlaces (via tripId)
+         tripPlaceActivitiesMap (via tripPlaceId on tripPlaces)
+         items (via tripId)
+         itemFlights, itemHotels, itemCarRentals, itemRestaurants, itemExperiences
+           (via itemId on items)
+    3. Return 204 No Content on success.
+
+  No request body. No query params.
+
+  Rate limiting: apply the same global rate limiter already in use; no special
+  limit needed for single-delete.
+
+NOTES
+  - Do NOT add a bulk delete endpoint. Frontend will issue individual DELETE calls
+    per trip for the multi-select use case.
+  - Do NOT soft-delete. Trips are hard-deleted. This is a personal tool; the user
+    owns all data. (Soft-delete is reserved for admin list items per AD-06.)
+
+---
+
+API REFERENCE
+Update jobs/backend/tech/20260307-api-reference.md to document the new endpoint.
+
+---
+
+TEST COVERAGE
+Add backend unit tests covering:
+  - 204 on successful delete
+  - 404 on non-existent trip
+  - 400 on invalid id (non-integer, negative, zero)
+  - Verify cascade: after delete, a query for trip_places with the deleted tripId
+    returns empty
+
+Pre-push checklist: npm run type:check + npm run test:backend must pass.
+
+---
+
+DELIVERY
+Report to COO inbox when complete:
+  20260311_HHMM-BACKEND-feat-bd-done.txt
+
+Include: what was changed, test count, commit hash.
