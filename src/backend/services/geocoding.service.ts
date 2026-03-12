@@ -17,6 +17,9 @@ const USER_AGENT = 'TravelTracker/1.0 (personal-use-app)';
 const REQUEST_DELAY_MS = 1100; // 100ms above the 1 req/s limit (ADL-10)
 const CONNECTIVITY_TIMEOUT_MS = 3000;
 
+/** When GEOCODING_ENABLED=false, all geocoding is skipped (e.g. CI contract tests) */
+const GEOCODING_ENABLED = process.env.GEOCODING_ENABLED !== 'false';
+
 /** Pauses execution for the given number of milliseconds */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -76,6 +79,10 @@ export async function resolveCity(cityId: number): Promise<boolean> {
   // Never re-query a resolved city (ADL-10)
   if (city.geocodeStatus === 'resolved') {
     return true;
+  }
+
+  if (!GEOCODING_ENABLED) {
+    return false;
   }
 
   if (!(await isOnline())) {
@@ -158,6 +165,11 @@ export async function processQueue(): Promise<void> {
     .from(cities)
     .where(eq(cities.geocodeStatus, 'pending'))
     .orderBy(asc(cities.geocodeAttemptedAt));
+
+  if (!GEOCODING_ENABLED) {
+    console.info('[GEO] Geocoding disabled (GEOCODING_ENABLED=false) — queue skipped');
+    return;
+  }
 
   if (!pending.length) {
     console.info('[GEO] Geocoding queue empty — nothing to process');
