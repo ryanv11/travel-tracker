@@ -727,12 +727,12 @@
       "id": "BUG-14",
       "type": "bug",
       "title": "Geocoding service not mocked in contract tests — real Nominatim calls in CI",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend",
       "priority": "P1",
       "brdRefs": [],
       "phase": 4,
-      "notes": "Contract tests make live HTTP requests to Nominatim in CI (GitHub Actions has full internet). Causes: non-deterministic tests (external API can be slow/down), unnecessary latency (1100ms delay per city), Nominatim usage policy violation. Locally in devcontainer the firewall masks this — isOnline() returns false, no request made. Fix: add GEOCODING_ENABLED env var (default true); server skips all geocoding when false. Set GEOCODING_ENABLED=false in CI workflow (test-contract job). No mock needed — env flag is simpler and tests already assert pending OR resolved."
+      "notes": "Fixed in d7cc264. Added GEOCODING_ENABLED env var (default true). resolveCity() and processQueue() short-circuit when false — no Nominatim HTTP requests. Set GEOCODING_ENABLED=false in test-contract CI job. Closed 2026-03-11."
     },
     {
       "id": "FUTURE-01",
