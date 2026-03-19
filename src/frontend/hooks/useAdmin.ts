@@ -213,6 +213,22 @@ export function useCountries() {
 }
 
 /**
+ * Fetches the regions for a single country (GET /api/admin/countries/:countryCode/regions).
+ * Used by AddPlaceFlow to show the region dropdown when region_tier_enabled.
+ *
+ * @param countryCode - ISO 3166-1 alpha-2 code. Pass undefined to disable the query.
+ * @returns React Query result containing Region[].
+ */
+export function useCountryRegions(countryCode: string | undefined) {
+  return useQuery({
+    queryKey: ['admin', 'countries', countryCode, 'regions'],
+    queryFn: () => apiGet<import('../types/api').Region[]>(`/api/admin/countries/${countryCode}/regions`),
+    enabled: countryCode !== undefined && countryCode !== '',
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
  * Updates a country's region tier settings.
  * PATCH /api/admin/countries/:countryCode
  *

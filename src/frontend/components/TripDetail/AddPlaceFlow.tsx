@@ -12,7 +12,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCitySearch, useCreateCity, type CreateCityData } from '../../hooks/useCities';
 import { useAddPlace } from '../../hooks/usePlaces';
 import { useCarryForwardCandidates } from '../../hooks/useCities';
-import { useCountries } from '../../hooks/useAdmin';
+import { useCountries, useCountryRegions } from '../../hooks/useAdmin';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
@@ -54,6 +54,7 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   const [showNewCityForm, setShowNewCityForm] = useState(false);
   const [newCityName, setNewCityName] = useState('');
   const [newCityCountryCode, setNewCityCountryCode] = useState('');
+  const [newCityRegionId, setNewCityRegionId] = useState<number | null>(null);
   const [addedPlaceId, setAddedPlaceId] = useState<number | null>(null);
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
   const [showCarryForward, setShowCarryForward] = useState(false);
@@ -61,6 +62,15 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
 
   const { data: searchResults = [], isLoading: searching } = useCitySearch(debouncedQuery);
   const { data: countries = [] } = useCountries();
+
+  // Derive the selected country's tier config to conditionally show region dropdown
+  const selectedCountry = countries.find((c) => c.country_code === newCityCountryCode);
+  const showRegionDropdown = selectedCountry?.region_tier_enabled ?? false;
+  const regionLabel = selectedCountry?.region_tier_label ?? 'Region';
+
+  const { data: countryRegions = [] } = useCountryRegions(
+    showRegionDropdown ? newCityCountryCode : undefined,
+  );
   const addPlace = useAddPlace();
   const createCity = useCreateCity();
   const { data: carryForwardCandidates = [], isFetched: candidatesFetched } = useCarryForwardCandidates(
@@ -105,6 +115,7 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     const data: CreateCityData = {
       name: newCityName.trim(),
       country_code: newCityCountryCode,
+      region_id: newCityRegionId ?? undefined,
     };
     try {
       const city = await createCity.mutateAsync(data);
@@ -177,13 +188,41 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
             </div>
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>Country</label>
-              <select style={inputStyle} value={newCityCountryCode} onChange={(e) => setNewCityCountryCode(e.target.value)} required>
+              <select
+                style={inputStyle}
+                value={newCityCountryCode}
+                onChange={(e) => {
+                  setNewCityCountryCode(e.target.value);
+                  setNewCityRegionId(null);
+                }}
+                required
+              >
                 <option value="">Select country…</option>
                 {countries.map((c) => (
                   <option key={c.country_code} value={c.country_code}>{c.name}</option>
                 ))}
               </select>
             </div>
+
+            {/* Region dropdown — shown only when country has region_tier_enabled */}
+            {showRegionDropdown && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+                  {regionLabel} <span style={{ fontWeight: 400, color: '#6B7280' }}>(optional)</span>
+                </label>
+                <select
+                  style={inputStyle}
+                  value={newCityRegionId ?? ''}
+                  onChange={(e) => setNewCityRegionId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">No {regionLabel.toLowerCase()} selected</option>
+                  {countryRegions.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {mutationError && <ErrorMessage error={mutationError} />}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button type="button" onClick={() => setShowNewCityForm(false)} style={{ padding: '8px 14px', border: '1px solid #D1D5DB', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}>
