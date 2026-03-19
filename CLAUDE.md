@@ -64,6 +64,20 @@ npm run db:migrate    # apply pending migrations
 they are patched via `patches/drizzle-kit+0.31.9.patch` (auto-applied on `npm install`).
 See ADL-15 for full rationale.
 
+## UAT gate (mandatory)
+PO (user) live testing is a **mandatory gate** for phase completion. No phase can be
+formally closed as DONE without a UAT PASS verdict.
+
+**On every COO session pickup:** read `jobs/PO/uat-log.md` and check for:
+- Any session with verdict PARTIAL or FAIL → surface to user before proceeding
+- Any unreviewed findings (unchecked `[ ]` items) → ask user for status before actioning
+- Any findings marked "fixed myself" without a bug ID → log them formally
+
+**Before actioning any bug fix:** if the finding came from UAT and the session verdict is
+not yet PASS, check in with the user — the fix may be part of a broader flow still being tested.
+
+Screenshots are stored in `jobs/PO/screenshots/`.
+
 ## Key files
 - `src/backend/server.ts` — Express app entry point
 - `src/backend/db/schema.ts` — Drizzle schema

@@ -11,7 +11,7 @@ PHASE STATUS
   PHASE 0 (FOUNDATION)    — COMPLETE
   PHASE 1 (DATA LAYER)    — COMPLETE
   PHASE 2 (API LAYER)     — COMPLETE
-  PHASE 3 (UI LAYER)      — COMPLETE (code) — awaiting QA Phase 3 sign-off
+  PHASE 3 (UI LAYER)      — COMPLETE (code) — awaiting QA sign-off + PO UAT PASS
   PHASE 4 (QA/DOCS)       — ACTIVE — QA Phase 3 sign-off dispatched 2026-03-19 22:00
   PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
 
@@ -116,8 +116,8 @@ NEXT COO ACTIONS (resume from here)
   1. QA: Phase 3 sign-off report
   2. Backend: FEAT-BD completion report (2nd chase sent)
 
-  WHEN QA PHASE 3 PASSES:
-  3. Formal Phase 3 closure
+  WHEN QA PHASE 3 PASSES + PO UAT PASSES:
+  3. Formal Phase 3 closure (BOTH gates required)
   4. Begin Phase 4 gating — NR-14 / OP-06 hardening spec (can write now in parallel)
 
   WHEN BACKEND FEAT-BD DONE:
@@ -126,6 +126,6 @@ NEXT COO ACTIONS (resume from here)
   STANDING:
   6. NR-14 / OP-06: Can write now, doesn't require QA or Backend to be done first
   7. NR-03: Decide before Phase 4 sign-off whether trip ownership is in scope
-  8. LIVE TESTING PROCESS: Formally define with COO — BUG-15/16 source, process needed
+  8. UAT LOG: Check jobs/PO/uat-log.md at every session start — gate in place
 
 ================================================================================
