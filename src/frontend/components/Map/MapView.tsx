@@ -17,6 +17,7 @@ import Map, {
   type MapLayerMouseEvent,
 } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { useNavigate } from 'react-router-dom';
 import { useMapShading, useRegionShading } from '../../hooks/useMapShading';
 import { CountryLayer } from './CountryLayer';
 import { RegionLayer } from './RegionLayer';
@@ -50,6 +51,7 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
   const mapRef = useRef<MapRef>(null);
   const [zoom, setZoom] = useState(2);
   const [visibleCountryCode, setVisibleCountryCode] = useState<string | undefined>();
+  const navigate = useNavigate();
 
   const { data: shadingData, isLoading: shadingLoading } = useMapShading();
   // Lazy-load region shading only when zoomed in enough
@@ -64,23 +66,44 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
     setZoom(map.getZoom());
   }, []);
 
-  /** Handles clicks on country fill layers. */
+  /** Changes cursor to pointer when hovering over interactive layers (MP-03, GE-09). */
+  const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
+    const canvas = e.target.getCanvas();
+    canvas.style.cursor = (e.features && e.features.length > 0) ? 'pointer' : '';
+  }, []);
+
+  /** Handles clicks on country, region, and city layers. */
   const handleMapClick = useCallback(
     (e: MapLayerMouseEvent) => {
       const features = e.features;
       if (!features || features.length === 0) return;
 
       const feature = features[0];
-      // CountryLayer click — ISO_A2 from Natural Earth data
+
       if (feature.layer.id === 'countries-fill') {
+        // CountryLayer click — ISO_A2 from Natural Earth data
         const code = feature.properties?.ISO_A2 as string | undefined;
         if (code && code !== '-99') {
           setVisibleCountryCode(code);
           onCountryClick?.(code);
+          navigate(`/trips?country=${encodeURIComponent(code)}`);
+        }
+      } else if (feature.layer.id === 'regions-fill') {
+        // RegionLayer click — iso_3166_2 from Natural Earth admin-1 data
+        const isoCode = feature.properties?.iso_3166_2 as string | undefined;
+        if (isoCode) {
+          const countryCode = isoCode.split('-')[0];
+          navigate(`/trips?country=${encodeURIComponent(countryCode)}&region=${encodeURIComponent(isoCode)}`);
+        }
+      } else if (feature.layer.id === 'city-markers') {
+        // CityMarkers click — city id from GeoJSON properties
+        const cityId = feature.properties?.id as number | undefined;
+        if (cityId !== undefined) {
+          navigate(`/trips?city=${cityId}`);
         }
       }
     },
-    [onCountryClick],
+    [onCountryClick, navigate],
   );
 
   return (
@@ -97,8 +120,9 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
         initialViewState={{ longitude: 10, latitude: 20, zoom: 2 }}
         style={{ width: '100%', height: '100%' }}
         onZoom={handleZoom}
+        onMouseMove={handleMouseMove}
         onClick={handleMapClick}
-        interactiveLayerIds={['countries-fill']}
+        interactiveLayerIds={['countries-fill', 'regions-fill', 'city-markers']}
       >
         {/* Country shading layer */}
         <CountryLayer shadingData={shadingData ?? []} />

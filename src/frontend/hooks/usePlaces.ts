@@ -30,6 +30,7 @@ export function useAddPlace() {
       apiPost<TripPlaceNoItems>(`/api/trips/${tripId}/places`, { city_id: cityId }),
     onSuccess: (_result, vars) => {
       void qc.invalidateQueries({ queryKey: ['trips', vars.tripId] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });
 }
@@ -47,6 +48,7 @@ export function useRemovePlace() {
       apiDelete(`/api/trips/${tripId}/places/${placeId}`),
     onSuccess: (_result, vars) => {
       void qc.invalidateQueries({ queryKey: ['trips', vars.tripId] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });
 }

@@ -80,6 +80,7 @@ export function useCreateTrip() {
     mutationFn: (data: TripFormData) => apiPost<TripSummary>('/api/trips', data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['trips'] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });
 }
@@ -116,6 +117,7 @@ export function useUpdateTripStatus() {
     onSuccess: (_result, vars) => {
       void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['trips', vars.id] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });
 }
@@ -133,6 +135,7 @@ export function useLockTrip() {
     onSuccess: (_result, id) => {
       void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['trips', id] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });
 }
@@ -150,6 +153,7 @@ export function useUnlockTrip() {
     onSuccess: (_result, id) => {
       void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['trips', id] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });
 }
