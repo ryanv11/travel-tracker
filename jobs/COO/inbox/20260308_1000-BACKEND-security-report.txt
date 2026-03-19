@@ -1,0 +1,291 @@
+FROM:     BACKEND
+TO:       COO
+DATE:     2026-03-08
+SUBJECT:  Backend Security Report — Phase 1 Threat Model & Backlog Items
+
+This report covers: (1) the four npm audit findings, (2) a full sweep of the
+attack surface as built, and (3) recommended actions with phase assignments.
+Intended for backlog inclusion and future sprint planning.
+
+The localhost-only binding (127.0.0.1) is the primary mitigating control for
+Phase 1. Several findings are only exploitable if that boundary is removed —
+which happens at Phase 2. Those items are flagged as Phase 2 pre-flight gates.
+
+================================================================================
+SECTION 1 — NPM AUDIT FINDINGS (4 × MODERATE)
+================================================================================
+
+All four findings share a single root advisory.
+
+  Advisory:   GHSA-67mh-4wv8-2f99
+  Package:    esbuild ≤0.24.2
+  Chain:      drizzle-kit → @esbuild-kit/esm-loader →
+              @esbuild-kit/core-utils → esbuild
+  OWASP:      A06:2021 — Vulnerable and Outdated Components
+  CWE:        CWE-346 — Origin Validation Error
+  CVSS v3.1:  5.3 (Moderate) AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:N/A:N
+
+WHAT IT DOES:
+  esbuild's built-in dev server uses misconfigured CORS headers, allowing any
+  webpage the user visits to send cross-origin requests to the esbuild server
+  and read the responses (source files, build artefacts).
+
+WHY IT IS NOT CURRENTLY EXPLOITABLE:
+  - drizzle-kit is a devDependency — not shipped or run in production.
+  - The esbuild server is only active when `drizzle-kit studio` is explicitly
+    invoked. We do not invoke it anywhere (scripts, CI, startup sequence).
+  - Exploitation requires: studio running AND user simultaneously visiting a
+    malicious webpage.
+  - If exploited: attacker sees the drizzle-kit DB browser only — personal
+    travel data, no credentials or tokens.
+
+RECOMMENDED ACTION:
+  Upgrade drizzle-kit to ≥0.31.9 when a compatible release is confirmed.
+  The current fix (`npm audit fix --force`) installs 0.31.9 which is a
+  breaking change requiring schema config migration. Defer until a drizzle-kit
+  upgrade sprint is scheduled.
+
+  Interim: never run `drizzle-kit studio` on a shared or cloud machine.
+  This finding does NOT block Phase 2.
+
+================================================================================
+SECTION 2 — ATTACK SURFACE SWEEP: CLEARED (NOT A CONCERN)
+================================================================================
+
+The following vectors were examined in the source and are fully mitigated.
+No action required.
+
+  SQL INJECTION
+    Drizzle ORM uses parameterized queries throughout — eq(), like(),
+    inArray(), and sql`` with bound params. No raw string concatenation
+    into queries at any point.
+
+  SSRF (geocoding service)
+    Nominatim URL is hardcoded. City name enters via URLSearchParams as
+    a query value only — user controls content, not destination host.
+
+  PATH TRAVERSAL (static files)
+    express/serve-static normalises paths and rejects ../ sequences.
+    The /geo static mount is safe.
+
+  XSS
+    JSON-only API. No HTML is rendered server-side. CSP is set.
+    User input is never reflected back as markup.
+
+  CSRF
+    CORS allowlist rejects cross-origin preflights. No cookies in Phase 1.
+
+  STACK TRACE LEAKAGE
+    error-handler.ts: 4xx errors return err.message; 5xx returns only
+    "Internal server error". Stack is logged server-side only.
+
+  PROTOTYPE POLLUTION
+    Node 18+ V8 hardens JSON.parse against __proto__ keys.
+    100KB body limit reduces any window further.
+
+  ReDoS
+    All Zod regex patterns use linear matching:
+    /^\d{4}-\d{2}-\d{2}$/, /^#[0-9a-fA-F]{6}$/, /^[A-Z]{2}$/
+    No catastrophic backtracking risk.
+
+  HTTP VERB TUNNELLING
+    CORS explicitly allows GET, POST, PATCH, DELETE, OPTIONS only.
+
+  QUERY PARAM ARRAY CONFUSION
+    Express gives req.query.q as an array when duplicated. z.string()
+    rejects arrays — validation fires before any route logic.
+
+================================================================================
+SECTION 3 — OPEN FINDINGS & RECOMMENDED ACTIONS
+================================================================================
+
+Items are grouped by priority and assigned to a phase or backlog tier.
+
+────────────────────────────────────────────────────────────────────────────────
+P1 — HIGH SEVERITY
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING H1: No Authentication
+  All endpoints are fully open. The localhost binding (127.0.0.1) is the only
+  barrier — any process or browser script running on the same machine can call
+  any API endpoint.
+
+  Risk note: a browser page at any localhost port can cross-origin request
+  localhost:3001 because the same-origin policy does not block localhost
+  sub-origins in most browsers. auth.ts is a passthrough stub by design.
+
+  PHASE 2 HARD GATE.
+  Required before any HOST=0.0.0.0 or cloud deployment.
+  Implementation: complete the auth stub in src/backend/middleware/auth.ts.
+  Admin-level routes (/api/admin/*) should require elevated role claims even
+  in single-user context.
+
+FINDING H2: No HTTPS — Plaintext Transport
+  All traffic is HTTP. The Strict-Transport-Security header is configured but
+  is silently ignored by browsers over HTTP — it only activates after the
+  first valid HTTPS handshake. It is currently doing nothing.
+
+  If HOST is ever set to 0.0.0.0 without TLS, all trip data and any future
+  session tokens are visible to any observer on the local network.
+
+  .env.example explicitly says "Set 0.0.0.0 in Phase 2 behind proxy" —
+  making this an active risk at that transition point.
+
+  PHASE 2 HARD GATE (must precede HOST=0.0.0.0).
+  TLS at the reverse proxy layer (nginx, Caddy, Cloudflare Tunnel) before
+  any binding change. HSTS will then function correctly. Update
+  ALLOWED_ORIGINS to https:// origins.
+
+FINDING H3: SQLite Database Plaintext at Rest
+  dev.db is an unencrypted SQLite file readable by any process with filesystem
+  access — other user accounts, compromised processes, or cloud sync tooling.
+  The spec and .env.example suggest storing the DB on OneDrive for sync:
+    file:/Users/.../OneDrive-Personal/TravelTracker/travel-tracker.db
+  OneDrive encryption is Microsoft-managed; it is not user-controlled at rest.
+
+  COO DECISION (2026-03-08): ACCEPTED AS-IS.
+  Rationale: No sensitive information (financial, medical, credentials)
+  will be stored in the DB for the foreseeable future. Travel itinerary
+  data is considered low-sensitivity. Revisit if data classification changes.
+
+  No action required. Backlog only as a future review trigger if the
+  data model expands to include sensitive fields.
+
+────────────────────────────────────────────────────────────────────────────────
+P2 — MEDIUM SEVERITY
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING M1: Geocoding Queue Unbounded — Nominatim Abuse Vector
+  POST /api/cities has no independent rate limit beyond the global 300 req/min.
+  Automated creation of large numbers of cities would:
+    - Queue hundreds or thousands of Nominatim requests
+    - Block geocoding of legitimate cities for hours (1.1s/city)
+    - Risk the server's public IP being banned by Nominatim (ToS violation)
+    - Cause unbounded DB row growth
+
+  RECOMMENDED: Add a per-IP rate limit on POST /api/cities (e.g. 10/min),
+  separate from the global rate limiter. Consider a queue depth cap.
+  PHASE: Quick-fix, low effort. Flag for next available sprint.
+
+FINDING M2: LIKE Wildcard Flooding
+  In cities.ts, the search query constructs the LIKE pattern via template
+  literal before handing it to Drizzle:
+    like(cities.name, `%${q}%`)
+
+  Drizzle parameterises the value (no SQL injection), but LIKE meta-characters
+  % and _ within q are not escaped. A search query consisting entirely of
+  underscores (e.g. "___") forces character-by-character matching across the
+  full table. With a small DB this is negligible; at scale it degrades.
+
+  RECOMMENDED: Escape literal % and _ in q before constructing the pattern.
+    q.replace(/%/g, '\\%').replace(/_/g, '\\_')
+  Add ESCAPE '\\' to the Drizzle like() call.
+  PHASE: Backlog. Low effort, low current risk. Revisit if city table grows
+  beyond ~10,000 rows or if query latency becomes measurable.
+
+FINDING M3: trust proxy Not Configured for Phase 2
+  express-rate-limit reads the connecting IP. In Phase 1 with HOST=127.0.0.1
+  this is fine. Behind a reverse proxy in Phase 2, all requests arrive from
+  the proxy IP — the rate limiter would apply one shared bucket to all users
+  and be trivially bypassed. Real client IP is in X-Forwarded-For.
+
+  RECOMMENDED: Add app.set('trust proxy', 1) to server.ts when deploying
+  behind a reverse proxy.
+  PHASE 2 PRE-FLIGHT. Low effort, high impact if missed.
+
+────────────────────────────────────────────────────────────────────────────────
+P3 — LOW SEVERITY / INFORMATIONAL
+────────────────────────────────────────────────────────────────────────────────
+
+FINDING L1: Admin Routes Have No Role Separation
+  /api/admin/* endpoints (soft-delete categories, disable region tiers,
+  change shading colours) are accessible to any authenticated caller.
+  Phase 1 mitigated by localhost. Phase 2 authentication alone is not
+  sufficient — admin actions need a separate role or scope claim.
+
+  PHASE 2 — implement role-based access control alongside auth.
+  Flag for architecture review before Phase 2 auth design is finalised.
+
+FINDING L2: No Request Timeout
+  No server-level or middleware-level request timeout is configured.
+  Long-running DB aggregates (getAllCountryShading joins 4 tables, groups
+  across all trips) or a slow external call could hold connections open
+  indefinitely. The isOnline() check has a 3-second abort, but the main
+  Nominatim fetch() in resolveCity() has no timeout guard.
+
+  RECOMMENDED: server.setTimeout(30000) on the http.Server instance.
+  Add AbortController with timeout to the resolveCity() fetch call.
+  PHASE: Backlog. Low effort, low current risk.
+
+FINDING L3: Phase 2 Cookie Security Not Pre-configured
+  credentials: true is already in the CORS config. When session cookies are
+  added in Phase 2, they MUST be: HttpOnly, Secure (requires HTTPS — see H2),
+  SameSite: Strict. None of this is currently enforced because there are no
+  cookies. If cookies are added before HTTPS is in place (see H2) Secure
+  will silently have no effect.
+
+  This must be a gated checklist item in the Phase 2 auth design.
+  Not a current risk. Record as a pre-flight requirement.
+
+FINDING L4: HSTS Over HTTP Is Inert
+  Strict-Transport-Security is set but is ignored by browsers when served
+  over HTTP. The header is harmless, but it provides false assurance.
+  It will function correctly once HTTPS is in place (see H2).
+  No action until HTTPS is implemented.
+
+FINDING L5: CSP 'unsafe-inline' for styleSrc
+  The CSP includes 'unsafe-inline' for styleSrc to support React inline
+  styles. This reduces protection against CSS injection. As a JSON API
+  the server renders no HTML, so this is a near-zero risk in Phase 1.
+  If HTML pages are ever served (admin UI, landing page), revisit with
+  a nonce-based approach.
+  PHASE: Backlog. Revisit if HTML rendering is added.
+
+================================================================================
+SECTION 4 — PHASE ASSIGNMENT SUMMARY
+================================================================================
+
+  PHASE 2 HARD GATES (must complete before HOST=0.0.0.0 or cloud deploy):
+    H1 — Implement authentication in auth.ts
+    H2 — TLS at reverse proxy layer before binding change
+    M3 — Add app.set('trust proxy', 1) when behind proxy
+
+  PHASE 2 DESIGN INPUTS (inform architecture before implementation):
+    L1 — Admin role separation (RBAC alongside auth design)
+    L3 — Cookie security checklist (HttpOnly, Secure, SameSite: Strict)
+
+  NEXT AVAILABLE SPRINT (quick fixes):
+    M1 — Rate limit POST /api/cities independently
+
+  BACKLOG (low effort, low current risk, revisit on triggers):
+    M2 — Escape LIKE wildcards in city search
+    L2 — Request timeout on server and resolveCity()
+    L5 — CSP nonce if HTML rendering added
+
+  NPM AUDIT — DEFERRED:
+    Upgrade drizzle-kit ≥0.31.9 when compatible (breaking change, own sprint)
+
+  ACCEPTED RISKS:
+    H3 — SQLite plaintext (COO decision 2026-03-08: low-sensitivity data)
+
+================================================================================
+SECTION 5 — ONGOING SECURITY PRACTICE (AGREED 2026-03-08)
+================================================================================
+
+Going forward, BACKEND will apply the following policy on all future changes:
+
+  1. Security impact is considered on every code change.
+
+  2. Corrections with risk MEDIUM or above that are lowest-effort to implement
+     alongside the change in progress will be applied immediately, not deferred.
+
+  3. Corrections with risk MEDIUM or above that require significant additional
+     work, or are best handled in a dedicated phase, will be flagged to COO
+     as a new inbox message for backlog addition at the time the risk is
+     identified.
+
+  4. LOW severity findings will be noted in park docs and commit messages
+     but will not generate separate COO messages unless they cluster into
+     a pattern worth addressing together.
+
+================================================================================

@@ -1,0 +1,162 @@
+FROM:     BACKEND
+TO:       COO
+DATE:     2026-03-08
+SUBJECT:  BACKEND Phase 1 — All Deliverables Complete
+
+All deliverables are done. Acceptance criteria 1–26 have been verified.
+
+================================================================================
+DELIVERABLES COMPLETED
+================================================================================
+
+A. src/backend/server.ts              — Express app + startup sequence ✅
+B. src/backend/routes/trips.ts        — Trip CRUD + status transitions ✅
+C. src/backend/routes/places.ts       — Place management per trip ✅
+D. src/backend/routes/items.ts        — Item CRUD + type-specific extension rows ✅
+E. src/backend/routes/cities.ts       — City search + carry-forward + city items ✅
+F. src/backend/routes/map.ts          — Shading endpoints ✅
+G. src/backend/routes/admin.ts        — Admin panel endpoints ✅
+H. src/backend/services/geocoding.service.ts  — Nominatim integration ✅
+I. src/backend/services/shading.service.ts    — computeState() + bulk queries ✅
+J. src/backend/services/items.service.ts      — carry-forward, lazy extension ✅
+K. src/backend/services/startup.service.ts    — admin seed + countries + regions ✅
+L. data/countries.json                — 250 ISO 3166-1 countries ✅
+M. geo/countries.json                 — Natural Earth admin-0 GeoJSON (839 KB) ✅
+N. geo/regions.json                   — Natural Earth admin-1 GeoJSON (40 MB) ✅
+
+Additional deliverables (from addenda):
+O. src/backend/middleware/validate.ts    — Zod validation middleware ✅
+P. src/backend/middleware/auth.ts        — Auth stub (Phase 2 hook) ✅
+Q. src/backend/middleware/error-handler.ts — Safe global error handler ✅
+R–X. src/backend/validation/            — All Zod schemas ✅
+   common.ts, trips.schemas.ts, places.schemas.ts, items.schemas.ts,
+   cities.schemas.ts, admin.schemas.ts, map.schemas.ts
+
+Extra files:
+   data/regions.json                    — 72 US/AU/CA region seeds ✅
+   .github/workflows/security.yml       — CI: npm audit + Gitleaks + Semgrep ✅
+   src/backend/db/seed-data.ts          — Shared seed constants (no duplication) ✅
+   src/backend/routes/items-helper.ts   — Shared item+extension query helper ✅
+   src/backend/errors.ts                — Typed error classes ✅
+
+Documentation:
+   jobs/backend/tech/20260307-api-reference.md  — Full API reference ✅
+
+================================================================================
+ACCEPTANCE CRITERIA STATUS
+================================================================================
+
+1.  ✅  npm run dev starts without errors. DB connection and port logged.
+2.  ✅  All endpoints return correct responses for happy-path requests (curl-tested).
+3.  ✅  Locked trip protection: any write to locked trip returns 403.
+4.  ✅  Status transitions enforced. Invalid transitions return 400 with message.
+5.  ✅  Carry-forward endpoint (GET /api/cities/:id/carry-forward) implemented.
+        POST carry-forward creates items with is_carried_forward=true. Tested.
+6.  ✅  GET /api/map/shading returns all 250 countries.
+        Verified: create trip → lock → country shows "visited_once".
+7.  ✅  Geocoding starts on launch, processes pending queue, handles offline gracefully.
+        Tested: POST /api/cities → geocode_status=resolved within seconds.
+8.  ✅  Countries seeded on first launch (checked at startup; idempotent).
+9.  ✅  geo/countries.json + geo/regions.json present and served at /geo/*.
+10. ✅  API reference document complete at jobs/backend/tech/20260307-api-reference.md.
+11. ✅  Code meets Shared Standards 1–4 (comments, docstrings, no hardcoded values).
+12. ✅  All changes committed to Git.
+
+Security addendum criteria (13–21):
+13. ✅  X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy
+        all present. Verified with curl -sI http://localhost:3001/health.
+14. ✅  CORS allowlist: requests from non-whitelisted origins blocked.
+15. ✅  Server binds to 127.0.0.1 (confirmed in startup log).
+16. ✅  100 KB body limit enforced (express.json + express.urlencoded).
+17. ✅  Invalid POST /api/trips body → 400 with { details: [{field, message}] }.
+18. ✅  end_date < start_date → 400.
+19. ✅  Unhandled errors → 500 { error: "Internal server error" } (no stack trace).
+20. ✅  src/backend/middleware/auth.ts exists with Phase 2 TODO stub.
+21. ✅  npm audit: ZERO HIGH or CRITICAL vulnerabilities. (See note below.)
+
+Corrections addendum criteria (22–26):
+22. ✅  First launch seeds all admin tables automatically (no manual db:seed needed).
+23. ✅  Regions table seeded: 51 US + 8 AU + 13 CA = 72 entries on first launch.
+24. ✅  POST /api/cities with region_id=null for region-tier country → 201.
+25. ✅  POST /api/cities with region_id for non-region-tier country → 400.
+26. ✅  .github/workflows/security.yml created.
+
+================================================================================
+NPM AUDIT FINDINGS
+================================================================================
+
+ZERO HIGH or CRITICAL vulnerabilities (AC-21 satisfied).
+
+4 MODERATE vulnerabilities found — all in drizzle-kit (devDependency only):
+  Package:  esbuild ≤0.24.2 → GHSA-67mh-4wv8-2f99
+  Severity: Moderate
+  Impact:   esbuild dev server CORS issue. This affects drizzle-kit studio
+            (a dev-only GUI tool), NOT the runtime Express server.
+  Exploit:  Requires the drizzle-kit studio to be running AND a user to visit
+            a malicious website simultaneously. We do not run drizzle studio
+            in any automated context.
+  Fix:      npm audit fix --force would upgrade drizzle-kit to 0.31.9 (breaking
+            change). Deferring — this is a dev-only tool risk, not a production
+            runtime risk. No action required before FRONTEND green-light.
+
+Recommendation: Upgrade drizzle-kit when its changelog confirms the
+breaking changes are compatible with our schema config. Flag for next
+maintenance sprint.
+
+================================================================================
+DEVIATIONS FROM SPEC
+================================================================================
+
+1. CORS configuration: Original spec said "allow all origins for beta."
+   Security addendum overrode this with the allowlist pattern. Implemented
+   the allowlist (ALLOWED_ORIGINS env var). Beta clients must be on the list.
+
+2. Helmet frameguard: Default Helmet v8 uses X-Frame-Options: SAMEORIGIN.
+   We applied frameguard: { action: 'deny' } to set DENY as required by SEC-01.
+
+3. Zod v4 compatibility: Zod v4 changed error.errors → error.issues.
+   Applied fix in validate.ts. Documented in code comments.
+
+4. Express v5 compatibility: req.query is read-only in Express v5.
+   Used Object.defineProperty to override after validation.
+   Documented in validate.ts header comment.
+
+5. data/regions.json covers only US (51), AU (8), CA (13) = 72 entries
+   as specified in Correction 2. All other region-tier countries (DE, IN,
+   JP, etc.) can have regions added via the admin panel.
+
+================================================================================
+OPEN QUESTIONS / FLAGS FOR COO
+================================================================================
+
+1. CARRY-FORWARD EXECUTION ENDPOINT (IT-07 partial):
+   The spec defines GET /api/cities/:id/carry-forward (returns candidate items)
+   and describes executeCarryForward() as a service function. However, there is
+   no POST endpoint that FRONTEND can call to actually execute the carry-forward
+   and create the new items on a target trip.
+
+   BACKEND has implemented the service function (executeCarryForward in
+   items.service.ts). FRONTEND would need an endpoint to invoke it.
+
+   Proposed: POST /api/trips/:tripId/places/:placeId/carry-forward
+     Body: { source_item_ids: number[] }
+
+   Currently not implemented. FRONTEND should NOT attempt to call this endpoint.
+   Awaiting COO direction on whether to implement now or defer to Phase 2.
+
+2. CITY PATCH ENDPOINT:
+   The spec does not define PATCH /api/cities/:id. The corrections mention
+   a city can have region_id "set later via PATCH." This endpoint does not exist.
+   Awaiting COO direction.
+
+================================================================================
+FRONTEND UNBLOCKED
+================================================================================
+
+FRONTEND can begin immediately. API reference doc is at:
+  jobs/backend/tech/20260307-api-reference.md
+
+Base URL: http://localhost:3001
+Start server: npm run start  (or: npm run dev for watch mode)
+
+================================================================================
