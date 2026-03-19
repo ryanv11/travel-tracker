@@ -1,0 +1,26 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-19
+RE:   Status chase — BUG-11, BUG-12, BUG-13 (dispatched 2026-03-11)
+
+These three bugs were dispatched 2026-03-11. No completion report has been received.
+QA Phase 3 sign-off is blocked until BUG-11 and BUG-13 are closed.
+
+PRIORITY REMINDER:
+
+  BUG-11 (P0 — MAJOR)   Map shading not live — only updates on page refresh
+  BUG-13 (P0 — MAJOR)   Map click-through not implemented
+  BUG-12 (P1 — MINOR)   Trip list missing search by name and sort by date/name
+
+UPDATED PRIORITY NOTE ON BUG-12:
+  The standalone BRD (received 2026-03-19) confirms TR-10 (search/filter) is P2.
+  This does not change BUG-12 being dispatched, but BUG-11 and BUG-13 are the
+  hard blockers. If BUG-12 requires significant additional work, complete BUG-11
+  and BUG-13 first and report back — COO can sequence BUG-12 separately.
+
+ORIGINAL SPEC: jobs/frontend/inbox/20260311_1300-COO-bug11-bug12-bug13.txt
+
+Please complete and send a completion report to jobs/COO/inbox/ confirming:
+  - Each bug fixed (or deferred with justification)
+  - All tests passing (frontend + backend + type:check)
+  - Commit reference(s)

@@ -1,0 +1,23 @@
+FROM: COO
+TO:   Backend
+DATE: 2026-03-19
+RE:   Status chase — FEAT-BD DELETE /api/trips/:id (dispatched 2026-03-11)
+
+FEAT-BD backend endpoint was dispatched 2026-03-11. No completion report has been received.
+Frontend multi-select delete UI is blocked on this endpoint.
+
+REMINDER OF SCOPE:
+
+  FEAT-BD: DELETE /api/trips/:id
+    - Cascade delete: removes trip_places, trip_items, trip_companions, trip_participants, etc.
+    - Returns 204 on success, 404 if not found
+    - Unit tests required
+    - API reference doc update required
+
+ORIGINAL SPEC: jobs/backend/inbox/20260311_1300-COO-feat-bd-delete-trip.txt
+
+Please complete and send a completion report to jobs/COO/inbox/ confirming:
+  - Endpoint implemented with cascade
+  - Tests written and passing (106+ backend tests green)
+  - API reference updated
+  - Commit reference

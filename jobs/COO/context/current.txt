@@ -1,8 +1,8 @@
-COO CONTEXT — 2026-03-11 13:00
+COO CONTEXT — 2026-03-19 09:00
 PROJECT: Travel Tracker
-CURRENT STATUS: Phase 3 (UI) active. BUG-14 closed. Three P0/P1 bugs dispatched to
-                Frontend. SHADING-SPEC-01 dispatched to Architect. FEAT-BD backend
-                endpoint dispatched to Backend. Packaging/security report processed.
+CURRENT STATUS: Phase 3 (UI) active. SHADING-SPEC-01 DONE. BUG-11/12/13 still outstanding
+                (Frontend). FEAT-BD backend endpoint still outstanding. Standalone BRD
+                received and reconciled — no new P1 blockers found.
 
 ================================================================================
 PHASE STATUS
@@ -11,8 +11,8 @@ PHASE STATUS
   PHASE 0 (FOUNDATION)    — COMPLETE
   PHASE 1 (DATA LAYER)    — COMPLETE
   PHASE 2 (API LAYER)     — COMPLETE
-  PHASE 3 (UI LAYER)      — ACTIVE — BUG-11/12/13 in progress (dispatched)
-  PHASE 4 (QA/DOCS)       — ACTIVE — awaiting Phase 3 bug fixes before QA sign-off
+  PHASE 3 (UI LAYER)      — ACTIVE — BUG-11/12/13 still open (Frontend chase sent)
+  PHASE 4 (QA/DOCS)       — ACTIVE — awaiting BUG-11/13 fixes before QA sign-off
   PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
 
 ================================================================================
@@ -20,32 +20,30 @@ ACTIVE JOBS
 ================================================================================
 
 FRONTEND
-  Status:   ACTIVE — dispatched 2026-03-11 13:00
+  Status:   ACTIVE — chased 2026-03-19 (original dispatch 2026-03-11)
   Work:     BUG-11 (P0 — map shading cache invalidation)
             BUG-13 (P0 — map click-through / navigation)
-            BUG-12 (P1 — trip list search and sort)
+            BUG-12 (P1 — trip list search and sort; BRD confirms TR-10 is P2, lower urgency)
   Spec:     jobs/frontend/inbox/20260311_1300-COO-bug11-bug12-bug13.txt
+  Chase:    jobs/frontend/inbox/20260319_0900-COO-status-chase-bug11-12-13.txt
   Awaiting: Completion report to COO inbox
 
-ARCHITECT
-  Status:   ACTIVE — dispatched 2026-03-11 13:00
-  Work:     SHADING-SPEC-01 — country shading rule amendment
-  Spec:     jobs/architect/inbox/20260311_1300-COO-shading-spec01.txt
-  Awaiting: Spec amendment + confirmation of whether Backend needs a follow-up
-
 BACKEND
-  Status:   ACTIVE — dispatched 2026-03-11 13:00
-  Work:     FEAT-BD — DELETE /api/trips/:id endpoint
+  Status:   ACTIVE — chased 2026-03-19 (original dispatch 2026-03-11)
+  Work:     FEAT-BD — DELETE /api/trips/:id endpoint (cascade)
   Spec:     jobs/backend/inbox/20260311_1300-COO-feat-bd-delete-trip.txt
-  Awaiting: Completion report to COO inbox; may also receive SHADING-SPEC-01
-            backend correction from Architect
+  Chase:    jobs/backend/inbox/20260319_0900-COO-status-chase-feat-bd.txt
+  Awaiting: Completion report; Frontend multi-select delete UI blocked on this
 
 QA
   Status:   STANDBY — awaiting Frontend BUG-11/12/13 fixes before Phase 3 sign-off
-  Last:     Contract tests 99/99 (0e71fdf). BUG-02 live test directed 20260309_1700.
-  Note:     BUG-02 closed in tracker (code complete + 99/99 contracts). Live test
-            was a formality — treated as DONE per tracker (commit chain f6af0d5,
-            9049ba1, d76fbf0).
+  Last:     Contract tests 99/99 (0e71fdf). 120 backend unit tests (shading).
+  Note:     BUG-02 closed. SHADING-SPEC-01 done. Ready to run Phase 3 sign-off
+            as soon as BUG-11/13 are fixed.
+
+ARCHITECT
+  Status:   IDLE — SHADING-SPEC-01 complete (0e0efac)
+  Last:     Spec v1.1 complete, shading.service.ts updated, 120/120 tests passing.
 
 ================================================================================
 OPEN BUGS
@@ -53,9 +51,9 @@ OPEN BUGS
 
 | ID      | Severity | Status                                | Owner    |
 |---------|----------|---------------------------------------|----------|
-| BUG-11  | MAJOR    | Dispatched to Frontend (2026-03-11)   | Frontend |
-| BUG-12  | MINOR    | Dispatched to Frontend (2026-03-11)   | Frontend |
-| BUG-13  | MAJOR    | Dispatched to Frontend (2026-03-11)   | Frontend |
+| BUG-11  | MAJOR    | Overdue — chased Frontend 2026-03-19  | Frontend |
+| BUG-12  | MINOR    | Overdue — chased Frontend 2026-03-19  | Frontend |
+| BUG-13  | MAJOR    | Overdue — chased Frontend 2026-03-19  | Frontend |
 | BUG-06  | TRIVIAL  | Deferred (safe, post-beta)            | —        |
 
 CLOSED:
@@ -68,8 +66,8 @@ CLOSED:
 TEST STATUS
 ================================================================================
 
-  Frontend tests:  41/41  PASSING  (commit d76fbf0)
-  Backend tests:  106/106 PASSING
+  Frontend tests:  41/41  PASSING  (commit d76fbf0 — may be higher post BUG-11/12/13)
+  Backend tests:  120/120 PASSING  (106 + 14 new shading tests, commit 0e0efac)
   Contract tests:  99/99  PASSING  (commit 0e71fdf)
 
 ================================================================================
@@ -78,69 +76,65 @@ OPEN REQUIREMENTS
 
 | ID              | Status    | Notes                                           |
 |-----------------|-----------|-------------------------------------------------|
-| SHADING-SPEC-01 | Active    | Dispatched to Architect 2026-03-11              |
 | FEAT-BD         | Active    | Backend DELETE /api/trips/:id dispatched        |
 | NR-03           | Pending   | Trip ownership metadata — not yet specced       |
-| NR-07           | Pending   | Offline indicator — may slip under scope press  |
+| NR-07           | Pending   | Offline indicator — P2, BRD confirms deferrable |
 | NR-14           | Pending   | Pre-access hardening gate (Phase 1.5 gate)      |
 | OP-06           | Pending   | Pre-access hardening checklist (tied to NR-14)  |
 | OP-07           | Pending   | UI/UX expert review (post-Phase 4 sign-off)     |
 
-================================================================================
-PACKAGING & SECURITY ROADMAP — RECEIVED 2026-03-11
-================================================================================
-
-Architect submitted a packaging & security readiness report (archived to history).
-COO decision: this work is POST-Phase-4 sign-off. Sequencing as follows:
-
-  Phase 1 (Arch Foundation — do after Phase 4 QA sign-off):
-    - Hosted backend architecture (API-first, cloud-deployable)
-    - Auth layer (required before any hosted deployment)
-    - better-sqlite3 swap (replace @libsql/client for Electron compatibility)
-    - Environment-aware API base URL
-
-  Phase 2 (macOS .dmg packaging — after Arch Foundation):
-    - Electron scaffold + electron-builder
-    - DB bootstrapping (~/Library/Application Support)
-    - Code signing & notarization (if distributing beyond own machine)
-
-  Phase 3 (iOS — contingent on cloud deployment):
-    - Capacitor shell (reuses Vite build)
-    - Cloud API + Auth live
-
-  Phase 4 (Pre-production security audit)
-    - Full audit gate before public release
-
-No dispatch needed now. Will revisit after Phase 4 QA sign-off.
+CLOSED THIS SESSION:
+| SHADING-SPEC-01 | DONE — 0e0efac (2026-03-11 18:45) — spec v1.1, 120/120 tests |
 
 ================================================================================
-BRD STATUS
+STANDALONE BRD RECONCILIATION — 2026-03-19
 ================================================================================
 
-  Current version: 2.3 + delta (accepted 2026-03-08)
-  File: _project/travel-tracker-BRD.md
+Standalone implementation-ready BRD received (DOCX + .md stub). Extracted and read.
+Archived to: jobs/COO/history/20260319_0900-standalone-BRD-received.md
 
-  Beta-mandatory open items:
-    - NR-14: Pre-shared-access hardening gate (formal go/no-go before non-owner access)
-    - NR-08: DONE (README completed 2026-03-09)
-    - NR-01/02: DONE (seam columns added in BUG-02 migration)
+Key findings vs current tracker:
+  - No new P1 blockers introduced
+  - TR-10 (search/filter) confirmed P2 — supports treating BUG-12 as lower priority than BUG-11/13
+  - ADM-01 (archive vs hard delete, P1) — already satisfied by is_active/deactivate pattern
+  - OFF-01/02 = NR-06/07 (already in tracker)
+  - ID-01/02 = NR-01/02 (already done)
+  - New BRD IDs are re-labellings of tracked requirements — no new work generated
+
+Phase 1 beta acceptance conditions per standalone BRD:
+  1. Core workflows implemented — YES (pending QA sign-off)
+  2. Backend corrections C1-C3 — DONE
+  3. Phase 1 security controls — DONE (per Architect report 2026-03-11)
+  4. QA test plan + execution evidence — BLOCKED on BUG-11/13
+  5. No open P1 defects in state logic / carry-forward / city / shading — BLOCKED on BUG-11/13
+
+================================================================================
+PACKAGING & SECURITY ROADMAP (post-Phase 4 sign-off)
+================================================================================
+
+  Phase 1 (Arch Foundation):   Hosted backend + auth + better-sqlite3 + env-aware URL
+  Phase 2 (macOS .dmg):        Electron + electron-builder + DB bootstrapping
+  Phase 3 (iOS):               Capacitor (contingent on cloud)
+  Phase 4 (Security audit):    Full audit gate before public release
 
 ================================================================================
 NEXT COO ACTIONS (resume from here)
 ================================================================================
 
   WAITING ON:
-  1. Frontend: BUG-11 + BUG-13 (P0), BUG-12 (P1) completion report
-  2. Architect: SHADING-SPEC-01 spec amendment + backend dispatch decision
-  3. Backend: DELETE /api/trips/:id (FEAT-BD) completion report
-  4. Backend: may receive SHADING-SPEC-01 patch from Architect
+  1. Frontend: BUG-11 + BUG-13 (P0) and BUG-12 (P1) — chase sent 2026-03-19
+  2. Backend: DELETE /api/trips/:id (FEAT-BD) — chase sent 2026-03-19
 
-  WHEN FRONTEND CONFIRMS BUG-11/12/13 DONE:
-  5. Dispatch QA for Phase 3 live sign-off (all features, all BRD acceptance criteria)
-  6. Spec FEAT-BD Frontend work (multi-select delete UI) — blocked on Backend completing endpoint first
+  WHEN FRONTEND CONFIRMS BUG-11/13 DONE:
+  3. Dispatch QA for Phase 3 live sign-off (all features, all BRD acceptance criteria)
+  4. Spec FEAT-BD Frontend work (multi-select delete UI in TripList) — blocked on Backend first
+
+  WHEN BACKEND CONFIRMS FEAT-BD DONE:
+  5. Spec Frontend multi-select delete UI
 
   STANDING:
-  7. NR-14: Schedule formal gate review before any non-owner access
-  8. NR-03: Decide whether to add trip ownership metadata before Phase 4 sign-off
+  6. NR-14 / OP-06: Schedule formal gate review spec — can be written now in parallel,
+     does not require Frontend/Backend completion
+  7. NR-03: Decide whether to add trip ownership metadata before Phase 4 sign-off
 
 ================================================================================
