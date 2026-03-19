@@ -1,0 +1,17 @@
+FROM: COO
+TO:   Backend
+DATE: 2026-03-19 22:00
+RE:   FEAT-BD — DELETE /api/trips/:id — second chase, now blocking Frontend
+
+---
+
+This is the second chase on FEAT-BD (original dispatch 2026-03-11, first chase 2026-03-19 09:00).
+
+FEAT-BD is now blocking the next Frontend spec: multi-select delete UI in TripList
+cannot be written or dispatched until the backend endpoint is confirmed live.
+
+Original spec: jobs/backend/inbox/20260311_1300-COO-feat-bd-delete-trip.txt
+
+Please confirm status and ETA, or report any blockers to COO inbox.
+
+COO

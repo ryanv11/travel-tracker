@@ -1,0 +1,79 @@
+FROM: COO
+TO:   QA
+DATE: 2026-03-19 22:00
+RE:   Phase 3 sign-off — all blockers resolved, begin live acceptance testing
+
+---
+
+All P0/P1 blockers for Phase 3 are now resolved. Please run the full Phase 3
+live acceptance test and report findings to COO inbox.
+
+WHAT CHANGED SINCE LAST QA SIGN-OFF
+
+  BUG-11 — Map shading cache invalidation (commits 1fe7bc7)
+    Shading now updates live when trips/places are mutated. No manual refresh needed.
+
+  BUG-13 — Map click-through / navigation (commits 1fe7bc7)
+    Clicking a country, region, or city on the map now navigates to /trips with
+    matching URL params. TripList shows a dismissable badge and filters accordingly.
+
+  BUG-12 — Trip list search + sort (commits 1fe7bc7)
+    Search by name (substring, case-insensitive) and sort (Newest, Oldest, A-Z, Z-A)
+    now present. Existing category/activity/status filters preserved.
+
+  BUG-15 — Country region tier toggle cleared label on disable (commit 1994213)
+    Admin: toggling region tier off no longer wipes the region label (read-only seed data).
+
+  BUG-16 — Add Place: region dropdown missing for region-tier countries (commit d704343)
+    When creating a new city in a region-tier country, a region dropdown now appears
+    and region_id is included in POST /api/cities.
+
+  SHADING-SPEC-01 — Country shading rule v1.1 (commit 0e0efac) — already tested; verify still correct.
+
+ACCEPTANCE CRITERIA TO VERIFY (Phase 3 BRD scope)
+
+  Map interaction (BUG-13)
+  [ ] Country click → /trips filtered to that country
+  [ ] Region click  → /trips filtered to that country+region (badge shown)
+  [ ] City click    → /trips filtered to that city (badge shown)
+  [ ] Cursor becomes pointer on hover over any clickable map layer
+  [ ] Pan/zoom unaffected
+  [ ] Dismiss badge × → clears filter, returns to full trip list
+
+  Map shading live update (BUG-11)
+  [ ] Add a place to a trip → map shading updates without page refresh
+  [ ] Remove a place → shading updates without page refresh
+  [ ] Create a new trip → shading reflects correctly
+  [ ] Change trip status → shading reflects correctly
+
+  Trip list search + sort (BUG-12)
+  [ ] Search by name (substring, case-insensitive) filters list correctly
+  [ ] Sort: Newest First / Oldest First / Name A-Z / Name Z-A all work
+  [ ] Existing status / category / activity filters still work alongside search+sort
+
+  Region tier admin flow (BUG-15/16)
+  [ ] Toggle region tier off for a country — label unchanged in UI
+  [ ] Add Place for a region-tier country — region dropdown appears, selection saves correctly
+  [ ] Add Place for a non-region-tier country — no region dropdown shown
+
+  Country shading rule v1.1 (SHADING-SPEC-01 regression check)
+  [ ] Country with region tier + not all regions visited → not shaded at country level
+  [ ] Country with region tier + all regions visited → shaded at country level
+  [ ] Country without region tier + visited city → shaded at country level
+
+REPORTING
+
+Please report all findings to: jobs/COO/inbox/
+File as: [timestamp]-QA-phase3-sign-off.txt
+
+Document:
+  - Each criterion: PASS / FAIL / CANNOT TEST (with reason)
+  - Any new bugs found: severity + repro steps
+  - Overall verdict: PASS / PASS WITH MINORS / FAIL
+
+CONTEXT
+
+  Commits to test against: d704343 (HEAD at time of this dispatch)
+  Frontend tests: 55/55 | Backend: 120/120 | CI: green
+
+COO
