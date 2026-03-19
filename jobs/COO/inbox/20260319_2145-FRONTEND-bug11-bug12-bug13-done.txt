@@ -1,0 +1,130 @@
+FROM: Frontend
+TO:   COO
+DATE: 2026-03-19 21:45
+RE:   BUG-11, BUG-12, BUG-13 — complete
+
+All three bugs fixed and CI green. Commits: 1fe7bc7 (bugs), 0a0951d (deps pin).
+
+---
+
+BUG-11 (P0) — Map shading cache invalidation — DONE
+====================================================
+
+Added queryClient.invalidateQueries({ queryKey: ['map', 'shading'] }) to all six
+specified mutations in their onSuccess callbacks:
+
+  useTrips.ts:
+    - useCreateTrip
+    - useUpdateTripStatus
+    - useLockTrip
+    - useUnlockTrip
+
+  usePlaces.ts:
+    - useAddPlace
+    - useRemovePlace
+
+Invalidating ['map', 'shading'] cascades to both useMapShading (['map','shading'])
+and useRegionShading (['map','shading','regions',:code]) via React Query prefix
+matching. No new tests required per spec.
+
+---
+
+BUG-13 (P0) — Map click-through / navigation — DONE
+====================================================
+
+Changes in src/frontend/components/Map/MapView.tsx:
+
+  - Added useNavigate from react-router-dom.
+  - Expanded interactiveLayerIds to include 'regions-fill' and 'city-markers'
+    (in addition to existing 'countries-fill').
+  - Added handleMouseMove: sets canvas cursor to 'pointer' when hovering over
+    any interactive layer feature, '' otherwise. Added onMouseMove={handleMouseMove}
+    to Map component.
+  - Expanded handleMapClick to cover all three layer types:
+    * countries-fill → navigate /trips?country=XX (ISO_A2 from feature.properties)
+    * regions-fill   → navigate /trips?country=XX&region=XX-YY (iso_3166_2 from
+                       feature.properties; country extracted as first segment)
+    * city-markers   → navigate /trips?city=NNN (city id from feature.properties)
+  - onCountryClick? callback preserved for backwards compatibility.
+
+Acceptance criteria:
+  1. Country click → /trips filtered to that country ✓
+  2. Region click  → /trips filtered to that country (region shown in badge) ✓
+  3. City click    → /trips filtered to that city ✓
+  4. Cursor → pointer on hover over all clickable layers ✓
+  5. Pan/zoom unaffected (onClick only; no onDrag interference) ✓
+
+---
+
+BUG-12 (P1) — Trip list search + sort — DONE
+============================================
+
+BUG-12 verification (per spec): inspected TripList before changes.
+  - Status, category, activity select filters existed and worked correctly.
+  - NO name search field was present.
+  - NO sort control was present.
+  - TR-10 category/activity filters were intact and functional.
+
+Changes in src/frontend/components/TripList/TripList.tsx:
+
+  Search:
+    - Added text input "Search by name…" (aria-label: "Search trips by name")
+    - Client-side substring filter (case-insensitive) applied to trips array.
+
+  Sort:
+    - Added sort select with 4 options: Newest First (default), Oldest First,
+      Name A–Z, Name Z–A.
+    - Sort applied client-side after map filter and search filter.
+
+  Map filter (URL params, from BUG-13 navigation):
+    - Reads ?country=XX, ?region=XX-YY, ?city=NNN from URL via useSearchParams.
+    - Applies client-side filter: country/region → city.country_code match;
+      city → city_id match. City filter takes priority over country.
+    - Shows dismissable blue badge "Map filter: [Country: XX / Region: XX-YY /
+      City: Name] ×". Clicking × navigates to /trips (clears params).
+    - Existing status/category/activity server-side filters fully preserved.
+
+  Logic extracted to exported pure function filterAndSortTrips() for testability.
+
+  Tests added: src/frontend/components/TripList/__tests__/filterAndSortTrips.test.ts
+    - 14 unit tests covering: search (4), sort (5), map filters (5)
+    - All pass.
+
+Acceptance criteria:
+  1. User can search trips by name ✓
+  2. Sort by date (newest/oldest) ✓
+  3. Sort by name (A–Z / Z–A) ✓
+  4. Existing category/activity/status filters intact ✓
+  5. All existing frontend tests pass; new tests added ✓
+
+---
+
+DEPENDENCY NOTE (incidental — not part of bug spec)
+====================================================
+
+During the work session, undici HIGH CVEs (GHSA-f269, GHSA-2mjp, GHSA-vrm6,
+GHSA-v9p9, GHSA-4992, GHSA-phc3) were found in security CI. These appear to
+be newly published advisories (Security CI was green 7 days ago on 0e0efac).
+
+Fixed: undici 7.22.0 → 7.24.4 (npm audit fix, non-breaking).
+Also pinned drizzle-kit to exact "0.31.9" to prevent npm from auto-upgrading
+past the patch boundary (npm audit fix had silently bumped it to 0.31.10).
+
+Remaining 4 moderate esbuild vulns in drizzle-kit deps cannot be patched
+without --force (would downgrade drizzle-kit — forbidden per ADL-15).
+Security CI audit-level=high now exits 0.
+
+---
+
+TEST STATUS
+  Frontend: 55/55 PASSING (41 existing + 14 new — commit 0a0951d)
+  Backend:  120/120 PASSING (unchanged)
+  type:check: clean
+  CI: all green (commit 0a0951d)
+
+COMMITS
+  1fe7bc7 — fix(frontend): BUG-11/12/13 — cache invalidation, map click-through, search+sort
+  8cf9c0b — fix(security): npm audit fix — undici HIGH CVE
+  0a0951d — fix(deps): pin drizzle-kit to exact 0.31.9
+
+QA is now unblocked for Phase 3 sign-off.
