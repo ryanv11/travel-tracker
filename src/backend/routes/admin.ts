@@ -185,10 +185,6 @@ adminRouter.patch(
       updates.regionTierLabel = region_tier_label;
     }
 
-    // If disabling region tier, clear the label
-    if (region_tier_enabled === false) {
-      updates.regionTierLabel = null;
-    }
 
     const updated = await db
       .update(countries)

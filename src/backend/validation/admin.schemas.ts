@@ -22,14 +22,7 @@ export const UpdateCountrySchema = z
     region_tier_enabled: z.boolean().optional(),
     region_tier_label: z.string().trim().min(1).optional(),
   })
-  .strict()
-  .refine(
-    (d) => {
-      if (d.region_tier_enabled === true && !d.region_tier_label) return false;
-      return true;
-    },
-    { message: 'region_tier_label is required when region_tier_enabled is true' },
-  );
+  .strict();
 
 /** Schema for POST /api/admin/countries/:countryCode/regions */
 export const CreateRegionSchema = z.object({ name: zName }).strict();
