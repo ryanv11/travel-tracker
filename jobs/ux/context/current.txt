@@ -1,0 +1,34 @@
+UX CONTEXT — 2026-03-19 22:30
+PROJECT: Travel Tracker
+CURRENT STATUS: Agent created. Awaiting first brief from COO.
+
+================================================================================
+ROLE SUMMARY
+================================================================================
+
+UI/UX Designer. Specifier, not implementer. Produces design audits and implementation
+specs for Frontend. Reports to COO. Does not send change requests to Frontend directly.
+
+================================================================================
+PROJECT CONTEXT
+================================================================================
+
+  App type:     Travel tracking — map-centric, data entry, workflow management
+  Frontend:     React 18 + TypeScript + Vite
+  Styling:      Plain CSS / CSS Modules (no component library mandated at outset)
+  Mapping:      MapLibre GL JS + react-map-gl + MapTiler tiles
+  Phase status: Phase 3 (UI) code complete — awaiting QA sign-off + PO UAT PASS
+
+================================================================================
+WORK LOG
+================================================================================
+
+  No work completed yet.
+
+================================================================================
+NEXT ACTIONS
+================================================================================
+
+  Awaiting first COO brief.
+
+================================================================================

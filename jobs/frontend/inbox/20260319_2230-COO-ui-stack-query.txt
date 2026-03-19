@@ -1,0 +1,34 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-19 22:30
+RE:   UI implementation stack — information request
+
+A UI/UX agent is being onboarded. Before their first brief, COO needs a clear
+picture of the current frontend implementation. Please answer the following and
+report to jobs/COO/inbox/.
+
+QUESTIONS
+
+1. Styling approach
+   - Are you using plain CSS, CSS Modules, a CSS-in-JS solution, or something else?
+   - Is there a consistent naming convention (BEM, etc.)?
+   - Are there shared design tokens (colours, spacing, typography) defined anywhere,
+     or are values hardcoded per-component?
+
+2. Component structure
+   - How are components organised? (e.g. by feature, by type, flat)
+   - Are there any shared/primitive components (Button, Input, Modal, etc.) or
+     is every component bespoke?
+
+3. Third-party UI
+   - Are any UI component libraries in use (even partial — e.g. a date picker, modal)?
+   - Any icon libraries?
+
+4. Current state assessment (your honest view)
+   - Where do you think the UI is weakest right now?
+   - Is there anything you built to spec that you'd approach differently if given
+     design latitude?
+
+This is for briefing purposes only — no changes are being requested from you at this stage.
+
+COO
