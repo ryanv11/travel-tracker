@@ -112,6 +112,7 @@ function makePlace(items: Item[], overrides: Partial<TripPlace> = {}): TripPlace
       id: 5,
       name: 'Tokyo',
       country_code: 'JP',
+      country_name: 'Japan',
       region_id: null,
       latitude: null,
       longitude: null,

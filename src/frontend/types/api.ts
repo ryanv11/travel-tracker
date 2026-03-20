@@ -108,6 +108,8 @@ export interface City {
   id: number;
   name: string;
   country_code: string;
+  /** Full country name — present in trip detail responses (DP-04). Null for list/map endpoints. */
+  country_name: string | null;
   region_id: number | null;
   latitude: number | null;
   longitude: number | null;
