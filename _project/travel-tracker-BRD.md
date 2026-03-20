@@ -1,6 +1,6 @@
 # Business Requirements Document
 ## Travel Tracker Application
-**Version:** 2.3
+**Version:** 2.4
 **Date:** March 2026
 **Author:** Claude (BSA) / Ryan V (Product Owner)
 **Status:** Approved
@@ -70,7 +70,9 @@ There is currently no system for tracking travel history, planning future trips,
 | TR-07 | Locked trips are read-only except for a specific unlock action |
 | TR-08 | Multiple trips to the same place are stored as separate dated entries |
 | TR-09 | User can view all trips in chronological order |
-| TR-10 | Trips are searchable and filterable by category and activity |
+| TR-10 | Trips are searchable by name and filterable by category, activity, and status. The trip list includes a text search field and status filter controls (All / Planning / Active / Review / Locked) |
+| TR-11 | The trips area uses a persistent two-panel layout on desktop — a fixed left panel shows the scrollable trip list with search and filter controls; a right panel shows the selected trip detail. Selecting a trip updates the right panel without navigating away from the trips view |
+| TR-12 | The trip detail view includes a persistent status bar showing the current trip status and the primary action to advance it to the next state, always visible regardless of scroll position |
 
 ### 5.2 Geographic Hierarchy
 
@@ -173,6 +175,7 @@ There is currently no system for tracking travel history, planning future trips,
 |----|-------------|
 | PH-01 | User can link a photo album or folder reference to a trip (not to individual items) |
 | PH-02 | Photo linking is a reference only — the app does not store or copy photos |
+| PH-03 | Photo management for a trip is accessible directly from the trip detail view header |
 
 ### 5.8 Post-Trip Review
 
@@ -183,7 +186,16 @@ There is currently no system for tracking travel history, planning future trips,
 | RV-03 | User can add post-visit notes and ratings to completed items during review |
 | RV-04 | User confirms review is complete by marking the trip as Locked |
 
-### 5.9 Admin and Settings Panel
+### 5.9 Trip List and Detail Display
+
+| ID | Requirement |
+|----|-------------|
+| DP-01 | Each trip card in the trip list shows the trip name, date range, status badge, and the names of places visited on that trip |
+| DP-02 | The trip list panel shows a count of trips currently displayed (reflecting any active search or filter) |
+| DP-03 | The trip detail header shows the trip name, date range, status badge, assigned categories as chips, and the names of companions on the trip |
+| DP-04 | Each place section within the trip detail shows the city name, full country name, and the date range for that place. Date range is derived from hotel check-in/check-out dates if a hotel item exists; otherwise falls back to the trip date range |
+
+### 5.10 Admin and Settings Panel
 
 | ID | Requirement |
 |----|-------------|
@@ -244,6 +256,8 @@ The following are explicitly out of scope for MVP but must not be architecturall
 - Pre-trip planning as a first-class mode
 - iOS mobile app
 - Multi-user hosted web app with real-time sync (replaces OneDrive sync)
+- In-panel tab navigation within trip detail (Itinerary / Review / Map tabs) — requires region/area tagging capability first
+- Per-trip scoped map tab showing only cities within the selected trip — dependent on in-panel tabs above
 
 ---
 
@@ -287,5 +301,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 2.1 | March 2026 | Claude (BSA) / Ryan V | Initial approved draft |
 | 2.2 | March 2026 | COO / Ryan V (PO) | Added GE-10–GE-13 (geographic data and offline geocoding); added IT-08–IT-09 (rating sort and filter); updated IT-07 (carry-forward behaviour and data model flags); added HT-04 (hotel ratings); updated RS-03 (rating scale explicit: 1–5 stars); updated OQ-02 (PO direction on packaging); document status set to Approved |
 | 2.3 | March 2026 | COO / Ryan V (PO) | Added EX-01 (Experience ratings: 1–5 stars); updated IT-08 to include experiences in rating sort/filter |
+| 2.4 | March 2026 | COO / Ryan V (PO) | UI direction approved from UX audit + mockup review. Updated TR-10 (search by name + status filter chips); added TR-11 (two-panel layout), TR-12 (persistent status bar), PH-03 (photos from detail header); added section 5.9 Trip List and Detail Display (DP-01–DP-04); renumbered Admin to section 5.10; added F-02/F-03 to future features |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*
