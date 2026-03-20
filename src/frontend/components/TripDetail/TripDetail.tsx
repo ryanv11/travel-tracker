@@ -28,10 +28,10 @@ interface TripDetailProps {
 }
 
 /** The linear next-step for the persistent status bar (F-04/TR-12). */
-const NEXT_STATUS: Partial<Record<TripStatus, { to: TripStatus; label: string }>> = {
-  planning: { to: 'active', label: 'Mark as Active' },
-  active: { to: 'review_pending', label: 'Move to Review' },
-  review_pending: { to: 'locked', label: 'Lock Trip' },
+const NEXT_STATUS: Partial<Record<TripStatus, { to: TripStatus; label: string; hint: string }>> = {
+  planning: { to: 'active', label: 'Mark as Active', hint: 'Next: active → review → lock' },
+  active: { to: 'review_pending', label: 'Move to Review', hint: 'Next: post-trip review → lock' },
+  review_pending: { to: 'locked', label: 'Lock Trip', hint: 'Next: lock trip' },
 };
 
 /** Status labels for display in the bar. */
@@ -94,68 +94,49 @@ export function TripDetail({ trip }: TripDetailProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {/* Header */}
-        <div className="flex justify-between items-start gap-3 mb-4">
+      {/* Header zone */}
+      <div className="flex-shrink-0 p-6 pb-3">
+        {/* DELTA-04: Title left, actions [StatusBadge | Edit | Photos] right */}
+        <div className="flex justify-between items-start gap-3 mb-2">
           <div className="min-w-0">
-            {/* Title row */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold text-gray-900 m-0">{trip.name}</h1>
-              <StatusBadge status={trip.status} />
+            <h1 className="text-2xl font-bold text-gray-900 m-0">{trip.name}</h1>
+
+            {/* DELTA-05: Single inline meta row — date | companions | categories/activities */}
+            <div className="flex items-center flex-wrap gap-2 mt-1">
+              <span className="text-xs text-slate-500">
+                {formatDate(trip.start_date)} – {formatDate(trip.end_date)}
+              </span>
+
+              {trip.companions.length > 0 && (
+                <>
+                  <span className="text-slate-300 text-xs">|</span>
+                  <span className="text-xs text-slate-500">
+                    {trip.companions.map((c) => c.name).join(', ')}
+                  </span>
+                </>
+              )}
+
+              {(trip.categories.length > 0 || trip.activities.length > 0) && (
+                <>
+                  <span className="text-slate-300 text-xs">|</span>
+                  {trip.categories.map((c) => (
+                    <span key={c.id} className="bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                      {c.name}
+                    </span>
+                  ))}
+                  {trip.activities.map((a) => (
+                    <span key={a.id} className="bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                      {a.name}
+                    </span>
+                  ))}
+                </>
+              )}
             </div>
-
-            {/* Date range */}
-            <p className="mt-1 text-sm text-gray-500">
-              {formatDate(trip.start_date)} – {formatDate(trip.end_date)}
-            </p>
-
-            {/* D-01: Companions */}
-            {trip.companions.length > 0 && (
-              <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-gray-400">With</span>
-                {trip.companions.map((c) => (
-                  <span
-                    key={c.id}
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold"
-                    title={c.name}
-                  >
-                    {c.name.slice(0, 2).toUpperCase()}
-                  </span>
-                ))}
-                <span className="text-sm text-gray-600">
-                  {trip.companions.map((c) => c.name).join(', ')}
-                </span>
-              </div>
-            )}
-
-            {/* D-02: Category + Activity badges */}
-            {(trip.categories.length > 0 || trip.activities.length > 0) && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {trip.categories.map((c) => (
-                  <span key={c.id} className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-medium">
-                    {c.name}
-                  </span>
-                ))}
-                {trip.activities.map((a) => (
-                  <span key={a.id} className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700 font-medium">
-                    {a.name}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
 
-          {/* Edit + Photos buttons */}
+          {/* DELTA-04: Right actions: StatusBadge → Edit → Photos */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* PH-03/F-08: Photos button placeholder */}
-            <button
-              type="button"
-              onClick={handlePhotos}
-              className="px-3 py-1.5 border border-gray-300 rounded-md bg-white text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
-            >
-              📷 Photos
-            </button>
+            <StatusBadge status={trip.status} />
             {!isLocked && (
               <button
                 type="button"
@@ -165,9 +146,61 @@ export function TripDetail({ trip }: TripDetailProps) {
                 Edit
               </button>
             )}
+            {/* PH-03/F-08: Photos button placeholder */}
+            <button
+              type="button"
+              onClick={handlePhotos}
+              className="px-3 py-1.5 border border-gray-300 rounded-md bg-white text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+            >
+              📷 Photos
+            </button>
           </div>
         </div>
+      </div>
 
+      {/* F-04/TR-12 DELTA-06: Status bar — between header and scrollable content */}
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-gray-100 border-b border-gray-200">
+        <span className="text-sm text-gray-600">
+          Status: <span className="font-semibold text-gray-800">{STATUS_LABELS[trip.status]}</span>
+        </span>
+        <div className="flex items-center gap-2">
+          {nextStep && (
+            <>
+              <button
+                type="button"
+                onClick={() => { void handleNextStep(); }}
+                disabled={isPending}
+                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                  nextStep.to === 'locked'
+                    ? 'bg-yellow-100 border border-amber-400 text-amber-800 hover:bg-yellow-200'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
+              >
+                {isPending ? 'Updating…' : nextStep.label}
+              </button>
+              <span className="text-xs text-gray-500 ml-2">{nextStep.hint}</span>
+            </>
+          )}
+          {isLocked && (
+            <button
+              type="button"
+              onClick={handleUnlockBar}
+              disabled={isPending}
+              className="px-4 py-1.5 rounded-md text-sm border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+            >
+              Unlock
+            </button>
+          )}
+          {trip.status === 'locked' && !nextStep && (
+            <span className="px-4 py-1.5 rounded-md text-sm bg-gray-100 text-gray-500">
+              Locked
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto p-6">
         {/* "Coming soon" toast for Photos */}
         {photosToast && (
           <div className="mb-4 px-4 py-2 bg-gray-100 border border-gray-200 rounded-md text-sm text-gray-600">
@@ -208,44 +241,6 @@ export function TripDetail({ trip }: TripDetailProps) {
             + Add Place (City)
           </button>
         )}
-      </div>
-
-      {/* F-04/TR-12: Persistent status transition bar — sticky to bottom of right panel */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-white">
-        <span className="text-sm text-gray-600">
-          Status: <span className="font-semibold text-gray-800">{STATUS_LABELS[trip.status]}</span>
-        </span>
-        <div className="flex items-center gap-2">
-          {nextStep && (
-            <button
-              type="button"
-              onClick={() => { void handleNextStep(); }}
-              disabled={isPending}
-              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
-                nextStep.to === 'locked'
-                  ? 'bg-yellow-100 border border-amber-400 text-amber-800 hover:bg-yellow-200'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
-            >
-              {isPending ? 'Updating…' : nextStep.label}
-            </button>
-          )}
-          {isLocked && (
-            <button
-              type="button"
-              onClick={handleUnlockBar}
-              disabled={isPending}
-              className="px-4 py-1.5 rounded-md text-sm border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
-            >
-              Unlock
-            </button>
-          )}
-          {trip.status === 'locked' && !nextStep && (
-            <span className="px-4 py-1.5 rounded-md text-sm bg-gray-100 text-gray-500">
-              Locked
-            </span>
-          )}
-        </div>
       </div>
 
       {/* Modals */}

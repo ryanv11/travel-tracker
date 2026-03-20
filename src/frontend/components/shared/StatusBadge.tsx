@@ -20,7 +20,7 @@ const LABELS: Record<TripStatus | ItemStatus, string> = {
   // Trip statuses
   planning: 'Planning',
   active: 'Active',
-  review_pending: 'Review Pending',
+  review_pending: 'Review',
   locked: 'Locked',
   // Item statuses
   consider: 'Consider',
@@ -32,9 +32,9 @@ const LABELS: Record<TripStatus | ItemStatus, string> = {
 
 /** Maps status values to Tailwind class combinations. */
 const COLOR_CLASSES: Record<TripStatus | ItemStatus, string> = {
-  planning: 'bg-blue-100 text-blue-800',
-  active: 'bg-green-100 text-green-800',
-  review_pending: 'bg-orange-100 text-orange-800',
+  planning: 'bg-teal-100 text-teal-900',
+  active: 'bg-amber-100 text-amber-800',
+  review_pending: 'bg-amber-100 text-amber-600',
   locked: 'bg-gray-100 text-gray-700',
   consider: 'bg-indigo-100 text-indigo-800',
   confirmed: 'bg-green-100 text-green-800',

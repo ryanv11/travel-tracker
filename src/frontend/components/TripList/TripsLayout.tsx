@@ -95,20 +95,20 @@ export function TripsLayout() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* Left panel — fixed 360px, scrollable */}
-      <div className="w-[360px] flex-shrink-0 flex flex-col h-full border-r border-gray-200 bg-white overflow-hidden">
+      <div className="w-[320px] flex-shrink-0 flex flex-col h-full border-r border-gray-200 bg-white overflow-hidden">
         {/* Panel header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
           {/* D-05: trip count badge */}
           <h2 className="text-base font-bold text-gray-900">
-            Trips
-            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+            My Trips
+            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-500">
               {tripCount}
             </span>
           </h2>
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="px-3 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-colors"
+            className="px-3 py-1.5 bg-teal-600 text-white text-sm font-semibold rounded-md hover:bg-teal-700 transition-colors"
           >
             + New
           </button>
@@ -122,7 +122,7 @@ export function TripsLayout() {
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             aria-label="Search trips by name"
-            className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
           />
         </div>
 
@@ -142,7 +142,7 @@ export function TripsLayout() {
                 }
                 className={
                   isActive
-                    ? 'px-2.5 py-1 rounded-full text-xs font-medium bg-blue-600 text-white border border-blue-600'
+                    ? 'px-2.5 py-1 rounded-full text-xs font-medium bg-teal-600 text-white border border-teal-600'
                     : 'px-2.5 py-1 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                 }
               >
@@ -158,7 +158,7 @@ export function TripsLayout() {
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}
             aria-label="Sort trips"
-            className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
           >
             <option value="date_desc">Newest first</option>
             <option value="date_asc">Oldest first</option>
@@ -170,13 +170,13 @@ export function TripsLayout() {
         {/* Map filter badge */}
         {mapFilterLabel && (
           <div className="px-4 pb-2 flex-shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-700">
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-teal-50 border border-teal-200 rounded-md text-xs text-teal-700">
               Map filter: {mapFilterLabel}
               <button
                 type="button"
                 onClick={clearMapFilter}
                 aria-label="Clear map filter"
-                className="text-blue-700 hover:text-blue-900 text-base leading-none"
+                className="text-teal-700 hover:text-teal-900 text-base leading-none"
               >
                 ×
               </button>
