@@ -76,17 +76,16 @@ export function PlaceSection({ place, tripId, isLocked, tripStartDate, tripEndDa
   const dateRange = derivePlaceDateRange(place.items, tripStartDate, tripEndDate);
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
+    <div className="border border-gray-200 rounded-lg overflow-hidden mb-4 shadow-sm">
       {/* Section header */}
-      <div className="bg-gray-50 px-4 py-3 flex justify-between items-center border-b border-gray-200">
+      <div className="bg-gray-100 px-4 py-3 flex justify-between items-center border-b border-gray-200">
         <div>
           {/* D-04: City name + country code (full country name not yet in API — see completion report) */}
           <span className="font-semibold text-sm text-gray-900">{place.city.name}</span>
-          <span className="ml-1.5 text-xs text-gray-500">{place.city.country_code}</span>
 
-          {/* D-03: Per-place date range */}
+          {/* D-03/DELTA-09: Country code · date range on single subtitle line */}
           <p className="mt-0.5 text-xs text-gray-500">
-            {formatDate(dateRange.start)} – {formatDate(dateRange.end)}
+            {place.city.country_code} · {formatDate(dateRange.start)} – {formatDate(dateRange.end)}
           </p>
 
           {/* Activity tags */}
@@ -95,7 +94,7 @@ export function PlaceSection({ place, tripId, isLocked, tripStartDate, tripEndDa
               {place.activities.map((a) => (
                 <span
                   key={a.id}
-                  className="inline-block px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700"
+                  className="inline-block px-2 py-0.5 rounded text-xs bg-violet-100 text-violet-800"
                 >
                   {a.name}
                 </span>
@@ -108,7 +107,7 @@ export function PlaceSection({ place, tripId, isLocked, tripStartDate, tripEndDa
           <button
             type="button"
             onClick={() => setShowAddItem(true)}
-            className="px-3.5 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 cursor-pointer"
+            className="px-3.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 cursor-pointer"
           >
             + Add Item
           </button>

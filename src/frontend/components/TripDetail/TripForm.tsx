@@ -89,7 +89,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
 
   const chipClass = (isSelected: boolean) =>
     isSelected
-      ? 'px-2.5 py-1 rounded-full text-xs cursor-pointer border-2 border-blue-600 bg-blue-100 text-blue-800 font-medium'
+      ? 'px-2.5 py-1 rounded-full text-xs cursor-pointer border-2 border-teal-600 bg-teal-100 text-teal-800 font-medium'
       : 'px-2.5 py-1 rounded-full text-xs cursor-pointer border border-gray-300 bg-white text-gray-700 hover:border-gray-400';
 
   return (
@@ -109,7 +109,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">Name *</label>
             <input
-              className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -121,7 +121,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">Start Date *</label>
               <input
                 type="date"
-                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 required
@@ -131,7 +131,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">End Date *</label>
               <input
                 type="date"
-                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 value={endDate}
                 min={startDate}
                 onChange={(e) => setEndDate(e.target.value)}
@@ -143,7 +143,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">Photo Album URL (optional)</label>
             <input
-              className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
               value={photoRef}
               onChange={(e) => setPhotoRef(e.target.value)}
               placeholder="https://..."
@@ -221,7 +221,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4.5 py-2.5 bg-blue-600 text-white border-none rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              className="px-4.5 py-2.5 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {isSubmitting ? 'Saving…' : isEditing ? 'Save Changes' : 'Create Trip'}
             </button>

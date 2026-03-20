@@ -57,7 +57,7 @@ function Field({ label, value, onChange, type = 'text', placeholder }: {
     <div className="mb-3.5">
       <label className="block text-xs font-semibold text-gray-700 mb-1">{label}</label>
       <input
-        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
         type={type}
         value={value}
         placeholder={placeholder}
@@ -212,7 +212,7 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
               <div className="mb-3.5">
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
                 <select
-                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as ItemStatus)}
                 >
@@ -237,7 +237,7 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Check-in Date</label>
                     <input
                       type="date"
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                       value={checkInDate}
                       onChange={(e) => setCheckInDate(e.target.value)}
                     />
@@ -246,7 +246,7 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Check-out Date</label>
                     <input
                       type="date"
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                       value={checkOutDate}
                       min={checkInDate}
                       onChange={(e) => setCheckOutDate(e.target.value)}
@@ -297,7 +297,7 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
                   <div className="mb-3.5">
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Post-visit Notes</label>
                     <textarea
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y h-20"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-y h-20"
                       value={postVisitNotes}
                       onChange={(e) => setPostVisitNotes(e.target.value)}
                     />
@@ -309,7 +309,7 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
               <div className="mb-3.5">
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
                 <textarea
-                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y h-[70px]"
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-y h-[70px]"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
@@ -328,7 +328,7 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4.5 py-2 bg-blue-600 text-white border-none rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                  className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSubmitting ? 'Saving…' : isEditing ? 'Save' : 'Add Item'}
                 </button>

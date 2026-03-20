@@ -27,16 +27,17 @@ export function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Navigation bar */}
-      <nav className="flex items-center gap-1 px-5 py-2 border-b border-gray-200 bg-white flex-shrink-0 z-[100]">
-        <span className="font-bold text-base text-gray-900 mr-3">
-          ✈️ Travel Tracker
+      <nav className="flex items-center gap-1 px-5 py-2 border-b border-gray-200 bg-white flex-shrink-0 z-[100] shadow-sm">
+        <span className="font-bold text-base mr-3 flex items-center">
+          <span className="inline-flex items-center justify-center w-6 h-6 bg-teal-600 rounded text-white text-xs font-bold mr-2">T</span>
+          <span className="text-teal-600 font-bold">Travel Tracker</span>
         </span>
         <NavLink
           to="/map"
           className={({ isActive }) =>
             `no-underline px-3.5 py-2 rounded-md text-sm transition-colors ${
               isActive
-                ? 'font-semibold text-blue-600 bg-blue-50'
+                ? 'font-semibold text-teal-700 bg-teal-50'
                 : 'font-normal text-gray-700 hover:bg-gray-100'
             }`
           }
@@ -48,7 +49,7 @@ export function App() {
           className={({ isActive }) =>
             `no-underline px-3.5 py-2 rounded-md text-sm transition-colors ${
               isActive
-                ? 'font-semibold text-blue-600 bg-blue-50'
+                ? 'font-semibold text-teal-700 bg-teal-50'
                 : 'font-normal text-gray-700 hover:bg-gray-100'
             }`
           }
@@ -60,7 +61,7 @@ export function App() {
           className={({ isActive }) =>
             `no-underline px-3.5 py-2 rounded-md text-sm transition-colors ${
               isActive
-                ? 'font-semibold text-blue-600 bg-blue-50'
+                ? 'font-semibold text-teal-700 bg-teal-50'
                 : 'font-normal text-gray-700 hover:bg-gray-100'
             }`
           }
@@ -106,8 +107,14 @@ export function App() {
           {/* TR-11: Nested trips routes — TripsLayout owns the two-panel shell */}
           <Route path="/trips" element={<TripsLayout />}>
             <Route index element={
-              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                Select a trip from the list
+              <div className="flex flex-col items-center justify-center h-full text-gray-400 p-12 text-center">
+                <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center mb-4">
+                  <span className="text-2xl text-gray-300">🗺</span>
+                </div>
+                <p className="text-base font-semibold text-gray-500 mb-1.5">Select a trip</p>
+                <p className="text-sm text-gray-400 max-w-[260px] leading-relaxed">
+                  Choose a trip from the list to view its details, places, and itinerary.
+                </p>
               </div>
             } />
             <Route path=":id" element={<TripDetailPage />} />

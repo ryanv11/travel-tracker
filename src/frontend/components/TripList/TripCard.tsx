@@ -10,7 +10,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from '../shared/StatusBadge';
-import { sanitiseUrl } from '../../utils/urlSanitiser';
 import { formatDate } from '../../utils/formatDate';
 import type { TripSummary } from '../../types/api';
 
@@ -36,7 +35,6 @@ const MAX_PLACE_BADGES = 4;
  */
 export function TripCard({ trip, onEdit, isSelected = false }: TripCardProps) {
   const navigate = useNavigate();
-  const safeUrl = sanitiseUrl(trip.photo_album_ref);
 
   const places = trip.places ?? [];
   const visiblePlaces = places.slice(0, MAX_PLACE_BADGES);
@@ -44,7 +42,7 @@ export function TripCard({ trip, onEdit, isSelected = false }: TripCardProps) {
 
   const cardClass = [
     'bg-white border rounded-lg p-3 cursor-pointer transition-shadow hover:shadow-md',
-    isSelected ? 'border-blue-500 ring-1 ring-blue-500' : 'border-gray-200',
+    isSelected ? 'border-teal-500 ring-1 ring-teal-500' : 'border-gray-200',
   ].join(' ');
 
   return (
@@ -68,16 +66,6 @@ export function TripCard({ trip, onEdit, isSelected = false }: TripCardProps) {
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <StatusBadge status={trip.status} />
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(trip);
-            }}
-            className="px-2.5 py-0.5 border border-gray-300 rounded text-xs bg-white hover:bg-gray-50 text-gray-600"
-          >
-            Edit
-          </button>
         </div>
       </div>
 
@@ -100,37 +88,17 @@ export function TripCard({ trip, onEdit, isSelected = false }: TripCardProps) {
         </div>
       )}
 
-      {/* Companions */}
-      {trip.companions.length > 0 && (
-        <div className="mt-1.5 text-xs text-gray-500">
-          With: {trip.companions.map((c) => c.name).join(', ')}
-        </div>
-      )}
-
       {/* Categories */}
       {trip.categories.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {trip.categories.map((cat) => (
-            <span key={cat.id} className="inline-block px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+            <span key={cat.id} className="inline-block px-1.5 py-0.5 rounded text-xs bg-violet-100 text-violet-800">
               {cat.name}
             </span>
           ))}
         </div>
       )}
 
-      {/* Photo album link — SEC-12 */}
-      {safeUrl && (
-        <div className="mt-1.5 text-xs">
-          <a href={safeUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-            📷 Photo album
-          </a>
-        </div>
-      )}
-      {trip.photo_album_ref && !safeUrl && (
-        <div className="mt-1.5 text-xs text-gray-500">
-          Photo ref: {trip.photo_album_ref}
-        </div>
-      )}
     </div>
   );
 }
