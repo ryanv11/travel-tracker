@@ -51,6 +51,56 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 <!-- Add new sessions below, most recent first -->
 
+### UAT Session — 2026-03-19 (live testing — Dublin trip)
+
+**Scope:** New trip creation for a revisited city (Dublin), carry-forward, map interaction, trip list sort
+**Build:** cd03f8c (latest at time of testing)
+**Verdict:** FAIL — three bugs found, none self-fixed
+
+#### Findings
+
+- [ ] Carry-forward modal did not appear when adding Dublin to a new trip
+      Steps: 1. Have an existing trip with a Dublin restaurant marked "next time"
+             2. Create a new trip → Add Place → select Dublin, Ireland
+             3. Expected: carry-forward modal appears with the restaurant as a candidate
+      Expected: CarryForwardModal shows the "next time" restaurant
+      Actual: Modal never appeared
+      Screenshot: none
+      Fixed myself: no
+      Logged as: BUG-17
+      Note for triage: likely city matching or query issue in carry-forward logic
+
+- [ ] New Dublin trip does not appear when clicking Ireland on the map
+      Steps: 1. Create a new trip with Dublin, Ireland as a place
+             2. Click Ireland on the map → trips list should filter to Irish trips
+      Expected: new Dublin trip appears in filtered list
+      Actual: trip does not appear in filtered results
+      Screenshot: none
+      Fixed myself: no
+      Logged as: BUG-18
+      Note for triage: separate from shading — this is map click-through filter.
+      May be a city/country association issue or URL param filter mismatch.
+
+- [ ] Trip list sort not working correctly
+      Steps: 1. Create a new trip (Dublin)
+             2. Trips page shows "Newest First" — new trip appears near bottom, not top
+             3. Switch to "Oldest First" — new trip does not move to top
+      Expected: sort reflects trip recency correctly in both directions
+      Actual: new trip appears near bottom regardless of sort direction;
+              switching sort order doesn't move it as expected
+      Screenshot: none
+      Fixed myself: no
+      Logged as: BUG-19
+      Note for triage: sort likely driving off start_date (user-entered past date)
+      rather than created_at, or sort comparison logic has a bug
+
+#### Notes / Observations
+- The carry-forward trigger path (auto-fires after Add Place) is too implicit —
+  user had no idea it existed until told. UX discoverability issue, not a bug,
+  but worth noting for the migration brief.
+
+---
+
 ### UAT Session — 2026-03-19 (retroactive — pre-log)
 
 **Scope:** General usage — region tier admin, Add Place flow
