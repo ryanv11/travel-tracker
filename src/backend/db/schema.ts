@@ -389,6 +389,32 @@ export const tripPlaceActivitiesMap = sqliteTable(
   (t) => [primaryKey({ columns: [t.tripPlaceId, t.activityId] })],
 );
 
+/**
+ * Trip ↔ Country junction — tracks which countries a trip visits (ADL-23).
+ * Derived from trip_places via city → country_code, but stored explicitly for
+ * efficient map shading queries without repeated aggregation joins.
+ * Cascade delete: removing a trip removes its country associations.
+ * RESTRICT on country: a country record must exist before it can be linked.
+ */
+export const tripCountries = sqliteTable(
+  'trip_countries',
+  {
+    tripId: integer('trip_id')
+      .notNull()
+      .references(() => trips.id, { onDelete: 'cascade' }),
+    countryCode: text('country_code')
+      .notNull()
+      .references(() => countries.countryCode, { onDelete: 'restrict' }),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.tripId, t.countryCode] }),
+    countryIdx: index('idx_trip_countries_country').on(t.countryCode),
+  }),
+);
+
 // ============================================================
 // 5. ITEMS (BASE TABLE + EXTENSION TABLES)
 // ============================================================
@@ -651,6 +677,9 @@ export type NewTripPlace = typeof tripPlaces.$inferInsert;
 
 export type TripPlaceActivitiesMap = typeof tripPlaceActivitiesMap.$inferSelect;
 export type NewTripPlaceActivitiesMap = typeof tripPlaceActivitiesMap.$inferInsert;
+
+export type TripCountry = typeof tripCountries.$inferSelect;
+export type NewTripCountry = typeof tripCountries.$inferInsert;
 
 export type Item = typeof items.$inferSelect;
 export type NewItem = typeof items.$inferInsert;
