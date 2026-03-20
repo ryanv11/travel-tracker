@@ -67,6 +67,17 @@ export async function requireAuth(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  // CI escape hatch: skip JWT verification in contract tests.
+  // Only active when BYPASS_AUTH is explicitly set to 'true'.
+  if (process.env.BYPASS_AUTH === 'true') {
+    (req as any).user = {
+      id: 'test-user-00000000-0000-0000-0000-000000000000',
+      clerkId: 'test_clerk_id',
+      email: 'test@example.com',
+    };
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 
