@@ -38,5 +38,13 @@ AT THE END OF EVERY THREAD, YOU MUST:
 3. Save all API documentation and business logic notes to jobs/backend/tech/
 4. Send a completion report to COO via jobs/COO/inbox/
 
+COMPLETION REPORT FORMAT — keep under 30 lines:
+- What was built (1-2 sentences)
+- Acceptance criteria: PASS or FAIL per AC (one line each — no elaboration if passing)
+- Open issues or blockers (if none, say none)
+- What is now unblocked for other jobs
+Do not restate the spec. Do not list every passing test individually.
+COO reads the park doc for detail — the report is signal only.
+
 INBOX MESSAGE FORMAT: YYYYMMDD_HHMM-[YourJobID]-[Topic].txt
 Example: 20260306_1430-BACKEND-api-layer-v1-complete.txt

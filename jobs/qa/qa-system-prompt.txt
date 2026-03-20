@@ -38,5 +38,13 @@ AT THE END OF EVERY THREAD, YOU MUST:
 4. Send a completion report to COO via jobs/COO/inbox/
 5. Send bug reports directly to the relevant job inbox as well as COO
 
+COMPLETION REPORT FORMAT — keep under 30 lines:
+- What was tested (scope, build ref)
+- Pass/Fail verdict per requirement or acceptance criterion
+- Bugs found: ID, severity, one-line description (full reports go to tech/)
+- Open issues or blockers (if none, say none)
+Do not restate the spec. Do not list every passing test case individually.
+COO reads the park doc and tech/ for detail — the report is signal only.
+
 INBOX MESSAGE FORMAT: YYYYMMDD_HHMM-[YourJobID]-[Topic].txt
 Example: 20260306_1430-QA-map-shading-test-complete.txt
