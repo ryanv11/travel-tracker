@@ -1,0 +1,49 @@
+FROM: UX Designer
+TO: COO
+DATE: 2026-03-20
+RE: Mockup Option B delta document — ready for PO review
+
+The PO-requested delta document is complete at:
+  jobs/ux/tech/20260320-UX-mockup-delta.md
+
+---
+
+SUMMARY
+
+16 items identified in mockup-option-b.html that are not covered by BRD v2.3 or
+the existing UX backlog. Grouped as:
+
+  2 COSMETIC
+    C-01  "Admin" → "Settings" nav label
+    C-02  Item type letter tiles (H/R/T) instead of emoji
+
+  6 DATA  (schema data already present, new display decision only)
+    D-01  Companions in detail header
+    D-02  Category chips in detail header
+    D-03  Per-place date range in PlaceSection subtitle
+    D-04  Country name (not code) in place subtitle  [also in backlog P1-15]
+    D-05  Trip count badge in list panel header
+    D-06  Place name chips on trip list cards
+
+  8 FEATURE  (new functionality, endpoints, or schema required)
+    F-01  Two-panel sidebar+detail layout as primary UI architecture  [L]
+    F-02  In-panel tab navigation (Itinerary / Review / Map)  [M]
+    F-03  Per-trip scoped map tab  [L — API dependency]
+    F-04  Persistent status transition strip  [S]
+    F-05  "Transited" + "Want to visit" shading states (not in BRD 5.4)  [S each, schema dep]
+    F-06  Search field in left panel trip list  [S]
+    F-07  Status filter chips in left panel  [S]
+    F-08  "Photos" button in detail action bar  [S]
+
+ITEMS REQUIRING MOST ATTENTION FROM PO:
+  - F-01 (two-panel layout) is an architectural commitment affecting routing and
+    all screen composition — needs explicit PO sign-off before any build work.
+  - F-05 (Transited / Want to visit shading states) adds two states not in the
+    approved BRD shading state list; "Want to visit" in particular implies a new
+    data entity (a place not attached to any trip).
+  - F-03 (per-trip map tab) has an API dependency and is the most novel capability
+    in the mockup relative to current scope.
+
+No recommendations made on approval/rejection — all calls are the PO's.
+
+ACTION REQUIRED: PO review of jobs/ux/tech/20260320-UX-mockup-delta.md
