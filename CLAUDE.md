@@ -60,6 +60,17 @@ gh run view <run-id> --log-failed   # if any job failed
 - Do not consider a task complete until CI passes (all jobs green)
 - Fix any CI failures before filing your completion report
 
+### Merging a PR (COO only)
+```bash
+gh pr merge <number> --repo ryanv11/travel-tracker --squash --delete-branch
+git checkout main && git pull
+git branch -D <branch-name>   # force-delete local branch (expected with squash merges)
+```
+- GitHub is configured to auto-delete remote branches on merge (`delete_branch_on_merge=true`)
+- Squash merge is standard — one clean commit per PR on `main`
+- Local branch must be manually deleted after merge — do not leave stale local branches
+- Run `git branch` after every merge session to confirm no branches remain except `main`
+
 ## CI pipelines (GitHub Actions)
 | Workflow | Triggers | Jobs |
 |----------|----------|------|
