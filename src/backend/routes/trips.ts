@@ -237,6 +237,13 @@ tripsRouter.patch(
     const { name, start_date, end_date, photo_album_ref, category_ids, companion_ids, activity_ids } =
       req.body;
 
+    // BUG-A: validate effective date range using existing values when only one date is sent
+    const effectiveStartDate = start_date ?? trip.startDate;
+    const effectiveEndDate = end_date ?? trip.endDate;
+    if (effectiveEndDate < effectiveStartDate) {
+      throw new ValidationError('end_date must be on or after start_date');
+    }
+
     const updated = await tripRepository.update(userId, tripId, {
       name,
       startDate: start_date,

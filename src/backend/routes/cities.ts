@@ -257,13 +257,15 @@ citiesRouter.get(
     const cityId = parseInt(req.params.id, 10);
     if (isNaN(cityId)) throw new NotFoundError('City');
 
+    const userId = req.user!.id;
     const { type, min_rating } = req.query as { type?: string; min_rating?: number };
 
     const db = getDb();
 
-    // ER schema §6.1: completed items at this city across all trips
+    // ER schema §6.1: completed items at this city — scoped to the requesting user (SEC-01)
     const conditions = [
       eq(tripPlaces.cityId, cityId),
+      eq(items.userId, userId),
       inArray(items.itemType, ['restaurant', 'hotel', 'experience']),
       eq(items.status, 'completed'),
     ];
