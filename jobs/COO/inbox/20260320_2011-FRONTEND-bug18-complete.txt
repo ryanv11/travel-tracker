@@ -1,0 +1,33 @@
+FROM: Frontend
+TO:   COO
+DATE: 2026-03-20 20:11
+RE:   BUG-18 — useCreateTrip cache invalidation — COMPLETE (no-op; already fixed)
+
+---
+
+WHAT WAS DONE
+
+Investigated BUG-18. All four hooks already have ['trips'] invalidation — this was
+applied in commit 1fe7bc7 (BUG-11/12/13 fix, 2026-03-19). No code change was needed.
+
+Confirmed current state of src/frontend/hooks/useTrips.ts:
+  useCreateTrip:       invalidates ['trips'] + ['map','shading']  ✓
+  useUpdateTripStatus: invalidates ['trips'] + ['trips',id] + ['map','shading']  ✓
+  useLockTrip:         invalidates ['trips'] + ['trips',id] + ['map','shading']  ✓
+  useUnlockTrip:       invalidates ['trips'] + ['trips',id] + ['map','shading']  ✓
+
+ACCEPTANCE CRITERIA
+  AC1 — useCreateTrip invalidates ['trips'] on success: PASS (already present)
+  AC2 — useUpdateTripStatus, useLockTrip, useUnlockTrip checked: PASS (all already correct)
+  AC3 — npm run type:check: PASS (clean)
+  AC4 — npm run test:frontend: PASS (55/55)
+
+No commit was created — no code changes required. No push needed.
+
+OPEN ISSUES / BLOCKERS
+  None.
+
+WHAT IS NOW UNBLOCKED
+  Nothing newly unblocked — BUG-18 was already resolved by the BUG-11 fix.
+
+Frontend

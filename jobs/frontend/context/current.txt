@@ -1,21 +1,14 @@
-FRONTEND CONTEXT — as of 2026-03-19 18:00
+FRONTEND CONTEXT — as of 2026-03-20 20:11
 
-STATUS: Four P0 quick-fixes complete. Awaiting Tailwind + shadcn/ui migration brief from COO.
+STATUS: BUG-18 investigated — already resolved. No pending work. Awaiting next COO brief.
 
-LAST COMMIT: (see park doc — commit hash TBD, pushed to main)
+LAST COMMIT: 1fe7bc7 (fix(frontend): BUG-11/12/13 — cache invalidation, map click-through, search+sort)
 
-WHAT WAS DONE (this thread — 20260319_2345-COO-p0-quickfixes)
-  FIX 1 (P0-01): Extracted formatDate() to shared utility at src/frontend/utils/formatDate.ts.
-    Applied in TripDetail (header dates), ItemCard (hotel check-in/check-out), and TripCard
-    (removed local duplicate). ReviewPanel has no raw date display — no change needed there.
-  FIX 2 (P0-04): "Complete Review & Lock Trip" button changed from red (#DC2626) to green
-    (#059669, hover #047857) in ReviewPanel.tsx. Visual language now consistent: red = destructive.
-  FIX 3 (P0-05): CarryForwardModal selectedIds initialiser changed from new Set(candidates.map(...))
-    to new Set(). Users now opt-in to carry-forward items rather than opt-out. Tests updated
-    to match the new opt-in behaviour (14 tests, all passing).
-  FIX 4 (ARCH-03): ShadingTab colour input refactored. ShadingRow sub-component introduced to
-    hold per-row local state. onChange updates local preview only; onBlur fires the PATCH mutation
-    once. Zero API calls during drag; one call on settle.
+WHAT WAS DONE (this thread — 20260320_0030-COO-bug18-cache-invalidation)
+  BUG-18 (cache invalidation): Investigated useCreateTrip, useUpdateTripStatus, useLockTrip,
+    useUnlockTrip in src/frontend/hooks/useTrips.ts. All four hooks already invalidate
+    ['trips'] on success — this was applied in commit 1fe7bc7 (BUG-11 fix). No code
+    change required. type:check and test:frontend both pass (55/55).
 
 KEY FILE LOCATIONS
   Entry point:        src/frontend/main.tsx
@@ -25,7 +18,7 @@ KEY FILE LOCATIONS
   Types:             src/frontend/types/api.ts
   API client:        src/frontend/utils/apiClient.ts
   URL sanitiser:     src/frontend/utils/urlSanitiser.ts (SEC-12)
-  Date formatter:    src/frontend/utils/formatDate.ts (new — FIX 1)
+  Date formatter:    src/frontend/utils/formatDate.ts (FIX 1 from P0 session)
   Config:            vite.config.ts, tsconfig.frontend.json, index.html
 
 OPEN FLAGS FOR COO
@@ -35,4 +28,4 @@ OPEN FLAGS FOR COO
 
 NEXT STEPS (when resumed)
   - Await Tailwind + shadcn/ui migration brief from COO
-  - Do not action any other UX audit items until migration brief arrives
+  - No other outstanding frontend bugs

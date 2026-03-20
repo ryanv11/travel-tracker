@@ -1,0 +1,33 @@
+FRONTEND PARK DOC — 2026-03-20 20:11
+Thread: BUG-18 cache invalidation investigation
+
+---
+
+TASK
+BUG-18: Verify and fix ['trips'] invalidation in useCreateTrip (and check
+useUpdateTripStatus, useLockTrip, useUnlockTrip for same gap).
+
+OUTCOME: NO-OP — already fixed
+All four hooks already invalidate ['trips'] on success. This was applied in commit
+1fe7bc7 as part of BUG-11 (cache invalidation) on 2026-03-19. The BUG-18 report
+was written before that commit was verified against BUG-18 specifically.
+
+CURRENT STATE OF useTrips.ts (src/frontend/hooks/useTrips.ts)
+  useCreateTrip:       invalidates ['trips'] + ['map','shading']
+  useUpdateTrip:       invalidates ['trips'] + ['trips',id]
+  useUpdateTripStatus: invalidates ['trips'] + ['trips',id] + ['map','shading']
+  useLockTrip:         invalidates ['trips'] + ['trips',id] + ['map','shading']
+  useUnlockTrip:       invalidates ['trips'] + ['trips',id] + ['map','shading']
+
+CHECKS RUN
+  npm run type:check  → PASS (clean)
+  npm run test:frontend → PASS (55/55)
+
+NO COMMITS THIS SESSION
+
+OPEN FLAGS
+  FLAG-F1: Item status names in API reference doc don't match Zod schema
+  FLAG-F2: No standalone GET /api/cities list endpoint exists (not needed currently)
+
+RESUME FROM
+  Awaiting COO brief for Tailwind + shadcn/ui migration or next task.
