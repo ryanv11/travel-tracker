@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { eq, and, like, inArray, desc, sql } from 'drizzle-orm';
+import { eq, and, like, inArray, notInArray, desc, sql } from 'drizzle-orm';
 import {
   getDb,
   cities,
@@ -227,6 +227,7 @@ citiesRouter.get(
           eq(tripPlaces.cityId, cityId),
           eq(items.status, 'next_time'),
           eq(trips.userId, userId),
+          notInArray(items.itemType, ['flight', 'car_rental']),
         ),
       )
       .orderBy(desc(trips.endDate));

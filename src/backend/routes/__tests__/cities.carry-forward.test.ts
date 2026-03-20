@@ -398,6 +398,42 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
     expect(res.body).toHaveLength(0);
   });
 
+  it('does not return flight next_time items', async () => {
+    const db = testDb!;
+    const { city, trip, place } = await seedCityAndTrip(db, 'locked');
+
+    await db.insert(schema.items).values({
+      tripId: trip.id,
+      tripPlaceId: place.id,
+      itemType: 'flight',
+      status: 'next_time',
+    });
+
+    const res = await supertest(app)
+      .get(`/api/cities/${city.id}/carry-forward`)
+      .expect(200);
+
+    expect(res.body).toHaveLength(0);
+  });
+
+  it('does not return car_rental next_time items', async () => {
+    const db = testDb!;
+    const { city, trip, place } = await seedCityAndTrip(db, 'locked');
+
+    await db.insert(schema.items).values({
+      tripId: trip.id,
+      tripPlaceId: place.id,
+      itemType: 'car_rental',
+      status: 'next_time',
+    });
+
+    const res = await supertest(app)
+      .get(`/api/cities/${city.id}/carry-forward`)
+      .expect(200);
+
+    expect(res.body).toHaveLength(0);
+  });
+
   it('returns 200 empty array for a city with no next_time items', async () => {
     const db = testDb!;
     await db.insert(schema.countries).values({ countryCode: 'FR', name: 'France' }).onConflictDoNothing();
