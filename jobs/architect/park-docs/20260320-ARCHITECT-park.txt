@@ -1,0 +1,101 @@
+ARCHITECT PARK DOC — 2026-03-20
+SESSION: Clerk auth assessment — NR-14 direction revision
+
+================================================================================
+WHAT HAPPENED THIS SESSION
+================================================================================
+
+COO query received: PO has directed Clerk as managed auth platform. Asked Architect
+to assess technical blockers and provide implementation guidance.
+
+Previous recommendation (ADL-17) was jose + roll-your-own OAuth PKCE with Google
+as initial provider. PO has rejected the "family app" framing — ambition is broader
+distribution, managed auth is the right call at scale.
+
+Assessment outcome: NO TECHNICAL BLOCKER. Clerk is compatible with this stack.
+
+Four questions answered:
+
+1. EXPRESS / REQ.USER COMPATIBILITY
+   Clerk issues standard JWTs. Backend verifies via jose + Clerk's JWKS endpoint.
+   req.user shape is unchanged. authenticate middleware signature is unchanged.
+   Route handlers require no modification. Zero Express incompatibility.
+
+2. ELECTRON / iOS CAPACITOR
+   Electron: open Clerk hosted sign-in in system browser (shell.openExternal),
+   receive callback on custom URL scheme (traveltracker://auth/callback). Same
+   pattern as ADL-17 specified. No new complexity. Deferred to Phase 1 packaging.
+   iOS Capacitor: Clerk React SDK works in WebView. Hosted backend unchanged.
+   Deferred to Phase 3. No concern.
+
+3. LOCK-IN RISK
+   Moderate but managed by architectural seam rule: backend must never import
+   @clerk/* packages. JWKS URI is an env variable. Migration = one line change + user
+   export. If seam rule is violated, migration cost rises to ~1 week. Seam rule
+   must be enforced at code review and gate review.
+   Frontend: use Clerk hosted sign-in page, not embedded <SignIn /> components.
+   Minimises replacement surface.
+
+4. SCHEMA IMPLICATIONS
+   users table: KEEP. Local table is required for FK integrity (trips, items,
+   trip_places all reference users.id). Shape changes: DROP oauth_provider,
+   oauth_subject; ADD clerk_id TEXT NOT NULL UNIQUE.
+   refresh_tokens table: DROP (do not create). Clerk owns token lifecycle.
+   All ADL-16 user_id FK decisions: unchanged.
+   All ADL-18 repository layer decisions: unchanged.
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+  ADL-17 → SUPERSEDED by ADL-20
+  ADL-20: Clerk managed auth. jose JWKS verification in backend. No Clerk SDK
+          in backend (seam rule). @clerk/react in frontend. users table reshaped.
+          refresh_tokens not created.
+
+================================================================================
+FILES WRITTEN THIS SESSION
+================================================================================
+
+  jobs/COO/inbox/20260320_1100-ARCHITECT-clerk-auth-assessment.txt  (response)
+  jobs/architect/tech/20260307-architecture-decisions-log.md         (ADL-20 added)
+  jobs/architect/context/current.txt                                  (updated)
+  jobs/architect/park-docs/20260320-ARCHITECT-park.txt               (this file)
+
+  Inbox message moved to read/:
+    20260320_1000-COO-auth-managed-platform-query.txt
+
+================================================================================
+CRITICAL BLOCKERS BEFORE NR-14 CAN PROCEED
+================================================================================
+
+  1. COO/PO must create Clerk account and provide:
+       CLERK_PUBLISHABLE_KEY
+       CLERK_JWKS_URI
+     Without these, backend middleware cannot be implemented and frontend
+     cannot install the SDK configured for the correct Clerk app.
+
+  2. COO must issue updated DATABASE spec:
+       users table: new shape per ADL-20
+       refresh_tokens: DO NOT CREATE
+
+================================================================================
+SEAM RULE — MUST BE ENFORCED GOING FORWARD
+================================================================================
+
+  Backend must never import @clerk/* packages.
+  This is the lock-in containment rule. It must be:
+  - Explicit in the Backend spec written by COO
+  - Checked at NR-14 gate security review
+  - Listed in the code review checklist
+
+================================================================================
+RESUME STATE
+================================================================================
+
+  Awaiting: COO response with Clerk credentials + updated DB spec
+  Next review: DATABASE migration for users table (verify clerk_id present,
+               verify refresh_tokens absent)
+  Next review: BACKEND authenticate middleware (verify no @clerk/* imports)
+  Pending: NR-14 gate security review brief from COO
+

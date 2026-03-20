@@ -1,0 +1,87 @@
+TO: COO
+FROM: UX Designer
+DATE: 2026-03-19 23:00
+SUBJECT: Desktop layout mockups ready for PO review — Option A and Option B
+
+---
+
+Two browser-previewable HTML mockup files are ready for PO review. Both files are
+fully self-contained (no external dependencies except Google Fonts CDN).
+
+Files:
+  jobs/ux/tech/mockup-option-a.html  — Wider Single Column
+  jobs/ux/tech/mockup-option-b.html  — Two-Panel Layout
+
+---
+
+WHAT EACH FILE SHOWS
+
+Option A (mockup-option-a.html):
+- Single column, max-width 1100px, horizontally centred on the page
+- Top nav bar with wordmark left, nav links right
+- Full trip list with compact filter bar (search, status, category, sort — all in one row)
+- Clicking a trip card reveals the trip detail below the list (a dashed divider separates
+  the two states; in production this would be a page/route transition)
+- The detail view shows a trip header, status transition button, and per-city PlaceSections
+  with itinerary items
+- A "Back to trips" link returns to the list view
+- Map is accessible via the "Map" nav link
+
+Option B (mockup-option-b.html):
+- Full viewport width, no max-width container; proper app-shell layout (header + two panels)
+- Left panel: 320px fixed, contains search + status filter chips + scrollable trip list
+- Right panel: fills remaining space
+- A demo control bar at the top lets the PO switch between three states:
+    1. "Trip selected" — left panel shows active trip highlighted, right shows full detail
+    2. "No trip selected" — right panel shows the empty state prompt
+    3. "Map tab" — right panel replaces with the map placeholder including a legend overlay
+- The trip detail right panel has in-panel tabs (Itinerary / Review / Map) to indicate
+  how secondary views would be organised within the panel
+
+---
+
+DESIGN DECISIONS THE PO SHOULD BE AWARE OF
+
+1. Audit findings addressed in both mockups:
+   - T-02 (filter bar too tall): Filters are now a compact single row (Option A) or
+     chips strip (Option B), not two stacked rows
+   - T-03 (cards too sparse): Card padding is 12px with 4–8px gap, not 16px/12px
+   - T-04 (Edit button equal weight to status badge): Edit is a small outline button,
+     badge is the primary status signal
+   - TD-01/T-05 (raw ISO dates): All dates formatted as "15 Mar 2026 – 24 Mar 2026"
+   - G-04 (emoji icons): No emoji used for icons; type identifiers use single letters
+     (H = Hotel, R = Restaurant, T = Experience) as placeholder stand-ins for Lucide icons
+   - M-02 (no map legend): Option B map state shows a simulated legend overlay
+   - RP-04 (red lock button): Status transition uses green (emerald) for the positive
+     "Move to Review" action, not red
+
+2. The lock icon (&#128274;) is used on the "Locked" badge as it is a recognised
+   semantic symbol, not decorative. It will be replaced by Lucide Lock icon in
+   the actual implementation.
+
+3. Country full names are used in place of country_code in PlaceSection subtitles
+   (e.g. "Ireland" not "IE") — this addresses G-09.
+
+4. Option B uses a sticky 48px nav bar and overflow:hidden on the app shell to keep the
+   two panels at full viewport height with independent scroll — this is the correct
+   pattern for a data-dense desktop application.
+
+5. Status transitions in Option B are shown as a slim strip between the header and the
+   itinerary content. This keeps them accessible but not visually dominant.
+
+6. The "Add Item" button inside each PlaceSection is an outline button (not filled
+   primary), addressing TD-07. The only filled primary button is "New Trip" / "+ New"
+   at the list level.
+
+---
+
+PO REVIEW REQUEST
+
+Please open each file directly in a browser and give feedback on:
+- Which layout direction feels more natural for the app's use case
+- Whether the left panel width (320px) in Option B feels right, or too narrow / wide
+- Whether the "in-panel tabs" pattern in Option B (Itinerary / Review / Map) is
+  preferred over navigating away to a separate page
+- Any content hierarchy concerns (what you notice first, what feels buried)
+
+No implementation work will begin until a layout direction is confirmed.

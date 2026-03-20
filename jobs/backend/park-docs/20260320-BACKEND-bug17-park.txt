@@ -1,0 +1,29 @@
+BACKEND PARK DOC — 2026-03-20
+SESSION: BUG-17 — carry-forward trip status filter removal
+
+WHAT WAS DONE
+
+BUG-17: GET /api/cities/:id/carry-forward previously restricted source trips to
+status IN ('review_pending', 'locked'). PO confirmed this was wrong: next_time is
+explicit user intent and must surface regardless of source trip status.
+
+Changes made:
+  src/backend/routes/cities.ts (~line 207-229)
+    - Removed: inArray(trips.status, ['review_pending', 'locked']) from WHERE clause
+    - Updated comment from "across completed trips" to "across all trips regardless of status"
+    - inArray import retained (still used by GET /:id/items endpoint)
+
+  src/backend/routes/__tests__/cities.carry-forward.test.ts (new file)
+    - 7 integration tests covering all four trip statuses + non-next_time exclusion
+    - Uses same in-memory libSQL pattern as trips.delete.test.ts
+
+TESTS
+  141 backend tests pass (7 new)
+  Type check clean
+
+COMMIT: d69c2ae
+CI: green
+
+STATE ON PARK
+  No active tasks. Inbox empty.
+  Awaiting next COO dispatch.

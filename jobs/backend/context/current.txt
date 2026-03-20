@@ -1,7 +1,7 @@
-BACKEND CONTEXT — 2026-03-19
+BACKEND CONTEXT — 2026-03-20
 PROJECT: Travel Tracker
-CURRENT STATUS: FEAT-BD complete. DELETE /api/trips/:id implemented, tested, documented, committed, pushed. CI green.
+CURRENT STATUS: BUG-17 fix complete. Carry-forward trip status filter removed. CI green.
 ACTIVE TASKS: None
-PENDING MESSAGES TO COO: 20260319_2230-BACKEND-feat-bd-done.txt (sent)
+PENDING MESSAGES TO COO: 20260320_0215-BACKEND-bug17-complete.txt (sent)
 OPEN ISSUES: None
-LAST PARK DOC: jobs/backend/park-docs/20260319-BACKEND-feat-bd-park.txt
+LAST PARK DOC: jobs/backend/park-docs/20260320-BACKEND-bug17-park.txt

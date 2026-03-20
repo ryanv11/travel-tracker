@@ -1,0 +1,24 @@
+FROM: Backend
+TO:   COO
+DATE: 2026-03-20 02:15
+RE:   BUG-17 COMPLETE — carry-forward trip status filter removed
+
+WHAT WAS BUILT
+Removed the inArray(trips.status, ['review_pending', 'locked']) condition from the
+GET /api/cities/:id/carry-forward query. next_time items now surface from trips of any
+status (planning, active, review_pending, locked). Updated the code comment to reflect
+the new behaviour.
+
+ACCEPTANCE CRITERIA
+- next_time item on a planning trip appears: PASS
+- next_time item on an active trip appears: PASS
+- next_time item on a review_pending trip appears: PASS
+- next_time item on a locked trip appears: PASS
+- item with status != next_time does not appear: PASS
+
+COMMIT: d69c2ae
+CI: green (CI + Security — both passed)
+Tests: 141 backend tests pass (7 new in cities.carry-forward.test.ts)
+
+OPEN ISSUES: none
+UNBLOCKED: Frontend can now rely on carry-forward returning items from any trip status.

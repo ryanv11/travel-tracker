@@ -1,82 +1,85 @@
-ARCHITECT CONTEXT — 2026-03-19
+ARCHITECT CONTEXT — 2026-03-20
 PROJECT: Travel Tracker
-CURRENT STATUS: NR-14 pre-gate design review complete — recommendations delivered to COO
+CURRENT STATUS: NR-14 auth direction revised — Clerk assessment complete, ADL-20 logged
 
 ================================================================================
 WORK COMPLETED THIS THREAD
 ================================================================================
 
-Received brief: 20260319_2330-COO-multi-user-auth-schema-review.txt
-Reviewed: schema.ts, trips.ts, items.ts, places.ts, cities.ts, map.ts, server.ts
+Received query: 20260320_1000-COO-auth-managed-platform-query.txt
+PO direction: Clerk as managed auth platform (consumer, Google/Apple/email OAuth)
 
-Delivered recommendations on three NR-14 design decisions:
-  Decision 1 — user_id placement: endorsed trips + items, ADDED trip_places
-  Decision 2 — auth architecture: OAuth (Google) + JWT + jose library
-  Decision 3 — query scoping: repository layer (src/backend/repositories/)
+Assessed Clerk against four questions from COO:
+  1. Express/req.user compatibility — no blocker, standard JWKS verification
+  2. Electron/iOS Capacitor — no blocker, same patterns as ADL-17 specified
+  3. Lock-in risk — moderate but contained; seam rule defined (no @clerk/* in backend)
+  4. Schema implications — users table kept (clerk_id replaces oauth_provider/subject);
+     refresh_tokens table dropped (Clerk owns token lifecycle)
 
-ADL entries added (ADL-16 through ADL-19):
-  ADL-16: Multi-user ownership boundary — user_id on trips, items, trip_places
-  ADL-17: Auth architecture — OAuth PKCE + JWT + jose
-  ADL-18: Query pattern — repository layer
-  ADL-19: Schema anomaly — undocumented columns in trips and trip_places (flag)
+ADL-17 superseded by ADL-20:
+  ADL-17: OAuth PKCE + jose roll-your-own → SUPERSEDED 2026-03-20
+  ADL-20: Clerk managed auth — jose JWKS verification, no Clerk SDK in backend
 
-Schema anomaly flagged (MAJOR):
-  Four undocumented columns found in schema.ts not in approved ER schema v1.1:
-    trips.ownerAccountId, trips.subscriptionId, trips.createdByAccountId
-    trip_places.createdByAccountId
-  Recommended removal via migration before NR-14 DB work begins.
-
-Recommendation sent to:
-  jobs/COO/inbox/20260319_2359-ARCHITECT-NR14-auth-schema-recommendations.txt
+Response sent to COO:
+  jobs/COO/inbox/20260320_1100-ARCHITECT-clerk-auth-assessment.txt
 
 ================================================================================
 OPEN QUESTIONS
 ================================================================================
 
-None from this thread. The following questions are now pending COO decision:
+  1. COO/PO: Create Clerk account, configure providers (Google, Apple, email),
+     supply CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URI environment variables.
+     → This unblocks both backend middleware and frontend SDK install.
 
-  1. Schema anomaly: does COO approve removing the four undocumented columns?
-     (Architect recommends: yes, remove via migration)
-  2. Users table design: approved as specified in recommendation? (TEXT UUID PK)
-  3. trip_places user_id: COO/PO to confirm the addition beyond the original proposal
+  2. DATABASE spec update needed from COO:
+     - users table: new shape (clerk_id replaces oauth_provider/oauth_subject)
+     - refresh_tokens: DO NOT CREATE
+     (COO to issue updated DB brief before DATABASE begins NR-14 work)
+
+  3. Schema anomaly (ADL-19) — undocumented columns — still pending removal.
+     Decision: remove via migration. Awaiting COO approval and DATABASE action.
+
+  4. trip_places user_id — still awaiting COO/PO confirmation of addition.
 
 ================================================================================
 PENDING — AWAITING DOWNSTREAM ACTION
 ================================================================================
 
-  DATABASE:
-  - Create users table (TEXT UUID PK, email, oauth_provider, oauth_subject)
-  - Create refresh_tokens table (id, user_id, token_hash, expires_at, revoked_at)
+  COO (before DATABASE or BACKEND can proceed):
+  - Create Clerk account + configure OAuth providers
+  - Provide CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URI
+  - Issue updated DATABASE spec reflecting ADL-20 schema changes
+  - Approve removal of undocumented columns (ADL-19)
+
+  DATABASE (after COO spec update):
+  - Create users table: id (UUID PK), clerk_id (UNIQUE), email, display_name, created_at
+  - Do NOT create refresh_tokens table
   - Add user_id TEXT NOT NULL REFERENCES users(id) to: trips, items, trip_places
   - Add indexes: idx_trips_user_id, idx_items_user_id, idx_trip_places_user_id
   - Remove undocumented columns (pending COO approval)
 
   BACKEND:
-  - Create src/backend/repositories/ with trips, items, tripPlaces repositories
+  - Implement authenticate middleware (jose only — no @clerk/* imports)
+  - Implement userRepository.findOrCreateByClerkId(clerkId, email)
+  - Create src/backend/repositories/ (trips, items, tripPlaces) per ADL-18
   - Refactor all trip/place/item routes through repository layer
-  - Implement oauth.service.ts, jwt.service.ts
-  - Implement POST /api/auth/callback, /refresh, /logout
-  - Replace authenticate() stub with real JWT validation
-  - Access token storage must NOT be localStorage (spec must be explicit)
+  - No /api/auth/callback, /refresh, or /logout routes required
 
-  COO:
-  - Write Database spec for users/refresh_tokens tables
-  - Write Backend spec for repository layer + auth implementation
-  - Investigate and resolve schema anomaly (undocumented columns)
+  FRONTEND:
+  - Install @clerk/react
+  - Use useAuth().getToken() for API Authorization header
+  - Use Clerk hosted sign-in page (redirect flow) rather than embedded components
 
 ================================================================================
 NR-14 GATE SECURITY REVIEW
 ================================================================================
 
-A separate security review brief is expected from COO.
-Being involved in design now means gate review will be against validated decisions.
-
-Key areas to review at gate:
-  - Token storage implementation (access token in memory only)
-  - Refresh token hash storage (never raw token)
-  - JWT signing key management (env variable, rotation policy)
-  - OAuth PKCE implementation (code_challenge, state parameter)
-  - Repository layer completeness (all user-scoped tables covered)
+Gate review areas updated for Clerk:
+  - Backend: authenticate middleware imports jose only (not @clerk/* — enforce seam rule)
+  - Backend: findOrCreateByClerkId upsert is idempotent and safe
+  - Frontend: getToken() called per-request, not stored in state/localStorage
+  - Electron Phase 1: custom URL scheme handler does not leak session token to logs
+  - Repository layer completeness (ADL-18 — all user-scoped tables covered)
   - Postgres RLS readiness (withUserContext design in db/index.ts)
 
 ================================================================================
@@ -87,21 +90,22 @@ TECH FILES
   jobs/architect/tech/20260307-tech-blueprint.md       v1.0 (unchanged)
   jobs/architect/tech/20260307-map-shading-spec.md     v1.0 (unchanged)
   jobs/architect/tech/20260307-architecture-decisions-log.md
-                                                       ADL-01 through ADL-19
-                                                       (ADL-16 through ADL-19 added this thread)
+                                                       ADL-01 through ADL-20
+                                                       ADL-17 superseded by ADL-20
 
 ================================================================================
 LAST PARK DOC
 ================================================================================
 
-  jobs/architect/park-docs/20260319-ARCHITECT-park.txt
+  jobs/architect/park-docs/20260320-ARCHITECT-park.txt
 
 ================================================================================
 NEXT ARCHITECT THREAD — RECOMMENDED STARTING POINT
 ================================================================================
 
-  1. Check jobs/architect/inbox/ for COO response to NR-14 recommendations
-  2. Review Database's users/refresh_tokens migration when submitted
-  3. Review Backend's repository layer implementation when submitted
-  4. Conduct NR-14 gate security review when brief arrives from COO
+  1. Check jobs/architect/inbox/ for COO response (Clerk account confirmation)
+  2. Review DATABASE's updated users table migration when submitted
+  3. Verify DATABASE did NOT create refresh_tokens table
+  4. Review BACKEND authenticate middleware — confirm no @clerk/* imports (seam rule)
+  5. Conduct NR-14 gate security review when brief arrives from COO
 

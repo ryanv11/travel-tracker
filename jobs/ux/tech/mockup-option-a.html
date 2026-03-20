@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Travel Tracker — Option A: Wider Single Column</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* === DESIGN SYSTEM TOKENS === */
+    :root {
+      /* Atlas Teal */
+      --teal-50:  #F0FDFA;
+      --teal-100: #CCFBF1;
+      --teal-500: #14B8A6;
+      --teal-600: #0D9488;
+      --teal-700: #0F766E;
+      --teal-800: #115E59;
+      --teal-900: #134E4A;
+
+      /* Amber */
+      --amber-100: #FEF3C7;
+      --amber-600: #D97706;
+      --amber-800: #92400E;
+
+      /* Slate */
+      --slate-50:  #F8FAFC;
+      --slate-100: #F1F5F9;
+      --slate-200: #E2E8F0;
+      --slate-300: #CBD5E1;
+      --slate-400: #94A3B8;
+      --slate-500: #64748B;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1E293B;
+      --slate-900: #0F172A;
+
+      /* Emerald */
+      --emerald-100: #D1FAE5;
+      --emerald-600: #059669;
+      --emerald-800: #065F46;
+
+      /* Rose */
+      --rose-100: #FFE4E6;
+      --rose-600: #E11D48;
+      --rose-800: #9F1239;
+
+      /* Violet */
+      --violet-100: #EDE9FE;
+      --violet-800: #5B21B6;
+
+      /* Semantic tokens */
+      --bg-base:        #F8FAFC;
+      --bg-surface:     #FFFFFF;
+      --bg-subtle:      #F1F5F9;
+      --bg-muted:       #E2E8F0;
+      --border-default: #E2E8F0;
+      --border-strong:  #CBD5E1;
+      --text-primary:   #0F172A;
+      --text-secondary: #334155;
+      --text-muted:     #64748B;
+      --text-disabled:  #94A3B8;
+      --primary:        #0D9488;
+      --primary-hover:  #0F766E;
+      --primary-subtle: #CCFBF1;
+      --primary-text:   #134E4A;
+      --accent:         #D97706;
+      --accent-subtle:  #FEF3C7;
+      --accent-text:    #92400E;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-primary);
+      background: var(--bg-base);
+      min-height: 100vh;
+    }
+
+    /* === NAV BAR === */
+    .nav {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-default);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .nav-brand-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--primary);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 14px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nav-link {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      background: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .nav-link:hover {
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+    }
+
+    .nav-link.active {
+      background: var(--primary-subtle);
+      color: var(--primary-text);
+      font-weight: 600;
+    }
+
+    .nav-link-icon {
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-style: normal;
+    }
+
+    /* === PAGE WRAPPER === */
+    .page-wrapper {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* === STATE INDICATOR (mockup annotation) === */
+    .state-indicator {
+      background: var(--slate-800);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .state-indicator .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--teal-500);
+      border-radius: 50%;
+    }
+
+    /* === PAGE HEADING ROW === */
+    .page-heading-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.1s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover { background: var(--primary-hover); }
+
+    .btn-outline {
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-default);
+    }
+
+    .btn-outline:hover { background: var(--bg-subtle); }
+
+    .btn-sm {
+      padding: 4px 12px;
+      font-size: 12px;
+    }
+
+    /* === FILTER BAR === */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filter-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: var(--bg-surface);
+      outline: none;
+    }
+
+    .filter-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(13,148,132,0.15);
+    }
+
+    .filter-select {
+      padding: 8px 12px;
+      border: 1px solid var(--border-default);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: var(--bg-surface);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .filter-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(13,148,132,0.15);
+    }
+
+    /* === TRIP CARDS === */
+    .trip-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .trip-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      cursor: pointer;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+
+    .trip-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      border-color: var(--border-strong);
+    }
+
+    .trip-card.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(13,148,132,0.15), 0 4px 12px rgba(0,0,0,0.08);
+      background: var(--teal-50);
+    }
+
+    .trip-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .trip-card-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .trip-card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .trip-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .trip-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .trip-card-destinations {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    /* === STATUS BADGES === */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      line-height: 1.45;
+    }
+
+    .badge-planning {
+      background: var(--primary-subtle);
+      color: var(--primary-text);
+    }
+
+    .badge-active {
+      background: var(--accent-subtle);
+      color: var(--accent-text);
+    }
+
+    .badge-review {
+      background: var(--accent-subtle);
+      color: var(--accent);
+    }
+
+    .badge-locked {
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+    }
+
+    .badge-category {
+      background: var(--violet-100);
+      color: var(--violet-800);
+      font-size: 11px;
+    }
+
+    .badge-place {
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-default);
+      font-size: 11px;
+    }
+
+    /* === DIVIDER === */
+    .section-divider {
+      border: none;
+      border-top: 2px dashed var(--border-default);
+      margin: 28px 0;
+    }
+
+    /* === TRIP DETAIL SECTION === */
+    .detail-annotation {
+      background: var(--slate-800);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .detail-header {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    .detail-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .detail-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .detail-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .detail-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-transitions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-default);
+    }
+
+    .btn-success {
+      background: #059669;
+      color: white;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+
+    /* === PLACE SECTION === */
+    .place-section {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+
+    .place-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .place-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .place-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .item-list {
+      padding: 8px 0;
+    }
+
+    .item-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      gap: 10px;
+      border-bottom: 1px solid var(--bg-subtle);
+    }
+
+    .item-row:last-child { border-bottom: none; }
+
+    .item-type-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--bg-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .item-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .item-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .item-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .item-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .badge-item-confirmed {
+      background: var(--primary-subtle);
+      color: var(--primary-text);
+    }
+
+    .badge-item-consider {
+      background: var(--violet-100);
+      color: var(--violet-800);
+    }
+
+    .badge-item-completed {
+      background: var(--emerald-100);
+      color: var(--emerald-800);
+    }
+
+    /* === MAP PANEL === */
+    .map-tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border-default);
+      margin-bottom: 16px;
+      background: var(--bg-surface);
+      border-radius: 8px 8px 0 0;
+      overflow: hidden;
+    }
+
+    .map-tab {
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .map-tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      font-weight: 600;
+    }
+
+    .map-placeholder {
+      background: var(--slate-700);
+      border-radius: 0 0 8px 8px;
+      height: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--slate-400);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border: 1px solid var(--border-default);
+      border-top: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .map-placeholder::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 40px,
+          rgba(255,255,255,0.03) 40px,
+          rgba(255,255,255,0.03) 41px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 60px,
+          rgba(255,255,255,0.03) 60px,
+          rgba(255,255,255,0.03) 61px
+        );
+    }
+
+    .map-placeholder-label {
+      position: relative;
+      z-index: 1;
+      background: rgba(0,0,0,0.3);
+      padding: 10px 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* === OPTION A LAYOUT ANNOTATION === */
+    .layout-note {
+      background: var(--amber-100);
+      border: 1px solid var(--amber-600);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 12px;
+      color: var(--amber-800);
+      line-height: 1.6;
+    }
+
+    .layout-note strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    /* Stars */
+    .stars {
+      color: #F59E0B;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+
+    /* Add place button */
+    .add-place-btn {
+      border: 1px dashed var(--border-strong);
+      background: none;
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      margin-top: 4px;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .add-place-btn:hover {
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      margin-bottom: 16px;
+      padding: 4px 0;
+    }
+
+    .back-link:hover { color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+
+  <!-- === NAV BAR === -->
+  <nav class="nav">
+    <a class="nav-brand" href="#">
+      <div class="nav-brand-icon">&#9679;</div>
+      Travel Tracker
+    </a>
+    <div class="nav-links">
+      <button class="nav-link" onclick="showView('map')">
+        <span class="nav-link-icon">&#9632;</span> Map
+      </button>
+      <button class="nav-link active" onclick="showView('trips')">
+        <span class="nav-link-icon">&#9646;</span> Trips
+      </button>
+      <button class="nav-link" onclick="showView('admin')">
+        <span class="nav-link-icon">&#9881;</span> Settings
+      </button>
+    </div>
+  </nav>
+
+  <!-- === MAIN CONTENT === -->
+  <div class="page-wrapper">
+
+    <!-- Layout description note -->
+    <div class="layout-note">
+      <strong>Option A — Wider Single Column (max-width 1100px, centred)</strong>
+      This layout uses a single column up to 1100px. The trip list is the primary view. Selecting a trip reveals the detail section below (or replaces the list in production — shown here as two states). The map is accessed via a navigation tab.
+    </div>
+
+    <!-- ===== STATE 1: TRIP LIST ===== -->
+    <div id="view-list">
+
+      <div class="page-heading-row">
+        <h1 class="page-title">My Trips</h1>
+        <button class="btn btn-primary">+ New Trip</button>
+      </div>
+
+      <!-- Filter bar — compact single row (addressing T-02) -->
+      <div class="filter-bar">
+        <input class="filter-input" type="text" placeholder="Search trips…" value="">
+        <select class="filter-select">
+          <option>All statuses</option>
+          <option>Planning</option>
+          <option>Active</option>
+          <option>Review pending</option>
+          <option>Locked</option>
+        </select>
+        <select class="filter-select">
+          <option>All categories</option>
+          <option>Adventure</option>
+          <option>City break</option>
+          <option>Beach</option>
+        </select>
+        <select class="filter-select">
+          <option>Newest first</option>
+          <option>Oldest first</option>
+          <option>Name A–Z</option>
+        </select>
+      </div>
+
+      <!-- Trip cards — compact padding (addressing T-03) -->
+      <div class="trip-list">
+
+        <!-- Card 1: Active / selected -->
+        <div class="trip-card selected" onclick="showDetail()">
+          <div class="trip-card-header">
+            <div class="trip-card-title-row">
+              <span class="trip-card-title">Irish Coast Road Trip</span>
+              <span class="badge badge-active">Active</span>
+            </div>
+            <div class="trip-card-actions">
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation()">Edit</button>
+            </div>
+          </div>
+          <div class="trip-card-meta">
+            <span>15 Mar 2026 – 24 Mar 2026</span>
+            <span>&#183;</span>
+            <span>Sophie, James</span>
+          </div>
+          <div class="trip-card-destinations">
+            <span class="badge badge-place">Dublin</span>
+            <span class="badge badge-place">Galway</span>
+            <span class="badge badge-place">Dingle</span>
+            <span class="badge badge-category">Road Trip</span>
+            <span class="badge badge-category">Culture</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Planning -->
+        <div class="trip-card" onclick="showDetail()">
+          <div class="trip-card-header">
+            <div class="trip-card-title-row">
+              <span class="trip-card-title">Japan Spring Highlights</span>
+              <span class="badge badge-planning">Planning</span>
+            </div>
+            <div class="trip-card-actions">
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation()">Edit</button>
+            </div>
+          </div>
+          <div class="trip-card-meta">
+            <span>1 Apr 2026 – 18 Apr 2026</span>
+            <span>&#183;</span>
+            <span>Solo</span>
+          </div>
+          <div class="trip-card-destinations">
+            <span class="badge badge-place">Tokyo</span>
+            <span class="badge badge-place">Kyoto</span>
+            <span class="badge badge-place">Osaka</span>
+            <span class="badge badge-category">Culture</span>
+            <span class="badge badge-category">Food</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Review pending -->
+        <div class="trip-card" onclick="showDetail()">
+          <div class="trip-card-header">
+            <div class="trip-card-title-row">
+              <span class="trip-card-title">Portuguese Cities Winter Break</span>
+              <span class="badge badge-review">Review pending</span>
+            </div>
+            <div class="trip-card-actions">
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation()">Edit</button>
+            </div>
+          </div>
+          <div class="trip-card-meta">
+            <span>12 Jan 2026 – 20 Jan 2026</span>
+            <span>&#183;</span>
+            <span>Sophie</span>
+          </div>
+          <div class="trip-card-destinations">
+            <span class="badge badge-place">Lisbon</span>
+            <span class="badge badge-place">Porto</span>
+            <span class="badge badge-category">City Break</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Locked -->
+        <div class="trip-card" onclick="showDetail()">
+          <div class="trip-card-header">
+            <div class="trip-card-title-row">
+              <span class="trip-card-title">New Zealand South Island</span>
+              <span class="badge badge-locked">&#128274; Locked</span>
+            </div>
+            <div class="trip-card-actions">
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation()">View</button>
+            </div>
+          </div>
+          <div class="trip-card-meta">
+            <span>3 Nov 2025 – 21 Nov 2025</span>
+            <span>&#183;</span>
+            <span>James, Aoife</span>
+          </div>
+          <div class="trip-card-destinations">
+            <span class="badge badge-place">Queenstown</span>
+            <span class="badge badge-place">Milford Sound</span>
+            <span class="badge badge-place">Christchurch</span>
+            <span class="badge badge-category">Adventure</span>
+            <span class="badge badge-category">Nature</span>
+          </div>
+        </div>
+
+        <!-- Card 5: Planning -->
+        <div class="trip-card" onclick="showDetail()">
+          <div class="trip-card-header">
+            <div class="trip-card-title-row">
+              <span class="trip-card-title">Morocco Desert &amp; Medinas</span>
+              <span class="badge badge-planning">Planning</span>
+            </div>
+            <div class="trip-card-actions">
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation()">Edit</button>
+            </div>
+          </div>
+          <div class="trip-card-meta">
+            <span>10 Oct 2026 – 22 Oct 2026</span>
+            <span>&#183;</span>
+            <span>Sophie, James, Aoife</span>
+          </div>
+          <div class="trip-card-destinations">
+            <span class="badge badge-place">Marrakech</span>
+            <span class="badge badge-place">Fes</span>
+            <span class="badge badge-place">Merzouga</span>
+            <span class="badge badge-category">Adventure</span>
+            <span class="badge badge-category">Culture</span>
+          </div>
+        </div>
+
+      </div> <!-- end trip-list -->
+
+    </div> <!-- end view-list -->
+
+    <!-- ===== DIVIDER ===== -->
+    <hr class="section-divider" id="detail-divider" style="display:none;">
+
+    <!-- ===== STATE 2: TRIP DETAIL (shown when trip selected) ===== -->
+    <div id="view-detail" style="display:none;">
+
+      <div class="detail-annotation">
+        <span class="dot" style="background:#D97706;"></span>
+        Trip selected — detail view
+      </div>
+
+      <div class="back-link" onclick="hideDetail()">
+        &larr; Back to trips
+      </div>
+
+      <!-- Detail Header -->
+      <div class="detail-header">
+        <div class="detail-title-row">
+          <div>
+            <div class="detail-title">Irish Coast Road Trip</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+            <span class="badge badge-active" style="font-size:12px;padding:4px 10px;">Active</span>
+            <button class="btn btn-outline btn-sm">Edit Trip</button>
+          </div>
+        </div>
+
+        <div class="detail-meta">
+          <div class="detail-meta-item">
+            <span>&#128197;</span>
+            <span>15 Mar 2026 – 24 Mar 2026</span>
+          </div>
+          <span>&#183;</span>
+          <div class="detail-meta-item">
+            <span>&#128101;</span>
+            <span>Sophie, James</span>
+          </div>
+          <span>&#183;</span>
+          <div class="detail-meta-item">
+            <span class="badge badge-category">Road Trip</span>
+            <span class="badge badge-category" style="margin-left:4px;">Culture</span>
+          </div>
+        </div>
+
+        <div class="status-transitions">
+          <span style="font-size:12px;font-weight:500;color:var(--text-muted);">Transition:</span>
+          <button class="btn-success">Move to Review</button>
+          <button class="btn btn-outline btn-sm">Photo Album</button>
+        </div>
+      </div>
+
+      <!-- Place Section: Dublin -->
+      <div class="place-section">
+        <div class="place-header">
+          <div>
+            <div class="place-title">Dublin</div>
+            <div class="place-subtitle">Ireland</div>
+          </div>
+          <button class="btn btn-outline btn-sm">+ Add Item</button>
+        </div>
+        <div class="item-list">
+          <div class="item-row">
+            <div class="item-type-icon">H</div>
+            <div class="item-content">
+              <div class="item-name">The Shelbourne Hotel</div>
+              <div class="item-meta">15 Mar – 18 Mar &nbsp;&#183;&nbsp; 3 nights</div>
+            </div>
+            <div class="item-actions">
+              <span class="badge badge-item-confirmed">Confirmed</span>
+              <button class="btn btn-outline btn-sm">Edit</button>
+            </div>
+          </div>
+          <div class="item-row">
+            <div class="item-type-icon">R</div>
+            <div class="item-content">
+              <div class="item-name">Chapter One</div>
+              <div class="item-meta">16 Mar &nbsp;&#183;&nbsp; Dinner reservation</div>
+            </div>
+            <div class="item-actions">
+              <span class="badge badge-item-confirmed">Confirmed</span>
+              <button class="btn btn-outline btn-sm">Edit</button>
+            </div>
+          </div>
+          <div class="item-row">
+            <div class="item-type-icon">T</div>
+            <div class="item-content">
+              <div class="item-name">Kilmainham Gaol Tour</div>
+              <div class="item-meta">17 Mar &nbsp;&#183;&nbsp; Experience</div>
+            </div>
+            <div class="item-actions">
+              <span class="badge badge-item-consider">Consider</span>
+              <button class="btn btn-outline btn-sm">Edit</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Place Section: Galway -->
+      <div class="place-section">
+        <div class="place-header">
+          <div>
+            <div class="place-title">Galway</div>
+            <div class="place-subtitle">Ireland</div>
+          </div>
+          <button class="btn btn-outline btn-sm">+ Add Item</button>
+        </div>
+        <div class="item-list">
+          <div class="item-row">
+            <div class="item-type-icon">H</div>
+            <div class="item-content">
+              <div class="item-name">g Hotel &amp; Spa</div>
+              <div class="item-meta">18 Mar – 21 Mar &nbsp;&#183;&nbsp; 3 nights</div>
+            </div>
+            <div class="item-actions">
+              <span class="badge badge-item-confirmed">Confirmed</span>
+              <button class="btn btn-outline btn-sm">Edit</button>
+            </div>
+          </div>
+          <div class="item-row">
+            <div class="item-type-icon">R</div>
+            <div class="item-content">
+              <div class="item-name">Aniar Restaurant</div>
+              <div class="item-meta">19 Mar &nbsp;&#183;&nbsp; Dinner</div>
+            </div>
+            <div class="item-actions">
+              <span class="badge badge-item-consider">Consider</span>
+              <button class="btn btn-outline btn-sm">Edit</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add place button -->
+      <button class="add-place-btn">+ Add city / place</button>
+
+    </div> <!-- end view-detail -->
+
+    <!-- ===== MAP VIEW (hidden by default) ===== -->
+    <div id="view-map" style="display:none;">
+      <div class="page-heading-row">
+        <h1 class="page-title">Map</h1>
+      </div>
+      <div class="map-tab-bar">
+        <div class="map-tab active">Map View</div>
+        <div class="map-tab">Country Shading</div>
+        <div class="map-tab">City Pins</div>
+      </div>
+      <div class="map-placeholder">
+        <div class="map-placeholder-label">
+          <span>&#9632;</span>
+          Map — MapLibre renders here
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- end page-wrapper -->
+
+  <script>
+    function showView(view) {
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      document.getElementById('view-list').style.display = (view === 'trips') ? 'block' : 'none';
+      document.getElementById('view-detail').style.display = 'none';
+      document.getElementById('detail-divider').style.display = 'none';
+      document.getElementById('view-map').style.display = (view === 'map') ? 'block' : 'none';
+    }
+
+    function showDetail() {
+      document.getElementById('detail-divider').style.display = 'block';
+      document.getElementById('view-detail').style.display = 'block';
+      // Scroll to detail
+      document.getElementById('view-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function hideDetail() {
+      document.getElementById('detail-divider').style.display = 'none';
+      document.getElementById('view-detail').style.display = 'none';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+
+</body>
+</html>

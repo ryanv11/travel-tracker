@@ -1,0 +1,228 @@
+FROM: Architect
+TO:   COO
+DATE: 2026-03-20
+RE:   NR-14 auth — Clerk assessment and implementation guidance
+REF:  20260320_1000-COO-auth-managed-platform-query.txt
+
+---
+
+No technical blocker. Clerk is compatible with this stack. The PO direction stands.
+ADL-17 is superseded by ADL-20 below.
+
+---
+
+SUMMARY TABLE
+
+| Decision                             | Recommendation                              | Confidence |
+|--------------------------------------|---------------------------------------------|------------|
+| Clerk compatibility with Express     | Compatible — standard JWT verification      | High       |
+| Clerk + req.user pattern             | No change to pattern — middleware swaps in  | High       |
+| Clerk + Electron                     | Works — OAuth in system browser, not WebView| High       |
+| Clerk + iOS Capacitor                | Works — same hosted backend, no change      | High       |
+| Lock-in risk                         | Moderate but manageable — document the seam | Medium     |
+| Schema: users table ownership        | We keep a local users table — Clerk is IdP  | High       |
+| refresh_tokens table                 | DROP IT — Clerk owns token lifecycle        | High       |
+
+---
+
+DECISION WRITEUP
+
+## 1. Express compatibility / req.user pattern — NO CHANGE REQUIRED
+
+Clerk issues short-lived JWTs (session tokens). The Express authenticate middleware
+verifies them using Clerk's JWKS endpoint (public keys, no secret sharing required).
+The middleware populates req.user.clerkId (and optionally req.user.id, the local
+users.id FK). This is the same middleware interface specified in ADL-17 — only the
+verification body changes.
+
+- Clerk SDK: `@clerk/express` provides a ready-made `requireAuth()` middleware and
+  `clerkClient` for user metadata. It attaches auth() to req, giving req.auth.userId
+  (Clerk's subject). We adapt this to the req.user shape our routes already expect.
+- Alternative without the SDK: import jose, fetch Clerk's JWKS URI
+  (https://<your-domain>.clerk.accounts.dev/.well-known/jwks.json), verify the JWT
+  claims (sub, azp, exp). This is ~40 lines and has zero Clerk SDK dependency in
+  the backend. I prefer this for lock-in reasons — see section 3.
+- req.user shape remains: { id: string (local UUID), clerkId: string, email: string }.
+  Route handlers are untouched.
+
+## 2. Electron — WORKS, one implementation note
+
+Clerk's OAuth flows run in a browser. Electron must open the Clerk sign-in URL in
+the system browser (shell.openExternal), not in a BrowserWindow WebView. This is the
+same requirement as the custom URL scheme approach specified in ADL-17 — the
+implementation is identical. Clerk provides a redirect_url parameter; we register
+the custom scheme (traveltracker://auth/callback) and Electron main intercepts it.
+
+- Do not attempt to embed Clerk's hosted UI in an Electron BrowserWindow iframe.
+  It will work but violates Clerk's recommended pattern and will break if Clerk
+  adds frame-busting CSP headers.
+- Clerk's React component library is not needed in Electron (or at all for our
+  use case). The hosted Clerk sign-in page handles the UI.
+- This is deferred to Phase 1 packaging — no change to current dev/beta flow.
+
+## 3. Lock-in risk — MODERATE, mitigated by architecture choice
+
+Clerk lock-in is real but the exposure is contained if we make the right choice now.
+
+CLERK SDK IN BACKEND (do not do this):
+If we use `@clerk/express` deeply throughout the backend, migration means touching
+every middleware and every route that reads req.auth. This is significant rework.
+
+JOSE-ONLY VERIFICATION (do this):
+If we verify Clerk JWTs using jose against Clerk's JWKS endpoint, migration to
+any other JWKS-compatible provider (Auth0, WorkOS, self-hosted) is a one-line URL
+change. The backend does not know it is talking to Clerk. This is the correct
+architecture.
+
+FRONTEND LOCK-IN:
+Clerk provides React components (`<SignIn />`, `<UserButton />`). These are
+convenient but represent meaningful lock-in if used extensively. Recommendation:
+use Clerk's hosted sign-in page (redirect flow) rather than embedding Clerk
+React components in the app. This keeps the frontend auth surface to a single
+redirect + token receipt.
+
+MIGRATION COST (honest assessment):
+If we ever need to leave Clerk — user export (emails, metadata), provider
+re-linking, and rotating to a new JWKS endpoint. This is a half-day of backend
+work if we follow the JWKS-only pattern above. If we go SDK-deep, it is a week.
+The seam must be documented and enforced.
+
+## 4. Schema — WE KEEP A LOCAL USERS TABLE; refresh_tokens IS DROPPED
+
+This is the most important schema implication and the answer is unambiguous.
+
+USERS TABLE — KEEP IT
+Clerk is the Identity Provider; we are the application. Every trip, item, and
+trip_place has a user_id FK referencing our local users table (ADL-16). This
+cannot reference a Clerk ID directly — foreign keys require a local table.
+The users table is also the authoritative record for application-level attributes
+(display_name, created_at, last_seen_at, any future subscription status).
+
+The users table changes shape slightly under Clerk:
+  - oauth_provider, oauth_subject columns: DROP THEM. Clerk owns provider
+    linkage; we do not need to store which provider was used.
+  - Add: clerk_id TEXT NOT NULL UNIQUE — the Clerk user subject (sub claim),
+    used to look up or create the local user on first sign-in.
+  - Keep: id (UUID PK), email, display_name, created_at.
+
+On first sign-in, the backend receives a valid Clerk JWT. It extracts sub and
+email, looks up users WHERE clerk_id = sub. If not found, it creates a new row
+and returns the local user.id. This is the only time the backend calls Clerk's
+API (or it can be done from JWT claims alone if email is included in the token).
+
+REFRESH_TOKENS TABLE — DROP IT
+This table was designed to manage token refresh ourselves. Clerk owns the entire
+token lifecycle: issuance, rotation, expiry, and revocation. We do not need a
+refresh_tokens table, a /api/auth/refresh endpoint, or a /api/auth/logout
+endpoint that revokes tokens. Clerk's dashboard and SDK handle all of this.
+
+  Tables after Clerk adoption:
+    users:           id, clerk_id, email, display_name, created_at
+    refresh_tokens:  DROPPED
+
+---
+
+IMPLEMENTATION GUIDANCE — WHAT BACKEND BUILDS
+
+1. Clerk account setup (COO/PO action):
+   - Create Clerk application, enable Google + Apple + Email providers.
+   - Set CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URI in .env.local.
+   - Set allowed redirect URLs for dev (localhost:5173) and prod.
+
+2. Backend authenticate middleware (replaces the stub):
+
+   import { createRemoteJWKSet, jwtVerify } from 'jose';
+
+   const JWKS = createRemoteJWKSet(new URL(process.env.CLERK_JWKS_URI));
+
+   export async function authenticate(req, res, next) {
+     const token = req.headers.authorization?.replace('Bearer ', '');
+     if (!token) return res.status(401).json({ error: 'Unauthorized' });
+     try {
+       const { payload } = await jwtVerify(token, JWKS);
+       const user = await userRepository.findOrCreateByClerkId(
+         payload.sub,
+         payload.email_address ?? payload.email
+       );
+       req.user = { id: user.id, clerkId: payload.sub, email: user.email };
+       next();
+     } catch {
+       return res.status(401).json({ error: 'Invalid token' });
+     }
+   }
+
+   Note: jwtVerify handles exp, signature, and alg automatically. No separate
+   expiry check needed. The JWKS is cached by jose — no per-request fetch.
+
+3. User repository addition:
+   userRepository.findOrCreateByClerkId(clerkId, email) — upsert pattern.
+   This is the only new repository function required for auth.
+
+4. Auth routes:
+   /api/auth/callback  — NOT NEEDED. Clerk handles the OAuth callback itself.
+   /api/auth/refresh   — NOT NEEDED. Clerk handles token rotation.
+   /api/auth/logout    — NOT NEEDED at backend. Frontend calls Clerk's signOut().
+
+   The backend auth surface is: authenticate middleware only.
+
+5. Frontend token acquisition:
+   - Use Clerk's React SDK: `useAuth().getToken()` returns a valid short-lived JWT.
+   - Attach as: Authorization: Bearer <token> on every API call.
+   - Clerk auto-refreshes the session; getToken() always returns a fresh token.
+   - No token storage in our code. No localStorage. Clerk manages it.
+
+6. Electron (deferred to Phase 1 packaging):
+   - Use shell.openExternal(clerkSignInUrl) to open Clerk's hosted sign-in page.
+   - Register traveltracker://auth/callback as a custom URL scheme.
+   - Clerk redirects to this scheme after auth; Electron main intercepts the URL,
+     extracts the Clerk session token, and passes it to the renderer process.
+   - Clerk's React SDK works identically in the Electron renderer (it's a WebView).
+
+---
+
+ADL UPDATE
+
+ADL-17 is superseded. A new entry must be logged:
+
+ADL-20 — Auth architecture: Clerk managed auth (supersedes ADL-17)
+  Date:      2026-03-20
+  Status:    Decided — PO direction confirmed, Architect assessed no blocker
+  Decision:  Clerk is the managed auth platform. Clerk issues JWTs; Express
+             backend verifies them via jose + Clerk JWKS endpoint (no Clerk SDK
+             in backend). Frontend uses Clerk React SDK for sign-in and token
+             acquisition. refresh_tokens table is dropped. users table is kept
+             with clerk_id replacing oauth_provider/oauth_subject columns.
+  Seam rule: Backend must never import @clerk/* packages. JWKS URI is a config
+             value. Migration to another JWKS provider is a one-line env change.
+
+---
+
+SCHEMA DELTA (replaces previous NR-14 schema spec for users/refresh_tokens)
+
+  users table — NEW SHAPE:
+    id           TEXT PRIMARY KEY (UUID v4)
+    clerk_id     TEXT NOT NULL UNIQUE
+    email        TEXT NOT NULL
+    display_name TEXT
+    created_at   INTEGER NOT NULL DEFAULT (unixepoch())
+
+  refresh_tokens table — DROP (do not create)
+
+  All ADL-16 user_id FK decisions are unchanged.
+  All ADL-18 repository layer decisions are unchanged.
+  The undocumented columns anomaly (ADL-19) is unchanged — still must be removed.
+
+---
+
+OPEN QUESTIONS FOR COO
+
+  1. Clerk account creation: this is a PO/COO action before backend can proceed.
+     Unblocks: backend authenticate middleware, frontend Clerk SDK install.
+
+  2. Confirm: oauth_provider and oauth_subject columns dropped; clerk_id added.
+     This changes the DATABASE spec. COO should issue an updated DB brief.
+
+  3. Confirm: refresh_tokens table is not created. Removes that item from the DB brief.
+
+Architect
+
