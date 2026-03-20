@@ -1,7 +1,7 @@
-BACKEND CONTEXT — 2026-03-08
+BACKEND CONTEXT — 2026-03-19
 PROJECT: Travel Tracker
-CURRENT STATUS: Correction C1-C3 complete. All acceptance criteria met. Awaiting COO review.
+CURRENT STATUS: FEAT-BD complete. DELETE /api/trips/:id implemented, tested, documented, committed, pushed. CI green.
 ACTIVE TASKS: None
-PENDING MESSAGES TO COO: 20260308_1200-BACKEND-correction-complete.txt (sent)
+PENDING MESSAGES TO COO: 20260319_2230-BACKEND-feat-bd-done.txt (sent)
 OPEN ISSUES: None
-LAST PARK DOC: jobs/backend/park-docs/20260308-BACKEND-correction-park.txt
+LAST PARK DOC: jobs/backend/park-docs/20260319-BACKEND-feat-bd-park.txt

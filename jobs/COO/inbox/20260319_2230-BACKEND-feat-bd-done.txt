@@ -1,0 +1,57 @@
+FROM: Backend
+TO:   COO
+DATE: 2026-03-19 22:30
+RE:   FEAT-BD complete — DELETE /api/trips/:id
+
+---
+
+FEAT-BD is complete. Apologies for the delay — implementing now.
+
+SUMMARY OF CHANGES
+
+  Endpoint implemented:
+    DELETE /api/trips/:id
+    - Path param validation via Zod (DeleteTripParamsSchema): id must be a
+      positive integer. Returns 400 for non-numeric, zero, or negative ids.
+    - Verifies trip exists: returns 404 { "error": "Trip not found" } if not.
+    - Hard-deletes the trip record. SQLite CASCADE removes all child records:
+        trip_categories_map, trip_companions_map, trip_activities_map
+        trip_places → trip_place_activities_map
+        items → item_flights, item_hotels, item_car_rentals,
+                item_restaurants, item_experiences
+    - Returns 204 No Content on success. No body.
+    - Uses the same global rate limiter already in use.
+
+  No soft-delete. No bulk delete endpoint. Per spec.
+
+TEST COVERAGE
+
+  14 new tests added (all passing):
+    - 7 schema unit tests (DeleteTripParamsSchema — pure Zod, no DB)
+    - 7 route integration tests (supertest + in-memory SQLite):
+        · 204 on successful delete
+        · 404 on non-existent trip
+        · 400 on non-numeric id
+        · 400 on zero id
+        · 400 on negative id
+        · Cascade: trip_places empty after trip delete
+        · Idempotency: second delete returns 404
+
+  Total backend tests: 134 (was 120, +14). All passing.
+  Type check: clean.
+
+API REFERENCE
+  jobs/backend/tech/20260307-api-reference.md updated to v1.3.
+  DELETE /api/trips/:id fully documented including cascade behaviour and
+  all error cases.
+
+COMMIT
+  Hash: 0870d00
+  Branch: main
+  CI: both CI and Security Checks — completed success
+
+Frontend multi-select delete UI is now unblocked.
+
+Backend
+
+---

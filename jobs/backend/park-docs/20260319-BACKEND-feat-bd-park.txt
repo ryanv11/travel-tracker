@@ -1,0 +1,115 @@
+BACKEND PARK DOCUMENT — 2026-03-19 (FEAT-BD Thread)
+PROJECT: Travel Tracker
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+Received FEAT-BD spec (COO 2026-03-11) + two status chases (2026-03-19 09:00
+and 2026-03-19 22:00). Implemented DELETE /api/trips/:id in this thread.
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+1. Path param validation response code
+   Decision: return 400 (not 404) when id is non-numeric/zero/negative.
+   Rationale: spec says "return 400 if invalid". The route returns
+   { error: "Trip not found" } as the body — matches spec wording exactly
+   (spec says the 404 body is { "error": "Trip not found" }; 400 body is
+   not specified but using the same message is consistent and harmless).
+
+2. Test infrastructure: server-test-app.ts
+   Decision: created src/backend/server-test-app.ts as a dedicated test
+   export of the Express app without the listen() call and startup tasks.
+   Rationale: server.ts calls startup() which runs seeding and geocoding
+   and calls app.listen(). Supertest needs the bare app object. Duplicating
+   middleware config in a separate file is the correct approach — it keeps
+   server.ts unchanged and does not introduce a test-conditional code path
+   in the production server.
+
+3. In-memory SQLite test database
+   Decision: create a fresh :memory: libSQL client per test in beforeEach.
+   Rationale: full isolation, no test file leakage, avoids relying on a
+   real dev.db file being present. Applied the minimal DDL that matches
+   the actual schema (including columns added in migration 0001:
+   owner_account_id, subscription_id, created_by_account_id on trips;
+   created_by_account_id on trip_places; iso_3166_2 on regions;
+   subscription_id on map_shading_config).
+
+4. Test categorisation: 7 schema unit tests + 7 route integration tests = 14
+   Schema tests: pure Zod schema validation, no DB.
+   Integration tests: supertest + in-memory SQLite via vi.mock on getDb().
+
+================================================================================
+WORK COMPLETED
+================================================================================
+
+Files added:
+  src/backend/routes/trips.ts           — DELETE /:id handler + import added
+  src/backend/validation/trips.schemas.ts — DeleteTripParamsSchema added
+  src/backend/server-test-app.ts        — new file: Express app export for tests
+  src/backend/routes/__tests__/trips.delete.test.ts — 14 tests
+  jobs/backend/tech/20260307-api-reference.md       — updated to v1.3
+
+Commit: 0870d00 on main (pushed successfully)
+CI result: Both CI and Security Checks — completed success
+
+================================================================================
+TEST COVERAGE — FEAT-BD
+================================================================================
+
+14 new tests (all passing):
+
+Schema unit tests (DeleteTripParamsSchema):
+  - accepts a valid positive integer id
+  - coerces a positive integer string to number
+  - rejects zero
+  - rejects a negative integer
+  - rejects a non-integer float
+  - rejects a non-numeric string
+  - rejects undefined id
+
+Route integration tests (DELETE /api/trips/:id):
+  - returns 204 No Content when a valid trip is deleted
+  - returns 404 when the trip does not exist
+  - returns 400 when id is a non-numeric string
+  - returns 400 when id is zero
+  - returns 400 when id is negative
+  - removes trip_places records when the trip is deleted (cascade)
+  - returns 404 on a second delete of the same trip (already deleted)
+
+Total backend tests: 134 (was 120, +14)
+
+================================================================================
+ACCEPTANCE CRITERIA STATUS (FEAT-BD)
+================================================================================
+
+AC-1: PASS — 204 on successful delete (test: "returns 204 No Content when...")
+AC-2: PASS — 404 on non-existent trip (test: "returns 404 when the trip...")
+AC-3: PASS — 400 on invalid id — non-numeric, zero, negative (3 tests)
+AC-4: PASS — Cascade verified: trip_places removed after trip delete
+AC-5: PASS — npm run type:check clean
+AC-6: PASS — npm run test:backend: 134 passed
+AC-7: PASS — API reference updated to v1.3
+AC-8: PASS — committed 0870d00, pushed, CI green
+
+================================================================================
+BUGS DISCOVERED
+================================================================================
+
+None discovered during this thread.
+
+================================================================================
+MESSAGES SENT
+================================================================================
+
+COO inbox: jobs/COO/inbox/20260319_2230-BACKEND-feat-bd-done.txt
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT BACKEND THREAD
+================================================================================
+
+FEAT-BD is complete. Frontend multi-select delete UI is now unblocked.
+No active backend work. Await COO task assignment.
+Next likely scope: authentication middleware (Phase 2), or further feature work.

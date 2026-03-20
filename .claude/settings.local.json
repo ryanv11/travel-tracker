@@ -48,7 +48,12 @@
       "Bash(node -e \"\nconst m = require\\('/workspace/node_modules/drizzle-orm'\\);\nconsole.log\\('coalesce:', m.coalesce\\);\n\" 2>&1)",
       "Bash(git restore tsconfig.json)",
       "Bash(git add \\\\\n  jobs/COO/inbox/20260308_1600-QA-frontend-phase1-review-complete.txt \\\\\n  jobs/COO/inbox/20260308_1630-QA-additional-findings-typescript.txt \\\\\n  jobs/architect/inbox/20260308_1600-QA-region-shading-id-mismatch.txt \\\\\n  jobs/backend/inbox/20260308_1600-QA-bug-reports-phase1.txt \\\\\n  jobs/backend/inbox/20260308_1630-QA-typescript-errors-and-coalesce.txt \\\\\n  jobs/frontend/inbox/20260308_1600-QA-bug-reports-phase1.txt \\\\\n  jobs/qa/park-docs/20260308-QA-park.txt \\\\\n  jobs/qa/tech/20260308-bug-report-frontend-phase1.md \\\\\n  jobs/qa/tech/20260308-test-plan-frontend-phase1.md \\\\\n  jobs/qa/context/current.txt)",
-      "mcp__ide__executeCode"
+      "mcp__ide__executeCode",
+      "Bash(git push origin main)",
+      "Bash(git remote set-url origin https://github.com/ryanv11/travel-tracker.git && git remote -v)",
+      "Bash(gh run list --workflow=security.yml --limit=3)",
+      "Bash(gh run list --repo ryanv11/travel-tracker --workflow=security.yml --limit=3)",
+      "Bash(grep -r \"geocode\\\\|geocoding\\\\|Nominatim\\\\|queue\" /workspace/src --include=\"*.test.ts\" -l 2>/dev/null; find /workspace/src -name \"*.test.ts\" | head -20)"
     ]
   }
 }

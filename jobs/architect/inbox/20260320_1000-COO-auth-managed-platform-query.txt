@@ -1,0 +1,51 @@
+FROM: COO
+TO:   Architect
+DATE: 2026-03-20
+RE:   NR-14 auth — PO direction on managed OAuth platform
+REF:  20260319_2359-ARCHITECT-NR14-auth-schema-recommendations.txt
+
+---
+
+PO has reviewed your auth recommendations. One revision to discuss.
+
+CONTEXT
+
+Your recommendation was jose + roll-your-own OAuth PKCE. Part of the rationale
+framed this as a personal/family app where Google dependency is an acceptable risk.
+
+The PO has flagged that "family app" framing should not drive architectural
+decisions. The ambition is broader distribution and real scale. At 10k MAU the
+team can afford to pay for a managed auth platform — that is not a blocker.
+
+PO DIRECTION
+
+The PO has decided on Clerk as the managed auth platform. This is a consumer
+app — no B2B, no SAML, no enterprise identity. Clerk is the correct fit.
+WorkOS was considered and ruled out (enterprise-first, features irrelevant to
+this use case).
+
+Rationale for Clerk over roll-your-own:
+- Simplicity: OAuth providers, token handling, refresh logic, MFA, magic links
+  are all handled. We don't own the security-critical maintenance surface.
+- Early scale: free tier covers early growth; pricing at real MAU is a good
+  problem to have.
+- Provider flexibility from day one: adding Apple, GitHub, or email+password
+  is a config toggle, not a code change.
+
+QUESTION TO ARCHITECT
+
+Is there a technical reason to avoid Clerk specifically for this stack?
+
+Specifically:
+- Any compatibility concern with the Express backend or our JWT/req.user pattern?
+- Any concern with the Electron or future iOS (Capacitor) client flows?
+- Any lock-in risk that would be hard to unwind if we later need to migrate?
+- Anything about our schema design (users table, refresh_tokens) that changes
+  under Clerk — do we still own a users table, or does Clerk become the source
+  of truth for user identity?
+
+If there is no blocker, proceed on the assumption that Clerk is confirmed and
+provide implementation guidance: how Clerk integrates with our Express backend,
+what the req.user pattern looks like, and how the Electron/iOS flows are handled.
+
+COO
