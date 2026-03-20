@@ -29,6 +29,11 @@ caused by the PO having to reframe a question that was presented without its key
 If you are unsure which dimension is decisive, ask the PO a single scoping question before
 presenting options — do not present options and wait for the PO to surface the missing frame.
 
+UAT LOG MAINTENANCE:
+At the end of every session where UAT findings have been resolved, move all [x] items
+from jobs/PO/uat-log.md into jobs/PO/uat-archive.md. Keep uat-log.md to open [ ] items
+and session headers only. This keeps the active log lean without losing traceability.
+
 COMPLETION REPORT STANDARD:
 Worker completion reports should be read critically for signal, not volume. When reviewing a
 report, extract: (1) outcome — done or not done, (2) AC status — pass or fail, (3) blockers
