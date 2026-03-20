@@ -31,6 +31,7 @@ import {
   UpdateTripSchema,
   UpdateTripStatusSchema,
   ListTripsQuerySchema,
+  DeleteTripParamsSchema,
 } from '../validation/trips.schemas.js';
 import { NotFoundError, LockError, ValidationError } from '../errors.js';
 import { fetchItemsWithExtensions } from './items-helper.js';
@@ -457,6 +458,53 @@ tripsRouter.patch(
       .returning();
 
     res.json(await buildTripResponse(updated[0]));
+  }),
+);
+
+// ----------------------------------------------------------------
+// DELETE /api/trips/:id
+// ----------------------------------------------------------------
+
+/**
+ * Hard-delete a trip and all its related data.
+ *
+ * SQLite CASCADE handles removal of all child records:
+ *   trip_categories_map, trip_companions_map, trip_activities_map (via trip_id)
+ *   trip_places (via trip_id)
+ *   trip_place_activities_map (via trip_place_id on trip_places)
+ *   items (via trip_id)
+ *   item_flights, item_hotels, item_car_rentals, item_restaurants, item_experiences
+ *     (via item_id on items)
+ *
+ * Spec: FEAT-BD (COO 2026-03-11)
+ * No soft-delete — trips are personal data owned entirely by the user (AD-06 applies
+ * to admin list items only; trips are explicitly hard-deleted per spec).
+ *
+ * @param id - Path param: positive integer trip ID. Returns 400 if invalid.
+ * @returns 204 No Content on success.
+ * @returns 400 if id is not a positive integer.
+ * @returns 404 if trip does not exist.
+ */
+tripsRouter.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    // Validate path param — id must be a positive integer
+    const parseResult = DeleteTripParamsSchema.safeParse({ id: req.params.id });
+    if (!parseResult.success) {
+      res.status(400).json({ error: 'Trip not found' });
+      return;
+    }
+    const tripId = parseResult.data.id;
+
+    // Verify the trip exists; throw 404 if not found
+    await getTripOrThrow(tripId);
+
+    // Delete the trip — CASCADE handles all related child records
+    const db = getDb();
+    await db.delete(trips).where(eq(trips.id, tripId));
+
+    // 204 No Content — no body on successful delete
+    res.status(204).send();
   }),
 );
 

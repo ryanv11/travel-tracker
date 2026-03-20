@@ -63,3 +63,11 @@ export const ListTripsQuerySchema = z.object({
   category_id: z.coerce.number().int().positive().optional(),
   activity_id: z.coerce.number().int().positive().optional(),
 });
+
+/**
+ * Schema for DELETE /api/trips/:id path parameter.
+ * id must be a positive integer; returns 400 if invalid.
+ */
+export const DeleteTripParamsSchema = z.object({
+  id: z.coerce.number().int().positive('id must be a positive integer'),
+});

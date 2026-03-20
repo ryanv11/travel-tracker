@@ -1,7 +1,7 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.2
-**Date:** 2026-03-09 (updated: C3 TripSummary places field, item status confirmed/cancelled correction)
+**Version:** 1.3
+**Date:** 2026-03-19 (updated: FEAT-BD — DELETE /api/trips/:id endpoint)
 **Base URL:** `http://localhost:3001`
 **Author:** BACKEND
 
@@ -373,6 +373,44 @@ Convenience shortcut for transitioning status back to `review_pending` from `loc
 **Errors:**
 - `400` — trip is not locked
 - `404` — trip not found
+
+---
+
+### DELETE /api/trips/:id
+
+Hard-delete a trip and all its related data. No soft-delete — trips are personal data owned entirely by the user.
+
+Frontend issues individual DELETE calls per trip; no bulk delete endpoint exists.
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Trip ID — must be a positive integer |
+
+**Request Body:** None.
+
+**Query Parameters:** None.
+
+**Cascade behaviour:** SQLite CASCADE removes all child records automatically:
+- `trip_categories_map` (via `trip_id`)
+- `trip_companions_map` (via `trip_id`)
+- `trip_activities_map` (via `trip_id`)
+- `trip_places` (via `trip_id`)
+- `trip_place_activities_map` (via `trip_place_id` on `trip_places`)
+- `items` (via `trip_id`)
+- `item_flights`, `item_hotels`, `item_car_rentals`, `item_restaurants`, `item_experiences` (via `item_id` on `items`)
+
+**Response: `204 No Content`** — no body.
+
+**Errors:**
+- `400` — `id` is not a positive integer (non-numeric, zero, or negative)
+- `404` — trip does not exist
+
+**Example:**
+```
+DELETE /api/trips/42
+→ 204 No Content
+```
 
 ---
 
@@ -1426,6 +1464,12 @@ Natural Earth admin-1 states/provinces GeoJSON (~40 MB). Feature `properties.iso
 | `409` | `"[Resource] '[name]' already exists"` | Duplicate admin item name |
 | `500` | `"Internal server error"` | Unexpected server error (details logged server-side only) |
 
+### FEAT-BD additions (v1.3)
+| Status | Error message | Cause |
+|--------|--------------|-------|
+| `400` | `"Trip not found"` | DELETE /api/trips/:id — id is not a positive integer (non-numeric, zero, or negative) |
+| `404` | `"Trip not found"` | DELETE /api/trips/:id — trip does not exist |
+
 ---
 
-*API Reference v1.2 — Travel Tracker BACKEND — 2026-03-09 (C3: TripSummary places field; item status confirmed/cancelled correction)*
+*API Reference v1.3 — Travel Tracker BACKEND — 2026-03-19 (FEAT-BD: DELETE /api/trips/:id)*
