@@ -638,3 +638,318 @@ warnings sooner is preferable. Target: next available engineering slot.
 - devcontainer Node version should be aligned to Node 22 at the same time (not
   blocking, but keeps local and CI environments in sync).
 
+---
+
+## ADL-22 — E2E testing infrastructure: Playwright + baked Chromium (Option B)
+
+**Date:** 2026-03-21
+**Status:** Decided — resolves COO inbox 2026-03-21 18:00
+
+**Decision:** Adopt Playwright for E2E testing. Chromium-only (headless). Browsers
+baked into the Docker image at build time (Option B). Separate `e2e.db` SQLite
+file for test isolation. On-demand execution only (`npm run test:e2e`) — not in CI
+for now.
+
+---
+
+### Container constraint resolution
+
+The devcontainer firewall (`init-firewall.sh`) runs at `postStartCommand` — after
+the image is built. The Docker image build phase has unrestricted internet access.
+Therefore, downloading Playwright browser binaries during the Dockerfile build is
+the correct approach.
+
+**Options considered:**
+- **Option A — system Chromium via apt:** rejected. The Debian `chromium` package
+  version lags Playwright's expected Chromium revision. Version mismatches produce
+  subtle rendering failures (missing CSS features, JS API differences) that are
+  hard to diagnose. Not suitable for a reliable E2E suite.
+- **Option B — bake Playwright browsers into Dockerfile:** selected. `npx
+  playwright install --with-deps chromium` runs during the Docker build. Exact
+  version match between `@playwright/test` in `package.json` and the installed
+  browser binary. Reproducible. No CDN access at runtime.
+- **Option C — add `playwright.azureedge.net` to firewall allowlist:** rejected.
+  The firewall's purpose is to constrain the attack surface. Adding a Microsoft CDN
+  domain for runtime downloads on every container start introduces both a network
+  dependency and an additional allowed outbound domain. Option B is strictly better.
+
+**Playwright system library dependency:** Playwright requires a significant set of
+Chromium native libraries (`libatk`, `libgbm`, `libnss3`, `libxss1`, etc.). The
+`--with-deps` flag in `playwright install --with-deps chromium` handles all of
+these automatically via `apt-get` during the Docker build. This is the canonical
+Playwright Docker installation procedure.
+
+---
+
+### Required Dockerfile changes
+
+The following changes must be made to `.devcontainer/Dockerfile`:
+
+1. **Update base image from `node:20` to `node:22`** (per ADL-21 — this change
+   should accompany or precede the Playwright addition).
+
+2. **Add Playwright browser installation** as a build-time step, immediately after
+   the `USER root` block and before the final `USER node`:
+
+```dockerfile
+# Install Playwright Chromium and all required system libraries
+# IMPORTANT: PLAYWRIGHT_VERSION must match @playwright/test in package.json
+ARG PLAYWRIGHT_VERSION=1.52.0
+RUN npx --yes @playwright/test@${PLAYWRIGHT_VERSION} install --with-deps chromium
+```
+
+**Sync contract:** The `PLAYWRIGHT_VERSION` ARG in the Dockerfile MUST match the
+`@playwright/test` version in `package.json` at all times. When QA bumps
+`@playwright/test`, they must also update this ARG and trigger a container rebuild.
+
+---
+
+### Database strategy
+
+**Separate SQLite file:** E2E tests use `SQLITE_PATH=./e2e.db` (a dedicated file
+isolated from `dev.db`). This prevents tests from corrupting development data.
+
+**Schema bootstrap:** The `test:e2e` npm script runs `db:migrate` against `e2e.db`
+before Playwright starts. This ensures the schema is current without manual steps.
+
+**Seeding:** Tests create their own data via API calls during test setup. No
+separate seed script infrastructure is required. Test helpers (`src/e2e/helpers/`)
+should provide typed factory functions wrapping `fetch` calls for common entities
+(trips, places, items). Rely on `BYPASS_AUTH=true` so API calls require no token.
+
+**Cleanup policy (confirmed by COO + PO):** Data persists after a run. The
+`test:e2e:clean` script deletes `e2e.db` and allows a fresh start. Do NOT auto-clean
+on run completion — persisted data enables failure triage.
+
+```bash
+# Cleanup invocation: drops and recreates e2e.db (schema re-applied on next run)
+npm run test:e2e:clean   # → rm -f ./e2e.db
+```
+
+---
+
+### playwright.config.ts (skeleton — QA to build on)
+
+Location: `/workspace/playwright.config.ts`
+
+See the committed skeleton at that path. Key decisions encoded in the config:
+- `testDir: 'src/e2e'` — consistent with `src/backend/`, `src/frontend/` structure
+- `workers: 1` — sequential execution; tests share one e2e.db, parallelism would
+  cause race conditions on the shared database
+- `retries: 0` — E2E tests must be deterministic; flakiness should be fixed, not
+  retried away
+- `timeout: 30_000` — generous for local dev; Vite startup can take a few seconds
+- `webServer` — starts BOTH backend (port 3001) and frontend (port 5173) with
+  `reuseExistingServer: false` so tests always get a clean server state
+- `BYPASS_AUTH=true` — set in webServer env so the backend skips auth for all E2E
+  requests
+
+---
+
+### npm scripts (to be added to package.json by QA)
+
+```json
+"test:e2e":       "SQLITE_PATH=./e2e.db npm run db:migrate && playwright test",
+"test:e2e:clean": "rm -f ./e2e.db"
+```
+
+---
+
+### Future CI path (non-blocking)
+
+When E2E tests are added to CI:
+1. Add an `e2e` job in `ci.yml`, gated on `test:backend` and `test:frontend` passing.
+2. The job runs on the devcontainer image (or equivalent). Playwright browsers are
+   already baked in, so no `playwright install` step is needed in CI.
+3. Set `BYPASS_AUTH=true`, `SQLITE_PATH=./e2e.db`, and `MAPTILER_KEY` (or a test
+   key) in GitHub Actions secrets.
+4. The `test:e2e` script handles schema bootstrap automatically.
+
+---
+
+### Implications
+
+- **QA:** installs `@playwright/test` (`npm install -D @playwright/test@1.52.0`),
+  implements `playwright.config.ts` from the committed skeleton, writes critical-path
+  test files in `src/e2e/`, and adds the `test:e2e` / `test:e2e:clean` scripts.
+- **Dockerfile:** must be updated (`FROM node:22`, Playwright install step). QA or
+  COO should coordinate the container rebuild with the engineer updating CI for ADL-21.
+- **`.gitignore`:** add `e2e.db` to prevent the test database from being committed.
+- **`BYPASS_AUTH`:** must be set in `.env.local` (or inline in `test:e2e` script)
+  for the backend to accept unauthenticated requests during E2E runs.
+
+---
+
+## ADL-23 — trip_countries junction table: schema, shading, and API design
+
+**Date:** 2026-03-21
+**Status:** Decided — resolves COO inbox 2026-03-21 19:00 (GitHub #31)
+
+**Decision:** Add a `trip_countries` junction table as the authoritative source for
+explicit country associations on a trip. Managed independently from `trip_places`.
+No new shading tier. Country shading is computed from the union of `trip_countries`
+and the `trip_places → cities → countries` chain. Endpoints: inline country_codes
+on trip create/update, plus sub-resource endpoints for incremental changes.
+
+---
+
+### 1. Schema design
+
+```
+trip_countries
+  trip_id      INTEGER  NOT NULL  REFERENCES trips(id) ON DELETE CASCADE
+  country_code TEXT     NOT NULL  REFERENCES countries(country_code) ON DELETE RESTRICT
+  created_at   TEXT     NOT NULL  DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  PRIMARY KEY (trip_id, country_code)
+  INDEX: idx_trip_countries_country ON trip_countries(country_code)
+  INDEX: idx_trip_countries_trip ON trip_countries(trip_id)   -- covered by PK in most engines
+```
+
+**Why no `updated_at`:** Junction table. A row either exists or it doesn't — no
+update operation is meaningful.
+
+**Why RESTRICT on country delete:** Countries are shared reference data seeded at
+app launch. A country should never be deleted while a trip references it. RESTRICT
+makes the FK constraint loud if this is ever attempted.
+
+**Why CASCADE on trip delete:** A deleted trip should clean up its country
+associations atomically. Consistent with all other trip junction tables.
+
+**Independence from trip_places (confirmed):** `trip_countries` is managed
+exclusively by the user. Adding a place to a city does NOT auto-populate
+`trip_countries`. Removing the last place from a country does NOT auto-remove its
+`trip_countries` row. This is the correct product decision because:
+- The core use case is pre-planning: "I'm going to Japan" before any cities are chosen.
+- Auto-sync would create a hidden coupling that surprises users and complicates the
+  remove-place flow (what does the country-level state mean?).
+- Users are in direct control of their country associations at all times.
+
+---
+
+### 2. Map shading: v1.2 amendment
+
+**No new shading tier.** The existing six states (`planned`, `active`,
+`visited_once`, etc.) correctly capture the semantics. A country explicitly
+associated with a `planning` trip should show as `planned`. Adding a seventh state
+(e.g., `mentioned`) would require new seed data, new UI config, and new FRONTEND
+logic — an unjustified cost when the existing tiers already carry the right meaning.
+
+**Rule change (v1.2):** Country shading is now computed from the **union** of two
+trip sources per country:
+- Path A: `trip_places → cities → countries` (existing)
+- Path B: `trip_countries` (new)
+
+A trip that appears in both paths for the same country is counted only once
+(UNION semantics, not UNION ALL).
+
+**Region-tier logic update (§4.0 case addition):**
+
+For countries with `region_tier_enabled = 1`, the existing cases (b) and (c) are
+joined by a new case (d):
+
+| Case | Condition | State computation |
+|------|-----------|-------------------|
+| **(a)** | `region_tier_enabled = 0` | UNION(Path A, Path B) trips |
+| **(b)** | `region_tier_enabled = 1` AND unregioned cities have trip_places | Path A unregioned trips only |
+| **(c)** | `region_tier_enabled = 1` AND all regions visited | UNION(Path A, Path B) trips |
+| **(d)** NEW | `region_tier_enabled = 1` AND trip_countries exist AND (b)/(c) don't apply | Path B trips only |
+
+Decision order: hasActive check (from UNION) → case (c) → case (b) → case (d) → `never_visited`.
+
+**Rationale for case (d):** If a user associates Japan (which has a region tier)
+with a planning trip but has added no Japanese cities yet, Japan should display as
+`planned`. Without case (d), Japan would return `never_visited` despite the explicit
+association. Case (d) closes this gap without undermining the region-tier granularity
+logic for cases (b) and (c).
+
+**Shading spec amendment:** `jobs/architect/tech/20260307-map-shading-spec.md`
+updated to v1.2. §4.0 and §4.1 revised. See that file for updated SQL.
+
+---
+
+### 3. API contract additions
+
+**Trip create/update (inline):**
+
+```
+POST /api/trips
+  body: { name, start_date, end_date, status?, country_codes?: string[] }
+  → creates trip + inserts trip_countries rows atomically
+
+PATCH /api/trips/:id
+  body: { ..., country_codes?: string[] }
+  → if country_codes present: REPLACES the full country list for the trip
+  → if country_codes absent: country list is unchanged (not cleared)
+```
+
+**Sub-resource endpoints (incremental management):**
+
+```
+POST   /api/trips/:id/countries
+  body: { country_codes: string[] }   ← add one or more countries (idempotent)
+  → 200 { countries: [{ country_code, name }] }
+
+DELETE /api/trips/:id/countries/:code
+  → 204 No Content
+  → 404 if association does not exist
+```
+
+**GET responses:**
+
+```
+GET /api/trips/:id   (TripDetail)
+  → add: countries: [{ country_code: string, name: string }]
+
+GET /api/trips       (TripSummary list)
+  → add: country_codes: string[]   (lightweight — for map filtering and chips)
+```
+
+**BACKEND notes:**
+- `POST /api/trips` must insert `trip_countries` rows in the same transaction as
+  the trip row. If any `country_code` is invalid (not in `countries` table), reject
+  the whole request with 422.
+- `PATCH /api/trips/:id` with `country_codes` present: DELETE existing rows for
+  this trip_id, INSERT new rows — all in one transaction.
+- Locked trips: country associations follow the existing locked-trip rule (TR-06,
+  TR-07). Attempting to modify countries on a locked trip returns 409.
+
+---
+
+### 4. Filtering
+
+`GET /api/trips?country=XX` must match trips where:
+- `trip_countries.country_code = XX`, OR
+- `trip_places → cities.country_code = XX`
+
+The union of both sources. A trip with Japan in `trip_countries` but no Japanese
+cities must appear in `?country=JP` results.
+
+```sql
+-- Correct filter (UNION to avoid double-counting)
+WHERE trips.id IN (
+  SELECT trip_id FROM trip_countries WHERE country_code = :code
+  UNION
+  SELECT tp.trip_id FROM trip_places tp
+  JOIN cities c ON c.id = tp.city_id
+  WHERE c.country_code = :code
+)
+```
+
+---
+
+### Implications
+
+- **DATABASE:** generate and apply migration adding `trip_countries` table with
+  all constraints and indexes. Export `TripCountry` / `NewTripCountry` TypeScript
+  types.
+- **BACKEND:** update `trips.ts` route (create/update inline), add country sub-resource
+  router, update `TripDetail` and `TripSummary` response shapes, update country
+  filter logic.
+- **BACKEND (shading.service.ts):** update `getAllCountryShading()` and
+  `getCountryShading()` to union `trip_countries` with the existing city chain.
+  Add `case (d)` logic to `computeCountryState()`. See shading spec v1.2 §4.
+- **FRONTEND:** add country picker to trip create form; remove activities and photo
+  album from create dialog (per GitHub #31 brief); add post-create navigation.
+- **Tests:** backend tests for the new endpoints; update shading service unit tests
+  to cover `trip_countries` contributions and case (d).
+

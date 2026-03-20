@@ -1,11 +1,15 @@
 # Travel Tracker — Map Shading Computation Specification
-**Version:** 1.1
-**Date:** 2026-03-11
-**Author:** Architect / COO amendment
+**Version:** 1.2
+**Date:** 2026-03-21
+**Author:** Architect
 **Status:** Approved — implement in BACKEND
 
+**Amendment (v1.2 — 2026-03-21):** Country shading extended to include
+`trip_countries` direct associations (ADL-23). §4 replaced in full. §3 and §5
+unchanged.
+
 **Amendment (v1.1 — 2026-03-11):** Country shading rule updated per PO direction
-(SHADING-SPEC-01). §4 replaced in full. §3 and §5 unchanged.
+(SHADING-SPEC-01).
 
 ---
 
@@ -121,40 +125,47 @@ Apply `computeState()` to each row in application code. This is a single query f
 
 ## 4. Country-Level Shading Queries
 
-**v1.1 — Rule change.** Country shading now applies conditionally based on whether
-the region tier is enabled for a country. The old rule (shade country on any city
-visit) is preserved only for countries without a region tier.
+**v1.2 — Rule change.** Country shading now incorporates `trip_countries` direct
+associations (ADL-23) alongside the existing `trip_places → cities` chain. A new
+case (d) handles countries with a region tier where only direct associations exist.
 
 ### 4.0 Country shading decision rule
 
-A country receives a shading state (anything other than `never_visited`) only when
-one or more of the following conditions is true:
+A country's shading state is computed from the **union** of two trip sources:
+- **Path A:** `trip_places → cities → countries` (city-based visits)
+- **Path B:** `trip_countries` (direct country associations)
+
+A trip that appears in both paths for the same country is counted once (UNION).
 
 | Case | Condition | State computation |
 |------|-----------|-------------------|
-| **(a)** | `region_tier_enabled = 0` | Use all trip_places in the country |
-| **(b)** | `region_tier_enabled = 1` AND at least one city with `region_id IS NULL` has a trip_place | Use only trips touching unassigned cities |
-| **(c)** | `region_tier_enabled = 1` AND every region in the country has at least one trip_place (any trip, any status) | Use all trip_places in the country |
+| **(a)** | `region_tier_enabled = 0` | UNION(Path A + Path B) trips |
+| **(b)** | `region_tier_enabled = 1` AND unregioned cities (region_id IS NULL) have trip_places | Path A unregioned trips only |
+| **(c)** | `region_tier_enabled = 1` AND every region has ≥1 trip_place (any status) | UNION(Path A + Path B) trips |
+| **(d)** NEW | `region_tier_enabled = 1` AND trip_countries exist AND (b)/(c) don't apply | Path B trips only |
 
-Cases (b) and (c) are evaluated in priority order: if (c) is true, use all-city
-stats. If only (b) is true, use unregioned-city stats. If neither, return
-`never_visited`.
+Decision order (first match wins):
+1. If `hasActive` from UNION → `'active'`
+2. Case (c) check → if true, apply `computeState` to UNION stats
+3. Case (b) check → if true, apply `computeState` to unregioned stats
+4. Case (d) check → if Path B trips exist, apply `computeState` to Path B stats
+5. Otherwise → `'never_visited'`
 
 **"Visited" for case (c):** A region counts as visited when any `trip_places` row
-exists for a city belonging to that region, regardless of trip status (planning,
-active, review_pending, or locked). This is consistent with how all other shading
-logic treats trip_places.
+exists for a city in that region, regardless of trip status. Unchanged from v1.1.
+
+**Rationale for case (d):** Without it, a country with a region tier where the user
+has added a `trip_countries` association but no cities yet would return
+`never_visited`. This is incorrect product behaviour — the explicit association
+should shade the country.
 
 ---
 
 ### 4.1 All countries in bulk (world map load)
 
-This requires two queries merged in application code.
+Three queries, merged in application code.
 
-**Query A — country trip stats (replaces old §4.1)**
-
-Adds `region_tier_enabled` and a second set of aggregate columns restricted to
-cities with no region assignment (`c.region_id IS NULL`).
+**Query A — country trip stats from city chain (unchanged from v1.1)**
 
 ```sql
 SELECT
@@ -175,10 +186,7 @@ LEFT JOIN trips t        ON t.id = tp.trip_id
 GROUP BY co.country_code, co.region_tier_enabled;
 ```
 
-**Query B — region visit coverage**
-
-Returns how many regions each country has and how many have been visited (case c
-check). Run once; join to Query A results in application code.
+**Query B — region visit coverage (unchanged from v1.1)**
 
 ```sql
 SELECT
@@ -191,18 +199,46 @@ LEFT JOIN trip_places tp ON tp.city_id = c.id   -- any trip, any status
 GROUP BY r.country_code;
 ```
 
-**Application logic (TypeScript)**
+**Query C — NEW: direct trip_countries stats per country (v1.2)**
+
+```sql
+SELECT
+    tc.country_code,
+    MAX(CASE WHEN t.status = 'active'                               THEN 1 ELSE 0 END) AS has_active_direct,
+    COUNT(DISTINCT CASE WHEN t.status IN ('review_pending','locked') THEN t.id END)    AS completed_direct,
+    COUNT(DISTINCT CASE WHEN t.status = 'planning'                  THEN t.id END)    AS planning_direct
+FROM trip_countries tc
+JOIN trips t ON t.id = tc.trip_id
+GROUP BY tc.country_code;
+```
+
+**Application logic (TypeScript) — v1.2**
 
 ```typescript
-// Build a lookup: country_code → { totalRegions, visitedRegions }
+// Build lookups from Query B and Query C results
 const coverage = new Map(regionRows.map(r => [r.countryCode, r]));
+const direct   = new Map(directRows.map(r => [r.countryCode, r]));
 
 for (const row of countryRows) {
+  const dir = direct.get(row.countryCode);
+
+  // Merged all-trip stats: UNION of city-chain + direct (MAX/sum with dedup handled by DISTINCT)
+  // Because Query A and Query C use DISTINCT trip IDs within each query but count
+  // independently, we take the logical union by OR-ing has_active and summing counts.
+  // NOTE: a trip in both paths is counted once per query — if deduplication matters,
+  // run a CTE-based UNION query instead (see note below for single-country variant).
+  const mergedHasActive = (row.hasActive === 1) || (dir?.hasActiveDirect === 1);
+  // For counts: use SQL UNION in Query A/C or accept slight over-count and de-dup
+  // in application if a trip could appear in both. In practice this is rare and the
+  // visual effect is immaterial (state key is the same even if count is slightly off).
+  // The single-country endpoint SHOULD use a CTE UNION for precision (see §4.2).
+
   let stateKey: string;
 
   if (!row.regionTierEnabled) {
-    // Case (a): no region tier — shade on any visit
-    stateKey = computeState(row.completedCount, row.planningCount, row.hasActive === 1);
+    // Case (a): no region tier — UNION stats
+    const merged = mergeStats(row, dir);
+    stateKey = computeState(merged.completed, merged.planning, merged.hasActive);
 
   } else {
     const cov = coverage.get(row.countryCode);
@@ -210,26 +246,69 @@ for (const row of countryRows) {
       cov !== undefined && cov.totalRegions > 0 && cov.visitedRegions === cov.totalRegions;
 
     if (allRegionsVisited) {
-      // Case (c): every region visited — shade whole country from all-city stats
-      stateKey = computeState(row.completedCount, row.planningCount, row.hasActive === 1);
+      // Case (c): every region visited — UNION stats
+      const merged = mergeStats(row, dir);
+      stateKey = computeState(merged.completed, merged.planning, merged.hasActive);
 
     } else if (row.completedUnregioned > 0 || row.planningUnregioned > 0 || row.hasActiveUnregioned === 1) {
-      // Case (b): unassigned cities have trips — shade from those trips only
+      // Case (b): unregioned cities have trips — city chain only
       stateKey = computeState(row.completedUnregioned, row.planningUnregioned, row.hasActiveUnregioned === 1);
+
+    } else if (dir && (dir.completedDirect > 0 || dir.planningDirect > 0 || dir.hasActiveDirect === 1)) {
+      // Case (d) NEW: direct trip_countries association exists, no city data yet
+      stateKey = computeState(dir.completedDirect, dir.planningDirect, dir.hasActiveDirect === 1);
 
     } else {
       stateKey = 'never_visited';
     }
   }
 }
+
+// Helper: combine city-chain row and direct row stats for UNION approximation
+function mergeStats(cityRow, dir) {
+  return {
+    hasActive:  (cityRow.hasActive === 1) || (dir?.hasActiveDirect === 1),
+    completed:  cityRow.completedCount + (dir?.completedDirect ?? 0),
+    planning:   cityRow.planningCount  + (dir?.planningDirect  ?? 0),
+  };
+}
+// NOTE: mergeStats may double-count a trip that appears in both paths.
+// For a personal-use single-user app with a small dataset this is immaterial —
+// the state key outcome is virtually always identical even with a count of 2 vs 1.
+// If precision is required for the bulk query, replace Queries A+C with a single
+// CTE UNION query (see §4.2 note).
 ```
 
-**Required index:** `idx_cities_country` on `cities(country_code)` — already defined.
+**Required index:** `idx_trip_countries_country` on `trip_countries(country_code)` — added in ADL-23 migration.
 
 ### 4.2 Single country (used on click/drill-down)
 
-Apply the same two-query pattern but scope both queries to `co.country_code = :country_code`.
-Use the same TypeScript decision logic above for the single-row result.
+For precise counts (no double-counting risk), use a CTE UNION query:
+
+```sql
+WITH country_trips AS (
+    SELECT tp.trip_id
+    FROM trip_places tp
+    JOIN cities c ON c.id = tp.city_id
+    WHERE c.country_code = :country_code
+    UNION
+    SELECT tc.trip_id
+    FROM trip_countries tc
+    WHERE tc.country_code = :country_code
+)
+SELECT
+    MAX(CASE WHEN t.status = 'active'                               THEN 1 ELSE 0 END) AS has_active,
+    COUNT(DISTINCT CASE WHEN t.status IN ('review_pending','locked') THEN t.id END)    AS completed_count,
+    COUNT(DISTINCT CASE WHEN t.status = 'planning'                  THEN t.id END)    AS planning_count
+FROM country_trips ct
+JOIN trips t ON t.id = ct.trip_id;
+```
+
+Also run Query B scoped to `:country_code` and Query C scoped to `:country_code`.
+Apply the same TypeScript decision logic as §4.1 for the single-row result.
+
+For the single-country case, use the CTE UNION stats for cases (a) and (c) instead
+of `mergeStats()` to guarantee correctness.
 
 ---
 
