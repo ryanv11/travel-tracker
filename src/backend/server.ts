@@ -168,6 +168,26 @@ async function startup(): Promise<void> {
   // 4. Seed regions if empty (US, AU, CA — Correction 2)
   await seedRegions();
 
+  // 4b. Seed bypass test user when BYPASS_AUTH=true (contract test / CI environment).
+  // The bypass auth middleware sets req.user.id to a fixed UUID without creating a DB row.
+  // Since trips/items/places now have FK to users.id (ADL-18), the test user must exist.
+  // We insert with the same fixed ID used by the bypass middleware in auth.ts.
+  if (process.env.BYPASS_AUTH === 'true') {
+    const { users: usersTable } = await import('./db/schema.js');
+    const now = new Date();
+    await db
+      .insert(usersTable)
+      .values({
+        id: 'test-user-00000000-0000-0000-0000-000000000000',
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
+    console.info('[STARTUP] Bypass test user seeded (BYPASS_AUTH=true)');
+  }
+
   // 5. Process any pending geocoding (offline-safe — GE-12)
   processQueue().catch((err: unknown) => {
     console.error('[STARTUP] Geocoding queue error:', (err as Error).message);
