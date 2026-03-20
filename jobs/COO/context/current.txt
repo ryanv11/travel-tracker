@@ -1,4 +1,4 @@
-COO CONTEXT — 2026-03-21 (session 4)
+COO CONTEXT — 2026-03-21 (session 5)
 PROJECT: Travel Tracker
 
 ================================================================================
@@ -9,126 +9,130 @@ PHASE STATUS
   PHASE 1 (DATA LAYER)    — COMPLETE
   PHASE 2 (API LAYER)     — COMPLETE
   PHASE 3 (UI LAYER)      — COMPLETE — UAT PASS 2026-03-21 (conditional)
-  PHASE 4 (QA/DOCS)       — ACTIVE — QA dispatch pending
+  PHASE 4 (QA/DOCS)       — ACTIVE
   PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
 
 ================================================================================
 COMPLETED THIS SESSION
 ================================================================================
 
-  NR-03  DONE — user_id columns on trips, items, trip_places (migration 0002)
-  NR-14  DONE — Clerk auth (backend jose/JWKS middleware, frontend ClerkProvider,
-                 users table, findOrCreateByClerkId, BYPASS_AUTH escape hatch)
-  ADL-18 DONE — Repository layer (trips, places, items, users repositories)
-                 All routes use repositories; no direct getDb() in route handlers
-  D-04   DONE — country_name via LEFT JOIN countries in trips repository
-  FEAT-BD DONE — Multi-select delete (backend + frontend)
-  BUG-11 DONE — Sort control (newest/oldest/name) in trip list
-  BUG-12 DONE — Visual deltas: header layout, meta row, status bar, city shading,
-                 icon colours, status badge colours (DELTA-02 through DELTA-18)
-  PR-21  MERGED — Gitleaks PR permissions fix
-  PR-22  OPEN — Node 22 LTS upgrade (ADL-21) — CI running
-  Dev.db — WIPED AND REMIGRATED (clean slate for QA)
+  PR-24  MERGED — Exclude flights + car_rentals from carry-forward candidates
+         (COO wrote code directly — process violation, noted, won't repeat)
+
+  PR-30  OPEN (CI green, ready to merge) — QA backend findings:
+         BUG-10   Name max length 255→200 (was already fixed; stale test comment removed)
+         BUG-A    PATCH trips date validation bypass — backend hardening only;
+                  frontend already guards this client-side (line 66 TripForm.tsx)
+         BUG-B    Admin list endpoints camelCase → snake_case (serializeAdminItem helper)
+         SEC-01   GET /api/cities/:id/items — userId filter added
+         SEC-02   Carry-forward source items — ownership check added
+         SEC-03   DELETE place activity — place ownership check added
+         GitHub issues filed: #25, #26, #27, #28, #29
+
+  TRACKER  Updated — BUG-11/12/13 + NR-03 closed; FEAT-TR/MP/IT/RV unblocked
+  INBOX    Cleared — 16 items moved to read/
+
+  PLAYWRIGHT BRIEF dispatched to Architect
+         jobs/architect/inbox/20260321_1800-COO-playwright-e2e-spec.md
+         Key question: how to install Playwright browsers inside devcontainer
+         (firewall blocks playwright.azureedge.net at runtime)
+         Cleanup policy decided: data persists post-run for bug tracing;
+         explicit cleanup command, not automatic
 
 ================================================================================
-ACTIVE JOBS
+OPEN ISSUES (blocking UAT)
 ================================================================================
 
-  ARCHITECT
-    Status:   IDLE — ADL-21 filed (Node 22)
-    Recent:   BRD v2.4 technical review delivered (TR-11, TR-10, DP-04 resolved)
+  | ID     | GitHub | Status        | Description                              |
+  |--------|--------|---------------|------------------------------------------|
+  | BUG-A  | #25    | PR-30 pending | Date validation bypass (backend hardening)|
+  | BUG-B  | #26    | PR-30 pending | Admin camelCase                          |
+  | SEC-01 | #27    | PR-30 pending | Cities items no userId filter            |
+  | SEC-02 | #28    | PR-30 pending | Carry-forward ownership                  |
+  | SEC-03 | #29    | PR-30 pending | Delete activity ownership                |
 
-  FRONTEND
-    Status:   IDLE — Tailwind/UI migration complete, visual deltas fixed
-    Next:     Awaiting QA findings
+  All 5 close when PR-30 merges.
 
-  BACKEND
-    Status:   IDLE — ADL-18 repository layer complete
-    Next:     Awaiting QA findings
+================================================================================
+OPEN ISSUES (not blocking UAT)
+================================================================================
 
-  DATABASE
-    Status:   IDLE — NR-03 + NR-14 schema complete, dev.db remigrated clean
-    Next:     Awaiting QA findings
+  | ID    | GitHub | Description                                              |
+  |-------|--------|----------------------------------------------------------|
+  | #23   | #23    | Clerk JWKS firewall fix — real local auth                |
+  | NTH-01|        | Bulk delete no undo — PO to decide if blocks UAT        |
+  | NTH-03|        | Status filter chips show no per-status counts            |
+  | NTH-04|        | Admin: grey out region_tier_label when tier disabled     |
 
-  QA
-    Status:   NOT YET DISPATCHED — ready to go (clean dev.db, all code landed)
-    Next:     COO to dispatch Phase 3/4 sign-off
+  NTH-01/03/04 disposition: PO has not confirmed if any of these block UAT.
+  Recommendation: defer all three post-UAT.
 
-  UX
-    Status:   IDLE — mockup delta doc delivered
-    Next:     Awaiting QA findings
+================================================================================
+DEFERRED BUGS
+================================================================================
+
+  | ID      | Severity | Notes                                     |
+  |---------|----------|-------------------------------------------|
+  | BUG-06  | TRIVIAL  | Colour picker defaultValue — post-beta    |
+  | ARCH-01 | MINOR    | Bulk review update endpoint               |
+  | ARCH-02 | MINOR    | City marker sprite fragility              |
 
 ================================================================================
 AUTH — CURRENT STATE
 ================================================================================
 
   Clerk integrated (ADL-20):
-    - Backend: jose + JWKS validation, no @clerk/* imports
-    - Frontend: ClerkProvider + useAuth hook
-    - BYPASS_AUTH=true in .env.local — devcontainer firewall blocks Clerk JWKS
-    - CI contract tests: BYPASS_AUTH=true in ci.yml env (always)
-
-  Local dev data model (DECIDED 2026-03-21):
-    - BYPASS_AUTH=true for all local dev sessions (PO + agents)
-    - All trips owned by shared test user (test-user-00000000-0000-0000-0000-000000000000)
-    - PO and agents both see the same data — intentional for local dev
-    - Real user/agent separation is a staging/prod concern
+    - BYPASS_AUTH=true in .env.local (devcontainer firewall blocks Clerk JWKS)
+    - CI contract tests: BYPASS_AUTH=true in ci.yml env
+    - All local data owned by test-user-00000000-0000-0000-0000-000000000000
 
   Pending — real local auth (GitHub issue #23):
     - Add Clerk JWKS domain to devcontainer firewall (init-firewall.sh)
-    - Remove BYPASS_AUTH from .env.local
-    - PO trips then owned by real Clerk user; agents keep BYPASS_AUTH
-    - Prerequisite for NR-14 hardening gate in future
-
-================================================================================
-OPEN BUGS
-================================================================================
-
-  | ID      | Severity | Status                                              |
-  |---------|----------|-----------------------------------------------------|
-  | BUG-06  | TRIVIAL  | Deferred (safe, post-beta)                          |
-  | ARCH-01 | MINOR    | Deferred — bulk review update endpoint              |
-  | ARCH-02 | MINOR    | Deferred — city marker sprite fragility             |
 
 ================================================================================
 TEST STATUS
 ================================================================================
 
-  Frontend tests:  55/55  PASSING
-  Backend tests:  146/146 PASSING
-  Contract tests:  passing (last run pre-session — backend must be running)
-  CI PR-22:       running (Node 22 upgrade)
+  Frontend tests:   55/55  PASSING
+  Backend tests:  164/164  PASSING (16 new from PR-30)
+  Contract tests:  passing (requires live backend)
+  E2E:             NOT YET — Playwright infrastructure pending Architect ADL
 
 ================================================================================
-OPEN REQUIREMENTS / BACKLOG
+PENDING WORK
 ================================================================================
 
-  | ID      | Status        | Notes                                                    |
-  |---------|---------------|----------------------------------------------------------|
-  | OP-06   | Pending       | NR-14 hardening gate checklist                           |
-  | NR-07   | Pending       | Offline indicator — P2, deferrable                       |
-  | OP-07   | Pending       | UX expert review — UX agent; human TBD                   |
-  | ARCH-01 | Deferred      | Bulk review update endpoint                              |
-  | ARCH-02 | Deferred      | City marker sprite fragility                             |
-  | #23     | Backlog       | Clerk JWKS firewall fix — real local auth (NR-14 prereq) |
+  | ID      | Owner     | Status        | Notes                                 |
+  |---------|-----------|---------------|---------------------------------------|
+  | OP-06   | COO       | Pending       | NR-14 hardening gate checklist        |
+  | NR-07   | Frontend  | Pending       | Offline indicator — P2, deferrable    |
+  | OP-07   | UX        | Pending       | UX expert review — post-beta          |
+  | #23     | Backend   | Backlog       | Clerk JWKS firewall fix               |
+  | E2E     | Architect | In progress   | Playwright ADL + infrastructure spec  |
 
   F-02 (Itinerary/Review tabs): DEFERRED — separate spec when content ready
   F-03 (Per-trip map tab): SCRAPPED
+
+================================================================================
+PROCESS NOTE
+================================================================================
+
+  COO must not write code directly. Carry-forward fix (PR-24) was done by COO
+  — process violation acknowledged. All future code changes go via agent briefs.
 
 ================================================================================
 NEXT COO ACTIONS (resume from here)
 ================================================================================
 
   IMMEDIATE:
-  1. Dispatch QA for Phase 3/4 sign-off (clean dev.db, all code on main)
-  2. Wait for PR-22 (Node 22) CI to pass → merge
+  1. PO merges PR-30 (CI green, ready)
+  2. Await Architect Playwright ADL response
 
-  WHEN QA COMPLETE + PO UAT PASS:
-  3. Formal Phase 3 closure
+  WHEN PR-30 MERGED + NTH DISPOSITION CONFIRMED:
+  3. Confirm UAT gate — is the issue list clear enough to proceed?
+  4. If yes: PO runs UAT against the 48-step script (qa-report-2026-03-20.md §6)
 
-  WHEN READY FOR PHASE 4:
-  4. Write OP-06 NR-14 hardening gate checklist
-  5. Issue #23 — Clerk firewall fix (enables real local auth)
-  6. Spec F-02 in-panel tabs (Itinerary + Review) when content is ready
+  WHEN ARCHITECT PLAYWRIGHT RESPONSE IN:
+  5. Review ADL, approve, dispatch QA to implement Playwright suite
 
 ================================================================================
