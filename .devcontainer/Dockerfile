@@ -93,7 +93,7 @@ RUN chmod +x /usr/local/bin/init-firewall.sh && \
 
 # SYNC: PLAYWRIGHT_VERSION ARG must always match @playwright/test in package.json.
 # When bumping @playwright/test, update this ARG and rebuild the container.
-ARG PLAYWRIGHT_VERSION=1.52.0
+ARG PLAYWRIGHT_VERSION=1.58.2
 # Install OS-level Chromium dependencies as root (requires apt).
 RUN npx --yes @playwright/test@${PLAYWRIGHT_VERSION} install-deps chromium
 

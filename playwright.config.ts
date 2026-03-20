@@ -8,7 +8,7 @@
  *   npm run test:e2e:clean  — delete e2e.db (force fresh state on next run)
  *
  * Prerequisites (QA to complete):
- *   npm install -D @playwright/test@1.52.0
+ *   npm install -D @playwright/test@1.58.2
  *   Add to package.json scripts:
  *     "test:e2e":       "SQLITE_PATH=./e2e.db npm run db:migrate && playwright test"
  *     "test:e2e:clean": "rm -f ./e2e.db"
