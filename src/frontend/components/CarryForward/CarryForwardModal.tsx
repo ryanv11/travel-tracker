@@ -63,9 +63,9 @@ export function CarryForwardModal({
   candidates,
   onClose,
 }: CarryForwardModalProps) {
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(
-    new Set(candidates.map((c) => c.id)),
-  );
+  // FIX 3 (P0-05): initialise with empty Set so users opt-in to carry-forward
+  // rather than having to opt-out of every candidate.
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [successMessage, setSuccessMessage] = useState('');
 
   const carryForward = useCarryForward();

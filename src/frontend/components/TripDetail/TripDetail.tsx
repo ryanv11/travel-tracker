@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { AddPlaceFlow } from './AddPlaceFlow';
 import { useUpdateTripStatus, useLockTrip, useUnlockTrip } from '../../hooks/useTrips';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { formatDate } from '../../utils/formatDate';
 import type { TripDetail as TripDetailType, TripStatus } from '../../types/api';
 
 interface TripDetailProps {
@@ -87,7 +88,7 @@ export function TripDetail({ trip }: TripDetailProps) {
             <StatusBadge status={trip.status} />
           </div>
           <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#6B7280' }}>
-            {trip.start_date} – {trip.end_date}
+            {formatDate(trip.start_date)} – {formatDate(trip.end_date)}
           </p>
         </div>
         {!isLocked && (

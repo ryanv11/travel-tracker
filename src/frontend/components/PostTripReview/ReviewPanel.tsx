@@ -108,7 +108,9 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
           <button
             type="button"
             onClick={() => setShowConfirmLock(true)}
-            style={{ padding: '9px 18px', background: '#DC2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#047857'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#059669'; }}
+            style={{ padding: '9px 18px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
           >
             Complete Review &amp; Lock Trip
           </button>

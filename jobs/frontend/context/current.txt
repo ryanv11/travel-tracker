@@ -1,12 +1,21 @@
-FRONTEND CONTEXT — as of 2026-03-08 14:00
+FRONTEND CONTEXT — as of 2026-03-19 18:00
 
-STATUS: Phase 1 complete. Awaiting COO review / QA feedback.
+STATUS: Four P0 quick-fixes complete. Awaiting Tailwind + shadcn/ui migration brief from COO.
 
-LAST COMMIT: b888041 [FRONTEND] Build React SPA frontend — Phase 1 complete
+LAST COMMIT: (see park doc — commit hash TBD, pushed to main)
 
-WHAT WAS DONE (Phase 1)
-  All 18 acceptance criteria from the COO frontend spec implemented.
-  See: jobs/COO/inbox/20260308_1400-FRONTEND-phase1-complete.txt
+WHAT WAS DONE (this thread — 20260319_2345-COO-p0-quickfixes)
+  FIX 1 (P0-01): Extracted formatDate() to shared utility at src/frontend/utils/formatDate.ts.
+    Applied in TripDetail (header dates), ItemCard (hotel check-in/check-out), and TripCard
+    (removed local duplicate). ReviewPanel has no raw date display — no change needed there.
+  FIX 2 (P0-04): "Complete Review & Lock Trip" button changed from red (#DC2626) to green
+    (#059669, hover #047857) in ReviewPanel.tsx. Visual language now consistent: red = destructive.
+  FIX 3 (P0-05): CarryForwardModal selectedIds initialiser changed from new Set(candidates.map(...))
+    to new Set(). Users now opt-in to carry-forward items rather than opt-out. Tests updated
+    to match the new opt-in behaviour (14 tests, all passing).
+  FIX 4 (ARCH-03): ShadingTab colour input refactored. ShadingRow sub-component introduced to
+    hold per-row local state. onChange updates local preview only; onBlur fires the PATCH mutation
+    once. Zero API calls during drag; one call on settle.
 
 KEY FILE LOCATIONS
   Entry point:        src/frontend/main.tsx
@@ -16,19 +25,14 @@ KEY FILE LOCATIONS
   Types:             src/frontend/types/api.ts
   API client:        src/frontend/utils/apiClient.ts
   URL sanitiser:     src/frontend/utils/urlSanitiser.ts (SEC-12)
+  Date formatter:    src/frontend/utils/formatDate.ts (new — FIX 1)
   Config:            vite.config.ts, tsconfig.frontend.json, index.html
 
 OPEN FLAGS FOR COO
   FLAG-F1: Item status names in API reference doc don't match Zod schema
-           (see completion report for details)
+           (see original Phase 1 completion report for details)
   FLAG-F2: No standalone GET /api/cities list endpoint exists (not needed currently)
 
-AUDIT ITEMS
-  4 MODERATE npm audit findings — all pre-existing in drizzle-kit (backend dep).
-  No HIGH/CRITICAL. No frontend action required. See completion report.
-
 NEXT STEPS (when resumed)
-  - Await COO response / QA findings
-  - Implement any corrections or new features from COO inbox
-  - Consider: MapLibre chunk code-splitting (lazy MapPage) if load perf matters
-  - Consider: drizzle-kit upgrade coordination with Backend (audit fix)
+  - Await Tailwind + shadcn/ui migration brief from COO
+  - Do not action any other UX audit items until migration brief arrives

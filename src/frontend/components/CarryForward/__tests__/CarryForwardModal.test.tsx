@@ -5,8 +5,8 @@
  *   - useCarryForward() from hooks/usePlaces — controls mutation state
  *
  * Covers:
- *   - All candidates are pre-selected on mount
- *   - Toggling a candidate deselects/reselects it
+ *   - No candidates are pre-selected on mount (opt-in model, FIX 3 / P0-05)
+ *   - Toggling a candidate selects/deselects it
  *   - Execute button count reflects selection
  *   - Execute button disabled when 0 candidates selected
  *   - Success message shown after successful carry-forward
@@ -102,52 +102,56 @@ describe('CarryForwardModal', () => {
     expect(screen.getAllByText(/Tokyo DisneySea/).length).toBeGreaterThan(0);
   });
 
-  it('pre-selects all candidates on mount', () => {
+  // FIX 3 (P0-05): modal opens with empty selection (opt-in model)
+  it('no candidates are pre-selected on mount', () => {
     render(<CarryForwardModal {...defaultProps} />);
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes).toHaveLength(2);
-    checkboxes.forEach((cb) => expect(cb).toBeChecked());
+    checkboxes.forEach((cb) => expect(cb).not.toBeChecked());
   });
 
-  it('shows carry-forward button with count of 2', () => {
+  it('shows carry-forward button with count of 0 on mount (button disabled)', () => {
     render(<CarryForwardModal {...defaultProps} />);
-    expect(screen.getByRole('button', { name: /Carry Forward \(2\)/ })).toBeInTheDocument();
+    // No count in label when 0 selected; button is disabled
+    const btn = screen.getByRole('button', { name: /Carry Forward/ });
+    expect(btn).toBeDisabled();
   });
 
-  it('deselects a candidate when toggled', async () => {
+  it('selects a candidate when toggled', async () => {
     render(<CarryForwardModal {...defaultProps} />);
     const checkboxes = screen.getAllByRole('checkbox');
     await userEvent.click(checkboxes[0]);
-    expect(checkboxes[0]).not.toBeChecked();
+    expect(checkboxes[0]).toBeChecked();
   });
 
-  it('updates button count after deselection', async () => {
+  it('updates button count after selection', async () => {
     render(<CarryForwardModal {...defaultProps} />);
     const checkboxes = screen.getAllByRole('checkbox');
     await userEvent.click(checkboxes[0]);
     expect(screen.getByRole('button', { name: /Carry Forward \(1\)/ })).toBeInTheDocument();
   });
 
-  it('disables execute button when all candidates are deselected', async () => {
+  it('disables execute button when no candidates are selected', () => {
     render(<CarryForwardModal {...defaultProps} />);
-    const checkboxes = screen.getAllByRole('checkbox');
-    await userEvent.click(checkboxes[0]);
-    await userEvent.click(checkboxes[1]);
     const btn = screen.getByRole('button', { name: /Carry Forward/ });
     expect(btn).toBeDisabled();
   });
 
-  it('re-selects a candidate when toggled twice', async () => {
+  it('deselects a candidate when toggled twice', async () => {
     render(<CarryForwardModal {...defaultProps} />);
     const checkboxes = screen.getAllByRole('checkbox');
     await userEvent.click(checkboxes[0]);
     await userEvent.click(checkboxes[0]);
-    expect(checkboxes[0]).toBeChecked();
+    expect(checkboxes[0]).not.toBeChecked();
   });
 
   it('calls carryForward.mutateAsync with selected IDs on execute', async () => {
     mockMutateAsync.mockResolvedValue({ count: 2, created_item_ids: [201, 202] });
     render(<CarryForwardModal {...defaultProps} />);
+    // Select both candidates first
+    const checkboxes = screen.getAllByRole('checkbox');
+    await userEvent.click(checkboxes[0]);
+    await userEvent.click(checkboxes[1]);
     await userEvent.click(screen.getByRole('button', { name: /Carry Forward \(2\)/ }));
     expect(mockMutateAsync).toHaveBeenCalledWith({
       tripId: 1,
@@ -159,6 +163,9 @@ describe('CarryForwardModal', () => {
   it('shows success message after carry-forward', async () => {
     mockMutateAsync.mockResolvedValue({ count: 2, created_item_ids: [201, 202] });
     render(<CarryForwardModal {...defaultProps} />);
+    const checkboxes = screen.getAllByRole('checkbox');
+    await userEvent.click(checkboxes[0]);
+    await userEvent.click(checkboxes[1]);
     await userEvent.click(screen.getByRole('button', { name: /Carry Forward \(2\)/ }));
     await waitFor(() => {
       expect(screen.getByText(/2 items added to your trip as suggestions/)).toBeInTheDocument();
@@ -174,6 +181,9 @@ describe('CarryForwardModal', () => {
     // harmlessly after the test ends.
     mockMutateAsync.mockResolvedValue({ count: 2, created_item_ids: [201, 202] });
     render(<CarryForwardModal {...defaultProps} />);
+    const checkboxes = screen.getAllByRole('checkbox');
+    await userEvent.click(checkboxes[0]);
+    await userEvent.click(checkboxes[1]);
     await userEvent.click(screen.getByRole('button', { name: /Carry Forward \(2\)/ }));
     await waitFor(() => {
       expect(screen.getByText(/2 items added/)).toBeInTheDocument();
@@ -186,8 +196,11 @@ describe('CarryForwardModal', () => {
     vi.useFakeTimers();
     mockMutateAsync.mockResolvedValue({ count: 1, created_item_ids: [201] });
     render(<CarryForwardModal {...defaultProps} />);
+    // Select one candidate first, then click carry forward
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[0]);
     // Use fireEvent (synchronous) to avoid userEvent's internal timer dependency
-    fireEvent.click(screen.getByRole('button', { name: /Carry Forward \(2\)/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Carry Forward \(1\)/ }));
     // Flush promises (mutateAsync resolves via microtask)
     await act(async () => { await Promise.resolve(); });
     // Success message should now be set; advance timers past the 1500ms delay
@@ -204,7 +217,10 @@ describe('CarryForwardModal', () => {
   it('renders singular "1 item" in success message for count=1', async () => {
     mockMutateAsync.mockResolvedValue({ count: 1, created_item_ids: [201] });
     render(<CarryForwardModal {...defaultProps} />);
-    await userEvent.click(screen.getByRole('button', { name: /Carry Forward \(2\)/ }));
+    // Select one candidate before executing
+    const checkboxes = screen.getAllByRole('checkbox');
+    await userEvent.click(checkboxes[0]);
+    await userEvent.click(screen.getByRole('button', { name: /Carry Forward \(1\)/ }));
     await waitFor(() => {
       expect(screen.getByText(/1 item added to your trip as suggestions/)).toBeInTheDocument();
     });

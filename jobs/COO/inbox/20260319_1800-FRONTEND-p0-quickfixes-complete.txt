@@ -1,0 +1,49 @@
+FROM: Frontend
+TO:   COO
+DATE: 2026-03-19 18:00
+RE:   P0 quick-fixes complete — all four done
+
+All four fixes from brief 20260319_2345-COO-p0-quickfixes are implemented,
+type-checked, and tested.
+
+== FIXES DELIVERED ==
+
+FIX 1 — formatDate shared utility (P0-01)
+  - Created src/frontend/utils/formatDate.ts
+  - TripDetail header now shows "1 Jun 2026 – 15 Aug 2026" (not raw ISO)
+  - ItemCard hotel check-in/out dates also formatted
+  - TripCard local duplicate removed — all three now use the shared utility
+  - ReviewPanel: inspected — no raw date strings, no change needed
+
+FIX 2 — "Complete Review & Lock Trip" button is now green (P0-04)
+  - ReviewPanel.tsx: #DC2626 → #059669 (hover #047857)
+  - Visual language consistent: red = destructive only, green = positive completion
+
+FIX 3 — CarryForwardModal empty-Set initialiser (P0-05)
+  - Modal now opens with zero items selected (opt-in)
+  - User must explicitly check items to carry forward
+  - Tests updated to reflect opt-in behaviour (14 tests passing)
+
+FIX 4 — ShadingTab onBlur (ARCH-03)
+  - ShadingRow sub-component introduced with local colour state
+  - onChange updates preview only (zero API calls during drag)
+  - onBlur fires single PATCH on settle
+
+== TEST RESULTS ==
+
+npm run type:check    — PASS (0 errors)
+npm run test:frontend — PASS (55 tests, 4 suites)
+
+== COMMIT ==
+
+Single commit to main. CI run triggered — verify with:
+  gh run list --repo ryanv11/travel-tracker --limit=3
+
+== OUTSTANDING FLAGS ==
+
+FLAG-F1: Item status names mismatch (pre-existing, no change)
+FLAG-F2: No GET /api/cities endpoint (pre-existing, not blocking)
+
+Awaiting Tailwind + shadcn/ui migration brief.
+
+Frontend

@@ -1,0 +1,62 @@
+FRONTEND PARK DOCUMENT
+Date: 2026-03-19
+Thread: 20260319_2345-COO-p0-quickfixes
+
+== SUMMARY ==
+
+Four P0 quick-fixes implemented per COO brief. All changes are in existing files
+(plus one new shared utility). Type check and all 55 frontend tests pass.
+
+== CHANGES MADE ==
+
+FIX 1 — formatDate shared utility (P0-01)
+  NEW:     src/frontend/utils/formatDate.ts
+  CHANGED: src/frontend/components/TripList/TripCard.tsx
+             — removed local formatDate() definition; now imports from shared utility
+  CHANGED: src/frontend/components/TripDetail/TripDetail.tsx
+             — line 90: {trip.start_date} – {trip.end_date}
+               → {formatDate(trip.start_date)} – {formatDate(trip.end_date)}
+  CHANGED: src/frontend/components/TripDetail/ItemCard.tsx
+             — hotel check_in_date / check_out_date now rendered via formatDate()
+  NOTE: ReviewPanel.tsx — inspected, no raw date strings rendered. No change needed.
+
+FIX 2 — "Complete Review & Lock Trip" button colour (P0-04)
+  CHANGED: src/frontend/components/PostTripReview/ReviewPanel.tsx
+             — background #DC2626 → #059669 (green)
+             — onMouseEnter/Leave handlers for hover #047857
+
+FIX 3 — CarryForwardModal opt-in model (P0-05)
+  CHANGED: src/frontend/components/CarryForward/CarryForwardModal.tsx
+             — useState initialiser: new Set(candidates.map((c) => c.id))
+               → new Set()
+  CHANGED: src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx
+             — Updated 8 test cases to reflect opt-in model:
+               "pre-selects all candidates" → "no candidates are pre-selected on mount"
+               Tests that previously clicked the pre-selected Carry Forward (2) button
+               now explicitly select checkboxes before clicking execute.
+
+FIX 4 — ShadingTab onBlur mutation (ARCH-03)
+  CHANGED: src/frontend/components/Admin/ShadingTab.tsx
+             — Introduced ShadingRow sub-component with local colour state
+             — input onChange updates local state (visual preview only, no API call)
+             — input onBlur fires updateColor.mutateAsync (one call on settle)
+             — Converted from uncontrolled (defaultValue) to controlled (value + useState)
+
+== TEST RESULTS ==
+
+npm run type:check  — PASS (0 errors)
+npm run test:frontend — PASS (55 tests across 4 suites)
+
+== BUGS DISCOVERED ==
+
+None new. No reclassifications required.
+
+== OPEN FLAGS ==
+
+FLAG-F1: Item status names in API reference doc don't match Zod schema (pre-existing)
+FLAG-F2: No standalone GET /api/cities list endpoint (pre-existing, not blocking)
+
+== NEXT STEPS ==
+
+Awaiting Tailwind + shadcn/ui migration brief from COO. No other UX audit items
+should be actioned until that brief arrives.

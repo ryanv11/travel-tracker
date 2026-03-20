@@ -9,6 +9,7 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { RatingStars } from '../shared/RatingStars';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { useDeleteItem } from '../../hooks/useItems';
+import { formatDate } from '../../utils/formatDate';
 import type { Item } from '../../types/api';
 
 interface ItemCardProps {
@@ -97,7 +98,7 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
           )}
           {item.item_type === 'hotel' && item.check_in_date && item.check_out_date && (
             <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280' }}>
-              {item.check_in_date} – {item.check_out_date}
+              {formatDate(item.check_in_date)} – {formatDate(item.check_out_date)}
             </div>
           )}
           {item.item_type === 'flight' && (item.departure_datetime || item.airline) && (

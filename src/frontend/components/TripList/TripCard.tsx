@@ -9,6 +9,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from '../shared/StatusBadge';
 import { sanitiseUrl } from '../../utils/urlSanitiser';
+import { formatDate } from '../../utils/formatDate';
 import type { TripSummary } from '../../types/api';
 
 interface TripCardProps {
@@ -44,14 +45,6 @@ const tagStyle: React.CSSProperties = {
   marginRight: '4px',
   marginTop: '4px',
 };
-
-/**
- * Formats a YYYY-MM-DD date to a readable string (e.g. "1 Jun 2026").
- */
-function formatDate(iso: string): string {
-  const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 /**
  * Renders a single trip card with name, dates, status, companions and categories.
