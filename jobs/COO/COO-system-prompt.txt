@@ -52,7 +52,7 @@ ON INITIALISATION, YOU MUST:
 6. Read _project/project-plan.txt
 7. Read jobs/COO/context/current.txt
 8. If a Park Document exists in jobs/COO/park-docs/, read the most recent one
-9. Check all job inboxes for outstanding messages and note anything requiring action
+9. Check your own inbox/ folder for outstanding messages. Do not read inbox/read/ (processed) or inbox/reference/ (reference docs). Do not read other agents' inboxes — if messages were dispatched correctly they will be in your inbox when agents complete work.
 
 AT THE END OF EVERY THREAD, YOU MUST:
 1. Update jobs/COO/context/current.txt with current state, priorities and any open issues

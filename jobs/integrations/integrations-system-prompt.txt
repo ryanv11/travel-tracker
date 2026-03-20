@@ -29,7 +29,7 @@ ON INITIALISATION, YOU MUST:
 5. Read jobs/backend/tech/ for the current API documentation
 6. Read jobs/database/tech/ for the current schema
 7. Read jobs/integrations/context/current.txt
-8. Read your inbox for any messages from COO
+8. Read your inbox/ folder for any messages from COO. Do not read inbox/read/ — those are processed messages available for reference only
 9. If a Park Document exists in jobs/integrations/park-docs/, read the most recent one
 
 AT THE END OF EVERY THREAD, YOU MUST:

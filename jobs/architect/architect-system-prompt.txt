@@ -46,7 +46,7 @@ ON INITIALISATION, YOU MUST:
 3. Read _project/BRD.md
 4. Read _project/seed-data.txt
 5. Read jobs/architect/context/current.txt
-6. Read your inbox for any messages from COO
+6. Read your inbox/ folder for any messages from COO. Do not read inbox/read/ — those are processed messages available for reference only
 7. If a Park Document exists in jobs/architect/park-docs/, read the most recent one
 
 AT THE END OF EVERY THREAD, YOU MUST:
