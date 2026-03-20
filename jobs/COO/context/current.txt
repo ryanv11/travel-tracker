@@ -1,4 +1,4 @@
-COO CONTEXT — 2026-03-21 (session 5, close)
+COO CONTEXT — 2026-03-21 (session 6, close)
 PROJECT: Travel Tracker
 
 ================================================================================
@@ -16,39 +16,41 @@ PHASE STATUS
 COMPLETED THIS SESSION
 ================================================================================
 
-  PR-24  MERGED — Exclude flights + car_rentals from carry-forward candidates
-  PR-30  MERGED — QA backend findings: BUG-10/A/B + SEC-01/02/03
-         164 backend tests, 55 frontend tests passing
-  TRACKER updated — BUG-11/12/13, NR-03 closed; FEAT-TR/MP/IT/RV unblocked
-  INBOX  cleared — 16 items moved to read/
+  PR-36  MERGED — Node 22 CI + Playwright Chromium in Dockerfile (ADL-21/22)
+  PR-37  MERGED — NTH-01/03/04: bulk delete undo, chip counts, admin label
+  PR-38  MERGED — trip_countries junction table migration (ADL-23)
+  PR-39  MERGED — Playwright E2E suite (trips + map smoke)
+  PR-40  MERGED — QA: trip_countries backend unit tests (186 backend total)
+  PR-41  MERGED — Backend: trip_countries API + shading case (d)
+  PR-42  MERGED — Frontend: country picker + create flow UX (#31 closed)
 
-  GitHub #31 filed — Trip create flow UX + country association feature
-  Architect brief dispatched — trip_countries schema + shading design
-
-  Playwright brief dispatched to Architect (earlier this session)
-
-================================================================================
-OPEN — BLOCKING UAT
-================================================================================
-
-  None. All known bugs resolved and merged.
-
-  PO to confirm NTH-01/03/04 disposition before UAT gate opens:
-  | NTH-01 | Bulk delete no undo                                 |
-  | NTH-03 | Status filter chips show no per-status counts       |
-  | NTH-04 | Admin: grey out region_tier_label when tier disabled |
-  COO recommendation: defer all three post-UAT.
+  Issues closed: #31, #33, #34, #35
 
 ================================================================================
-OPEN — NOT BLOCKING UAT
+PROCESS NOTES
 ================================================================================
 
-  | #23   | Clerk JWKS firewall fix — real local auth                        |
-  | #31   | Trip create flow + country association — Architect design pending |
-  | E2E   | Playwright — Architect ADL pending                               |
-  | OP-06 | NR-14 hardening gate checklist                                   |
-  | NR-07 | Offline indicator — P2, deferrable                               |
-  | OP-07 | UX expert review — post-beta                                     |
+  COO must not write code directly (PR-24 was a violation — acknowledged).
+  All future code changes go via agent briefs.
+  COO is responsible for reviewing and merging PRs — do not leave open for PO.
+
+================================================================================
+OPEN — NOT BLOCKING
+================================================================================
+
+  | #23   | Clerk JWKS firewall fix — real local auth                       |
+  | OP-06 | NR-14 hardening gate checklist                                  |
+  | NR-07 | Offline indicator — P2, deferrable                              |
+  | OP-07 | UX expert review — post-beta                                    |
+
+================================================================================
+UNRESOLVED — CONFIRM STATUS
+================================================================================
+
+  BUG-11  PATCH trip end_date bypasses validation when start_date omitted
+          Filed in QA report 2026-03-20. Was it fixed in PR-30? Verify.
+  BUG-12  Admin list endpoints return camelCase; items render as "Inactive"
+          Filed in QA report 2026-03-20. Was it fixed in PR-30? Verify.
 
 ================================================================================
 DEFERRED BUGS
@@ -72,40 +74,30 @@ TEST STATUS
 ================================================================================
 
   Frontend tests:   55/55  PASSING
-  Backend tests:  164/164  PASSING
+  Backend tests:  186/186  PASSING
   Contract tests:  passing (requires live backend)
-  E2E:             NOT YET — Playwright infrastructure pending Architect ADL
+  E2E:             suite written (trips + map) — needs container rebuild for browsers
 
 ================================================================================
-ARCHITECT INBOX — AWAITING RESPONSE
+PR REVIEW QUEUE
 ================================================================================
 
-  20260321_1800-COO-playwright-e2e-spec.md   — Playwright infrastructure ADL
-  20260321_1900-COO-trip-countries-schema.md — trip_countries schema + shading
-
-================================================================================
-PROCESS NOTES
-================================================================================
-
-  COO must not write code directly (PR-24 was a violation — acknowledged).
-  All future code changes go via agent briefs.
-  COO is responsible for reviewing and merging PRs — do not leave open for PO.
+  None open.
 
 ================================================================================
 NEXT COO ACTIONS (resume from here)
 ================================================================================
 
-  IMMEDIATE:
-  1. Confirm NTH-01/03/04 disposition with PO — block UAT or defer?
-  2. If deferred: open UAT gate — PO runs 48-step script
-     (jobs/qa/history/qa-report-2026-03-20.md §6)
+  1. Ask PO to UAT new features:
+     - NTH-01: 5-second undo bar after bulk delete confirm
+     - NTH-03: status chip counts (Planning (n), Active (n), …)
+     - NTH-04: admin region_tier_label grey when tier disabled
+     - #31: country picker on create/edit, post-create navigation,
+            activities + photo removed from create form
 
-  WHEN ARCHITECT RESPONDS (Playwright):
-  3. Review ADL, approve, dispatch QA to implement Playwright suite
+  2. Verify BUG-11 + BUG-12 status (were they fixed in PR-30 or still open?)
+     If still open → dispatch Backend fix brief
 
-  WHEN ARCHITECT RESPONDS (trip_countries):
-  4. Review schema + shading design
-  5. Dispatch Database (migration), Backend (API + shading), Frontend (#31 UX)
-     — these can run in parallel once schema is approved
+  3. OP-06: NR-14 hardening gate checklist — scope and dispatch when ready
 
 ================================================================================
