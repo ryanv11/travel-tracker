@@ -1,0 +1,117 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-19 23:45
+RE:   Four quick fixes — P0 bugs + ARCH-03 (pre-migration)
+
+A full UX audit has been completed (jobs/ux/tech/20260319-UX-audit.md). A Tailwind +
+shadcn/ui migration brief will follow separately. Before that begins, four fixes are
+required immediately — three are single-line changes, one is a two-line change.
+
+Do not begin any Tailwind migration work. That brief is pending and will arrive separately.
+
+---
+
+FIX 1 — Raw ISO date strings in TripDetail (P0-01)
+====================================================
+
+File: src/frontend/components/TripDetail/TripDetail.tsx
+
+Problem:
+  trip.start_date and trip.end_date are rendered directly from the API response
+  (format: YYYY-MM-DD). Users see "2026-06-01 – 2026-08-15" — machine-readable,
+  not human-readable.
+
+Fix:
+  formatDate() already exists in TripCard.tsx. Extract it to a shared utility:
+    src/frontend/utils/formatDate.ts
+  Then use it in TripDetail wherever dates are rendered.
+
+  Also apply to any other components that render raw date strings (check ItemCard
+  for hotel check-in/check-out dates, ReviewPanel for any date display).
+
+Acceptance:
+  - TripDetail header shows "1 Jun 2026 – 15 Aug 2026" not "2026-06-01 – 2026-08-15"
+  - formatDate() is a shared utility, no longer duplicated between components
+
+---
+
+FIX 2 — "Complete Review & Lock Trip" button is red (P0-04)
+============================================================
+
+File: src/frontend/components/ReviewPanel/ReviewPanel.tsx
+
+Problem:
+  The primary completion action on the review page uses background: '#DC2626' —
+  the same red as delete buttons and error states. Red signals danger/destruction.
+  This is the most important positive action in the app and must not look destructive.
+
+Fix:
+  Change the button background to green: '#059669' (hover: '#047857').
+  Keep the existing white text. No structural change needed.
+
+Acceptance:
+  - "Complete Review & Lock Trip" button is green, not red
+  - Visual language: red = destructive/delete only. Green = positive completion.
+
+---
+
+FIX 3 — Carry-forward candidates all pre-selected (P0-05)
+==========================================================
+
+File: src/frontend/components/CarryForwardModal/CarryForwardModal.tsx
+
+Problem:
+  selectedIds is initialised with all candidates selected:
+    useState<Set<number>>(new Set(candidates.map((c) => c.id)))
+  Users must actively uncheck every item they don't want. This inverts the
+  expected opt-in model for a suggestion flow.
+
+Fix:
+  Initialise with an empty Set:
+    useState<Set<number>>(new Set())
+  Users actively select which items to carry forward.
+
+Acceptance:
+  - Modal opens with no items selected
+  - User checks the items they want and confirms
+  - "Carry Forward X Items" button reflects the count of checked items
+
+---
+
+FIX 4 — ShadingTab colour picker fires mutations on every drag event (ARCH-03)
+===============================================================================
+
+File: src/frontend/components/Admin/ShadingTab.tsx
+
+Problem:
+  The colour input uses onChange to fire updateColor.mutateAsync. Browser colour
+  pickers fire onChange continuously as the user drags — generating dozens of
+  PATCH requests per colour adjustment. This causes unnecessary API churn and
+  potential race conditions.
+
+Fix:
+  Change from onChange to onBlur on the colour input. The mutation fires once
+  when the user settles on a colour and moves focus away, not on every drag step.
+
+  If the current implementation uses a controlled value, keep the local state
+  updating on onChange (for the visual preview) but only fire the mutation on onBlur.
+
+Acceptance:
+  - Dragging the colour picker generates zero API calls
+  - One PATCH fires when the user finishes selecting and moves focus away
+  - Colour preview still updates in real time during drag (local state only)
+
+---
+
+DELIVERY
+
+All four fixes in a single commit. Run:
+  npm run type:check
+  npm run test:frontend
+
+Report to jobs/COO/inbox/ with commit hash and test counts.
+
+Note: Do not action any other UX audit items. The full migration brief is coming
+separately and will be the authoritative source for all remaining changes.
+
+COO
