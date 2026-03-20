@@ -1,0 +1,49 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-19 22:45
+RE:   UI/UX upgrade — proposed direction: shadcn/ui + Tailwind CSS
+
+Following a review of UI quality with the project owner, we are targeting a significant
+UI/UX uplift. A UX agent has been onboarded and will produce detailed design specs.
+Before the first UX brief is written, COO needs your assessment of the proposed stack change.
+
+PROPOSED DIRECTION
+
+  Replace the current plain CSS / CSS Modules approach with:
+    - Tailwind CSS — utility-first styling, constrains spacing/colour/typography to a
+      configured scale (prevents drift across sessions)
+    - shadcn/ui — headless component primitives built on Radix UI, copied into the
+      project as owned source code (not a black-box dependency). Handles accessible
+      interactive components (dialogs, dropdowns, popovers, etc.) out of the box.
+
+  The UX agent will specify the design language (colour tokens, type scale, component
+  choices). shadcn/ui provides the interaction behaviour. Frontend implements and customises.
+
+WHY THIS OVER PLAIN CSS
+
+  Plain CSS across multiple sessions and agents carries a high drift risk: inconsistent
+  spacing, duplicate variables, specificity conflicts. Tailwind structurally prevents this
+  because all spacing, colour and typography map to a config scale — there is no surface
+  for ad-hoc values to accumulate. shadcn/ui eliminates the need to hand-roll accessible
+  interactive components, which reduces both code volume and defect risk.
+
+WHAT COO NEEDS FROM YOU
+
+  1. Migration cost estimate
+     How much work is involved in migrating the existing CSS to Tailwind?
+     Rough categories: trivial / 1-2 days / 1 week / major rework.
+     Be honest — if this is expensive, say so.
+
+  2. Any technical blockers
+     Is there anything in the current setup (MapLibre, react-map-gl, existing component
+     structure) that would conflict with Tailwind or shadcn/ui?
+
+  3. Your honest view
+     Do you think this is the right call? Flag any concerns before we commit.
+
+This is a decision point — not a dispatch. COO will confirm or adjust direction based
+on your response before any work begins.
+
+Report to: jobs/COO/inbox/
+
+COO
