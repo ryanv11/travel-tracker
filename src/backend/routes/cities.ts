@@ -204,7 +204,7 @@ citiesRouter.get(
 
     const db = getDb();
 
-    // ER schema §6.2: next_time items for this city across completed trips
+    // ER schema §6.2: next_time items for this city across all trips regardless of status
     const rows = await db
       .select({
         id: items.id,
@@ -225,7 +225,6 @@ citiesRouter.get(
         and(
           eq(tripPlaces.cityId, cityId),
           eq(items.status, 'next_time'),
-          inArray(trips.status, ['review_pending', 'locked']),
         ),
       )
       .orderBy(desc(trips.endDate));
