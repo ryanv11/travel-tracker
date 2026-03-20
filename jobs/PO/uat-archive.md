@@ -25,10 +25,19 @@ Resolved findings moved here from uat-log.md. Reference only — these are close
 ---
 
 ## Session — 2026-03-19 (live testing — Dublin trip)
+**Verdict:** PASS (closed 2026-03-20 — all bugs resolved)
+
+- [x] BUG-17 — Carry-forward modal did not appear when adding Dublin to a new trip
+      Fix: removed trip status filter from GET /api/cities/:id/carry-forward.
+      next_time items now surface from all trip statuses.
+      Fixed by Backend — commit d69c2ae
+
+- [x] BUG-18 — New Dublin trip not immediately visible on map click-through
+      Fix: already resolved in commit 1fe7bc7 (BUG-11 fix, 2026-03-19).
+      invalidateQueries(['trips']) was present on all relevant mutations.
 
 - [x] BUG-19 — Trip list sort — Newest/Oldest not reflecting expectations
       Triaged: NOT A BUG — sort is correctly driving off trip start_date (user-entered).
-      Label clarity issue only. Closed as bug. Added to UX P2 backlog: relabel
-      "Newest First/Oldest First" → "Newest trip date / Oldest trip date".
+      Label clarity issue only. Added to UX P2 backlog.
 
 ---

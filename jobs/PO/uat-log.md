@@ -51,42 +51,6 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
-### UAT Session — 2026-03-19 (live testing — Dublin trip)
-
-**Scope:** New trip creation for a revisited city (Dublin), carry-forward, map interaction, trip list sort
-**Build:** cd03f8c (latest at time of testing)
-**Verdict:** FAIL — three bugs found (BUG-19 closed; BUG-17/18 open)
-
-#### Findings
-
-- [ ] BUG-17 — Carry-forward modal did not appear when adding Dublin to a new trip
-      Steps: 1. Have an existing trip with a Dublin restaurant marked "next time" (trip in planning)
-             2. Create a new trip → Add Place → select Dublin, Ireland
-             3. Expected: carry-forward modal appears with the restaurant as a candidate
-      Expected: CarryForwardModal shows the "next time" restaurant
-      Actual: Modal never appeared
-      Screenshot: none
-      Fixed myself: no
-      Triaged: SPEC CHANGE — carry-forward query filters to review_pending/locked trips only.
-      Decision: next_time is explicit user intent; trip status should be irrelevant.
-      Fix dispatched to Backend: 2026-03-20
-      Severity: MAJOR
-
-- [ ] BUG-18 — New Dublin trip not immediately visible when clicking Ireland on the map
-      Steps: 1. Create a new trip with Dublin, Ireland as a place
-             2. Immediately click Ireland on the map → trips list should filter to Irish trips
-             3. Trip missing from results; works after a delay
-      Expected: new trip appears immediately in filtered results
-      Actual: trip missing until React Query cache refreshes
-      Screenshot: none
-      Fixed myself: no
-      Triaged: MINOR — missing invalidateQueries(['trips']) on useCreateTrip mutation.
-      Fix dispatched to Frontend: 2026-03-20
-      Severity: MINOR
-
-#### Notes / Observations
-- The carry-forward trigger path (auto-fires after Add Place) is too implicit —
-  user had no idea it existed until told. UX discoverability issue, not a bug,
-  but worth noting for the migration brief.
+<!-- None — all sessions closed -->
 
 ---
