@@ -32,12 +32,14 @@ import { fetchItemsWithExtensions } from './items-helper.js';
 import { tripRepository } from '../repositories/trips.js';
 import placesRouter from './places.js';
 import itemsRouter from './items.js';
+import tripCountriesRouter from './trip-countries.js';
 
 export const tripsRouter = Router();
 
 // Mount nested routers with mergeParams: true (defined in those files)
 tripsRouter.use('/:tripId/places', placesRouter);
 tripsRouter.use('/:tripId/items', itemsRouter);
+tripsRouter.use('/:tripId/countries', tripCountriesRouter);
 
 // ----------------------------------------------------------------
 // Helpers
@@ -62,9 +64,10 @@ function validateTransition(from: string, to: string): void {
 async function buildTripResponse(
   trip: { id: number; name: string; startDate: string; endDate: string; status: string; photoAlbumRef: string | null; createdAt: string; updatedAt: string },
 ) {
-  const [assoc, placesRows] = await Promise.all([
+  const [assoc, placesRows, countriesRows] = await Promise.all([
     tripRepository.getAssociations(trip.id),
     tripRepository.getPlaces(trip.id),
+    tripRepository.getCountries(trip.id),
   ]);
 
   const places = placesRows.map((p) => ({
@@ -92,6 +95,7 @@ async function buildTripResponse(
     updated_at: trip.updatedAt,
     ...assoc,
     places,
+    countries: countriesRows,
   };
 }
 
@@ -103,13 +107,14 @@ tripsRouter.get(
   validateQuery(ListTripsQuerySchema),
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const { status, category_id, activity_id } = req.query as {
+    const { status, category_id, activity_id, country } = req.query as {
       status?: string;
       category_id?: number;
       activity_id?: number;
+      country?: string;
     };
 
-    const allTrips = await tripRepository.findAll(userId, { status, category_id, activity_id });
+    const allTrips = await tripRepository.findAll(userId, { status, category_id, activity_id, country });
 
     const result = await Promise.all(allTrips.map(buildTripResponse));
     res.json(result);
@@ -124,7 +129,7 @@ tripsRouter.post(
   validateBody(CreateTripSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const { name, start_date, end_date, photo_album_ref, category_ids, companion_ids, activity_ids } =
+    const { name, start_date, end_date, photo_album_ref, category_ids, companion_ids, activity_ids, country_codes } =
       req.body;
 
     const trip = await tripRepository.create(userId, {
@@ -135,6 +140,10 @@ tripsRouter.post(
     });
 
     await tripRepository.replaceAssociations(trip.id, category_ids ?? [], companion_ids ?? [], activity_ids ?? []);
+
+    if (country_codes?.length) {
+      await tripRepository.setCountries(trip.id, country_codes);
+    }
 
     res.status(201).json(await buildTripResponse(trip));
   }),
@@ -151,7 +160,10 @@ tripsRouter.get(
     if (isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
-    const assoc = await tripRepository.getAssociations(tripId);
+    const [assoc, countriesRows] = await Promise.all([
+      tripRepository.getAssociations(tripId),
+      tripRepository.getCountries(tripId),
+    ]);
 
     const db = getDb();
 
@@ -216,6 +228,7 @@ tripsRouter.get(
       updated_at: trip.updatedAt,
       ...assoc,
       places,
+      countries: countriesRows,
     });
   }),
 );
@@ -234,7 +247,7 @@ tripsRouter.patch(
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     if (trip.status === 'locked') throw new LockError();
 
-    const { name, start_date, end_date, photo_album_ref, category_ids, companion_ids, activity_ids } =
+    const { name, start_date, end_date, photo_album_ref, category_ids, companion_ids, activity_ids, country_codes } =
       req.body;
 
     // BUG-A: validate effective date range using existing values when only one date is sent
@@ -252,6 +265,10 @@ tripsRouter.patch(
     });
 
     await tripRepository.replaceAssociations(tripId, category_ids, companion_ids, activity_ids);
+
+    if (country_codes !== undefined) {
+      await tripRepository.setCountries(tripId, country_codes);
+    }
 
     res.json(await buildTripResponse(updated!));
   }),

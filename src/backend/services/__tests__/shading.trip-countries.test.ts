@@ -1,19 +1,16 @@
 /**
- * Integration tests for GET /api/cities/:id/carry-forward (IT-07).
+ * Integration tests for getAllCountryShading() — ADL-23 case (d).
  *
- * BUG-17 fix: the endpoint must return next_time items from trips of ANY status,
- * not just review_pending/locked.
+ * Case (d): a country appears in trip_countries but has NO city visits
+ * (no trip_places rows). Before ADL-23, such a country would show as
+ * 'never_visited' because getAllCountryShading() only joined through
+ * trip_places. After ADL-23 the service must union trip_countries,
+ * so a planning trip linked via trip_countries gets 'planned'.
  *
- * Test categories:
- *   1. next_time item on a planning trip → appears in results
- *   2. next_time item on an active trip → appears in results
- *   3. next_time item on a review_pending trip → appears in results
- *   4. next_time item on a locked trip → appears in results
- *   5. item with status other than next_time → does not appear
- *   6. 404 on unknown city
- *
- * Uses an in-memory libSQL database seeded with the minimal schema
- * required by the cities router (countries, cities, trips, trip_places, items).
+ * These tests use an in-memory libSQL database. They exercise the
+ * real getAllCountryShading() function (not mocked), so they will
+ * fail if the Backend API agent's ADL-23 implementation is not yet
+ * merged — that is expected and is documented in the PR description.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -140,6 +137,15 @@ async function createTestDb() {
       FOREIGN KEY (trip_place_id) REFERENCES trip_places(id) ON DELETE CASCADE,
       FOREIGN KEY (activity_id) REFERENCES activities(id)
     )`,
+    `CREATE TABLE IF NOT EXISTS trip_countries (
+      trip_id INTEGER NOT NULL,
+      country_code TEXT NOT NULL,
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
+      PRIMARY KEY (trip_id, country_code),
+      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+      FOREIGN KEY (country_code) REFERENCES countries(country_code) ON DELETE RESTRICT
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_trip_countries_country ON trip_countries (country_code)`,
     `CREATE TABLE IF NOT EXISTS items (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       trip_id INTEGER NOT NULL,
@@ -191,16 +197,6 @@ async function createTestDb() {
       color_hex TEXT NOT NULL,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
     )`,
-    // ADL-23: trip_countries junction table (required by buildTripResponse)
-    `CREATE TABLE IF NOT EXISTS trip_countries (
-      trip_id INTEGER NOT NULL,
-      country_code TEXT NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      PRIMARY KEY (trip_id, country_code),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (country_code) REFERENCES countries(country_code) ON DELETE RESTRICT
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_trip_countries_country ON trip_countries (country_code)`,
   ];
 
   for (const sql of ddlStatements) {
@@ -221,40 +217,21 @@ vi.mock('../../db/index.js', async (importOriginal) => {
   return {
     ...real,
     getDb: () => {
-      if (!testDb) throw new Error('[TEST] testDb not initialised — call createTestDb in beforeEach');
+      if (!testDb) throw new Error('[TEST] testDb not initialised');
       return testDb;
     },
   };
 });
 
-// Mock auth middleware — bypass JWT verification in integration tests.
-// Tests exercise route logic, not authentication. Auth is unit-tested separately.
-vi.mock('../../middleware/auth.js', () => ({
-  requireAuth: (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {
-    (_req as import('express').Request & { user?: unknown }).user = {
-      id: 'test-user-id',
-      clerkId: 'user_test',
-      email: 'test@example.com',
-    };
-    next();
-  },
-  authenticate: (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => next(),
-}));
-
-const { default: app } = await import('../../server-test-app.js');
-const supertest = (await import('supertest')).default;
+// Import after mock is declared (Vitest hoists vi.mock above imports)
+const { getAllCountryShading, invalidateConfigCache } = await import('../shading.service.js');
 
 // ----------------------------------------------------------------
-// Seed helpers
+// Tests
 // ----------------------------------------------------------------
 
-// The test-user-id matches what the auth mock sets on req.user.id
 const TEST_USER_ID = 'test-user-id';
 
-/**
- * Seeds a user row matching the auth mock's req.user.id.
- * Required because trips.user_id is a FK to users.id (ADL-18).
- */
 async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
   const now = Date.now();
   await db.insert(schema.users).values({
@@ -266,207 +243,106 @@ async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
   }).onConflictDoNothing();
 }
 
-type TripStatus = 'planning' | 'active' | 'review_pending' | 'locked';
-
-async function seedCityAndTrip(db: Awaited<ReturnType<typeof createTestDb>>, tripStatus: TripStatus) {
-  await db.insert(schema.countries).values({ countryCode: 'IE', name: 'Ireland' }).onConflictDoNothing();
-
-  const [city] = await db.insert(schema.cities).values({
-    name: 'Dublin',
-    countryCode: 'IE',
-    geocodeStatus: 'resolved',
-  }).returning();
-
-  // ADL-18: trips must be owned by the test user so the carry-forward userId filter passes
-  const [trip] = await db.insert(schema.trips).values({
-    name: `Dublin Trip (${tripStatus})`,
-    startDate: '2026-01-01',
-    endDate: '2026-01-07',
-    status: tripStatus,
-    userId: TEST_USER_ID,
-  }).returning();
-
-  const [place] = await db.insert(schema.tripPlaces).values({
-    tripId: trip.id,
-    cityId: city.id,
-  }).returning();
-
-  return { city, trip, place };
-}
-
-// ----------------------------------------------------------------
-// Tests
-// ----------------------------------------------------------------
-
-describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', () => {
+describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () => {
   beforeEach(async () => {
     testDb = await createTestDb();
     await seedTestUser(testDb);
+    // Invalidate the in-memory config cache so each test starts clean
+    invalidateConfigCache();
   });
 
   afterEach(() => {
     testDb = null;
+    invalidateConfigCache();
   });
 
-  it('returns next_time item from a planning trip', async () => {
+  it('returns "planned" for JP when a planning trip has a trip_countries row for JP but no city visits', async () => {
     const db = testDb!;
-    const { city, trip, place } = await seedCityAndTrip(db, 'planning');
 
-    await db.insert(schema.items).values({
-      tripId: trip.id,
-      tripPlaceId: place.id,
-      itemType: 'restaurant',
-      status: 'next_time',
-      notes: 'Try next time',
-    });
+    // Seed JP country
+    await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
-
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].status).toBe('next_time');
-    expect(res.body[0].source_trip_name).toBe('Dublin Trip (planning)');
-  });
-
-  it('returns next_time item from an active trip', async () => {
-    const db = testDb!;
-    const { city, trip, place } = await seedCityAndTrip(db, 'active');
-
-    await db.insert(schema.items).values({
-      tripId: trip.id,
-      tripPlaceId: place.id,
-      itemType: 'restaurant',
-      status: 'next_time',
-    });
-
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
-
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].source_trip_name).toBe('Dublin Trip (active)');
-  });
-
-  it('returns next_time item from a review_pending trip', async () => {
-    const db = testDb!;
-    const { city, trip, place } = await seedCityAndTrip(db, 'review_pending');
-
-    await db.insert(schema.items).values({
-      tripId: trip.id,
-      tripPlaceId: place.id,
-      itemType: 'hotel',
-      status: 'next_time',
-    });
-
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
-
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].source_trip_name).toBe('Dublin Trip (review_pending)');
-  });
-
-  it('returns next_time item from a locked trip', async () => {
-    const db = testDb!;
-    const { city, trip, place } = await seedCityAndTrip(db, 'locked');
-
-    await db.insert(schema.items).values({
-      tripId: trip.id,
-      tripPlaceId: place.id,
-      itemType: 'restaurant',
-      status: 'next_time',
-    });
-
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
-
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].source_trip_name).toBe('Dublin Trip (locked)');
-  });
-
-  it('does not return items with status other than next_time', async () => {
-    const db = testDb!;
-    const { city, trip, place } = await seedCityAndTrip(db, 'locked');
-
-    // Insert items with every non-next_time status
-    const otherStatuses = ['consider', 'confirmed', 'completed', 'skipped'] as const;
-    for (const status of otherStatuses) {
-      await db.insert(schema.items).values({
-        tripId: trip.id,
-        tripPlaceId: place.id,
-        itemType: 'restaurant',
-        status,
-      });
-    }
-
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
-
-    expect(res.body).toHaveLength(0);
-  });
-
-  it('does not return flight next_time items', async () => {
-    const db = testDb!;
-    const { city, trip, place } = await seedCityAndTrip(db, 'locked');
-
-    await db.insert(schema.items).values({
-      tripId: trip.id,
-      tripPlaceId: place.id,
-      itemType: 'flight',
-      status: 'next_time',
-    });
-
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
-
-    expect(res.body).toHaveLength(0);
-  });
-
-  it('does not return car_rental next_time items', async () => {
-    const db = testDb!;
-    const { city, trip, place } = await seedCityAndTrip(db, 'locked');
-
-    await db.insert(schema.items).values({
-      tripId: trip.id,
-      tripPlaceId: place.id,
-      itemType: 'car_rental',
-      status: 'next_time',
-    });
-
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
-
-    expect(res.body).toHaveLength(0);
-  });
-
-  it('returns 200 empty array for a city with no next_time items', async () => {
-    const db = testDb!;
-    await db.insert(schema.countries).values({ countryCode: 'FR', name: 'France' }).onConflictDoNothing();
-    const [city] = await db.insert(schema.cities).values({
-      name: 'Paris',
-      countryCode: 'FR',
-      geocodeStatus: 'resolved',
+    // Seed a planning trip — no trip_places, only a trip_countries row
+    const [trip] = await db.insert(schema.trips).values({
+      name: 'Japan Planning Trip',
+      startDate: '2026-09-01',
+      endDate: '2026-09-14',
+      status: 'planning',
+      userId: TEST_USER_ID,
     }).returning();
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    await db.insert(schema.tripCountries).values({
+      tripId: trip.id,
+      countryCode: 'JP',
+    });
 
-    expect(res.body).toEqual([]);
+    const results = await getAllCountryShading();
+
+    const jpResult = results.find((r) => r.countryCode === 'JP');
+    expect(jpResult).toBeDefined();
+    expect(jpResult!.stateKey).toBe('planned');
   });
 
-  it('returns 404 for a non-existent city id', async () => {
-    // The endpoint does not verify city existence — it just returns empty.
-    // This tests that a non-numeric id gets a 400.
-    const res = await supertest(app)
-      .get('/api/cities/abc/carry-forward')
-      .expect(404);
+  it('returns "never_visited" for JP when there are no trips or trip_countries rows', async () => {
+    const db = testDb!;
+    await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
 
-    expect(res.body).toHaveProperty('error');
+    const results = await getAllCountryShading();
+
+    const jpResult = results.find((r) => r.countryCode === 'JP');
+    expect(jpResult).toBeDefined();
+    expect(jpResult!.stateKey).toBe('never_visited');
+  });
+
+  it('returns "visited_once" for JP when a locked trip has a trip_countries row for JP and no city visits', async () => {
+    const db = testDb!;
+    await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
+
+    const [trip] = await db.insert(schema.trips).values({
+      name: 'Japan Completed Trip',
+      startDate: '2025-06-01',
+      endDate: '2025-06-14',
+      status: 'locked',
+      userId: TEST_USER_ID,
+    }).returning();
+
+    await db.insert(schema.tripCountries).values({
+      tripId: trip.id,
+      countryCode: 'JP',
+    });
+
+    const results = await getAllCountryShading();
+
+    const jpResult = results.find((r) => r.countryCode === 'JP');
+    expect(jpResult).toBeDefined();
+    expect(jpResult!.stateKey).toBe('visited_once');
+  });
+
+  it('trip_countries path does not affect countries with no trip association', async () => {
+    const db = testDb!;
+    await db.insert(schema.countries).values([
+      { countryCode: 'JP', name: 'Japan' },
+      { countryCode: 'DE', name: 'Germany' },
+    ]);
+
+    // JP has a planning trip via trip_countries
+    const [trip] = await db.insert(schema.trips).values({
+      name: 'Japan Trip',
+      startDate: '2026-09-01',
+      endDate: '2026-09-14',
+      status: 'planning',
+      userId: TEST_USER_ID,
+    }).returning();
+
+    await db.insert(schema.tripCountries).values({ tripId: trip.id, countryCode: 'JP' });
+
+    const results = await getAllCountryShading();
+
+    // JP should be planned; DE should be never_visited
+    const jpResult = results.find((r) => r.countryCode === 'JP');
+    const deResult = results.find((r) => r.countryCode === 'DE');
+
+    expect(jpResult!.stateKey).toBe('planned');
+    expect(deResult!.stateKey).toBe('never_visited');
   });
 });

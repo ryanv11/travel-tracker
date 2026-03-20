@@ -16,6 +16,7 @@ import {
   regions,
   tripPlaces,
   trips,
+  tripCountries,
   mapShadingConfig,
 } from '../db/index.js';
 
@@ -195,6 +196,29 @@ export function computeCountryState(
   return 'never_visited';
 }
 
+/**
+ * Returns a map of country_code → { hasActive, completedCount, planningCount }
+ * derived from the trip_countries junction table (case (d): explicitly-tagged countries).
+ */
+async function getTripCountriesStats(): Promise<Map<string, { hasActive: number; completedCount: number; planningCount: number }>> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      countryCode: tripCountries.countryCode,
+      hasActive:      sql<number>`MAX(CASE WHEN ${trips.status} = 'active' THEN 1 ELSE 0 END)`,
+      completedCount: sql<number>`COUNT(DISTINCT CASE WHEN ${trips.status} IN ('review_pending', 'locked') THEN ${trips.id} END)`,
+      planningCount:  sql<number>`COUNT(DISTINCT CASE WHEN ${trips.status} = 'planning' THEN ${trips.id} END)`,
+    })
+    .from(tripCountries)
+    .leftJoin(trips, eq(trips.id, tripCountries.tripId))
+    .groupBy(tripCountries.countryCode);
+  return new Map(rows.map((r) => [r.countryCode, {
+    hasActive: Number(r.hasActive),
+    completedCount: Number(r.completedCount),
+    planningCount: Number(r.planningCount),
+  }]));
+}
+
 /** Drizzle select shape for country shading query (§4.1 Query A). */
 const countrySelectShape = (co: typeof countries, c: typeof cities, t: typeof trips) => ({
   countryCode: co.countryCode,
@@ -215,7 +239,7 @@ const countrySelectShape = (co: typeof countries, c: typeof cities, t: typeof tr
  */
 export async function getAllCountryShading(): Promise<CountryShadingResult[]> {
   const db = getDb();
-  const [config, coverage] = await Promise.all([getConfigMap(), getRegionCoverageMap()]);
+  const [config, coverage, tcStats] = await Promise.all([getConfigMap(), getRegionCoverageMap(), getTripCountriesStats()]);
 
   const rows = await db
     .select(countrySelectShape(countries, cities, trips))
@@ -226,7 +250,14 @@ export async function getAllCountryShading(): Promise<CountryShadingResult[]> {
     .groupBy(countries.countryCode, countries.regionTierEnabled);
 
   return rows.map((r) => {
-    const stateKey = computeCountryState(r, coverage.get(r.countryCode));
+    const tc = tcStats.get(r.countryCode);
+    const merged = tc ? {
+      ...r,
+      hasActive:      Math.max(Number(r.hasActive), tc.hasActive),
+      completedCount: Math.max(Number(r.completedCount), tc.completedCount),
+      planningCount:  Math.max(Number(r.planningCount), tc.planningCount),
+    } : r;
+    const stateKey = computeCountryState(merged, coverage.get(r.countryCode));
     return { countryCode: r.countryCode, ...buildResult(stateKey, config) };
   });
 }
@@ -239,7 +270,7 @@ export async function getCountryShading(
   countryCode: string,
 ): Promise<CountryShadingResult | null> {
   const db = getDb();
-  const [config, coverage] = await Promise.all([getConfigMap(), getRegionCoverageMap()]);
+  const [config, coverage, tcStats] = await Promise.all([getConfigMap(), getRegionCoverageMap(), getTripCountriesStats()]);
 
   const rows = await db
     .select(countrySelectShape(countries, cities, trips))
@@ -252,7 +283,14 @@ export async function getCountryShading(
 
   if (!rows.length) return null;
   const r = rows[0];
-  const stateKey = computeCountryState(r, coverage.get(r.countryCode));
+  const tc = tcStats.get(r.countryCode);
+  const merged = tc ? {
+    ...r,
+    hasActive:      Math.max(Number(r.hasActive), tc.hasActive),
+    completedCount: Math.max(Number(r.completedCount), tc.completedCount),
+    planningCount:  Math.max(Number(r.planningCount), tc.planningCount),
+  } : r;
+  const stateKey = computeCountryState(merged, coverage.get(r.countryCode));
   return { countryCode: r.countryCode, ...buildResult(stateKey, config) };
 }
 

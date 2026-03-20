@@ -19,6 +19,7 @@ import {
   tripPlaces,
   cities,
   countries,
+  tripCountries,
 } from '../db/index.js';
 import type { Trip } from '../db/schema.js';
 import { NotFoundError } from '../errors.js';
@@ -37,6 +38,7 @@ export interface TripFilters {
   status?: string;
   category_id?: number;
   activity_id?: number;
+  country?: string;
 }
 
 // ----------------------------------------------------------------
@@ -81,6 +83,23 @@ export const tripRepository = {
         .from(tripActivitiesMap)
         .where(eq(tripActivitiesMap.activityId, Number(filters.activity_id)));
       const ids = new Set(actTrips.map((r) => r.tripId));
+      filtered = filtered.filter((t) => ids.has(t.id));
+    }
+
+    if (filters?.country) {
+      const placeTrips = await db
+        .select({ tripId: tripPlaces.tripId })
+        .from(tripPlaces)
+        .leftJoin(cities, eq(cities.id, tripPlaces.cityId))
+        .where(eq(cities.countryCode, filters.country));
+      const directTrips = await db
+        .select({ tripId: tripCountries.tripId })
+        .from(tripCountries)
+        .where(eq(tripCountries.countryCode, filters.country));
+      const ids = new Set([
+        ...placeTrips.map((r) => r.tripId),
+        ...directTrips.map((r) => r.tripId),
+      ]);
       filtered = filtered.filter((t) => ids.has(t.id));
     }
 
@@ -271,5 +290,54 @@ export const tripRepository = {
       .leftJoin(cities, eq(cities.id, tripPlaces.cityId))
       .leftJoin(countries, eq(countries.countryCode, cities.countryCode))
       .where(eq(tripPlaces.tripId, tripId));
+  },
+
+  /**
+   * Fetches the explicit country associations for a trip (from trip_countries).
+   */
+  async getCountries(tripId: number): Promise<{ country_code: string; name: string }[]> {
+    const db = getDb();
+    const rows = await db
+      .select({ country_code: countries.countryCode, name: countries.name })
+      .from(tripCountries)
+      .leftJoin(countries, eq(countries.countryCode, tripCountries.countryCode))
+      .where(eq(tripCountries.tripId, tripId))
+      .orderBy(countries.name);
+    return rows.map((r) => ({ country_code: r.country_code!, name: r.name! }));
+  },
+
+  /**
+   * Replaces all country associations for a trip (delete + reinsert).
+   */
+  async setCountries(tripId: number, codes: string[]): Promise<void> {
+    const db = getDb();
+    await db.delete(tripCountries).where(eq(tripCountries.tripId, tripId));
+    if (codes.length) {
+      await db.insert(tripCountries).values(codes.map((c) => ({ tripId, countryCode: c })));
+    }
+  },
+
+  /**
+   * Adds country associations for a trip (insert-or-ignore).
+   */
+  async addCountries(tripId: number, codes: string[]): Promise<void> {
+    if (!codes.length) return;
+    const db = getDb();
+    await db
+      .insert(tripCountries)
+      .values(codes.map((c) => ({ tripId, countryCode: c })))
+      .onConflictDoNothing();
+  },
+
+  /**
+   * Removes a single country association from a trip.
+   * Returns true if a row was deleted, false if not found.
+   */
+  async removeCountry(tripId: number, code: string): Promise<boolean> {
+    const db = getDb();
+    const result = await db
+      .delete(tripCountries)
+      .where(and(eq(tripCountries.tripId, tripId), eq(tripCountries.countryCode, code)));
+    return (result.rowsAffected ?? 0) > 0;
   },
 };
