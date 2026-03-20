@@ -6,6 +6,9 @@
  * Actions: click to navigate to TripDetail (relative URL for nested route),
  *          Edit button to open edit form.
  * SEC-12: photo_album_ref is handled by sanitiseUrl before rendering.
+ *
+ * FEAT-BD: In selection mode, shows a checkbox. Locked trips cannot be
+ *          selected (checkbox disabled, card visually muted).
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +23,12 @@ interface TripCardProps {
   onEdit: (trip: TripSummary) => void;
   /** Whether this card is the currently selected trip in the two-panel layout. */
   isSelected?: boolean;
+  /** Whether the list is in multi-select delete mode. */
+  selectionMode?: boolean;
+  /** Whether this card is checked in selection mode. */
+  isChecked?: boolean;
+  /** Called when the checkbox state changes. */
+  onCheckChange?: (id: number, checked: boolean) => void;
 }
 
 /** Maximum number of place badges to show before truncating (D-06). */
@@ -32,33 +41,77 @@ const MAX_PLACE_BADGES = 4;
  * @param trip - The trip data to render.
  * @param onEdit - Callback when the Edit button is clicked.
  * @param isSelected - Highlights the card when it is the active trip.
+ * @param selectionMode - When true, shows a checkbox instead of navigation.
+ * @param isChecked - Whether the checkbox is checked.
+ * @param onCheckChange - Callback when checkbox changes.
  */
-export function TripCard({ trip, onEdit, isSelected = false }: TripCardProps) {
+export function TripCard({
+  trip,
+  onEdit,
+  isSelected = false,
+  selectionMode = false,
+  isChecked = false,
+  onCheckChange,
+}: TripCardProps) {
   const navigate = useNavigate();
 
   const places = trip.places ?? [];
   const visiblePlaces = places.slice(0, MAX_PLACE_BADGES);
   const extraCount = places.length - MAX_PLACE_BADGES;
+  const isLocked = trip.status === 'locked';
 
+  // In selection mode, locked trips are visually muted and non-selectable
   const cardClass = [
-    'bg-white border rounded-lg p-3 cursor-pointer transition-shadow hover:shadow-md',
-    isSelected ? 'border-teal-500 ring-1 ring-teal-500' : 'border-gray-200',
-  ].join(' ');
+    'bg-white border rounded-lg p-3 transition-shadow',
+    selectionMode
+      ? isLocked
+        ? 'opacity-50 cursor-default'
+        : 'cursor-pointer hover:shadow-md'
+      : 'cursor-pointer hover:shadow-md',
+    isSelected && !selectionMode ? 'border-teal-500 ring-1 ring-teal-500' : 'border-gray-200',
+    selectionMode && isChecked && !isLocked ? 'border-teal-400 ring-1 ring-teal-400' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const handleClick = () => {
+    if (selectionMode) {
+      if (!isLocked && onCheckChange) {
+        onCheckChange(trip.id, !isChecked);
+      }
+      return;
+    }
+    navigate(String(trip.id));
+  };
 
   return (
     <div
       className={cardClass}
-      onClick={() => navigate(String(trip.id))}
+      onClick={handleClick}
       onMouseEnter={(e) => {
-        if (!isSelected) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+        if (!isSelected && !selectionMode) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
       }}
       onMouseLeave={(e) => {
-        if (!isSelected) (e.currentTarget as HTMLDivElement).style.boxShadow = '';
+        if (!isSelected && !selectionMode) (e.currentTarget as HTMLDivElement).style.boxShadow = '';
       }}
     >
-      {/* Header row: name + status + edit */}
+      {/* Header row: checkbox (selection mode) or name + status + edit */}
       <div className="flex justify-between items-start gap-2">
-        <div className="min-w-0">
+        {selectionMode && (
+          <div className="flex-shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={isChecked}
+              disabled={isLocked}
+              onChange={(e) => {
+                if (onCheckChange) onCheckChange(trip.id, e.target.checked);
+              }}
+              aria-label={`Select trip ${trip.name}`}
+              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 disabled:opacity-40"
+            />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-gray-900 truncate">{trip.name}</h3>
           <p className="text-xs text-gray-500 mt-0.5">
             {formatDate(trip.start_date)} – {formatDate(trip.end_date)}
@@ -98,7 +151,6 @@ export function TripCard({ trip, onEdit, isSelected = false }: TripCardProps) {
           ))}
         </div>
       )}
-
     </div>
   );
 }

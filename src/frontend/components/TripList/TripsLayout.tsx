@@ -8,10 +8,15 @@
  *
  * URL-encoded trip selection: navigating to /trips/:id updates the Outlet;
  * back-button and bookmarks work out of the box.
+ *
+ * FEAT-BD: Multi-select delete mode. A "Select" toggle enters selection mode;
+ *          a bulk action bar shows selected count, "Select all", and red "Delete".
+ *          Locked trips cannot be selected. Confirmation via window.confirm before
+ *          sequential DELETE /api/trips/:id calls.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Outlet, useNavigate, useSearchParams, useParams } from 'react-router-dom';
-import { useTrips, type TripFilters, type TripFormData } from '../../hooks/useTrips';
+import { useTrips, type TripFilters, type TripFormData, useDeleteTrip } from '../../hooks/useTrips';
 import { useActiveCategories, useActiveActivities } from '../../hooks/useAdmin';
 import { TripCard } from './TripCard';
 import { TripForm } from '../TripDetail/TripForm';
@@ -42,6 +47,11 @@ export function TripsLayout() {
   const [searchText, setSearchText] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('date_desc');
 
+  // FEAT-BD: Multi-select delete state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { id: selectedId } = useParams<{ id?: string }>();
@@ -52,6 +62,7 @@ export function TripsLayout() {
   const cityFilter = searchParams.get('city') ? Number(searchParams.get('city')) : null;
 
   const { data: trips, isLoading, error } = useTrips(filters);
+  const deleteTrip = useDeleteTrip();
 
   const handleEdit = (trip: TripSummary) => {
     setEditingTrip(trip);
@@ -92,6 +103,70 @@ export function TripsLayout() {
 
   const tripCount = displayedTrips.length;
 
+  // FEAT-BD: Selectable trips are those that are not locked
+  const selectableTrips = useMemo(
+    () => displayedTrips.filter((t) => t.status !== 'locked'),
+    [displayedTrips],
+  );
+
+  // FEAT-BD: Enter / exit selection mode
+  const enterSelectionMode = () => {
+    setSelectionMode(true);
+    setSelectedIds(new Set());
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  // FEAT-BD: Checkbox toggle handler
+  const handleCheckChange = useCallback((id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // FEAT-BD: Select all (only selectable / non-locked trips)
+  const handleSelectAll = () => {
+    setSelectedIds(new Set(selectableTrips.map((t) => t.id)));
+  };
+
+  // FEAT-BD: Bulk delete
+  const handleBulkDelete = async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+
+    const confirmed = window.confirm(
+      `Delete ${count} trip${count === 1 ? '' : 's'}? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      for (const id of selectedIds) {
+        await deleteTrip.mutateAsync(id);
+      }
+      // If the currently viewed trip was deleted, navigate away
+      if (selectedId && selectedIds.has(Number(selectedId))) {
+        navigate('/trips', { replace: true });
+      }
+      exitSelectionMode();
+    } catch (err) {
+      // Partial success is possible — exit selection mode and let list refresh show current state
+      exitSelectionMode();
+      alert(`Some trips could not be deleted: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="flex h-full overflow-hidden">
       {/* Left panel — fixed 360px, scrollable */}
@@ -105,14 +180,61 @@ export function TripsLayout() {
               {tripCount}
             </span>
           </h2>
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            className="px-3 py-1.5 bg-teal-600 text-white text-sm font-semibold rounded-md hover:bg-teal-700 transition-colors"
-          >
-            + New
-          </button>
+          <div className="flex items-center gap-2">
+            {selectionMode ? (
+              <button
+                type="button"
+                onClick={exitSelectionMode}
+                className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-md hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={enterSelectionMode}
+                  className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  Select
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(true)}
+                  className="px-3 py-1.5 bg-teal-600 text-white text-sm font-semibold rounded-md hover:bg-teal-700 transition-colors"
+                >
+                  + New
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* FEAT-BD: Bulk action bar — visible in selection mode */}
+        {selectionMode && (
+          <div className="px-4 pb-2 flex-shrink-0">
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-md px-3 py-2 gap-2">
+              <span className="text-xs text-gray-600 font-medium">
+                {selectedIds.size} selected
+              </span>
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-xs text-teal-600 hover:text-teal-800 font-medium"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={() => { void handleBulkDelete(); }}
+                disabled={selectedIds.size === 0 || isDeleting}
+                className="px-2.5 py-1 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* F-06: Search field */}
         <div className="px-4 pb-2 flex-shrink-0">
@@ -203,6 +325,9 @@ export function TripsLayout() {
               trip={trip}
               onEdit={handleEdit}
               isSelected={selectedId === String(trip.id)}
+              selectionMode={selectionMode}
+              isChecked={selectedIds.has(trip.id)}
+              onCheckChange={handleCheckChange}
             />
           ))}
         </div>
