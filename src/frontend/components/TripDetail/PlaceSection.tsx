@@ -4,7 +4,7 @@
  * BRD v2.4 enhancements:
  *   D-03: Per-place date range derived from hotel items (check_in_date/check_out_date),
  *         falling back to trip start/end dates.
- *   D-04: Country code shown in subtitle (full country name not yet in API — flagged).
+ *   D-04: Full country name shown in subtitle (joined from countries table — issue #5).
  *
  * Shows city name, country, activity tags, date range, and a list of ItemCards.
  * Contains the "Add Item" button (hidden when trip is locked).
@@ -80,12 +80,12 @@ export function PlaceSection({ place, tripId, isLocked, tripStartDate, tripEndDa
       {/* Section header */}
       <div className="bg-gray-100 px-4 py-3 flex justify-between items-center border-b border-gray-200">
         <div>
-          {/* D-04: City name + country code (full country name not yet in API — see completion report) */}
+          {/* D-04: City name + full country name from API (issue #5) */}
           <span className="font-semibold text-sm text-gray-900">{place.city.name}</span>
 
-          {/* D-03/DELTA-09: Country code · date range on single subtitle line */}
+          {/* D-03/DELTA-09: Country name · date range on single subtitle line (DP-04) */}
           <p className="mt-0.5 text-xs text-gray-500">
-            {place.city.country_code} · {formatDate(dateRange.start)} – {formatDate(dateRange.end)}
+            {place.city.country_name ?? place.city.country_code} · {formatDate(dateRange.start)} – {formatDate(dateRange.end)}
           </p>
 
           {/* Activity tags */}

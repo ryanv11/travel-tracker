@@ -191,6 +191,7 @@ tripsRouter.get(
         id: p.cityId,
         name: p.cityName,
         country_code: p.cityCountryCode,
+        country_name: p.cityCountryName,
         region_id: p.cityRegionId,
         latitude: p.cityLatitude,
         longitude: p.cityLongitude,

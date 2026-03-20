@@ -33,6 +33,7 @@ function makeTrip(
         id: p.city_id,
         name: `City${p.city_id}`,
         country_code: p.country_code,
+        country_name: null,
         region_id: null,
         latitude: null,
         longitude: null,

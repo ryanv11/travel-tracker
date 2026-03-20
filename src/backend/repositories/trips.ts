@@ -18,6 +18,7 @@ import {
   activities,
   tripPlaces,
   cities,
+  countries,
 } from '../db/index.js';
 import type { Trip } from '../db/schema.js';
 import { NotFoundError } from '../errors.js';
@@ -260,6 +261,7 @@ export const tripRepository = {
         createdAt: tripPlaces.createdAt,
         cityName: cities.name,
         cityCountryCode: cities.countryCode,
+        cityCountryName: countries.name,
         cityRegionId: cities.regionId,
         cityLatitude: cities.latitude,
         cityLongitude: cities.longitude,
@@ -267,6 +269,7 @@ export const tripRepository = {
       })
       .from(tripPlaces)
       .leftJoin(cities, eq(cities.id, tripPlaces.cityId))
+      .leftJoin(countries, eq(countries.countryCode, cities.countryCode))
       .where(eq(tripPlaces.tripId, tripId));
   },
 };
