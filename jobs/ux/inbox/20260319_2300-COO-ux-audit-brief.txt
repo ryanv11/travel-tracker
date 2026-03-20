@@ -1,0 +1,163 @@
+FROM: COO
+TO:   UX
+DATE: 2026-03-19 23:00
+RE:   BRIEF-UX-01 — Full UI audit + design system spec
+
+---
+
+BACKGROUND
+
+The PO has reviewed the current UI and assessed it as functional but not to the
+standard the product deserves. Your first task is a thorough audit of the current
+frontend and a complete design system spec that will drive a full UI/UX uplift.
+
+The target standard is: world class. Not "clean and functional" — genuinely excellent.
+
+---
+
+CONFIRMED TECHNICAL DIRECTION
+
+The following has been approved by the PO:
+
+  Styling:    Tailwind CSS (replacing plain CSS / CSS Modules)
+  Components: shadcn/ui built on Radix UI primitives (copied into project, owned source)
+
+Your audit and spec must assume this stack. Do not spec anything that requires
+a different component library. Where you reference a component (e.g. Dialog, Select,
+Popover), use the shadcn/ui component name.
+
+---
+
+SECTION 1 — AUDIT
+
+Read the entire frontend source (src/frontend/) and produce a screen-by-screen audit.
+
+For each screen / major component, assess and document:
+
+  1. Layout & density
+     - Is the space being used efficiently?
+     - Dead white space, over-padded sections, content that could be tighter?
+     - Remember: this is a desktop data application. Density is a virtue.
+
+  2. Visual hierarchy
+     - Does the eye know where to go? Is the most important thing the most prominent?
+     - Are headings, labels, values and actions correctly weighted?
+
+  3. Consistency
+     - Spacing, colour, type sizes — are they consistent with the rest of the app?
+     - Do interactive elements look interactive everywhere, or only sometimes?
+
+  4. Feedback & states
+     - Loading state: present and correct?
+     - Empty state: is it designed or just blank?
+     - Error state: shown and actionable?
+
+  5. The map
+     - Does the surrounding UI support the map or compete with it?
+     - Is the map given appropriate visual priority?
+
+  6. Any other issues
+     - Accessibility gaps (contrast, focus states, missing labels)
+     - Interaction patterns that feel wrong or inconsistent
+
+Severity rating for each finding: CRITICAL / MAJOR / MINOR / POLISH
+
+---
+
+SECTION 2 — DESIGN SYSTEM SPEC
+
+Produce a complete design system spec for the Tailwind config and the app's visual
+language. This becomes the single source of truth that Frontend implements before
+touching any components.
+
+Required sections:
+
+  2a. Colour palette
+      - Primary, secondary, accent, neutral scale
+      - Semantic tokens: background, surface, border, text-primary, text-secondary,
+        text-muted, destructive, success, warning
+      - Ensure WCAG AA contrast compliance on all text/background pairs
+      - This is a travel app built around a map — the colour language should feel
+        geographic and considered, not generic SaaS blue
+
+  2b. Typography scale
+      - Font family recommendation (one sans-serif; available via CDN or system font)
+      - Size scale (map to Tailwind: text-xs through text-2xl — no larger needed for
+        a data app)
+      - Weight usage: which weights, for what purposes
+      - Line height guidelines
+
+  2c. Spacing scale
+      - Document which Tailwind spacing units are in use (e.g. 2/4/6/8/12/16/24)
+      - Establish rules: component internal padding, section gaps, page margins
+      - Target: dense but not cramped. Every element should have room to breathe
+        but none should have room to waste.
+
+  2d. Border radius & elevation
+      - Consistent border radius values (one or two, not seven)
+      - Shadow/elevation scale (cards, modals, dropdowns — keep it minimal)
+
+  2e. Component inventory
+      For each shadcn/ui component needed by the app, document:
+        - Component name
+        - Where it's used
+        - Any customisation required beyond default shadcn/ui styling
+
+      At minimum, cover: Button (variants), Input, Select, Dialog/Modal, Badge,
+      Card, Table/List, Tabs, Toast/notification, Dropdown Menu, Tooltip
+
+  2f. Icon system
+      - Recommend one icon library compatible with shadcn/ui (Lucide is the default)
+      - Document which icons map to which actions/concepts in this app
+
+---
+
+SECTION 3 — PRIORITISED IMPROVEMENT BACKLOG
+
+Produce a prioritised list of UI changes, ordered by:
+  P0 — Broken or actively confusing (fix before anything else)
+  P1 — Significant quality gap (fix in first implementation pass)
+  P2 — Polish and refinement (second pass)
+
+Each item must include:
+  - What to change and where (component / screen)
+  - Why (one sentence — design reason)
+  - Effort estimate (S / M / L)
+  - shadcn/ui component involved (if applicable)
+
+---
+
+SECTION 4 — MIGRATION NOTES FOR FRONTEND
+
+Brief notes on the recommended migration approach from plain CSS to Tailwind.
+Not a full implementation plan — that is Frontend's job. But flag:
+  - Any existing CSS patterns that will need special attention
+  - Any components where the current structure may need restructuring to work
+    well with Tailwind
+  - Order of operations recommendation (e.g. design system tokens first, then
+    component by component)
+
+---
+
+DELIVERABLES
+
+Save all output to jobs/ux/tech/:
+  - 20260319-UX-audit.md       — Section 1 audit findings
+  - 20260319-UX-design-system.md — Section 2 design system spec
+  - 20260319-UX-backlog.md     — Section 3 prioritised backlog
+  - 20260319-UX-migration-notes.md — Section 4 migration notes
+
+Then send completion report to jobs/COO/inbox/.
+
+---
+
+IMPORTANT CONSTRAINTS
+
+* Do not spec any feature not in the BRD. UI polish only — no new functionality.
+* Flag to COO immediately if you find anything in the current implementation that
+  looks architecturally wrong (not just visually wrong).
+* If anything in this brief conflicts with what you find in the codebase, flag it
+  rather than guessing.
+* The map is the centrepiece. Never spec anything that diminishes it.
+
+COO
