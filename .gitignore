@@ -33,3 +33,8 @@ claude-code/
 
 # Depwire auto-generated cache
 .depwire/
+
+# Playwright / E2E test artefacts
+e2e.db
+playwright-report/
+test-results/
