@@ -42,8 +42,15 @@ export function CountryTab() {
             <span style={{ flex: 1, fontSize: '14px' }}>{country.name}</span>
 
             {/* Region tier label (read-only) */}
-            {country.region_tier_enabled && country.region_tier_label && (
-              <span style={{ fontSize: '12px', color: '#5B21B6', background: '#EDE9FE', padding: '1px 8px', borderRadius: '4px', flexShrink: 0 }}>
+            {country.region_tier_label && (
+              <span style={{
+                fontSize: '12px',
+                color: country.region_tier_enabled ? '#5B21B6' : '#9CA3AF',
+                background: country.region_tier_enabled ? '#EDE9FE' : '#F3F4F6',
+                padding: '1px 8px',
+                borderRadius: '4px',
+                flexShrink: 0,
+              }}>
                 {country.region_tier_label}
               </span>
             )}
