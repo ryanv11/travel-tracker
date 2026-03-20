@@ -4,6 +4,9 @@
   "description": "Personal travel tracker — local Mac app with interactive world map",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "dev:api": "tsx watch src/backend/server.ts",
@@ -51,7 +54,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/helmet": "^0.0.48",
-    "@types/node": "^20.11.5",
+    "@types/node": "^22.19.15",
     "@types/pg": "^8.11.0",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
