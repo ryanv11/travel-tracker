@@ -562,3 +562,79 @@ Capacitor-specific auth code required. Deferred to Phase 3.
 - COO must create Clerk account and supply CLERK_PUBLISHABLE_KEY + CLERK_JWKS_URI
   before backend or frontend can proceed
 
+---
+
+## ADL-21 — Node.js runtime version: standardise on Node 22 LTS
+
+**Date:** 2026-03-21
+**Status:** Decided — resolves COO inbox 2026-03-21 14:00
+
+**Decision:** Standardise on Node.js 22 LTS across CI, local development, and
+production. CI workflows (`ci.yml`, `security.yml`) must be updated from
+`node-version: "20"` to `node-version: "22"`. An `engines` field must be added
+to `package.json` declaring `"node": ">=22"`.
+
+**Options considered:**
+- Stay on Node 20 (current) — rejected: active support ends April 2026; deprecation
+  warnings already appearing in CI from `actions/checkout@v4` and
+  `gitleaks/gitleaks-action@v2`; GitHub Actions deadline June 2, 2026.
+- Node 22 LTS — selected (see rationale below).
+- Node 24 — rejected: Node 24 does not enter LTS until October 2026; it is a
+  "current release" as of the decision date. Adopting pre-LTS on a production
+  trajectory is unnecessary risk given Node 22 covers all requirements.
+
+**Rationale:**
+Node 22 became LTS in October 2024. Its active support window runs to October 2026;
+maintenance support extends to April 2028. This gives more than two years of active
+support from the decision date, well past the anticipated Phase 2 (hosted)
+deployment. Node 22 resolves all GitHub Actions deprecation warnings and comfortably
+clears the June 2, 2026 deadline. Node 24 is the next logical step but should be
+adopted only once it reaches LTS (October 2026) — there is no blocking reason to
+jump ahead of the LTS track.
+
+**Stack compatibility assessment:**
+
+All production dependencies were reviewed against Node 22. No compatibility issues
+were found. Specific notes:
+
+- **Express 5.2** — fully compatible with Node 22. Express 5 is the current release
+  and was developed and tested against modern Node LTS versions.
+- **Drizzle ORM 0.38 + drizzle-kit 0.31.9** — compatible. The four patched
+  drizzle-kit bugs (ADL-15) are in drizzle-kit's SQLite diff engine and are not
+  Node version–sensitive. The patch applies against the binary; no Node 22
+  regression is expected.
+- **@libsql/client 0.14** — compatible. libsql ships prebuilt native binaries for
+  all major platforms; Node 22 binaries are published.
+- **Vite 7 + Vitest 4** — both require Node 18+ and are actively tested on Node 22.
+  No issues.
+- **@clerk/clerk-react 5** — Clerk React SDK targets modern browsers/Node; Node 22
+  is within its supported range.
+- **jose 6** — pure TypeScript/JavaScript; no native bindings. Node 22 compatible.
+- **tsx 4** — compatible; tsx is a thin wrapper over esbuild and supports Node 22.
+- **patch-package 8** — compatible with Node 22.
+- **@types/node**: currently pinned at `^20.11.5`. Must be updated to `^22.x` when
+  the CI change is made to avoid type mismatches against Node 22 built-ins.
+
+**No `engines` field currently in `package.json`:** One must be added alongside the
+CI change to make the Node version constraint explicit and machine-readable.
+
+**Migration steps (for the engineer executing the CI change):**
+1. Update `node-version: "20"` → `node-version: "22"` in all jobs in `ci.yml` and
+   `security.yml` (5 jobs across the two files).
+2. Add `"engines": { "node": ">=22" }` to `package.json`.
+3. Update `"@types/node": "^20.11.5"` → `"@types/node": "^22.0.0"` in
+   `devDependencies`.
+4. Run `npm install` (updates `@types/node` in `package-lock.json`).
+5. Run full pre-push checklist (`type:check`, `test:backend`, `test:frontend`) and
+   confirm CI passes.
+
+**Timeline:** Must be completed before June 2, 2026. No urgency to rush — Node 20
+remains on maintenance support through April 2027 — but blocking CI deprecation
+warnings sooner is preferable. Target: next available engineering slot.
+
+**Implications:**
+- CI workflows require mechanical updates (step 1 above) — no logic changes.
+- `@types/node` version bump is the only dependency change required.
+- devcontainer Node version should be aligned to Node 22 at the same time (not
+  blocking, but keeps local and CI environments in sync).
+
