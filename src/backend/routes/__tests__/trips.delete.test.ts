@@ -300,10 +300,29 @@ describe('DeleteTripParamsSchema', () => {
 // Each test runs against a fresh in-memory SQLite database.
 // ----------------------------------------------------------------
 
+// The test-user-id matches what the auth mock sets on req.user.id
+const TEST_USER_ID = 'test-user-id';
+
+/**
+ * Seeds a user row matching the auth mock's req.user.id.
+ * Required because trips.user_id is a FK to users.id (ADL-18).
+ */
+async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
+  const now = Date.now();
+  await db.insert(schema.users).values({
+    id: TEST_USER_ID,
+    clerkId: 'user_test',
+    email: 'test@example.com',
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+  });
+}
+
 describe('DELETE /api/trips/:id', () => {
   beforeEach(async () => {
     // Fresh in-memory database for each test — full isolation
     testDb = await createTestDb();
+    await seedTestUser(testDb);
   });
 
   afterEach(() => {
@@ -315,13 +334,14 @@ describe('DELETE /api/trips/:id', () => {
   // ----------------------------------------------------------------
 
   it('returns 204 No Content when a valid trip is deleted', async () => {
-    // Seed a trip directly via Drizzle
+    // Seed a trip directly via Drizzle — must be owned by test user (ADL-18)
     const db = testDb!;
     const inserted = await db.insert(schema.trips).values({
       name: 'Test Trip',
       startDate: '2026-01-01',
       endDate: '2026-01-07',
       status: 'planning',
+      userId: TEST_USER_ID,
     }).returning();
     const tripId = inserted[0].id;
 
@@ -391,12 +411,13 @@ describe('DELETE /api/trips/:id', () => {
       geocodeStatus: 'resolved',
     }).returning();
 
-    // Seed a trip
+    // Seed a trip — must be owned by test user (ADL-18)
     const [trip] = await db.insert(schema.trips).values({
       name: 'Paris Trip',
       startDate: '2026-06-01',
       endDate: '2026-06-10',
       status: 'planning',
+      userId: TEST_USER_ID,
     }).returning();
 
     // Add a place to the trip
@@ -437,6 +458,7 @@ describe('DELETE /api/trips/:id', () => {
       startDate: '2026-01-01',
       endDate: '2026-01-05',
       status: 'planning',
+      userId: TEST_USER_ID,
     }).returning();
 
     // First delete succeeds
