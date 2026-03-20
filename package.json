@@ -30,7 +30,7 @@
     "test:e2e:clean": "rm -f ./e2e.db"
   },
   "dependencies": {
-    "@clerk/clerk-react": "^5.61.3",
+    "@clerk/react": "^5.54.0",
     "@libsql/client": "^0.14.0",
     "@tanstack/react-query": "^5.90.21",
     "cors": "^2.8.6",

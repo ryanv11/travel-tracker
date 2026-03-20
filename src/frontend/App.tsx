@@ -11,7 +11,7 @@
  */
 import React from 'react';
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { UserButton } from '@clerk/clerk-react';
+import { UserButton } from '@clerk/react';
 import { MapPage } from './pages/MapPage';
 import { TripDetailPage } from './pages/TripDetailPage';
 import { AdminPage } from './pages/AdminPage';
