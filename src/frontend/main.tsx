@@ -17,8 +17,10 @@ import { App } from './App';
 import { setTokenGetter } from './utils/apiClient';
 import './index.css';
 
+const bypassAuth = import.meta.env.VITE_BYPASS_AUTH === 'true';
+
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
-if (!publishableKey) {
+if (!bypassAuth && !publishableKey) {
   throw new Error('VITE_CLERK_PUBLISHABLE_KEY is not set in the environment.');
 }
 
@@ -45,7 +47,16 @@ function TokenRegistrar({ children }: { children: React.ReactNode }) {
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element #root not found in index.html');
 
-createRoot(container).render(
+// VITE_BYPASS_AUTH=true: skip Clerk entirely for E2E testing (mirrors backend BYPASS_AUTH).
+const appTree = bypassAuth ? (
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </QueryClientProvider>
+  </React.StrictMode>
+) : (
   <React.StrictMode>
     <ClerkProvider publishableKey={publishableKey}>
       <QueryClientProvider client={queryClient}>
@@ -61,5 +72,7 @@ createRoot(container).render(
         </BrowserRouter>
       </QueryClientProvider>
     </ClerkProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
 );
+
+createRoot(container).render(appTree);

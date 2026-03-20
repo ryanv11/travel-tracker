@@ -92,9 +92,11 @@ export function App() {
         )}
 
         {/* NR-14: User account menu (sign-out) — always pinned to the right */}
-        <div className="ml-auto">
-          <UserButton />
-        </div>
+        {import.meta.env.VITE_BYPASS_AUTH !== 'true' && (
+          <div className="ml-auto">
+            <UserButton />
+          </div>
+        )}
       </nav>
 
       {/* Page content */}

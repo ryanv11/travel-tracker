@@ -64,7 +64,7 @@ export default defineConfig({
       // SQLITE_PATH: isolated e2e database (db:migrate runs before playwright starts)
       // BYPASS_AUTH: skips Clerk JWT verification for all API requests
       command:
-        'SQLITE_PATH=./e2e.db BYPASS_AUTH=true npm run dev:api',
+        'SQLITE_PATH=file:./e2e.db BYPASS_AUTH=true npm run dev:api',
       url: 'http://localhost:3001/api/trips',
       reuseExistingServer: false,
       timeout: 30_000,
@@ -73,7 +73,8 @@ export default defineConfig({
     },
     {
       // Frontend — Vite dev server on port 5173
-      command: 'npm run dev',
+      // VITE_BYPASS_AUTH: skips Clerk auth gate so E2E tests can access the app unauthenticated
+      command: 'VITE_BYPASS_AUTH=true npm run dev',
       url: 'http://localhost:5173',
       reuseExistingServer: false,
       timeout: 30_000,
