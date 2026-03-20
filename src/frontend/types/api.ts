@@ -204,6 +204,7 @@ export interface TripSummary {
   categories: AssocCategory[];
   companions: AssocCompanion[];
   activities: AssocActivity[];
+  countries: { country_code: string; name: string }[];
   /** Minimal places data for city-pin rendering on MapPage (BC-01). */
   places: TripSummaryPlace[];
 }

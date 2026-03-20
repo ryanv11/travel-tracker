@@ -6,8 +6,9 @@
  * On submit: POST /api/trips (create) or PATCH /api/trips/:id (edit).
  */
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCreateTrip, useUpdateTrip, type TripFormData } from '../../hooks/useTrips';
-import { useActiveCategories, useActiveCompanions, useActiveActivities } from '../../hooks/useAdmin';
+import { useActiveCategories, useActiveCompanions, useActiveActivities, useCountries } from '../../hooks/useAdmin';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import type { TripSummary } from '../../types/api';
 
@@ -26,6 +27,7 @@ interface TripFormProps {
  */
 export function TripForm({ existingTrip, onClose }: TripFormProps) {
   const isEditing = !!existingTrip;
+  const navigate = useNavigate();
 
   const [name, setName] = useState(existingTrip?.name ?? '');
   const [startDate, setStartDate] = useState(existingTrip?.start_date ?? '');
@@ -40,11 +42,22 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
   const [selectedActivityIds, setSelectedActivityIds] = useState<number[]>(
     existingTrip?.activities.map((a) => a.id) ?? [],
   );
+  const [selectedCountryCodes, setSelectedCountryCodes] = useState<string[]>(
+    existingTrip?.countries?.map((c) => c.country_code) ?? [],
+  );
+  const [countrySearch, setCountrySearch] = useState('');
   const [validationError, setValidationError] = useState('');
 
   const { data: categories = [] } = useActiveCategories();
   const { data: companions = [] } = useActiveCompanions();
   const { data: activities = [] } = useActiveActivities();
+  const { data: allCountries = [] } = useCountries();
+
+  const filteredCountries = allCountries.filter(
+    (c) =>
+      c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+      c.country_code.toLowerCase().includes(countrySearch.toLowerCase()),
+  );
 
   const createTrip = useCreateTrip();
   const updateTrip = useUpdateTrip();
@@ -69,19 +82,22 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
       name: name.trim(),
       start_date: startDate,
       end_date: endDate,
-      photo_album_ref: photoRef.trim() || undefined,
+      ...(isEditing ? { photo_album_ref: photoRef.trim() || undefined } : {}),
       category_ids: selectedCategoryIds,
       companion_ids: selectedCompanionIds,
-      activity_ids: selectedActivityIds,
+      ...(isEditing ? { activity_ids: selectedActivityIds } : {}),
+      country_codes: selectedCountryCodes,
     };
 
     try {
       if (isEditing && existingTrip) {
         await updateTrip.mutateAsync({ id: existingTrip.id, data });
+        onClose();
       } else {
-        await createTrip.mutateAsync(data);
+        const created = await createTrip.mutateAsync(data);
+        onClose();
+        navigate(`/trips/${created.id}`);
       }
-      onClose();
     } catch {
       // mutationError is displayed via ErrorMessage below
     }
@@ -140,15 +156,84 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
             </div>
           </div>
 
+          {/* Country picker */}
           <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Photo Album URL (optional)</label>
-            <input
-              className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-              value={photoRef}
-              onChange={(e) => setPhotoRef(e.target.value)}
-              placeholder="https://..."
-            />
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Countries</label>
+
+            {/* Selected country chips */}
+            {selectedCountryCodes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {selectedCountryCodes.map((code) => {
+                  const country = allCountries.find((c) => c.country_code === code);
+                  return (
+                    <span
+                      key={code}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border-2 border-teal-600 bg-teal-100 text-teal-800 font-medium"
+                    >
+                      {country?.name ?? code}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCountryCodes(selectedCountryCodes.filter((c) => c !== code))}
+                        className="ml-0.5 text-teal-700 hover:text-teal-900 leading-none cursor-pointer"
+                        aria-label={`Remove ${country?.name ?? code}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Search input */}
+            <div className="relative">
+              <input
+                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                placeholder="Search countries…"
+                value={countrySearch}
+                onChange={(e) => setCountrySearch(e.target.value)}
+              />
+
+              {/* Dropdown — only shown when search text is non-empty */}
+              {countrySearch && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {filteredCountries.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-gray-500">No countries match</div>
+                  ) : (
+                    filteredCountries.slice(0, 20).map((country) => (
+                      <button
+                        key={country.country_code}
+                        type="button"
+                        onClick={() => {
+                          if (!selectedCountryCodes.includes(country.country_code)) {
+                            setSelectedCountryCodes([...selectedCountryCodes, country.country_code]);
+                          }
+                          setCountrySearch('');
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-teal-50 cursor-pointer"
+                      >
+                        <span>{country.name}</span>
+                        <span className="text-xs text-gray-400 ml-2">{country.country_code}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Photo album — edit only */}
+          {isEditing && (
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Photo Album URL (optional)</label>
+              <input
+                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                value={photoRef}
+                onChange={(e) => setPhotoRef(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+          )}
 
           {/* Multi-select: Categories */}
           {categories.length > 0 && (
@@ -188,8 +273,8 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
             </div>
           )}
 
-          {/* Multi-select: Activities */}
-          {activities.length > 0 && (
+          {/* Multi-select: Activities — edit only */}
+          {isEditing && activities.length > 0 && (
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">Activities</label>
               <div className="flex flex-wrap gap-1.5">

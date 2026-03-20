@@ -26,6 +26,7 @@ function makeTrip(
     categories: [],
     companions: [],
     activities: [],
+    countries: [],
     places: places.map((p, i) => ({
       id: i + 1,
       city_id: p.city_id,

@@ -25,6 +25,7 @@ export interface TripFormData {
   category_ids?: number[];
   companion_ids?: number[];
   activity_ids?: number[];
+  country_codes?: string[];
 }
 
 // ============================================================
