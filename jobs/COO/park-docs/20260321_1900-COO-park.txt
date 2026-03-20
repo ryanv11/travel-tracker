@@ -1,0 +1,37 @@
+PARK DOCUMENT — COO
+Date: 2026-03-21
+Session: 5 (close)
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+1. TRIP CREATE FLOW — GitHub #31
+   PO identified four improvements:
+   a) Post-create navigation: close dialog and navigate to the new trip
+   b) Country association at create time (new feature — see below)
+   c) Remove activities from create dialog (defer to edit screen)
+   d) Remove photo album from create dialog (added post-trip)
+
+2. TRIP_COUNTRIES — junction table confirmed
+   PO wants multi-country trips (Europe is the canonical example).
+   A single country_code field was ruled out immediately.
+   trip_countries (trip_id, country_code) junction table required.
+   Country associations drive map shading at planning level and trip filtering.
+   COO position: explicit country associations managed independently from
+   places — adding a city does not auto-populate trip_countries.
+   Architect to confirm or amend.
+
+3. MERGING — COO responsibility clarified
+   COO reviews and merges all PRs. Was incorrectly leaving PRs for PO.
+   PR-24 and PR-30 both merged this session.
+
+================================================================================
+RECOMMENDED STARTING POINT — NEXT SESSION
+================================================================================
+
+  1. Check jobs/COO/inbox/ for Architect responses (Playwright + trip_countries)
+  2. Ask PO: NTH-01/03/04 — defer post-UAT or fix first?
+  3. If NTHs deferred: UAT gate is open
+
+================================================================================

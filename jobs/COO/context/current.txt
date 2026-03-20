@@ -1,4 +1,4 @@
-COO CONTEXT — 2026-03-21 (session 5)
+COO CONTEXT — 2026-03-21 (session 5, close)
 PROJECT: Travel Tracker
 
 ================================================================================
@@ -17,122 +17,95 @@ COMPLETED THIS SESSION
 ================================================================================
 
   PR-24  MERGED — Exclude flights + car_rentals from carry-forward candidates
-         (COO wrote code directly — process violation, noted, won't repeat)
+  PR-30  MERGED — QA backend findings: BUG-10/A/B + SEC-01/02/03
+         164 backend tests, 55 frontend tests passing
+  TRACKER updated — BUG-11/12/13, NR-03 closed; FEAT-TR/MP/IT/RV unblocked
+  INBOX  cleared — 16 items moved to read/
 
-  PR-30  OPEN (CI green, ready to merge) — QA backend findings:
-         BUG-10   Name max length 255→200 (was already fixed; stale test comment removed)
-         BUG-A    PATCH trips date validation bypass — backend hardening only;
-                  frontend already guards this client-side (line 66 TripForm.tsx)
-         BUG-B    Admin list endpoints camelCase → snake_case (serializeAdminItem helper)
-         SEC-01   GET /api/cities/:id/items — userId filter added
-         SEC-02   Carry-forward source items — ownership check added
-         SEC-03   DELETE place activity — place ownership check added
-         GitHub issues filed: #25, #26, #27, #28, #29
+  GitHub #31 filed — Trip create flow UX + country association feature
+  Architect brief dispatched — trip_countries schema + shading design
 
-  TRACKER  Updated — BUG-11/12/13 + NR-03 closed; FEAT-TR/MP/IT/RV unblocked
-  INBOX    Cleared — 16 items moved to read/
-
-  PLAYWRIGHT BRIEF dispatched to Architect
-         jobs/architect/inbox/20260321_1800-COO-playwright-e2e-spec.md
-         Key question: how to install Playwright browsers inside devcontainer
-         (firewall blocks playwright.azureedge.net at runtime)
-         Cleanup policy decided: data persists post-run for bug tracing;
-         explicit cleanup command, not automatic
+  Playwright brief dispatched to Architect (earlier this session)
 
 ================================================================================
-OPEN ISSUES (blocking UAT)
+OPEN — BLOCKING UAT
 ================================================================================
 
-  | ID     | GitHub | Status        | Description                              |
-  |--------|--------|---------------|------------------------------------------|
-  | BUG-A  | #25    | PR-30 pending | Date validation bypass (backend hardening)|
-  | BUG-B  | #26    | PR-30 pending | Admin camelCase                          |
-  | SEC-01 | #27    | PR-30 pending | Cities items no userId filter            |
-  | SEC-02 | #28    | PR-30 pending | Carry-forward ownership                  |
-  | SEC-03 | #29    | PR-30 pending | Delete activity ownership                |
+  None. All known bugs resolved and merged.
 
-  All 5 close when PR-30 merges.
+  PO to confirm NTH-01/03/04 disposition before UAT gate opens:
+  | NTH-01 | Bulk delete no undo                                 |
+  | NTH-03 | Status filter chips show no per-status counts       |
+  | NTH-04 | Admin: grey out region_tier_label when tier disabled |
+  COO recommendation: defer all three post-UAT.
 
 ================================================================================
-OPEN ISSUES (not blocking UAT)
+OPEN — NOT BLOCKING UAT
 ================================================================================
 
-  | ID    | GitHub | Description                                              |
-  |-------|--------|----------------------------------------------------------|
-  | #23   | #23    | Clerk JWKS firewall fix — real local auth                |
-  | NTH-01|        | Bulk delete no undo — PO to decide if blocks UAT        |
-  | NTH-03|        | Status filter chips show no per-status counts            |
-  | NTH-04|        | Admin: grey out region_tier_label when tier disabled     |
-
-  NTH-01/03/04 disposition: PO has not confirmed if any of these block UAT.
-  Recommendation: defer all three post-UAT.
+  | #23   | Clerk JWKS firewall fix — real local auth                        |
+  | #31   | Trip create flow + country association — Architect design pending |
+  | E2E   | Playwright — Architect ADL pending                               |
+  | OP-06 | NR-14 hardening gate checklist                                   |
+  | NR-07 | Offline indicator — P2, deferrable                               |
+  | OP-07 | UX expert review — post-beta                                     |
 
 ================================================================================
 DEFERRED BUGS
 ================================================================================
 
-  | ID      | Severity | Notes                                     |
-  |---------|----------|-------------------------------------------|
-  | BUG-06  | TRIVIAL  | Colour picker defaultValue — post-beta    |
-  | ARCH-01 | MINOR    | Bulk review update endpoint               |
-  | ARCH-02 | MINOR    | City marker sprite fragility              |
+  BUG-06  TRIVIAL  Colour picker defaultValue — post-beta
+  ARCH-01 MINOR    Bulk review update endpoint
+  ARCH-02 MINOR    City marker sprite fragility
 
 ================================================================================
 AUTH — CURRENT STATE
 ================================================================================
 
-  Clerk integrated (ADL-20):
-    - BYPASS_AUTH=true in .env.local (devcontainer firewall blocks Clerk JWKS)
-    - CI contract tests: BYPASS_AUTH=true in ci.yml env
-    - All local data owned by test-user-00000000-0000-0000-0000-000000000000
-
-  Pending — real local auth (GitHub issue #23):
-    - Add Clerk JWKS domain to devcontainer firewall (init-firewall.sh)
+  BYPASS_AUTH=true in .env.local (devcontainer firewall blocks Clerk JWKS)
+  CI contract tests: BYPASS_AUTH=true in ci.yml env
+  All local data owned by test-user-00000000-0000-0000-0000-000000000000
+  Real local auth pending #23 (Clerk JWKS firewall allowlist)
 
 ================================================================================
 TEST STATUS
 ================================================================================
 
   Frontend tests:   55/55  PASSING
-  Backend tests:  164/164  PASSING (16 new from PR-30)
+  Backend tests:  164/164  PASSING
   Contract tests:  passing (requires live backend)
   E2E:             NOT YET — Playwright infrastructure pending Architect ADL
 
 ================================================================================
-PENDING WORK
+ARCHITECT INBOX — AWAITING RESPONSE
 ================================================================================
 
-  | ID      | Owner     | Status        | Notes                                 |
-  |---------|-----------|---------------|---------------------------------------|
-  | OP-06   | COO       | Pending       | NR-14 hardening gate checklist        |
-  | NR-07   | Frontend  | Pending       | Offline indicator — P2, deferrable    |
-  | OP-07   | UX        | Pending       | UX expert review — post-beta          |
-  | #23     | Backend   | Backlog       | Clerk JWKS firewall fix               |
-  | E2E     | Architect | In progress   | Playwright ADL + infrastructure spec  |
-
-  F-02 (Itinerary/Review tabs): DEFERRED — separate spec when content ready
-  F-03 (Per-trip map tab): SCRAPPED
+  20260321_1800-COO-playwright-e2e-spec.md   — Playwright infrastructure ADL
+  20260321_1900-COO-trip-countries-schema.md — trip_countries schema + shading
 
 ================================================================================
-PROCESS NOTE
+PROCESS NOTES
 ================================================================================
 
-  COO must not write code directly. Carry-forward fix (PR-24) was done by COO
-  — process violation acknowledged. All future code changes go via agent briefs.
+  COO must not write code directly (PR-24 was a violation — acknowledged).
+  All future code changes go via agent briefs.
+  COO is responsible for reviewing and merging PRs — do not leave open for PO.
 
 ================================================================================
 NEXT COO ACTIONS (resume from here)
 ================================================================================
 
   IMMEDIATE:
-  1. PO merges PR-30 (CI green, ready)
-  2. Await Architect Playwright ADL response
+  1. Confirm NTH-01/03/04 disposition with PO — block UAT or defer?
+  2. If deferred: open UAT gate — PO runs 48-step script
+     (jobs/qa/history/qa-report-2026-03-20.md §6)
 
-  WHEN PR-30 MERGED + NTH DISPOSITION CONFIRMED:
-  3. Confirm UAT gate — is the issue list clear enough to proceed?
-  4. If yes: PO runs UAT against the 48-step script (qa-report-2026-03-20.md §6)
+  WHEN ARCHITECT RESPONDS (Playwright):
+  3. Review ADL, approve, dispatch QA to implement Playwright suite
 
-  WHEN ARCHITECT PLAYWRIGHT RESPONSE IN:
-  5. Review ADL, approve, dispatch QA to implement Playwright suite
+  WHEN ARCHITECT RESPONDS (trip_countries):
+  4. Review schema + shading design
+  5. Dispatch Database (migration), Backend (API + shading), Frontend (#31 UX)
+     — these can run in parallel once schema is approved
 
 ================================================================================
