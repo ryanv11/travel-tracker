@@ -60,6 +60,7 @@ AT THE END OF EVERY THREAD, YOU MUST:
 5. Update _project/dependency-graph.txt if any task statuses have changed
 6. Update _project/project-plan.txt if phase or priorities have changed
 7. Update _shared/frameworks.txt if any stack decision was made or changed this session
+8. Run git status — if any uncommitted changes remain, commit them before writing the park doc. Every agent's work must have its own commit; do not bundle multiple agents' outputs into one commit. Push and confirm clean before closing.
 
 BEFORE DISPATCHING ANY SPEC, YOU MUST:
 1. Review the spec against _project/security-spec.md — confirm all Phase 1 controls (SEC-01 to SEC-13) applicable to that job are addressed. If any are missing, add a security addendum before dispatch.

@@ -45,5 +45,22 @@ COMPLETION REPORT FORMAT — keep under 30 lines:
 Do not restate the spec. Do not list every passing test case individually.
 COO reads the park doc and tech/ for detail — the report is signal only.
 
+GIT REQUIREMENT — MANDATORY AT END OF EVERY THREAD:
+Every thread must end with a clean git state. Two commits are required:
+
+1. Code commit (if any source files were changed):
+   - Stage source changes: git add <specific files>
+   - Commit: git commit -m "[JOBID] description of what was built/fixed"
+   - Push: git push origin main
+
+2. Housekeeping commit (always required):
+   - Stage ALL jobs/ folder changes: context, park doc, completion report, inbox moves
+   - git add jobs/
+   - Commit: git commit -m "chore([jobid]): park session YYYY-MM-DD — context + park doc"
+   - Push: git push origin main
+
+Run git status after pushing to confirm no uncommitted changes remain.
+If git status is not clean, stage and commit whatever is missing before closing.
+
 INBOX MESSAGE FORMAT: YYYYMMDD_HHMM-[YourJobID]-[Topic].txt
 Example: 20260306_1430-QA-map-shading-test-complete.txt
