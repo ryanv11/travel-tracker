@@ -51,6 +51,7 @@ export function TripsLayout() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ ids: Set<number>; timer: ReturnType<typeof setTimeout> } | null>(null);
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -62,6 +63,7 @@ export function TripsLayout() {
   const cityFilter = searchParams.get('city') ? Number(searchParams.get('city')) : null;
 
   const { data: trips, isLoading, error } = useTrips(filters);
+  const { data: allTrips = [] } = useTrips();  // no filters — for counts only
   const deleteTrip = useDeleteTrip();
 
   const handleEdit = (trip: TripSummary) => {
@@ -103,6 +105,15 @@ export function TripsLayout() {
 
   const tripCount = displayedTrips.length;
 
+  // NTH-03: Per-status counts for filter chips
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const t of allTrips) {
+      counts[t.status] = (counts[t.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [allTrips]);
+
   // FEAT-BD: Selectable trips are those that are not locked
   const selectableTrips = useMemo(
     () => displayedTrips.filter((t) => t.status !== 'locked'),
@@ -138,8 +149,8 @@ export function TripsLayout() {
     setSelectedIds(new Set(selectableTrips.map((t) => t.id)));
   };
 
-  // FEAT-BD: Bulk delete
-  const handleBulkDelete = async () => {
+  // FEAT-BD / NTH-01: Bulk delete with 5-second undo window
+  const handleBulkDelete = () => {
     const count = selectedIds.size;
     if (count === 0) return;
 
@@ -148,23 +159,38 @@ export function TripsLayout() {
     );
     if (!confirmed) return;
 
-    setIsDeleting(true);
-    try {
-      for (const id of selectedIds) {
-        await deleteTrip.mutateAsync(id);
-      }
-      // If the currently viewed trip was deleted, navigate away
-      if (selectedId && selectedIds.has(Number(selectedId))) {
-        navigate('/trips', { replace: true });
-      }
-      exitSelectionMode();
-    } catch (err) {
-      // Partial success is possible — exit selection mode and let list refresh show current state
-      exitSelectionMode();
-      alert(`Some trips could not be deleted: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setIsDeleting(false);
-    }
+    // Snapshot the selected IDs before exiting selection mode
+    const ids = new Set(selectedIds);
+
+    const timer = setTimeout(() => {
+      setIsDeleting(true);
+      void (async () => {
+        try {
+          for (const id of ids) {
+            await deleteTrip.mutateAsync(id);
+          }
+          // If the currently viewed trip was deleted, navigate away
+          if (selectedId && ids.has(Number(selectedId))) {
+            navigate('/trips', { replace: true });
+          }
+        } catch (err) {
+          alert(`Some trips could not be deleted: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          setIsDeleting(false);
+          setPendingDelete(null);
+        }
+      })();
+    }, 5000);
+
+    setPendingDelete({ ids, timer });
+    exitSelectionMode();
+  };
+
+  // NTH-01: Undo bulk delete
+  const handleUndoDelete = () => {
+    if (!pendingDelete) return;
+    clearTimeout(pendingDelete.timer);
+    setPendingDelete(null);
   };
 
   return (
@@ -248,6 +274,14 @@ export function TripsLayout() {
           />
         </div>
 
+        {/* NTH-01: Undo bar — shown during 5-second delete window */}
+        {pendingDelete && (
+          <div className="mx-4 mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md flex items-center justify-between text-sm">
+            <span className="text-red-700">Deleting {pendingDelete.ids.size} trip{pendingDelete.ids.size === 1 ? '' : 's'}…</span>
+            <button type="button" onClick={handleUndoDelete} className="text-red-600 font-medium hover:text-red-800">Undo</button>
+          </div>
+        )}
+
         {/* F-07: Status filter chips */}
         <div className="px-4 pb-2 flex-shrink-0 flex flex-wrap gap-1.5">
           {STATUS_CHIPS.map((chip) => {
@@ -268,7 +302,7 @@ export function TripsLayout() {
                     : 'px-2.5 py-1 rounded-full text-xs font-medium bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                 }
               >
-                {chip.label}
+                {chip.value ? `${chip.label} (${statusCounts[chip.value] ?? 0})` : chip.label}
               </button>
             );
           })}

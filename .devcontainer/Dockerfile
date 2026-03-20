@@ -1,4 +1,4 @@
-FROM node:20
+FROM node:22
 
 ARG TZ
 ENV TZ="$TZ"
@@ -90,4 +90,10 @@ USER root
 RUN chmod +x /usr/local/bin/init-firewall.sh && \
   echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
   chmod 0440 /etc/sudoers.d/node-firewall
+
+# SYNC: PLAYWRIGHT_VERSION ARG must always match @playwright/test in package.json.
+# When bumping @playwright/test, update this ARG and rebuild the container.
+ARG PLAYWRIGHT_VERSION=1.52.0
+RUN npx --yes @playwright/test@${PLAYWRIGHT_VERSION} install --with-deps chromium
+
 USER node

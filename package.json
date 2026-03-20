@@ -25,7 +25,9 @@
     "test:frontend:watch": "vitest --config vitest.config.frontend.ts",
     "test:contract": "vitest run --config vitest.config.contract.ts",
     "test:contract:watch": "vitest --config vitest.config.contract.ts",
-    "test:contract:coverage": "vitest run --config vitest.config.contract.ts --coverage"
+    "test:contract:coverage": "vitest run --config vitest.config.contract.ts --coverage",
+    "test:e2e": "SQLITE_PATH=./e2e.db npm run db:migrate && playwright test",
+    "test:e2e:clean": "rm -f ./e2e.db"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.3",
