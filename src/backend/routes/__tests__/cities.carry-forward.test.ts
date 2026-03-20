@@ -204,6 +204,20 @@ vi.mock('../../db/index.js', async (importOriginal) => {
   };
 });
 
+// Mock auth middleware — bypass JWT verification in integration tests.
+// Tests exercise route logic, not authentication. Auth is unit-tested separately.
+vi.mock('../../middleware/auth.js', () => ({
+  requireAuth: (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {
+    (_req as import('express').Request & { user?: unknown }).user = {
+      id: 'test-user-id',
+      clerkId: 'user_test',
+      email: 'test@example.com',
+    };
+    next();
+  },
+  authenticate: (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => next(),
+}));
+
 const { default: app } = await import('../../server-test-app.js');
 const supertest = (await import('supertest')).default;
 
