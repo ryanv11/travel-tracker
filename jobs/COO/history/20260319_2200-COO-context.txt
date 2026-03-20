@@ -1,0 +1,131 @@
+COO CONTEXT — 2026-03-19 22:00
+PROJECT: Travel Tracker
+CURRENT STATUS: Phase 3 complete (code). QA Phase 3 sign-off dispatched. Backend FEAT-BD still
+                outstanding (second chase sent). BUG-15/16 (from PO live testing) logged and closed.
+                Live testing process to be formally defined.
+
+================================================================================
+PHASE STATUS
+================================================================================
+
+  PHASE 0 (FOUNDATION)    — COMPLETE
+  PHASE 1 (DATA LAYER)    — COMPLETE
+  PHASE 2 (API LAYER)     — COMPLETE
+  PHASE 3 (UI LAYER)      — COMPLETE (code) — awaiting QA sign-off + PO UAT PASS
+  PHASE 4 (QA/DOCS)       — ACTIVE — QA Phase 3 sign-off dispatched 2026-03-19 22:00
+  PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
+
+================================================================================
+ACTIVE JOBS
+================================================================================
+
+QA
+  Status:   ACTIVE — Phase 3 sign-off dispatched 2026-03-19 22:00
+  Spec:     jobs/QA/inbox/20260319_2200-COO-phase3-sign-off.txt
+  Scope:    BUG-11/12/13/15/16 acceptance + SHADING-SPEC-01 regression
+  Awaiting: Completion report to COO inbox
+
+BACKEND
+  Status:   ACTIVE — second chase sent 2026-03-19 22:00
+  Work:     FEAT-BD — DELETE /api/trips/:id endpoint (cascade)
+  Spec:     jobs/backend/inbox/20260311_1300-COO-feat-bd-delete-trip.txt
+  Chases:   jobs/backend/inbox/20260319_0900-COO-status-chase-feat-bd.txt (1st)
+            jobs/backend/inbox/20260319_2200-COO-chase-feat-bd.txt (2nd)
+  Awaiting: Completion report; Frontend multi-select delete UI spec blocked on this
+
+FRONTEND
+  Status:   IDLE — BUG-11/12/13 done. Awaiting FEAT-BD before next dispatch.
+  Next:     Multi-select delete UI in TripList (blocked on Backend FEAT-BD)
+
+ARCHITECT
+  Status:   IDLE
+
+================================================================================
+OPEN BUGS
+================================================================================
+
+| ID      | Severity | Status                        |
+|---------|----------|-------------------------------|
+| BUG-06  | TRIVIAL  | Deferred (safe, post-beta)    |
+
+CLOSED:
+| BUG-01 – BUG-05  | DONE |
+| BUG-07 – BUG-14  | DONE |
+| BUG-11           | DONE — 1fe7bc7 — map shading cache invalidation            |
+| BUG-12           | DONE — 1fe7bc7 — trip list search + sort                   |
+| BUG-13           | DONE — 1fe7bc7 — map click-through navigation              |
+| BUG-15           | DONE — 1994213 — region tier toggle cleared label (Backend)|
+| BUG-16           | DONE — d704343 — Add Place region dropdown missing (Frontend)|
+| FLAG-F1          | DONE |
+| SHADING-SPEC-01  | DONE — 0e0efac |
+
+BUG-15 DETAIL:
+  Severity: MINOR | Found by: PO live testing 2026-03-19
+  Backend admin.ts was clearing label on tier disable; label is read-only seed data.
+  Fix: removed label-clear + label-required-on-re-enable logic.
+
+BUG-16 DETAIL:
+  Severity: MINOR | Found by: PO live testing 2026-03-19
+  Add Place flow had no region dropdown for region-tier countries; API supported it.
+  Fix: useCountryRegions hook + optional region dropdown in Add Place flow.
+
+================================================================================
+TEST STATUS
+================================================================================
+
+  Frontend tests:  55/55  PASSING  (commit 0a0951d)
+  Backend tests:  120/120 PASSING  (commit 0e0efac)
+  Contract tests:  99/99  PASSING  (commit 0e71fdf — last known good)
+  CI (HEAD d704343): all green
+
+================================================================================
+OPEN REQUIREMENTS
+================================================================================
+
+| ID      | Status    | Notes                                               |
+|---------|-----------|-----------------------------------------------------|
+| FEAT-BD | Active    | Backend DELETE /api/trips/:id — 2nd chase sent      |
+| NR-03   | Pending   | Trip ownership metadata — not yet specced           |
+| NR-07   | Pending   | Offline indicator — P2, deferrable                  |
+| NR-14   | Pending   | Pre-access hardening gate (Phase 1.5 gate)          |
+| OP-06   | Pending   | Pre-access hardening checklist (tied to NR-14)      |
+| OP-07   | Pending   | UI/UX expert review (post-Phase 4 sign-off)         |
+
+================================================================================
+STANDALONE BRD RECONCILIATION — 2026-03-19
+================================================================================
+
+  No new P1 blockers. TR-10 (search/filter) = P2. ADM-01 already satisfied.
+  Phase 1 beta conditions: code complete, pending QA sign-off.
+  Archived: jobs/COO/history/20260319_0900-standalone-BRD-received.md
+
+================================================================================
+PACKAGING & SECURITY ROADMAP (post-Phase 4 sign-off)
+================================================================================
+
+  Phase 1 (Arch Foundation):   Hosted backend + auth + better-sqlite3 + env-aware URL
+  Phase 2 (macOS .dmg):        Electron + electron-builder + DB bootstrapping
+  Phase 3 (iOS):               Capacitor (contingent on cloud)
+  Phase 4 (Security audit):    Full audit gate before public release
+
+================================================================================
+NEXT COO ACTIONS (resume from here)
+================================================================================
+
+  WAITING ON:
+  1. QA: Phase 3 sign-off report
+  2. Backend: FEAT-BD completion report (2nd chase sent)
+
+  WHEN QA PHASE 3 PASSES + PO UAT PASSES:
+  3. Formal Phase 3 closure (BOTH gates required)
+  4. Begin Phase 4 gating — NR-14 / OP-06 hardening spec (can write now in parallel)
+
+  WHEN BACKEND FEAT-BD DONE:
+  5. Spec Frontend multi-select delete UI in TripList
+
+  STANDING:
+  6. NR-14 / OP-06: Can write now, doesn't require QA or Backend to be done first
+  7. NR-03: Decide before Phase 4 sign-off whether trip ownership is in scope
+  8. UAT LOG: Check jobs/PO/uat-log.md at every session start — gate in place
+
+================================================================================

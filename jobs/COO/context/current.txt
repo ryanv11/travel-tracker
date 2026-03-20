@@ -1,8 +1,8 @@
-COO CONTEXT — 2026-03-19 22:00
+COO CONTEXT — 2026-03-19 23:59
 PROJECT: Travel Tracker
-CURRENT STATUS: Phase 3 complete (code). QA Phase 3 sign-off dispatched. Backend FEAT-BD still
-                outstanding (second chase sent). BUG-15/16 (from PO live testing) logged and closed.
-                Live testing process to be formally defined.
+CURRENT STATUS: Heavy session. FEAT-BD done. UX audit done. P0 quick fixes + ARCH-03
+                dispatched to Frontend. NR-14 design sent to Architect. UAT gate established.
+                QA Phase 3 sign-off pending. Tailwind migration brief pending Architect + Frontend responses.
 
 ================================================================================
 PHASE STATUS
@@ -19,113 +19,163 @@ PHASE STATUS
 ACTIVE JOBS
 ================================================================================
 
+FRONTEND
+  Status:   ACTIVE — P0 quick fixes + ARCH-03 dispatched 2026-03-19 23:45
+  Work:     P0-01 (ISO dates), P0-04 (red lock button), P0-05 (carry-forward opt-in)
+            ARCH-03 (ShadingTab onBlur fix)
+  Spec:     jobs/frontend/inbox/20260319_2345-COO-p0-quickfixes.txt
+  Awaiting: Completion report + UI stack query responses (2 messages in inbox)
+            (stack query needed before Tailwind migration brief can be written)
+
 QA
   Status:   ACTIVE — Phase 3 sign-off dispatched 2026-03-19 22:00
   Spec:     jobs/QA/inbox/20260319_2200-COO-phase3-sign-off.txt
   Scope:    BUG-11/12/13/15/16 acceptance + SHADING-SPEC-01 regression
   Awaiting: Completion report to COO inbox
 
-BACKEND
-  Status:   ACTIVE — second chase sent 2026-03-19 22:00
-  Work:     FEAT-BD — DELETE /api/trips/:id endpoint (cascade)
-  Spec:     jobs/backend/inbox/20260311_1300-COO-feat-bd-delete-trip.txt
-  Chases:   jobs/backend/inbox/20260319_0900-COO-status-chase-feat-bd.txt (1st)
-            jobs/backend/inbox/20260319_2200-COO-chase-feat-bd.txt (2nd)
-  Awaiting: Completion report; Frontend multi-select delete UI spec blocked on this
-
-FRONTEND
-  Status:   IDLE — BUG-11/12/13 done. Awaiting FEAT-BD before next dispatch.
-  Next:     Multi-select delete UI in TripList (blocked on Backend FEAT-BD)
-
 ARCHITECT
-  Status:   IDLE
+  Status:   ACTIVE — NR-14 design review dispatched 2026-03-19 23:30
+  Work:     Review 3 decisions: user_id placement, auth architecture, Drizzle patterns
+  Spec:     jobs/architect/inbox/20260319_2330-COO-multi-user-auth-schema-review.txt
+  Awaiting: Recommendations to COO inbox
+
+UX
+  Status:   IDLE — BRIEF-UX-01 complete
+  Output:   jobs/ux/tech/ (audit, design system, backlog, migration notes)
+  Next:     Tailwind migration brief (blocked on Frontend stack query + Architect response)
+
+BACKEND
+  Status:   IDLE — FEAT-BD done (commit 0870d00, 134 tests, CI green)
+  Next:     Bulk item update endpoint (ARCH-01) — LOW PRIORITY, deferred
 
 ================================================================================
 OPEN BUGS
 ================================================================================
 
-| ID      | Severity | Status                        |
-|---------|----------|-------------------------------|
-| BUG-06  | TRIVIAL  | Deferred (safe, post-beta)    |
+| ID      | Severity | Status                                      |
+|---------|----------|---------------------------------------------|
+| BUG-06  | TRIVIAL  | Deferred (safe, post-beta)                  |
+| P0-01   | MAJOR    | Dispatched to Frontend 2026-03-19 23:45     |
+| P0-04   | MAJOR    | Dispatched to Frontend 2026-03-19 23:45     |
+| P0-05   | MAJOR    | Dispatched to Frontend 2026-03-19 23:45     |
+| ARCH-03 | MINOR    | Dispatched to Frontend 2026-03-19 23:45     |
+| ARCH-02 | MINOR    | Deferred — city marker sprite fragility     |
+| ARCH-01 | MINOR    | Deferred — bulk review update endpoint      |
 
-CLOSED:
-| BUG-01 – BUG-05  | DONE |
-| BUG-07 – BUG-14  | DONE |
-| BUG-11           | DONE — 1fe7bc7 — map shading cache invalidation            |
-| BUG-12           | DONE — 1fe7bc7 — trip list search + sort                   |
-| BUG-13           | DONE — 1fe7bc7 — map click-through navigation              |
-| BUG-15           | DONE — 1994213 — region tier toggle cleared label (Backend)|
-| BUG-16           | DONE — d704343 — Add Place region dropdown missing (Frontend)|
-| FLAG-F1          | DONE |
-| SHADING-SPEC-01  | DONE — 0e0efac |
+CLOSED THIS SESSION:
+| BUG-11/12/13 | DONE — 1fe7bc7 (Frontend completion report archived)  |
+| BUG-15       | DONE — 1994213 — region tier toggle label (Backend)   |
+| BUG-16       | DONE — d704343 — Add Place region dropdown (Frontend) |
+| FEAT-BD      | DONE — 0870d00 — DELETE /api/trips/:id (134 tests)   |
 
-BUG-15 DETAIL:
-  Severity: MINOR | Found by: PO live testing 2026-03-19
-  Backend admin.ts was clearing label on tier disable; label is read-only seed data.
-  Fix: removed label-clear + label-required-on-re-enable logic.
-
-BUG-16 DETAIL:
-  Severity: MINOR | Found by: PO live testing 2026-03-19
-  Add Place flow had no region dropdown for region-tier countries; API supported it.
-  Fix: useCountryRegions hook + optional region dropdown in Add Place flow.
+UX BUGS REMAINING (from audit — P0 within migration):
+| P0-02 | No focus styles — fix within Tailwind migration      |
+| P0-03 | No success toasts — fix within Tailwind migration    |
 
 ================================================================================
 TEST STATUS
 ================================================================================
 
-  Frontend tests:  55/55  PASSING  (commit 0a0951d)
-  Backend tests:  120/120 PASSING  (commit 0e0efac)
+  Frontend tests:  55/55  PASSING  (commit 0a0951d — pre P0 fixes)
+  Backend tests:  134/134 PASSING  (commit 0870d00 — +14 for FEAT-BD)
   Contract tests:  99/99  PASSING  (commit 0e71fdf — last known good)
-  CI (HEAD d704343): all green
+  CI (HEAD f9eca86): green
 
 ================================================================================
 OPEN REQUIREMENTS
 ================================================================================
 
-| ID      | Status    | Notes                                               |
-|---------|-----------|-----------------------------------------------------|
-| FEAT-BD | Active    | Backend DELETE /api/trips/:id — 2nd chase sent      |
-| NR-03   | Pending   | Trip ownership metadata — not yet specced           |
-| NR-07   | Pending   | Offline indicator — P2, deferrable                  |
-| NR-14   | Pending   | Pre-access hardening gate (Phase 1.5 gate)          |
-| OP-06   | Pending   | Pre-access hardening checklist (tied to NR-14)      |
-| OP-07   | Pending   | UI/UX expert review (post-Phase 4 sign-off)         |
+| ID      | Status        | Notes                                                  |
+|---------|---------------|--------------------------------------------------------|
+| NR-03   | Design review | user_id on trips + items — blocked on Architect reply  |
+| NR-14   | Design review | Gate spec — blocked on Architect reply                 |
+| OP-06   | Pending       | Checklist tied to NR-14                                |
+| NR-07   | Pending       | Offline indicator — P2, deferrable                     |
+| OP-07   | Pending       | UX expert review — UX agent onboarded; human TBD       |
+| ARCH-01 | Deferred      | Bulk review update endpoint — low priority             |
+| ARCH-02 | Deferred      | City marker sprite fragility — low priority            |
+
+FEAT-BD FRONTEND (multi-select delete UI in TripList):
+  Backend done. Frontend spec not yet written. Holding until P0 fixes land.
 
 ================================================================================
-STANDALONE BRD RECONCILIATION — 2026-03-19
+NR-14 DECISIONS MADE (pending Architect confirmation)
 ================================================================================
 
-  No new P1 blockers. TR-10 (search/filter) = P2. ADM-01 already satisfied.
-  Phase 1 beta conditions: code complete, pending QA sign-off.
-  Archived: jobs/COO/history/20260319_0900-standalone-BRD-received.md
+  Auth model:       Individual accounts. OAuth (Google) or email/password — TBD by Architect.
+  Ownership:        user_id on trips + items. Regular indexed FK, NOT composite PK.
+                    Junction/extension tables: no user_id (FK chain sufficient).
+  Registration:     Manual only initially (no self-service UI). Add accounts directly.
+  Audit layers:     1. Architect internal review
+                    2. OWASP ZAP dynamic scan (hosted app)
+                    3. Friend security analyst (manual, written report)
+  Hosting:          NR-14 implicitly requires hosted backend (can't share localhost).
+  Comparison feat:  Deferred — not in BRD. Nice to have but out of scope for now.
+  DB migration:     Designing for Postgres/Turso RLS from the start.
+
+================================================================================
+UAT GATE
+================================================================================
+
+  Established this session. See jobs/PO/uat-log.md.
+  PO UAT PASS is required alongside QA sign-off before any phase closes.
+  CLAUDE.md updated: check uat-log.md on every COO session pickup.
+  Retroactive session logged: BUG-15/16 (2026-03-19).
+
+================================================================================
+UX AUDIT SUMMARY (BRIEF-UX-01)
+================================================================================
+
+  Completed: 2026-03-19 23:59
+  Key findings: 11 MAJOR, 27 MINOR, 3 POLISH
+  Styling reality: 100% inline CSSProperties — no CSS files. Migration scope is larger
+                   than anticipated (touches every component).
+  P0 quick fixes dispatched (3 one-liners + ARCH-03): see ACTIVE JOBS / FRONTEND
+  P0-02/P0-03: within Tailwind migration
+  Tailwind migration brief: pending Frontend stack query + Architect response on NR-14
+
+  Design system spec: jobs/ux/tech/20260319-UX-design-system.md
+    - Atlas Teal primary (geographic colour language, not SaaS blue)
+    - Inter typography
+    - Full shadcn/ui component inventory
 
 ================================================================================
 PACKAGING & SECURITY ROADMAP (post-Phase 4 sign-off)
 ================================================================================
 
-  Phase 1 (Arch Foundation):   Hosted backend + auth + better-sqlite3 + env-aware URL
+  Phase 1 (Arch Foundation):   Hosted backend + auth + user_id schema + env-aware URL
   Phase 2 (macOS .dmg):        Electron + electron-builder + DB bootstrapping
   Phase 3 (iOS):               Capacitor (contingent on cloud)
-  Phase 4 (Security audit):    Full audit gate before public release
+  Phase 4 (Security audit):    Full audit gate before public release (NR-14)
 
 ================================================================================
 NEXT COO ACTIONS (resume from here)
 ================================================================================
 
+  ON STARTUP:
+  0. Check jobs/PO/uat-log.md for any new UAT findings
+
   WAITING ON:
-  1. QA: Phase 3 sign-off report
-  2. Backend: FEAT-BD completion report (2nd chase sent)
+  1. Frontend: P0 quick fixes + ARCH-03 completion report
+  2. Frontend: UI stack query responses (for Tailwind migration brief)
+  3. QA: Phase 3 sign-off report
+  4. Architect: NR-14 design review recommendations
+
+  WHEN FRONTEND P0 FIXES DONE:
+  5. Verify fixes + add to UAT testing scope
+  6. Write Frontend multi-select delete UI spec (FEAT-BD frontend)
+
+  WHEN ARCHITECT RESPONDS:
+  7. Finalise NR-14 gate spec (gate criteria, audit checklist, hosting prerequisite)
+  8. Spec NR-03 to Database + Backend (user_id migration)
+
+  WHEN FRONTEND STACK QUERY + ARCHITECT BOTH DONE:
+  9. Write Tailwind + shadcn/ui migration brief for Frontend (full P1/P2 backlog)
 
   WHEN QA PHASE 3 PASSES + PO UAT PASSES:
-  3. Formal Phase 3 closure (BOTH gates required)
-  4. Begin Phase 4 gating — NR-14 / OP-06 hardening spec (can write now in parallel)
-
-  WHEN BACKEND FEAT-BD DONE:
-  5. Spec Frontend multi-select delete UI in TripList
+  10. Formal Phase 3 closure
 
   STANDING:
-  6. NR-14 / OP-06: Can write now, doesn't require QA or Backend to be done first
-  7. NR-03: Decide before Phase 4 sign-off whether trip ownership is in scope
-  8. UAT LOG: Check jobs/PO/uat-log.md at every session start — gate in place
+  11. ARCH-01/ARCH-02: log and defer — no action until post-migration
 
 ================================================================================
