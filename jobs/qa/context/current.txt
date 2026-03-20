@@ -1,6 +1,6 @@
-QA CONTEXT — 2026-03-09
+QA CONTEXT — 2026-03-21
 PROJECT: Travel Tracker
-CURRENT STATUS: All QA deliverables complete. Awaiting bug fixes from Backend, Frontend, and Architect to resume live testing and extend contract test suites.
+CURRENT STATUS: QA session complete. Report filed to COO. Awaiting bug fixes for BUG-11, BUG-12, SEC-01–03 before next live testing round.
 
 ================================================================================
 COMPLETED DELIVERABLES
@@ -16,62 +16,89 @@ TASK-TDD-INFRA: COMPLETE (2026-03-09)
   Backend unit tests (npm run test:backend — no server required):
     - vitest.config.backend.ts
     - src/backend/services/__tests__/shading.service.test.ts   (14 tests)
-    - src/backend/validation/__tests__/common.test.ts          (61 tests, 1 BUG-10 canary)
+    - src/backend/validation/__tests__/common.test.ts          (61 tests, BUG-10 canary now expected GREEN)
     - src/backend/validation/__tests__/trips.schemas.test.ts   (31 tests)
-    Total: 106 tests / 105 passing / 1 intentional fail (BUG-10)
+    Total: 106 tests / all expected passing (verify BUG-10 canary resolved)
 
   Frontend scenario tests (npm run test:frontend — no server required):
     - vitest.config.frontend.ts + src/frontend/__tests__/setup.ts
     - src/frontend/utils/__tests__/urlSanitiser.test.ts                          (14 tests)
     - src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx  (14 tests)
-    - src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx      (13 tests, 2 canaries)
-    Total: 41 tests / 39 passing / 2 intentional fails (BUG-04, BUG-05)
+    - src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx      (13 tests, canaries now expected GREEN)
+    Total: 41 tests / all expected passing
 
   Test policy: jobs/_project/test-policy.md (OP-07)
   Framework: Vitest 4 + React Testing Library + supertest
 
+QA-SESSION-2026-03-20: COMPLETE
+  - Full backend live testing (all BRD requirements via curl)
+  - Frontend static review (state machines, data flow, edge cases)
+  - Report: jobs/qa/history/qa-report-2026-03-20.md
+  - COO memo: jobs/COO/inbox/20260321_1700-QA-session-report-2026-03-20.md
+
 ================================================================================
-BUG CANARIES (intentionally failing — turn green when bugs fixed)
+CANARY TESTS — EXPECTED STATUS
 ================================================================================
 
-  BUG-10  src/backend/validation/__tests__/common.test.ts
-          "BUG-10: rejects a name longer than 200 characters"
-          Fix: change max(255) → max(200) in src/backend/validation/common.ts
+  All canaries from 2026-03-09 session should now be GREEN:
+  - BUG-04 canary (ReviewPanel.test.tsx) — BUG-04 fixed in codebase ✓
+  - BUG-05 canary (ReviewPanel.test.tsx) — BUG-05 fixed in codebase ✓
+  - BUG-10 canary (common.test.ts) — verify name max(200) backend fix applied
 
-  BUG-04  src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
-          "BUG-04 regression: renders a 'Return to Planning' button"
-          Fix: add Return to Planning button to ReviewPanel.tsx
-
-  BUG-05  src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
-          "BUG-05 regression: 'Mark all Completed' does NOT patch next_time items"
-          Fix: remove 'next_time' from NON_CANCELLED in ReviewPanel.tsx
+  ACTION NEEDED: Backend agent to confirm BUG-10 canary is green; remove canary if so.
 
 ================================================================================
 OPEN BUGS
 ================================================================================
 
-| ID     | Sev     | Status                        | Owner    |
-|--------|---------|-------------------------------|----------|
-| BUG-01 | MAJOR   | Direction issued (BC-01)      | Backend  |
-| BUG-02 | MAJOR   | Direction issued (Architect)  | Architect|
-| BUG-03 | MAJOR   | Direction issued              | Frontend |
-| BUG-04 | MAJOR   | Direction issued              | Frontend |
-| BUG-05 | MINOR   | Direction issued              | Frontend |
-| BUG-06 | TRIVIAL | Deferred                      | —        |
-| BUG-07 | MAJOR   | Direction issued (BC-02/03)   | Backend  |
-| BUG-08 | TRIVIAL | Direction issued (BC-05)      | Backend  |
-| BUG-09 | MINOR   | Direction issued (BC-04)      | Backend  |
-| BUG-10 | MINOR   | Direction issued              | Backend  |
-| FLAG-F1| DOC     | Direction issued (BC-06)      | Backend  |
-| ENV    | —       | Fix issued (npm ci)           | QA       |
+| ID      | Sev    | Status          | Owner   |
+|---------|--------|-----------------|---------|
+| BUG-11  | MEDIUM | Filed to COO    | Backend |
+| BUG-12  | HIGH   | Filed to COO    | Backend |
+| SEC-01  | HIGH   | Filed to COO    | Backend |
+| SEC-02  | MEDIUM | Filed to COO    | Backend |
+| SEC-03  | MEDIUM | Filed to COO    | Backend |
+
+All previous bugs (BUG-01 through BUG-10) confirmed CLOSED in 2026-03-20 session.
 
 ================================================================================
-LIVE TESTING: BLOCKED
+CLOSED BUGS (this codebase)
 ================================================================================
 
-  - Awaiting Frontend: BUG-03, BUG-04, BUG-05 fixes
-  - Awaiting Backend: BC-01 through BC-07 + BUG-10 (correction round 2)
-  - Awaiting Architect: BUG-02 cascade (iso_3166_2 migration)
+| ID     | Resolved |
+|--------|----------|
+| BUG-01 | ✓ CLOSED — TripSummary now includes places[] |
+| BUG-02 | ✓ CLOSED — RegionLayer uses iso_3166_2 consistently |
+| BUG-03 | ✓ CLOSED — AddPlaceFlow gates on candidatesFetched |
+| BUG-04 | ✓ CLOSED — ReviewPanel has Return to Planning button |
+| BUG-05 | ✓ CLOSED — Bulk complete includes 'consider' + 'confirmed' |
+| BUG-06 | ✓ CLOSED (deferred/not applicable) |
+| BUG-07 | ✓ CLOSED — BC-02/03 corrections applied |
+| BUG-08 | ✓ CLOSED — BC-05 correction applied |
+| BUG-09 | ✓ CLOSED — BC-04 correction applied |
+| BUG-10 | ✓ Verify — canary test should be green |
+| BUG-C  | ✓ CLOSED BY DESIGN — label retention is intentional |
+
+================================================================================
+NICE-TO-HAVE FLAGS (surface to PO/Architect)
+================================================================================
+
+| ID     | Description |
+|--------|-------------|
+| NTH-01 | Bulk delete: no undo after confirmation |
+| NTH-02 | Carry-forward silently drops flight/car_rental extension data |
+| NTH-03 | Status filter chips: no per-status counts |
+| NTH-04 | Admin countries: grey out region_tier_label when tier disabled |
+
+================================================================================
+UAT STATUS
+================================================================================
+
+  UAT script (48 steps, sections A-I) filed in:
+    jobs/qa/history/qa-report-2026-03-20.md — Part 6
+
+  PO frontend UAT pass: PENDING
+  Previous UAT session (2026-03-20): PASS (conditional)
 
 ================================================================================
 CONTRACT TEST STATUS
@@ -80,40 +107,29 @@ CONTRACT TEST STATUS
   Passing: 27/27 (trips endpoints)
   Pending suites: places, items, cities, shading, admin
 
-  Key behaviours verified:
-    - Locked trip returns 403 (not 423 — COO spec had error)
-    - Invalid status enum in query returns 400 (strict validation — correct)
-    - review_pending → planning transition works (NR-05/BUG-04 regression green)
-
-================================================================================
-AC STATUS (Frontend Phase 1)
-================================================================================
-
-  PASS (code verified):  SEC-12
-  FAIL:                  AC-05 (BUG-01), AC-12 (BUG-03)
-  PARTIAL FAIL:          AC-04 (BUG-02), AC-08 (BUG-04), AC-13 (BUG-04, BUG-05)
-  NEEDS LIVE TEST:       AC-01–03, AC-06–11, AC-14–18
+  Next contract test work (after BUG-11/12/SEC-01-03 fixed):
+    - Add places.contract.test.ts
+    - Add items.contract.test.ts (include carry-forward ownership assertions)
+    - Add cities.contract.test.ts (include SEC-01 userId-scoping assertion)
+    - Add shading.contract.test.ts with iso_3166_2 assertions
+    - Add admin.contract.test.ts with snake_case key assertions (BUG-12 regression)
 
 ================================================================================
 NEXT STEPS (for incoming QA)
 ================================================================================
 
-  1. When BUG-03/04/05 fixed by Frontend:
-       → Resume live testing of AC-01–03, AC-06–11, AC-14–18
-       → Verify BUG-04 and BUG-05 canary tests now pass
+  1. When BUG-11 fixed (Backend):
+       → Add date validation test to trips.schemas.test.ts (partial PATCH case)
+       → Verify PATCH /api/trips/:id with only end_date before start_date returns 400
 
-  2. When BC-01 through BC-07 + BUG-10 complete (Backend correction round 2):
-       → Add places.contract.test.ts and items.contract.test.ts
-       → Assert BUG-01 summary shape (places array present)
-       → Assert FLAG-F1 status terms (BC-06 correction)
-       → Verify BUG-10 canary test now passes
+  2. When BUG-12 fixed (Backend):
+       → Add admin.contract.test.ts asserting is_active (snake_case) in response
+       → Verify admin UI shows correct Active/Inactive state
 
-  3. When BUG-02 cascade complete (Architect + Backend):
-       → Add shading.contract.test.ts with iso_3166_2 assertion on region objects
+  3. When SEC-01/02/03 fixed (Backend):
+       → Add multi-user ownership tests to contract suite
+       → Verify cross-user item access returns 404/403
 
-  4. When all fixes verified in live testing:
+  4. When all fixes verified:
        → Issue QA sign-off memo to COO
-
-  5. Backend still needs to complete TASK-TEST-BE (own Vitest setup per test-policy.md):
-       → vitest.config.backend.ts is ready; they need to add their own service tests
-       → Sample: src/backend/services/__tests__/shading.service.test.ts (use as reference)
+       → Request PO frontend UAT pass with script from qa-report-2026-03-20.md Part 6
