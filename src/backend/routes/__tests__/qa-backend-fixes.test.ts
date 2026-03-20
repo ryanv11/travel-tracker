@@ -185,6 +185,16 @@ async function createTestDb() {
       color_hex TEXT NOT NULL,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
     )`,
+    // ADL-23: trip_countries junction table (required by buildTripResponse)
+    `CREATE TABLE IF NOT EXISTS trip_countries (
+      trip_id INTEGER NOT NULL,
+      country_code TEXT NOT NULL,
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
+      PRIMARY KEY (trip_id, country_code),
+      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+      FOREIGN KEY (country_code) REFERENCES countries(country_code) ON DELETE RESTRICT
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_trip_countries_country ON trip_countries (country_code)`,
   ];
 
   for (const sql of ddlStatements) {
