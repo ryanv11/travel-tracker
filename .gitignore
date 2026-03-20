@@ -30,3 +30,6 @@ build/
 *.log
 logs/
 claude-code/
+
+# Depwire auto-generated cache
+.depwire/

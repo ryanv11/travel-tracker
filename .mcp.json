@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "depwire": {
+      "type": "stdio",
+      "command": "depwire",
+      "args": ["mcp", "/workspace"]
+    }
+  }
+}

@@ -78,6 +78,28 @@ not yet PASS, check in with the user — the fix may be part of a broader flow s
 
 Screenshots are stored in `jobs/PO/screenshots/`.
 
+## Depwire (codebase intelligence MCP)
+Depwire is configured as an MCP server (`.mcp.json`) and runs automatically in Claude Code sessions.
+Installed globally: `depwire-cli`. Tools available via `mcp__depwire__*`.
+
+**Use it for:**
+- `impact_analysis` / `get_dependencies` / `get_dependents` — cross-file import chain tracking.
+  Reliable and accurate. Primary use case: ADL-18 repository layer work — enumerate which route
+  functions call `getDb` directly and must be migrated.
+- `get_file_context` — quick view of what a file imports and what imports it.
+- `get_architecture_summary` — hub files and layer breakdown are accurate for orientation.
+
+**Do not use it for:**
+- Drizzle schema symbol tracking — `schema.ts` has 57 symbols but only 1 connection reported.
+  All `db.select().from(trips)` usage is invisible to tree-sitter. Never trust impact results
+  for schema table variables.
+- `import type` tracking — TypeScript type-only imports are not followed. `src/frontend/types/api.ts`
+  is flagged as an orphan despite being used everywhere. Orphan file lists will have false positives.
+- `depwire docs` — crashes generating DEAD_CODE.md; skip entirely.
+- Health score "Orphans & Dead Code" dimension — 86.5% dead symbols is a false positive.
+  All other health dimensions (coupling, cohesion, circular deps, depth) are usable.
+- Intra-file call graph — only tracks cross-file imports, not function calls within the same file.
+
 ## Key files
 - `src/backend/server.ts` — Express app entry point
 - `src/backend/db/schema.ts` — Drizzle schema
