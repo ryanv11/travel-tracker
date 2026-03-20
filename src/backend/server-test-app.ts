@@ -22,7 +22,7 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { authenticate } from './middleware/auth.js';
+import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { tripsRouter } from './routes/trips.js';
 import { citiesRouter } from './routes/cities.js';
@@ -96,8 +96,8 @@ const citiesCreateLimiter = rateLimit({
 });
 app.post('/api/cities', citiesCreateLimiter);
 
-// Auth stub (SEC-09)
-app.use('/api/', authenticate);
+// Auth — Clerk JWT verification via jose (NR-14 / ADL-20)
+app.use('/api/', requireAuth);
 
 // Static GeoJSON files
 app.use('/geo', express.static(path.join(__dirname, '../../geo')));

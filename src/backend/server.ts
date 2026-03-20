@@ -31,7 +31,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { getDb } from './db/index.js';
-import { authenticate } from './middleware/auth.js';
+import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { tripsRouter } from './routes/trips.js';
 import { citiesRouter } from './routes/cities.js';
@@ -120,8 +120,11 @@ const citiesCreateLimiter = rateLimit({
 });
 app.post('/api/cities', citiesCreateLimiter);
 
-// 5. Auth stub — Phase 2 hook (SEC-09)
-app.use('/api/', authenticate);
+// 5. Auth — Clerk JWT verification via jose (NR-14 / ADL-20)
+// Applies to all /api/* routes. Exceptions: /health (public, registered after).
+// NOTE: /api/map/shading routes are protected here; flagged for COO review in
+// NR-14 completion report — map shading may need to be public in future.
+app.use('/api/', requireAuth);
 
 // ----------------------------------------------------------------
 // Static files — GeoJSON boundary data
