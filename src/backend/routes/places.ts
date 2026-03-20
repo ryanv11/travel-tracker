@@ -4,40 +4,31 @@
  * Nested under /api/trips/:tripId/places (mounted in trips.ts with mergeParams: true).
  * Handles place CRUD and place-level activity tagging.
  * All writes check locked trip status.
+ *
+ * ADL-18: User-scoped queries go through placeRepository. No direct getDb() calls
+ * for user-owned data.
  */
 
 import { Router } from 'express';
 import { eq, and, inArray } from 'drizzle-orm';
 import {
   getDb,
-  trips,
-  tripPlaces,
   cities,
   tripPlaceActivitiesMap,
   activities,
   items,
+  tripPlaces,
 } from '../db/index.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
 import { CreatePlaceSchema, AddPlaceActivitySchema } from '../validation/places.schemas.js';
 import { CarryForwardBodySchema } from '../validation/items.schemas.js';
-import { NotFoundError, LockError, ConflictError, ValidationError } from '../errors.js';
+import { NotFoundError, ConflictError, ValidationError } from '../errors.js';
 import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
+import { placeRepository } from '../repositories/places.js';
 
 const placesRouter = Router({ mergeParams: true });
 export default placesRouter;
-
-/** Asserts trip exists and is not locked */
-async function assertTripWritable(tripId: number): Promise<void> {
-  const db = getDb();
-  const rows = await db
-    .select({ status: trips.status })
-    .from(trips)
-    .where(eq(trips.id, tripId))
-    .limit(1);
-  if (!rows.length) throw new NotFoundError('Trip');
-  if (rows[0].status === 'locked') throw new LockError();
-}
 
 // ----------------------------------------------------------------
 // GET /api/trips/:tripId/places
@@ -45,64 +36,21 @@ async function assertTripWritable(tripId: number): Promise<void> {
 placesRouter.get(
   '/',
   asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
     const tripId = parseInt(req.params.tripId, 10);
     if (isNaN(tripId)) throw new NotFoundError('Trip');
 
-    const db = getDb();
-    const tripExists = await db.select({ id: trips.id }).from(trips).where(eq(trips.id, tripId)).limit(1);
-    if (!tripExists.length) throw new NotFoundError('Trip');
+    const result = await placeRepository.findByTrip(userId, tripId);
 
-    const placesRows = await db
-      .select({
-        id: tripPlaces.id,
-        cityId: tripPlaces.cityId,
-        createdAt: tripPlaces.createdAt,
-        cityName: cities.name,
-        cityCountryCode: cities.countryCode,
-        cityRegionId: cities.regionId,
-        cityLatitude: cities.latitude,
-        cityLongitude: cities.longitude,
-        cityGeocodeStatus: cities.geocodeStatus,
-      })
-      .from(tripPlaces)
-      .leftJoin(cities, eq(cities.id, tripPlaces.cityId))
-      .where(eq(tripPlaces.tripId, tripId));
-
-    // Fetch all activity tags for every place in one query.
-    // inArray handles 0-length safely (returns []).
-    const placeIds = placesRows.map((p) => p.id);
-    const allPlaceActivities =
-      placeIds.length > 0
-        ? await db
-            .select({
-              tripPlaceId: tripPlaceActivitiesMap.tripPlaceId,
-              id: activities.id,
-              name: activities.name,
-            })
-            .from(tripPlaceActivitiesMap)
-            .leftJoin(activities, eq(activities.id, tripPlaceActivitiesMap.activityId))
-            .where(inArray(tripPlaceActivitiesMap.tripPlaceId, placeIds))
-        : [];
-
-    const result = placesRows.map((p) => ({
-      id: p.id,
-      city_id: p.cityId,
-      created_at: p.createdAt,
-      city: {
-        id: p.cityId,
-        name: p.cityName,
-        country_code: p.cityCountryCode,
-        region_id: p.cityRegionId,
-        latitude: p.cityLatitude,
-        longitude: p.cityLongitude,
-        geocode_status: p.cityGeocodeStatus,
-      },
-      activities: allPlaceActivities
-        .filter((a) => a.tripPlaceId === p.id)
-        .map((a) => ({ id: a.id, name: a.name })),
-    }));
-
-    res.json(result);
+    res.json(
+      result.map((p) => ({
+        id: p.id,
+        city_id: p.cityId,
+        created_at: p.createdAt,
+        city: p.city,
+        activities: p.activities,
+      })),
+    );
   }),
 );
 
@@ -113,10 +61,9 @@ placesRouter.post(
   '/',
   validateBody(CreatePlaceSchema),
   asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
     const tripId = parseInt(req.params.tripId, 10);
     if (isNaN(tripId)) throw new NotFoundError('Trip');
-
-    await assertTripWritable(tripId);
 
     const { city_id } = req.body;
     const db = getDb();
@@ -125,21 +72,8 @@ placesRouter.post(
     const cityRows = await db.select().from(cities).where(eq(cities.id, city_id)).limit(1);
     if (!cityRows.length) throw new NotFoundError('City');
 
-    // Check for duplicate (trip_id, city_id) unique constraint
-    const existing = await db
-      .select({ id: tripPlaces.id })
-      .from(tripPlaces)
-      .where(and(eq(tripPlaces.tripId, tripId), eq(tripPlaces.cityId, city_id)))
-      .limit(1);
-    if (existing.length) throw new ConflictError('Trip already has this city');
-
-    const now = new Date().toISOString();
-    const inserted = await db
-      .insert(tripPlaces)
-      .values({ tripId, cityId: city_id, createdAt: now, updatedAt: now })
-      .returning();
-
-    const place = inserted[0];
+    // placeRepository.create verifies trip ownership + lock status + duplicate check
+    const place = await placeRepository.create(userId, tripId, city_id);
     const city = cityRows[0];
 
     res.status(201).json({
@@ -166,22 +100,13 @@ placesRouter.post(
 placesRouter.delete(
   '/:placeId',
   asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
     const tripId = parseInt(req.params.tripId, 10);
     const placeId = parseInt(req.params.placeId, 10);
     if (isNaN(tripId) || isNaN(placeId)) throw new NotFoundError('Place');
 
-    await assertTripWritable(tripId);
-
-    const db = getDb();
-    const existing = await db
-      .select({ id: tripPlaces.id })
-      .from(tripPlaces)
-      .where(and(eq(tripPlaces.id, placeId), eq(tripPlaces.tripId, tripId)))
-      .limit(1);
-    if (!existing.length) throw new NotFoundError('Place');
-
-    // CASCADE in schema handles items and activity maps
-    await db.delete(tripPlaces).where(eq(tripPlaces.id, placeId));
+    const deleted = await placeRepository.delete(userId, tripId, placeId);
+    if (!deleted) throw new NotFoundError('Place');
 
     res.status(204).send();
   }),
@@ -194,13 +119,16 @@ placesRouter.post(
   '/:placeId/carry-forward',
   validateBody(CarryForwardBodySchema),
   asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
     const tripId = parseInt(req.params.tripId, 10);
     const placeId = parseInt(req.params.placeId, 10);
     if (isNaN(tripId) || isNaN(placeId)) throw new NotFoundError('Place');
 
     const db = getDb();
 
-    // Verify placeId exists and belongs to tripId — also retrieves cityId
+    // Verify placeId exists and belongs to tripId (also verifies trip ownership via userId)
+    await placeRepository.assertWritable(userId, tripId);
+
     const placeRows = await db
       .select({ id: tripPlaces.id, cityId: tripPlaces.cityId })
       .from(tripPlaces)
@@ -210,7 +138,7 @@ placesRouter.post(
 
     const { cityId } = placeRows[0];
 
-    // Verify target trip exists and is not locked (throws 404 / 403 as appropriate)
+    // Verify target trip is not locked
     await assertNotLocked(tripId);
 
     // Verify all source item IDs exist
@@ -230,6 +158,7 @@ placesRouter.post(
       targetTripId: tripId,
       targetTripPlaceId: placeId,
       sourceItemIds,
+      userId,
     });
 
     res.status(201).json({
@@ -246,6 +175,7 @@ placesRouter.post(
   '/:placeId/activities',
   validateBody(AddPlaceActivitySchema),
   asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
     const tripId = parseInt(req.params.tripId, 10);
     const placeId = parseInt(req.params.placeId, 10);
     if (isNaN(tripId) || isNaN(placeId)) throw new NotFoundError('Place');
@@ -253,13 +183,9 @@ placesRouter.post(
     const { activity_id } = req.body;
     const db = getDb();
 
-    // Verify place belongs to trip
-    const place = await db
-      .select({ id: tripPlaces.id })
-      .from(tripPlaces)
-      .where(and(eq(tripPlaces.id, placeId), eq(tripPlaces.tripId, tripId)))
-      .limit(1);
-    if (!place.length) throw new NotFoundError('Place');
+    // Verify place belongs to trip owned by user
+    const place = await placeRepository.findById(userId, placeId);
+    if (!place || place.tripId !== tripId) throw new NotFoundError('Place');
 
     // Check duplicate
     const existing = await db

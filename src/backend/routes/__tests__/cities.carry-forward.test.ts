@@ -238,6 +238,24 @@ const supertest = (await import('supertest')).default;
 // Seed helpers
 // ----------------------------------------------------------------
 
+// The test-user-id matches what the auth mock sets on req.user.id
+const TEST_USER_ID = 'test-user-id';
+
+/**
+ * Seeds a user row matching the auth mock's req.user.id.
+ * Required because trips.user_id is a FK to users.id (ADL-18).
+ */
+async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
+  const now = Date.now();
+  await db.insert(schema.users).values({
+    id: TEST_USER_ID,
+    clerkId: 'user_test',
+    email: 'test@example.com',
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+  }).onConflictDoNothing();
+}
+
 type TripStatus = 'planning' | 'active' | 'review_pending' | 'locked';
 
 async function seedCityAndTrip(db: Awaited<ReturnType<typeof createTestDb>>, tripStatus: TripStatus) {
@@ -249,11 +267,13 @@ async function seedCityAndTrip(db: Awaited<ReturnType<typeof createTestDb>>, tri
     geocodeStatus: 'resolved',
   }).returning();
 
+  // ADL-18: trips must be owned by the test user so the carry-forward userId filter passes
   const [trip] = await db.insert(schema.trips).values({
     name: `Dublin Trip (${tripStatus})`,
     startDate: '2026-01-01',
     endDate: '2026-01-07',
     status: tripStatus,
+    userId: TEST_USER_ID,
   }).returning();
 
   const [place] = await db.insert(schema.tripPlaces).values({
@@ -271,6 +291,7 @@ async function seedCityAndTrip(db: Awaited<ReturnType<typeof createTestDb>>, tri
 describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', () => {
   beforeEach(async () => {
     testDb = await createTestDb();
+    await seedTestUser(testDb);
   });
 
   afterEach(() => {

@@ -3,6 +3,10 @@
  *
  * Handles carry-forward (IT-07), lazy experience extension rows (ADL-14),
  * and locked trip enforcement.
+ *
+ * ADL-18: executeCarryForward now accepts userId so new items are owned by the user.
+ * assertNotLocked remains a simple trip-level check (not user-scoped); route handlers
+ * are responsible for verifying ownership before calling this function.
  */
 
 import { eq, and, inArray } from 'drizzle-orm';
@@ -27,6 +31,8 @@ interface CarryForwardParams {
   targetTripId: number;
   targetTripPlaceId: number;
   sourceItemIds: number[];
+  /** ADL-18: The user who owns the new items. */
+  userId?: string;
 }
 
 // ----------------------------------------------------------------
@@ -36,6 +42,9 @@ interface CarryForwardParams {
 /**
  * Verifies the trip is not locked. Throws LockError (403) if it is.
  * Called by all write route handlers before any mutation.
+ *
+ * Note: This function does NOT verify ownership — callers must verify
+ * that the trip belongs to the current user before calling this.
  */
 export async function assertNotLocked(tripId: number): Promise<void> {
   const db = getDb();
@@ -77,6 +86,7 @@ export async function ensureExperienceExtension(itemId: number): Promise<void> {
  * - Copies item_type and notes from the source
  * - Sets status = 'consider', is_carried_forward = 1, carried_from_item_id = sourceId
  * - Copies extension fields (e.g. restaurant name, cuisine) but NOT rating or post_visit_notes
+ * - Sets userId on each new item (ADL-18)
  *
  * @returns The newly created item IDs.
  */
@@ -84,7 +94,7 @@ export async function executeCarryForward(
   params: CarryForwardParams,
 ): Promise<number[]> {
   const db = getDb();
-  const { targetTripId, targetTripPlaceId, sourceItemIds } = params;
+  const { targetTripId, targetTripPlaceId, sourceItemIds, userId } = params;
 
   if (!sourceItemIds.length) return [];
 
@@ -127,6 +137,7 @@ export async function executeCarryForward(
         notes: src.notes,
         isCarriedForward: 1,
         carriedFromItemId: src.id,
+        userId: userId ?? null,
         createdAt: now,
         updatedAt: now,
       })
