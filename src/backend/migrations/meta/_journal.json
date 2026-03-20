@@ -15,6 +15,13 @@
       "when": 1773090515013,
       "tag": "0001_bug02_iso3166_seam_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1773988784172,
+      "tag": "0002_aspiring_killraven",
+      "breakpoints": true
     }
   ]
 }

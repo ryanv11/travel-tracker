@@ -68,9 +68,6 @@ async function createTestDb() {
       end_date TEXT NOT NULL,
       status TEXT DEFAULT 'planning' NOT NULL,
       photo_album_ref TEXT,
-      owner_account_id TEXT,
-      subscription_id TEXT,
-      created_by_account_id TEXT,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
     )`,
@@ -120,7 +117,6 @@ async function createTestDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       trip_id INTEGER NOT NULL,
       city_id INTEGER NOT NULL,
-      created_by_account_id TEXT,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
@@ -180,7 +176,6 @@ async function createTestDb() {
       state_key TEXT PRIMARY KEY NOT NULL,
       display_name TEXT NOT NULL,
       color_hex TEXT NOT NULL,
-      subscription_id TEXT,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
     )`,
   ];
