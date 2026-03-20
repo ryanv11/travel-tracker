@@ -1,49 +1,107 @@
-ARCHITECT CONTEXT — 2026-03-07
+ARCHITECT CONTEXT — 2026-03-19
 PROJECT: Travel Tracker
-CURRENT STATUS: Phase 0 complete — all deliverables approved, no open questions
+CURRENT STATUS: NR-14 pre-gate design review complete — recommendations delivered to COO
 
 ================================================================================
 WORK COMPLETED THIS THREAD
 ================================================================================
 
-All Phase 0 deliverables produced, saved, and updated:
+Received brief: 20260319_2330-COO-multi-user-auth-schema-review.txt
+Reviewed: schema.ts, trips.ts, items.ts, places.ts, cities.ts, map.ts, server.ts
 
-  jobs/architect/tech/20260307-ER-schema.md              v1.1 (item_experiences added)
-  jobs/architect/tech/20260307-map-shading-spec.md        v1.0
-  jobs/architect/tech/20260307-tech-blueprint.md          v1.0
-  jobs/architect/tech/20260307-architecture-decisions-log.md  ADL-01 through ADL-14
+Delivered recommendations on three NR-14 design decisions:
+  Decision 1 — user_id placement: endorsed trips + items, ADDED trip_places
+  Decision 2 — auth architecture: OAuth (Google) + JWT + jose library
+  Decision 3 — query scoping: repository layer (src/backend/repositories/)
 
-Completion reports sent to COO inbox:
-  jobs/COO/inbox/20260307_1400-ARCHITECT-blueprint-complete.txt
-  jobs/COO/inbox/20260307_1415-ARCHITECT-oqa1-resolved.txt
+ADL entries added (ADL-16 through ADL-19):
+  ADL-16: Multi-user ownership boundary — user_id on trips, items, trip_places
+  ADL-17: Auth architecture — OAuth PKCE + JWT + jose
+  ADL-18: Query pattern — repository layer
+  ADL-19: Schema anomaly — undocumented columns in trips and trip_places (flag)
+
+Schema anomaly flagged (MAJOR):
+  Four undocumented columns found in schema.ts not in approved ER schema v1.1:
+    trips.ownerAccountId, trips.subscriptionId, trips.createdByAccountId
+    trip_places.createdByAccountId
+  Recommended removal via migration before NR-14 DB work begins.
+
+Recommendation sent to:
+  jobs/COO/inbox/20260319_2359-ARCHITECT-NR14-auth-schema-recommendations.txt
 
 ================================================================================
 OPEN QUESTIONS
 ================================================================================
 
-  None. All questions resolved. Schema is final.
+None from this thread. The following questions are now pending COO decision:
+
+  1. Schema anomaly: does COO approve removing the four undocumented columns?
+     (Architect recommends: yes, remove via migration)
+  2. Users table design: approved as specified in recommendation? (TEXT UUID PK)
+  3. trip_places user_id: COO/PO to confirm the addition beyond the original proposal
 
 ================================================================================
-PENDING
+PENDING — AWAITING DOWNSTREAM ACTION
 ================================================================================
 
-  Awaiting:
-  - COO review and approval of deliverables
-  - DATABASE spec from COO
-  - DATABASE schema implementation to review against ER schema
+  DATABASE:
+  - Create users table (TEXT UUID PK, email, oauth_provider, oauth_subject)
+  - Create refresh_tokens table (id, user_id, token_hash, expires_at, revoked_at)
+  - Add user_id TEXT NOT NULL REFERENCES users(id) to: trips, items, trip_places
+  - Add indexes: idx_trips_user_id, idx_items_user_id, idx_trip_places_user_id
+  - Remove undocumented columns (pending COO approval)
+
+  BACKEND:
+  - Create src/backend/repositories/ with trips, items, tripPlaces repositories
+  - Refactor all trip/place/item routes through repository layer
+  - Implement oauth.service.ts, jwt.service.ts
+  - Implement POST /api/auth/callback, /refresh, /logout
+  - Replace authenticate() stub with real JWT validation
+  - Access token storage must NOT be localStorage (spec must be explicit)
+
+  COO:
+  - Write Database spec for users/refresh_tokens tables
+  - Write Backend spec for repository layer + auth implementation
+  - Investigate and resolve schema anomaly (undocumented columns)
+
+================================================================================
+NR-14 GATE SECURITY REVIEW
+================================================================================
+
+A separate security review brief is expected from COO.
+Being involved in design now means gate review will be against validated decisions.
+
+Key areas to review at gate:
+  - Token storage implementation (access token in memory only)
+  - Refresh token hash storage (never raw token)
+  - JWT signing key management (env variable, rotation policy)
+  - OAuth PKCE implementation (code_challenge, state parameter)
+  - Repository layer completeness (all user-scoped tables covered)
+  - Postgres RLS readiness (withUserContext design in db/index.ts)
+
+================================================================================
+TECH FILES
+================================================================================
+
+  jobs/architect/tech/20260307-ER-schema.md           v1.1 (unchanged)
+  jobs/architect/tech/20260307-tech-blueprint.md       v1.0 (unchanged)
+  jobs/architect/tech/20260307-map-shading-spec.md     v1.0 (unchanged)
+  jobs/architect/tech/20260307-architecture-decisions-log.md
+                                                       ADL-01 through ADL-19
+                                                       (ADL-16 through ADL-19 added this thread)
 
 ================================================================================
 LAST PARK DOC
 ================================================================================
 
-  jobs/architect/park-docs/20260307-ARCHITECT-park.txt
-  Note: Park doc predates OQ-A1 resolution. Next park doc captures this.
+  jobs/architect/park-docs/20260319-ARCHITECT-park.txt
 
 ================================================================================
 NEXT ARCHITECT THREAD — RECOMMENDED STARTING POINT
 ================================================================================
 
-  1. Check COO inbox for approval or review feedback
-  2. If DATABASE has schema questions: consult and respond
-  3. Review DATABASE schema implementation against ER schema v1.1 when ready
+  1. Check jobs/architect/inbox/ for COO response to NR-14 recommendations
+  2. Review Database's users/refresh_tokens migration when submitted
+  3. Review Backend's repository layer implementation when submitted
+  4. Conduct NR-14 gate security review when brief arrives from COO
 

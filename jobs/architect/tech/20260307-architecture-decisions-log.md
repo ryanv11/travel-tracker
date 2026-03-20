@@ -279,3 +279,211 @@ The four patched bugs (duplicate CREATE INDEX, CHECK constraint regex, shared ch
 - If `npm install` is run without internet (container rebuild), `postinstall` will run `patch-package` against the newly installed drizzle-kit binary. The patch must apply cleanly against `drizzle-kit@0.31.9`; if the version changes the patch will fail loudly — treat that as a signal to re-evaluate.
 - All team members must use `db:generate` + `db:migrate` for any schema changes. The `db:migrate` script is now exposed in `package.json`.
 
+---
+
+## ADL-16 — Multi-user ownership boundary: user_id on trips, items, and trip_places
+
+**Date:** 2026-03-19
+**Status:** Decided — resolves NR-14 design review Q1
+
+**Decision:** user_id (FK → users.id, TEXT/UUID) is added to three tables:
+- `trips` — primary ownership root
+- `items` — direct user scoping for cross-trip queries and Postgres RLS
+- `trip_places` — added beyond the original COO proposal (see rationale)
+
+user_id is a regular indexed FK column on each table. It is NOT part of a composite PK.
+
+**Tables correctly excluded from direct user_id:**
+- `trip_categories_map`, `trip_companions_map`, `trip_activities_map`,
+  `trip_place_activities_map` — pure junction tables, ownership flows from parent
+- `item_flights`, `item_hotels`, `item_car_rentals`, `item_restaurants`,
+  `item_experiences` — extension tables, 1:1 FK to items; always accessed through items
+- `countries`, `regions`, `cities` — shared geographic reference data, not user-owned
+- `trip_categories`, `activities`, `companions`, `map_shading_config` — admin lists;
+  per-user scoping deferred as a product decision to Phase 2+
+
+**Why trip_places (deviation from COO proposal):**
+trip_places is not a pure junction table. It has its own auto-increment PK, its own
+timestamps, and is the direct target of cross-trip queries (carry-forward, city-level
+item history). In the Postgres RLS phase, those queries start from city_id and join
+through trip_places; a direct user_id on trip_places makes the RLS policy self-
+contained without requiring a mandatory trips JOIN on every policy evaluation.
+
+**Why indexed FK, not composite PK:**
+Composite PK would cascade into every downstream FK reference (trip_places, items,
+all junction tables). Drizzle ORM composite FK syntax is more complex. The security
+model is identical — Postgres RLS policies reference the user_id column directly.
+
+**users.id type: TEXT (UUID v4)**
+UUID rather than INTEGER AUTOINCREMENT because: user IDs appear in JWTs and URLs
+where sequential integers leak user count and enable enumeration. UUIDs are opaque
+identifiers. Portable to Postgres without sequence conflicts.
+
+**Required indexes:**
+- `idx_trips_user_id` ON trips(user_id)
+- `idx_items_user_id` ON items(user_id)
+- `idx_trip_places_user_id` ON trip_places(user_id)
+
+**Implications:**
+- DATABASE adds users, refresh_tokens tables plus user_id columns + indexes
+- BACKEND must migrate all trip/place/item queries through the repository layer
+  (ADL-18) before multi-user access is enabled
+- The undocumented ownerAccountId/subscriptionId/createdByAccountId columns already
+  in trips and trip_places must be removed via migration — they were not approved
+  by Architect and conflict with the clean user_id design
+
+---
+
+## ADL-17 — Auth architecture: OAuth (Google) + JWT access/refresh token pair
+
+**Date:** 2026-03-19
+**Status:** Decided — resolves NR-14 design review Q2
+
+**Decision:** OAuth 2.0 PKCE flow (Google as initial provider, designed for multi-
+provider extension). JWT access tokens (15-minute expiry). Refresh tokens (30-day
+expiry) stored server-side in refresh_tokens table (hashed). jose library for JWT.
+No auth framework (no Passport, Lucia, Auth.js).
+
+**Why OAuth over email+password:**
+No password management — no storage, no reset flows, no breach exposure. Family
+users universally have Google accounts. Architecture is designed to support
+email+password as an additive future option (users table has password_hash column
+capacity; the JWT and session layer is auth-strategy-agnostic).
+
+**Why JWT over session cookies:**
+Platform coverage: JWT (Authorization: Bearer header) works identically in browser,
+Electron, iOS Capacitor WebView, and native iOS. Session cookies require httpOnly
+cookie handling which is fragile in Electron (same-site/secure restrictions) and
+iOS WebView (cross-domain, SameSite=None+Secure, separate cookie store). JWT is
+the correct choice for a multi-platform target stack.
+
+**Token storage by platform (MANDATORY — not optional):**
+- Browser: access token in memory (JS variable); refresh token in httpOnly cookie
+  (SameSite=Strict, Secure). NEVER localStorage.
+- Electron: access token in memory; refresh token via Electron safeStorage API
+  (OS keychain on macOS). NEVER localStorage.
+- iOS (Capacitor): access token in memory; refresh token in iOS Keychain via
+  Capacitor Secure Storage plugin. NEVER localStorage.
+
+**Refresh token security:**
+Refresh tokens are stored as SHA-256 hashes in the refresh_tokens table. Raw tokens
+are never persisted server-side. Revocation is possible at any time by setting
+revoked_at. All tokens for a user can be revoked on logout or password change.
+
+**Library: jose**
+jose is the canonical TypeScript JWT library. It does not require a framework.
+It handles all cryptographic primitives correctly. Total auth implementation is
+approximately 300-400 lines across:
+- oauth.service.ts (PKCE flow, token exchange, user info)
+- jwt.service.ts (signing, verification)
+- auth routes (POST /api/auth/callback, /refresh, /logout)
+- Updated authenticate middleware
+
+**Electron OAuth callback:**
+When Electron packaging is implemented, a custom URL scheme (e.g.
+traveltracker://callback) must be registered in Electron main.ts to intercept
+the OAuth redirect. The backend auth flow is unchanged; only Electron main needs
+an additional URL scheme handler. This is deferred to Phase 1 release.
+
+**New schema required:**
+- users table (id TEXT UUID PK, email, display_name, oauth_provider, oauth_subject)
+- refresh_tokens table (id, user_id FK, token_hash, expires_at, revoked_at)
+
+**Implications:**
+- BACKEND implements oauth.service.ts, jwt.service.ts, three new auth routes
+- FRONTEND stores access token in memory only — this must be explicit in the spec
+- authenticate middleware body is replaced (signature unchanged — existing routes
+  receive req.user and require no modification beyond adding user scoping)
+- DATABASE adds users and refresh_tokens tables
+
+---
+
+## ADL-18 — Multi-tenant query pattern: repository layer
+
+**Date:** 2026-03-19
+**Status:** Decided — resolves NR-14 design review Q3
+
+**Decision:** A repository layer (`src/backend/repositories/`) wraps all Drizzle
+queries for user-scoped tables (trips, items, trip_places). Route handlers call
+repository functions — they do not write Drizzle queries directly against these
+tables. Repository functions accept userId as an explicit parameter and always
+include WHERE user_id = ? in the query condition.
+
+**Options rejected:**
+- Per-route explicit filtering: relies on every developer remembering to add the
+  WHERE clause. No enforcement mechanism. History shows this is where cross-user
+  leakage bugs originate. Rejected.
+- Middleware query injection: Drizzle has no query interceptor API. Monkey-patching
+  the db object is fragile and interferes with admin/seeding queries that run
+  without a user context. Rejected.
+
+**Repository structure:**
+  src/backend/repositories/
+    trips.repository.ts        — findAll(userId), findById(tripId, userId), etc.
+    items.repository.ts        — findByTrip(tripId, userId), findById(itemId, userId)
+    tripPlaces.repository.ts   — findByTrip(tripId, userId), findById(placeId, userId)
+
+**Non-user-scoped tables (cities, admin lists, geographic hierarchy) remain as
+direct Drizzle queries in route handlers or services — no repository needed.**
+
+**Postgres RLS design-forward approach:**
+Repository functions are designed to accept a db/tx parameter, enabling Phase 2
+Postgres RLS integration via a withUserContext(userId, fn) wrapper that issues
+SET LOCAL app.current_user_id = userId before executing queries. The WHERE user_id
+= ? clause in every repository query serves as both the SQLite enforcement mechanism
+and a fallback layer independent of RLS. The repository layer means RLS adoption in
+Phase 2 is additive (add policies + withUserContext wrapper), not a refactor.
+
+**Critical pre-live requirement:**
+ALL of the following existing query patterns MUST be migrated to repositories before
+multi-user access is enabled (current single-user behaviour is safe; multi-user
+access with the current patterns would be a CRITICAL security defect):
+
+1. trips.ts getTripOrThrow() — no user_id filter
+2. items.ts GET/PATCH /:itemId — verifies tripId but not trip ownership
+3. places.ts assertTripWritable() and all place endpoints — tripId only
+4. cities.ts GET /:id/carry-forward — no user scoping (leaks cross-user next_time items)
+5. cities.ts GET /:id/items — no user scoping (leaks cross-user completed items)
+6. map.ts getAllCountryShading() — must scope to authenticated user's trips
+
+**Implications:**
+- BACKEND creates src/backend/repositories/ before enabling multi-user access
+- Existing route handlers are refactored to use repository functions
+- Database adds user_id columns per ADL-16 as a prerequisite
+- Phase 2 Postgres RLS integration requires withUserContext() in db/index.ts —
+  design the repository function signatures to accommodate this now
+
+---
+
+## ADL-19 — Schema anomaly: undocumented columns in trips and trip_places
+
+**Date:** 2026-03-19
+**Status:** Decided — flag and remove
+
+**Discovery:**
+Schema review for NR-14 revealed four columns in the current schema.ts that were not
+in the approved ER schema v1.1 and were not reviewed or approved by Architect:
+- trips.ownerAccountId (text, nullable)
+- trips.subscriptionId (text, nullable)
+- trips.createdByAccountId (text, nullable)
+- trip_places.createdByAccountId (text, nullable)
+
+These columns have no FK constraints, no documentation, no ADL entry, and no
+corresponding migration documentation. Their intent is unknown.
+
+**Decision:** Remove all four columns via Drizzle migration before NR-14 database
+work begins. The proper multi-user ownership design is documented in ADL-16.
+Layering a clean user_id implementation on top of undocumented columns would create
+confusion and technical debt.
+
+**Action required:**
+- DATABASE to generate a migration removing all four columns
+- Architect to review the migration before it is applied
+
+**Note on process:**
+This is a violation of Shared Standard 13: "no schema changes without Architect
+review." The columns were introduced without Architect review. COO must identify
+when and why this happened and ensure the process is followed going forward. All
+schema changes — including adding nullable columns — require an ADL entry and
+Architect sign-off.
+

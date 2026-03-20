@@ -1,0 +1,612 @@
+FROM: Architect
+TO:   COO
+DATE: 2026-03-19 23:59
+RE:   NR-14 pre-gate design review — recommendations on all three decisions
+REF:  20260319_2330-COO-multi-user-auth-schema-review.txt
+
+---
+
+PREAMBLE — SCHEMA ANOMALY TO RESOLVE FIRST
+
+Before addressing the three decisions, I must flag an anomaly I discovered during
+schema review. The current schema.ts contains columns that were NOT in my approved
+ER schema (v1.1) and were not reviewed or approved by me:
+
+  trips.ownerAccountId       (text, nullable)
+  trips.subscriptionId       (text, nullable)
+  trips.createdByAccountId   (text, nullable)
+  trip_places.createdByAccountId  (text, nullable)
+
+These columns appeared — without Architect review — between the approved schema and
+the current implementation. I have no record of approving them. They are untyped
+text columns with no FK constraints, no documentation, and no ADL entry.
+
+This is exactly the class of schema drift that causes multi-user implementations to
+go wrong. Classification:
+
+  INITIAL CLASSIFICATION: MAJOR
+  ACTUAL CLASSIFICATION:  MAJOR
+
+The columns do not corrupt existing data (they are nullable and unused), but they
+represent unapproved schema decisions made outside the architectural process, and
+they will create confusion if the NR-14 implementation team encounters them without
+context. They must be resolved — either removed and replaced by the proper design
+recommended below, or explained and ratified — before NR-14 database work begins.
+
+My recommendation: remove all four columns via migration. The proper user_id pattern
+is defined below (Decision 1). Do not layer the new design on top of undocumented
+columns.
+
+I am flagging this to COO but am not blocking the recommendations below. The two
+issues can be resolved in parallel.
+
+---
+
+DECISION 1 — USER_ID COLUMN PLACEMENT
+
+RECOMMENDATION: trips + items as the boundary. Endorsed with one important
+correction to the proposed placement.
+
+FULL ANALYSIS:
+
+The proposed boundary (user_id on trips and items) is architecturally correct.
+Here is my reasoning for each table in the schema:
+
+trips — YES, user_id required. This is the ownership root. All data in the
+application is trip-scoped. The user who creates a trip owns it. This is the
+primary enforcement surface.
+
+items — YES, user_id required. The rationale in the brief is sound: cross-trip
+queries (all flights this year, all restaurants, carry-forward across trips) will
+need direct user scoping on items without requiring a JOIN through trips. In
+PostgreSQL, Row Level Security policies are simpler with a direct column than a
+JOIN-based policy. Even in SQLite, a direct WHERE clause on items.user_id is more
+efficient and more obvious than a JOIN through trips.
+
+However, I want to be precise about the "items may be queried cross-trip" claim.
+Looking at the current carry-forward query (cities.ts GET /:id/carry-forward) and
+the city items query (GET /:id/items), both already JOIN through trips. With user_id
+on trips, those existing queries can scope to the authenticated user's trips via
+a single join condition. The direct user_id on items becomes primarily valuable for:
+  (a) Postgres RLS — cleaner policy expression
+  (b) Future cross-trip item queries that may not join trips (e.g. "all my flights
+      ever" as a standalone flight log view)
+  (c) Defense-in-depth — if a query bug omits the trips join, items.user_id still
+      prevents cross-user leakage
+
+I endorse user_id on both tables for these reasons.
+
+Tables correctly EXCLUDED from direct user_id:
+
+trip_places — derives ownership from trips.user_id via trip_id FK. Every query
+touching trip_places already has trip_id in scope. Adding user_id here would be
+pure redundancy with no benefit. The cascade delete from trips already handles
+cleanup. EXCLUDE. Correct.
+
+trip_categories_map, trip_companions_map, trip_activities_map,
+trip_place_activities_map — these are pure junction tables. They have composite PKs
+pointing to their parent tables. Ownership is established through trip_id →
+trips.user_id. EXCLUDE. Correct.
+
+item_flights, item_hotels, item_car_rentals, item_restaurants, item_experiences —
+extension tables have a 1:1 FK to items.id (the extension PK IS the item ID). Since
+items.user_id exists, the extension is always accessed through items, and the JOIN
+condition items.user_id = authenticatedUserId is already present before the
+extension join is constructed. Adding user_id to extension tables would be
+denormalization with no integrity benefit. EXCLUDE. Correct.
+
+countries, regions, cities — these are shared geographic reference data, not
+user-owned data. They are global. Do not add user_id. Correct.
+
+trip_categories, activities, companions, map_shading_config — admin list tables.
+In the initial implementation these are shared per-installation (single-user app).
+When multi-user hosting arrives, the PO should decide whether each user gets their
+own admin lists or whether lists are shared. That is a product decision, not a
+schema decision for NR-14. For NR-14, these tables are not user-scoped. Document
+this as a deferred decision. Do not add user_id now.
+
+ONE ADDITION I RECOMMEND: trip_places should store user_id. Let me explain my
+reasoning carefully because I initially agreed it should be excluded.
+
+On further analysis: trip_places is not a pure junction table. It has its own
+auto-increment PK (trip_place_id), its own timestamps, and serves as an
+independent entity (the "Place" concept in the BRD). It is the anchor for
+place-level activities, and the target of cross-trip queries (carry-forward,
+city-level item history). In a multi-user Postgres environment, trip_places will
+appear in queries where we need to scope to the current user but where trips is
+not always the leading table — specifically, the carry-forward query starts from
+city_id and joins through trip_places to trips. Adding user_id to trip_places
+makes the RLS policy on that table self-contained.
+
+REVISED RECOMMENDATION: user_id on trips, items, AND trip_places.
+Rationale: trip_places is an independent entity, not a pure junction. It has its
+own PK and is the direct target of cross-trip queries. Direct user_id gives cleaner
+RLS policy expression in Postgres without a mandatory trips JOIN.
+
+This adds one column and one index to trip_places. The implementation cost is
+trivial. The policy expressiveness benefit is real.
+
+ON THE INDEXED FK vs COMPOSITE PK QUESTION:
+
+user_id as a regular indexed FK (not part of composite PK) is the correct decision
+for this schema. Here is why composite PK would be wrong:
+
+1. Cascade complexity: every table that references trips.id or items.id would need
+   to include user_id in the FK reference. That means trip_places, items,
+   trip_categories_map, trip_companions_map, trip_activities_map all need a second
+   column in their FK. This is the "cascades complexity into every downstream FK"
+   concern the COO brief correctly identified.
+
+2. Surrogate key stability: item extension tables use items.id as their PK (1:1).
+   If items.id becomes part of a composite PK, item extension table PKs would also
+   need to be composite — which is a significant schema change.
+
+3. Drizzle ORM: composite FKs are significantly more complex to express and
+   maintain in Drizzle. The query patterns become more verbose for marginal gain.
+
+4. Migration from SQLite to Postgres: Postgres RLS handles user isolation at the
+   policy layer. Composite PKs add nothing to the security model that a properly
+   indexed user_id column plus RLS policy does not already provide.
+
+Confirmed: user_id as indexed FK, not composite PK. Index on (user_id) is
+sufficient for the scoping queries.
+
+---
+
+DECISION 2 — AUTH ARCHITECTURE
+
+RECOMMENDATION: OAuth (Google) for initial implementation, with the auth layer
+designed to be provider-swappable. JWT (access + refresh token pair), stored with
+security appropriate to each platform. jose library for JWT handling.
+
+FULL ANALYSIS:
+
+2a. OAUTH vs EMAIL + PASSWORD
+
+Recommendation: OAuth (Google).
+
+Rationale:
+
+No-password-management is a genuine operational advantage for a personal-use
+family app. The owner and their family will almost certainly have Google accounts.
+There are no password reset flows to build, no secure password storage to implement
+correctly (bcrypt rounds, timing-safe comparison), no password breach exposure.
+Every hour spent building email+password auth is an hour not spent on the actual
+product.
+
+The security argument for email+password ("no Google dependency") is real but
+overstated for this use case. "Google dependency" manifests as: if Google OAuth is
+down, users cannot log in. For a personal travel tracker app used occasionally, this
+is an acceptable risk. It is not a banking system.
+
+However, I want to be explicit about the constraint: "the architecture must support
+it later without rework." If we add email+password later, we need the users table
+to have a password_hash column. That is additive — it does not require reworking
+anything we built for OAuth. The session/token layer is auth-strategy-agnostic.
+
+If the PO has a specific objection to Google dependency (e.g., some family members
+may be Apple-only and prefer Apple Sign-In), the correct architectural answer is
+to use a provider-agnostic OAuth library that supports multiple providers. I will
+address this in the library recommendation.
+
+One concern with OAuth: it requires the backend to be accessible from a browser
+redirect flow. In Electron (local mode), the OAuth redirect callback must be
+handled differently — typically by registering a custom URL scheme (e.g.
+traveltracker://callback) and intercepting the system-level URL open event in
+Electron main. This is a known pattern and is solved. But it is additional
+Electron-specific work at Phase 1 release time. The auth middleware itself remains
+the same; only the Electron main.ts needs an additional URL scheme handler.
+
+For the early NR-14 gate (pre-Electron-release), users will be accessing via
+browser. The OAuth redirect callback works normally in browser mode. Flag this as
+a deferred Electron implementation task.
+
+2b. JWT vs SESSION-BASED AUTH
+
+Recommendation: JWT with access token + refresh token pair.
+
+This is not even close, given the target platforms. Here is the analysis:
+
+Session-based auth stores session state server-side (in memory or in a DB table)
+and identifies the client via an httpOnly session cookie. This works perfectly in
+a standard browser. It does NOT work cleanly in:
+
+  Electron: The Electron renderer process can receive cookies, but httpOnly cookies
+  set by a localhost Express server are subject to the same-site and secure
+  restrictions depending on Electron version and Chromium settings. More
+  importantly, if the user ever migrates from local Electron to hosted web app,
+  session state stored in SQLite or memory does not survive the transition.
+
+  iOS (Capacitor): Capacitor's WebView handles cookies, but cross-domain httpOnly
+  cookie flows with a hosted backend introduce SameSite=None + Secure requirements
+  (HTTPS mandatory). The iOS WebView cookie store is separate from Safari's.
+  Managing session persistence across Capacitor app restarts via cookies is
+  fragile.
+
+  Future: If the API ever needs to be consumed by a native iOS client (not
+  Capacitor WebView) or a CLI tool, sessions tied to browser cookies become
+  unusable.
+
+JWT solves all of these:
+  - The access token is a signed, self-contained bearer token. Any HTTP client
+    can carry it in the Authorization header.
+  - The refresh token is a long-lived credential used to obtain new access tokens.
+  - Storage security varies by platform (see below).
+  - No server-side session state. The token IS the auth.
+  - Works identically in browser, Electron, iOS WebView, and native iOS.
+
+TOKEN STORAGE SECURITY by platform:
+
+  Browser: Access token in memory (JavaScript variable, not localStorage).
+    Refresh token in a httpOnly cookie (CSRF-protected via SameSite=Strict).
+    This is the browser-optimal pattern. localStorage access tokens are
+    vulnerable to XSS. In-memory access tokens expire quickly (15-60 min)
+    and the refresh flow is transparent to the user.
+
+  Electron: Access token in memory. Refresh token stored via Electron's
+    safeStorage API (OS-level encryption, keychain on macOS). Do NOT use
+    localStorage in Electron — it is not secure. safeStorage is the
+    correct Electron-idiomatic approach.
+
+  iOS (Capacitor): Access token in memory. Refresh token in iOS Keychain via
+    Capacitor's @capacitor/preferences plugin with keychain backing, or directly
+    via the Capacitor Secure Storage plugin. Not localStorage.
+
+The auth middleware in Express is identical across all three platforms — it reads
+the Authorization: Bearer <token> header and validates the JWT. The platform-
+specific storage is entirely in the client layer.
+
+IMPORTANT: The brief correctly notes that "JWT stored correctly may be more
+portable across targets." This is true. The word "correctly" is doing a lot of
+work. The failure mode I see most often is access tokens stored in localStorage,
+which is XSS-vulnerable. If Backend implements JWT and Frontend stores in
+localStorage, that is a CRITICAL security defect. I am flagging this explicitly
+so the Backend and Frontend specs address storage location explicitly.
+
+ACCESS TOKEN LIFETIME: 15 minutes. Short expiry limits the blast radius of a
+leaked token.
+REFRESH TOKEN LIFETIME: 30 days (configurable). Refresh tokens are stored
+server-side (a refresh_tokens table) to enable revocation. A JWT refresh token
+that cannot be revoked is worse than a session for security purposes.
+
+2c. WHAT THE AUTH MIDDLEWARE LAYER LOOKS LIKE
+
+The current auth.ts stub is positioned correctly (registered before all route
+handlers, after rate limiting). The upgrade path from stub to real auth is:
+
+1. The authenticate() function validates the JWT from the Authorization header.
+2. On success, it attaches the decoded user identity to req.user:
+     req.user = { id: string, email: string }
+3. On failure (missing token, invalid signature, expired), it returns 401.
+4. All route handlers receive a populated req.user — they do not need to know
+   anything about the auth mechanism.
+
+The auth middleware signature stays the same. Only the body changes.
+
+For the user scoping in route handlers (Decision 3), req.user.id is the value
+used in WHERE user_id = req.user.id conditions.
+
+Additional auth endpoints (outside the existing route structure):
+
+  POST /api/auth/callback       — OAuth callback handler (exchanges code for tokens)
+  POST /api/auth/refresh        — accepts refresh token, returns new access token
+  POST /api/auth/logout         — revokes refresh token
+
+These are new routes mounted at /api/auth/ — they do not touch existing route files.
+
+2d. LIBRARY RECOMMENDATION
+
+Recommendation: jose for JWT handling. No full auth framework.
+
+Here is my assessment of the options:
+
+Passport.js — aged framework, heavy, designed for a world before JWTs and OAuth2
+PKCE flows. Its OAuth strategy packages (passport-google-oauth20) are a layer
+of abstraction over something that is not complicated. I would not introduce
+Passport for a new build in 2026.
+
+Lucia — interesting lightweight framework, but opinionated about session storage
+adapters. It is primarily session-based, not JWT-first. Not the right fit.
+
+Auth.js (formerly NextAuth) — designed for Next.js. It works in other Node.js
+environments but is not natural to Express. Avoid.
+
+Roll-our-own with jose — this is the recommendation. jose is the canonical
+TypeScript JWT library (compact, well-audited, standard-compliant, the library
+behind most other JWT implementations). Implementing OAuth 2.0 PKCE flow and
+JWT issuance/validation on top of jose is a well-understood pattern, it is not
+"rolling our own crypto" (jose handles all the cryptographic primitives), and it
+gives complete control over the token format and refresh token storage.
+
+The total auth implementation is approximately:
+  - oauth.service.ts — PKCE challenge generation, token exchange, user info fetch
+  - jwt.service.ts — token signing/verification using jose
+  - A refresh_tokens DB table and associated service
+  - Updated authenticate middleware
+  - Three new auth route handlers
+  - Platform-specific storage on client side
+
+This is perhaps 300-400 lines of well-understood code. It is not complex.
+
+If the PO wants to support multiple OAuth providers later (Apple Sign-In, GitHub),
+the oauth.service.ts becomes a thin adapter for each provider, and the JWT layer
+remains unchanged. No framework rework required.
+
+---
+
+DECISION 3 — DRIZZLE MULTI-TENANT QUERY PATTERNS
+
+RECOMMENDATION: Repository layer wrapping Drizzle. Not per-route explicit
+filtering, not middleware injection.
+
+FULL ANALYSIS:
+
+3a. THE CLEANEST PATTERN FOR ENFORCING USER SCOPING
+
+There are three options, as the brief identifies:
+
+Option A: Per-route explicit filtering
+Each route handler appends `.where(eq(trips.userId, req.user.id))` manually.
+
+REJECT. This is the most dangerous pattern. It relies on every developer
+remembering to add the user scoping condition on every query. It has no enforcement
+mechanism. Experience shows that cross-user data leakage bugs in multi-tenant apps
+almost always come from a developer who forgot a WHERE clause. One missed condition
+and user A can read user B's data. This is a CRITICAL class of bug in a multi-user
+app, and it cannot be prevented by code review alone at scale.
+
+Option B: Middleware that injects userId into all queries
+A piece of Express middleware that wraps the Drizzle instance or intercepts queries
+to append user_id conditions.
+
+REJECT for this codebase. Drizzle does not have a query interceptor API (unlike
+Prisma, which has middleware). Implementing this pattern with Drizzle would require
+monkey-patching the db object, which is fragile and not how Drizzle is designed to
+be used. It would also interfere with admin-level queries that legitimately cross
+user boundaries (e.g., seeding data, geocoding queue — both of which run without
+a user context).
+
+Option C: Repository layer wrapping Drizzle (RECOMMENDED)
+Define a set of scoped query functions that always accept userId as an explicit
+parameter. Route handlers call `tripsRepo.findAll(userId)` rather than writing
+Drizzle queries directly.
+
+RECOMMEND. This is the correct pattern for this codebase for the following reasons:
+
+1. Enforcement: the repository functions are the only place raw Drizzle queries are
+   written. The user scoping condition lives in exactly one place per entity. There
+   is no opportunity for a route handler to forget it.
+
+2. Separation of concerns: route handlers handle HTTP (parse params, return JSON).
+   Repository functions handle data access (query construction, user scoping).
+   This is the architecture I originally envisioned when I wrote "Business logic
+   lives in services/" in the tech blueprint. Query logic belongs in a data layer.
+
+3. Drizzle compatibility: repository functions are plain TypeScript functions
+   wrapping Drizzle queries. They use Drizzle exactly as designed. No monkey-
+   patching, no interception.
+
+4. Postgres RLS compatibility (see 3b below): the repository layer is the correct
+   place to set the RLS session variable, if we choose to use Postgres RLS.
+
+5. Testability: repository functions are independently testable. Route handlers
+   become thin enough to test without a database.
+
+STRUCTURE:
+
+Create `src/backend/repositories/` alongside the existing `src/backend/services/`.
+
+  trips.repository.ts   — findAll(userId), findById(tripId, userId), create(), etc.
+  items.repository.ts   — findByTrip(tripId, userId), findById(itemId, userId), etc.
+  tripPlaces.repository.ts
+
+The repository functions take userId as an explicit first-or-last argument. They
+always add `.where(eq(table.userId, userId))` (or AND it with other conditions).
+
+Routes call repos, not Drizzle directly:
+
+  // Before (unsafe):
+  const trip = await db.select().from(trips).where(eq(trips.id, tripId));
+
+  // After (safe):
+  const trip = await tripsRepo.findById(tripId, req.user.id);
+  // findById internally does: WHERE id = tripId AND user_id = userId
+
+MIGRATION PATH: The existing query code in routes/ can be migrated to repositories
+incrementally. Start with trips and items (the critical tables). The unsupported
+tables (cities, admin) are not user-scoped and remain as direct Drizzle queries.
+
+IMPORTANT NOTE ON EXISTING ROUTES: Looking at the current query patterns:
+
+In trips.ts, getTripOrThrow() does: db.select().from(trips).where(eq(trips.id, tripId))
+This fetches a trip by ID without any user scoping. When multi-user is live, this
+function will return another user's trip if given the correct ID. This is the exact
+vulnerability that the repository pattern prevents. Backend must not go live with
+multi-user access until this and all similar functions are refactored through the
+repository layer.
+
+In cities.ts, the carry-forward query (GET /:id/carry-forward) queries items joined
+through trip_places to trips — but has NO user_id filter. When multi-user is live,
+carry-forward suggestions will surface another user's "next time" items for the same
+city. This is a data leakage bug that must be fixed before NR-14 gates open.
+
+In cities.ts, the city items query (GET /:id/items) has the same problem — no user
+scoping, will return completed items across all users for a city.
+
+These are not bugs today (single-user app). But they will be CRITICAL security
+defects the moment multi-user access is enabled. I am flagging them explicitly so
+Backend addresses them as part of the NR-14 implementation, not after.
+
+3b. DRIZZLE-SPECIFIC PATTERNS FOR POSTGRES RLS
+
+For the SQLite phase (current), Postgres RLS is not available. The repository layer
+IS the enforcement mechanism.
+
+For the Postgres phase (Phase 2), Postgres Row Level Security provides a second
+enforcement layer in the database itself, making it impossible for a misconfigured
+query to return cross-user data even if the application layer fails.
+
+The standard Postgres RLS pattern with a connection pool (which is what we will
+have in Phase 2) is:
+
+  SET LOCAL app.current_user_id = :userId;
+  -- All subsequent queries in this transaction scope to RLS policies that read
+  -- current_setting('app.current_user_id')
+
+The challenge is that Drizzle does not have built-in RLS session variable management.
+The correct approach is:
+
+  1. Define Postgres RLS policies on trips and items:
+       CREATE POLICY user_isolation ON trips
+         USING (user_id = current_setting('app.current_user_id')::integer);
+
+  2. In the database connection layer (db/index.ts), expose a withUserContext()
+     function that wraps a transaction with SET LOCAL app.current_user_id:
+       async function withUserContext(userId, fn) {
+         return db.transaction(async (tx) => {
+           await tx.execute(sql`SET LOCAL app.current_user_id = ${userId}`);
+           return fn(tx);
+         });
+       }
+
+  3. Repository functions call withUserContext when running in Postgres mode.
+     In SQLite mode, they skip the SET (SQLite has no RLS) and rely on the
+     WHERE user_id = ? clause in the query.
+
+Design toward this now by:
+  a. Making the repository functions accept a db/tx parameter (so withUserContext
+     can pass the transaction handle)
+  b. Keeping the WHERE user_id = ? clause in all repository queries (this is the
+     SQLite enforcement AND the fallback if RLS is not configured on a table)
+
+I am not recommending implementing Postgres RLS now — that is Phase 2 work.
+I am recommending designing the repository layer so that Postgres RLS integration
+in Phase 2 is additive (add the RLS policies + withUserContext), not a refactor.
+
+3c. RISK OF ACCIDENTAL CROSS-USER DATA LEAKAGE IN CURRENT QUERY PATTERNS
+
+Already partially addressed above. Let me be comprehensive:
+
+HIGH RISK (must fix before multi-user goes live):
+
+1. trips.ts — getTripOrThrow(tripId): no user_id filter. Returns any trip by ID.
+   Used by GET /:id, PATCH /:id, PATCH /:id/status, PATCH /:id/lock,
+   PATCH /:id/unlock, DELETE /:id. Every trip endpoint is affected.
+
+2. items.ts — GET /:itemId and PATCH /:itemId check items.tripId = req.tripId,
+   but do NOT check that the trip belongs to the authenticated user. An attacker
+   with a valid tripId from another user can read/modify that user's items.
+
+3. places.ts — assertTripWritable() and GET/POST/DELETE all check tripId but not
+   user_id. Same vulnerability.
+
+4. cities.ts — GET /:id/carry-forward and GET /:id/items: no user scoping. Will
+   return data from all users' trips for a given city.
+
+5. map.ts — getAllCountryShading() and getRegionShading(): currently aggregate
+   across all trips. Must be scoped to authenticated user's trips in multi-user mode.
+
+LOWER RISK (admin routes — shared data, no personal data):
+6. admin.ts — trip_categories, activities, companions are currently shared
+   across all users. If these become per-user in Phase 2, admin routes need scoping.
+   Currently not a leakage risk because this data is not personal.
+
+SUMMARY: The entire trips, places, and items route surface must be reworked through
+the repository layer before multi-user access is enabled. This should be the primary
+Backend deliverable for NR-14.
+
+---
+
+SCHEMA ADDENDUM — USERS TABLE DEFINITION
+
+The brief asks for recommendations on user_id placement but does not define the
+users table. For completeness, and so Database has something to implement:
+
+  CREATE TABLE users (
+      id            TEXT PRIMARY KEY,     -- UUID v4, generated at account creation
+      email         TEXT NOT NULL UNIQUE, -- from OAuth provider
+      display_name  TEXT,                 -- from OAuth provider profile
+      oauth_provider TEXT NOT NULL,       -- 'google' (extensible)
+      oauth_subject TEXT NOT NULL,        -- provider's sub claim (stable user ID)
+      created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      UNIQUE (oauth_provider, oauth_subject)
+  );
+
+  CREATE TABLE refresh_tokens (
+      id            TEXT PRIMARY KEY,     -- UUID v4
+      user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash    TEXT NOT NULL UNIQUE, -- SHA-256 of the raw token (never store raw)
+      expires_at    TEXT NOT NULL,
+      created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      revoked_at    TEXT                  -- NULL = active; non-NULL = revoked
+  );
+
+  CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
+  CREATE INDEX idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
+Notes:
+- users.id is TEXT (UUID), not INTEGER AUTOINCREMENT. This is deliberate.
+  UUID user IDs do not leak user count, are safe to include in JWTs without
+  enumeration risk, and are portable to Postgres without sequence conflicts.
+- I recommend TEXT(UUID) over INTEGER for user IDs even though the rest of
+  the schema uses INTEGER PKs. The user table is different: its ID appears in
+  JWTs, URLs, and multi-system contexts where sequence-based integers are
+  information-leaking. UUIDs are safe.
+- refresh_tokens stores a hash of the token, not the raw token. If the
+  refresh_tokens table is ever compromised, the raw tokens remain unknown.
+- The UNIQUE (oauth_provider, oauth_subject) constraint ensures that a single
+  Google account maps to exactly one users row.
+
+This requires adding user_id TEXT NOT NULL REFERENCES users(id) to:
+  - trips (the primary ownership boundary)
+  - items (direct user_id per Decision 1 recommendation)
+  - trip_places (per my recommendation above)
+
+And adding indexes:
+  - idx_trips_user_id ON trips(user_id)
+  - idx_items_user_id ON items(user_id)
+  - idx_trip_places_user_id ON trip_places(user_id)
+
+---
+
+SUMMARY TABLE
+
+| Decision | Recommendation |
+|----------|---------------|
+| user_id placement | trips + items + trip_places (MINOR addition to proposal) |
+| users.id type | TEXT (UUID) — not INTEGER |
+| user_id as indexed FK vs composite PK | Indexed FK — confirmed correct |
+| Auth mechanism | OAuth (Google) via PKCE, designed for multi-provider extension |
+| Token format | JWT — access token (15 min) + refresh token (30 days) |
+| Token storage | In-memory access token + platform-appropriate secure storage for refresh |
+| Library | jose (JWT) + direct OAuth 2.0 PKCE — no framework |
+| Query scoping pattern | Repository layer (src/backend/repositories/) |
+| Postgres RLS | Design toward it now (parameterised repositories); implement in Phase 2 |
+| Cross-user leakage risk | HIGH — all current trip/place/item routes need repository refactor |
+
+---
+
+ACTIONS REQUIRED
+
+1. COO to decide: remove the undocumented ownerAccountId / subscriptionId /
+   createdByAccountId columns from trips and trip_places before NR-14 DB work
+   begins, or ratify them with an ADL entry. I recommend removal.
+
+2. Database to implement: users table, refresh_tokens table per definitions above,
+   plus user_id column + index on trips, items, trip_places.
+
+3. Backend to implement: repository layer (src/backend/repositories/) before
+   enabling multi-user access. All trip/place/item routes must route through
+   repositories before NR-14 gate opens.
+
+4. Frontend/Backend to confirm: access token storage MUST NOT be localStorage.
+   This must be explicit in the implementation spec.
+
+5. Electron team (when Phase 1 release arrives): implement custom URL scheme
+   handler for OAuth redirect callback.
+
+The ADL entries for these decisions (ADL-16 through ADL-19) are filed in my tech
+folder alongside this message.
+
+Architect

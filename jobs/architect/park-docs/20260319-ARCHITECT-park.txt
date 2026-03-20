@@ -1,0 +1,102 @@
+ARCHITECT PARK DOCUMENT
+Date: 2026-03-19
+Thread: NR-14 pre-gate design review — multi-user auth and schema
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+Received NR-14 design review brief from COO requesting architect recommendations
+on three decisions:
+  1. user_id column placement
+  2. Auth architecture (OAuth vs email+password, JWT vs sessions, library choice)
+  3. Drizzle query patterns for multi-tenant scoping
+
+Read all relevant files in full before forming opinions:
+  schema.ts, trips.ts, items.ts, places.ts, cities.ts, map.ts, server.ts,
+  auth.ts (stub), ER schema v1.1, tech blueprint, ADL through ADL-15.
+
+Discovered a schema anomaly during review: four undocumented columns in trips and
+trip_places that were not in the approved ER schema and were not reviewed by
+Architect. Flagged as MAJOR — see bugs section below.
+
+Produced thorough, opinionated recommendations on all three decisions.
+Delivered to COO inbox.
+
+================================================================================
+DECISIONS MADE (ADL-16 through ADL-19)
+================================================================================
+
+ADL-16: user_id on trips + items + trip_places (indexed FK, TEXT UUID)
+        — endorsed the proposed trips+items boundary
+        — ADDED trip_places beyond the proposal (cross-trip query RLS rationale)
+        — rejected composite PK; endorsed indexed FK per COO proposal
+
+ADL-17: OAuth (Google) PKCE + JWT access/refresh tokens + jose library
+        — rejected email+password (unnecessary complexity for personal-family app)
+        — rejected session cookies (Electron and iOS platform incompatibility)
+        — rejected Passport/Lucia/Auth.js (wrong fit or Next.js-specific)
+        — mandated: access tokens in memory only, NOT localStorage
+
+ADL-18: Repository layer for all user-scoped query patterns
+        — rejected per-route explicit filtering (no enforcement mechanism)
+        — rejected middleware injection (Drizzle has no interceptor API)
+        — repository layer gives enforcement + testability + Postgres RLS readiness
+        — identified 6 specific cross-user leakage risks in current routes
+
+ADL-19: Schema anomaly — undocumented columns flagged, removal recommended
+        — process violation: schema changed without Architect review
+        — action: COO to investigate, DATABASE to remove via migration
+
+================================================================================
+RECOMMENDATIONS DELIVERED
+================================================================================
+
+  jobs/COO/inbox/20260319_2359-ARCHITECT-NR14-auth-schema-recommendations.txt
+
+================================================================================
+BUGS DISCOVERED
+================================================================================
+
+[MAJOR] Schema drift: four undocumented columns in trips and trip_places
+  — trips.ownerAccountId (text, nullable, no FK)
+  — trips.subscriptionId (text, nullable, no FK)
+  — trips.createdByAccountId (text, nullable, no FK)
+  — trip_places.createdByAccountId (text, nullable, no FK)
+  Disposition: escalated to COO; recommended removal via migration (ADL-19)
+  Process: not corrupting existing data (nullable/unused); severity is MAJOR
+  because it represents unapproved schema change and will create confusion
+  during NR-14 implementation if not resolved first.
+
+[MAJOR — not yet live, will become CRITICAL when multi-user enabled]
+  Cross-user data leakage risk in existing route patterns:
+  — trips.ts getTripOrThrow(): no user_id filter
+  — items.ts GET/PATCH /:itemId: verifies tripId but not trip ownership
+  — places.ts: tripId only, not user ownership
+  — cities.ts carry-forward: no user scoping (leaks cross-user next_time items)
+  — cities.ts city items: no user scoping (leaks cross-user completed items)
+  — map.ts shading: aggregates across all users
+  Disposition: escalated to COO via recommendations document; must be fixed
+  via repository layer (ADL-18) before any multi-user access is enabled.
+  Currently safe (single-user app). Will be CRITICAL the moment a second user
+  can authenticate.
+
+================================================================================
+FILES MODIFIED THIS THREAD
+================================================================================
+
+  jobs/architect/tech/20260307-architecture-decisions-log.md  (ADL-16 to ADL-19)
+  jobs/architect/context/current.txt                          (updated)
+  jobs/COO/inbox/20260319_2359-ARCHITECT-NR14-auth-schema-recommendations.txt (new)
+  jobs/architect/park-docs/20260319-ARCHITECT-park.txt        (this file)
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT ARCHITECT THREAD
+================================================================================
+
+  1. Check jobs/architect/inbox/ for COO response to recommendations
+  2. If COO approves schema anomaly resolution: review DATABASE migration
+  3. When DATABASE submits users/refresh_tokens schema: review against ADL-16/17
+  4. When BACKEND submits repository layer: review against ADL-18
+  5. Expect NR-14 gate security review brief — this is a separate upcoming thread
+
