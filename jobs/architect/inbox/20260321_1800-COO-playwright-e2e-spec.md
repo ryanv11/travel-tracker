@@ -81,6 +81,14 @@ Specify how E2E tests should manage database state:
 - How should the backend be started in E2E mode (which env vars, which DB file)?
 - Seed script approach: SQL file, Drizzle seed script, or API calls from tests?
 
+**Cleanup policy (decided by COO + PO):**
+Tests create their own data during the run. Cleanup must NOT be automatic at run
+end. Data should persist after a run so failures can be traced and reproduced
+before fixing. A separate explicit cleanup command (e.g. `npm run test:e2e:clean`
+or a Playwright global teardown script triggered manually) is the right pattern.
+The Architect should specify how this cleanup is invoked and what it does
+(drop and recreate e2e.db, or delete only test-created records via a known prefix/tag).
+
 ### 4. playwright.config.ts skeleton
 
 Provide a recommended `playwright.config.ts` covering:
