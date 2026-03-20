@@ -6,7 +6,7 @@
  * directly — always use a hook.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPatch } from '../utils/apiClient';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../utils/apiClient';
 import type { TripSummary, TripDetail, TripStatus } from '../types/api';
 
 /** Filters accepted by GET /api/trips */
@@ -150,6 +150,24 @@ export function useUnlockTrip() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => apiPatch<TripSummary>(`/api/trips/${id}/unlock`, {}),
+    onSuccess: (_result, id) => {
+      void qc.invalidateQueries({ queryKey: ['trips'] });
+      void qc.invalidateQueries({ queryKey: ['trips', id] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
+    },
+  });
+}
+
+/**
+ * Deletes a trip via DELETE /api/trips/:id.
+ * On success, invalidates trips list and map shading queries.
+ *
+ * @returns useMutation result. Call mutateAsync(id) to delete.
+ */
+export function useDeleteTrip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/api/trips/${id}`),
     onSuccess: (_result, id) => {
       void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['trips', id] });
