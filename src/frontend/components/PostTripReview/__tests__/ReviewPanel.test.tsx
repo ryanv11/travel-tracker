@@ -136,6 +136,7 @@ function makeTrip(places: TripPlace[]): TripDetail {
     categories: [],
     companions: [],
     activities: [],
+    countries: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
   };
