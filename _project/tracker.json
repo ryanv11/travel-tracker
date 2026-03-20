@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-03-11"
+    "updated": "2026-03-21"
   },
   "items": [
 
@@ -79,7 +79,7 @@
       "id": "FEAT-TR",
       "type": "feature",
       "title": "Trip Management",
-      "status": "blocked",
+      "status": "in_progress",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["TR-01","TR-02","TR-03","TR-04","TR-05","TR-06","TR-07","TR-08","TR-09","TR-10"],
@@ -101,7 +101,7 @@
       "id": "FEAT-MP",
       "type": "feature",
       "title": "Map View",
-      "status": "blocked",
+      "status": "in_progress",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["MP-01","MP-02","MP-03","MP-04","MP-05","MP-06"],
@@ -112,7 +112,7 @@
       "id": "FEAT-IT",
       "type": "feature",
       "title": "Item Logging",
-      "status": "blocked",
+      "status": "in_progress",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["IT-01","IT-02","IT-03","IT-04","IT-05","IT-06","IT-07","IT-08","IT-09"],
@@ -189,7 +189,7 @@
       "id": "FEAT-RV",
       "type": "feature",
       "title": "Post-Trip Review",
-      "status": "blocked",
+      "status": "in_progress",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["RV-01","RV-02","RV-03","RV-04"],
@@ -448,12 +448,12 @@
       "id": "NR-03",
       "type": "requirement",
       "title": "Trip ownership metadata — created_by/updated_by (lightweight)",
-      "status": "pending",
+      "status": "done",
       "owner": "database",
       "priority": "P2",
       "brdRefs": [],
       "phase": 1,
-      "notes": "Accepted lightweight only (2 nullable columns max). If it requires auth scaffolding, defer to Phase 2. Not yet specced."
+      "notes": "user_id column added to trips, items, trip_places tables via migration 0002 in session 4. Closed 2026-03-21."
     },
     {
       "id": "NR-04",
@@ -683,34 +683,34 @@
       "id": "BUG-11",
       "type": "bug",
       "title": "Map shading not live — only updates on page refresh",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["MP-01","MP-02"],
       "phase": 3,
-      "notes": "Root cause: trip/place mutations do not invalidate ['map','shading'] or ['map','regions'] cache keys. useMapShading has 5min stale time. Fix: add map shading cache invalidation to useCreateTrip, useUpdateTripStatus, useLockTrip, useUnlockTrip, useAddPlace, useRemovePlace mutations. Frontend-only fix."
+      "notes": "Fixed in session 4. Cache invalidation added to useAddPlace, useRemovePlace (usePlaces.ts) and useCreateTrip, useUpdateTripStatus, useLockTrip, useUnlockTrip (useTrips.ts). Closed 2026-03-21."
     },
     {
       "id": "BUG-12",
       "type": "bug",
       "title": "Trip list missing search by name and sort by date/name",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["TR-09","TR-10"],
       "phase": 3,
-      "notes": "PO testing 2026-03-09. TR-10 covers filter by category/activity (may be implemented). Search by name and sort by date/name not covered by current TR-10 wording. BRD update needed to extend TR-10. Verify what filter bar currently exposes before speccing the fix."
+      "notes": "Sort dropdown (newest/oldest/name A-Z/name Z-A) added in fix/sort-control (PR #13, closes GitHub #11). Search by name was already present in Tailwind migration (Part 4). Closed 2026-03-21."
     },
     {
       "id": "BUG-13",
       "type": "bug",
       "title": "Map click-through not implemented — country/region/city clicks do nothing",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["MP-03","GE-09"],
       "phase": 3,
-      "notes": "MP-03 and GE-09 require clicking a country/region/city to open associated trip entries. Component reference shows no click handler or navigation wiring in CountryLayer/RegionLayer/CityMarkers. Frontend to add click handlers that navigate to /trips filtered by country or region, or open a modal. Frontend-only fix."
+      "notes": "Implemented in MapView.tsx — handleMapClick navigates to /trips?country=, /trips?country=&region=, /trips?city= on country/region/city click. Closed 2026-03-21."
     },
     {
       "id": "FEAT-BD",
