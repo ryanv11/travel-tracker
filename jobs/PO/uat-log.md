@@ -53,4 +53,68 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 <!-- None — all sessions closed -->
 
+### UAT Session — 2026-03-20
+
+**Scope:** Testing the UI migration
+**Build:** 77a415b
+**Verdict:** Partial
+
+#### Findings
+
+- [ ] Sort control missing from trip list
+      Steps: Open trips tab, attempt to sort by newest/oldest/name
+      Expected: Sort dropdown or controls visible in left panel
+      Actual: No sort UI — hardcoded to date descending
+      Screenshot: none
+      Fixed myself: no
+      Bug: #11
+
+- [ ] Trip detail header — wrong layout and element order
+      Steps: Open any trip in right panel
+      Expected (mockup): Trip status > Edit > Photos on right side of header
+      Actual: Status on left next to title, then Photos > Edit on right
+      Screenshot: none
+      Fixed myself: no
+      Bug: #12 (visual discrepancy — dispatched to UX)
+
+- [ ] Trip detail meta row — stacked instead of inline
+      Steps: Open any trip in right panel, view below title
+      Expected (mockup): Date range | Companions | Tags on one inline row
+      Actual: Date range on own line, new line companions, new line tags
+      Screenshot: none
+      Fixed myself: no
+      Bug: #12 (visual discrepancy — dispatched to UX)
+
+- [x] In-panel navigation tabs missing
+      Note: F-02 (Itinerary/Review tabs) confirmed DEFERRED — not a current fix requirement.
+      F-03 (Map tab) remains scrapped. Tabs will be specced as separate work when content is ready.
+
+- [ ] Status bar missing or not visible
+      Steps: Open any trip in right panel, scroll to bottom
+      Expected (mockup): Persistent bar showing current status + next status CTA
+      Actual: Not visible — F-04/TR-12 was in brief but may be present and incorrectly styled
+      Screenshot: none
+      Fixed myself: no
+      Bug: #12 (UX to confirm if present but unstyled, or absent)
+
+- [ ] City box shading missing in trip detail
+      Steps: Open a trip with multiple places, view place cards
+      Expected (mockup): Shading/background styling on city section boxes
+      Actual: No shading on city boxes
+      Screenshot: none
+      Fixed myself: no
+      Bug: #12 (dispatched to UX)
+
+- [ ] Icons blue instead of green theme from mockup
+      Screenshot: none
+      Fixed myself: no
+      Bug: #12 (dispatched to UX)
+
+#### Notes / Observations
+
+1. Sort regression — was in pre-migration app, dropped during Tailwind migration. PO confirmed: "shouldn't have dropped features from the original version."
+2. Multiple visual discrepancies between delivered UI and approved Option B mockup. UX dispatched to do formal side-by-side comparison and produce delta doc.
+3. **Open scope question:** F-02 in-panel tabs (Itinerary + Review) were deferred in BRD v2.4. PO now wants them reinstated (Map tab excluded — F-03 remains scrapped). COO to confirm scope reinstatement before speccing.
+4. BYPASS_AUTH=true added to .env.local — local dev was blocked by devcontainer firewall unable to reach Clerk JWKS endpoint.
+
 ---
