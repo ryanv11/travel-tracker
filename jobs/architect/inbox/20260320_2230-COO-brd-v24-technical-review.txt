@@ -1,0 +1,98 @@
+TO: ARCHITECT
+FROM: COO
+DATE: 2026-03-20 22:30
+RE: BRD v2.4 — Technical review required before Frontend brief
+
+---
+
+CONTEXT
+
+BRD v2.4 was approved this session following PO review of UX delta items from the Option B
+mockup. Three approved requirements have technical implications that need your sign-off before
+we dispatch the Tailwind/UI migration brief to Frontend.
+
+No schema changes are implied by any of these items. The questions are about routing
+architecture, API contract, and a data derivation rule.
+
+---
+
+ITEM 1 — TR-11: TWO-PANEL LAYOUT (routing architecture)
+
+BRD text:
+"The trips area uses a persistent two-panel layout on desktop — a fixed left panel shows
+the scrollable trip list with search and filter controls; a right panel shows the selected
+trip detail. Selecting a trip updates the right panel without navigating away from the
+trips view."
+
+Question: The right panel must show a specific trip. The left panel must remain rendered
+simultaneously. What is your recommended routing pattern?
+
+Specifically:
+- Should the selected trip be encoded in the URL (e.g. /trips/:id)? If so, how does the
+  left panel remain rendered — does the route just render both panels, with the right panel
+  conditional on :id being present?
+- Is a nested route pattern (e.g. /trips as parent, /trips/:id as child outlet) the right
+  approach here, or should this be managed as client-side state only with the URL reflecting
+  the selection?
+- Any constraint from the future per-trip tab navigation (F-02/F-03, currently deferred) that
+  should inform the choice now?
+
+---
+
+ITEM 2 — TR-10 EXTENSION: SEARCH + STATUS FILTER (API contract)
+
+BRD text (v2.4 update):
+"Trips are searchable by name and filterable by category, activity, and status. The trip
+list includes a text search field and status filter controls (All / Planning / Active / Review
+/ Locked)."
+
+Approved from mockup delta: F-06 (search field) and F-07 (status filter chips) — both with
+effort S, no schema change required.
+
+Question: Should search and status filtering be implemented as:
+(a) API-side — query params on GET /api/trips (e.g. ?search=dublin&status=planning), or
+(b) Client-side — fetch all trips once, filter in React?
+
+Given the current single-user, local SQLite setup the dataset will be small (dozens of trips
+at most). Noting NF-05/NF-06 (future web/iOS migration), what pattern serves both now and
+later? If API-side, do you want to specify the query param names and type coercion rules
+so Backend implements them correctly?
+
+---
+
+ITEM 3 — DP-04: PLACE DATE RANGE DERIVATION RULE
+
+BRD text:
+"Each place section within the trip detail shows the city name, full country name, and the
+date range for that place. Date range is derived from hotel check-in/check-out dates if a
+hotel item exists; otherwise falls back to the trip date range."
+
+Question: Where should this derivation live — in the API response (backend computes and
+returns place_start_date / place_end_date in the trip detail endpoint), or in the frontend
+(client derives from the items in each place section)?
+
+If backend: confirm the derivation logic (earliest hotel check-in → latest hotel check-out
+within the place; fallback to trip.start_date / trip.end_date if no hotel item exists on
+that place). Confirm whether this is a computed field on the existing trip detail endpoint
+or a schema addition.
+
+If frontend: Frontend will need all hotel items with their dates included in the trip detail
+response — confirm this is already the case, or flag if the current trip detail endpoint
+needs to be enriched.
+
+---
+
+OUTPUT FORMAT
+
+Summary table first (decision | recommendation | confidence), then brief per-item writeup.
+This is three clean questions — no need for extended analysis unless you identify a
+non-obvious risk.
+
+Send your response to jobs/COO/inbox/ per standard format.
+
+---
+
+TIMING
+
+This is the blocker before the Tailwind/UI brief can be dispatched to Frontend. Quick
+turnaround appreciated.

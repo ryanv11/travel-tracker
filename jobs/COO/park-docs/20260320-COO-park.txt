@@ -1,0 +1,99 @@
+PARK DOCUMENT — COO
+Date: 2026-03-20
+Session: 3 (continuation from session 2 via context summary)
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+This session covered two parallel tracks:
+(A) Product work — auth decision, UX direction, BRD amendments, bug resolution
+(B) Process improvement — tightening the multi-agent workflow for token efficiency
+    and operational hygiene
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+1. AUTH PLATFORM — Clerk (ADL-20, supersedes ADL-17)
+   Dimension: consumer vs enterprise. WorkOS ruled out (enterprise-first). Clerk
+   confirmed. Backend seam rule: no @clerk/* imports, use jose + JWKS URI only.
+   Refresh_tokens table dropped — Clerk handles token lifecycle.
+   PO action: create Clerk account, provide CLERK_PUBLISHABLE_KEY + CLERK_JWKS_URI.
+
+2. UNDOCUMENTED SCHEMA COLUMNS — REMOVE
+   PO approved removal of ownerAccountId, subscriptionId, createdByAccountId (trips x2,
+   trip_places x1). Will be actioned via migration in NR-14 gate spec.
+
+3. UI LAYOUT — Option B (two-panel) approved
+   PO selected decisively from two HTML mockups produced by UX agent.
+   Confirms TR-11 as the target architecture.
+
+4. BRD v2.4 — APPROVED (full delta review with PO)
+   All 16 delta items reviewed and decided:
+   - APPROVED: D-01–D-06, F-01, F-04, F-06, F-07, F-08
+   - REJECTED: C-01, F-05 (transited/want-to-visit)
+   - DEFERRED: F-02, F-03 (in-panel tabs + per-trip map — need region tagging first)
+   - DESIGNER'S CALL: C-02 (icon style)
+   BRD amended to v2.4, change log updated.
+
+5. PROCESS — Multiple workflow improvements adopted
+   See context current.txt section "PROCESS IMPROVEMENTS" for full list.
+
+================================================================================
+SPECS WRITTEN / DISPATCHED
+================================================================================
+
+  jobs/architect/inbox/20260320_0945-COO-auth-managed-platform-query.txt
+  → Clerk vs roll-your-own OAuth query (completed, response received, ADL-20 written)
+
+  jobs/architect/inbox/20260320_2230-COO-brd-v24-technical-review.txt
+  → Three BRD v2.4 technical questions (TR-11 routing, TR-10 API, DP-04 derivation)
+  → AWAITING RESPONSE — this is the current blocker before Tailwind brief
+
+================================================================================
+OUTPUTS REVIEWED
+================================================================================
+
+  ARCHITECT — Clerk auth assessment: APPROVED (ADL-20, backend seam rule confirmed)
+  BACKEND — BUG-17 completion report: APPROVED (carry-forward fix, commit d69c2ae)
+  FRONTEND — BUG-18 completion report: APPROVED (already resolved in 1fe7bc7)
+  UX — Option B mockup + delta doc: APPROVED (PO selected Option B, all deltas decided)
+
+================================================================================
+PENDING REVIEWS EXPECTED
+================================================================================
+
+  ARCHITECT: BRD v2.4 technical review — routing, API filter contract, date derivation
+  QA: Phase 3 sign-off (dispatched 2026-03-19 22:00 — overdue)
+
+================================================================================
+ISSUES FLAGGED
+================================================================================
+
+  GIT HYGIENE: 14 uncommitted changes found in PO's VS Code at session start.
+  Caused by agents not committing housekeeping (park docs, context, inbox moves).
+  Resolution: GIT REQUIREMENT blocks added to all agent system prompts.
+  Commit 2e5d2e8 clears the backlog.
+
+  CONTEXT WINDOW EXHAUSTION: Session ran out of context mid-task (mid-Architect dispatch).
+  The system prompt changes (git hygiene blocks) were staged but not committed when context
+  ran out. Resolved on resume: committed as 2e5d2e8.
+
+================================================================================
+RECOMMENDED STARTING POINT — NEXT SESSION
+================================================================================
+
+  Check: jobs/COO/inbox/ for Architect BRD v2.4 review response
+  Check: jobs/COO/inbox/ for QA Phase 3 sign-off (overdue)
+  Check: UAT log for any new PO findings
+
+  If Architect review is in:
+  → Adjudicate, then write Tailwind/UI migration brief for Frontend
+  → Include all BRD v2.4 approved items + FEAT-BD multi-select delete
+
+  If Clerk env vars received from PO:
+  → Write NR-14 gate spec
+  → Dispatch NR-03 + repository layer to Database + Backend
+
+================================================================================

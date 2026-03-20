@@ -1,9 +1,5 @@
-COO CONTEXT — 2026-03-20 00:45
+COO CONTEXT — 2026-03-20 (session 3 close)
 PROJECT: Travel Tracker
-CURRENT STATUS: Session 2 complete. Frontend P0 fixes done (dd9acc7). Architect NR-14
-                review complete — major findings including undocumented schema columns.
-                BUG-17/18 dispatched. BUG-19 closed. Architect review to be discussed
-                with PO next session.
 
 ================================================================================
 PHASE STATUS
@@ -13,34 +9,36 @@ PHASE STATUS
   PHASE 1 (DATA LAYER)    — COMPLETE
   PHASE 2 (API LAYER)     — COMPLETE
   PHASE 3 (UI LAYER)      — COMPLETE (code) — awaiting QA sign-off + PO UAT PASS
-  PHASE 4 (QA/DOCS)       — ACTIVE — QA Phase 3 sign-off dispatched 2026-03-19 22:00
+  PHASE 4 (QA/DOCS)       — ACTIVE
   PHASE 5 (INTEGRATIONS)  — PENDING (post-MVP)
 
 ================================================================================
 ACTIVE JOBS
 ================================================================================
 
+ARCHITECT
+  Status:   ACTIVE — BRD v2.4 technical review dispatched 2026-03-20 22:30
+  Spec:     jobs/architect/inbox/20260320_2230-COO-brd-v24-technical-review.txt
+  Awaiting: Routing pattern (TR-11), API filter contract (TR-10), date derivation
+            rule (DP-04)
+
 FRONTEND
-  Status:   ACTIVE — BUG-18 cache fix dispatched 2026-03-20 00:30
-  Also in inbox: UI stack queries (x2), P0 fixes complete (dd9acc7, CI green)
-  Awaiting: BUG-18 completion report + UI stack query responses
+  Status:   IDLE — BUG-18 complete (commit 1fe7bc7, already resolved pre-session)
+  Awaiting: Tailwind/UI migration brief — BLOCKED on Architect BRD v2.4 review
+  Notes:    BUG-18 completion report received and archived
 
 BACKEND
-  Status:   ACTIVE — BUG-17 carry-forward spec change dispatched 2026-03-20 00:30
-  Awaiting: BUG-17 completion report
+  Status:   IDLE — BUG-17 complete (commit d69c2ae)
+  Notes:    Completion report received and archived
+  Next:     NR-14 repository layer spec (pending Architect sign-off + Clerk env vars)
 
 QA
   Status:   ACTIVE — Phase 3 sign-off dispatched 2026-03-19 22:00
   Awaiting: Completion report
 
-ARCHITECT
-  Status:   IDLE — NR-14 design review complete
-  Output:   jobs/COO/inbox/ (architect report) + jobs/architect/tech/ (ADL-16–19)
-  Next:     NR-14 gate spec (COO to write after PO discussion)
-
 UX
-  Status:   IDLE — BRIEF-UX-01 complete
-  Next:     Tailwind migration brief (pending Frontend stack query + Architect review discussed)
+  Status:   IDLE — BRIEF-UX-01 complete, Option B mockup + delta doc delivered
+  Next:     Updated mockup (after Tailwind brief approved) — for QA reference
 
 ================================================================================
 OPEN BUGS
@@ -49,63 +47,67 @@ OPEN BUGS
 | ID      | Severity | Status                                              |
 |---------|----------|-----------------------------------------------------|
 | BUG-06  | TRIVIAL  | Deferred (safe, post-beta)                          |
-| BUG-17  | MAJOR    | Dispatched Backend 2026-03-20 — carry-forward query |
-| BUG-18  | MINOR    | Dispatched Frontend 2026-03-20 — cache invalidation |
-| P0-02   | MAJOR    | Within Tailwind migration                           |
-| P0-03   | MAJOR    | Within Tailwind migration                           |
+| P0-02   | MAJOR    | Within Tailwind migration scope                     |
+| P0-03   | MAJOR    | Within Tailwind migration scope                     |
 | ARCH-01 | MINOR    | Deferred — bulk review update endpoint              |
 | ARCH-02 | MINOR    | Deferred — city marker sprite fragility             |
 
-CLOSED THIS SESSION:
-| P0-01 / P0-04 / P0-05 / ARCH-03 | DONE — dd9acc7 (Frontend, CI green)  |
-| BUG-19                           | CLOSED — not a bug; sort by trip date |
-
-DEFERRED DESIGN DECISION:
-  "Considered items auto-roll-forward at trip completion" — noted, revisit post-beta.
+CLOSED THIS SESSION (or prior, now confirmed):
+| BUG-17 | DONE — carry-forward fix, commit d69c2ae                    |
+| BUG-18 | DONE — cache invalidation fix, commit 1fe7bc7               |
+| BUG-19 | CLOSED — not a bug                                          |
 
 ================================================================================
 TEST STATUS
 ================================================================================
 
   Frontend tests:  55/55  PASSING  (commit dd9acc7)
-  Backend tests:  134/134 PASSING  (commit 0870d00)
-  Contract tests:  99/99  PASSING  (commit 0e71fdf — last known good)
-  CI (HEAD 9aa7058): green
+  Backend tests:  134/134 PASSING  (commit d69c2ae or later)
+  Contract tests:  99/99  PASSING  (last known good 0e71fdf)
+  CI (HEAD 2e5d2e8): green (system prompt housekeeping commit)
 
 ================================================================================
-ARCHITECT NR-14 REVIEW — FINDINGS (to discuss with PO)
+NR-14 / AUTH — STATUS
 ================================================================================
 
-  Full report: jobs/COO/inbox/ (latest Architect message)
-  ADL entries: ADL-16 through ADL-19 in jobs/architect/tech/
+  Clerk confirmed as auth platform (ADL-20, supersedes ADL-17)
+  Backend seam rule: no @clerk/* imports — backend uses jose + JWKS URI only
+  PO action pending: create Clerk account at clerk.com, provide env vars:
+    - CLERK_PUBLISHABLE_KEY (frontend)
+    - CLERK_JWKS_URI (backend)
+  Schema decisions finalised:
+    - users table: id UUID, clerk_id TEXT, email TEXT, display_name TEXT, created_at
+    - refresh_tokens table: DROPPED (Clerk handles token lifecycle)
+    - user_id (TEXT/UUID) on: trips, items, trip_places
+    - Remove undocumented columns: ownerAccountId, subscriptionId, createdByAccountId x3
 
-  KEY FINDINGS REQUIRING PO DECISION:
+  NR-14 gate spec: NOT YET WRITTEN — waiting on Clerk env vars from PO
 
-  1. UNDOCUMENTED SCHEMA COLUMNS (MAJOR — action required before NR-14 DB work)
-     trips.ownerAccountId, trips.subscriptionId, trips.createdByAccountId,
-     trip_places.createdByAccountId — not in approved ER schema, no ADL entry,
-     no FK constraints. Architect recommends removal via migration.
-     PO DECISION NEEDED: remove or ratify?
+================================================================================
+BRD v2.4 — APPROVED CHANGES (this session)
+================================================================================
 
-  2. user_id PLACEMENT — Architect adds trip_places to proposed trips + items
-     Rationale: trip_places has its own PK and is a direct carry-forward target;
-     self-contained RLS policy valuable for Phase 2 Postgres.
-     Revised: user_id on trips + items + trip_places (not composite PK).
+  TR-10 updated: name search + status filter chips (All/Planning/Active/Review/Locked)
+  TR-11 added:   Two-panel layout — fixed left panel + right detail panel
+  TR-12 added:   Persistent status transition bar
+  PH-03 added:   Photos button in trip detail header
+  Section 5.9 added: DP-01–DP-04 (trip list and detail display requirements)
+  Future features: F-02/F-03 (in-panel tabs + per-trip map) — deferred
 
-  3. user_id TYPE — TEXT (UUID), not INTEGER
-     Rationale: UUIDs in JWTs/URLs don't leak user count; portable to Postgres.
+  Delta doc PO decisions: see jobs/ux/tech/20260320-UX-mockup-delta.md
 
-  4. AUTH — OAuth (Google) PKCE + JWT (jose library)
-     Access token: 15 min, in memory only (NEVER localStorage — CRITICAL defect if so)
-     Refresh token: 30 days, stored server-side as hashes (refresh_tokens table)
-     Electron: needs custom URL scheme handler for OAuth redirect (deferred)
+================================================================================
+PROCESS IMPROVEMENTS — THIS SESSION
+================================================================================
 
-  5. QUERY SCOPING — Repository layer (src/backend/repositories/)
-     Per-route filtering rejected (no enforcement mechanism).
-     6 existing routes identified as HIGH RISK for cross-user leakage when
-     multi-user goes live — all must go through repo layer before NR-14 opens.
-
-  6. USERS + REFRESH_TOKENS TABLE DEFINITIONS provided (ready to spec to Database)
+  1. frameworks.txt created (_shared/) — canonical tech stack reference
+  2. inbox/read/ pattern adopted for all agents — processed messages archived
+  3. OUTPUT FORMAT STANDARD added to Architect prompt (summary table first)
+  4. DECISION FRAMING STANDARD added to COO prompt
+  5. COMPLETION REPORT FORMAT added to all worker prompts
+  6. GIT REQUIREMENT blocks added to all agent prompts (two commits, clean status)
+  7. UAT log/archive split — uat-log.md lean; uat-archive.md has closed items
+  8. objective.txt and job-registry.txt removed from init (empty, no value)
 
 ================================================================================
 OPEN REQUIREMENTS
@@ -113,53 +115,39 @@ OPEN REQUIREMENTS
 
 | ID      | Status        | Notes                                                    |
 |---------|---------------|----------------------------------------------------------|
-| NR-03   | Pending spec  | user_id on trips + items + trip_places (Architect final) |
-| NR-14   | Pending spec  | Gate spec — Architect review done, PO discussion pending |
+| NR-03   | Pending spec  | user_id on trips + items + trip_places                   |
+| NR-14   | Blocked       | Waiting on Clerk env vars from PO                        |
 | OP-06   | Pending       | Checklist tied to NR-14                                  |
 | NR-07   | Pending       | Offline indicator — P2, deferrable                       |
-| OP-07   | Pending       | UX expert review — UX agent onboarded; human TBD         |
+| OP-07   | Pending       | UX expert review — UX agent; human TBD                   |
 | ARCH-01 | Deferred      | Bulk review update endpoint                              |
 | ARCH-02 | Deferred      | City marker sprite fragility                             |
 
-FEAT-BD FRONTEND (multi-select delete UI):
-  Backend done. Spec not yet written. Holding until BUG-18 fix lands.
-
-================================================================================
-UAT STATUS
-================================================================================
-
-  Log: jobs/PO/uat-log.md
-  Last session: 2026-03-19 — Dublin trip testing
-  Open findings: BUG-17 (dispatched), BUG-18 (dispatched)
-  Closed: BUG-19 (not a bug)
-  Deferred design note: considered items auto-roll-forward
+  FEAT-BD: Multi-select delete UI — Backend done, Frontend spec not yet written.
+           Holding until Tailwind brief is dispatched.
 
 ================================================================================
 NEXT COO ACTIONS (resume from here)
 ================================================================================
 
-  ON STARTUP:
-  0. Check jobs/PO/uat-log.md for any new UAT findings
-
-  IMMEDIATE — DISCUSS WITH PO:
-  1. Architect NR-14 review — 6 key findings above, 1 requires PO decision
-     (undocumented schema columns: remove or ratify?)
-
-  WHEN PO DECISION ON SCHEMA COLUMNS:
-  2. Generate migration to remove ownerAccountId / subscriptionId /
-     createdByAccountId columns if approved
-  3. Write NR-14 gate spec (full formal criteria)
-  4. Spec NR-03 to Database + Backend (users table, refresh_tokens, user_id migration)
-
   WAITING ON:
-  5. Frontend: BUG-18 fix + UI stack query responses
-  6. Backend: BUG-17 fix
-  7. QA: Phase 3 sign-off
+  1. Architect — BRD v2.4 technical review (routing, API filter, date derivation)
+  2. QA — Phase 3 sign-off completion report
+  3. PO — Clerk account creation (env vars for NR-14 gate spec)
 
-  WHEN FRONTEND STACK QUERY + ARCHITECT DONE:
-  8. Write Tailwind migration brief for Frontend
+  WHEN ARCHITECT REVIEW RECEIVED:
+  4. Adjudicate any findings, then write Tailwind/UI migration brief for Frontend
+     (include: two-panel layout, status bar, photo button, search+filter chips,
+      trip card enhancements, header meta row, place subtitle — all BRD v2.4 approved)
+  5. Write FEAT-BD frontend spec (multi-select delete) — bundle into Tailwind brief or
+     dispatch separately
 
-  WHEN QA PHASE 3 PASSES + PO UAT PASSES:
+  WHEN CLERK ENV VARS RECEIVED FROM PO:
+  6. Write NR-14 gate spec
+  7. Spec NR-03 to Database (users table, remove undocumented columns, user_id migration)
+  8. Spec repository layer to Backend
+
+  WHEN QA PHASE 3 SIGN-OFF + PO UAT PASS:
   9. Formal Phase 3 closure
 
 ================================================================================
