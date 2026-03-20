@@ -1,0 +1,96 @@
+FROM: COO
+TO:   Architect
+DATE: 2026-03-19 23:30
+RE:   NR-14 pre-gate design review — multi-user schema, auth architecture, Drizzle patterns
+
+---
+
+BACKGROUND
+
+The project is approaching NR-14: the formal hardening gate that must pass before
+access is extended beyond the owner (spouse, family). Preparing the gate spec now.
+
+Three decisions have been made at COO/PO level that require your review before
+they are specced to Database and Backend. Your input may revise any of them.
+
+---
+
+DECISION 1 — USER_ID COLUMN PLACEMENT
+
+Agreed direction:
+  Add user_id (FK → users table) to: trips, items
+  Do NOT add to: junction tables, extension tables (item_flights, item_hotels, etc.)
+
+Rationale:
+  - trips is the ownership root; everything downstream chains off it via FK
+  - items is added because it may eventually be queried cross-trip (all flights
+    this year, all restaurants, etc.) and direct column RLS is cleaner in Postgres
+  - Junction and extension tables are always accessed in a trip/item context;
+    JOIN-based RLS policy is acceptable for defense-in-depth on those
+  - user_id is a regular indexed FK column — NOT part of a composite PK
+    (composite PK was considered and rejected: cascades complexity into every
+    downstream FK reference)
+
+Questions for Architect:
+  1. Do you agree with trips + items as the boundary? Any tables we've missed
+     or any we've included that shouldn't be there?
+  2. Any concerns about the FK-chain approach for places, junction tables,
+     extension tables from an integrity or query-performance standpoint?
+  3. Is the "user_id as indexed FK, not composite PK" decision correct for
+     this schema and the planned Postgres migration?
+
+---
+
+DECISION 2 — AUTH ARCHITECTURE
+
+Direction agreed in principle: individual user accounts. Implementation not decided.
+
+Options on the table:
+  A. OAuth (Google) — no password management, leverages existing accounts,
+     no reset flows to build, family likely all have Google accounts
+  B. Email + password — more control, no Google dependency, more to build and secure
+
+Questions for Architect:
+  1. Which do you recommend and why?
+  2. JWT vs session-based auth — what's the right call for this stack
+     (Express backend, React frontend, planned Electron packaging, eventual iOS)?
+     Note: Electron complicates browser-cookie sessions; iOS complicates httpOnly
+     cookie flows. JWT stored correctly may be more portable across targets.
+  3. What does the auth middleware layer look like in Express for this use case?
+     How should it integrate with the existing route structure?
+  4. Are there any auth libraries you'd recommend (e.g. Lucia, Auth.js, Passport,
+     roll-our-own JWT with jose)?
+
+---
+
+DECISION 3 — DRIZZLE MULTI-TENANT QUERY PATTERNS
+
+Currently all queries fetch without any user scoping. With user_id on trips and
+items, every query that touches those tables needs a `where user_id = ?` clause
+to isolate data correctly.
+
+Questions for Architect:
+  1. What is the cleanest pattern for enforcing user scoping in Drizzle ORM?
+     Options include: middleware that injects userId into all queries, a repository
+     layer wrapping Drizzle, or per-route explicit filtering. What do you recommend
+     for this codebase and future Postgres migration?
+  2. Are there any Drizzle-specific patterns for Postgres RLS that we should
+     design toward now even while on SQLite?
+  3. Any risk of accidental cross-user data leakage in the current query patterns
+     that we should flag to Backend before they implement?
+
+---
+
+SCOPE NOTE
+
+This is a design review and recommendation — not an implementation spec.
+COO will write the implementation specs for Database and Backend once your
+recommendations are received.
+
+You will also be asked to conduct the internal security review as part of the
+NR-14 gate itself (separate brief to follow). Being involved in the design now
+means your gate review will be against decisions you have already validated.
+
+Please report findings and recommendations to jobs/COO/inbox/.
+
+COO
