@@ -94,6 +94,10 @@ RUN chmod +x /usr/local/bin/init-firewall.sh && \
 # SYNC: PLAYWRIGHT_VERSION ARG must always match @playwright/test in package.json.
 # When bumping @playwright/test, update this ARG and rebuild the container.
 ARG PLAYWRIGHT_VERSION=1.52.0
-RUN npx --yes @playwright/test@${PLAYWRIGHT_VERSION} install --with-deps chromium
+# Install OS-level Chromium dependencies as root (requires apt).
+RUN npx --yes @playwright/test@${PLAYWRIGHT_VERSION} install-deps chromium
 
 USER node
+# Install the browser binary as node so it lands in /home/node/.cache/ms-playwright,
+# which is where the node user's Playwright runtime will look for it.
+RUN npx @playwright/test@${PLAYWRIGHT_VERSION} install chromium

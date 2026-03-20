@@ -64,7 +64,7 @@ export default defineConfig({
       // SQLITE_PATH: isolated e2e database (db:migrate runs before playwright starts)
       // BYPASS_AUTH: skips Clerk JWT verification for all API requests
       command:
-        'SQLITE_PATH=./e2e.db BYPASS_AUTH=true npm run dev:api',
+        'SQLITE_PATH=file:./e2e.db BYPASS_AUTH=true npm run dev:api',
       url: 'http://localhost:3001/api/trips',
       reuseExistingServer: false,
       timeout: 30_000,
