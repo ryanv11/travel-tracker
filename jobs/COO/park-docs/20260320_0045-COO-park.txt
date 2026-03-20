@@ -1,0 +1,82 @@
+COO PARK — 2026-03-20 00:45
+SESSION END
+
+================================================================================
+SESSION SUMMARY
+================================================================================
+
+Continuation of the 2026-03-19 session. Ran Frontend P0 fixes and Architect NR-14
+review in parallel. Processed UAT findings from PO live testing. Three bugs logged,
+triaged and dispatched/closed.
+
+================================================================================
+COMPLETED THIS SESSION
+================================================================================
+
+  Frontend P0 quick fixes + ARCH-03 — DONE (commit dd9acc7, CI green)
+    formatDate shared utility, green lock button, carry-forward opt-in, ShadingTab onBlur
+    55/55 tests passing.
+
+  Architect NR-14 design review — DONE
+    6 key findings. ADL-16–19 filed. Full report in COO inbox.
+    PO to review and decide on undocumented schema columns next session.
+
+  UX agent onboarded + BRIEF-UX-01 complete (earlier this session)
+    11 MAJOR, 27 MINOR, 3 ARCH concerns. Design system spec produced.
+
+  FEAT-BD (Backend DELETE /api/trips/:id) — DONE (commit 0870d00)
+
+================================================================================
+UAT SESSION PROCESSED
+================================================================================
+
+  PO tested: Dublin trip creation, carry-forward, map interaction, sort.
+
+  BUG-17 — carry-forward not triggering from planning trip
+    Root cause: query filtered to review_pending/locked only.
+    Decision: spec change — next_time is explicit intent, status irrelevant.
+    Dispatched to Backend: jobs/backend/inbox/20260320_0030-COO-bug17-carry-forward-spec-change.txt
+
+  BUG-18 — new trip not immediately visible on map click-through
+    Root cause: useCreateTrip missing invalidateQueries(['trips']).
+    Dispatched to Frontend: jobs/frontend/inbox/20260320_0030-COO-bug18-cache-invalidation.txt
+
+  BUG-19 — sort order unexpected
+    Closed: not a bug. Sort by trip date is correct. UX label clarity → P2 backlog.
+
+  Design note logged: "considered items auto-roll-forward at completion" — deferred.
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+  Carry-forward spec change: next_time surfaces from all trip statuses, not just completed.
+
+  BUG-19 closed: sort is working correctly off trip start_date. Label clarity is a
+  P2 UX item, not a bug.
+
+  "Considered items auto-roll-forward": noted as deferred design decision.
+  Likely testing artifact rather than real-world friction. Revisit post-beta.
+
+================================================================================
+PENDING PO DECISION (discuss next session)
+================================================================================
+
+  Undocumented schema columns in trips + trip_places:
+    ownerAccountId, subscriptionId, createdByAccountId (x2)
+    Architect recommends removal. PO to confirm.
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT SESSION
+================================================================================
+
+  0. Check jobs/PO/uat-log.md
+  1. Discuss Architect NR-14 review with PO (full report in COO inbox)
+     → Decision on undocumented schema columns
+     → Confirm auth architecture (OAuth/JWT/jose)
+     → Confirm repository layer approach
+  2. Check COO inbox for Frontend BUG-18 + Backend BUG-17 completion reports
+  3. Write NR-14 gate spec once PO decisions confirmed
+  4. Write Tailwind migration brief once Frontend stack query responses arrive
+
+================================================================================
