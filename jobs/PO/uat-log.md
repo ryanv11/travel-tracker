@@ -57,11 +57,11 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 **Scope:** Testing the UI migration
 **Build:** 77a415b
-**Verdict:** Partial
+**Verdict:** PASS (conditional — "looks good enough to continue", 2026-03-21)
 
 #### Findings
 
-- [ ] Sort control missing from trip list
+- [x] Sort control missing from trip list
       Steps: Open trips tab, attempt to sort by newest/oldest/name
       Expected: Sort dropdown or controls visible in left panel
       Actual: No sort UI — hardcoded to date descending
@@ -69,7 +69,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
       Fixed myself: no
       Bug: #11
 
-- [ ] Trip detail header — wrong layout and element order
+- [x] Trip detail header — wrong layout and element order
       Steps: Open any trip in right panel
       Expected (mockup): Trip status > Edit > Photos on right side of header
       Actual: Status on left next to title, then Photos > Edit on right
@@ -77,7 +77,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
       Fixed myself: no
       Bug: #12 (visual discrepancy — dispatched to UX)
 
-- [ ] Trip detail meta row — stacked instead of inline
+- [x] Trip detail meta row — stacked instead of inline
       Steps: Open any trip in right panel, view below title
       Expected (mockup): Date range | Companions | Tags on one inline row
       Actual: Date range on own line, new line companions, new line tags
@@ -89,7 +89,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
       Note: F-02 (Itinerary/Review tabs) confirmed DEFERRED — not a current fix requirement.
       F-03 (Map tab) remains scrapped. Tabs will be specced as separate work when content is ready.
 
-- [ ] Status bar missing or not visible
+- [x] Status bar missing or not visible
       Steps: Open any trip in right panel, scroll to bottom
       Expected (mockup): Persistent bar showing current status + next status CTA
       Actual: Not visible — F-04/TR-12 was in brief but may be present and incorrectly styled
@@ -97,7 +97,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
       Fixed myself: no
       Bug: #12 (UX to confirm if present but unstyled, or absent)
 
-- [ ] City box shading missing in trip detail
+- [x] City box shading missing in trip detail
       Steps: Open a trip with multiple places, view place cards
       Expected (mockup): Shading/background styling on city section boxes
       Actual: No shading on city boxes
@@ -105,7 +105,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
       Fixed myself: no
       Bug: #12 (dispatched to UX)
 
-- [ ] Icons blue instead of green theme from mockup
+- [x] Icons blue instead of green theme from mockup
       Screenshot: none
       Fixed myself: no
       Bug: #12 (dispatched to UX)
