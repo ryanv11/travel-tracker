@@ -10,6 +10,7 @@
  */
 import React from 'react';
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { UserButton } from '@clerk/clerk-react';
 import { MapPage } from './pages/MapPage';
 import { TripsPage } from './pages/TripsPage';
 import { TripDetailPage } from './pages/TripDetailPage';
@@ -62,7 +63,7 @@ export function App() {
 
         {/* NR-06: offline geocoding indicator */}
         {pendingCount > 0 && (
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               type="button"
               title="Geocoding pending — click to retry now"
@@ -90,6 +91,11 @@ export function App() {
             </button>
           </div>
         )}
+
+        {/* NR-14: User account menu (sign-out) — always pinned to the right */}
+        <div style={{ marginLeft: 'auto' }}>
+          <UserButton />
+        </div>
       </nav>
 
       {/* Page content */}

@@ -25,6 +25,7 @@
     "test:contract:coverage": "vitest run --config vitest.config.contract.ts --coverage"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.3",
     "@libsql/client": "^0.14.0",
     "@tanstack/react-query": "^5.90.21",
     "cors": "^2.8.6",

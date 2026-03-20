@@ -5,11 +5,37 @@
  * This ensures VITE_API_BASE_URL is applied consistently and error handling
  * is uniform across all hooks and components.
  *
+ * NR-14: Auth token injection — call setTokenGetter() once on app mount with
+ * Clerk's getToken function. All subsequent API calls will include the bearer token.
+ *
  * Never call fetch() directly in a component or hook — always use these helpers.
  */
 
 /** Base URL for all API requests. Pulled from the Vite environment variable. */
 const BASE = import.meta.env.VITE_API_BASE_URL as string;
+
+/** Holds the Clerk getToken function once initialised. */
+let _getToken: (() => Promise<string | null>) | null = null;
+
+/**
+ * Registers the Clerk token getter with the API client.
+ * Call this once from a component that has access to the Clerk useAuth hook.
+ *
+ * @param getToken - Clerk's getToken function from useAuth().
+ */
+export function setTokenGetter(getToken: () => Promise<string | null>): void {
+  _getToken = getToken;
+}
+
+/**
+ * Returns the Authorization header object if a token is available, or empty object.
+ */
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!_getToken) return {};
+  const token = await _getToken();
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}
 
 /**
  * Extracts a human-readable error message from an API error response.
@@ -35,7 +61,8 @@ async function extractErrorMessage(response: Response): Promise<string> {
  * @throws Error if the response status is 4xx or 5xx.
  */
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE}${path}`);
+  const headers = await authHeaders();
+  const response = await fetch(`${BASE}${path}`, { headers });
   if (!response.ok) {
     const message = await extractErrorMessage(response);
     throw new Error(message);
@@ -52,9 +79,10 @@ export async function apiGet<T>(path: string): Promise<T> {
  * @throws Error if the response status is 4xx or 5xx.
  */
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const auth = await authHeaders();
   const response = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -73,9 +101,10 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
  * @throws Error if the response status is 4xx or 5xx.
  */
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const auth = await authHeaders();
   const response = await fetch(`${BASE}${path}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -93,7 +122,8 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
  * @throws Error if the response status is 4xx or 5xx.
  */
 export async function apiDelete(path: string): Promise<void> {
-  const response = await fetch(`${BASE}${path}`, { method: 'DELETE' });
+  const auth = await authHeaders();
+  const response = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: auth });
   if (!response.ok) {
     const message = await extractErrorMessage(response);
     throw new Error(message);
