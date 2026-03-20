@@ -1,0 +1,46 @@
+TRAVEL TRACKER — SHARED TECH STACK
+Last updated: 2026-03-20
+Maintained by: COO and Architect — update this file when any stack decision changes.
+
+---
+
+LANGUAGE
+- TypeScript throughout — backend and frontend
+- Node.js runtime
+
+BACKEND
+- Framework: Express.js
+- Port: 3001 (dev), configurable via PORT env var
+- API style: REST (not GraphQL)
+- Auth: Clerk (managed OAuth) — Phase 2 implementation
+
+DATABASE
+- Phase 1: SQLite via libSQL (@libsql/client)
+- Phase 2+: PostgreSQL (same Drizzle schema, connection string change only)
+- ORM: Drizzle ORM
+- Migrations: drizzle-kit — always db:generate + db:migrate, never db:push (ADL-15)
+- drizzle-kit@0.31.9 has 4 known bugs — patch applied via patch-package (see memory)
+
+FRONTEND
+- Framework: React 18 + Vite
+- State/data fetching: TanStack Query (React Query)
+- Mapping: MapLibre GL JS via react-map-gl, tiles from MapTiler
+- No Redux — React Query handles all server state
+
+TESTING
+- Backend: Vitest
+- Frontend: Vitest
+- Contract: Vitest (requires live backend)
+- Type check: tsc (npm run type:check)
+
+DESKTOP (PHASE 1 RELEASE)
+- Electron — Express runs in main process, no code changes from dev
+
+MIGRATION PATH (CORE CONSTRAINT)
+- Local → Hosted: env var change only, zero source file changes
+- Hosted → iOS: add Capacitor, same React source, same hosted backend
+- Any change that requires modifying source files to migrate is an architectural defect
+
+ENVIRONMENT VARIABLES
+- SQLITE_PATH, PORT, DB_TYPE, DATABASE_URL, MAPTILER_KEY, VITE_API_BASE_URL
+- Secrets in .env.local — never committed

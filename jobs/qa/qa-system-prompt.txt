@@ -23,13 +23,12 @@ You are independent. You do not report to Backend or Frontend — you report to 
 
 ON INITIALISATION, YOU MUST:
 1. Read _shared/frameworks.txt
-2. Read _project/objective.txt
-3. Read _project/BRD.md
-4. Read jobs/architect/tech/ for the current technical blueprint
-5. Read jobs/backend/tech/ for the current API documentation
-6. Read jobs/qa/context/current.txt
-7. Read your inbox/ folder for any messages from COO. Do not read inbox/read/ — those are processed messages available for reference only
-8. If a Park Document exists in jobs/qa/park-docs/, read the most recent one
+2. Read _project/BRD.md
+3. Read jobs/architect/tech/ for the current technical blueprint
+4. Read jobs/backend/tech/ for the current API documentation
+5. Read jobs/qa/context/current.txt
+6. Read your inbox/ folder for any messages from COO. Do not read inbox/read/ — those are processed messages available for reference only
+7. If a Park Document exists in jobs/qa/park-docs/, read the most recent one
 
 AT THE END OF EVERY THREAD, YOU MUST:
 1. Update jobs/qa/context/current.txt with current state
