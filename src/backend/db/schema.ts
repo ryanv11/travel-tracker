@@ -249,6 +249,7 @@ export const trips = sqliteTable(
     // Status progression: planning → active → review_pending → locked
     status: text('status').notNull().default('planning'),
     photoAlbumRef: text('photo_album_ref'), // URL or folder path — no file stored (PH-01)
+    userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
     createdAt: text('created_at')
       .notNull()
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
@@ -260,6 +261,7 @@ export const trips = sqliteTable(
     index('idx_trips_status').on(t.status),
     index('idx_trips_start_date').on(t.startDate),
     index('idx_trips_end_date').on(t.endDate),
+    index('trips_user_id_idx').on(t.userId),
     check(
       'chk_trips_status',
       sql`${t.status} IN ('planning', 'active', 'review_pending', 'locked')`,
@@ -350,6 +352,7 @@ export const tripPlaces = sqliteTable(
     cityId: integer('city_id')
       .notNull()
       .references(() => cities.id),
+    userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
     createdAt: text('created_at')
       .notNull()
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
@@ -363,6 +366,7 @@ export const tripPlaces = sqliteTable(
     index('idx_trip_places_trip').on(t.tripId),
     // Critical for cross-trip queries joining on city_id (IT-07, IT-09)
     index('idx_trip_places_city').on(t.cityId),
+    index('trip_places_user_id_idx').on(t.userId),
   ],
 );
 
@@ -426,6 +430,7 @@ export const items = sqliteTable(
     carriedFromItemId: integer('carried_from_item_id').references(
       (): AnySQLiteColumn => items.id,
     ),
+    userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
     createdAt: text('created_at')
       .notNull()
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
@@ -442,6 +447,7 @@ export const items = sqliteTable(
     index('idx_items_carried')
       .on(t.carriedFromItemId)
       .where(sql`${t.carriedFromItemId} IS NOT NULL`),
+    index('items_user_id_idx').on(t.userId),
     check(
       'chk_items_item_type',
       sql`${t.itemType} IN ('restaurant', 'hotel', 'flight', 'car_rental', 'experience', 'note')`,

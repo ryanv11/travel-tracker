@@ -61,6 +61,13 @@ async function createTestDb() {
       FOREIGN KEY (country_code) REFERENCES countries(country_code),
       FOREIGN KEY (region_id) REFERENCES regions(id)
     )`,
+    `CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY NOT NULL,
+      clerk_id TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
     `CREATE TABLE IF NOT EXISTS trips (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       name TEXT NOT NULL,
@@ -68,8 +75,10 @@ async function createTestDb() {
       end_date TEXT NOT NULL,
       status TEXT DEFAULT 'planning' NOT NULL,
       photo_album_ref TEXT,
+      user_id TEXT,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )`,
     `CREATE TABLE IF NOT EXISTS trip_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -117,10 +126,12 @@ async function createTestDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       trip_id INTEGER NOT NULL,
       city_id INTEGER NOT NULL,
+      user_id TEXT,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (city_id) REFERENCES cities(id)
+      FOREIGN KEY (city_id) REFERENCES cities(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )`,
     `CREATE TABLE IF NOT EXISTS trip_place_activities_map (
       trip_place_id INTEGER NOT NULL,
@@ -138,10 +149,12 @@ async function createTestDb() {
       notes TEXT,
       is_carried_forward INTEGER DEFAULT 0 NOT NULL,
       carried_from_item_id INTEGER,
+      user_id TEXT,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (trip_place_id) REFERENCES trip_places(id)
+      FOREIGN KEY (trip_place_id) REFERENCES trip_places(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )`,
     `CREATE TABLE IF NOT EXISTS item_flights (
       item_id INTEGER PRIMARY KEY NOT NULL,
