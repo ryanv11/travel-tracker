@@ -1,0 +1,50 @@
+FROM: COO
+TO:   Backend
+DATE: 2026-03-20 00:30
+RE:   BUG-17 — carry-forward query: remove trip status restriction
+
+---
+
+BACKGROUND
+
+Carry-forward (GET /api/cities/:id/carry-forward) currently filters source trips
+to status IN ('review_pending', 'locked') only. PO has confirmed this is wrong.
+
+DECISION
+
+next_time is explicit user intent — the source trip's status is irrelevant.
+If a user marks an item "next time", it should always surface as a carry-forward
+candidate when they revisit that city, regardless of whether the source trip has
+been completed or locked.
+
+CHANGE REQUIRED
+
+File: src/backend/routes/cities.ts
+Location: GET /:id/carry-forward handler (~line 227)
+
+Remove the trip status condition from the WHERE clause:
+  REMOVE: inArray(trips.status, ['review_pending', 'locked'])
+
+Keep all other conditions:
+  - eq(tripPlaces.cityId, cityId)
+  - eq(items.status, 'next_time')
+
+Update the comment (currently says "across completed trips") to say
+"across all trips regardless of status".
+
+No other changes needed.
+
+TEST COVERAGE
+
+Update existing carry-forward tests to cover:
+  - next_time item on a planning trip → appears in results
+  - next_time item on an active trip → appears in results
+  - next_time item on a review_pending trip → appears in results (existing)
+  - next_time item on a locked trip → appears in results (existing)
+  - item with status other than next_time → does not appear
+
+Pre-push: npm run type:check + npm run test:backend
+
+Report to jobs/COO/inbox/ with commit hash and test count.
+
+COO

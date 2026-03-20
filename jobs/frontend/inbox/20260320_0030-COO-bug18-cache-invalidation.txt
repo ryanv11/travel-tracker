@@ -1,0 +1,38 @@
+FROM: COO
+TO:   Frontend
+DATE: 2026-03-20 00:30
+RE:   BUG-18 — useCreateTrip missing cache invalidation for trips list
+
+---
+
+BACKGROUND
+
+When a new trip is created, the trips list is not immediately invalidated in React
+Query. This means the new trip does not appear in map click-through filtering until
+the cache naturally expires. Root cause: useCreateTrip's onSuccess does not
+invalidate ['trips'].
+
+CHANGE REQUIRED
+
+File: src/frontend/hooks/useTrips.ts
+Hook: useCreateTrip
+
+In the onSuccess callback, add:
+  queryClient.invalidateQueries({ queryKey: ['trips'] })
+
+alongside any existing invalidations already present.
+
+This ensures the trips list refetches immediately after a new trip is created,
+so it is visible to the map click-through filter without any delay.
+
+Check useUpdateTripStatus, useLockTrip, useUnlockTrip for the same gap —
+if any of these are missing ['trips'] invalidation, add it at the same time.
+
+No other changes. No new tests required (cache invalidation behaviour is
+covered by the existing mutation test patterns).
+
+Pre-push: npm run type:check + npm run test:frontend
+
+Report to jobs/COO/inbox/ with commit hash.
+
+COO

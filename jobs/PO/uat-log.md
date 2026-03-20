@@ -60,7 +60,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 #### Findings
 
 - [ ] Carry-forward modal did not appear when adding Dublin to a new trip
-      Steps: 1. Have an existing trip with a Dublin restaurant marked "next time"
+      Steps: 1. Have an existing trip with a Dublin restaurant marked "next time" (trip in planning)
              2. Create a new trip → Add Place → select Dublin, Ireland
              3. Expected: carry-forward modal appears with the restaurant as a candidate
       Expected: CarryForwardModal shows the "next time" restaurant
@@ -68,31 +68,29 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
       Screenshot: none
       Fixed myself: no
       Logged as: BUG-17
-      Note for triage: likely city matching or query issue in carry-forward logic
+      Triaged: SPEC CHANGE — carry-forward query filters to review_pending/locked trips only.
+      Source trip was in planning. Decision: next_time is explicit user intent; trip
+      status should be irrelevant. Fix: remove status restriction from carry-forward query.
+      Severity: MAJOR
 
-- [ ] New Dublin trip does not appear when clicking Ireland on the map
+- [ ] New Dublin trip not immediately visible when clicking Ireland on the map
       Steps: 1. Create a new trip with Dublin, Ireland as a place
-             2. Click Ireland on the map → trips list should filter to Irish trips
-      Expected: new Dublin trip appears in filtered list
-      Actual: trip does not appear in filtered results
+             2. Immediately click Ireland on the map → trips list should filter to Irish trips
+             3. Trip missing from results; works after a delay
+      Expected: new trip appears immediately in filtered results
+      Actual: trip missing until React Query cache refreshes
       Screenshot: none
       Fixed myself: no
       Logged as: BUG-18
-      Note for triage: separate from shading — this is map click-through filter.
-      May be a city/country association issue or URL param filter mismatch.
+      Triaged: MINOR — missing invalidateQueries(['trips']) on useCreateTrip mutation.
+      Shading confirmed working for planning trips (by design). Cache-only fix.
+      Severity: MINOR
 
-- [ ] Trip list sort not working correctly
-      Steps: 1. Create a new trip (Dublin)
-             2. Trips page shows "Newest First" — new trip appears near bottom, not top
-             3. Switch to "Oldest First" — new trip does not move to top
-      Expected: sort reflects trip recency correctly in both directions
-      Actual: new trip appears near bottom regardless of sort direction;
-              switching sort order doesn't move it as expected
-      Screenshot: none
-      Fixed myself: no
-      Logged as: BUG-19
-      Note for triage: sort likely driving off start_date (user-entered past date)
-      rather than created_at, or sort comparison logic has a bug
+- [x] Trip list sort — Newest/Oldest not reflecting expectations
+      Triaged: NOT A BUG — sort is correctly driving off trip start_date (user-entered).
+      Label clarity issue only. Closed as bug. Added to UX P2 backlog: relabel
+      "Newest First/Oldest First" → "Newest trip date / Oldest trip date".
+      Logged as: BUG-19 CLOSED
 
 #### Notes / Observations
 - The carry-forward trigger path (auto-fires after Add Place) is too implicit —
