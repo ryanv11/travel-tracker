@@ -15,11 +15,6 @@ interface RatingStarsProps {
   readOnly?: boolean;
 }
 
-const containerStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  gap: '2px',
-};
-
 /**
  * Renders five stars. Filled stars are shown for values ≤ the current rating.
  * Clicking a star calls onChange with the star's index (1–5).
@@ -30,7 +25,7 @@ const containerStyle: React.CSSProperties = {
  */
 export function RatingStars({ value, onChange, readOnly = false }: RatingStarsProps) {
   return (
-    <span style={containerStyle} aria-label={`Rating: ${value ?? 'unrated'} out of 5`}>
+    <span className="inline-flex gap-0.5" aria-label={`Rating: ${value ?? 'unrated'} out of 5`}>
       {[1, 2, 3, 4, 5].map((star) => (
         <button
           key={star}
@@ -38,15 +33,9 @@ export function RatingStars({ value, onChange, readOnly = false }: RatingStarsPr
           onClick={() => !readOnly && onChange(star)}
           disabled={readOnly}
           aria-label={`${star} star${star !== 1 ? 's' : ''}`}
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: '0 1px',
-            cursor: readOnly ? 'default' : 'pointer',
-            fontSize: '20px',
-            lineHeight: 1,
-            color: value !== null && star <= value ? '#F59E0B' : '#D1D5DB',
-          }}
+          className={`bg-transparent border-none px-px text-xl leading-none ${
+            readOnly ? 'cursor-default' : 'cursor-pointer'
+          } ${value !== null && star <= value ? 'text-amber-400' : 'text-gray-300'}`}
         >
           ★
         </button>

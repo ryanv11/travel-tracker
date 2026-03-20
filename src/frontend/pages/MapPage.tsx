@@ -18,7 +18,7 @@ export function MapPage() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+      <div className="flex items-center justify-center h-full">
         <LoadingSpinner message="Loading map data…" />
       </div>
     );
@@ -26,14 +26,14 @@ export function MapPage() {
 
   if (error) {
     return (
-      <div style={{ padding: '32px' }}>
+      <div className="p-8">
         <ErrorMessage error={error} />
       </div>
     );
   }
 
   return (
-    <div style={{ width: '100%', height: '100%' }}>
+    <div className="w-full h-full">
       <MapView trips={trips} />
     </div>
   );

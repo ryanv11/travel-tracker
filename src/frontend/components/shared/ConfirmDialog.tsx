@@ -23,32 +23,6 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  backgroundColor: 'rgba(0,0,0,0.45)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-};
-
-const dialogStyle: React.CSSProperties = {
-  background: '#fff',
-  borderRadius: '8px',
-  padding: '24px',
-  maxWidth: '400px',
-  width: '90%',
-  boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-};
-
-const actionsStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: '12px',
-  justifyContent: 'flex-end',
-  marginTop: '20px',
-};
-
 /**
  * Renders a modal confirmation dialog. Nothing renders when isOpen is false.
  */
@@ -64,38 +38,28 @@ export function ConfirmDialog({
   if (!isOpen) return null;
 
   return (
-    <div style={overlayStyle} onClick={onCancel}>
-      <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 600 }}>{title}</h3>
-        <p style={{ margin: 0, color: '#4B5563', lineHeight: 1.5 }}>{message}</p>
-        <div style={actionsStyle}>
+    <div
+      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[1000]"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-lg p-6 max-w-sm w-[90%] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="m-0 mb-3 text-base font-semibold text-gray-900">{title}</h3>
+        <p className="m-0 text-gray-600 leading-relaxed text-sm">{message}</p>
+        <div className="flex gap-3 justify-end mt-5">
           <button
             type="button"
             onClick={onCancel}
-            style={{
-              padding: '8px 16px',
-              border: '1px solid #D1D5DB',
-              borderRadius: '6px',
-              background: '#fff',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
+            className="px-4 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
           >
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: '6px',
-              background: '#DC2626',
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 600,
-            }}
+            className="px-4 py-2 border-none rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-700 cursor-pointer"
           >
             {confirmLabel}
           </button>

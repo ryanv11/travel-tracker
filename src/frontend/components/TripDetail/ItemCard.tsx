@@ -33,17 +33,6 @@ const TYPE_ICONS: Record<string, string> = {
   note: '📝',
 };
 
-const cardStyle: React.CSSProperties = {
-  padding: '12px 14px',
-  border: '1px solid #E5E7EB',
-  borderRadius: '6px',
-  background: '#FAFAFA',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  gap: '10px',
-};
-
 /**
  * Derives a human-readable primary label for the item based on its type.
  */
@@ -81,28 +70,28 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
 
   return (
     <>
-      <div style={cardStyle}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '18px' }}>{TYPE_ICONS[item.item_type] ?? '📌'}</span>
-            <span style={{ fontWeight: 600, fontSize: '14px' }}>{getItemLabel(item)}</span>
+      <div className="p-3 border border-gray-200 rounded-md bg-gray-50 flex justify-between items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-lg">{TYPE_ICONS[item.item_type] ?? '📌'}</span>
+            <span className="font-semibold text-sm text-gray-900">{getItemLabel(item)}</span>
             <StatusBadge status={item.status} />
             {item.is_carried_forward && (
-              <span style={{ fontSize: '11px', color: '#6B7280', background: '#F3F4F6', padding: '1px 6px', borderRadius: '4px' }}>carried forward</span>
+              <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">carried forward</span>
             )}
           </div>
 
           {/* Subtext for relevant types */}
           {item.item_type === 'restaurant' && item.cuisine_type && (
-            <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280' }}>{item.cuisine_type}</div>
+            <div className="mt-1 text-xs text-gray-500">{item.cuisine_type}</div>
           )}
           {item.item_type === 'hotel' && item.check_in_date && item.check_out_date && (
-            <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280' }}>
+            <div className="mt-1 text-xs text-gray-500">
               {formatDate(item.check_in_date)} – {formatDate(item.check_out_date)}
             </div>
           )}
           {item.item_type === 'flight' && (item.departure_datetime || item.airline) && (
-            <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280' }}>
+            <div className="mt-1 text-xs text-gray-500">
               {item.airline}{item.airline && item.flight_number ? ' ' : ''}{item.flight_number}
               {item.departure_datetime ? ` · ${item.departure_datetime.slice(0, 10)}` : ''}
             </div>
@@ -110,13 +99,13 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
 
           {/* Rating (read-only) */}
           {hasRating && (
-            <div style={{ marginTop: '4px' }}>
+            <div className="mt-1">
               <RatingStars value={rating} onChange={() => {}} readOnly />
             </div>
           )}
 
           {item.notes && (
-            <div style={{ marginTop: '4px', fontSize: '12px', color: '#6B7280', fontStyle: 'italic' }}>
+            <div className="mt-1 text-xs text-gray-500 italic">
               {item.notes.slice(0, 100)}{item.notes.length > 100 ? '…' : ''}
             </div>
           )}
@@ -124,18 +113,18 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
 
         {/* Edit / Delete actions (hidden when locked) */}
         {!isLocked && (
-          <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+          <div className="flex gap-1.5 flex-shrink-0">
             <button
               type="button"
               onClick={() => onEdit(item)}
-              style={{ padding: '4px 10px', border: '1px solid #D1D5DB', borderRadius: '5px', background: '#fff', cursor: 'pointer', fontSize: '12px' }}
+              className="px-2.5 py-1 border border-gray-300 rounded text-xs bg-white hover:bg-gray-50 cursor-pointer"
             >
               Edit
             </button>
             <button
               type="button"
               onClick={() => setShowConfirm(true)}
-              style={{ padding: '4px 10px', border: '1px solid #FECACA', borderRadius: '5px', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', fontSize: '12px' }}
+              className="px-2.5 py-1 border border-red-200 rounded text-xs bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer"
             >
               Delete
             </button>

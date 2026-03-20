@@ -41,19 +41,6 @@ const STATUS_LABELS: Record<ItemStatus, string> = {
 
 const RATEABLE_TYPES: ItemType[] = ['restaurant', 'hotel', 'experience'];
 
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 600,
-};
-const modalStyle: React.CSSProperties = {
-  background: '#fff', borderRadius: '8px', padding: '28px',
-  width: '560px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto',
-  boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-};
-const fieldStyle: React.CSSProperties = { marginBottom: '14px' };
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px', color: '#374151' };
-const inputStyle: React.CSSProperties = { width: '100%', padding: '7px 10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' };
-
 /** Returns the display name for a field key. */
 function fieldLabel(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -67,13 +54,21 @@ function Field({ label, value, onChange, type = 'text', placeholder }: {
   type?: string; placeholder?: string;
 }) {
   return (
-    <div style={fieldStyle}>
-      <label style={labelStyle}>{label}</label>
-      <input style={inputStyle} type={type} value={value} placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)} />
+    <div className="mb-3.5">
+      <label className="block text-xs font-semibold text-gray-700 mb-1">{label}</label>
+      <input
+        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }
+
+// Silence unused import warning — fieldLabel is only used in the Field component label
+void fieldLabel;
 
 /**
  * Unified type-aware item form. Handles both create and edit.
@@ -177,9 +172,15 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
   };
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: 700 }}>
+    <div
+      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[600]"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg p-7 w-[560px] max-w-[95vw] max-h-[90vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="m-0 mb-5 text-lg font-bold text-gray-900">
           {isEditing ? 'Edit Item' : 'Add Item'}
         </h2>
 
@@ -187,16 +188,17 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
           {/* Step 1: type selection (create only) */}
           {!isEditing && !itemType && (
             <div>
-              <p style={{ margin: '0 0 14px', color: '#4B5563' }}>Select item type:</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              <p className="m-0 mb-3.5 text-sm text-gray-600">Select item type:</p>
+              <div className="grid grid-cols-3 gap-2.5">
                 {ITEM_TYPES.map((t) => (
                   <button
-                    key={t.value} type="button"
+                    key={t.value}
+                    type="button"
                     onClick={() => setItemType(t.value)}
-                    style={{ padding: '14px', border: '1px solid #D1D5DB', borderRadius: '8px', background: '#fff', cursor: 'pointer', textAlign: 'center' }}
+                    className="p-3.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 cursor-pointer text-center"
                   >
-                    <div style={{ fontSize: '24px' }}>{t.icon}</div>
-                    <div style={{ fontSize: '13px', marginTop: '4px' }}>{t.label}</div>
+                    <div className="text-2xl">{t.icon}</div>
+                    <div className="text-xs mt-1 text-gray-700">{t.label}</div>
                   </button>
                 ))}
               </div>
@@ -207,9 +209,13 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
           {(isEditing || itemType) && (
             <>
               {/* Common fields */}
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Status</label>
-                <select style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value as ItemStatus)}>
+              <div className="mb-3.5">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+                <select
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as ItemStatus)}
+                >
                   {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                 </select>
               </div>
@@ -226,24 +232,37 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
               {itemType === 'hotel' && <>
                 <Field label="Property Name" value={propertyName} onChange={setPropertyName} />
                 <Field label="Address" value={address} onChange={setAddress} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
                   <div>
-                    <label style={labelStyle}>Check-in Date</label>
-                    <input type="date" style={inputStyle} value={checkInDate} onChange={(e) => setCheckInDate(e.target.value)} />
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Check-in Date</label>
+                    <input
+                      type="date"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={checkInDate}
+                      onChange={(e) => setCheckInDate(e.target.value)}
+                    />
                   </div>
                   <div>
-                    <label style={labelStyle}>Check-out Date</label>
-                    <input type="date" style={inputStyle} value={checkOutDate} min={checkInDate} onChange={(e) => setCheckOutDate(e.target.value)} />
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Check-out Date</label>
+                    <input
+                      type="date"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={checkOutDate}
+                      min={checkInDate}
+                      onChange={(e) => setCheckOutDate(e.target.value)}
+                    />
                   </div>
                 </div>
-                {hotelDuration && <div style={{ marginBottom: '12px', fontSize: '13px', color: '#059669' }}>Duration: {hotelDuration}</div>}
+                {hotelDuration && (
+                  <div className="mb-3 text-xs text-emerald-600">Duration: {hotelDuration}</div>
+                )}
                 <Field label="Booking Reference" value={bookingReference} onChange={setBookingReference} />
                 <Field label="Confirmation Number" value={confirmationNumber} onChange={setConfirmationNumber} />
               </>}
 
               {/* Flight-specific */}
               {itemType === 'flight' && <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
                   <Field label="Airline" value={airline} onChange={setAirline} />
                   <Field label="Flight Number" value={flightNumber} onChange={setFlightNumber} />
                   <Field label="Departure Airport" value={departureAirport} onChange={setDepartureAirport} placeholder="e.g. LHR" />
@@ -260,7 +279,7 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
                 <Field label="Provider" value={provider} onChange={setProvider} />
                 <Field label="Pickup Location" value={pickupLocation} onChange={setPickupLocation} />
                 <Field label="Drop-off Location" value={dropoffLocation} onChange={setDropoffLocation} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
                   <Field label="Pick-up" value={pickupDatetime} onChange={setPickupDatetime} type="datetime-local" />
                   <Field label="Drop-off" value={dropoffDatetime} onChange={setDropoffDatetime} type="datetime-local" />
                 </div>
@@ -271,14 +290,14 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
               {/* Rating + post-visit notes (restaurant / hotel / experience when completed) */}
               {showRating && (
                 <>
-                  <div style={fieldStyle}>
-                    <label style={labelStyle}>Rating</label>
+                  <div className="mb-3.5">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Rating</label>
                     <RatingStars value={rating} onChange={setRating} />
                   </div>
-                  <div style={fieldStyle}>
-                    <label style={labelStyle}>Post-visit Notes</label>
+                  <div className="mb-3.5">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Post-visit Notes</label>
                     <textarea
-                      style={{ ...inputStyle, height: '80px', resize: 'vertical' }}
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y h-20"
                       value={postVisitNotes}
                       onChange={(e) => setPostVisitNotes(e.target.value)}
                     />
@@ -287,10 +306,10 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
               )}
 
               {/* Notes — all types */}
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Notes</label>
+              <div className="mb-3.5">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
                 <textarea
-                  style={{ ...inputStyle, height: '70px', resize: 'vertical' }}
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y h-[70px]"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
@@ -298,9 +317,19 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
 
               {mutationError && <ErrorMessage error={mutationError} />}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-                <button type="button" onClick={onClose} style={{ padding: '8px 16px', border: '1px solid #D1D5DB', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" disabled={isSubmitting} style={{ padding: '8px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: '6px', cursor: isSubmitting ? 'not-allowed' : 'pointer', fontWeight: 600 }}>
+              <div className="flex justify-end gap-2.5 mt-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4.5 py-2 bg-blue-600 text-white border-none rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                >
                   {isSubmitting ? 'Saving…' : isEditing ? 'Save' : 'Add Item'}
                 </button>
               </div>

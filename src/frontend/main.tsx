@@ -15,20 +15,12 @@ import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn, useAuth } from '@clerk/clerk-react';
 import { App } from './App';
 import { setTokenGetter } from './utils/apiClient';
+import './index.css';
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 if (!publishableKey) {
   throw new Error('VITE_CLERK_PUBLISHABLE_KEY is not set in the environment.');
 }
-
-/** Global CSS reset injected at runtime to avoid needing an external stylesheet. */
-const globalStyle = document.createElement('style');
-globalStyle.textContent = `
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-  body { background: #F9FAFB; color: #111827; }
-`;
-document.head.appendChild(globalStyle);
 
 /** React Query client — 5 minute stale time, 3 retries on failure. */
 const queryClient = new QueryClient({

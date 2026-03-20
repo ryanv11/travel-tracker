@@ -1,7 +1,7 @@
 /**
- * TripDetailPage — renders a single trip (TD-01 through TD-08, PT-01 through PT-04).
+ * TripDetailPage — renders a single trip inside the TripsLayout right panel.
  *
- * Route: /trips/:id
+ * Route: /trips/:id (nested child of TripsLayout via TR-11)
  *
  * - If the trip status is 'review_pending', renders the ReviewPanel.
  * - Otherwise renders the TripDetail component.
@@ -26,7 +26,7 @@ export function TripDetailPage() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px' }}>
+      <div className="flex items-center justify-center p-16">
         <LoadingSpinner message="Loading trip…" />
       </div>
     );
@@ -34,7 +34,7 @@ export function TripDetailPage() {
 
   if (error || !trip) {
     return (
-      <div style={{ padding: '32px' }}>
+      <div className="p-8">
         <ErrorMessage error={error ?? new Error('Trip not found')} />
       </div>
     );
@@ -42,15 +42,11 @@ export function TripDetailPage() {
 
   if (trip.status === 'review_pending') {
     return (
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 16px' }}>
+      <div className="max-w-3xl mx-auto px-4 py-6">
         <ReviewPanel trip={trip} onClose={() => navigate('/trips')} />
       </div>
     );
   }
 
-  return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 16px' }}>
-      <TripDetail trip={trip} />
-    </div>
-  );
+  return <TripDetail trip={trip} />;
 }

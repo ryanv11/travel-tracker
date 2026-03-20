@@ -11,16 +11,6 @@ interface ErrorMessageProps {
   error: string | Error | null | undefined;
 }
 
-const boxStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  backgroundColor: '#FEF2F2',
-  border: '1px solid #FECACA',
-  borderRadius: '6px',
-  color: '#991B1B',
-  fontSize: '14px',
-  lineHeight: 1.5,
-};
-
 /**
  * Renders an error message box. Returns null when error is falsy.
  *
@@ -30,7 +20,10 @@ export function ErrorMessage({ error }: ErrorMessageProps) {
   if (!error) return null;
   const message = error instanceof Error ? error.message : error;
   return (
-    <div style={boxStyle} role="alert">
+    <div
+      className="px-4 py-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm leading-relaxed"
+      role="alert"
+    >
       {message}
     </div>
   );

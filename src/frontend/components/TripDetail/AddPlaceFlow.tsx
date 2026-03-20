@@ -23,24 +23,6 @@ interface AddPlaceFlowProps {
   onClose: () => void;
 }
 
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 700,
-};
-const modalStyle: React.CSSProperties = {
-  background: '#fff', borderRadius: '8px', padding: '24px',
-  width: '480px', maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto',
-  boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-};
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB',
-  borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box',
-};
-const resultItemStyle: React.CSSProperties = {
-  padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #F3F4F6',
-  fontSize: '14px',
-};
-
 /** Debounce delay for city search (ms). */
 const DEBOUNCE_MS = 300;
 
@@ -125,6 +107,9 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
 
   const mutationError = addPlace.error ?? createCity.error;
 
+  const inputClass = 'w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 box-border';
+  const labelClass = 'block text-xs font-semibold text-gray-700 mb-1';
+
   if (showCarryForward && addedPlaceId !== null && addedCityId !== null) {
     return (
       <CarryForwardModal
@@ -138,14 +123,20 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   }
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: 700 }}>Add Place</h2>
+    <div
+      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg p-6 w-[480px] max-w-[95vw] max-h-[85vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Add Place</h2>
 
         {!showNewCityForm ? (
           <>
             <input
-              style={inputStyle}
+              className={inputClass}
               placeholder="Search city name…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -153,27 +144,23 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
             />
 
             {searching && query.length >= 2 && (
-              <div style={{ padding: '8px', fontSize: '13px', color: '#6B7280' }}>Searching…</div>
+              <div className="py-2 text-xs text-gray-500">Searching…</div>
             )}
 
             {debouncedQuery.length >= 2 && (
-              <div style={{ border: '1px solid #E5E7EB', borderRadius: '6px', marginTop: '8px', overflow: 'hidden' }}>
+              <div className="border border-gray-200 rounded-md mt-2 overflow-hidden">
                 {searchResults.map((city) => (
                   <div
                     key={city.id}
-                    style={resultItemStyle}
+                    className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50"
                     onClick={() => { void handleSelectCity(city); }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F9FAFB'; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#fff'; }}
                   >
-                    {city.name} <span style={{ color: '#6B7280' }}>{city.country_code}</span>
+                    {city.name} <span className="text-gray-500">{city.country_code}</span>
                   </div>
                 ))}
                 <div
-                  style={{ ...resultItemStyle, color: '#2563EB', fontWeight: 600 }}
+                  className="px-3 py-2.5 cursor-pointer text-sm text-blue-600 font-semibold hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
                   onClick={() => { setShowNewCityForm(true); setNewCityName(query); }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#EFF6FF'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#fff'; }}
                 >
                   + Add new: "{query}"
                 </div>
@@ -182,14 +169,19 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
           </>
         ) : (
           <form onSubmit={(e) => { void handleCreateCity(e); }}>
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>City Name</label>
-              <input style={inputStyle} value={newCityName} onChange={(e) => setNewCityName(e.target.value)} required />
+            <div className="mb-3.5">
+              <label className={labelClass}>City Name</label>
+              <input
+                className={inputClass}
+                value={newCityName}
+                onChange={(e) => setNewCityName(e.target.value)}
+                required
+              />
             </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>Country</label>
+            <div className="mb-4">
+              <label className={labelClass}>Country</label>
               <select
-                style={inputStyle}
+                className={inputClass}
                 value={newCityCountryCode}
                 onChange={(e) => {
                   setNewCityCountryCode(e.target.value);
@@ -206,12 +198,13 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
 
             {/* Region dropdown — shown only when country has region_tier_enabled */}
             {showRegionDropdown && (
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
-                  {regionLabel} <span style={{ fontWeight: 400, color: '#6B7280' }}>(optional)</span>
+              <div className="mb-4">
+                <label className={labelClass}>
+                  {regionLabel}{' '}
+                  <span className="font-normal text-gray-500">(optional)</span>
                 </label>
                 <select
-                  style={inputStyle}
+                  className={inputClass}
                   value={newCityRegionId ?? ''}
                   onChange={(e) => setNewCityRegionId(e.target.value ? Number(e.target.value) : null)}
                 >
@@ -224,12 +217,20 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
             )}
 
             {mutationError && <ErrorMessage error={mutationError} />}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="button" onClick={() => setShowNewCityForm(false)} style={{ padding: '8px 14px', border: '1px solid #D1D5DB', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}>
+            <div className="flex gap-2.5 mt-1">
+              <button
+                type="button"
+                onClick={() => setShowNewCityForm(false)}
+                className="px-3.5 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
                 Back
               </button>
               {/* NR-06 Class B: when there's an error, button becomes "Retry" affordance */}
-              <button type="submit" disabled={createCity.isPending || addPlace.isPending} style={{ padding: '8px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+              <button
+                type="submit"
+                disabled={createCity.isPending || addPlace.isPending}
+                className="px-4.5 py-2 bg-blue-600 text-white border-none rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 cursor-pointer"
+              >
                 {createCity.isPending || addPlace.isPending ? 'Adding…' : mutationError ? 'Retry' : 'Add City & Place'}
               </button>
             </div>

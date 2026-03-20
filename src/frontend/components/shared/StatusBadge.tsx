@@ -30,27 +30,17 @@ const LABELS: Record<TripStatus | ItemStatus, string> = {
   next_time: 'Next Time',
 };
 
-/** Maps status values to CSS colour tokens. */
-const COLORS: Record<TripStatus | ItemStatus, React.CSSProperties> = {
-  planning: { backgroundColor: '#DBEAFE', color: '#1E40AF' },
-  active: { backgroundColor: '#DCFCE7', color: '#166534' },
-  review_pending: { backgroundColor: '#FFEDD5', color: '#9A3412' },
-  locked: { backgroundColor: '#F3F4F6', color: '#374151' },
-  consider: { backgroundColor: '#E0E7FF', color: '#3730A3' },
-  confirmed: { backgroundColor: '#DCFCE7', color: '#166534' },
-  completed: { backgroundColor: '#D1FAE5', color: '#065F46' },
-  cancelled: { backgroundColor: '#FEE2E2', color: '#991B1B' },
-  next_time: { backgroundColor: '#FEF3C7', color: '#92400E' },
-};
-
-const badgeStyle: React.CSSProperties = {
-  display: 'inline-block',
-  padding: '2px 10px',
-  borderRadius: '9999px',
-  fontSize: '12px',
-  fontWeight: 600,
-  letterSpacing: '0.025em',
-  whiteSpace: 'nowrap',
+/** Maps status values to Tailwind class combinations. */
+const COLOR_CLASSES: Record<TripStatus | ItemStatus, string> = {
+  planning: 'bg-blue-100 text-blue-800',
+  active: 'bg-green-100 text-green-800',
+  review_pending: 'bg-orange-100 text-orange-800',
+  locked: 'bg-gray-100 text-gray-700',
+  consider: 'bg-indigo-100 text-indigo-800',
+  confirmed: 'bg-green-100 text-green-800',
+  completed: 'bg-emerald-100 text-emerald-800',
+  cancelled: 'bg-red-100 text-red-800',
+  next_time: 'bg-yellow-100 text-amber-800',
 };
 
 /**
@@ -60,7 +50,9 @@ const badgeStyle: React.CSSProperties = {
  */
 export function StatusBadge({ status }: StatusBadgeProps) {
   return (
-    <span style={{ ...badgeStyle, ...COLORS[status] }}>
+    <span
+      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide whitespace-nowrap ${COLOR_CLASSES[status] ?? 'bg-gray-100 text-gray-700'}`}
+    >
       {LABELS[status] ?? status}
     </span>
   );
