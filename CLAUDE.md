@@ -33,14 +33,32 @@ dependency that cannot be resolved without another team's work, document the blo
 clearly in your commit message and push. Do not hold a push indefinitely for another team.
 
 ## Git workflow
-- Commit directly to `main` (pre-production — branching strategy to be adopted at prod deploy)
-- After every `git push`, check CI results:
+
+### Branching (adopted 2026-03-21)
+- **Never commit directly to `main`**
+- Each agent brief gets its own branch:
+  - `feat/<slug>` — new features (e.g. `feat/nr14-backend-auth`)
+  - `fix/<slug>` — bug fixes (e.g. `fix/d04-country-name`)
+  - `chore/<slug>` — tooling, housekeeping (e.g. `chore/update-claude-md`)
+- Branch off `main`, commit to your branch, then open a PR
+- PR title and description must reference the GitHub issue number (`Closes #N`) and BRD section if applicable
+- **COO reviews and merges PRs** — agents do not merge their own PRs
+
+### Opening a PR
+```bash
+git checkout -b feat/your-slug
+# ... do work, commit ...
+git push -u origin feat/your-slug
+gh pr create --title "feat: description (#N)" --body "Closes #N\nBRD §X.X TR-XX"
+```
+
+### After opening a PR
 ```bash
 gh run list --repo ryanv11/travel-tracker --limit=5
 gh run view <run-id> --log-failed   # if any job failed
 ```
 - Do not consider a task complete until CI passes (all jobs green)
-- Fix any CI failures before moving on
+- Fix any CI failures before filing your completion report
 
 ## CI pipelines (GitHub Actions)
 | Workflow | Triggers | Jobs |
