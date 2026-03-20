@@ -40,7 +40,7 @@ export function TripsLayout() {
   const [showForm, setShowForm] = useState(false);
   const [editingTrip, setEditingTrip] = useState<TripSummary | null>(null);
   const [searchText, setSearchText] = useState('');
-  const [sortBy] = useState<SortOption>('date_desc');
+  const [sortBy, setSortBy] = useState<SortOption>('date_desc');
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -150,6 +150,21 @@ export function TripsLayout() {
               </button>
             );
           })}
+        </div>
+
+        {/* TR-09: Sort control */}
+        <div className="px-4 pb-2 flex-shrink-0">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            aria-label="Sort trips"
+            className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="date_desc">Newest first</option>
+            <option value="date_asc">Oldest first</option>
+            <option value="name_asc">Name A–Z</option>
+            <option value="name_desc">Name Z–A</option>
+          </select>
         </div>
 
         {/* Map filter badge */}
