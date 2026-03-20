@@ -1,0 +1,118 @@
+FROM: UX (UI/UX Designer)
+TO:   COO
+DATE: 2026-03-19 23:59
+RE:   BRIEF-UX-01 COMPLETE — Full UI Audit + Design System Spec
+
+---
+
+BRIEF-UX-01 is complete. All four deliverables are in /workspace/jobs/ux/tech/.
+
+---
+
+DELIVERABLES PRODUCED
+
+  1. 20260319-UX-audit.md        — Screen-by-screen audit: 11 MAJOR, 27 MINOR, 3 POLISH
+  2. 20260319-UX-design-system.md — Full design system: colours, type, spacing, components
+  3. 20260319-UX-backlog.md      — Prioritised backlog: 5 P0, 20 P1, 13 P2 items
+  4. 20260319-UX-migration-notes.md — Migration order of operations for Frontend
+
+---
+
+OVERALL ASSESSMENT
+
+The frontend is functionally complete but visually and interactively below the standard
+the PO expects. The core problems are:
+
+  1. No design system — every value is hardcoded at the call site. The codebase is
+     already accumulating inconsistencies (border radius varies across 4 values,
+     dates displayed differently on adjacent screens).
+
+  2. No feedback loops — success actions are silent. Users have no confirmation
+     that their mutations succeeded.
+
+  3. Keyboard/accessibility is broken — no focus states exist anywhere.
+
+  4. Icon system uses emoji — this is unprofessional and unstyleable.
+
+These are not subjective aesthetic concerns. Items 2–4 are functional defects
+that will actively frustrate the PO during UAT.
+
+---
+
+P0 ITEMS (most urgent — flag to Frontend immediately)
+
+  P0-01 Dates shown as raw ISO strings (YYYY-MM-DD) in TripDetail header
+  P0-02 No keyboard focus styles — WCAG AA violation
+  P0-03 No success feedback on any mutation (toast system missing)
+  P0-04 "Complete Review & Lock Trip" uses destructive red for a positive action
+  P0-05 Carry-forward candidates all pre-selected by default (inverted UX)
+
+P0-01 and P0-04 can be fixed in under an hour each. P0-03 requires installing
+Sonner (shadcn/ui's toast library) — roughly half a day including wiring all
+mutation handlers. P0-05 is a one-line fix. P0-02 is fixed structurally during
+the Tailwind migration.
+
+---
+
+ARCHITECTURAL CONCERNS (require your decision)
+
+ARCH-01 — Sequential PATCH calls in bulk review completion
+  ReviewPanel.handleMarkAllCompleted() fires one PATCH per item sequentially.
+  For a trip with 20 items this is 20 sequential network round-trips. This will
+  be noticeably slow and is fragile.
+  PROPOSED FIX: Backend adds POST /api/trips/:id/items/bulk-update endpoint.
+  This is a backend task, not a frontend task.
+  BLOCKING: Not currently blocking. Will block UAT for trips with many items.
+
+ARCH-02 — City marker icon depends on MapTiler sprite name
+  CityMarkers.tsx references 'icon-image': 'marker' from the MapTiler Streets v2
+  tile style sprite. If MapTiler changes their sprite names or the user selects
+  a different tile style, city pins will silently disappear.
+  PROPOSED FIX: Architect to define a custom MapLibre sprite, or Frontend to use
+  a circle/dot layer instead of a symbol layer (no external dependency).
+  BLOCKING: Not currently blocking. Risk is latent.
+
+ARCH-03 — ShadingTab fires mutations on colour picker drag
+  ShadingTab uses onChange on <input type="color"> which fires on every step of
+  the OS colour picker drag, generating dozens of PATCH requests per colour
+  change. This is wasteful and may cause race conditions in the shading config.
+  PROPOSED FIX: Change to onBlur or pointerup event capture. Frontend fix.
+  BLOCKING: Not currently blocking. Should be fixed in P1.
+
+---
+
+DESIGN DIRECTION DECISION NEEDED
+
+The backlog includes P2-01: expand Trips List to use more horizontal space on
+desktop displays. The current centred narrow-column layout (max-width 768px
+centred on a 1440px screen) leaves significant dead space.
+
+Option A: Keep single-column list, increase max-width to ~1100px
+Option B: Adopt two-panel layout (left sidebar: filters + trip list; right: trip detail)
+
+Option B is a more significant structural change but would make better use of
+desktop screen real estate and is more appropriate for a data application. It
+would also affect navigation (detail page could open in-place rather than
+navigating to /trips/:id).
+
+I recommend Option B for the final UX but I flag that it is L effort and affects
+routing logic (Frontend concern). This decision should be made before Frontend
+begins the Tailwind migration on TripList and TripDetail — retrofitting a layout
+change after migration is more work than doing it right first.
+
+Awaiting your direction before I spec the two-panel layout in detail.
+
+---
+
+RECOMMENDED NEXT STEPS
+
+  1. Route P0 items to Frontend immediately (can be fixed before Tailwind migration)
+  2. Decide on layout direction (Option A or B above)
+  3. Route migration notes to Frontend — they should read 20260319-UX-migration-notes.md
+     before starting any Tailwind work
+  4. Dispatch ARCH-01 to Backend (bulk update endpoint)
+  5. Dispatch ARCH-02 to Architect (city marker sprite decision)
+
+UX
+
+---

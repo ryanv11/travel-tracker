@@ -1,0 +1,88 @@
+PARK DOCUMENT — UX
+Date: 2026-03-19
+Thread: BRIEF-UX-01 — Full UI audit + design system spec
+Status: COMPLETE
+
+================================================================================
+WHAT WAS DONE
+================================================================================
+
+Completed a full audit of the Travel Tracker frontend. Read every component and
+page file in /workspace/src/frontend/ before writing any finding.
+
+Produced four deliverables:
+  1. /workspace/jobs/ux/tech/20260319-UX-audit.md
+  2. /workspace/jobs/ux/tech/20260319-UX-design-system.md
+  3. /workspace/jobs/ux/tech/20260319-UX-backlog.md
+  4. /workspace/jobs/ux/tech/20260319-UX-migration-notes.md
+
+Sent completion report to /workspace/jobs/COO/inbox/20260319_2359-UX-audit-complete.txt
+
+================================================================================
+KEY DECISIONS MADE
+================================================================================
+
+  1. Chose Atlas Teal (#0D9488) as primary colour — distinct from generic SaaS
+     blue, appropriate for a geographic/travel app.
+
+  2. Chose Inter as the recommended font — superior data-app legibility at small
+     sizes, strong tabular figures for dates.
+
+  3. Specified Lucide React (default shadcn/ui icons) to replace all emoji icons.
+
+  4. Specified Sonner for Toast system (shadcn/ui recommended pair).
+
+  5. Recommended max-width reduction from 900/960px → 768px (max-w-3xl)
+     for better density, with note to expand to max-w-5xl for future 2-panel layout.
+
+================================================================================
+CURRENT STATE OF CODEBASE (UX PERSPECTIVE)
+================================================================================
+
+  - 100% inline CSSProperties — no CSS files exist in src/frontend/
+  - No Tailwind, no shadcn/ui installed yet
+  - All styling hardcoded at call site throughout ~35 files
+  - No focus styles anywhere (accessibility gap)
+  - No toast/notification system
+  - Emoji used for all icons
+  - Multiple parallel implementations of same patterns (3 identical admin tabs,
+    5 separate modal implementations)
+
+================================================================================
+BUGS DISCOVERED
+================================================================================
+
+  [MINOR] Double-padding on TripsPage + TripList (G-08) — deferred to P1 backlog
+  [MINOR] Raw ISO date strings in TripDetail header (TD-01) — escalated to P0
+  [MAJOR] No focus styles anywhere — keyboard accessibility broken (G-02)
+         — escalated to P0 (structural fix via Tailwind migration)
+  [MAJOR] No toast feedback on mutations (G-05) — escalated to P0
+  [MAJOR] Lock Trip uses destructive red for positive action (RP-04) — P0
+  [MINOR] Carry-forward all pre-selected by default (CF-01) — escalated to P0
+         RECLASSIFICATION: initially TRIVIAL (visual preference), reclassified P0
+         because it inverts the expected interaction model for a suggestion flow.
+         This actively confuses users about the intended UX of the feature.
+  [MINOR] ShadingTab fires mutations on colour picker drag (AD-04) — deferred to P1
+  [MINOR] City marker sprite depends on MapTiler sprite name (M-04) — flagged to COO
+  [MINOR] Sequential PATCH calls for bulk review completion (RP-03) — flagged to COO
+
+================================================================================
+OPEN QUESTIONS
+================================================================================
+
+  Q1: Should Trips List expand to use more horizontal space, or adopt a
+      two-panel layout (sidebar + detail)? Noted in backlog as P2-01 but this
+      may be an early architectural decision. Awaiting COO direction.
+
+  Q2: City marker sprite fragility (ARCH-02) — does the Architect want to
+      define a custom sprite for MapLibre, or accept MapTiler sprite dependency?
+
+================================================================================
+NEXT ACTIONS FOR THIS ROLE
+================================================================================
+
+  - Await COO routing of deliverables to Frontend
+  - Available to review Frontend's implementation against spec when requested
+  - May produce component-level interaction specs if COO requests them
+
+================================================================================
