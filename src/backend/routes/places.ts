@@ -141,12 +141,12 @@ placesRouter.post(
     // Verify target trip is not locked
     await assertNotLocked(tripId);
 
-    // Verify all source item IDs exist
+    // Verify all source item IDs exist and belong to the requesting user (SEC-02)
     const { source_item_ids: sourceItemIds } = req.body as { source_item_ids: number[] };
     const foundItems = await db
       .select({ id: items.id })
       .from(items)
-      .where(inArray(items.id, sourceItemIds));
+      .where(and(inArray(items.id, sourceItemIds), eq(items.userId, userId)));
 
     if (foundItems.length !== sourceItemIds.length) {
       throw new ValidationError('One or more source_item_ids do not exist');
@@ -212,9 +212,14 @@ placesRouter.post(
 placesRouter.delete(
   '/:placeId/activities/:activityId',
   asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
     const placeId = parseInt(req.params.placeId, 10);
     const activityId = parseInt(req.params.activityId, 10);
     if (isNaN(placeId) || isNaN(activityId)) throw new NotFoundError('Activity');
+
+    // SEC-03: verify the place belongs to the requesting user before deleting
+    const place = await placeRepository.findById(userId, placeId);
+    if (!place) throw new NotFoundError('Place');
 
     const db = getDb();
     await db

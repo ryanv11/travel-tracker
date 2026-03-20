@@ -5,9 +5,7 @@
  * any backend running.
  *
  * Source:  src/backend/validation/common.ts
- * BUG-10:  zName currently allows max(255); correct limit is max(200).
- *          Tests marked BUG-10 are written to the correct contract.
- *          They will fail until the fix is deployed.
+ * BUG-10:  zName max length fixed to 200 (was 255) to match BRD spec.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -61,9 +59,6 @@ describe('zName', () => {
     expect(passes(zName, name)).toBe(name);
   });
 
-  // BUG-10: zName currently has max(255), but the BRD and API reference
-  // specify max 200 chars. This test is written to the correct contract.
-  // It WILL FAIL until max(255) is changed to max(200) in common.ts.
   it('BUG-10: rejects a name longer than 200 characters', () => {
     const name = 'A'.repeat(201);
     fails(zName, name);

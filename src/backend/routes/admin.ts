@@ -35,6 +35,17 @@ export const adminRouter = Router();
 
 type AdminTable = typeof tripCategories | typeof activities | typeof companions;
 
+/** Serialize a raw Drizzle admin list row to snake_case API shape. */
+function serializeAdminItem(row: { id: number; name: string; isActive: number; createdAt: string; updatedAt: string }) {
+  return {
+    id: row.id,
+    name: row.name,
+    is_active: row.isActive === 1,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  };
+}
+
 function createAdminListRouter(table: AdminTable, resourceName: string): Router {
   const router = Router();
 
@@ -44,7 +55,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
     asyncHandler(async (_req, res) => {
       const db = getDb();
       const rows = await db.select().from(table);
-      res.json(rows);
+      res.json(rows.map(serializeAdminItem));
     }),
   );
 
@@ -54,7 +65,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
     asyncHandler(async (_req, res) => {
       const db = getDb();
       const rows = await db.select().from(table).where(eq(table.isActive, 1));
-      res.json(rows);
+      res.json(rows.map(serializeAdminItem));
     }),
   );
 
@@ -75,7 +86,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
         .insert(table)
         .values({ name, createdAt: now, updatedAt: now })
         .returning();
-      res.status(201).json(inserted[0]);
+      res.status(201).json(serializeAdminItem(inserted[0]));
     }),
   );
 
@@ -102,7 +113,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
         .set(updates)
         .where(eq(table.id, id))
         .returning();
-      res.json(updated[0]);
+      res.json(serializeAdminItem(updated[0]));
     }),
   );
 
@@ -126,7 +137,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
         .set({ isActive: 0, updatedAt: now })
         .where(eq(table.id, id))
         .returning();
-      res.json(updated[0]);
+      res.json(serializeAdminItem(updated[0]));
     }),
   );
 
