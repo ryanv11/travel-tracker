@@ -17,6 +17,7 @@ const tripAssociations = {
   category_ids: z.array(z.number().int().positive()).optional(),
   companion_ids: z.array(z.number().int().positive()).optional(),
   activity_ids: z.array(z.number().int().positive()).optional(),
+  country_codes: z.array(z.string().length(2)).optional(),
 };
 
 /** Schema for POST /api/trips */
@@ -62,6 +63,7 @@ export const ListTripsQuerySchema = z.object({
   status: zTripStatus.optional(),
   category_id: z.coerce.number().int().positive().optional(),
   activity_id: z.coerce.number().int().positive().optional(),
+  country: z.string().length(2).optional(),
 });
 
 /**
