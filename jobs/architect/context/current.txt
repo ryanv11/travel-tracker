@@ -1,6 +1,6 @@
-ARCHITECT CONTEXT — 2026-03-20
+ARCHITECT CONTEXT — 2026-03-21
 PROJECT: Travel Tracker
-CURRENT STATUS: NR-14 auth direction revised — Clerk assessment complete, ADL-20 logged
+CURRENT STATUS: BRD v2.4 technical review complete (TR-11, TR-10, DP-04). NR-14 auth direction revised — Clerk assessment complete, ADL-20 logged
 
 ================================================================================
 WORK COMPLETED THIS THREAD
@@ -40,6 +40,10 @@ OPEN QUESTIONS
      Decision: remove via migration. Awaiting COO approval and DATABASE action.
 
   4. trip_places user_id — still awaiting COO/PO confirmation of addition.
+
+  5. BRD v2.4 technical review sent to COO (2026-03-21):
+     TR-11, TR-10, DP-04 — all resolved, no backend schema changes. Response at
+     jobs/COO/inbox/20260321_0900-ARCHITECT-brd-v24-technical-review.md
 
 ================================================================================
 PENDING — AWAITING DOWNSTREAM ACTION
