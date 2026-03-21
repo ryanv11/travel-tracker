@@ -368,7 +368,7 @@ export function TripsLayout() {
       </div>
 
       {/* Right panel — fills remaining width, scrollable */}
-      <div className="flex-1 h-full overflow-y-auto bg-gray-50">
+      <div data-testid="trip-detail-panel" className="flex-1 h-full overflow-y-auto bg-gray-50">
         <Outlet />
       </div>
 
