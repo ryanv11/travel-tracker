@@ -8,6 +8,51 @@ import { apiGet, apiPost } from '../utils/apiClient';
 import type { City, CarryForwardCandidate } from '../types/api';
 
 // ============================================================
+// NOMINATIM GEOCODING (GE-15 — country auto-populate)
+// ============================================================
+
+const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';
+const NOMINATIM_USER_AGENT = 'TravelTracker/1.0 (personal-use-app)';
+
+/** Shape of a Nominatim search result with address details. */
+interface NominatimResult {
+  address?: {
+    country_code?: string;
+  };
+}
+
+/**
+ * Looks up a city name via Nominatim and returns the ISO 3166-1 alpha-2
+ * country code (upper-cased) if found, or null otherwise.
+ *
+ * Used by AddPlaceFlow to auto-populate the country field (GE-15).
+ * Fire-and-forget style — errors are silently swallowed so the user
+ * can still select the country manually if lookup fails.
+ *
+ * @param cityName - The city name to look up.
+ * @returns Upper-cased country code (e.g. "FR") or null.
+ */
+export async function lookupCityCountry(cityName: string): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({
+      q: cityName,
+      format: 'json',
+      limit: '1',
+      addressdetails: '1',
+    });
+    const resp = await fetch(`${NOMINATIM_BASE}?${params}`, {
+      headers: { 'User-Agent': NOMINATIM_USER_AGENT },
+    });
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as NominatimResult[];
+    const code = data[0]?.address?.country_code;
+    return code ? code.toUpperCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================
 // QUERIES
 // ============================================================
 

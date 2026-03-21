@@ -9,7 +9,7 @@
  * Reference: spec §6.3 (Add Place flow), AC-07.
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { useCitySearch, useCreateCity, type CreateCityData } from '../../hooks/useCities';
+import { useCitySearch, useCreateCity, lookupCityCountry, type CreateCityData } from '../../hooks/useCities';
 import { useAddPlace } from '../../hooks/usePlaces';
 import { useCarryForwardCandidates } from '../../hooks/useCities';
 import { useCountries, useCountryRegions } from '../../hooks/useAdmin';
@@ -37,6 +37,7 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   const [newCityName, setNewCityName] = useState('');
   const [newCityCountryCode, setNewCityCountryCode] = useState('');
   const [newCityRegionId, setNewCityRegionId] = useState<number | null>(null);
+  const [countryLookupPending, setCountryLookupPending] = useState(false);
   const [addedPlaceId, setAddedPlaceId] = useState<number | null>(null);
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
   const [showCarryForward, setShowCarryForward] = useState(false);
@@ -105,6 +106,22 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     } catch { /* shown via createCity.error — Retry button available (Class B, NR-06) */ }
   };
 
+  /** Opens the new-city form and fires a background Nominatim lookup to
+   *  auto-populate the country field (GE-15). */
+  const handleOpenNewCityForm = (cityName: string) => {
+    setShowNewCityForm(true);
+    setNewCityName(cityName);
+    setNewCityCountryCode('');
+    setNewCityRegionId(null);
+    if (cityName.trim().length >= 2) {
+      setCountryLookupPending(true);
+      lookupCityCountry(cityName.trim()).then((code) => {
+        if (code) setNewCityCountryCode(code);
+        setCountryLookupPending(false);
+      }).catch(() => setCountryLookupPending(false));
+    }
+  };
+
   const mutationError = addPlace.error ?? createCity.error;
 
   const inputClass = 'w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 box-border';
@@ -160,7 +177,7 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
                 ))}
                 <div
                   className="px-3 py-2.5 cursor-pointer text-sm text-teal-600 font-semibold hover:bg-teal-50 border-b border-gray-100 last:border-b-0"
-                  onClick={() => { setShowNewCityForm(true); setNewCityName(query); }}
+                  onClick={() => handleOpenNewCityForm(query)}
                 >
                   + Add new: "{query}"
                 </div>
@@ -179,7 +196,12 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
               />
             </div>
             <div className="mb-4">
-              <label className={labelClass}>Country</label>
+              <label className={labelClass}>
+                Country{' '}
+                {countryLookupPending && (
+                  <span className="font-normal text-gray-400 text-xs">detecting…</span>
+                )}
+              </label>
               <select
                 className={inputClass}
                 value={newCityCountryCode}

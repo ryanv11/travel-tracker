@@ -36,10 +36,14 @@ export function filterAndSortTrips(
     );
   }
 
-  // Search by name
+  // Search by trip name or any city name within the trip's places (TR-13)
   if (searchText.trim()) {
     const q = searchText.trim().toLowerCase();
-    result = result.filter((t) => t.name.toLowerCase().includes(q));
+    result = result.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.places.some((p) => p.city.name.toLowerCase().includes(q)),
+    );
   }
 
   // Sort
