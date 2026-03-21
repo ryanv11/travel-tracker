@@ -1,5 +1,42 @@
 {
   "permissions": {
     "defaultMode": "bypassPermissions"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/typecheck.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/drift-ledger.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/subagent-stop.sh"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/session-end.sh"
+          }
+        ]
+      }
+    ]
   }
 }
