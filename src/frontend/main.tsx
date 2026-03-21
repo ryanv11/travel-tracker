@@ -12,7 +12,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
-import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn, useAuth } from '@clerk/react';
+import { ClerkProvider, Show, RedirectToSignIn, useAuth } from '@clerk/react';
 import { App } from './App';
 import { setTokenGetter } from './utils/apiClient';
 import './index.css';
@@ -61,14 +61,14 @@ const appTree = bypassAuth ? (
     <ClerkProvider publishableKey={publishableKey}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <SignedOut>
+          <Show when="signed-out">
             <RedirectToSignIn />
-          </SignedOut>
-          <SignedIn>
+          </Show>
+          <Show when="signed-in">
             <TokenRegistrar>
               <App />
             </TokenRegistrar>
-          </SignedIn>
+          </Show>
         </BrowserRouter>
       </QueryClientProvider>
     </ClerkProvider>
