@@ -79,13 +79,13 @@ export function CountryLayer({ shadingData }: CountryLayerProps) {
     // Filter sourcedata events to our specific source to avoid consuming
     // the event on MapTiler tile sources that load first.
     const onSourceData = (e: { sourceId?: string; isSourceLoaded?: boolean }) => {
-      if (e.sourceId === 'countries-source' && map.isSourceLoaded('countries-source')) {
+      if (e.sourceId === 'countries-source' && map.getSource('countries-source') && map.isSourceLoaded('countries-source')) {
         applyShading();
         map.off('sourcedata', onSourceData);
       }
     };
 
-    if (map.isSourceLoaded('countries-source')) {
+    if (map.getSource('countries-source') && map.isSourceLoaded('countries-source')) {
       applyShading();
     } else {
       map.on('sourcedata', onSourceData);
