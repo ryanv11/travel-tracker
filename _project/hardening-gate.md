@@ -94,23 +94,27 @@ user can create, rename, or deactivate categories, activities, and companions.
 - **If owner-only:** Only the account that created the data can modify admin settings.
   Requires either a role claim from Clerk or a simple `is_owner` flag on the user record.
 
-**PO decision (2026-03-21):** Per-user admin model. Each account owns their own
-categories, activities, and companions lists. These govern trips the user owns.
-When acting as a companion on someone else's trip, the trip owner's admin lists apply
-(companions see the owner's categories/activities, not their own).
+**PO decisions (2026-03-21):**
 
-**Implementation note:** This means the admin API cannot simply scope to `req.user.id`
-in all cases — when a companion is adding items to a trip, the API must return the
-trip owner's lists. This query pattern must be specced by Architect before implementation.
+| Entity | Model | Rationale |
+|---|---|---|
+| Categories | Global defaults, users can add, no deletion | Seeded list ships with app; owner manages changes |
+| Activities | Global defaults, users can add, no deletion | Same |
+| Map shading | Per-user | Personal preference, reflects own travel history |
+| Companions | Per-user | My people, my list |
+| Country/region config | Global reference data | Geographic facts, not personal |
 
-**Timing decision:** Deferred to Gate 3.0. No companion users exist yet; current admin
-data belongs entirely to the owner. Implementing the schema migration now (adding user_id
-to admin tables) carries drizzle-kit risk for zero immediate gain, and the full query
-pattern can't be finalised without the companion access spec anyway.
+**Short-term operating model:** Owner controls all reference data (categories, activities,
+country config). Companions request changes from the owner. No permissions system needed
+at this scale — owner is the admin.
 
-**Gate 1.5 disposition:** Known gap, does not block Gate 1.5 (no second user exists).
+**Gate 3.0 design note (Architect brief required):** When companion access is built,
+the Architect must spec the full admin data model based on the above direction. Key
+question: when a companion adds items to a trip, do they see the owner's
+categories/activities or a merged view? Record this note as a design input.
+
+**Timing:** Deferred to Gate 3.0. Gate 1.5 unblocked.
 **Owner:** PO decision recorded → Architect spec at Gate 3.0 → Backend implementation
-**Effort:** Medium-large (schema migration + query scoping + companion read path)
 
 ---
 
