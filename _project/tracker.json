@@ -743,7 +743,7 @@
       "priority": "P3",
       "brdRefs": [],
       "phase": 5,
-      "notes": "PO direction 2026-03-09. Explicitly deferred to later phase by PO. Parse booking confirmation emails/PDFs to pre-populate flight/hotel items. PO also wants flight number + date lookup to autopopulate airline/times (separate to full import). Add to BRD §9 at next revision."
+      "notes": "PO direction 2026-03-09. Explicitly deferred to later phase by PO. Parse booking confirmation emails/PDFs to pre-populate flight/hotel items. Flight number lookup (FL-04) is the Phase 2 precursor. Selected platform: Amadeus for Developers — covers flights, hotels, and car rentals under one integration. Hotel/car rental endpoint coverage to be validated in Phase 2 brief."
     },
 
     // ─── PO UAT NOTES — 2026-03-21 ───────────────────────────────────────────

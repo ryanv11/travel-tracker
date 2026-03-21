@@ -1,7 +1,9 @@
 # Flight Data API Research — Pre-Population Use Case
 
-**Date:** 2026-03-20
+**Date:** 2026-03-20 (updated 2026-03-21)
 **Use case:** Given a flight number (e.g. "EI204") and a date, look up airline name, departure airport, arrival airport, and scheduled departure/arrival times for pre-populating a flight item form. Not real-time tracking.
+
+**Scope note (2026-03-21):** Original research was scoped to flight lookup only. PO direction is to evaluate Amadeus as a broader platform — they also offer hotel and car rental APIs, making a single Amadeus integration the preferred approach over multiple point solutions. The hotel and car rental API coverage below reflects initial assessment; full validation of those endpoints is part of the FL-04/HT/CR Phase 2 brief.
 
 ---
 
@@ -10,7 +12,7 @@
 | Provider | Data Types | Free Tier | Paid Entry Point | HTTPS on Free | Flight-by-Number Endpoint | Personal Use OK | Notes |
 |---|---|---|---|---|---|---|---|
 | **Google Flights** | Search/pricing | None (deprecated) | Enterprise only | N/A | No public API | No | QPX shutdown in 2018; no replacement |
-| **AviationStack** | Real-time, schedules, historical | 100 req/mo | $49.99/mo (10k calls) | No (HTTP only) | Yes (`/flights?flight_iata=`) | Yes | Free tier HTTP-only — browser will block calls from HTTPS page (mixed content). Fine for local dev; blocker for hosted deployment unless on paid plan. Schedule endpoints throttled 1 req/60s. PO noted as a candidate 2026-03-21. |
+| **AviationStack** | Real-time, schedules, historical | 100 req/mo | $49.99/mo (10k calls) | No (HTTP only) | Yes (`/flights?flight_iata=`) | Yes | Free tier HTTP-only — browser will block calls from HTTPS page (mixed content). Fine for local dev; blocker for hosted deployment unless on paid plan. Schedule endpoints throttled 1 req/60s. |
 | **AeroDataBox** | Real-time, schedules, historical | ~300–600 req/mo via API.Market | $5/mo (3k calls) | Yes | Yes (`/flights/number/{flightNumber}/{date}`) | Yes | Best fit for this use case; affordable; coverage gaps noted |
 | **OpenSky Network** | Real-time ADS-B only | Generous (4000 credits/day) | Free (research/non-commercial) | Yes | No (no schedule data) | Yes (non-commercial) | No schedule data; only live ADS-B positions |
 | **Amadeus for Developers** | Schedules, real-time, offers | ~2000 req/mo (test env) | Pay-per-use after free quota | Yes | Yes (`/v2/schedule/flights`) | Yes | Solid free quota; test env uses limited real data |
@@ -215,39 +217,37 @@ What does exist from Google:
 
 ## Recommendation
 
-### Primary recommendation: AeroDataBox
+### Selected platform: Amadeus for Developers
 
-For a personal travel tracking app pre-populating a flight form, **AeroDataBox via RapidAPI or API.Market** is the best fit:
+**PO direction (2026-03-21):** Amadeus is the preferred platform. The decision is driven by breadth — Amadeus covers flights, hotels, and car rentals under a single integration, a single set of credentials, and a single OAuth2 client. Building one integration instead of three point solutions is the right call.
 
-- The `GET /flights/number/{flightNumber}/{date}` endpoint is an exact match for the use case: pass `EI204` and a date, receive airline name, departure airport, arrival airport, and scheduled times.
-- Pricing starts at effectively free (~300–600 calls/mo for $0–$0.99/mo), and a $5/mo Basic plan covers 3,000 calls — sufficient for years of personal use.
-- HTTPS is included at all tiers.
-- No commercial licensing complications for a personal app.
-- Accessible self-serve signup with no sales engagement required.
+**Why Amadeus works for this use case:**
+- On-Demand Flight Status API: exact match for FL-04 (flight number + date → airline, airports, scheduled times)
+- Hotel Search / Hotel Offers API: hotel lookup for HT pre-population
+- Car rental APIs: available via Amadeus travel content (needs endpoint validation in Phase 2 brief)
+- Two environments: test (free, limited data) and production (free quota + pay-per-use overages at ~€0.001–€0.025/call)
+- No minimum spend, no sales engagement required for self-serve access
+- GDS-quality data — most authoritative source in the comparison
+- SDKs available for Node.js (fits the Express backend)
 
-The acknowledged limitations (no SLA, European-biased live coverage, occasional data gaps) are acceptable for form pre-population — this is not a safety-critical application, and static schedule data has broader coverage than their live tracking.
+**Known friction:**
+- OAuth2 client credentials flow adds implementation overhead vs. API key approaches. Backend must exchange credentials for an access token (30 min TTL) before calling APIs. Token caching recommended.
+- Test environment uses a curated data subset — not all flights/dates are available. Production access needed for full validation.
 
-### Secondary recommendation: Amadeus On-Demand Flight Status
+**Next step:** Phase 2 brief should include validation of Amadeus hotel and car rental endpoint coverage before committing to the full integration.
 
-If higher data reliability or broader coverage is needed, **Amadeus for Developers** is the next best option:
-- The On-Demand Flight Status API is a precise capability match.
-- Production access retains a monthly free quota, making it sustainable.
-- Amadeus sources from GDS data (more authoritative than AeroDataBox).
-- Drawback: OAuth2 token management adds integration complexity, and the test environment's limited data set means you don't get a full picture before going to production.
+---
 
-### On FlightAware AeroAPI
+### Candidates not selected
 
-AeroAPI is technically excellent and explicitly free for personal use (500 calls/mo), making it a viable third option. The 5 QPM rate limit and uncertainty around future schedule depth are minor concerns for this use case. If the developer already uses FlightAware for personal flight tracking, reusing that account makes sense.
-
-### Candidates to skip
-
-| Provider | Reason to skip |
+| Provider | Reason |
 |---|---|
+| AeroDataBox | Flight-only; would still need separate hotel/car rental integrations |
+| FlightAware AeroAPI | Flight-only; personal tier free but no hotel/car rental coverage |
 | Google Flights | No public API exists |
-| OpenSky Network | No schedule data whatsoever |
-| OAG | No personal/free tier; enterprise pricing only |
-| Cirium | No self-serve pricing; 30-day eval then sales negotiation |
-| AviationStack | Free tier is HTTP-only and 100 req/mo; $49.99/mo entry point for HTTPS |
+| OpenSky Network | No schedule data — real-time ADS-B only |
+| AviationStack | HTTP-only free tier (mixed content blocker for hosted deployment); flight-only |
+| OAG / Cirium | Enterprise pricing only; no self-serve personal tier |
 
 ---
 
