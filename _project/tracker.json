@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-03-21"
+    "updated": "2026-03-21 (triage)"
   },
   "items": [
 
@@ -44,12 +44,12 @@
       "id": "PHASE-3",
       "type": "phase",
       "title": "UI Layer — React Frontend SPA",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": [],
       "phase": 3,
-      "notes": "All P0 bugs closed (BUG-01–05). NR-06 done. PO testing surfaced BUG-11/12/13 + country shading spec change (SHADING-SPEC-01, awaiting PO clarification). QA live testing unblocked."
+      "notes": "All features implemented and UAT PASS (conditional) 2026-03-20/21. BUG-11/12/13 closed. SHADING-SPEC-01 closed. Tailwind migration + BRD v2.4 UI delivered."
     },
     {
       "id": "PHASE-4",
@@ -60,7 +60,7 @@
       "priority": "P0",
       "brdRefs": [],
       "phase": 4,
-      "notes": "ENV fix done (2026-03-09). README done (NR-08). QA live testing now unblocked. BUG-11/12/13 to be fixed before QA sign-off."
+      "notes": "186 backend + 55 frontend unit tests passing. Contract tests passing. Playwright E2E suite (36 tests) delivered as POC — parked pending panel scoping refactor. README + CODEBASE.md done. Blocked by OP-06 (hardening checklist) before formal phase close."
     },
     {
       "id": "PHASE-5",
@@ -79,144 +79,144 @@
       "id": "FEAT-TR",
       "type": "feature",
       "title": "Trip Management",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["TR-01","TR-02","TR-03","TR-04","TR-05","TR-06","TR-07","TR-08","TR-09","TR-10"],
       "phase": 3,
-      "notes": "Backend: done. Frontend: implemented. BUG-04 blocks TR-06/07 (status transitions). Needs QA live test."
+      "notes": "Done. BUG-04 (status transitions) closed 2026-03-09. Sort control (TR-09) regression fixed PR #13. Search + status filter chips (TR-10) delivered in Tailwind migration. UAT PASS 2026-03-21."
     },
     {
       "id": "FEAT-GE",
       "type": "feature",
       "title": "Geographic Hierarchy",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["GE-01","GE-02","GE-03","GE-04","GE-05","GE-06","GE-07","GE-08","GE-09","GE-10","GE-11","GE-12","GE-13"],
       "phase": 3,
-      "notes": "GE-01–11 implemented. GE-12/13 (offline geocoding queue) depends on NR-06 implementation."
+      "notes": "Done. GE-01–13 implemented. NR-06 (offline geocoding retry queue) delivered a60ec17. GE-12/13 covered."
     },
     {
       "id": "FEAT-MP",
       "type": "feature",
       "title": "Map View",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["MP-01","MP-02","MP-03","MP-04","MP-05","MP-06"],
       "phase": 3,
-      "notes": "MP-01 (country shading) needs live test. MP-02 (region shading) blocked by BUG-02. MP-03–06 needs live test."
+      "notes": "Done. BUG-02 (region shading) closed 2026-03-09. BUG-13 (map click-through) closed 2026-03-21. SHADING-SPEC-01 (whole-country logic) closed. MP-01–06 all implemented."
     },
     {
       "id": "FEAT-IT",
       "type": "feature",
       "title": "Item Logging",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["IT-01","IT-02","IT-03","IT-04","IT-05","IT-06","IT-07","IT-08","IT-09"],
       "phase": 3,
-      "notes": "IT-01–06 implemented. IT-07 (carry-forward) blocked by BUG-03. IT-08/09 (rating sort) needs live test."
+      "notes": "Done. IT-01–09 implemented. BUG-03 (carry-forward) closed 2026-03-09. Flights/car_rentals excluded from carry-forward by PO direction (PR #24)."
     },
     {
       "id": "FEAT-FL",
       "type": "feature",
       "title": "Flights",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["FL-01","FL-02","FL-03"],
       "phase": 3,
-      "notes": "Backend and frontend implemented. Awaiting QA live test."
+      "notes": "Done. Backend and frontend implemented. QA delivered. Excluded from carry-forward by PO direction."
     },
     {
       "id": "FEAT-HT",
       "type": "feature",
       "title": "Hotels",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["HT-01","HT-02","HT-03","HT-04"],
       "phase": 3,
-      "notes": "Backend and frontend implemented. Awaiting QA live test."
+      "notes": "Done. Backend and frontend implemented. QA delivered. Carry-forward eligible."
     },
     {
       "id": "FEAT-CR",
       "type": "feature",
       "title": "Car Rentals",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["CR-01","CR-02"],
       "phase": 3,
-      "notes": "Backend and frontend implemented. Awaiting QA live test."
+      "notes": "Done. Backend and frontend implemented. QA delivered. Excluded from carry-forward by PO direction."
     },
     {
       "id": "FEAT-RS",
       "type": "feature",
       "title": "Restaurants",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["RS-01","RS-02","RS-03"],
       "phase": 3,
-      "notes": "Backend and frontend implemented. Awaiting QA live test."
+      "notes": "Done. Backend and frontend implemented. QA delivered."
     },
     {
       "id": "FEAT-EX",
       "type": "feature",
       "title": "Experiences",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["EX-01"],
       "phase": 3,
-      "notes": "Backend and frontend implemented. Awaiting QA live test."
+      "notes": "Done. Backend and frontend implemented. QA delivered."
     },
     {
       "id": "FEAT-PH",
       "type": "feature",
       "title": "Photos",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["PH-01","PH-02"],
       "phase": 3,
-      "notes": "Photo album reference field implemented. Awaiting QA live test."
+      "notes": "Done. Photo album reference field implemented (PH-01/02). QA delivered."
     },
     {
       "id": "FEAT-RV",
       "type": "feature",
       "title": "Post-Trip Review",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["RV-01","RV-02","RV-03","RV-04"],
       "phase": 3,
-      "notes": "RV-04 (lock trip) partially affected by BUG-04 (no return-to-planning path). BUG-05 affects bulk status update."
+      "notes": "Done. BUG-04 (return-to-planning) and BUG-05 (mark-all) both closed 2026-03-09. RV-01–04 all implemented."
     },
     {
       "id": "FEAT-AD",
       "type": "feature",
       "title": "Admin & Settings Panel",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["AD-01","AD-02","AD-03","AD-04","AD-05","AD-06"],
       "phase": 3,
-      "notes": "All 5 tabs implemented. Awaiting QA live test."
+      "notes": "Done. All 5 tabs implemented. QA delivered. NTH-04 (grey region_tier_label) merged PR #35."
     },
     {
       "id": "FEAT-NF",
       "type": "feature",
       "title": "Non-Functional Requirements",
-      "status": "in_progress",
+      "status": "done",
       "owner": "coo",
       "priority": "P1",
       "brdRefs": ["NF-01","NF-02","NF-03","NF-04","NF-05","NF-06","NF-07","NF-08"],
       "phase": 3,
-      "notes": "NF-01–03 met. NF-04 (OneDrive) documented via NR-08. NF-05–08 (future migration paths) preserved by architecture. NR-06 (offline retry) in progress."
+      "notes": "Done. NF-01–04 met. NF-05–08 (future migration paths) preserved by architecture. NR-06 (offline retry) and NR-07 (offline indicator) both delivered."
     },
 
     // ─── BUGS ────────────────────────────────────────────────────────────────
@@ -492,12 +492,12 @@
       "id": "NR-07",
       "type": "requirement",
       "title": "App offline indicator — lightweight status affordance",
-      "status": "pending",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["GE-12"],
       "phase": 3,
-      "notes": "Accepted Phase 1 but may slip under scope pressure. Single status affordance only. Covered within NR-06 spec (offline indicator section)."
+      "notes": "Done. Delivered as part of NR-06 (a60ec17). Amber 'Geocoding pending (n)' button in nav bar with retry action."
     },
     {
       "id": "NR-08",
@@ -716,12 +716,12 @@
       "id": "FEAT-BD",
       "type": "feature",
       "title": "Bulk delete trips",
-      "status": "pending",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": [],
       "phase": 3,
-      "notes": "PO direction 2026-03-09. Required for test data cleanup and general data management. Backend: needs DELETE /api/trips/:id (single) — verify if exists; may need bulk endpoint. Frontend: multi-select in TripList + delete confirmation dialog. Not yet specced."
+      "notes": "Done. Multi-select delete with 5-second undo window. GitHub issue #7 closed, NTH-01 (undo) merged PR #33."
     },
     {
       "id": "BUG-14",
