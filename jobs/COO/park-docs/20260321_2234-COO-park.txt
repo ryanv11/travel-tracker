@@ -1,0 +1,111 @@
+PARK DOCUMENT — COO
+Date: 2026-03-21
+Session: 6
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+Long productive session. Covered: Playwright/E2E disposal, repo cleanup,
+CODEBASE.md, tracker triage, BRD v2.5, hardening gate spec, PO UAT notes
+logged, UX-01/03 dispatched and merged, ADL-24 complete, flight API research
+resolved to Amadeus.
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+1. PLAYWRIGHT E2E — parked as POC
+   Suite (36 tests) merged via PR #45. Token cost too high to maintain actively.
+   data-testid="trip-detail-panel" added to TripsLayout. Refactor deferred.
+   Suite not in CI. Revive when product is more stable.
+
+2. F-02 (IN-PANEL TABS) — confirmed closed
+   Firmly in §9 Future Features (Phase 3+), gated on region/area tagging.
+   UAT note that PO "wanted them reinstated" was a misread. No action.
+
+3. REPO CLEANUP — done
+   - drizzle.config compiled output gitignored and removed from git
+   - Loose docs (BRD, audit) moved from root to _project/
+   - CODEBASE.md created at root
+
+4. TRACKER TRIAGE — done
+   All stale in_progress/pending feature groups reconciled. PHASE-3 → done.
+   FEAT-BD, NR-07, all FEAT-* groups updated. 4 genuinely outstanding items
+   identified (NR-14, OP-06, OP-07, #23).
+
+5. BRD v2.5 — approved
+   New requirements added:
+   - TR-13: search includes city names
+   - GE-14/15: city search-first + country autopopulate
+   - DP-05: place date ranges, chronological ordering
+   - FL-04 (Phase 2): flight number lookup via Amadeus
+   - PH-04 (Phase 2): photos direct attachment
+   - AD-07/08/09: admin split model formalised
+   - §9: booking import, companion endorsements, companion invite model
+
+6. HARDENING GATE — specced
+   _project/hardening-gate.md created. Three gates: 1.5 (auth hardening),
+   2.0 (hosted deployment), 3.0 (companion access).
+   Gate 1.5 unblocked — admin model decision recorded.
+
+7. ADMIN DATA MODEL — decided
+   - Categories/activities: global seeded defaults, add-only, owner manages
+   - Map shading: per-user
+   - Companions: per-user
+   - Country/region config: global reference data
+   Full per-user model deferred to Gate 3.0 (Architect brief required).
+   Short-term: owner controls all reference data, companions ask for changes.
+
+8. FLIGHT API — Amadeus selected
+   Research completed. Google has no public API (QPX killed 2018).
+   Amadeus selected as platform: covers flights + hotels + car rentals under
+   one integration. GDS-quality data. Free quota + pay-per-use. Two envs.
+   Hotel/car rental endpoint coverage to be validated in Phase 2 brief.
+   AviationStack rejected (HTTP-only free tier).
+
+9. UX-01 / UX-03 — delivered (PR #46, merged)
+   GE-14 was already implemented. GE-15 (country autopopulate) delivered.
+   TR-13 (search includes city names) delivered with 6 new unit tests.
+   61 frontend tests passing.
+
+10. ADL-24 — complete
+    Place date ranges fully specced. arrived_on/departed_on TEXT nullable
+    on trip_places. New PATCH /api/trips/:tripId/places/:placeId required.
+    Client-side sort. DP-04 precedence: explicit dates > hotel dates > trip dates.
+    Ready for implementation — no further Architect input needed.
+
+================================================================================
+RECOMMENDED STARTING POINT — NEXT SESSION
+================================================================================
+
+  1. Dispatch UX-02 (place date ranges) — Backend + Frontend agents in parallel
+     ADL-24 at jobs/architect/tech/ADL-24-place-date-ranges.md
+     Files to touch listed in jobs/COO/inbox/ADL-24-place-date-ranges-complete.md
+
+  2. Dispatch Gate 1.5-A (BYPASS_AUTH prod guard) — Backend agent
+     Small: console.warn guard in server.ts + .env.example update
+
+  3. PO testing notes → Gate 1.5-B/C when ready
+     Auth enforcement spot-check + IDOR spot-check with two test users
+
+  4. OP-07 (UX expert review) — schedule when ready, post Phase 1 sign-off
+
+================================================================================
+STATE OF PLAY
+================================================================================
+
+Outstanding (actionable):
+  UX-02   Place date ranges (DP-05)          — ADL-24 done, dispatch ready
+  Gate 1.5-A  BYPASS_AUTH prod guard         — small Backend task
+  Gate 1.5-B/C  Auth + IDOR spot-check       — QA, pending PO testing notes
+  #23     Clerk JWKS firewall (dev env)       — low priority, BYPASS_AUTH workaround
+
+Deferred (not blocking):
+  UX-05   Photos full implementation          — Phase 2
+  FL-04   Flight lookup (Amadeus)             — Phase 2
+  Gate 2.0  Hosted deployment hardening       — Phase 2
+  Gate 3.0  Companion access                  — Phase 3
+  FUTURE-01/02/03  Booking import, endorsements, invite model — Phase 3+
+
+================================================================================
