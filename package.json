@@ -14,6 +14,7 @@
     "build": "vite build",
     "type:check": "tsc -p tsconfig.frontend.json --noEmit",
     "type:check:backend": "tsc -p tsconfig.backend.json --noEmit",
+    "type:check:all": "tsc -p tsconfig.frontend.json --noEmit && tsc -p tsconfig.backend.json --noEmit",
     "postinstall": "patch-package",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

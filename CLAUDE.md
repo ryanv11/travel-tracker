@@ -15,13 +15,15 @@ npm run dev          # Vite frontend  → http://localhost:5173
 npm run test:backend           # Backend unit tests (Vitest)
 npm run test:frontend          # Frontend unit tests (Vitest)
 npm run test:contract          # Contract tests (Vitest — requires backend running)
-npm run type:check             # TypeScript type check (frontend)
+npm run type:check             # TypeScript type check (frontend only)
+npm run type:check:backend     # TypeScript type check (backend only)
+npm run type:check:all         # TypeScript type check (frontend + backend)
 ```
 
 ## Pre-push checklist (mandatory)
 Before every `git push`, run all four checks and iterate fixes until they pass:
 ```bash
-npm run type:check
+npm run type:check:all
 npm run test:backend
 npm run test:frontend
 ```
@@ -107,27 +109,32 @@ not yet PASS, check in with the user — the fix may be part of a broader flow s
 
 Screenshots are stored in `jobs/PO/screenshots/`.
 
-## Depwire (codebase intelligence MCP)
-Depwire is configured as an MCP server (`.mcp.json`) and runs automatically in Claude Code sessions.
-Installed globally: `depwire-cli`. Tools available via `mcp__depwire__*`.
+## Drift ledger
 
-**Use it for:**
-- `impact_analysis` / `get_dependencies` / `get_dependents` — cross-file import chain tracking.
-  Reliable and accurate. Primary use case: ADL-18 repository layer work — enumerate which route
-  functions call `getDb` directly and must be migrated.
-- `get_file_context` — quick view of what a file imports and what imports it.
-- `get_architecture_summary` — hub files and layer breakdown are accurate for orientation.
+`.planning/drift-ledger.jsonl` is an append-only log maintained by hooks. It records
+every file edit (tagged with `agent_type` for inline agent edits), a `subagent_stop`
+marker each time an inline agent completes, an automatic `session_end` sentinel on every
+session close, and a `reviewed` marker written manually by the COO after each startup audit.
 
-**Do not use it for:**
-- Drizzle schema symbol tracking — `schema.ts` has 57 symbols but only 1 connection reported.
-  All `db.select().from(trips)` usage is invisible to tree-sitter. Never trust impact results
-  for schema table variables.
-- `import type` tracking — TypeScript type-only imports are not followed. `src/frontend/types/api.ts`
-  is flagged as an orphan despite being used everywhere. Orphan file lists will have false positives.
-- `depwire docs` — crashes generating DEAD_CODE.md; skip entirely.
-- Health score "Orphans & Dead Code" dimension — 86.5% dead symbols is a false positive.
-  All other health dimensions (coupling, cohesion, circular deps, depth) are usable.
-- Intra-file call graph — only tracks cross-file imports, not function calls within the same file.
+**On every COO session pickup** — after the UAT check, read the ledger:
+1. Find the last `reviewed` entry (or start of file if none exists yet)
+2. Scan forward to the end — look for any `subagent_stop` entries
+3. For each `subagent_stop`: verify the inline agent's work is documented —
+   completion report written, state files updated, changes committed
+4. Fix any gaps found, then write the `reviewed` sentinel:
+```bash
+echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"action\":\"reviewed\"}" >> .planning/drift-ledger.jsonl
+```
+
+If the ledger is clean (no `subagent_stop` entries since last `reviewed`), write the
+sentinel immediately and proceed. The `session_end` sentinel is written automatically
+by the SessionEnd hook — no manual step required at shutdown.
+
+**Post-spawn verification (inline agents only):** after every inline agent completes
+during a session, immediately verify before continuing: completion report written,
+state files updated, changes committed. The ledger is the audit layer that catches
+what this step misses — if startup reads are consistently clean, the verification
+is working. Repeated gaps signal that more work should move to dedicated sessions.
 
 ## Key files
 - `src/backend/server.ts` — Express app entry point

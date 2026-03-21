@@ -13,7 +13,9 @@
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".cache/tsconfig.backend.tsbuildinfo"
   },
   "include": ["src/backend/**/*", "drizzle.config.ts"],
   "exclude": ["node_modules", "dist"]
