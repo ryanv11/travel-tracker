@@ -17,7 +17,7 @@ COO sign-off required at Phase 2 gate review.
 
 | ID | Finding | Action Required | Status |
 |----|---------|----------------|--------|
-| H1 | No authentication — all endpoints open | Implement real auth in src/backend/middleware/auth.ts | OPEN |
+| H1 | No authentication — all endpoints open | Implement real auth in src/backend/middleware/auth.ts | DONE (Clerk JWT, issues #1–4, 2026-03-20) |
 | H2 | No HTTPS — plaintext transport | TLS at reverse proxy (nginx/Caddy) before binding change | OPEN |
 | M3 | trust proxy not configured for reverse proxy | app.set('trust proxy', 1) when deploying behind proxy | OPEN |
 
