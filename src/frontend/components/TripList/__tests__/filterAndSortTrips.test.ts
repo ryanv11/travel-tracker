@@ -1,5 +1,5 @@
 /**
- * Unit tests for the filterAndSortTrips helper (BUG-12).
+ * Unit tests for the filterAndSortTrips helper (BUG-12, TR-13).
  *
  * Tests client-side search-by-name, sort-by-date, sort-by-name, and map
  * filter params (country / city). Pure function — no React rendering needed.
@@ -12,7 +12,7 @@ function makeTrip(
   id: number,
   name: string,
   start_date: string,
-  places: Array<{ city_id: number; country_code: string }> = [],
+  places: Array<{ city_id: number; country_code: string; city_name?: string }> = [],
 ): TripSummary {
   return {
     id,
@@ -32,7 +32,7 @@ function makeTrip(
       city_id: p.city_id,
       city: {
         id: p.city_id,
-        name: `City${p.city_id}`,
+        name: p.city_name ?? `City${p.city_id}`,
         country_code: p.country_code,
         country_name: null,
         region_id: null,
@@ -136,5 +136,52 @@ describe('filterAndSortTrips — map filters', () => {
     const result = filterAndSortTrips(trips, 'Again', 'date_desc', 'NL', null, null);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(4);
+  });
+});
+
+describe('filterAndSortTrips — city-name search (TR-13)', () => {
+  const tripsWithCityNames: TripSummary[] = [
+    makeTrip(10, 'Spring Getaway', '2024-04-01', [{ city_id: 100, country_code: 'FR', city_name: 'Paris' }]),
+    makeTrip(11, 'Summer Vacation', '2024-07-01', [{ city_id: 101, country_code: 'JP', city_name: 'Tokyo' }]),
+    makeTrip(12, 'Multi-city Tour', '2024-09-01', [
+      { city_id: 102, country_code: 'IT', city_name: 'Rome' },
+      { city_id: 103, country_code: 'IT', city_name: 'Milan' },
+    ]),
+  ];
+
+  it('matches on city name when trip name does not match', () => {
+    const result = filterAndSortTrips(tripsWithCityNames, 'paris', 'date_desc', null, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(10);
+  });
+
+  it('city-name search is case-insensitive', () => {
+    const result = filterAndSortTrips(tripsWithCityNames, 'TOKYO', 'date_desc', null, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(11);
+  });
+
+  it('matches trip with multiple cities when any city name matches', () => {
+    const result = filterAndSortTrips(tripsWithCityNames, 'Milan', 'date_desc', null, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(12);
+  });
+
+  it('returns trip when query matches both trip name and city name', () => {
+    // "Vacation" matches trip name; also check city name match is additive, not exclusive
+    const result = filterAndSortTrips(tripsWithCityNames, 'Rome', 'date_desc', null, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(12);
+  });
+
+  it('returns no trips when neither trip name nor any city name matches', () => {
+    const result = filterAndSortTrips(tripsWithCityNames, 'Berlin', 'date_desc', null, null, null);
+    expect(result).toHaveLength(0);
+  });
+
+  it('trip-name match still works independently of city-name match', () => {
+    const result = filterAndSortTrips(tripsWithCityNames, 'Spring', 'date_desc', null, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(10);
   });
 });
