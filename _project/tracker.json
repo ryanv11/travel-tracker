@@ -754,7 +754,7 @@
       "status": "pending",
       "owner": "frontend",
       "priority": "P1",
-      "brdRefs": ["GE-01"],
+      "brdRefs": ["GE-14","GE-15"],
       "phase": 3,
       "notes": "PO direction 2026-03-21. Creating a city (e.g. Dublin) then manually selecting country (Ireland) is unnecessary friction. Fix: search existing DB cities first before hitting Nominatim; auto-populate country_code from geocode result on create. Quick win."
     },
@@ -765,7 +765,7 @@
       "status": "pending",
       "owner": "frontend",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["DP-05"],
       "phase": 3,
       "notes": "PO direction 2026-03-21. trip_places has no date fields. User wants optional date range on place create/edit. Trip detail panel should order place sections by date when set. Requires schema migration (add arrived_on, departed_on to trip_places) — Architect sign-off needed."
     },
@@ -776,20 +776,9 @@
       "status": "pending",
       "owner": "frontend",
       "priority": "P2",
-      "brdRefs": ["TR-10"],
+      "brdRefs": ["TR-13"],
       "notes": "PO direction 2026-03-21. filterAndSortTrips currently searches trip name only. Extend to match on city names within trip.places. TripSummary already includes place/city data — frontend-only change. Item content search explicitly deferred (out of scope).",
       "phase": 3
-    },
-    {
-      "id": "UX-04",
-      "type": "feature",
-      "title": "Undo pattern — status transitions and single deletes",
-      "status": "pending",
-      "owner": "frontend",
-      "priority": "P2",
-      "brdRefs": [],
-      "phase": 3,
-      "notes": "PO direction 2026-03-21. Extend the existing bulk-delete undo window pattern to: (a) trip status transitions — 5-10s toast after advancing status; (b) single item/place deletes. General edit undo explicitly out of scope — too complex, low risk."
     },
     {
       "id": "UX-05",
@@ -798,7 +787,7 @@
       "status": "deferred",
       "owner": "frontend",
       "priority": "P2",
-      "brdRefs": ["PH-01","PH-02"],
+      "brdRefs": ["PH-04"],
       "phase": 4,
       "notes": "PO noted photos button currently shows 'coming soon'. PH-01/02 only implemented the reference field. Full photo feature (upload, gallery, attachment) deferred to Phase 2+."
     },

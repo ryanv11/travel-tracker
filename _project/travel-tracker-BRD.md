@@ -1,6 +1,6 @@
 # Business Requirements Document
 ## Travel Tracker Application
-**Version:** 2.4
+**Version:** 2.5
 **Date:** March 2026
 **Author:** Claude (BSA) / Ryan V (Product Owner)
 **Status:** Approved
@@ -71,6 +71,7 @@ There is currently no system for tracking travel history, planning future trips,
 | TR-08 | Multiple trips to the same place are stored as separate dated entries |
 | TR-09 | User can view all trips in chronological order |
 | TR-10 | Trips are searchable by name and filterable by category, activity, and status. The trip list includes a text search field and status filter controls (All / Planning / Active / Review / Locked) |
+| TR-13 | Trip text search matches on trip name and on the names of cities within the trip's places |
 | TR-11 | The trips area uses a persistent two-panel layout on desktop — a fixed left panel shows the scrollable trip list with search and filter controls; a right panel shows the selected trip detail. Selecting a trip updates the right panel without navigating away from the trips view |
 | TR-12 | The trip detail view includes a persistent status bar showing the current trip status and the primary action to advance it to the next state, always visible regardless of scroll position |
 
@@ -91,6 +92,8 @@ There is currently no system for tracking travel history, planning future trips,
 | GE-11 | City coordinates are resolved via geocoding (OpenStreetMap Nominatim) the first time a new city is logged. Resolved coordinates are stored permanently in the local database and require no further network call |
 | GE-12 | If no internet connection is available when a new city is logged, the city record is created immediately and the user can continue working uninterrupted. Geocoding is queued and resolved silently in the background when internet connectivity is next detected |
 | GE-13 | Cities with pending geocoding are fully usable for trip and item logging. Map pins for pending cities are not rendered until coordinates are resolved |
+| GE-14 | When the user adds a city to a trip, the app first searches the existing city database. If a match is found it is offered for immediate selection without triggering a new geocoding call |
+| GE-15 | When a new city is created via geocoding, the country is auto-populated from the geocoding result. The user does not need to select the country separately |
 
 ### 5.3 Map View
 
@@ -138,6 +141,7 @@ There is currently no system for tracking travel history, planning future trips,
 | FL-01 | Each flight is logged as an individual leg |
 | FL-02 | Fields: airline, flight number, departure airport, arrival airport, departure date/time, arrival date/time, booking reference, seat, notes |
 | FL-03 | Flight status follows the standard item status workflow |
+| FL-04 | *(Phase 2)* Given a flight number and date, the app looks up the flight and auto-populates airline, departure airport, arrival airport, and scheduled times |
 
 **Hotels**
 
@@ -176,6 +180,7 @@ There is currently no system for tracking travel history, planning future trips,
 | PH-01 | User can link a photo album or folder reference to a trip (not to individual items) |
 | PH-02 | Photo linking is a reference only — the app does not store or copy photos |
 | PH-03 | Photo management for a trip is accessible directly from the trip detail view header |
+| PH-04 | *(Phase 2)* User can attach photos directly to trips and items. Photos are stored locally. The existing album reference (PH-01–PH-03) is preserved alongside direct attachment |
 
 ### 5.8 Post-Trip Review
 
@@ -194,6 +199,7 @@ There is currently no system for tracking travel history, planning future trips,
 | DP-02 | The trip list panel shows a count of trips currently displayed (reflecting any active search or filter) |
 | DP-03 | The trip detail header shows the trip name, date range, status badge, assigned categories as chips, and the names of companions on the trip |
 | DP-04 | Each place section within the trip detail shows the city name, full country name, and the date range for that place. Date range is derived from hotel check-in/check-out dates if a hotel item exists; otherwise falls back to the trip date range |
+| DP-05 | Places within a trip can have optional arrival and departure dates set at create or edit time. When set, place sections in the trip detail are ordered chronologically by arrival date. When not set, the existing insertion order is preserved |
 
 ### 5.10 Admin and Settings Panel
 
@@ -205,6 +211,9 @@ There is currently no system for tracking travel history, planning future trips,
 | AD-04 | Map shading colours are configurable per state via colour picker in the admin panel |
 | AD-05 | Region tier can be enabled or disabled per country in the admin panel |
 | AD-06 | Deactivated list items are hidden from entry forms but preserved on existing records |
+| AD-07 | Map shading configuration is per-user. Each user's colour and state settings reflect their own travel history and do not affect other users |
+| AD-08 | The companions list is per-user. Each user maintains their own list of travel companions |
+| AD-09 | Trip categories and activities are global seeded defaults shared across all users. Any user can add custom entries. Entries cannot be deleted — only deactivated by the app owner |
 
 ---
 
@@ -258,6 +267,9 @@ The following are explicitly out of scope for MVP but must not be architecturall
 - Multi-user hosted web app with real-time sync (replaces OneDrive sync)
 - In-panel tab navigation within trip detail (Itinerary / Review / Map tabs) — requires region/area tagging capability first
 - Per-trip scoped map tab showing only cities within the selected trip — dependent on in-panel tabs above
+- Booking confirmation import — parse flight, hotel, and car rental confirmation emails or PDFs to pre-populate item fields
+- Companion endorsements — each place and item shows who added it; other trip companions can endorse it
+- Companion invite model — companions can be unlinked placeholders or linked to real user accounts. Owner searches for a user; if not found, an unlinked placeholder is created. An invite activates and links the account when the invitee signs up
 
 ---
 
@@ -302,5 +314,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 2.2 | March 2026 | COO / Ryan V (PO) | Added GE-10–GE-13 (geographic data and offline geocoding); added IT-08–IT-09 (rating sort and filter); updated IT-07 (carry-forward behaviour and data model flags); added HT-04 (hotel ratings); updated RS-03 (rating scale explicit: 1–5 stars); updated OQ-02 (PO direction on packaging); document status set to Approved |
 | 2.3 | March 2026 | COO / Ryan V (PO) | Added EX-01 (Experience ratings: 1–5 stars); updated IT-08 to include experiences in rating sort/filter |
 | 2.4 | March 2026 | COO / Ryan V (PO) | UI direction approved from UX audit + mockup review. Updated TR-10 (search by name + status filter chips); added TR-11 (two-panel layout), TR-12 (persistent status bar), PH-03 (photos from detail header); added section 5.9 Trip List and Detail Display (DP-01–DP-04); renumbered Admin to section 5.10; added F-02/F-03 to future features |
+| 2.5 | March 2026 | COO / Ryan V (PO) | Added TR-13 (search includes city names); GE-14/15 (city search-first + country autopopulate); DP-05 (place date ranges, chronological ordering); FL-04 (flight lookup, Phase 2); PH-04 (photos direct attachment, Phase 2); AD-07/08/09 (admin split model — map shading + companions per-user, categories/activities global seeded); added booking import, companion endorsements, companion invite model to §9 Future Features |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*
