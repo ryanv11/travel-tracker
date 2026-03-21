@@ -94,12 +94,23 @@ user can create, rename, or deactivate categories, activities, and companions.
 - **If owner-only:** Only the account that created the data can modify admin settings.
   Requires either a role claim from Clerk or a simple `is_owner` flag on the user record.
 
-**PO decision required** before this can be implemented. Current recommendation:
-treat admin as **owner-only** — only the primary account can modify global settings.
-Other users (companions) get read-only access to admin lists when selecting categories etc.
+**PO decision (2026-03-21):** Per-user admin model. Each account owns their own
+categories, activities, and companions lists. These govern trips the user owns.
+When acting as a companion on someone else's trip, the trip owner's admin lists apply
+(companions see the owner's categories/activities, not their own).
 
-**Owner:** PO decision → Architect spec → Backend implementation
-**Effort:** Medium if owner-only (role check); Large if per-user (schema migration)
+**Implementation note:** This means the admin API cannot simply scope to `req.user.id`
+in all cases — when a companion is adding items to a trip, the API must return the
+trip owner's lists. This query pattern must be specced by Architect before implementation.
+
+**Timing decision:** Deferred to Gate 3.0. No companion users exist yet; current admin
+data belongs entirely to the owner. Implementing the schema migration now (adding user_id
+to admin tables) carries drizzle-kit risk for zero immediate gain, and the full query
+pattern can't be finalised without the companion access spec anyway.
+
+**Gate 1.5 disposition:** Known gap, does not block Gate 1.5 (no second user exists).
+**Owner:** PO decision recorded → Architect spec at Gate 3.0 → Backend implementation
+**Effort:** Medium-large (schema migration + query scoping + companion read path)
 
 ---
 
@@ -245,16 +256,14 @@ The following items in `security-backlog.md` need updating to reflect current st
 
 ## Open Questions for PO
 
-1. **Admin data model (1.5-D):** Should categories, activities, and companions be:
-   - Global (any authenticated user can manage them)?
-   - Owner-only (only the primary account can modify)?
-   - Per-user (each user has their own isolated lists)?
+1. **Admin data model (1.5-D):** ✅ Resolved 2026-03-21 — per-user. Each account owns
+   their own lists; trip owner's lists govern their trips; companions see owner's lists
+   when working on someone else's trip. Implementation deferred to Gate 3.0.
 
-2. **Gate 1.5 timeline:** Is the intention to share access soon (i.e. Gate 1.5 is
-   urgent), or is this speculative planning for later?
+2. **Gate 1.5 timeline:** Open — PO to advise.
 
-3. **Hosting platform:** Do you have a preferred platform in mind for Gate 2.0?
-   (Affects TLS approach, secrets management, trust proxy config.)
+3. **Hosting platform:** Open — PO to advise. Affects TLS approach, secrets management,
+   and trust proxy config.
 
 ---
 
@@ -264,7 +273,7 @@ The following items in `security-backlog.md` need updating to reflect current st
 - [ ] 1.5-A: BYPASS_AUTH guard + .env.example warning
 - [ ] 1.5-B: Auth enforcement verified (spot-check)
 - [ ] 1.5-C: IDOR spot-check with two test users
-- [ ] **1.5-D: PO decision on admin data model** ← blocking
+- [x] 1.5-D: Admin data model — per-user, deferred to Gate 3.0 (decision recorded 2026-03-21)
 
 ### Gate 2.0 — Hosted Deployment
 - [ ] 2.0-A: TLS / HTTPS (Architect spec required)
