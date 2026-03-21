@@ -177,7 +177,7 @@ Browser → React component
 
 | File | Purpose |
 |---|---|
-| `drizzle.config.ts` | Points drizzle-kit at the schema and migrations directory |
+| `drizzle.config.ts` | Points drizzle-kit at the schema and migrations directory. drizzle-kit compiles this at runtime — the compiled `.js`/`.d.ts` output is gitignored. |
 | `vite.config.ts` | Frontend build; proxies `/api` to `:3001` in dev |
 | `tsconfig.frontend.json` | Strict TS for `src/frontend/` |
 | `tsconfig.backend.json` | TS for `src/backend/` — module resolution differs |
@@ -243,6 +243,8 @@ cleanly without re-reading all history.
 | File | Purpose |
 |---|---|
 | `travel-tracker-BRD.md` | Business Requirements Document — authoritative requirements reference |
+| `travel-tracker-standalone-BRD.docx` | Formatted DOCX version of the BRD |
+| `travel-tracker-project-audit.md/.docx` | Project audit report (see DOCX for formatted version) |
 | `tracker.json` | Live feature/bug/task tracker (JSON, COO-maintained) |
 | `project-plan.txt` | High-level phase plan |
 | `objective.txt` | Project goals and success criteria |
