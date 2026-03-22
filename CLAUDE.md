@@ -49,12 +49,7 @@ clearly in your commit message and push. Do not hold a push indefinitely for ano
 
 ### GitHub issue ↔ tracker cross-referencing (mandatory)
 When raising a GitHub issue for something that has a tracker entry, include the tracker ID
-in the issue title:
-```
-fix(BUG-15): wrap executeCarryForward in a transaction
-chore(BUG-19): remove deprecated authenticate alias
-feat(UX-02): place date ranges
-```
+in the issue title — e.g. `fix(BUG-15): wrap executeCarryForward in a transaction`.
 The tracker entry's `notes` field must include the GitHub issue number in return.
 This applies to all new issues — bugs, features, chores — anything with a tracker entry.
 
