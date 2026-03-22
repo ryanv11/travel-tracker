@@ -25,7 +25,12 @@ export const UpdateCountrySchema = z
   .strict();
 
 /** Schema for POST /api/admin/countries/:countryCode/regions */
-export const CreateRegionSchema = z.object({ name: zName }).strict();
+export const CreateRegionSchema = z
+  .object({
+    name: zName,
+    iso3166_2: z.string().trim().min(1),
+  })
+  .strict();
 
 /** Schema for PATCH /api/admin/countries/:countryCode/regions/:regionId */
 export const UpdateRegionSchema = z.object({ name: zName }).strict();

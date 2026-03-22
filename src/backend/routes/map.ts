@@ -62,7 +62,7 @@ mapRouter.patch(
   '/shading/config/:stateKey',
   validateBody(UpdateShadingConfigSchema),
   asyncHandler(async (req, res) => {
-    const { stateKey } = req.params;
+    const stateKey = String(req.params.stateKey);
     const db = getDb();
 
     const existing = await db
@@ -104,7 +104,7 @@ mapRouter.patch(
 mapRouter.get(
   '/shading/countries/:countryCode',
   asyncHandler(async (req, res) => {
-    const countryCode = req.params.countryCode.toUpperCase();
+    const countryCode = String(req.params.countryCode).toUpperCase();
     const db = getDb();
 
     const countryRow = await db
@@ -145,7 +145,7 @@ mapRouter.get(
 mapRouter.get(
   '/shading/regions/:countryCode',
   asyncHandler(async (req, res) => {
-    const countryCode = req.params.countryCode.toUpperCase();
+    const countryCode = String(req.params.countryCode).toUpperCase();
     const db = getDb();
 
     const countryRow = await db

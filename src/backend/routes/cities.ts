@@ -146,7 +146,7 @@ citiesRouter.patch(
   '/:id',
   validateBody(PatchCitySchema),
   asyncHandler(async (req, res) => {
-    const cityId = parseInt(req.params.id, 10);
+    const cityId = parseInt(String(req.params.id), 10);
     if (isNaN(cityId)) throw new NotFoundError('City');
 
     const db = getDb();
@@ -199,7 +199,7 @@ citiesRouter.patch(
 citiesRouter.get(
   '/:id/carry-forward',
   asyncHandler(async (req, res) => {
-    const cityId = parseInt(req.params.id, 10);
+    const cityId = parseInt(String(req.params.id), 10);
     if (isNaN(cityId)) throw new NotFoundError('City');
 
     const db = getDb();
@@ -254,7 +254,7 @@ citiesRouter.get(
   '/:id/items',
   validateQuery(CityItemsQuerySchema),
   asyncHandler(async (req, res) => {
-    const cityId = parseInt(req.params.id, 10);
+    const cityId = parseInt(String(req.params.id), 10);
     if (isNaN(cityId)) throw new NotFoundError('City');
 
     const userId = req.user!.id;

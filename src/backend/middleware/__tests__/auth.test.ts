@@ -117,7 +117,8 @@ describe('requireAuth middleware', () => {
   it('attaches req.user and calls next() on a valid token', async () => {
     vi.mocked(jwtVerify).mockResolvedValueOnce({
       payload: { sub: 'user_clerk123', email: 'test@example.com' },
-    } as Awaited<ReturnType<typeof jwtVerify>>);
+      protectedHeader: { alg: 'RS256' },
+    } as unknown as Awaited<ReturnType<typeof jwtVerify>>);
 
     vi.mocked(userRepository.findOrCreateByClerkId).mockResolvedValueOnce({
       id: 'internal-uuid-456',
@@ -149,7 +150,8 @@ describe('requireAuth middleware', () => {
   it('returns 401 when userRepository throws', async () => {
     vi.mocked(jwtVerify).mockResolvedValueOnce({
       payload: { sub: 'user_clerk123', email: 'test@example.com' },
-    } as Awaited<ReturnType<typeof jwtVerify>>);
+      protectedHeader: { alg: 'RS256' },
+    } as unknown as Awaited<ReturnType<typeof jwtVerify>>);
 
     vi.mocked(userRepository.findOrCreateByClerkId).mockRejectedValueOnce(
       new Error('DB error'),
