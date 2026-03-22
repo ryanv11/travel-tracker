@@ -28,7 +28,10 @@
     "test:contract:watch": "vitest --config vitest.config.contract.ts",
     "test:contract:coverage": "vitest run --config vitest.config.contract.ts --coverage",
     "test:e2e": "SQLITE_PATH=file:./e2e.db npm run db:migrate && playwright test",
-    "test:e2e:clean": "rm -f ./e2e.db"
+    "test:e2e:clean": "rm -f ./e2e.db",
+    "lint": "biome lint src/",
+    "format": "biome format --write src/",
+    "check": "biome ci src/"
   },
   "dependencies": {
     "@clerk/react": "^6.1.2",
@@ -50,6 +53,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/vite": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",

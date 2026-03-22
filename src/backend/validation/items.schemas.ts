@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { zItemType, zItemStatus, zOptionalString, zRating } from './common.js';
+import { zItemStatus, zItemType, zOptionalString, zRating } from './common.js';
 
 /** Fields shared by all item types */
 const itemBase = {
@@ -51,20 +51,17 @@ const extensionFields = {
 };
 
 /** Schema for POST /api/trips/:tripId/items */
-export const CreateItemSchema = z
-  .object({ ...itemBase, ...extensionFields })
-  .refine(
-    (d) => {
-      // is_carried_forward and carried_from_item_id must be consistent (ADL-13)
-      if (d.is_carried_forward && !d.carried_from_item_id) return false;
-      if (d.carried_from_item_id && !d.is_carried_forward) return false;
-      return true;
-    },
-    {
-      message:
-        'is_carried_forward and carried_from_item_id must be set together',
-    },
-  );
+export const CreateItemSchema = z.object({ ...itemBase, ...extensionFields }).refine(
+  (d) => {
+    // is_carried_forward and carried_from_item_id must be consistent (ADL-13)
+    if (d.is_carried_forward && !d.carried_from_item_id) return false;
+    if (d.carried_from_item_id && !d.is_carried_forward) return false;
+    return true;
+  },
+  {
+    message: 'is_carried_forward and carried_from_item_id must be set together',
+  },
+);
 
 /** Schema for PATCH /api/trips/:tripId/items/:itemId */
 export const UpdateItemSchema = z.object({

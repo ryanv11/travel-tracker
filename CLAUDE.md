@@ -21,8 +21,9 @@ npm run type:check:all         # TypeScript type check (frontend + backend)
 ```
 
 ## Pre-push checklist (mandatory)
-Before every `git push`, run all four checks and iterate fixes until they pass:
+Before every `git push`, run all checks and iterate fixes until they pass:
 ```bash
+npm run check              # Biome lint + format (fast, run first)
 npm run type:check:all
 npm run test:backend
 npm run test:frontend

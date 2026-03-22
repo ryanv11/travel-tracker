@@ -8,15 +8,21 @@
  *
  * Reference: spec §6.3 (Add Place flow), AC-07.
  */
-import React, { useState, useEffect, useRef } from 'react';
-import { useCitySearch, useCreateCity, lookupCityCountry, type CreateCityData } from '../../hooks/useCities';
-import { useAddPlace } from '../../hooks/usePlaces';
-import { useCarryForwardCandidates } from '../../hooks/useCities';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCountries, useCountryRegions } from '../../hooks/useAdmin';
-import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
-import { ErrorMessage } from '../shared/ErrorMessage';
+import {
+  type CreateCityData,
+  lookupCityCountry,
+  useCarryForwardCandidates,
+  useCitySearch,
+  useCreateCity,
+} from '../../hooks/useCities';
+import { useAddPlace } from '../../hooks/usePlaces';
 import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
 import type { City } from '../../types/api';
+import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
+import { ErrorMessage } from '../shared/ErrorMessage';
 
 interface AddPlaceFlowProps {
   tripId: number;
@@ -56,15 +62,16 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   );
   const addPlace = useAddPlace();
   const createCity = useCreateCity();
-  const { data: carryForwardCandidates = [], isFetched: candidatesFetched } = useCarryForwardCandidates(
-    addedCityId ?? undefined,
-  );
+  const { data: carryForwardCandidates = [], isFetched: candidatesFetched } =
+    useCarryForwardCandidates(addedCityId ?? undefined);
 
   // Debounce the search query
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS);
-    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
   }, [query]);
 
   // BUG-03: wait for query to settle before acting on empty candidates list
@@ -89,7 +96,9 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
       if (city.geocode_status !== 'resolved') {
         geocodeRetryQueue.add(city);
       }
-    } catch { /* shown via addPlace.error */ }
+    } catch {
+      /* shown via addPlace.error */
+    }
   };
 
   const handleCreateCity = async (e: React.FormEvent) => {
@@ -103,7 +112,9 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     try {
       const city = await createCity.mutateAsync(data);
       await handleSelectCity(city);
-    } catch { /* shown via createCity.error — Retry button available (Class B, NR-06) */ }
+    } catch {
+      /* shown via createCity.error — Retry button available (Class B, NR-06) */
+    }
   };
 
   /** Opens the new-city form and fires a background Nominatim lookup to
@@ -115,16 +126,19 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     setNewCityRegionId(null);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
-      lookupCityCountry(cityName.trim()).then((code) => {
-        if (code) setNewCityCountryCode(code);
-        setCountryLookupPending(false);
-      }).catch(() => setCountryLookupPending(false));
+      lookupCityCountry(cityName.trim())
+        .then((code) => {
+          if (code) setNewCityCountryCode(code);
+          setCountryLookupPending(false);
+        })
+        .catch(() => setCountryLookupPending(false));
     }
   };
 
   const mutationError = addPlace.error ?? createCity.error;
 
-  const inputClass = 'w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 box-border';
+  const inputClass =
+    'w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 box-border';
   const labelClass = 'block text-xs font-semibold text-gray-700 mb-1';
 
   if (showCarryForward && addedPlaceId !== null && addedCityId !== null) {
@@ -170,7 +184,9 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
                   <div
                     key={city.id}
                     className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50"
-                    onClick={() => { void handleSelectCity(city); }}
+                    onClick={() => {
+                      void handleSelectCity(city);
+                    }}
                   >
                     {city.name} <span className="text-gray-500">{city.country_code}</span>
                   </div>
@@ -185,7 +201,11 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
             )}
           </>
         ) : (
-          <form onSubmit={(e) => { void handleCreateCity(e); }}>
+          <form
+            onSubmit={(e) => {
+              void handleCreateCity(e);
+            }}
+          >
             <div className="mb-3.5">
               <label className={labelClass}>City Name</label>
               <input
@@ -213,7 +233,9 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
               >
                 <option value="">Select country…</option>
                 {countries.map((c) => (
-                  <option key={c.country_code} value={c.country_code}>{c.name}</option>
+                  <option key={c.country_code} value={c.country_code}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -222,17 +244,20 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
             {showRegionDropdown && (
               <div className="mb-4">
                 <label className={labelClass}>
-                  {regionLabel}{' '}
-                  <span className="font-normal text-gray-500">(optional)</span>
+                  {regionLabel} <span className="font-normal text-gray-500">(optional)</span>
                 </label>
                 <select
                   className={inputClass}
                   value={newCityRegionId ?? ''}
-                  onChange={(e) => setNewCityRegionId(e.target.value ? Number(e.target.value) : null)}
+                  onChange={(e) =>
+                    setNewCityRegionId(e.target.value ? Number(e.target.value) : null)
+                  }
                 >
                   <option value="">No {regionLabel.toLowerCase()} selected</option>
                   {countryRegions.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -253,7 +278,11 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
                 disabled={createCity.isPending || addPlace.isPending}
                 className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
               >
-                {createCity.isPending || addPlace.isPending ? 'Adding…' : mutationError ? 'Retry' : 'Add City & Place'}
+                {createCity.isPending || addPlace.isPending
+                  ? 'Adding…'
+                  : mutationError
+                    ? 'Retry'
+                    : 'Add City & Place'}
               </button>
             </div>
           </form>

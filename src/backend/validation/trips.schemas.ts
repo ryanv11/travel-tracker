@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { zName, zIsoDate, zTripStatus, zOptionalString } from './common.js';
+import { zIsoDate, zName, zOptionalString, zTripStatus } from './common.js';
 
 /** Shared date range refinement — end_date must be >= start_date */
 const withDateRefinement = <T extends z.ZodTypeAny>(schema: T) =>
@@ -58,9 +58,7 @@ export const UpdateTripSchema = z
   );
 
 /** Schema for PATCH /api/trips/:id/status */
-export const UpdateTripStatusSchema = z
-  .object({ status: zTripStatus })
-  .strict();
+export const UpdateTripStatusSchema = z.object({ status: zTripStatus }).strict();
 
 /** Schema for GET /api/trips query params */
 export const ListTripsQuerySchema = z.object({

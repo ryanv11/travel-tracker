@@ -12,9 +12,9 @@
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { StatusBadge } from '../shared/StatusBadge';
-import { formatDate } from '../../utils/formatDate';
 import type { TripSummary } from '../../types/api';
+import { formatDate } from '../../utils/formatDate';
+import { StatusBadge } from '../shared/StatusBadge';
 
 interface TripCardProps {
   /** The trip to display. */
@@ -89,7 +89,8 @@ export function TripCard({
       className={cardClass}
       onClick={handleClick}
       onMouseEnter={(e) => {
-        if (!isSelected && !selectionMode) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+        if (!isSelected && !selectionMode)
+          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
       }}
       onMouseLeave={(e) => {
         if (!isSelected && !selectionMode) (e.currentTarget as HTMLDivElement).style.boxShadow = '';
@@ -145,7 +146,10 @@ export function TripCard({
       {trip.categories.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {trip.categories.map((cat) => (
-            <span key={cat.id} className="inline-block px-1.5 py-0.5 rounded text-xs bg-violet-100 text-violet-800">
+            <span
+              key={cat.id}
+              className="inline-block px-1.5 py-0.5 rounded text-xs bg-violet-100 text-violet-800"
+            >
               {cat.name}
             </span>
           ))}

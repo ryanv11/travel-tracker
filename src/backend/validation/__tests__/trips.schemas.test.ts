@@ -5,12 +5,12 @@
  *
  * Source: src/backend/validation/trips.schemas.ts
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   CreateTripSchema,
+  ListTripsQuerySchema,
   UpdateTripSchema,
   UpdateTripStatusSchema,
-  ListTripsQuerySchema,
 } from '../trips.schemas.js';
 
 // ----------------------------------------------------------------

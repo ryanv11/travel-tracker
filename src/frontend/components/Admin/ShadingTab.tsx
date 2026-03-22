@@ -11,9 +11,9 @@
  */
 import React, { useState } from 'react';
 import { useShadingConfig, useUpdateShadingColor } from '../../hooks/useMapShading';
+import type { ShadingConfig } from '../../types/api';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
-import type { ShadingConfig } from '../../types/api';
 
 /**
  * ShadingRow — a single shading-state row with a local colour preview.

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createTrip, deleteAllTrips } from './helpers/factories';
 
 test.beforeEach(async ({ request }) => {

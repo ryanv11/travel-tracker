@@ -16,9 +16,9 @@
  * required by the cities router (countries, cities, trips, trip_places, items).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
 
 // ----------------------------------------------------------------
@@ -221,7 +221,8 @@ vi.mock('../../db/index.js', async (importOriginal) => {
   return {
     ...real,
     getDb: () => {
-      if (!testDb) throw new Error('[TEST] testDb not initialised — call createTestDb in beforeEach');
+      if (!testDb)
+        throw new Error('[TEST] testDb not initialised — call createTestDb in beforeEach');
       return testDb;
     },
   };
@@ -230,7 +231,11 @@ vi.mock('../../db/index.js', async (importOriginal) => {
 // Mock auth middleware — bypass JWT verification in integration tests.
 // Tests exercise route logic, not authentication. Auth is unit-tested separately.
 vi.mock('../../middleware/auth.js', () => ({
-  requireAuth: (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {
+  requireAuth: (
+    _req: import('express').Request,
+    _res: import('express').Response,
+    next: import('express').NextFunction,
+  ) => {
     (_req as import('express').Request & { user?: unknown }).user = {
       id: 'test-user-id',
       clerkId: 'user_test',
@@ -238,7 +243,11 @@ vi.mock('../../middleware/auth.js', () => ({
     };
     next();
   },
-  authenticate: (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => next(),
+  authenticate: (
+    _req: import('express').Request,
+    _res: import('express').Response,
+    next: import('express').NextFunction,
+  ) => next(),
 }));
 
 const { default: app } = await import('../../server-test-app.js');
@@ -257,39 +266,57 @@ const TEST_USER_ID = 'test-user-id';
  */
 async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
   const now = Date.now();
-  await db.insert(schema.users).values({
-    id: TEST_USER_ID,
-    clerkId: 'user_test',
-    email: 'test@example.com',
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
-  }).onConflictDoNothing();
+  await db
+    .insert(schema.users)
+    .values({
+      id: TEST_USER_ID,
+      clerkId: 'user_test',
+      email: 'test@example.com',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    })
+    .onConflictDoNothing();
 }
 
 type TripStatus = 'planning' | 'active' | 'review_pending' | 'locked';
 
-async function seedCityAndTrip(db: Awaited<ReturnType<typeof createTestDb>>, tripStatus: TripStatus) {
-  await db.insert(schema.countries).values({ countryCode: 'IE', name: 'Ireland' }).onConflictDoNothing();
+async function seedCityAndTrip(
+  db: Awaited<ReturnType<typeof createTestDb>>,
+  tripStatus: TripStatus,
+) {
+  await db
+    .insert(schema.countries)
+    .values({ countryCode: 'IE', name: 'Ireland' })
+    .onConflictDoNothing();
 
-  const [city] = await db.insert(schema.cities).values({
-    name: 'Dublin',
-    countryCode: 'IE',
-    geocodeStatus: 'resolved',
-  }).returning();
+  const [city] = await db
+    .insert(schema.cities)
+    .values({
+      name: 'Dublin',
+      countryCode: 'IE',
+      geocodeStatus: 'resolved',
+    })
+    .returning();
 
   // ADL-18: trips must be owned by the test user so the carry-forward userId filter passes
-  const [trip] = await db.insert(schema.trips).values({
-    name: `Dublin Trip (${tripStatus})`,
-    startDate: '2026-01-01',
-    endDate: '2026-01-07',
-    status: tripStatus,
-    userId: TEST_USER_ID,
-  }).returning();
+  const [trip] = await db
+    .insert(schema.trips)
+    .values({
+      name: `Dublin Trip (${tripStatus})`,
+      startDate: '2026-01-01',
+      endDate: '2026-01-07',
+      status: tripStatus,
+      userId: TEST_USER_ID,
+    })
+    .returning();
 
-  const [place] = await db.insert(schema.tripPlaces).values({
-    tripId: trip.id,
-    cityId: city.id,
-  }).returning();
+  const [place] = await db
+    .insert(schema.tripPlaces)
+    .values({
+      tripId: trip.id,
+      cityId: city.id,
+    })
+    .returning();
 
   return { city, trip, place };
 }
@@ -320,9 +347,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       notes: 'Try next time',
     });
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
 
     expect(res.body).toHaveLength(1);
     expect(res.body[0].status).toBe('next_time');
@@ -340,9 +365,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       status: 'next_time',
     });
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
 
     expect(res.body).toHaveLength(1);
     expect(res.body[0].source_trip_name).toBe('Dublin Trip (active)');
@@ -359,9 +382,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       status: 'next_time',
     });
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
 
     expect(res.body).toHaveLength(1);
     expect(res.body[0].source_trip_name).toBe('Dublin Trip (review_pending)');
@@ -378,9 +399,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       status: 'next_time',
     });
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
 
     expect(res.body).toHaveLength(1);
     expect(res.body[0].source_trip_name).toBe('Dublin Trip (locked)');
@@ -401,9 +420,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       });
     }
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
 
     expect(res.body).toHaveLength(0);
   });
@@ -419,9 +436,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       status: 'next_time',
     });
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
 
     expect(res.body).toHaveLength(0);
   });
@@ -437,25 +452,27 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       status: 'next_time',
     });
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
 
     expect(res.body).toHaveLength(0);
   });
 
   it('returns 200 empty array for a city with no next_time items', async () => {
     const db = testDb!;
-    await db.insert(schema.countries).values({ countryCode: 'FR', name: 'France' }).onConflictDoNothing();
-    const [city] = await db.insert(schema.cities).values({
-      name: 'Paris',
-      countryCode: 'FR',
-      geocodeStatus: 'resolved',
-    }).returning();
+    await db
+      .insert(schema.countries)
+      .values({ countryCode: 'FR', name: 'France' })
+      .onConflictDoNothing();
+    const [city] = await db
+      .insert(schema.cities)
+      .values({
+        name: 'Paris',
+        countryCode: 'FR',
+        geocodeStatus: 'resolved',
+      })
+      .returning();
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/carry-forward`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
 
     expect(res.body).toEqual([]);
   });
@@ -463,9 +480,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
   it('returns 404 for a non-existent city id', async () => {
     // The endpoint does not verify city existence — it just returns empty.
     // This tests that a non-numeric id gets a 400.
-    const res = await supertest(app)
-      .get('/api/cities/abc/carry-forward')
-      .expect(404);
+    const res = await supertest(app).get('/api/cities/abc/carry-forward').expect(404);
 
     expect(res.body).toHaveProperty('error');
   });

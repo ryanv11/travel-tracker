@@ -3,9 +3,9 @@
  *
  * City search, creation, and the carry-forward candidates endpoint.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CarryForwardCandidate, City } from '../types/api';
 import { apiGet, apiPost } from '../utils/apiClient';
-import type { City, CarryForwardCandidate } from '../types/api';
 
 // ============================================================
 // NOMINATIM GEOCODING (GE-15 — country auto-populate)

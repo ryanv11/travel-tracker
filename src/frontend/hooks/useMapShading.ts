@@ -4,9 +4,9 @@
  * Covers GET /api/map/shading (all country shading), region shading,
  * and the shading config used by the admin panel.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPatch } from '../utils/apiClient';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CountryShading, RegionShading, ShadingConfig } from '../types/api';
+import { apiGet, apiPatch } from '../utils/apiClient';
 
 // ============================================================
 // QUERIES
@@ -37,8 +37,7 @@ export function useMapShading() {
 export function useRegionShading(countryCode: string | undefined) {
   return useQuery({
     queryKey: ['map', 'shading', 'regions', countryCode],
-    queryFn: () =>
-      apiGet<RegionShading[]>(`/api/map/shading/regions/${countryCode}`),
+    queryFn: () => apiGet<RegionShading[]>(`/api/map/shading/regions/${countryCode}`),
     enabled: countryCode !== undefined,
     staleTime: 5 * 60 * 1000,
   });
@@ -71,13 +70,7 @@ export function useShadingConfig() {
 export function useUpdateShadingColor() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      stateKey,
-      colorHex,
-    }: {
-      stateKey: string;
-      colorHex: string;
-    }) =>
+    mutationFn: ({ stateKey, colorHex }: { stateKey: string; colorHex: string }) =>
       apiPatch<ShadingConfig>(`/api/map/shading/config/${stateKey}`, {
         color_hex: colorHex,
       }),

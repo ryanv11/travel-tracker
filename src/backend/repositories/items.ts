@@ -6,23 +6,23 @@
  * Extension helpers delegate to the items.service for lock checks.
  */
 
-import { eq, and, inArray } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   getDb,
-  items,
-  trips,
-  tripPlaces,
+  itemCarRentals,
+  itemExperiences,
   itemFlights,
   itemHotels,
-  itemCarRentals,
   itemRestaurants,
-  itemExperiences,
+  items,
+  tripPlaces,
+  trips,
 } from '../db/index.js';
 import type { Item } from '../db/schema.js';
 import { NotFoundError } from '../errors.js';
-import { ensureExperienceExtension } from '../services/items.service.js';
 import { fetchItemsWithExtensions } from '../routes/items-helper.js';
-import type { SQL } from 'drizzle-orm';
+import { ensureExperienceExtension } from '../services/items.service.js';
 
 // ----------------------------------------------------------------
 // Repository
@@ -40,10 +40,7 @@ export const itemRepository = {
   ): Promise<Record<string, unknown>[]> {
     const { and: drizzleAnd, eq: drizzleEq } = await import('drizzle-orm');
 
-    const conditions: SQL[] = [
-      drizzleEq(items.tripId, tripId),
-      drizzleEq(items.userId, userId),
-    ];
+    const conditions: SQL[] = [drizzleEq(items.tripId, tripId), drizzleEq(items.userId, userId)];
     if (filters?.placeId) conditions.push(drizzleEq(items.tripPlaceId, Number(filters.placeId)));
     if (filters?.type) conditions.push(drizzleEq(items.itemType, filters.type));
     if (filters?.status) conditions.push(drizzleEq(items.status, filters.status));
@@ -73,13 +70,7 @@ export const itemRepository = {
     const rows = await db
       .select()
       .from(items)
-      .where(
-        and(
-          eq(items.id, itemId),
-          eq(items.tripId, tripId),
-          eq(items.userId, userId),
-        ),
-      )
+      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), eq(items.userId, userId)))
       .limit(1);
     if (!rows.length) throw new NotFoundError('Item');
     return rows[0];
@@ -155,13 +146,7 @@ export const itemRepository = {
     await db
       .update(items)
       .set(baseUpdates)
-      .where(
-        and(
-          eq(items.id, itemId),
-          eq(items.tripId, tripId),
-          eq(items.userId, userId),
-        ),
-      );
+      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), eq(items.userId, userId)));
 
     await updateExtension(itemType, itemId, extensionBody);
 
@@ -178,13 +163,7 @@ export const itemRepository = {
     const db = getDb();
     const deleted = await db
       .delete(items)
-      .where(
-        and(
-          eq(items.id, itemId),
-          eq(items.tripId, tripId),
-          eq(items.userId, userId),
-        ),
-      )
+      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), eq(items.userId, userId)))
       .returning({ id: items.id });
     return deleted.length > 0;
   },
@@ -272,11 +251,15 @@ async function updateExtension(
       const upd: Partial<typeof itemFlights.$inferInsert> = {};
       if (body.airline !== undefined) upd.airline = body.airline as string;
       if (body.flight_number !== undefined) upd.flightNumber = body.flight_number as string;
-      if (body.departure_airport !== undefined) upd.departureAirport = body.departure_airport as string;
+      if (body.departure_airport !== undefined)
+        upd.departureAirport = body.departure_airport as string;
       if (body.arrival_airport !== undefined) upd.arrivalAirport = body.arrival_airport as string;
-      if (body.departure_datetime !== undefined) upd.departureDatetime = body.departure_datetime as string;
-      if (body.arrival_datetime !== undefined) upd.arrivalDatetime = body.arrival_datetime as string;
-      if (body.booking_reference !== undefined) upd.bookingReference = body.booking_reference as string;
+      if (body.departure_datetime !== undefined)
+        upd.departureDatetime = body.departure_datetime as string;
+      if (body.arrival_datetime !== undefined)
+        upd.arrivalDatetime = body.arrival_datetime as string;
+      if (body.booking_reference !== undefined)
+        upd.bookingReference = body.booking_reference as string;
       if (body.seat !== undefined) upd.seat = body.seat as string;
       if (Object.keys(upd).length) {
         await db.update(itemFlights).set(upd).where(eq(itemFlights.itemId, itemId));
@@ -289,8 +272,10 @@ async function updateExtension(
       if (body.address !== undefined) upd.address = body.address as string;
       if (body.check_in_date !== undefined) upd.checkInDate = body.check_in_date as string;
       if (body.check_out_date !== undefined) upd.checkOutDate = body.check_out_date as string;
-      if (body.booking_reference !== undefined) upd.bookingReference = body.booking_reference as string;
-      if (body.confirmation_number !== undefined) upd.confirmationNumber = body.confirmation_number as string;
+      if (body.booking_reference !== undefined)
+        upd.bookingReference = body.booking_reference as string;
+      if (body.confirmation_number !== undefined)
+        upd.confirmationNumber = body.confirmation_number as string;
       if (body.rating !== undefined) upd.rating = body.rating as number;
       if (body.post_visit_notes !== undefined) upd.postVisitNotes = body.post_visit_notes as string;
       if (Object.keys(upd).length) {
@@ -302,10 +287,13 @@ async function updateExtension(
       const upd: Partial<typeof itemCarRentals.$inferInsert> = {};
       if (body.provider !== undefined) upd.provider = body.provider as string;
       if (body.pickup_location !== undefined) upd.pickupLocation = body.pickup_location as string;
-      if (body.dropoff_location !== undefined) upd.dropoffLocation = body.dropoff_location as string;
+      if (body.dropoff_location !== undefined)
+        upd.dropoffLocation = body.dropoff_location as string;
       if (body.pickup_datetime !== undefined) upd.pickupDatetime = body.pickup_datetime as string;
-      if (body.dropoff_datetime !== undefined) upd.dropoffDatetime = body.dropoff_datetime as string;
-      if (body.booking_reference !== undefined) upd.bookingReference = body.booking_reference as string;
+      if (body.dropoff_datetime !== undefined)
+        upd.dropoffDatetime = body.dropoff_datetime as string;
+      if (body.booking_reference !== undefined)
+        upd.bookingReference = body.booking_reference as string;
       if (body.vehicle_class !== undefined) upd.vehicleClass = body.vehicle_class as string;
       if (Object.keys(upd).length) {
         await db.update(itemCarRentals).set(upd).where(eq(itemCarRentals.itemId, itemId));
@@ -315,7 +303,8 @@ async function updateExtension(
     case 'restaurant': {
       const upd: Partial<typeof itemRestaurants.$inferInsert> = {};
       if (body.name !== undefined) upd.name = body.name as string;
-      if (body.neighbourhood_area !== undefined) upd.neighbourhoodArea = body.neighbourhood_area as string;
+      if (body.neighbourhood_area !== undefined)
+        upd.neighbourhoodArea = body.neighbourhood_area as string;
       if (body.cuisine_type !== undefined) upd.cuisineType = body.cuisine_type as string;
       if (body.source !== undefined) upd.source = body.source as string;
       if (body.rating !== undefined) upd.rating = body.rating as number;
@@ -331,7 +320,8 @@ async function updateExtension(
         await ensureExperienceExtension(itemId);
         const upd: Partial<typeof itemExperiences.$inferInsert> = {};
         if (body.rating !== undefined) upd.rating = body.rating as number;
-        if (body.post_visit_notes !== undefined) upd.postVisitNotes = body.post_visit_notes as string;
+        if (body.post_visit_notes !== undefined)
+          upd.postVisitNotes = body.post_visit_notes as string;
         if (Object.keys(upd).length) {
           await db.update(itemExperiences).set(upd).where(eq(itemExperiences.itemId, itemId));
         }

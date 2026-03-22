@@ -7,9 +7,10 @@
  *
  * Uses a GeoJSON source rather than HTML markers for performance (MP-02).
  */
-import React, { useMemo } from 'react';
-import { Source, Layer } from 'react-map-gl/maplibre';
+
 import type { SymbolLayerSpecification } from 'maplibre-gl';
+import React, { useMemo } from 'react';
+import { Layer, Source } from 'react-map-gl/maplibre';
 import type { TripSummary } from '../../types/api';
 
 interface CityMarkersProps {

@@ -12,11 +12,12 @@
  *   import { geocodeRetryQueue } from '../services/geocodeRetryQueue';
  *   if (city.geocode_status !== 'resolved') geocodeRetryQueue.add(city);
  */
-import { useState, useEffect } from 'react';
+
 import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { geocodeRetryQueue, type RetryQueueEntry } from '../services/geocodeRetryQueue';
-import { apiPatch } from '../utils/apiClient';
 import type { City } from '../types/api';
+import { apiPatch } from '../utils/apiClient';
 
 export type { RetryQueueEntry };
 

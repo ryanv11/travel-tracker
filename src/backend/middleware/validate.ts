@@ -10,8 +10,8 @@
  * - Zod v4 exposes validation errors as `error.issues` (not `error.errors`).
  */
 
-import type { Request, Response, NextFunction } from 'express';
-import { ZodSchema, ZodError } from 'zod';
+import type { NextFunction, Request, Response } from 'express';
+import type { ZodError, ZodSchema } from 'zod';
 
 /**
  * Middleware factory that validates req.body against a Zod schema.

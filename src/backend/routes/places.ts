@@ -9,23 +9,23 @@
  * for user-owned data.
  */
 
+import { and, eq, inArray } from 'drizzle-orm';
 import { Router } from 'express';
-import { eq, and, inArray } from 'drizzle-orm';
 import {
-  getDb,
-  cities,
-  tripPlaceActivitiesMap,
   activities,
+  cities,
+  getDb,
   items,
+  tripPlaceActivitiesMap,
   tripPlaces,
 } from '../db/index.js';
+import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
-import { CreatePlaceSchema, AddPlaceActivitySchema } from '../validation/places.schemas.js';
-import { CarryForwardBodySchema } from '../validation/items.schemas.js';
-import { NotFoundError, ConflictError, ValidationError } from '../errors.js';
-import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
 import { placeRepository } from '../repositories/places.js';
+import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
+import { CarryForwardBodySchema } from '../validation/items.schemas.js';
+import { AddPlaceActivitySchema, CreatePlaceSchema } from '../validation/places.schemas.js';
 
 const placesRouter = Router({ mergeParams: true });
 export default placesRouter;
@@ -200,7 +200,9 @@ placesRouter.post(
       .limit(1);
     if (existing.length) throw new ConflictError('Activity already tagged to this place');
 
-    await db.insert(tripPlaceActivitiesMap).values({ tripPlaceId: placeId, activityId: activity_id });
+    await db
+      .insert(tripPlaceActivitiesMap)
+      .values({ tripPlaceId: placeId, activityId: activity_id });
 
     res.status(201).json({ trip_place_id: placeId, activity_id });
   }),

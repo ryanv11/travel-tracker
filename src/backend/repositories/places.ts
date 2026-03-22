@@ -5,17 +5,17 @@
  * Ownership is verified by joining through trip_places → trips → user_id.
  */
 
-import { eq, and, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
-  getDb,
-  trips,
-  tripPlaces,
-  cities,
-  tripPlaceActivitiesMap,
   activities,
+  cities,
+  getDb,
+  tripPlaceActivitiesMap,
+  tripPlaces,
+  trips,
 } from '../db/index.js';
 import type { TripPlace } from '../db/schema.js';
-import { NotFoundError, LockError, ConflictError } from '../errors.js';
+import { ConflictError, LockError, NotFoundError } from '../errors.js';
 
 // ----------------------------------------------------------------
 // Types
@@ -115,10 +115,7 @@ export const placeRepository = {
     const rows = await db
       .select({ p: tripPlaces })
       .from(tripPlaces)
-      .innerJoin(
-        trips,
-        and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)),
-      )
+      .innerJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
       .where(eq(tripPlaces.id, placeId))
       .limit(1);
     return rows[0]?.p ?? null;
@@ -129,11 +126,7 @@ export const placeRepository = {
    * Verifies the trip is writable (exists, owned, not locked) before inserting.
    * Throws ConflictError if the city already exists on the trip.
    */
-  async create(
-    userId: string,
-    tripId: number,
-    cityId: number,
-  ): Promise<TripPlace> {
+  async create(userId: string, tripId: number, cityId: number): Promise<TripPlace> {
     await this.assertWritable(userId, tripId);
 
     const db = getDb();

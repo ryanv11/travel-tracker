@@ -5,9 +5,9 @@
  * lock/unlock) go through these hooks. Components must not call apiGet/apiPost
  * directly — always use a hook.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPatch, apiDelete } from '../utils/apiClient';
-import type { TripSummary, TripDetail, TripStatus } from '../types/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { TripDetail, TripStatus, TripSummary } from '../types/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../utils/apiClient';
 
 /** Filters accepted by GET /api/trips */
 export interface TripFilters {

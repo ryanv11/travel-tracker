@@ -10,27 +10,22 @@
  *   3. seedRegions()    — regions table from data/regions.json (US, AU, CA)
  */
 
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { count } from 'drizzle-orm';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import {
-  getDb,
-  countries,
-  regions,
-  tripCategories,
   activities,
   companions,
+  countries,
+  getDb,
   mapShadingConfig,
+  regions,
+  tripCategories,
 } from '../db/index.js';
 
 // Re-import seed data from the DATABASE seed script to avoid duplication
-import {
-  TRIP_CATEGORIES,
-  ACTIVITIES,
-  COMPANIONS,
-  MAP_SHADING_CONFIG,
-} from '../db/seed-data.js';
+import { ACTIVITIES, COMPANIONS, MAP_SHADING_CONFIG, TRIP_CATEGORIES } from '../db/seed-data.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -47,19 +42,31 @@ export async function seedAdminData(): Promise<void> {
   const db = getDb();
 
   // -- trip_categories --
-  await db.insert(tripCategories).values([...TRIP_CATEGORIES]).onConflictDoNothing();
+  await db
+    .insert(tripCategories)
+    .values([...TRIP_CATEGORIES])
+    .onConflictDoNothing();
   console.info('[STARTUP] Admin data: trip_categories seeded');
 
   // -- activities --
-  await db.insert(activities).values([...ACTIVITIES]).onConflictDoNothing();
+  await db
+    .insert(activities)
+    .values([...ACTIVITIES])
+    .onConflictDoNothing();
   console.info('[STARTUP] Admin data: activities seeded');
 
   // -- companions --
-  await db.insert(companions).values([...COMPANIONS]).onConflictDoNothing();
+  await db
+    .insert(companions)
+    .values([...COMPANIONS])
+    .onConflictDoNothing();
   console.info('[STARTUP] Admin data: companions seeded');
 
   // -- map_shading_config --
-  await db.insert(mapShadingConfig).values([...MAP_SHADING_CONFIG]).onConflictDoNothing();
+  await db
+    .insert(mapShadingConfig)
+    .values([...MAP_SHADING_CONFIG])
+    .onConflictDoNothing();
   console.info('[STARTUP] Admin data: map_shading_config seeded');
 }
 

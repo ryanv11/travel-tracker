@@ -6,20 +6,20 @@
  * mutated unless the userId matches.
  */
 
-import { eq, desc, and, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
+  activities,
+  cities,
+  companions,
+  countries,
   getDb,
-  trips,
-  tripCategoriesMap,
-  tripCompanionsMap,
   tripActivitiesMap,
   tripCategories,
-  companions,
-  activities,
-  tripPlaces,
-  cities,
-  countries,
+  tripCategoriesMap,
+  tripCompanionsMap,
   tripCountries,
+  tripPlaces,
+  trips,
 } from '../db/index.js';
 import type { Trip } from '../db/schema.js';
 import { NotFoundError } from '../errors.js';
@@ -53,11 +53,7 @@ export const tripRepository = {
   async findAll(userId: string, filters?: TripFilters): Promise<Trip[]> {
     const db = getDb();
 
-    let query = db
-      .select()
-      .from(trips)
-      .where(eq(trips.userId, userId))
-      .$dynamic();
+    let query = db.select().from(trips).where(eq(trips.userId, userId)).$dynamic();
 
     if (filters?.status) {
       query = query.where(and(eq(trips.userId, userId), eq(trips.status, filters.status)));

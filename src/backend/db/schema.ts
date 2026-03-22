@@ -15,18 +15,18 @@
  * @see jobs/architect/tech/20260307-ER-schema.md (v1.1 — authoritative)
  */
 
+import { sql } from 'drizzle-orm';
 import {
+  type AnySQLiteColumn,
+  check,
+  index,
+  integer,
+  primaryKey,
+  real,
   sqliteTable,
   text,
-  integer,
-  real,
-  index,
   uniqueIndex,
-  primaryKey,
-  check,
-  AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core';
-import { sql } from 'drizzle-orm';
 
 // ============================================================
 // 1. GEOGRAPHIC HIERARCHY
@@ -50,19 +50,12 @@ export const countries = sqliteTable(
     regionTierEnabled: integer('region_tier_enabled').notNull().default(0),
     // Human-readable label for the region tier: 'State' | 'Province' | 'Territory' | NULL
     regionTierLabel: text('region_tier_label'),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     // region_tier_label must be NULL when region_tier_enabled = 0 — enforced by BACKEND
-    check(
-      'chk_countries_region_tier_enabled',
-      sql`${t.regionTierEnabled} IN (0, 1)`,
-    ),
+    check('chk_countries_region_tier_enabled', sql`${t.regionTierEnabled} IN (0, 1)`),
   ],
 );
 
@@ -79,12 +72,8 @@ export const regions = sqliteTable(
       .references(() => countries.countryCode),
     name: text('name').notNull(), // e.g. 'California', 'New South Wales'
     iso3166_2: text('iso_3166_2').notNull(),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     index('idx_regions_country').on(t.countryCode),
@@ -108,29 +97,20 @@ export const cities = sqliteTable(
     // NULL for cities in countries where region_tier_enabled = 0
     regionId: integer('region_id').references(() => regions.id),
     name: text('name').notNull(),
-    latitude: real('latitude'),  // NULL while geocode_status = 'pending'
+    latitude: real('latitude'), // NULL while geocode_status = 'pending'
     longitude: real('longitude'), // NULL while geocode_status = 'pending'
     // 'pending' = awaiting Nominatim resolution; 'resolved' = coordinates confirmed
     geocodeStatus: text('geocode_status').notNull().default('pending'),
     geocodeAttemptedAt: text('geocode_attempted_at'), // ISO 8601 timestamp of last attempt
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     index('idx_cities_country').on(t.countryCode),
     index('idx_cities_region').on(t.regionId),
     // Partial index — only indexes pending cities, making the geocoding queue scan efficient
-    index('idx_cities_geocode')
-      .on(t.geocodeStatus)
-      .where(sql`${t.geocodeStatus} = 'pending'`),
-    check(
-      'chk_cities_geocode_status',
-      sql`${t.geocodeStatus} IN ('pending', 'resolved')`,
-    ),
+    index('idx_cities_geocode').on(t.geocodeStatus).where(sql`${t.geocodeStatus} = 'pending'`),
+    check('chk_cities_geocode_status', sql`${t.geocodeStatus} IN ('pending', 'resolved')`),
   ],
 );
 
@@ -151,16 +131,10 @@ export const tripCategories = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull().unique(),
     isActive: integer('is_active').notNull().default(1),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
-  (t) => [
-    check('chk_trip_categories_is_active', sql`${t.isActive} IN (0, 1)`),
-  ],
+  (t) => [check('chk_trip_categories_is_active', sql`${t.isActive} IN (0, 1)`)],
 );
 
 /**
@@ -173,12 +147,8 @@ export const activities = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull().unique(),
     isActive: integer('is_active').notNull().default(1),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [check('chk_activities_is_active', sql`${t.isActive} IN (0, 1)`)],
 );
@@ -192,12 +162,8 @@ export const companions = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull().unique(),
     isActive: integer('is_active').notNull().default(1),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [check('chk_companions_is_active', sql`${t.isActive} IN (0, 1)`)],
 );
@@ -216,9 +182,7 @@ export const mapShadingConfig = sqliteTable(
     stateKey: text('state_key').primaryKey(),
     displayName: text('display_name').notNull(),
     colorHex: text('color_hex').notNull(), // e.g. '#2196F3' — validated by FRONTEND
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     check(
@@ -245,17 +209,13 @@ export const trips = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
     startDate: text('start_date').notNull(), // ISO 8601 date: 'YYYY-MM-DD'
-    endDate: text('end_date').notNull(),     // ISO 8601 date: 'YYYY-MM-DD'
+    endDate: text('end_date').notNull(), // ISO 8601 date: 'YYYY-MM-DD'
     // Status progression: planning → active → review_pending → locked
     status: text('status').notNull().default('planning'),
     photoAlbumRef: text('photo_album_ref'), // URL or folder path — no file stored (PH-01)
     userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     index('idx_trips_status').on(t.status),
@@ -353,12 +313,8 @@ export const tripPlaces = sqliteTable(
       .notNull()
       .references(() => cities.id),
     userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     // A trip visits each city at most once
@@ -405,9 +361,7 @@ export const tripCountries = sqliteTable(
     countryCode: text('country_code')
       .notNull()
       .references(() => countries.countryCode, { onDelete: 'restrict' }),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.tripId, t.countryCode] }),
@@ -453,16 +407,10 @@ export const items = sqliteTable(
     isCarriedForward: integer('is_carried_forward').notNull().default(0),
     // Self-referential FK — preserves lineage to the source item (ADL-13)
     // Uses a lazy reference function to avoid circular dependency at module load time
-    carriedFromItemId: integer('carried_from_item_id').references(
-      (): AnySQLiteColumn => items.id,
-    ),
+    carriedFromItemId: integer('carried_from_item_id').references((): AnySQLiteColumn => items.id),
     userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     index('idx_items_trip').on(t.tripId),
@@ -482,10 +430,7 @@ export const items = sqliteTable(
       'chk_items_status',
       sql`${t.status} IN ('consider', 'confirmed', 'completed', 'cancelled', 'next_time')`,
     ),
-    check(
-      'chk_items_is_carried_forward',
-      sql`${t.isCarriedForward} IN (0, 1)`,
-    ),
+    check('chk_items_is_carried_forward', sql`${t.isCarriedForward} IN (0, 1)`),
   ],
 );
 
@@ -502,9 +447,9 @@ export const itemFlights = sqliteTable('item_flights', {
   airline: text('airline'),
   flightNumber: text('flight_number'),
   departureAirport: text('departure_airport'), // IATA code preferred but not enforced
-  arrivalAirport: text('arrival_airport'),     // IATA code preferred but not enforced
+  arrivalAirport: text('arrival_airport'), // IATA code preferred but not enforced
   departureDatetime: text('departure_datetime'), // ISO 8601 datetime
-  arrivalDatetime: text('arrival_datetime'),     // ISO 8601 datetime
+  arrivalDatetime: text('arrival_datetime'), // ISO 8601 datetime
   bookingReference: text('booking_reference'),
   seat: text('seat'),
 });
@@ -523,20 +468,17 @@ export const itemHotels = sqliteTable(
       .references(() => items.id, { onDelete: 'cascade' }),
     propertyName: text('property_name'),
     address: text('address'),
-    checkInDate: text('check_in_date'),   // ISO 8601 date
+    checkInDate: text('check_in_date'), // ISO 8601 date
     checkOutDate: text('check_out_date'), // ISO 8601 date
     bookingReference: text('booking_reference'),
     confirmationNumber: text('confirmation_number'),
-    rating: integer('rating'),            // NULL = unrated (HT-04)
+    rating: integer('rating'), // NULL = unrated (HT-04)
     postVisitNotes: text('post_visit_notes'), // NULL until reviewed (HT-04)
   },
   (t) => [
     // Index on rating for sort/filter queries (IT-08, IT-09)
     index('idx_item_hotels_rating').on(t.rating),
-    check(
-      'chk_item_hotels_rating',
-      sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`,
-    ),
+    check('chk_item_hotels_rating', sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`),
   ],
 );
 
@@ -551,7 +493,7 @@ export const itemCarRentals = sqliteTable('item_car_rentals', {
   provider: text('provider'),
   pickupLocation: text('pickup_location'),
   dropoffLocation: text('dropoff_location'),
-  pickupDatetime: text('pickup_datetime'),   // ISO 8601 datetime
+  pickupDatetime: text('pickup_datetime'), // ISO 8601 datetime
   dropoffDatetime: text('dropoff_datetime'), // ISO 8601 datetime
   bookingReference: text('booking_reference'),
   vehicleClass: text('vehicle_class'),
@@ -572,16 +514,13 @@ export const itemRestaurants = sqliteTable(
     name: text('name'),
     neighbourhoodArea: text('neighbourhood_area'),
     cuisineType: text('cuisine_type'),
-    source: text('source'),                  // How the user heard about it (RS-01)
-    rating: integer('rating'),               // NULL = unrated (RS-03)
+    source: text('source'), // How the user heard about it (RS-01)
+    rating: integer('rating'), // NULL = unrated (RS-03)
     postVisitNotes: text('post_visit_notes'), // NULL until reviewed (RS-03)
   },
   (t) => [
     index('idx_item_restaurants_rating').on(t.rating),
-    check(
-      'chk_item_restaurants_rating',
-      sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`,
-    ),
+    check('chk_item_restaurants_rating', sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`),
   ],
 );
 
@@ -601,15 +540,12 @@ export const itemExperiences = sqliteTable(
     itemId: integer('item_id')
       .primaryKey()
       .references(() => items.id, { onDelete: 'cascade' }),
-    rating: integer('rating'),               // NULL = unrated (EX-01)
+    rating: integer('rating'), // NULL = unrated (EX-01)
     postVisitNotes: text('post_visit_notes'), // NULL until reviewed (EX-01)
   },
   (t) => [
     index('idx_item_experiences_rating').on(t.rating),
-    check(
-      'chk_item_experiences_rating',
-      sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`,
-    ),
+    check('chk_item_experiences_rating', sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`),
   ],
 );
 
@@ -625,8 +561,8 @@ export const itemExperiences = sqliteTable(
  * `email` is stored for display/admin purposes; Clerk is authoritative for identity.
  */
 export const users = sqliteTable('users', {
-  id: text('id').primaryKey(),           // UUID v4 — generated by backend on first sign-in
-  clerkId: text('clerk_id').notNull().unique(),  // Clerk user ID (e.g. user_2abc...)
+  id: text('id').primaryKey(), // UUID v4 — generated by backend on first sign-in
+  clerkId: text('clerk_id').notNull().unique(), // Clerk user ID (e.g. user_2abc...)
   email: text('email').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),

@@ -15,20 +15,9 @@
 
 export type TripStatus = 'planning' | 'active' | 'review_pending' | 'locked';
 
-export type ItemType =
-  | 'restaurant'
-  | 'hotel'
-  | 'flight'
-  | 'car_rental'
-  | 'experience'
-  | 'note';
+export type ItemType = 'restaurant' | 'hotel' | 'flight' | 'car_rental' | 'experience' | 'note';
 
-export type ItemStatus =
-  | 'consider'
-  | 'confirmed'
-  | 'completed'
-  | 'cancelled'
-  | 'next_time';
+export type ItemStatus = 'consider' | 'confirmed' | 'completed' | 'cancelled' | 'next_time';
 
 export type GeocodeStatus = 'pending' | 'resolved' | 'failed';
 

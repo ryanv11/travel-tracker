@@ -5,26 +5,19 @@
  * All admin list items use soft-delete (is_active = 0) — never hard-delete (AD-06).
  */
 
+import { and, eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { eq, and } from 'drizzle-orm';
-import {
-  getDb,
-  tripCategories,
-  activities,
-  companions,
-  countries,
-  regions,
-} from '../db/index.js';
+import { activities, companions, countries, getDb, regions, tripCategories } from '../db/index.js';
+import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
 import {
   CreateAdminItemSchema,
+  CreateRegionSchema,
   UpdateAdminItemSchema,
   UpdateCountrySchema,
-  CreateRegionSchema,
   UpdateRegionSchema,
 } from '../validation/admin.schemas.js';
-import { NotFoundError, ValidationError, ConflictError } from '../errors.js';
 
 export const adminRouter = Router();
 
@@ -36,7 +29,13 @@ export const adminRouter = Router();
 type AdminTable = typeof tripCategories | typeof activities | typeof companions;
 
 /** Serialize a raw Drizzle admin list row to snake_case API shape. */
-function serializeAdminItem(row: { id: number; name: string; isActive: number; createdAt: string; updatedAt: string }) {
+function serializeAdminItem(row: {
+  id: number;
+  name: string;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
+}) {
   return {
     id: row.id,
     name: row.name,
@@ -78,7 +77,11 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
       const db = getDb();
 
       // Check uniqueness (table has UNIQUE constraint — catch the DB error too)
-      const existing = await db.select({ id: table.id }).from(table).where(eq(table.name, name)).limit(1);
+      const existing = await db
+        .select({ id: table.id })
+        .from(table)
+        .where(eq(table.name, name))
+        .limit(1);
       if (existing.length) throw new ConflictError(`${resourceName} '${name}' already exists`);
 
       const now = new Date().toISOString();
@@ -108,11 +111,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
       if (name !== undefined) updates.name = name;
       if (is_active !== undefined) updates.isActive = is_active ? 1 : 0;
 
-      const updated = await db
-        .update(table)
-        .set(updates)
-        .where(eq(table.id, id))
-        .returning();
+      const updated = await db.update(table).set(updates).where(eq(table.id, id)).returning();
       res.json(serializeAdminItem(updated[0]));
     }),
   );
@@ -195,7 +194,6 @@ adminRouter.patch(
     if (region_tier_label !== undefined) {
       updates.regionTierLabel = region_tier_label;
     }
-
 
     const updated = await db
       .update(countries)

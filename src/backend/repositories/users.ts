@@ -29,11 +29,7 @@ export const userRepository = {
     const db = getDb();
 
     // 1. Look up by clerk_id
-    const existing = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, clerkId))
-      .limit(1);
+    const existing = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1);
 
     if (existing.length > 0) {
       const user = existing[0];

@@ -19,7 +19,11 @@ interface LoadingSpinnerProps {
  */
 export function LoadingSpinner({ message = 'Loading…' }: LoadingSpinnerProps) {
   return (
-    <div className="flex items-center gap-2.5 p-4 text-gray-500 text-sm" role="status" aria-label={message}>
+    <div
+      className="flex items-center gap-2.5 p-4 text-gray-500 text-sm"
+      role="status"
+      aria-label={message}
+    >
       <div
         className="w-5 h-5 rounded-full border-2 border-gray-200 border-t-teal-500 flex-shrink-0"
         style={{ animation: 'spin 0.7s linear infinite' }}

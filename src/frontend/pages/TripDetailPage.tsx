@@ -7,12 +7,12 @@
  * - Otherwise renders the TripDetail component.
  */
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useTrip } from '../hooks/useTrips';
-import { TripDetail } from '../components/TripDetail/TripDetail';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ReviewPanel } from '../components/PostTripReview/ReviewPanel';
-import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 import { ErrorMessage } from '../components/shared/ErrorMessage';
+import { LoadingSpinner } from '../components/shared/LoadingSpinner';
+import { TripDetail } from '../components/TripDetail/TripDetail';
+import { useTrip } from '../hooks/useTrips';
 
 /**
  * Renders the trip detail or review panel depending on trip status.

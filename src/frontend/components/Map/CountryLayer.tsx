@@ -8,9 +8,10 @@
  *
  * SEC-12: No innerHTML — MapLibre's data expressions drive all rendering.
  */
-import React, { useEffect } from 'react';
-import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+
 import type { FillLayerSpecification } from 'maplibre-gl';
+import React, { useEffect } from 'react';
+import { Layer, Source, useMap } from 'react-map-gl/maplibre';
 import type { CountryShading } from '../../types/api';
 
 const COUNTRIES_GEOJSON_URL = '/geo/countries.json';
@@ -79,7 +80,11 @@ export function CountryLayer({ shadingData }: CountryLayerProps) {
     // Filter sourcedata events to our specific source to avoid consuming
     // the event on MapTiler tile sources that load first.
     const onSourceData = (e: { sourceId?: string; isSourceLoaded?: boolean }) => {
-      if (e.sourceId === 'countries-source' && map.getSource('countries-source') && map.isSourceLoaded('countries-source')) {
+      if (
+        e.sourceId === 'countries-source' &&
+        map.getSource('countries-source') &&
+        map.isSourceLoaded('countries-source')
+      ) {
         applyShading();
         map.off('sourcedata', onSourceData);
       }
@@ -89,7 +94,9 @@ export function CountryLayer({ shadingData }: CountryLayerProps) {
       applyShading();
     } else {
       map.on('sourcedata', onSourceData);
-      return () => { map.off('sourcedata', onSourceData); };
+      return () => {
+        map.off('sourcedata', onSourceData);
+      };
     }
   }, [map, shadingData]);
 

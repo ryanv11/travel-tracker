@@ -5,16 +5,16 @@
  * response object. Used by both routes/items.ts and routes/trips.ts (nested items).
  */
 
-import { eq, desc } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import {
   getDb,
-  items,
+  itemCarRentals,
+  itemExperiences,
   itemFlights,
   itemHotels,
-  itemCarRentals,
   itemRestaurants,
-  itemExperiences,
+  items,
 } from '../db/index.js';
 
 // The full joined row shape returned by our select query

@@ -8,7 +8,7 @@
  *   locked → grey
  */
 import React from 'react';
-import type { TripStatus, ItemStatus } from '../../types/api';
+import type { ItemStatus, TripStatus } from '../../types/api';
 
 interface StatusBadgeProps {
   /** The status value to display. Accepts both trip and item status strings. */

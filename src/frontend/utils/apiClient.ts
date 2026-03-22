@@ -46,7 +46,7 @@ async function authHeaders(): Promise<Record<string, string>> {
  */
 async function extractErrorMessage(response: Response): Promise<string> {
   try {
-    const body = await response.json() as { error?: string };
+    const body = (await response.json()) as { error?: string };
     return body.error ?? `HTTP ${response.status}`;
   } catch {
     return `HTTP ${response.status}`;

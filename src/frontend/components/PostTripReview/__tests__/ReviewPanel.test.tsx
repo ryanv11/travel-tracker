@@ -19,12 +19,13 @@
  *
  * Source: src/frontend/components/PostTripReview/ReviewPanel.tsx
  */
-import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Item, TripDetail, TripPlace } from '../../../types/api.js';
 import { ReviewPanel } from '../ReviewPanel.js';
-import type { TripDetail, Item, TripPlace } from '../../../types/api.js';
 
 // ----------------------------------------------------------------
 // Mock hooks

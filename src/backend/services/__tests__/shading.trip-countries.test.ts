@@ -13,9 +13,9 @@
  * merged — that is expected and is documented in the PR description.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
 
 // ----------------------------------------------------------------
@@ -234,13 +234,16 @@ const TEST_USER_ID = 'test-user-id';
 
 async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
   const now = Date.now();
-  await db.insert(schema.users).values({
-    id: TEST_USER_ID,
-    clerkId: 'user_test',
-    email: 'test@example.com',
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
-  }).onConflictDoNothing();
+  await db
+    .insert(schema.users)
+    .values({
+      id: TEST_USER_ID,
+      clerkId: 'user_test',
+      email: 'test@example.com',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    })
+    .onConflictDoNothing();
 }
 
 describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () => {
@@ -263,13 +266,16 @@ describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () =
     await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
 
     // Seed a planning trip — no trip_places, only a trip_countries row
-    const [trip] = await db.insert(schema.trips).values({
-      name: 'Japan Planning Trip',
-      startDate: '2026-09-01',
-      endDate: '2026-09-14',
-      status: 'planning',
-      userId: TEST_USER_ID,
-    }).returning();
+    const [trip] = await db
+      .insert(schema.trips)
+      .values({
+        name: 'Japan Planning Trip',
+        startDate: '2026-09-01',
+        endDate: '2026-09-14',
+        status: 'planning',
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     await db.insert(schema.tripCountries).values({
       tripId: trip.id,
@@ -298,13 +304,16 @@ describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () =
     const db = testDb!;
     await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
 
-    const [trip] = await db.insert(schema.trips).values({
-      name: 'Japan Completed Trip',
-      startDate: '2025-06-01',
-      endDate: '2025-06-14',
-      status: 'locked',
-      userId: TEST_USER_ID,
-    }).returning();
+    const [trip] = await db
+      .insert(schema.trips)
+      .values({
+        name: 'Japan Completed Trip',
+        startDate: '2025-06-01',
+        endDate: '2025-06-14',
+        status: 'locked',
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     await db.insert(schema.tripCountries).values({
       tripId: trip.id,
@@ -326,13 +335,16 @@ describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () =
     ]);
 
     // JP has a planning trip via trip_countries
-    const [trip] = await db.insert(schema.trips).values({
-      name: 'Japan Trip',
-      startDate: '2026-09-01',
-      endDate: '2026-09-14',
-      status: 'planning',
-      userId: TEST_USER_ID,
-    }).returning();
+    const [trip] = await db
+      .insert(schema.trips)
+      .values({
+        name: 'Japan Trip',
+        startDate: '2026-09-01',
+        endDate: '2026-09-14',
+        status: 'planning',
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     await db.insert(schema.tripCountries).values({ tripId: trip.id, countryCode: 'JP' });
 

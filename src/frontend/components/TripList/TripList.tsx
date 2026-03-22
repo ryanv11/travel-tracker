@@ -31,9 +31,7 @@ export function filterAndSortTrips(
   if (cityFilter !== null) {
     result = result.filter((t) => t.places.some((p) => p.city_id === cityFilter));
   } else if (countryFilter !== null) {
-    result = result.filter((t) =>
-      t.places.some((p) => p.city.country_code === countryFilter),
-    );
+    result = result.filter((t) => t.places.some((p) => p.city.country_code === countryFilter));
   }
 
   // Search by trip name or any city name within the trip's places (TR-13)

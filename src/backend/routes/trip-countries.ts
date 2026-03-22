@@ -9,11 +9,11 @@
  */
 
 import { Router } from 'express';
+import { z } from 'zod';
+import { LockError, NotFoundError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
-import { z } from 'zod';
 import { tripRepository } from '../repositories/trips.js';
-import { NotFoundError, LockError } from '../errors.js';
 
 const router = Router({ mergeParams: true });
 

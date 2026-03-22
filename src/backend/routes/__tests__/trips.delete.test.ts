@@ -12,9 +12,9 @@
  * Spec: FEAT-BD (COO 2026-03-11)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
 import { DeleteTripParamsSchema } from '../../validation/trips.schemas.js';
 
@@ -238,7 +238,8 @@ vi.mock('../../db/index.js', async (importOriginal) => {
     ...real,
     // Replace getDb() to return the per-test in-memory instance
     getDb: () => {
-      if (!testDb) throw new Error('[TEST] testDb not initialised — call createTestDb in beforeEach');
+      if (!testDb)
+        throw new Error('[TEST] testDb not initialised — call createTestDb in beforeEach');
       return testDb;
     },
   };
@@ -247,7 +248,11 @@ vi.mock('../../db/index.js', async (importOriginal) => {
 // Mock auth middleware — bypass JWT verification in integration tests.
 // Tests exercise route logic, not authentication. Auth is unit-tested separately.
 vi.mock('../../middleware/auth.js', () => ({
-  requireAuth: (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {
+  requireAuth: (
+    _req: import('express').Request,
+    _res: import('express').Response,
+    next: import('express').NextFunction,
+  ) => {
     (_req as import('express').Request & { user?: unknown }).user = {
       id: 'test-user-id',
       clerkId: 'user_test',
@@ -255,7 +260,11 @@ vi.mock('../../middleware/auth.js', () => ({
     };
     next();
   },
-  authenticate: (_req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => next(),
+  authenticate: (
+    _req: import('express').Request,
+    _res: import('express').Response,
+    next: import('express').NextFunction,
+  ) => next(),
 }));
 
 // Import the app AFTER mocks are declared (Vitest hoisting ensures the mock
@@ -346,18 +355,19 @@ describe('DELETE /api/trips/:id', () => {
   it('returns 204 No Content when a valid trip is deleted', async () => {
     // Seed a trip directly via Drizzle — must be owned by test user (ADL-18)
     const db = testDb!;
-    const inserted = await db.insert(schema.trips).values({
-      name: 'Test Trip',
-      startDate: '2026-01-01',
-      endDate: '2026-01-07',
-      status: 'planning',
-      userId: TEST_USER_ID,
-    }).returning();
+    const inserted = await db
+      .insert(schema.trips)
+      .values({
+        name: 'Test Trip',
+        startDate: '2026-01-01',
+        endDate: '2026-01-07',
+        status: 'planning',
+        userId: TEST_USER_ID,
+      })
+      .returning();
     const tripId = inserted[0].id;
 
-    const response = await supertest(app)
-      .delete(`/api/trips/${tripId}`)
-      .expect(204);
+    const response = await supertest(app).delete(`/api/trips/${tripId}`).expect(204);
 
     // 204 must have no body
     expect(response.body).toEqual({});
@@ -368,9 +378,7 @@ describe('DELETE /api/trips/:id', () => {
   // ----------------------------------------------------------------
 
   it('returns 404 when the trip does not exist', async () => {
-    const response = await supertest(app)
-      .delete('/api/trips/99999')
-      .expect(404);
+    const response = await supertest(app).delete('/api/trips/99999').expect(404);
 
     expect(response.body).toEqual({ error: 'Trip not found' });
   });
@@ -380,25 +388,19 @@ describe('DELETE /api/trips/:id', () => {
   // ----------------------------------------------------------------
 
   it('returns 400 when id is a non-numeric string', async () => {
-    const response = await supertest(app)
-      .delete('/api/trips/abc')
-      .expect(400);
+    const response = await supertest(app).delete('/api/trips/abc').expect(400);
 
     expect(response.body).toHaveProperty('error');
   });
 
   it('returns 400 when id is zero', async () => {
-    const response = await supertest(app)
-      .delete('/api/trips/0')
-      .expect(400);
+    const response = await supertest(app).delete('/api/trips/0').expect(400);
 
     expect(response.body).toHaveProperty('error');
   });
 
   it('returns 400 when id is negative', async () => {
-    const response = await supertest(app)
-      .delete('/api/trips/-5')
-      .expect(400);
+    const response = await supertest(app).delete('/api/trips/-5').expect(400);
 
     expect(response.body).toHaveProperty('error');
   });
@@ -415,20 +417,26 @@ describe('DELETE /api/trips/:id', () => {
       countryCode: 'FR',
       name: 'France',
     });
-    const [city] = await db.insert(schema.cities).values({
-      name: 'Paris',
-      countryCode: 'FR',
-      geocodeStatus: 'resolved',
-    }).returning();
+    const [city] = await db
+      .insert(schema.cities)
+      .values({
+        name: 'Paris',
+        countryCode: 'FR',
+        geocodeStatus: 'resolved',
+      })
+      .returning();
 
     // Seed a trip — must be owned by test user (ADL-18)
-    const [trip] = await db.insert(schema.trips).values({
-      name: 'Paris Trip',
-      startDate: '2026-06-01',
-      endDate: '2026-06-10',
-      status: 'planning',
-      userId: TEST_USER_ID,
-    }).returning();
+    const [trip] = await db
+      .insert(schema.trips)
+      .values({
+        name: 'Paris Trip',
+        startDate: '2026-06-01',
+        endDate: '2026-06-10',
+        status: 'planning',
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     // Add a place to the trip
     await db.insert(schema.tripPlaces).values({
@@ -445,9 +453,7 @@ describe('DELETE /api/trips/:id', () => {
     expect(placesBefore).toHaveLength(1);
 
     // Delete the trip via the API
-    await supertest(app)
-      .delete(`/api/trips/${trip.id}`)
-      .expect(204);
+    await supertest(app).delete(`/api/trips/${trip.id}`).expect(204);
 
     // Verify cascade: no trip_places remain for the deleted trip
     const placesAfter = await db
@@ -463,21 +469,22 @@ describe('DELETE /api/trips/:id', () => {
 
   it('returns 404 on a second delete of the same trip (already deleted)', async () => {
     const db = testDb!;
-    const [trip] = await db.insert(schema.trips).values({
-      name: 'One-time Trip',
-      startDate: '2026-01-01',
-      endDate: '2026-01-05',
-      status: 'planning',
-      userId: TEST_USER_ID,
-    }).returning();
+    const [trip] = await db
+      .insert(schema.trips)
+      .values({
+        name: 'One-time Trip',
+        startDate: '2026-01-01',
+        endDate: '2026-01-05',
+        status: 'planning',
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     // First delete succeeds
     await supertest(app).delete(`/api/trips/${trip.id}`).expect(204);
 
     // Second delete: trip is gone → 404
-    const response = await supertest(app)
-      .delete(`/api/trips/${trip.id}`)
-      .expect(404);
+    const response = await supertest(app).delete(`/api/trips/${trip.id}`).expect(404);
 
     expect(response.body).toEqual({ error: 'Trip not found' });
   });

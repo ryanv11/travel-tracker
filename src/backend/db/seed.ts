@@ -16,15 +16,12 @@
  */
 
 import { config } from 'dotenv';
+
 config({ path: '.env.local' });
+
 import { getDb } from './index.js';
-import { tripCategories, activities, companions, mapShadingConfig } from './schema.js';
-import {
-  TRIP_CATEGORIES,
-  ACTIVITIES,
-  COMPANIONS,
-  MAP_SHADING_CONFIG,
-} from './seed-data.js';
+import { activities, companions, mapShadingConfig, tripCategories } from './schema.js';
+import { ACTIVITIES, COMPANIONS, MAP_SHADING_CONFIG, TRIP_CATEGORIES } from './seed-data.js';
 
 /**
  * Seeds all default admin list tables.
@@ -34,16 +31,28 @@ async function seed(): Promise<void> {
   console.log('[SEED] Starting seed...\n');
   const db = getDb();
 
-  await db.insert(tripCategories).values([...TRIP_CATEGORIES]).onConflictDoNothing();
+  await db
+    .insert(tripCategories)
+    .values([...TRIP_CATEGORIES])
+    .onConflictDoNothing();
   console.log(`✓ trip_categories seeded (${TRIP_CATEGORIES.length} rows attempted)`);
 
-  await db.insert(activities).values([...ACTIVITIES]).onConflictDoNothing();
+  await db
+    .insert(activities)
+    .values([...ACTIVITIES])
+    .onConflictDoNothing();
   console.log(`✓ activities seeded (${ACTIVITIES.length} rows attempted)`);
 
-  await db.insert(companions).values([...COMPANIONS]).onConflictDoNothing();
+  await db
+    .insert(companions)
+    .values([...COMPANIONS])
+    .onConflictDoNothing();
   console.log(`✓ companions seeded (${COMPANIONS.length} rows attempted)`);
 
-  await db.insert(mapShadingConfig).values([...MAP_SHADING_CONFIG]).onConflictDoNothing();
+  await db
+    .insert(mapShadingConfig)
+    .values([...MAP_SHADING_CONFIG])
+    .onConflictDoNothing();
   console.log(`✓ map_shading_config seeded (${MAP_SHADING_CONFIG.length} rows attempted)`);
 
   console.log('\n[SEED] Complete.');

@@ -9,16 +9,16 @@
  * are responsible for verifying ownership before calling this function.
  */
 
-import { eq, and, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   getDb,
-  trips,
-  items,
-  itemRestaurants,
-  itemHotels,
-  itemFlights,
   itemCarRentals,
   itemExperiences,
+  itemFlights,
+  itemHotels,
+  itemRestaurants,
+  items,
+  trips,
 } from '../db/index.js';
 import { LockError, NotFoundError } from '../errors.js';
 
@@ -90,9 +90,7 @@ export async function ensureExperienceExtension(itemId: number): Promise<void> {
  *
  * @returns The newly created item IDs.
  */
-export async function executeCarryForward(
-  params: CarryForwardParams,
-): Promise<number[]> {
+export async function executeCarryForward(params: CarryForwardParams): Promise<number[]> {
   const db = getDb();
   const { targetTripId, targetTripPlaceId, sourceItemIds, userId } = params;
 

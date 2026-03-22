@@ -11,27 +11,23 @@
  * calls for user-owned data.
  */
 
-import { Router } from 'express';
 import { eq, inArray } from 'drizzle-orm';
-import {
-  getDb,
-  activities,
-  tripPlaceActivitiesMap,
-} from '../db/index.js';
+import { Router } from 'express';
+import { activities, getDb, tripPlaceActivitiesMap } from '../db/index.js';
+import { LockError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
+import { tripRepository } from '../repositories/trips.js';
 import {
   CreateTripSchema,
+  DeleteTripParamsSchema,
+  ListTripsQuerySchema,
   UpdateTripSchema,
   UpdateTripStatusSchema,
-  ListTripsQuerySchema,
-  DeleteTripParamsSchema,
 } from '../validation/trips.schemas.js';
-import { NotFoundError, LockError, ValidationError } from '../errors.js';
-import { fetchItemsWithExtensions } from './items-helper.js';
-import { tripRepository } from '../repositories/trips.js';
-import placesRouter from './places.js';
 import itemsRouter from './items.js';
+import { fetchItemsWithExtensions } from './items-helper.js';
+import placesRouter from './places.js';
 import tripCountriesRouter from './trip-countries.js';
 
 export const tripsRouter = Router();
@@ -61,9 +57,16 @@ function validateTransition(from: string, to: string): void {
 }
 
 /** Build the standard trip response shape (list item — minimal places for city pins) */
-async function buildTripResponse(
-  trip: { id: number; name: string; startDate: string; endDate: string; status: string; photoAlbumRef: string | null; createdAt: string; updatedAt: string },
-) {
+async function buildTripResponse(trip: {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  photoAlbumRef: string | null;
+  createdAt: string;
+  updatedAt: string;
+}) {
   const [assoc, placesRows, countriesRows] = await Promise.all([
     tripRepository.getAssociations(trip.id),
     tripRepository.getPlaces(trip.id),
@@ -114,7 +117,12 @@ tripsRouter.get(
       country?: string;
     };
 
-    const allTrips = await tripRepository.findAll(userId, { status, category_id, activity_id, country });
+    const allTrips = await tripRepository.findAll(userId, {
+      status,
+      category_id,
+      activity_id,
+      country,
+    });
 
     const result = await Promise.all(allTrips.map(buildTripResponse));
     res.json(result);
@@ -129,8 +137,16 @@ tripsRouter.post(
   validateBody(CreateTripSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const { name, start_date, end_date, photo_album_ref, category_ids, companion_ids, activity_ids, country_codes } =
-      req.body;
+    const {
+      name,
+      start_date,
+      end_date,
+      photo_album_ref,
+      category_ids,
+      companion_ids,
+      activity_ids,
+      country_codes,
+    } = req.body;
 
     const trip = await tripRepository.create(userId, {
       name,
@@ -139,7 +155,12 @@ tripsRouter.post(
       photoAlbumRef: photo_album_ref,
     });
 
-    await tripRepository.replaceAssociations(trip.id, category_ids ?? [], companion_ids ?? [], activity_ids ?? []);
+    await tripRepository.replaceAssociations(
+      trip.id,
+      category_ids ?? [],
+      companion_ids ?? [],
+      activity_ids ?? [],
+    );
 
     if (country_codes?.length) {
       await tripRepository.setCountries(trip.id, country_codes);
@@ -212,9 +233,7 @@ tripsRouter.get(
       activities: placeActivities
         .filter((a) => a.tripPlaceId === p.id)
         .map((a) => ({ id: a.activityId, name: a.activityName })),
-      items: allItems.filter(
-        (i) => (i as Record<string, unknown>).trip_place_id === p.id,
-      ),
+      items: allItems.filter((i) => (i as Record<string, unknown>).trip_place_id === p.id),
     }));
 
     res.json({
@@ -247,8 +266,16 @@ tripsRouter.patch(
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     if (trip.status === 'locked') throw new LockError();
 
-    const { name, start_date, end_date, photo_album_ref, category_ids, companion_ids, activity_ids, country_codes } =
-      req.body;
+    const {
+      name,
+      start_date,
+      end_date,
+      photo_album_ref,
+      category_ids,
+      companion_ids,
+      activity_ids,
+      country_codes,
+    } = req.body;
 
     // BUG-A: validate effective date range using existing values when only one date is sent
     const effectiveStartDate = start_date ?? trip.startDate;

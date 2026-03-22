@@ -5,7 +5,7 @@
  *
  * Source: src/frontend/utils/urlSanitiser.ts
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { sanitiseUrl } from '../urlSanitiser.js';
 
 describe('sanitiseUrl()', () => {
@@ -14,11 +14,15 @@ describe('sanitiseUrl()', () => {
   // ----------------------------------------------------------------
 
   it('passes through an https:// URL unchanged', () => {
-    expect(sanitiseUrl('https://photos.example.com/album')).toBe('https://photos.example.com/album');
+    expect(sanitiseUrl('https://photos.example.com/album')).toBe(
+      'https://photos.example.com/album',
+    );
   });
 
   it('passes through a file:// URL unchanged', () => {
-    expect(sanitiseUrl('file:///Users/alice/Photos/japan')).toBe('file:///Users/alice/Photos/japan');
+    expect(sanitiseUrl('file:///Users/alice/Photos/japan')).toBe(
+      'file:///Users/alice/Photos/japan',
+    );
   });
 
   it('passes through a complex https URL with path and query', () => {

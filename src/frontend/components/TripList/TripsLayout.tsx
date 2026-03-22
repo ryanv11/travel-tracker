@@ -14,16 +14,16 @@
  *          Locked trips cannot be selected. Confirmation via window.confirm before
  *          sequential DELETE /api/trips/:id calls.
  */
-import React, { useMemo, useState, useCallback } from 'react';
-import { Outlet, useNavigate, useSearchParams, useParams } from 'react-router-dom';
-import { useTrips, type TripFilters, type TripFormData, useDeleteTrip } from '../../hooks/useTrips';
-import { useActiveCategories, useActiveActivities } from '../../hooks/useAdmin';
-import { TripCard } from './TripCard';
-import { TripForm } from '../TripDetail/TripForm';
-import { LoadingSpinner } from '../shared/LoadingSpinner';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useActiveActivities, useActiveCategories } from '../../hooks/useAdmin';
+import { type TripFilters, type TripFormData, useDeleteTrip, useTrips } from '../../hooks/useTrips';
+import type { TripStatus, TripSummary } from '../../types/api';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { LoadingSpinner } from '../shared/LoadingSpinner';
+import { TripForm } from '../TripDetail/TripForm';
+import { TripCard } from './TripCard';
 import { filterAndSortTrips } from './TripList';
-import type { TripSummary, TripStatus } from '../../types/api';
 
 /** Status chip definitions for F-07 */
 const STATUS_CHIPS: { value: TripStatus | ''; label: string }[] = [
@@ -51,7 +51,10 @@ export function TripsLayout() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<{ ids: Set<number>; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    ids: Set<number>;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -63,7 +66,7 @@ export function TripsLayout() {
   const cityFilter = searchParams.get('city') ? Number(searchParams.get('city')) : null;
 
   const { data: trips, isLoading, error } = useTrips(filters);
-  const { data: allTrips = [] } = useTrips();  // no filters — for counts only
+  const { data: allTrips = [] } = useTrips(); // no filters — for counts only
   const deleteTrip = useDeleteTrip();
 
   const handleEdit = (trip: TripSummary) => {
@@ -81,7 +84,8 @@ export function TripsLayout() {
   };
 
   const displayedTrips = useMemo(
-    () => filterAndSortTrips(trips ?? [], searchText, sortBy, countryFilter, regionFilter, cityFilter),
+    () =>
+      filterAndSortTrips(trips ?? [], searchText, sortBy, countryFilter, regionFilter, cityFilter),
     [trips, searchText, sortBy, countryFilter, regionFilter, cityFilter],
   );
 
@@ -174,7 +178,9 @@ export function TripsLayout() {
             navigate('/trips', { replace: true });
           }
         } catch (err) {
-          alert(`Some trips could not be deleted: ${err instanceof Error ? err.message : String(err)}`);
+          alert(
+            `Some trips could not be deleted: ${err instanceof Error ? err.message : String(err)}`,
+          );
         } finally {
           setIsDeleting(false);
           setPendingDelete(null);
@@ -240,9 +246,7 @@ export function TripsLayout() {
         {selectionMode && (
           <div className="px-4 pb-2 flex-shrink-0">
             <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-md px-3 py-2 gap-2">
-              <span className="text-xs text-gray-600 font-medium">
-                {selectedIds.size} selected
-              </span>
+              <span className="text-xs text-gray-600 font-medium">{selectedIds.size} selected</span>
               <button
                 type="button"
                 onClick={handleSelectAll}
@@ -252,7 +256,9 @@ export function TripsLayout() {
               </button>
               <button
                 type="button"
-                onClick={() => { void handleBulkDelete(); }}
+                onClick={() => {
+                  void handleBulkDelete();
+                }}
                 disabled={selectedIds.size === 0 || isDeleting}
                 className="px-2.5 py-1 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -277,8 +283,16 @@ export function TripsLayout() {
         {/* NTH-01: Undo bar — shown during 5-second delete window */}
         {pendingDelete && (
           <div className="mx-4 mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md flex items-center justify-between text-sm">
-            <span className="text-red-700">Deleting {pendingDelete.ids.size} trip{pendingDelete.ids.size === 1 ? '' : 's'}…</span>
-            <button type="button" onClick={handleUndoDelete} className="text-red-600 font-medium hover:text-red-800">Undo</button>
+            <span className="text-red-700">
+              Deleting {pendingDelete.ids.size} trip{pendingDelete.ids.size === 1 ? '' : 's'}…
+            </span>
+            <button
+              type="button"
+              onClick={handleUndoDelete}
+              className="text-red-600 font-medium hover:text-red-800"
+            >
+              Undo
+            </button>
           </div>
         )}
 
@@ -373,12 +387,7 @@ export function TripsLayout() {
       </div>
 
       {/* Create / Edit form modal */}
-      {showForm && (
-        <TripForm
-          existingTrip={editingTrip ?? undefined}
-          onClose={handleFormClose}
-        />
-      )}
+      {showForm && <TripForm existingTrip={editingTrip ?? undefined} onClose={handleFormClose} />}
     </div>
   );
 }

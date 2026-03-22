@@ -9,8 +9,8 @@
  * GE-12: offline-safe — network unreachable is handled gracefully.
  */
 
-import { eq, isNull, asc } from 'drizzle-orm';
-import { getDb, cities, countries } from '../db/index.js';
+import { asc, eq, isNull } from 'drizzle-orm';
+import { cities, countries, getDb } from '../db/index.js';
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT = 'TravelTracker/1.0 (personal-use-app)';
@@ -32,10 +32,7 @@ function sleep(ms: number): Promise<void> {
 async function isOnline(): Promise<boolean> {
   try {
     const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      CONNECTIVITY_TIMEOUT_MS,
-    );
+    const timer = setTimeout(() => controller.abort(), CONNECTIVITY_TIMEOUT_MS);
     const resp = await fetch(NOMINATIM_BASE, {
       method: 'HEAD',
       headers: { 'User-Agent': USER_AGENT },

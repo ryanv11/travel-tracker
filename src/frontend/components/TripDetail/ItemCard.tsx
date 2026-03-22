@@ -5,12 +5,12 @@
  * Actions: click to open ItemForm (edit), delete button with confirmation.
  */
 import React, { useState } from 'react';
-import { StatusBadge } from '../shared/StatusBadge';
-import { RatingStars } from '../shared/RatingStars';
-import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { useDeleteItem } from '../../hooks/useItems';
-import { formatDate } from '../../utils/formatDate';
 import type { Item } from '../../types/api';
+import { formatDate } from '../../utils/formatDate';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { RatingStars } from '../shared/RatingStars';
+import { StatusBadge } from '../shared/StatusBadge';
 
 interface ItemCardProps {
   /** The item to render. */
@@ -38,13 +38,20 @@ const TYPE_ICONS: Record<string, string> = {
  */
 function getItemLabel(item: Item): string {
   switch (item.item_type) {
-    case 'restaurant': return item.name ?? 'Restaurant';
-    case 'hotel': return item.property_name ?? 'Hotel';
-    case 'flight': return [item.departure_airport, item.arrival_airport].filter(Boolean).join(' → ') || 'Flight';
-    case 'car_rental': return item.provider ?? 'Car Rental';
-    case 'experience': return item.notes?.slice(0, 50) ?? 'Experience';
-    case 'note': return item.notes?.slice(0, 50) ?? 'Note';
-    default: return 'Item';
+    case 'restaurant':
+      return item.name ?? 'Restaurant';
+    case 'hotel':
+      return item.property_name ?? 'Hotel';
+    case 'flight':
+      return [item.departure_airport, item.arrival_airport].filter(Boolean).join(' → ') || 'Flight';
+    case 'car_rental':
+      return item.provider ?? 'Car Rental';
+    case 'experience':
+      return item.notes?.slice(0, 50) ?? 'Experience';
+    case 'note':
+      return item.notes?.slice(0, 50) ?? 'Note';
+    default:
+      return 'Item';
   }
 }
 
@@ -66,7 +73,11 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
   };
 
   const rating = item.rating;
-  const hasRating = (item.item_type === 'restaurant' || item.item_type === 'hotel' || item.item_type === 'experience') && rating !== null;
+  const hasRating =
+    (item.item_type === 'restaurant' ||
+      item.item_type === 'hotel' ||
+      item.item_type === 'experience') &&
+    rating !== null;
 
   return (
     <>
@@ -77,7 +88,9 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
             <span className="font-semibold text-sm text-gray-900">{getItemLabel(item)}</span>
             <StatusBadge status={item.status} />
             {item.is_carried_forward && (
-              <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">carried forward</span>
+              <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">
+                carried forward
+              </span>
             )}
           </div>
 
@@ -92,7 +105,9 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
           )}
           {item.item_type === 'flight' && (item.departure_datetime || item.airline) && (
             <div className="mt-1 text-xs text-gray-500">
-              {item.airline}{item.airline && item.flight_number ? ' ' : ''}{item.flight_number}
+              {item.airline}
+              {item.airline && item.flight_number ? ' ' : ''}
+              {item.flight_number}
               {item.departure_datetime ? ` · ${item.departure_datetime.slice(0, 10)}` : ''}
             </div>
           )}
@@ -106,7 +121,8 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
 
           {item.notes && (
             <div className="mt-1 text-xs text-gray-500 italic">
-              {item.notes.slice(0, 100)}{item.notes.length > 100 ? '…' : ''}
+              {item.notes.slice(0, 100)}
+              {item.notes.length > 100 ? '…' : ''}
             </div>
           )}
         </div>
@@ -137,7 +153,9 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
         title="Delete item?"
         message="This item will be permanently removed. This cannot be undone."
         confirmLabel="Delete"
-        onConfirm={() => { void handleDelete(); }}
+        onConfirm={() => {
+          void handleDelete();
+        }}
         onCancel={() => setShowConfirm(false)}
       />
     </>

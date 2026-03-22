@@ -15,8 +15,8 @@
  *   5. On any failure: respond 401 Unauthorized
  */
 
+import type { NextFunction, Request, Response } from 'express';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import type { Request, Response, NextFunction } from 'express';
 import { userRepository } from '../repositories/users.js';
 
 // ----------------------------------------------------------------
@@ -62,11 +62,7 @@ function getJWKS(): ReturnType<typeof createRemoteJWKSet> {
  * Verifies the Clerk JWT and attaches the resolved internal user to req.user.
  * Returns 401 if the token is missing, invalid, or expired.
  */
-export async function requireAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   // CI escape hatch: skip JWT verification in contract tests.
   // Only active when BYPASS_AUTH is explicitly set to 'true'.
   if (process.env.BYPASS_AUTH === 'true') {

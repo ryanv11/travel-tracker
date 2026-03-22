@@ -5,10 +5,10 @@
  * Country shading and region shading are handled inside MapView/CountryLayer/RegionLayer.
  */
 import React from 'react';
-import { useTrips } from '../hooks/useTrips';
 import { MapView } from '../components/Map/MapView';
-import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 import { ErrorMessage } from '../components/shared/ErrorMessage';
+import { LoadingSpinner } from '../components/shared/LoadingSpinner';
+import { useTrips } from '../hooks/useTrips';
 
 /**
  * Renders the full-page world map with shading and city pins.

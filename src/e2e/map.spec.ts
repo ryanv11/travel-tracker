@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test('map page loads without error', async ({ page }) => {
   const errors: string[] = [];
@@ -8,11 +8,7 @@ test('map page loads without error', async ({ page }) => {
   await page.goto('http://localhost:5173/map');
   // Map container should render — look for a canvas or the map div
   await expect(
-    page
-      .locator('canvas')
-      .or(page.locator('#map'))
-      .or(page.locator('[class*="map"]'))
-      .first(),
+    page.locator('canvas').or(page.locator('#map')).or(page.locator('[class*="map"]')).first(),
   ).toBeVisible({ timeout: 10000 });
   // Filter out environment-specific network errors (tile services unreachable in devcontainer)
   const appErrors = errors.filter(
