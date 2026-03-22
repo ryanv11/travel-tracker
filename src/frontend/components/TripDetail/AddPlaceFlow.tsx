@@ -84,12 +84,11 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
         onClose();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     carryForwardCandidates,
     addedPlaceId,
     candidatesFetched,
-    addedCityId, // Query settled and no candidates — close flow
+    addedCityId,
     onClose,
     showCarryForward,
   ]);

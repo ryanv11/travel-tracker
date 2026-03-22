@@ -823,6 +823,74 @@
       "brdRefs": [],
       "phase": 5,
       "notes": "PO direction 2026-03-21. Companions can be unlinked (placeholder) or linked (real user account). Search for existing user; if not found, create unlinked entry. Invite flow activates and links the account. Needs Architect spec — entangled with Gate 3.0 companion access model."
+    },
+
+    // ─── CODE REVIEW FINDINGS — 2026-03-22 ───────────────────────────────────
+    {
+      "id": "BUG-15",
+      "type": "bug",
+      "title": "executeCarryForward — batch inserts not wrapped in transaction",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "src/backend/services/items.service.ts — executeCarryForward() loops over db.insert() calls with no transaction. If a mid-loop insert fails, earlier inserts are already committed, leaving the DB in a partially populated state. Fix: wrap the loop in db.transaction(). GitHub #53. Found in codebase review 2026-03-22."
+    },
+    {
+      "id": "BUG-16",
+      "type": "bug",
+      "title": "replaceAssociations — delete-then-insert not wrapped in transaction",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "src/backend/repositories/trips.ts — replaceAssociations() deletes then re-inserts categories/companions/activities sequentially. If an insert fails after the delete, the old associations are permanently lost. Fix: wrap the entire method in db.transaction(). Found in codebase review 2026-03-22."
+    },
+    {
+      "id": "BUG-17",
+      "type": "bug",
+      "title": "BUG-A untracked — trips.ts comment references unlogged issue",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "src/backend/routes/trips.ts — comment tagged BUG-A with no corresponding GitHub issue or tracker entry. Needs investigation to determine severity and whether it is already fixed. Found in codebase review 2026-03-22."
+    },
+    {
+      "id": "BUG-18",
+      "type": "bug",
+      "title": "AddPlaceFlow — onClose and other missing useEffect deps; parent memoisation needed",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "src/frontend/components/TripDetail/AddPlaceFlow.tsx — missing deps (onClose, addedCityId, showCarryForward) were auto-fixed by Biome --write --unsafe (2026-03-22); stale eslint-disable comment also removed. Remaining concern: if parent passes a non-memoised onClose, the effect re-runs on every parent render. Fix: ensure callers wrap onClose in useCallback, or use a useRef to hold the latest callback. Downgraded P2→P3 since stale closure is resolved; only unnecessary re-runs remain. Found in codebase review 2026-03-22."
+    },
+    {
+      "id": "BUG-19",
+      "type": "bug",
+      "title": "Deprecated authenticate alias still exported from auth.ts",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "src/backend/middleware/auth.ts — deprecated authenticate export kept for backward compatibility but nothing in the codebase imports it. Dead export adds noise and maintenance surface. Fix: remove the alias. Found in codebase review 2026-03-22."
+    },
+    {
+      "id": "BUG-20",
+      "type": "bug",
+      "title": "Bulk delete error handling uses alert() instead of UI error state",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "src/frontend/components/TripList/TripsLayout.tsx — handleBulkDelete() catches errors with alert() rather than rendering an error state in the UI. Inconsistent with the rest of the app's error handling pattern. Fix: add error state and render inline. Found in codebase review 2026-03-22."
     }
 
   ]
