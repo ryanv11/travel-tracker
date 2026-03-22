@@ -24,12 +24,12 @@ import { config } from 'dotenv';
 
 config({ path: '.env.local' }); // explicit .env.local load
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 import { getDb } from './db/index.js';
 import { requireAuth } from './middleware/auth.js';

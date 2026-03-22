@@ -4,7 +4,7 @@
  * Lists all 250 countries. Allows toggling region_tier_enabled per country.
  * Region tier name (e.g. "State") is read-only — set by seed data.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useCountries, useUpdateCountry } from '../../hooks/useAdmin';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { LoadingSpinner } from '../shared/LoadingSpinner';

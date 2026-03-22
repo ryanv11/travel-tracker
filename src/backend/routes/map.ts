@@ -8,7 +8,7 @@
 
 import { eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { countries, getDb, mapShadingConfig, regions } from '../db/index.js';
+import { countries, getDb, mapShadingConfig } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';

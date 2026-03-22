@@ -11,7 +11,7 @@
  *
  * Locked trips show a read-only banner and hide all write controls.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useLockTrip, useUnlockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
 import type { TripDetail as TripDetailType, TripStatus } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';

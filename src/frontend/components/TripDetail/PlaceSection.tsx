@@ -9,7 +9,7 @@
  * Shows city name, country, activity tags, date range, and a list of ItemCards.
  * Contains the "Add Item" button (hidden when trip is locked).
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { Item, TripPlace } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
 import { ItemCard } from './ItemCard';

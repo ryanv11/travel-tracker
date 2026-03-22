@@ -14,11 +14,10 @@
  *          Locked trips cannot be selected. Confirmation via window.confirm before
  *          sequential DELETE /api/trips/:id calls.
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useActiveActivities, useActiveCategories } from '../../hooks/useAdmin';
-import { type TripFilters, type TripFormData, useDeleteTrip, useTrips } from '../../hooks/useTrips';
-import type { TripStatus, TripSummary } from '../../types/api';
+import { type TripFilters, useDeleteTrip, useTrips } from '../../hooks/useTrips';
+import type { TripStatus } from '../../types/api';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { TripForm } from '../TripDetail/TripForm';
@@ -43,7 +42,6 @@ type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc';
 export function TripsLayout() {
   const [filters, setFilters] = useState<TripFilters>({});
   const [showForm, setShowForm] = useState(false);
-  const [editingTrip, setEditingTrip] = useState<TripSummary | null>(null);
   const [searchText, setSearchText] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('date_desc');
 
@@ -69,14 +67,8 @@ export function TripsLayout() {
   const { data: allTrips = [] } = useTrips(); // no filters — for counts only
   const deleteTrip = useDeleteTrip();
 
-  const handleEdit = (trip: TripSummary) => {
-    setEditingTrip(trip);
-    setShowForm(true);
-  };
-
   const handleFormClose = () => {
     setShowForm(false);
-    setEditingTrip(null);
   };
 
   const clearMapFilter = () => {
@@ -371,7 +363,6 @@ export function TripsLayout() {
             <TripCard
               key={trip.id}
               trip={trip}
-              onEdit={handleEdit}
               isSelected={selectedId === String(trip.id)}
               selectionMode={selectionMode}
               isChecked={selectedIds.has(trip.id)}
@@ -386,8 +377,8 @@ export function TripsLayout() {
         <Outlet />
       </div>
 
-      {/* Create / Edit form modal */}
-      {showForm && <TripForm existingTrip={editingTrip ?? undefined} onClose={handleFormClose} />}
+      {/* Create trip form modal */}
+      {showForm && <TripForm onClose={handleFormClose} />}
     </div>
   );
 }

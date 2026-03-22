@@ -5,11 +5,10 @@
  * rateable item types (restaurant, hotel, experience).
  * Each change calls PATCH /api/trips/:tripId/items/:itemId immediately (not batched).
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useUpdateItem } from '../../hooks/useItems';
 import type { Item, ItemStatus, ItemType } from '../../types/api';
 import { RatingStars } from '../shared/RatingStars';
-import { StatusBadge } from '../shared/StatusBadge';
 
 interface ReviewItemRowProps {
   item: Item;

@@ -85,7 +85,14 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carryForwardCandidates, addedPlaceId, candidatesFetched]);
+  }, [
+    carryForwardCandidates,
+    addedPlaceId,
+    candidatesFetched,
+    addedCityId, // Query settled and no candidates — close flow
+    onClose,
+    showCarryForward,
+  ]);
 
   const handleSelectCity = async (city: City) => {
     try {

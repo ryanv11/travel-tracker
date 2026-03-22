@@ -178,7 +178,7 @@ tripsRouter.get(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.id), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     const [assoc, countriesRows] = await Promise.all([
@@ -261,7 +261,7 @@ tripsRouter.patch(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.id), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     if (trip.status === 'locked') throw new LockError();
@@ -310,7 +310,7 @@ tripsRouter.patch(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.id), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     const { status } = req.body;
@@ -331,7 +331,7 @@ tripsRouter.patch(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.id), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     if (trip.status === 'locked') {
@@ -354,7 +354,7 @@ tripsRouter.patch(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.id), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     if (trip.status !== 'locked') {

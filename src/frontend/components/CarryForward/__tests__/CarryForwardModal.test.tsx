@@ -22,7 +22,6 @@
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CarryForwardCandidate } from '../../../types/api.js';
 import { CarryForwardModal } from '../CarryForwardModal.js';

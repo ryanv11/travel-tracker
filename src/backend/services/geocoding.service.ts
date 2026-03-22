@@ -9,7 +9,7 @@
  * GE-12: offline-safe — network unreachable is handled gracefully.
  */
 
-import { asc, eq, isNull } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { cities, countries, getDb } from '../db/index.js';
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';

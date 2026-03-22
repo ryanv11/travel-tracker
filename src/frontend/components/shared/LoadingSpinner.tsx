@@ -1,11 +1,3 @@
-/**
- * LoadingSpinner — inline or full-area loading indicator.
- *
- * Used in every data-loading state across the app. Accepts an optional
- * message to display alongside the spinner.
- */
-import React from 'react';
-
 interface LoadingSpinnerProps {
   /** Optional label shown next to the spinner. */
   message?: string;

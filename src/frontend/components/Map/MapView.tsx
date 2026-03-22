@@ -9,7 +9,7 @@
  *
  * SEC-12: Map labels use MapLibre's text-field layout property — no innerHTML.
  */
-import React, { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import MapGL, { type MapLayerMouseEvent, type MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useNavigate } from 'react-router-dom';

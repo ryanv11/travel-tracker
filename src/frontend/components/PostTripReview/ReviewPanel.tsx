@@ -5,7 +5,7 @@
  * Shows all places and items grouped by place. Supports bulk "Mark all Completed"
  * and a "Complete Review & Lock Trip" button with confirmation.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useUpdateItem } from '../../hooks/useItems';
 import { useLockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
 import type { Item, ItemStatus, TripDetail } from '../../types/api';

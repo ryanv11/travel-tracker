@@ -9,17 +9,8 @@
  * are responsible for verifying ownership before calling this function.
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
-import {
-  getDb,
-  itemCarRentals,
-  itemExperiences,
-  itemFlights,
-  itemHotels,
-  itemRestaurants,
-  items,
-  trips,
-} from '../db/index.js';
+import { eq, inArray } from 'drizzle-orm';
+import { getDb, itemExperiences, itemHotels, itemRestaurants, items, trips } from '../db/index.js';
 import { LockError, NotFoundError } from '../errors.js';
 
 // ----------------------------------------------------------------

@@ -4,7 +4,7 @@
  * Shows: type icon, status badge, key fields for the item type.
  * Actions: click to open ItemForm (edit), delete button with confirmation.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useDeleteItem } from '../../hooks/useItems';
 import type { Item } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';

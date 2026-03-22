@@ -1,16 +1,3 @@
-/**
- * TripCard — summary card for a single trip in the trips left-panel list.
- *
- * Shows: name, date range, status badge, companion list, categories,
- *        place name badges (D-06).
- * Actions: click to navigate to TripDetail (relative URL for nested route),
- *          Edit button to open edit form.
- * SEC-12: photo_album_ref is handled by sanitiseUrl before rendering.
- *
- * FEAT-BD: In selection mode, shows a checkbox. Locked trips cannot be
- *          selected (checkbox disabled, card visually muted).
- */
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TripSummary } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
@@ -19,8 +6,6 @@ import { StatusBadge } from '../shared/StatusBadge';
 interface TripCardProps {
   /** The trip to display. */
   trip: TripSummary;
-  /** Called when the Edit button is clicked. */
-  onEdit: (trip: TripSummary) => void;
   /** Whether this card is the currently selected trip in the two-panel layout. */
   isSelected?: boolean;
   /** Whether the list is in multi-select delete mode. */
@@ -39,7 +24,6 @@ const MAX_PLACE_BADGES = 4;
  * categories, and place badges (D-06).
  *
  * @param trip - The trip data to render.
- * @param onEdit - Callback when the Edit button is clicked.
  * @param isSelected - Highlights the card when it is the active trip.
  * @param selectionMode - When true, shows a checkbox instead of navigation.
  * @param isChecked - Whether the checkbox is checked.
@@ -47,7 +31,6 @@ const MAX_PLACE_BADGES = 4;
  */
 export function TripCard({
   trip,
-  onEdit,
   isSelected = false,
   selectionMode = false,
   isChecked = false,

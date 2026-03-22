@@ -9,7 +9,7 @@
  * (onChange updates local state only) and fires the PATCH mutation on onBlur.
  * This prevents dozens of API calls per drag gesture and eliminates race conditions.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useShadingConfig, useUpdateShadingColor } from '../../hooks/useMapShading';
 import type { ShadingConfig } from '../../types/api';
 import { ErrorMessage } from '../shared/ErrorMessage';

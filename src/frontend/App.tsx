@@ -11,7 +11,6 @@
  */
 
 import { UserButton } from '@clerk/react';
-import React from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { TripsLayout } from './components/TripList/TripsLayout';
 import { useGeocodeRetryQueue } from './hooks/useGeocodeRetryQueue';

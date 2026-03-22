@@ -204,7 +204,6 @@ function flattenItem(row: ItemRow): Record<string, unknown> {
         rating: row.experienceRating,
         post_visit_notes: row.experiencePostVisitNotes,
       };
-    case 'note':
     default:
       return base;
   }

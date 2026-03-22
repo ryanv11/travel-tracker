@@ -16,12 +16,12 @@ import { config } from 'dotenv';
 
 config({ path: '.env.local' });
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';

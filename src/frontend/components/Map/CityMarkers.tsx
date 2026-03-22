@@ -9,7 +9,7 @@
  */
 
 import type { SymbolLayerSpecification } from 'maplibre-gl';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Layer, Source } from 'react-map-gl/maplibre';
 import type { TripSummary } from '../../types/api';
 

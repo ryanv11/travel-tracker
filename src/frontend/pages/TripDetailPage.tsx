@@ -1,12 +1,3 @@
-/**
- * TripDetailPage — renders a single trip inside the TripsLayout right panel.
- *
- * Route: /trips/:id (nested child of TripsLayout via TR-11)
- *
- * - If the trip status is 'review_pending', renders the ReviewPanel.
- * - Otherwise renders the TripDetail component.
- */
-import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReviewPanel } from '../components/PostTripReview/ReviewPanel';
 import { ErrorMessage } from '../components/shared/ErrorMessage';

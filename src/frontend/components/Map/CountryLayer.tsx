@@ -10,7 +10,7 @@
  */
 
 import type { FillLayerSpecification } from 'maplibre-gl';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Layer, Source, useMap } from 'react-map-gl/maplibre';
 import type { CountryShading } from '../../types/api';
 

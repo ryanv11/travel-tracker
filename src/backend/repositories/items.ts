@@ -7,7 +7,7 @@
  */
 
 import type { SQL } from 'drizzle-orm';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   getDb,
   itemCarRentals,
@@ -16,8 +16,6 @@ import {
   itemHotels,
   itemRestaurants,
   items,
-  tripPlaces,
-  trips,
 } from '../db/index.js';
 import type { Item } from '../db/schema.js';
 import { NotFoundError } from '../errors.js';
@@ -232,7 +230,6 @@ async function insertExtension(
     case 'experience':
       // ADL-14: lazy creation on first rating — do not create row on insert
       break;
-    case 'note':
     default:
       break;
   }
@@ -328,7 +325,6 @@ async function updateExtension(
       }
       break;
     }
-    case 'note':
     default:
       break;
   }

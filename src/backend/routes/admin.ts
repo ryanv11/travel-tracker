@@ -99,7 +99,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
     validateBody(UpdateAdminItemSchema),
     asyncHandler(async (req, res) => {
       const id = parseInt(String(req.params.id), 10);
-      if (isNaN(id)) throw new NotFoundError(resourceName);
+      if (Number.isNaN(id)) throw new NotFoundError(resourceName);
 
       const db = getDb();
       const existing = await db.select().from(table).where(eq(table.id, id)).limit(1);
@@ -121,7 +121,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
     '/:id',
     asyncHandler(async (req, res) => {
       const id = parseInt(String(req.params.id), 10);
-      if (isNaN(id)) throw new NotFoundError(resourceName);
+      if (Number.isNaN(id)) throw new NotFoundError(resourceName);
 
       const db = getDb();
       const existing = await db.select().from(table).where(eq(table.id, id)).limit(1);
@@ -280,7 +280,7 @@ adminRouter.patch(
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
     const regionId = parseInt(String(req.params.regionId), 10);
-    if (isNaN(regionId)) throw new NotFoundError('Region');
+    if (Number.isNaN(regionId)) throw new NotFoundError('Region');
 
     const db = getDb();
     const existing = await db

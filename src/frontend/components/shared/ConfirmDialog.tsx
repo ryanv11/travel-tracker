@@ -1,11 +1,3 @@
-/**
- * ConfirmDialog — modal confirmation dialog.
- *
- * Used before destructive actions (delete item, lock trip, unlock trip).
- * Renders as a simple modal overlay with Cancel and Confirm buttons.
- */
-import React from 'react';
-
 interface ConfirmDialogProps {
   /** Whether the dialog is visible. */
   isOpen: boolean;
