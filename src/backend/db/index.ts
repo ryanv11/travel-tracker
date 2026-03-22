@@ -55,7 +55,7 @@ export type AppDatabase = LibSQLDb | PgDb;
 // Singleton — created once on first call to getDb()
 // ----------------------------------------------------------------
 
-let _db: AppDatabase | null = null;
+let _db: LibSQLDb | null = null;
 
 /**
  * Returns the singleton database instance.
@@ -65,7 +65,7 @@ let _db: AppDatabase | null = null;
  * @throws {Error} If DB_TYPE is missing or invalid, or required
  *   credentials are absent from the environment.
  */
-export function getDb(): AppDatabase {
+export function getDb(): LibSQLDb {
   if (_db) return _db;
 
   const dbType = process.env.DB_TYPE;
@@ -73,7 +73,7 @@ export function getDb(): AppDatabase {
   if (dbType === 'sqlite') {
     _db = createLibSQLDb();
   } else if (dbType === 'postgres') {
-    _db = createPostgresDb();
+    _db = createPostgresDb() as unknown as LibSQLDb;
   } else {
     throw new Error(
       `[DB] Invalid or missing DB_TYPE: "${dbType}". ` +
@@ -81,7 +81,7 @@ export function getDb(): AppDatabase {
     );
   }
 
-  return _db;
+  return _db!;
 }
 
 // ----------------------------------------------------------------
