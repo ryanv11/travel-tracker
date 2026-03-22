@@ -26,7 +26,7 @@ router.post(
   validateBody(AddCountriesSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const tripId = parseInt(req.params.tripId, 10);
+    const tripId = parseInt(String(req.params.tripId), 10);
     const { country_codes } = req.body;
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     if (trip.status === 'locked') throw new LockError();
@@ -40,8 +40,8 @@ router.delete(
   '/:code',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const tripId = parseInt(req.params.tripId, 10);
-    const { code } = req.params;
+    const tripId = parseInt(String(req.params.tripId), 10);
+    const code = String(req.params.code);
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     if (trip.status === 'locked') throw new LockError();
     const removed = await tripRepository.removeCountry(tripId, code);

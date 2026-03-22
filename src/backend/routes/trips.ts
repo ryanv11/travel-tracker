@@ -156,7 +156,7 @@ tripsRouter.get(
   '/:id',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const tripId = parseInt(req.params.id, 10);
+    const tripId = parseInt(String(req.params.id), 10);
     if (isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
@@ -241,7 +241,7 @@ tripsRouter.patch(
   validateBody(UpdateTripSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const tripId = parseInt(req.params.id, 10);
+    const tripId = parseInt(String(req.params.id), 10);
     if (isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
@@ -282,7 +282,7 @@ tripsRouter.patch(
   validateBody(UpdateTripStatusSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const tripId = parseInt(req.params.id, 10);
+    const tripId = parseInt(String(req.params.id), 10);
     if (isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
@@ -303,7 +303,7 @@ tripsRouter.patch(
   '/:id/lock',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const tripId = parseInt(req.params.id, 10);
+    const tripId = parseInt(String(req.params.id), 10);
     if (isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
@@ -326,7 +326,7 @@ tripsRouter.patch(
   '/:id/unlock',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const tripId = parseInt(req.params.id, 10);
+    const tripId = parseInt(String(req.params.id), 10);
     if (isNaN(tripId)) throw new NotFoundError('Trip');
 
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);

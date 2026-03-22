@@ -9,7 +9,11 @@ import { zName, zIsoDate, zTripStatus, zOptionalString } from './common.js';
 /** Shared date range refinement — end_date must be >= start_date */
 const withDateRefinement = <T extends z.ZodTypeAny>(schema: T) =>
   (schema as unknown as z.ZodObject<{ start_date: z.ZodTypeAny; end_date: z.ZodTypeAny }>).refine(
-    (data) => data.end_date >= data.start_date,
+    (data: { start_date: unknown; end_date: unknown }) => {
+      const start = data.start_date as string;
+      const end = data.end_date as string;
+      return end >= start;
+    },
     { message: 'end_date must be on or after start_date', path: ['end_date'] },
   );
 

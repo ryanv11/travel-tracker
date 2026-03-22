@@ -95,7 +95,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
     '/:id',
     validateBody(UpdateAdminItemSchema),
     asyncHandler(async (req, res) => {
-      const id = parseInt(req.params.id, 10);
+      const id = parseInt(String(req.params.id), 10);
       if (isNaN(id)) throw new NotFoundError(resourceName);
 
       const db = getDb();
@@ -121,7 +121,7 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
   router.delete(
     '/:id',
     asyncHandler(async (req, res) => {
-      const id = parseInt(req.params.id, 10);
+      const id = parseInt(String(req.params.id), 10);
       if (isNaN(id)) throw new NotFoundError(resourceName);
 
       const db = getDb();
@@ -175,7 +175,7 @@ adminRouter.patch(
   '/countries/:countryCode',
   validateBody(UpdateCountrySchema),
   asyncHandler(async (req, res) => {
-    const countryCode = req.params.countryCode.toUpperCase();
+    const countryCode = String(req.params.countryCode).toUpperCase();
     const db = getDb();
 
     const existing = await db
@@ -217,7 +217,7 @@ adminRouter.patch(
 adminRouter.get(
   '/countries/:countryCode/regions',
   asyncHandler(async (req, res) => {
-    const countryCode = req.params.countryCode.toUpperCase();
+    const countryCode = String(req.params.countryCode).toUpperCase();
     const db = getDb();
 
     const rows = await db
@@ -243,7 +243,7 @@ adminRouter.post(
   '/countries/:countryCode/regions',
   validateBody(CreateRegionSchema),
   asyncHandler(async (req, res) => {
-    const countryCode = req.params.countryCode.toUpperCase();
+    const countryCode = String(req.params.countryCode).toUpperCase();
     const db = getDb();
 
     const countryRow = await db
@@ -257,11 +257,11 @@ adminRouter.post(
       throw new ValidationError('Country does not have region tier enabled');
     }
 
-    const { name } = req.body;
+    const { name, iso3166_2 } = req.body;
     const now = new Date().toISOString();
     const inserted = await db
       .insert(regions)
-      .values({ countryCode, name, createdAt: now, updatedAt: now })
+      .values({ countryCode, name, iso3166_2, createdAt: now, updatedAt: now })
       .returning();
 
     const r = inserted[0];
@@ -280,8 +280,8 @@ adminRouter.patch(
   '/countries/:countryCode/regions/:regionId',
   validateBody(UpdateRegionSchema),
   asyncHandler(async (req, res) => {
-    const countryCode = req.params.countryCode.toUpperCase();
-    const regionId = parseInt(req.params.regionId, 10);
+    const countryCode = String(req.params.countryCode).toUpperCase();
+    const regionId = parseInt(String(req.params.regionId), 10);
     if (isNaN(regionId)) throw new NotFoundError('Region');
 
     const db = getDb();
