@@ -843,12 +843,12 @@
       "id": "QUAL-01",
       "type": "chore",
       "title": "Test coverage — repositories, routes, and frontend components",
-      "status": "pending",
+      "status": "partial",
       "owner": "coo",
       "priority": "P2",
       "brdRefs": [],
       "phase": 4,
-      "notes": "Codebase health scorecard (2026-03-22) scored test coverage 7/10. Scoped 2026-03-23. PRIORITY 1 (Backend): 0 repository tests across all 4 repos (trips, items, places, users) — repositories are where data integrity bugs live (BUG-15/16 found by review, not tests). Also untested routes: admin.ts, items.ts, map.ts, places.ts (partial), trips.ts (partial — only delete tested). PRIORITY 2 (Frontend): resolvePlaceDateRange utility, sort functions, TripDetail component coverage. Dispatching Backend agent first; Frontend agent after."
+      "notes": "Backend done — PR #65 merged 2026-03-23. 156 new tests: all 4 repository files (trips, items, places, users) and routes (trips CRUD, items, places). Total 342 tests. Frontend coverage still pending: resolvePlaceDateRange (has tests from UX-02 PR #63), TripDetail component, sort utilities."
     },
 
     // ─── CODE REVIEW FINDINGS — 2026-03-22 ───────────────────────────────────
