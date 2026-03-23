@@ -7,6 +7,7 @@
  */
 
 import { and, desc, eq } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import {
   activities,
   cities,
@@ -237,32 +238,45 @@ export const tripRepository = {
   ): Promise<void> {
     const db = getDb();
 
-    await db.transaction(async (tx) => {
-      if (categoryIds !== undefined) {
-        await tx.delete(tripCategoriesMap).where(eq(tripCategoriesMap.tripId, tripId));
-        if (categoryIds.length) {
-          await tx
+    // Build batch atomically. db.batch() is safe with libSQL :memory: clients;
+    // db.transaction() nulls out the client's internal #db reference, causing
+    // subsequent queries on the same client to open a fresh empty connection.
+    const ops: BatchItem<'sqlite'>[] = [];
+
+    if (categoryIds !== undefined) {
+      ops.push(db.delete(tripCategoriesMap).where(eq(tripCategoriesMap.tripId, tripId)));
+      if (categoryIds.length) {
+        ops.push(
+          db
             .insert(tripCategoriesMap)
-            .values(categoryIds.map((id) => ({ tripId, categoryId: id })));
-        }
+            .values(categoryIds.map((id) => ({ tripId, categoryId: id }))),
+        );
       }
-      if (companionIds !== undefined) {
-        await tx.delete(tripCompanionsMap).where(eq(tripCompanionsMap.tripId, tripId));
-        if (companionIds.length) {
-          await tx
+    }
+    if (companionIds !== undefined) {
+      ops.push(db.delete(tripCompanionsMap).where(eq(tripCompanionsMap.tripId, tripId)));
+      if (companionIds.length) {
+        ops.push(
+          db
             .insert(tripCompanionsMap)
-            .values(companionIds.map((id) => ({ tripId, companionId: id })));
-        }
+            .values(companionIds.map((id) => ({ tripId, companionId: id }))),
+        );
       }
-      if (activityIds !== undefined) {
-        await tx.delete(tripActivitiesMap).where(eq(tripActivitiesMap.tripId, tripId));
-        if (activityIds.length) {
-          await tx
+    }
+    if (activityIds !== undefined) {
+      ops.push(db.delete(tripActivitiesMap).where(eq(tripActivitiesMap.tripId, tripId)));
+      if (activityIds.length) {
+        ops.push(
+          db
             .insert(tripActivitiesMap)
-            .values(activityIds.map((id) => ({ tripId, activityId: id })));
-        }
+            .values(activityIds.map((id) => ({ tripId, activityId: id }))),
+        );
       }
-    });
+    }
+
+    if (ops.length > 0) {
+      await db.batch(ops as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
+    }
   },
 
   /**
