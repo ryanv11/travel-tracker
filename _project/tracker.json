@@ -112,12 +112,12 @@
       "id": "FEAT-IT",
       "type": "feature",
       "title": "Item Logging",
-      "status": "done",
+      "status": "partial",
       "owner": "frontend",
       "priority": "P0",
       "brdRefs": ["IT-01","IT-02","IT-03","IT-04","IT-05","IT-06","IT-07","IT-08","IT-09"],
       "phase": 3,
-      "notes": "Done. IT-01–09 implemented. BUG-03 (carry-forward) closed 2026-03-09. Flights/car_rentals excluded from carry-forward by PO direction (PR #24)."
+      "notes": "IT-01–07 done. BUG-03 (carry-forward) closed 2026-03-09. Flights/car_rentals excluded from carry-forward by PO direction (PR #24). IT-08/IT-09 NOT built — ratings are stored and displayed per item but no sort/filter UI exists in any item list view. Incorrectly marked done in audit 2026-03-23."
     },
     {
       "id": "FEAT-FL",
@@ -574,7 +574,7 @@
       "priority": "P1",
       "brdRefs": ["NF-07"],
       "phase": 1,
-      "notes": "Phase 1.5 gate. Must be completed before access expands beyond owner. Checklist: auth, authorization, storage model, secrets, operational controls. Not yet specced."
+      "notes": "Phase 1.5 gate. Must be completed before access expands beyond owner. Brief filed to Architect 2026-03-23 (jobs/architect/inbox/20260323_1600-COO-op06-nr14-hardening.md). Spec covers: three-role access model (owner/explicitly-shared/authenticated-but-ungranted), resource/action matrix, token validation, failure behaviour + response minimisation, isolation enforcement layers, current state assessment, future requirements security review. Awaiting Architect deliverables."
     },
     {
       "id": "NR-15",
@@ -653,7 +653,7 @@
       "priority": "P1",
       "brdRefs": [],
       "phase": 1,
-      "notes": "Single checklist. Not yet written. Required before Phase 1.5 gate."
+      "notes": "Brief filed to Architect 2026-03-23 — see NR-14 notes for full scope. Awaiting Architect deliverable: OP-06 checklist document with six domains, current state assessment, ADLs, and future requirements security review."
     },
     {
       "id": "OP-07",
@@ -762,12 +762,12 @@
       "id": "UX-02",
       "type": "feature",
       "title": "Place date ranges — optional input on create/edit, order cities by date",
-      "status": "partial",
+      "status": "done",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": ["DP-05"],
       "phase": 3,
-      "notes": "Frontend done — PR #63 merged 2026-03-23 (PlaceDateForm, resolvePlaceDateRange, sort by arrived_on). Backend pending: schema migration 0005 on feat/ux-02-backend-place-dates (arrived_on/departed_on on trip_places) needs schema.ts + PATCH /api/trips/:id/places/:placeId endpoint. ADL-24 approved."
+      "notes": "Done. Frontend: PR #63 (PlaceDateForm, resolvePlaceDateRange, sort by arrived_on). Backend: PR #69 / GitHub #68 — migration 0005 (arrived_on/departed_on on trip_places), CreatePlaceSchema updated, POST stores dates, PATCH /api/trips/:id/places/:placeId added, GET returns dates. ADL-24 approved."
     },
     {
       "id": "UX-03",
@@ -939,6 +939,107 @@
       "brdRefs": [],
       "phase": 4,
       "notes": "src/frontend/components/TripList/TripsLayout.tsx — handleBulkDelete() catches errors with alert() rather than rendering an error state in the UI. Inconsistent with the rest of the app's error handling pattern. Fix: add error state and render inline. Found in codebase review 2026-03-22."
+    },
+
+    // ─── BRD BACKFILL — 2026-03-23 (requirements added in v2.4/v2.5 never tracked) ──
+    {
+      "id": "BRD-TR11",
+      "type": "feature",
+      "title": "Two-panel layout — fixed left list, right detail panel",
+      "status": "done",
+      "owner": "frontend",
+      "priority": "P0",
+      "brdRefs": ["TR-11"],
+      "phase": 3,
+      "notes": "Built in Tailwind migration (Phase 3). TripsLayout.tsx + React Router Outlet. Backfilled to tracker 2026-03-23."
+    },
+    {
+      "id": "BRD-TR12",
+      "type": "feature",
+      "title": "Persistent status bar in trip detail — current status + next action CTA",
+      "status": "done",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["TR-12"],
+      "phase": 3,
+      "notes": "Built in Tailwind migration (Phase 3). TripDetail.tsx lines 170–209 — flex-shrink-0 bar between header and scrollable content, shows status label + next-step button. Backfilled to tracker 2026-03-23."
+    },
+    {
+      "id": "BRD-DP01-04",
+      "type": "feature",
+      "title": "Trip list and detail display requirements (DP-01–04)",
+      "status": "done",
+      "owner": "frontend",
+      "priority": "P1",
+      "brdRefs": ["DP-01","DP-02","DP-03","DP-04"],
+      "phase": 3,
+      "notes": "Built in Tailwind migration + subsequent fixes. DP-01: trip card shows name/date/status/places. DP-02: trip count shown. DP-03: detail header shows name/date/status/categories/companions. DP-04: place date range derived from hotel check-in/check-out via resolvePlaceDateRange utility. Backfilled to tracker 2026-03-23."
+    },
+    {
+      "id": "BRD-IT0809",
+      "type": "feature",
+      "title": "Rating sort and filter in item list views, cross-trip by city (IT-08/09)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["IT-08","IT-09"],
+      "phase": 3,
+      "notes": "NOT built. Ratings are stored and displayed per item but no sort/filter UI exists in any item list view. IT-09 (cross-trip aggregation across all visits to a city) also unbuilt. Incorrectly marked done in FEAT-IT — corrected in audit 2026-03-23."
+    },
+    {
+      "id": "BRD-AD07",
+      "type": "feature",
+      "title": "Map shading configuration is per-user (AD-07)",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["AD-07"],
+      "phase": 3,
+      "notes": "NOT built. Admin panel manages shading colours globally. No per-user scoping in backend. Added in BRD v2.5, never tracked. Backfilled 2026-03-23."
+    },
+    {
+      "id": "BRD-AD08",
+      "type": "feature",
+      "title": "Companions list is per-user (AD-08)",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["AD-08"],
+      "phase": 3,
+      "notes": "NOT built. No per-user scoping on companions in backend repositories. Added in BRD v2.5, never tracked. Backfilled 2026-03-23."
+    },
+    {
+      "id": "BRD-AD09",
+      "type": "feature",
+      "title": "Categories/activities are global seeded defaults; deactivation is owner-only (AD-09)",
+      "status": "partial",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["AD-09"],
+      "phase": 3,
+      "notes": "Partially built. Seeded defaults exist and users can add custom entries. Owner-only deactivation not enforced — any user can deactivate. Added in BRD v2.5, never tracked. Backfilled 2026-03-23."
+    },
+    {
+      "id": "BRD-PH03",
+      "type": "feature",
+      "title": "Photo management accessible from trip detail header (PH-03)",
+      "status": "partial",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["PH-03"],
+      "phase": 3,
+      "notes": "Placeholder only. Photos button present in TripDetail.tsx header but shows 'Coming soon' — non-functional. Full photo feature deferred (see UX-05/PH-04). Backfilled 2026-03-23."
+    },
+    {
+      "id": "BRD-FL04",
+      "type": "feature",
+      "title": "Flight number lookup — auto-populate fields from flight number + date (FL-04)",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["FL-04"],
+      "phase": 5,
+      "notes": "Phase 2 feature. Given a flight number and date, auto-populate airline, airports, and scheduled times. Added in BRD v2.5, never tracked. Backfilled 2026-03-23."
     }
 
   ]

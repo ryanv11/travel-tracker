@@ -1,0 +1,53 @@
+COO SESSION PARK — 2026-03-23 ~14:00 UTC
+========================================
+
+## Session summary
+Bug-fixing and polish session. Fixed broken place creation (UX-02 backend),
+map region highlighting (two bugs), country shading rule, zoom threshold and
+contrast. Log noise cleanup. Made repo public. Updated all three docs.
+
+## Completed this session
+- UX-02 backend (PR #69): arrived_on/departed_on on trip_places, migration
+  0005, CreatePlaceSchema updated, POST stores/returns dates, PATCH endpoint.
+  Unblocked place creation which was broken (strict schema rejecting frontend fields).
+- MAP-01 region shading bugs (PR #71): sourcedata race fixed (once→on),
+  visibleCountryCode auto-detect via onMoveEnd queryRenderedFeatures.
+- Error handler log level (PR #72): 4xx → console.warn, 5xx → console.error.
+- Country shading rule (PR #73): simplified computeCountryState — any visit
+  to any city now highlights the country, regardless of region tier.
+- Region zoom + contrast (PR #74): REGION_ZOOM_THRESHOLD 4→3, fill-opacity
+  0.6→0.9, fill-outline-color added for state boundary lines.
+- Repo made public (free CI minutes going forward).
+- README, CLAUDE.md, CODEBASE.md all updated (PRs #75, #76).
+
+## State of play
+
+Clean:
+- main is up to date, no stale branches, drift ledger reviewed
+- No open UAT sessions, no PARTIAL/FAIL verdicts
+- 356 backend tests, 78 frontend tests, all green
+
+Open (actionable next session):
+- OP-06   P1  Pre-access hardening checklist (tied to NR-14)
+- OP-07   P1  UI/UX expert review of frontend
+- NR-14   P2  Clerk JWKS firewall (Issue #23) — waiting on Architect
+- QUAL-02 P3  Test assertion strength gaps (backlog)
+- BUG-20  P3  alert() in bulk delete — confirmed done but tracker may need recheck
+
+Deferred / future:
+- FUTURE-01  Import booking confirmations
+- FUTURE-02/03  Companion model
+
+## Suggested starting points — next session
+
+1. **OP-07: UI/UX expert review** — the map + trip list + detail panel are
+   now stable enough for a formal UX pass. Good time for it.
+
+2. **OP-06: Pre-access hardening** — if sharing the app with anyone soon,
+   worth running through the checklist before that happens.
+
+3. **Place date ranges (UX-02) UAT** — arrived_on/departed_on just shipped.
+   Worth a quick test of the date fields in AddPlaceFlow and PlaceDateForm.
+
+4. **NR-14 / Issue #23** — Clerk firewall is still deferred. If you want
+   real auth (not BYPASS_AUTH) locally, that needs resolving.
