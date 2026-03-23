@@ -21,19 +21,7 @@ npm run type:check:all         # TypeScript type check (frontend + backend)
 ```
 
 ## Pre-push checklist (mandatory)
-Before every `git push`, run all checks and iterate fixes until they pass:
-```bash
-npm run check              # Biome lint + format (fast, run first)
-npm run type:check:all
-npm run test:backend
-npm run test:frontend
-```
-Contract tests require a live backend — only run them if the backend is running locally.
-
-**Blocked-by-another-team exception:**
-If a test failure is caused by a missing schema column, API field, or other cross-team
-dependency that cannot be resolved without another team's work, document the blocker
-clearly in your commit message and push. Do not hold a push indefinitely for another team.
+Run `/pre-push` before every `git push` and iterate until all checks pass.
 
 ## Git workflow
 
@@ -46,6 +34,11 @@ clearly in your commit message and push. Do not hold a push indefinitely for ano
 - Branch off `main`, commit to your branch, then open a PR
 - PR title and description must reference the GitHub issue number (`Closes #N`) and BRD section if applicable
 - **COO reviews and merges PRs** — agents do not merge their own PRs
+
+### BRD → tracker rule (mandatory)
+Whenever the BRD is updated (a changelog entry is written), the COO must create tracker
+entries for every new requirement ID introduced before closing the session. No BRD version
+bump is complete until all new IDs have a corresponding tracker entry.
 
 ### GitHub issue ↔ tracker cross-referencing (mandatory)
 When raising a GitHub issue for something that has a tracker entry, include the tracker ID
@@ -80,12 +73,6 @@ git branch -D <branch-name>   # force-delete local branch (expected with squash 
 - Local branch must be manually deleted after merge — do not leave stale local branches
 - Run `git branch` after every merge session to confirm no branches remain except `main`
 
-## CI pipelines (GitHub Actions)
-| Workflow | Triggers | Jobs |
-|----------|----------|------|
-| `ci.yml` | push / PR | Type Check, Backend Tests, Frontend Tests, Contract Tests |
-| `security.yml` | push / PR | Dependency Scan (npm audit), Secret Scan (Gitleaks), SAST (Semgrep) |
-
 ## Environment
 - Running inside a devcontainer (Docker) — workspace at `/workspace`
 - Claude config dir: `/home/node/.claude`
@@ -102,62 +89,15 @@ npm run db:migrate    # apply pending migrations
 they are patched via `patches/drizzle-kit+0.31.9.patch` (auto-applied on `npm install`).
 See ADL-15 for full rationale.
 
-## UAT gate (mandatory)
-PO (user) live testing is a **mandatory gate** for phase completion. No phase can be
-formally closed as DONE without a UAT PASS verdict.
+## COO session startup (mandatory)
+Run `/coo-startup` at the start of every COO session before doing anything else.
 
-**On every COO session pickup:** read `jobs/PO/uat-log.md` and check for:
-- Any session with verdict PARTIAL or FAIL → surface to user before proceeding
-- Any unreviewed findings (unchecked `[ ]` items) → ask user for status before actioning
-- Any findings marked "fixed myself" without a bug ID → log them formally
-
-**Before actioning any bug fix:** if the finding came from UAT and the session verdict is
-not yet PASS, check in with the user — the fix may be part of a broader flow still being tested.
-
+UAT is a mandatory gate for phase completion — no phase closes without a PO PASS verdict.
 Screenshots are stored in `jobs/PO/screenshots/`.
 
-## Drift ledger
-
-`.planning/drift-ledger.jsonl` is an append-only log maintained by hooks. It records
-every file edit (tagged with `agent_type` for inline agent edits), a `subagent_stop`
-marker each time an inline agent completes, an automatic `session_end` sentinel on every
-session close, and a `reviewed` marker written manually by the COO after each startup audit.
-
-**On every COO session pickup** — after the UAT check, read the ledger:
-1. Find the last `reviewed` entry (or start of file if none exists yet)
-2. Scan forward to the end — look for any `subagent_stop` entries
-3. For each `subagent_stop`: verify the inline agent's work is documented —
-   completion report written, state files updated, changes committed
-4. Fix any gaps found, then write the `reviewed` sentinel:
-```bash
-echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"action\":\"reviewed\"}" >> .planning/drift-ledger.jsonl
-```
-
-If the ledger is clean (no `subagent_stop` entries since last `reviewed`), write the
-sentinel immediately and proceed. The `session_end` sentinel is written automatically
-by the SessionEnd hook — no manual step required at shutdown.
-
-**Post-spawn verification (inline agents only):** after every inline agent completes
-during a session, immediately verify before continuing: completion report written,
-state files updated, changes committed. The ledger is the audit layer that catches
-what this step misses — if startup reads are consistently clean, the verification
-is working. Repeated gaps signal that more work should move to dedicated sessions.
-
 ## Key files
-- `src/backend/server.ts` — Express app entry point, startup sequence, middleware
-- `src/backend/db/schema.ts` — Drizzle schema (single source of truth for all tables)
-- `src/backend/db/index.ts` — DB connection + table exports
-- `src/backend/routes/` — Express routers (trips, places, cities, map, admin)
-- `src/backend/repositories/` — User-scoped DB queries (ADL-18)
-- `src/backend/services/shading.service.ts` — Map shading state computation
-- `src/backend/migrations/` — Drizzle migration SQL files (0000–0005)
-- `src/frontend/main.tsx` — React entry point
-- `src/frontend/components/Map/` — MapLibre map, country + region shading layers
-- `src/frontend/components/TripDetail/AddPlaceFlow.tsx` — Add place modal (city search, create, carry-forward)
-- `src/frontend/hooks/` — TanStack Query hooks for all API resources
-- `src/frontend/services/geocodeRetryQueue.ts` — NR-06 offline geocoding retry
+See [CODEBASE.md](./CODEBASE.md) for the full repository map. Essential references:
 - `_project/tracker.json` — Feature/bug tracker (COO-maintained)
 - `_project/travel-tracker-BRD.md` — Business requirements document (v2.6)
-- `drizzle.config.ts` — Drizzle + DB config
-- `.github/workflows/` — CI (type check, tests) + security (audit, Gitleaks, Semgrep)
+- `src/backend/db/schema.ts` — Drizzle schema (single source of truth)
 - `patches/drizzle-kit+0.31.9.patch` — drizzle-kit SQLite bug fixes (patch-package)
