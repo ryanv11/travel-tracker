@@ -50,6 +50,7 @@ export async function createTestDb() {
       id TEXT PRIMARY KEY NOT NULL,
       clerk_id TEXT NOT NULL UNIQUE,
       email TEXT NOT NULL,
+      is_owner INTEGER DEFAULT 0 NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`,
@@ -201,7 +202,12 @@ export type TestDb = Awaited<ReturnType<typeof createTestDb>>;
 export const TEST_USER_ID = 'test-user-id';
 export const OTHER_USER_ID = 'other-user-id';
 
-export async function seedTestUser(db: TestDb, userId = TEST_USER_ID, clerkId = 'user_test') {
+export async function seedTestUser(
+  db: TestDb,
+  userId = TEST_USER_ID,
+  clerkId = 'user_test',
+  isOwner = 0,
+) {
   const now = Date.now();
   await db
     .insert(schema.users)
@@ -209,6 +215,7 @@ export async function seedTestUser(db: TestDb, userId = TEST_USER_ID, clerkId = 
       id: userId,
       clerkId,
       email: `${userId}@example.com`,
+      isOwner,
       createdAt: new Date(now),
       updatedAt: new Date(now),
     })
