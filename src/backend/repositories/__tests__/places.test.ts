@@ -204,6 +204,34 @@ describe('placeRepository.create', () => {
     expect(result.cityId).toBe(city.id);
   });
 
+  it('stores arrived_on and departed_on when provided', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Clermont-Ferrand');
+    const trip = await seedTrip(db);
+
+    const result = await placeRepository.create(
+      TEST_USER_ID,
+      trip.id,
+      city.id,
+      '2026-06-01',
+      '2026-06-05',
+    );
+
+    expect(result.arrivedOn).toBe('2026-06-01');
+    expect(result.departedOn).toBe('2026-06-05');
+  });
+
+  it('stores null dates when not provided', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Limoges');
+    const trip = await seedTrip(db);
+
+    const result = await placeRepository.create(TEST_USER_ID, trip.id, city.id);
+
+    expect(result.arrivedOn).toBeNull();
+    expect(result.departedOn).toBeNull();
+  });
+
   it('is retrievable via findByTrip after creation', async () => {
     const db = testDb!;
     const city = await seedCity(db, 'FR', 'Marseille');
@@ -317,5 +345,77 @@ describe('placeRepository.delete', () => {
     await expect(placeRepository.delete(TEST_USER_ID, trip.id, place.id)).rejects.toThrow(
       LockError,
     );
+  });
+});
+
+// ----------------------------------------------------------------
+// updateDates
+// ----------------------------------------------------------------
+
+describe('placeRepository.updateDates', () => {
+  it('updates arrived_on and departed_on on an existing place', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Tours');
+    const trip = await seedTrip(db);
+    const place = await placeRepository.create(TEST_USER_ID, trip.id, city.id);
+
+    const result = await placeRepository.updateDates(
+      TEST_USER_ID,
+      trip.id,
+      place.id,
+      '2026-07-10',
+      '2026-07-15',
+    );
+
+    expect(result.id).toBe(place.id);
+    expect(result.arrivedOn).toBe('2026-07-10');
+    expect(result.departedOn).toBe('2026-07-15');
+  });
+
+  it('clears dates when null is passed', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Angers');
+    const trip = await seedTrip(db);
+    const place = await placeRepository.create(
+      TEST_USER_ID,
+      trip.id,
+      city.id,
+      '2026-07-10',
+      '2026-07-15',
+    );
+
+    const result = await placeRepository.updateDates(TEST_USER_ID, trip.id, place.id, null, null);
+
+    expect(result.arrivedOn).toBeNull();
+    expect(result.departedOn).toBeNull();
+  });
+
+  it('throws NotFoundError when place does not exist', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+
+    await expect(
+      placeRepository.updateDates(TEST_USER_ID, trip.id, 99999, '2026-07-10', null),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws NotFoundError when trip does not exist', async () => {
+    await expect(
+      placeRepository.updateDates(TEST_USER_ID, 99999, 1, '2026-07-10', null),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws LockError when trip is locked', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Reims');
+    const trip = await seedTrip(db);
+    const place = await placeRepository.create(TEST_USER_ID, trip.id, city.id);
+
+    const { eq } = await import('drizzle-orm');
+    await db.update(schema.trips).set({ status: 'locked' }).where(eq(schema.trips.id, trip.id));
+
+    await expect(
+      placeRepository.updateDates(TEST_USER_ID, trip.id, place.id, '2026-07-10', null),
+    ).rejects.toThrow(LockError);
   });
 });

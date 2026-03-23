@@ -24,6 +24,8 @@ import { ConflictError, LockError, NotFoundError } from '../errors.js';
 export interface PlaceWithCity {
   id: number;
   cityId: number;
+  arrivedOn: string | null;
+  departedOn: string | null;
   createdAt: string;
   city: {
     id: number;
@@ -61,6 +63,8 @@ export const placeRepository = {
       .select({
         id: tripPlaces.id,
         cityId: tripPlaces.cityId,
+        arrivedOn: tripPlaces.arrivedOn,
+        departedOn: tripPlaces.departedOn,
         createdAt: tripPlaces.createdAt,
         cityName: cities.name,
         cityCountryCode: cities.countryCode,
@@ -90,6 +94,8 @@ export const placeRepository = {
     return placesRows.map((p) => ({
       id: p.id,
       cityId: p.cityId,
+      arrivedOn: p.arrivedOn ?? null,
+      departedOn: p.departedOn ?? null,
       createdAt: p.createdAt,
       city: {
         id: p.cityId,
@@ -126,7 +132,13 @@ export const placeRepository = {
    * Verifies the trip is writable (exists, owned, not locked) before inserting.
    * Throws ConflictError if the city already exists on the trip.
    */
-  async create(userId: string, tripId: number, cityId: number): Promise<TripPlace> {
+  async create(
+    userId: string,
+    tripId: number,
+    cityId: number,
+    arrivedOn?: string | null,
+    departedOn?: string | null,
+  ): Promise<TripPlace> {
     await this.assertWritable(userId, tripId);
 
     const db = getDb();
@@ -142,7 +154,15 @@ export const placeRepository = {
     const now = new Date().toISOString();
     const inserted = await db
       .insert(tripPlaces)
-      .values({ tripId, cityId, userId, createdAt: now, updatedAt: now })
+      .values({
+        tripId,
+        cityId,
+        userId,
+        arrivedOn: arrivedOn ?? null,
+        departedOn: departedOn ?? null,
+        createdAt: now,
+        updatedAt: now,
+      })
       .returning();
     return inserted[0];
   },
@@ -164,6 +184,39 @@ export const placeRepository = {
 
     await db.delete(tripPlaces).where(eq(tripPlaces.id, placeId));
     return true;
+  },
+
+  /**
+   * Updates arrived_on/departed_on on a specific place.
+   * Verifies the parent trip is writable and the place belongs to it.
+   * Returns the updated TripPlace row.
+   * Throws NotFoundError if the place doesn't exist on the given trip.
+   */
+  async updateDates(
+    userId: string,
+    tripId: number,
+    placeId: number,
+    arrivedOn?: string | null,
+    departedOn?: string | null,
+  ): Promise<TripPlace> {
+    await this.assertWritable(userId, tripId);
+
+    const db = getDb();
+
+    const existing = await db
+      .select({ id: tripPlaces.id })
+      .from(tripPlaces)
+      .where(and(eq(tripPlaces.id, placeId), eq(tripPlaces.tripId, tripId)))
+      .limit(1);
+    if (!existing.length) throw new NotFoundError('Place');
+
+    const now = new Date().toISOString();
+    const updated = await db
+      .update(tripPlaces)
+      .set({ arrivedOn: arrivedOn ?? null, departedOn: departedOn ?? null, updatedAt: now })
+      .where(eq(tripPlaces.id, placeId))
+      .returning();
+    return updated[0];
   },
 
   /**

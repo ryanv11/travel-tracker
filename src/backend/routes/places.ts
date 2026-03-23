@@ -18,7 +18,11 @@ import { validateBody } from '../middleware/validate.js';
 import { placeRepository } from '../repositories/places.js';
 import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
 import { CarryForwardBodySchema } from '../validation/items.schemas.js';
-import { AddPlaceActivitySchema, CreatePlaceSchema } from '../validation/places.schemas.js';
+import {
+  AddPlaceActivitySchema,
+  CreatePlaceSchema,
+  UpdatePlaceDatesSchema,
+} from '../validation/places.schemas.js';
 
 const placesRouter = Router({ mergeParams: true });
 export default placesRouter;
@@ -39,6 +43,8 @@ placesRouter.get(
       result.map((p) => ({
         id: p.id,
         city_id: p.cityId,
+        arrived_on: p.arrivedOn ?? null,
+        departed_on: p.departedOn ?? null,
         created_at: p.createdAt,
         city: p.city,
         activities: p.activities,
@@ -58,7 +64,7 @@ placesRouter.post(
     const tripId = parseInt(String(req.params.tripId), 10);
     if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
-    const { city_id } = req.body;
+    const { city_id, arrived_on, departed_on } = req.body;
     const db = getDb();
 
     // Verify city exists
@@ -66,12 +72,14 @@ placesRouter.post(
     if (!cityRows.length) throw new NotFoundError('City');
 
     // placeRepository.create verifies trip ownership + lock status + duplicate check
-    const place = await placeRepository.create(userId, tripId, city_id);
+    const place = await placeRepository.create(userId, tripId, city_id, arrived_on, departed_on);
     const city = cityRows[0];
 
     res.status(201).json({
       id: place.id,
       city_id: place.cityId,
+      arrived_on: place.arrivedOn ?? null,
+      departed_on: place.departedOn ?? null,
       created_at: place.createdAt,
       city: {
         id: city.id,
@@ -102,6 +110,41 @@ placesRouter.delete(
     if (!deleted) throw new NotFoundError('Place');
 
     res.status(204).send();
+  }),
+);
+
+// ----------------------------------------------------------------
+// PATCH /api/trips/:tripId/places/:placeId
+// ----------------------------------------------------------------
+placesRouter.patch(
+  '/:placeId',
+  validateBody(UpdatePlaceDatesSchema),
+  asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
+    const tripId = parseInt(String(req.params.tripId), 10);
+    const placeId = parseInt(String(req.params.placeId), 10);
+    if (Number.isNaN(tripId) || Number.isNaN(placeId)) throw new NotFoundError('Place');
+
+    const { arrived_on, departed_on } = req.body;
+
+    const place = await placeRepository.updateDates(
+      userId,
+      tripId,
+      placeId,
+      arrived_on,
+      departed_on,
+    );
+
+    res.json({
+      id: place.id,
+      trip_id: place.tripId,
+      city_id: place.cityId,
+      user_id: place.userId,
+      arrived_on: place.arrivedOn ?? null,
+      departed_on: place.departedOn ?? null,
+      created_at: place.createdAt,
+      updated_at: place.updatedAt,
+    });
   }),
 );
 

@@ -313,6 +313,8 @@ export const tripPlaces = sqliteTable(
       .notNull()
       .references(() => cities.id),
     userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
+    arrivedOn: text('arrived_on'), // nullable, no default (ADL-24)
+    departedOn: text('departed_on'), // nullable, no default (ADL-24)
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
