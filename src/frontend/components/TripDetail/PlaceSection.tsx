@@ -5,6 +5,7 @@
  *   D-03: Per-place date range derived from hotel items (check_in_date/check_out_date),
  *         falling back to trip start/end dates.
  *   D-04: Full country name shown in subtitle (joined from countries table — issue #5).
+ *   UX-02: Explicit arrived_on / departed_on dates on place; edit dates via PATCH.
  *
  * Shows city name, country, activity tags, date range, and a list of ItemCards.
  * Contains the "Add Item" button (hidden when trip is locked).
@@ -12,8 +13,10 @@
 import { useState } from 'react';
 import type { Item, TripPlace } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
+import { resolvePlaceDateRange } from '../../utils/resolvePlaceDateRange';
 import { ItemCard } from './ItemCard';
 import { ItemForm } from './ItemForm';
+import { PlaceDateForm } from './PlaceDateForm';
 
 interface PlaceSectionProps {
   /** The place (city + items) to render. */
@@ -29,28 +32,14 @@ interface PlaceSectionProps {
 }
 
 /**
- * Derives the date range for a place from hotel item check-in/check-out dates (D-03).
- * Falls back to trip start/end dates if no hotel items with dates exist.
+ * Formats a resolved date range for display.
+ * Handles null `from` or `to` gracefully.
  */
-function derivePlaceDateRange(
-  items: TripPlace['items'],
-  tripStartDate: string,
-  tripEndDate: string,
-): { start: string; end: string } {
-  const hotelItems = items.filter(
-    (item) => item.item_type === 'hotel' && item.check_in_date && item.check_out_date,
-  );
-
-  if (hotelItems.length === 0) {
-    return { start: tripStartDate, end: tripEndDate };
-  }
-
-  const checkIns = hotelItems.map((i) => i.check_in_date as string);
-  const checkOuts = hotelItems.map((i) => i.check_out_date as string);
-  const start = checkIns.reduce((a, b) => (a < b ? a : b));
-  const end = checkOuts.reduce((a, b) => (a > b ? a : b));
-
-  return { start, end };
+function formatDateRange(from: string | null, to: string | null): string {
+  if (from && to) return `${formatDate(from)} – ${formatDate(to)}`;
+  if (from) return `From ${formatDate(from)}`;
+  if (to) return `Until ${formatDate(to)}`;
+  return '';
 }
 
 /**
@@ -71,6 +60,7 @@ export function PlaceSection({
 }: PlaceSectionProps) {
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [showEditDates, setShowEditDates] = useState(false);
 
   const handleEditItem = (item: Item) => setEditingItem(item);
   const handleCloseForm = () => {
@@ -78,21 +68,33 @@ export function PlaceSection({
     setEditingItem(null);
   };
 
-  // D-03: derive place date range from hotel items
-  const dateRange = derivePlaceDateRange(place.items, tripStartDate, tripEndDate);
+  // UX-02: resolve date range using three-source precedence (ADL-24 §5)
+  const dateRange = resolvePlaceDateRange(place, tripStartDate, tripEndDate);
+  const dateRangeDisplay = formatDateRange(dateRange.from, dateRange.to);
+
+  // Determine if explicit dates are set (to show a visual indicator)
+  const hasExplicitDates =
+    (place.arrived_on ?? null) !== null || (place.departed_on ?? null) !== null;
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden mb-4 shadow-sm">
       {/* Section header */}
-      <div className="bg-gray-100 px-4 py-3 flex justify-between items-center border-b border-gray-200">
-        <div>
+      <div className="bg-gray-100 px-4 py-3 flex justify-between items-start border-b border-gray-200">
+        <div className="min-w-0">
           {/* D-04: City name + full country name from API (issue #5) */}
           <span className="font-semibold text-sm text-gray-900">{place.city.name}</span>
 
-          {/* D-03/DELTA-09: Country name · date range on single subtitle line (DP-04) */}
+          {/* D-03/UX-02: Country name · date range on single subtitle line */}
           <p className="mt-0.5 text-xs text-gray-500">
-            {place.city.country_name ?? place.city.country_code} · {formatDate(dateRange.start)} –{' '}
-            {formatDate(dateRange.end)}
+            {place.city.country_name ?? place.city.country_code}
+            {dateRangeDisplay && (
+              <>
+                {' · '}
+                <span className={hasExplicitDates ? 'text-teal-700 font-medium' : ''}>
+                  {dateRangeDisplay}
+                </span>
+              </>
+            )}
           </p>
 
           {/* Activity tags */}
@@ -110,15 +112,29 @@ export function PlaceSection({
           )}
         </div>
 
-        {!isLocked && (
-          <button
-            type="button"
-            onClick={() => setShowAddItem(true)}
-            className="px-3.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 cursor-pointer"
-          >
-            + Add Item
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+          {/* UX-02: Edit dates button (hidden when locked) */}
+          {!isLocked && (
+            <button
+              type="button"
+              onClick={() => setShowEditDates(true)}
+              className="px-2.5 py-1.5 border border-gray-300 rounded-md bg-white text-xs text-gray-600 hover:bg-gray-50 cursor-pointer"
+              title="Edit arrival / departure dates"
+            >
+              {hasExplicitDates ? 'Edit dates' : 'Set dates'}
+            </button>
+          )}
+
+          {!isLocked && (
+            <button
+              type="button"
+              onClick={() => setShowAddItem(true)}
+              className="px-3.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 cursor-pointer"
+            >
+              + Add Item
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Items list */}
@@ -149,6 +165,18 @@ export function PlaceSection({
           tripPlaceId={place.id}
           existingItem={editingItem}
           onClose={handleCloseForm}
+        />
+      )}
+
+      {/* UX-02: Edit place dates modal */}
+      {showEditDates && (
+        <PlaceDateForm
+          tripId={tripId}
+          placeId={place.id}
+          currentArrivedOn={place.arrived_on ?? null}
+          currentDepartedOn={place.departed_on ?? null}
+          cityName={place.city.name}
+          onClose={() => setShowEditDates(false)}
         />
       )}
     </div>
