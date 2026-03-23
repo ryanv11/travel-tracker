@@ -237,30 +237,32 @@ export const tripRepository = {
   ): Promise<void> {
     const db = getDb();
 
-    if (categoryIds !== undefined) {
-      await db.delete(tripCategoriesMap).where(eq(tripCategoriesMap.tripId, tripId));
-      if (categoryIds.length) {
-        await db
-          .insert(tripCategoriesMap)
-          .values(categoryIds.map((id) => ({ tripId, categoryId: id })));
+    await db.transaction(async (tx) => {
+      if (categoryIds !== undefined) {
+        await tx.delete(tripCategoriesMap).where(eq(tripCategoriesMap.tripId, tripId));
+        if (categoryIds.length) {
+          await tx
+            .insert(tripCategoriesMap)
+            .values(categoryIds.map((id) => ({ tripId, categoryId: id })));
+        }
       }
-    }
-    if (companionIds !== undefined) {
-      await db.delete(tripCompanionsMap).where(eq(tripCompanionsMap.tripId, tripId));
-      if (companionIds.length) {
-        await db
-          .insert(tripCompanionsMap)
-          .values(companionIds.map((id) => ({ tripId, companionId: id })));
+      if (companionIds !== undefined) {
+        await tx.delete(tripCompanionsMap).where(eq(tripCompanionsMap.tripId, tripId));
+        if (companionIds.length) {
+          await tx
+            .insert(tripCompanionsMap)
+            .values(companionIds.map((id) => ({ tripId, companionId: id })));
+        }
       }
-    }
-    if (activityIds !== undefined) {
-      await db.delete(tripActivitiesMap).where(eq(tripActivitiesMap.tripId, tripId));
-      if (activityIds.length) {
-        await db
-          .insert(tripActivitiesMap)
-          .values(activityIds.map((id) => ({ tripId, activityId: id })));
+      if (activityIds !== undefined) {
+        await tx.delete(tripActivitiesMap).where(eq(tripActivitiesMap.tripId, tripId));
+        if (activityIds.length) {
+          await tx
+            .insert(tripActivitiesMap)
+            .values(activityIds.map((id) => ({ tripId, activityId: id })));
+        }
       }
-    }
+    });
   },
 
   /**
