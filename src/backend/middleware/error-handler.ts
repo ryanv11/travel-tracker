@@ -27,8 +27,13 @@ export function errorHandler(
 ): void {
   const statusCode = err.statusCode ?? 500;
 
-  // Log full error server-side (SEC-08: never log req/res body)
-  console.error('[ERROR]', req.method, req.path, statusCode, err.message, err.stack);
+  // Log full error server-side (SEC-08: never log req/res body).
+  // 4xx = expected client/application errors → warn. 5xx = unexpected → error.
+  if (statusCode < 500) {
+    console.warn('[WARN]', req.method, req.path, statusCode, err.message);
+  } else {
+    console.error('[ERROR]', req.method, req.path, statusCode, err.message, err.stack);
+  }
 
   // Return sanitised error to client — never expose stack traces
   if (statusCode < 500) {
