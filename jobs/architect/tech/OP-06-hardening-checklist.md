@@ -369,9 +369,31 @@ options. Signature and expiry are validated; issuer and audience are not.
 2. Pass `{ issuer: process.env.CLERK_ISSUER, audience: process.env.CLERK_AUDIENCE }` to
    `jwtVerify` in `auth.ts`.
 
+**Concrete env var values:**
+
+- `CLERK_ISSUER=https://just-raptor-89.clerk.accounts.dev`
+  This is the Clerk instance URL. Clerk sets `iss` in every JWT to the instance's base URL.
+  The format is always `https://<instance-slug>.clerk.accounts.dev` for Clerk-hosted instances.
+
+- `CLERK_AUDIENCE` — Clerk sets `aud` to the Frontend API URL for the instance. For this
+  project the value is `https://just-raptor-89.clerk.accounts.dev`. In some Clerk
+  configurations `aud` may be set to the published domain or a custom audience configured
+  in the JWT template. **Backend agent must verify the actual `aud` value by:**
+  1. Decoding a real Clerk JWT from the running app (e.g. with `jwt.io`) and reading the
+     `aud` claim directly.
+  2. Cross-checking against Clerk Dashboard → JWT Templates → Default template → Audience.
+  Document the confirmed value in `.env.local.example` before implementation.
+
+- **BYPASS_AUTH sessions:** When `BYPASS_AUTH=true`, the middleware short-circuits before
+  any token is parsed — `jwtVerify` is never called. `CLERK_ISSUER` and `CLERK_AUDIENCE`
+  env vars are not read during BYPASS_AUTH sessions. Contract tests that use `BYPASS_AUTH`
+  do not need these vars set and are unaffected by this validation addition.
+
 **Verification:**
 - Contract test: Supply a JWT signed by a different Clerk instance (or forge `iss`); confirm 401.
+- Contract test: Supply a JWT with a mismatched `aud`; confirm 401.
 - Code review: Confirm `jwtVerify` options include issuer and audience.
+- Code review: Confirm BYPASS_AUTH short-circuit runs before `jwtVerify` is called.
 
 ---
 
@@ -493,18 +515,44 @@ constraint) so it cannot re-emerge after a future refactor.
 the production database before NR-14 closes.
 
 **Remediation:**
+
+Step 1 — Audit (identify whether backfill is needed):
 ```sql
-SELECT 'trips' AS tbl, COUNT(*) FROM trips WHERE user_id IS NULL
+SELECT 'trips' AS tbl, COUNT(*) AS null_count FROM trips WHERE user_id IS NULL
 UNION ALL
 SELECT 'trip_places', COUNT(*) FROM trip_places WHERE user_id IS NULL
 UNION ALL
 SELECT 'items', COUNT(*) FROM items WHERE user_id IS NULL;
 ```
-If counts are non-zero, backfill with the owner's UUID (retrieve it from the users table
-using the owner's Clerk ID) before applying the NOT NULL migration.
+
+Step 2 — Backfill (run only if any count from Step 1 is non-zero):
+```sql
+-- Backfill trips
+UPDATE trips
+SET user_id = (SELECT id FROM users WHERE clerk_id = '<OWNER_CLERK_ID>')
+WHERE user_id IS NULL;
+
+-- Backfill trip_places
+UPDATE trip_places
+SET user_id = (SELECT id FROM users WHERE clerk_id = '<OWNER_CLERK_ID>')
+WHERE user_id IS NULL;
+
+-- Backfill items
+UPDATE items
+SET user_id = (SELECT id FROM users WHERE clerk_id = '<OWNER_CLERK_ID>')
+WHERE user_id IS NULL;
+```
+
+Replace `<OWNER_CLERK_ID>` with the value from `OWNER_CLERK_ID` in `.env.local`
+(e.g. `user_2abc...`). This subquery resolves the owner's internal UUID from their
+Clerk ID and assigns it to all un-owned rows.
+
+Step 3 — Post-backfill verification: re-run the Step 1 audit query and confirm all
+three counts return 0 before proceeding to HC-07c. Do not apply the NOT NULL migration
+while any null-owned records remain — the migration will fail with a constraint violation.
 
 **Verification:**
-- The above query run against production returns 0 for all three tables.
+- The Step 1 audit query run against production returns 0 for all three tables.
 
 ---
 
@@ -521,7 +569,14 @@ NOT NULL constraint is applied).
 
 **Verification:**
 - Code review: `schema.ts` shows `.notNull()` on userId in trips, trip_places, items.
-- `db:generate` produces the expected ALTER TABLE statements.
+- After running `db:generate`, review the generated migration file in
+  `src/backend/migrations/` before running `db:migrate`. Confirm the migration contains
+  the expected `ALTER TABLE` statements for trips, trip_places, and items — and nothing
+  else. Given the known drizzle-kit patch history (ADL-15, patches/drizzle-kit+0.31.9.patch),
+  verify the generated SQL does not include unintended table recreations, duplicate index
+  creation, or truncated CHECK constraints. Only run `db:migrate` once the generated SQL
+  has been reviewed and confirmed correct.
+- `db:migrate` completes without error on a DB where HC-07b backfill has already been applied.
 
 ---
 
