@@ -856,23 +856,23 @@
       "id": "BUG-15",
       "type": "bug",
       "title": "executeCarryForward — batch inserts not wrapped in transaction",
-      "status": "pending",
+      "status": "done",
       "owner": "backend",
       "priority": "P1",
       "brdRefs": [],
       "phase": 4,
-      "notes": "src/backend/services/items.service.ts — executeCarryForward() loops over db.insert() calls with no transaction. If a mid-loop insert fails, earlier inserts are already committed, leaving the DB in a partially populated state. Fix: wrap the loop in db.transaction(). GitHub #53. Found in codebase review 2026-03-22."
+      "notes": "Fixed in PR #64 (merged 2026-03-23). executeCarryForward wrapped in db.transaction(). GitHub #53."
     },
     {
       "id": "BUG-16",
       "type": "bug",
       "title": "replaceAssociations — delete-then-insert not wrapped in transaction",
-      "status": "pending",
+      "status": "done",
       "owner": "backend",
       "priority": "P1",
       "brdRefs": [],
       "phase": 4,
-      "notes": "src/backend/repositories/trips.ts — replaceAssociations() deletes then re-inserts categories/companions/activities sequentially. If an insert fails after the delete, the old associations are permanently lost. Fix: wrap the entire method in db.transaction(). Found in codebase review 2026-03-22."
+      "notes": "Fixed in PR #64 (merged 2026-03-23). replaceAssociations uses db.batch() (not db.transaction()) — libSQL Sqlite3Client.transaction() nulls #db causing new :memory: connection for subsequent queries. db.batch() is atomic and safe. GitHub #54."
     },
     {
       "id": "BUG-17",
