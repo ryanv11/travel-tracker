@@ -62,7 +62,9 @@ export function RegionLayer({ regionData }: RegionLayerProps) {
       applyShading();
     } else {
       map.on('sourcedata', applyShading);
-      return () => { map.off('sourcedata', applyShading); };
+      return () => {
+        map.off('sourcedata', applyShading);
+      };
     }
   }, [map, regionData]);
 
