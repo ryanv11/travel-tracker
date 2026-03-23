@@ -11,6 +11,7 @@ import { Router } from 'express';
 import { countries, getDb, mapShadingConfig } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
+import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody } from '../middleware/validate.js';
 import {
   getAllCountryShading,
@@ -24,9 +25,11 @@ export const mapRouter = Router();
 
 // ----------------------------------------------------------------
 // GET /api/map/shading  — all countries
+// ADL-27 / HC-04: owner-only (shading config is personally identifiable per AD-07)
 // ----------------------------------------------------------------
 mapRouter.get(
   '/shading',
+  requireOwner,
   asyncHandler(async (_req, res) => {
     const result = await getAllCountryShading();
     res.json(
@@ -42,9 +45,11 @@ mapRouter.get(
 
 // ----------------------------------------------------------------
 // GET /api/map/shading/config  — all shading config rows
+// ADL-27 / HC-04: owner-only (shading config is personally identifiable per AD-07)
 // ----------------------------------------------------------------
 mapRouter.get(
   '/shading/config',
+  requireOwner,
   asyncHandler(async (_req, res) => {
     const db = getDb();
     const rows = await db.select().from(mapShadingConfig);
@@ -61,9 +66,11 @@ mapRouter.get(
 
 // ----------------------------------------------------------------
 // PATCH /api/map/shading/config/:stateKey
+// ADL-27 / HC-05: owner-only (shading config update)
 // ----------------------------------------------------------------
 mapRouter.patch(
   '/shading/config/:stateKey',
+  requireOwner,
   validateBody(UpdateShadingConfigSchema),
   asyncHandler(async (req, res) => {
     const stateKey = String(req.params.stateKey);

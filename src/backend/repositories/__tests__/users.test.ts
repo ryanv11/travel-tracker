@@ -5,6 +5,8 @@
  *   - findOrCreateByClerkId: creates new user when not found
  *   - findOrCreateByClerkId: returns existing user when found
  *   - findOrCreateByClerkId: updates email when it has changed
+ *   - findOrCreateByClerkId: sets isOwner=1 when clerkId matches OWNER_CLERK_ID (ADL-27)
+ *   - setOwner: sets is_owner=1 for owner, 0 for all others (ADL-27)
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -92,5 +94,97 @@ describe('userRepository.findOrCreateByClerkId', () => {
     const updated = await userRepository.findOrCreateByClerkId('clerk_abc', 'new@example.com');
 
     expect(updated.id).toBe(original.id);
+  });
+
+  it('sets isOwner=0 for new users when OWNER_CLERK_ID is not set', async () => {
+    delete process.env.OWNER_CLERK_ID;
+    const user = await userRepository.findOrCreateByClerkId('clerk_abc', 'alice@example.com');
+    expect(user.isOwner).toBe(0);
+  });
+
+  it('sets isOwner=1 when clerkId matches OWNER_CLERK_ID (ADL-27 fresh-DB case)', async () => {
+    process.env.OWNER_CLERK_ID = 'clerk_owner';
+    try {
+      const user = await userRepository.findOrCreateByClerkId('clerk_owner', 'owner@example.com');
+      expect(user.isOwner).toBe(1);
+    } finally {
+      delete process.env.OWNER_CLERK_ID;
+    }
+  });
+
+  it('sets isOwner=0 for non-owner users when OWNER_CLERK_ID is set', async () => {
+    process.env.OWNER_CLERK_ID = 'clerk_owner';
+    try {
+      const user = await userRepository.findOrCreateByClerkId('clerk_other', 'other@example.com');
+      expect(user.isOwner).toBe(0);
+    } finally {
+      delete process.env.OWNER_CLERK_ID;
+    }
+  });
+
+  it('returns isOwner field from existing user row', async () => {
+    // Create user first, then retrieve it
+    const user = await userRepository.findOrCreateByClerkId('clerk_abc', 'alice@example.com');
+    const same = await userRepository.findOrCreateByClerkId('clerk_abc', 'alice@example.com');
+    expect(same.isOwner).toBe(user.isOwner);
+  });
+});
+
+// ----------------------------------------------------------------
+// setOwner (ADL-27)
+// ----------------------------------------------------------------
+
+describe('userRepository.setOwner', () => {
+  it('sets is_owner=1 for the matching clerkId', async () => {
+    await userRepository.findOrCreateByClerkId('clerk_owner', 'owner@example.com');
+    await userRepository.setOwner('clerk_owner');
+
+    // Re-fetch to verify
+    const updated = await userRepository.findOrCreateByClerkId('clerk_owner', 'owner@example.com');
+    expect(updated.isOwner).toBe(1);
+  });
+
+  it('sets is_owner=0 for all other users', async () => {
+    await userRepository.findOrCreateByClerkId('clerk_owner', 'owner@example.com');
+    await userRepository.findOrCreateByClerkId('clerk_other', 'other@example.com');
+
+    await userRepository.setOwner('clerk_owner');
+
+    const other = await userRepository.findOrCreateByClerkId('clerk_other', 'other@example.com');
+    expect(other.isOwner).toBe(0);
+  });
+
+  it('is idempotent — calling twice gives the same result', async () => {
+    await userRepository.findOrCreateByClerkId('clerk_owner', 'owner@example.com');
+    await userRepository.setOwner('clerk_owner');
+    await userRepository.setOwner('clerk_owner');
+
+    const user = await userRepository.findOrCreateByClerkId('clerk_owner', 'owner@example.com');
+    expect(user.isOwner).toBe(1);
+  });
+
+  it('handles fresh DB with no matching user row (updates 0 rows silently)', async () => {
+    // No rows exist — setOwner should not throw
+    await expect(userRepository.setOwner('clerk_nonexistent')).resolves.toBeUndefined();
+  });
+
+  it('changes owner: previous owner becomes non-owner', async () => {
+    // First: set clerk_owner_a as owner
+    await userRepository.findOrCreateByClerkId('clerk_owner_a', 'a@example.com');
+    await userRepository.findOrCreateByClerkId('clerk_owner_b', 'b@example.com');
+    await userRepository.setOwner('clerk_owner_a');
+
+    let userA = await userRepository.findOrCreateByClerkId('clerk_owner_a', 'a@example.com');
+    let userB = await userRepository.findOrCreateByClerkId('clerk_owner_b', 'b@example.com');
+    expect(userA.isOwner).toBe(1);
+    expect(userB.isOwner).toBe(0);
+
+    // Now: change owner to clerk_owner_b
+    await userRepository.setOwner('clerk_owner_b');
+
+    userA = await userRepository.findOrCreateByClerkId('clerk_owner_a', 'a@example.com');
+    userB = await userRepository.findOrCreateByClerkId('clerk_owner_b', 'b@example.com');
+    expect(userA.isOwner).toBe(0);
+    expect(userB.isOwner).toBe(1);
   });
 });

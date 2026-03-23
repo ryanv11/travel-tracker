@@ -1,16 +1,16 @@
 /**
- * Integration tests for getAllCountryShading() — ADL-23 case (d).
+ * Contract tests for ADL-27 requireOwner middleware.
  *
- * Case (d): a country appears in trip_countries but has NO city visits
- * (no trip_places rows). Before ADL-23, such a country would show as
- * 'never_visited' because getAllCountryShading() only joined through
- * trip_places. After ADL-23 the service must union trip_countries,
- * so a planning trip linked via trip_countries gets 'planned'.
+ * Verifies HC-04 / HC-05 / HC-06 from OP-06 hardening checklist:
+ *   HC-04: Admin routes (categories, activities, companions, countries, regions) require owner
+ *   HC-05: Map shading config routes require owner
+ *   HC-06: POST /api/cities requires owner
  *
- * These tests use an in-memory libSQL database. They exercise the
- * real getAllCountryShading() function (not mocked), so they will
- * fail if the Backend API agent's ADL-23 implementation is not yet
- * merged — that is expected and is documented in the PR description.
+ * Test structure:
+ *   - Non-owner tests: req.user.isOwner = 0 → expect 403 Forbidden
+ *   - Owner tests:     req.user.isOwner = 1 → expect 200/201 (success)
+ *
+ * Uses an in-memory libSQL database per test (full isolation).
  */
 
 import { createClient } from '@libsql/client';
@@ -125,11 +125,14 @@ async function createTestDb() {
       trip_id INTEGER NOT NULL,
       city_id INTEGER NOT NULL,
       user_id TEXT,
+      arrived_on TEXT,
+      departed_on TEXT,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
       FOREIGN KEY (city_id) REFERENCES cities(id),
-      FOREIGN KEY (user_id) REFERENCES users(id)
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(trip_id, city_id)
     )`,
     `CREATE TABLE IF NOT EXISTS trip_place_activities_map (
       trip_place_id INTEGER NOT NULL,
@@ -208,10 +211,13 @@ async function createTestDb() {
 }
 
 // ----------------------------------------------------------------
-// Mock getDb
+// Module mocks
 // ----------------------------------------------------------------
 
 let testDb: Awaited<ReturnType<typeof createTestDb>> | null = null;
+
+// Controls what isOwner value the mock requireAuth sets on req.user
+let mockIsOwner = 0;
 
 vi.mock('../../db/index.js', async (importOriginal) => {
   const real = await importOriginal<typeof import('../../db/index.js')>();
@@ -224,16 +230,44 @@ vi.mock('../../db/index.js', async (importOriginal) => {
   };
 });
 
-// Import after mock is declared (Vitest hoists vi.mock above imports)
-const { getAllCountryShading, invalidateConfigCache } = await import('../shading.service.js');
+vi.mock('../../middleware/auth.js', () => ({
+  requireAuth: (
+    _req: import('express').Request,
+    _res: import('express').Response,
+    next: import('express').NextFunction,
+  ) => {
+    (_req as import('express').Request & { user?: unknown }).user = {
+      id: 'test-user-id',
+      clerkId: 'user_test',
+      email: 'test@example.com',
+      isOwner: mockIsOwner,
+    };
+    next();
+  },
+}));
+
+vi.mock('../../services/geocoding.service.js', () => ({
+  resolveCity: async () => undefined,
+}));
+
+// Mock shading service to avoid DB dependency in map shading GET test
+vi.mock('../../services/shading.service.js', () => ({
+  getAllCountryShading: async () => [],
+  getCountryShading: async () => null,
+  getRegionShading: async () => [],
+  invalidateConfigCache: () => undefined,
+}));
+
+const { default: app } = await import('../../server-test-app.js');
+const supertest = (await import('supertest')).default;
 
 // ----------------------------------------------------------------
-// Tests
+// Seed helpers
 // ----------------------------------------------------------------
 
 const TEST_USER_ID = 'test-user-id';
 
-async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
+async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>, isOwner = 0) {
   const now = Date.now();
   await db
     .insert(schema.users)
@@ -241,121 +275,155 @@ async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
       id: TEST_USER_ID,
       clerkId: 'user_test',
       email: 'test@example.com',
+      isOwner,
       createdAt: new Date(now),
       updatedAt: new Date(now),
     })
     .onConflictDoNothing();
 }
 
-describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () => {
-  beforeEach(async () => {
-    testDb = await createTestDb();
-    await seedTestUser(testDb);
-    // Invalidate the in-memory config cache so each test starts clean
-    invalidateConfigCache();
+async function seedCountry(
+  db: Awaited<ReturnType<typeof createTestDb>>,
+  countryCode = 'US',
+  name = 'United States',
+) {
+  await db.insert(schema.countries).values({ countryCode, name }).onConflictDoNothing();
+}
+
+// ----------------------------------------------------------------
+// Setup / teardown
+// ----------------------------------------------------------------
+
+beforeEach(async () => {
+  testDb = await createTestDb();
+  mockIsOwner = 0; // Default: non-owner
+});
+
+afterEach(() => {
+  testDb = null;
+  mockIsOwner = 0;
+});
+
+// ================================================================
+// HC-04: Admin routes require owner
+// ================================================================
+
+describe('HC-04: Non-owner authenticated user receives 403 on admin routes', () => {
+  it('GET /api/admin/categories → 403 for non-owner', async () => {
+    mockIsOwner = 0;
+    await seedTestUser(testDb!, 0);
+    const res = await supertest(app).get('/api/admin/categories');
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
 
-  afterEach(() => {
-    testDb = null;
-    invalidateConfigCache();
+  it('POST /api/admin/categories → 403 for non-owner', async () => {
+    mockIsOwner = 0;
+    await seedTestUser(testDb!, 0);
+    const res = await supertest(app).post('/api/admin/categories').send({ name: 'New Category' });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
 
-  it('returns "planned" for JP when a planning trip has a trip_countries row for JP but no city visits', async () => {
-    const db = testDb!;
-
-    // Seed JP country
-    await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
-
-    // Seed a planning trip — no trip_places, only a trip_countries row
-    const [trip] = await db
-      .insert(schema.trips)
-      .values({
-        name: 'Japan Planning Trip',
-        startDate: '2026-09-01',
-        endDate: '2026-09-14',
-        status: 'planning',
-        userId: TEST_USER_ID,
-      })
-      .returning();
-
-    await db.insert(schema.tripCountries).values({
-      tripId: trip.id,
-      countryCode: 'JP',
-    });
-
-    const results = await getAllCountryShading();
-
-    const jpResult = results.find((r) => r.countryCode === 'JP');
-    expect(jpResult).toBeDefined();
-    expect(jpResult!.stateKey).toBe('planned');
+  it('GET /api/admin/companions → 403 for non-owner', async () => {
+    mockIsOwner = 0;
+    await seedTestUser(testDb!, 0);
+    const res = await supertest(app).get('/api/admin/companions');
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
 
-  it('returns "never_visited" for JP when there are no trips or trip_countries rows', async () => {
-    const db = testDb!;
-    await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
+  it('POST /api/admin/companions → 403 for non-owner', async () => {
+    mockIsOwner = 0;
+    await seedTestUser(testDb!, 0);
+    const res = await supertest(app).post('/api/admin/companions').send({ name: 'New Companion' });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
+  });
+});
 
-    const results = await getAllCountryShading();
-
-    const jpResult = results.find((r) => r.countryCode === 'JP');
-    expect(jpResult).toBeDefined();
-    expect(jpResult!.stateKey).toBe('never_visited');
+describe('HC-04: Owner user receives 200/201 on admin routes', () => {
+  it('GET /api/admin/categories → 200 for owner', async () => {
+    mockIsOwner = 1;
+    await seedTestUser(testDb!, 1);
+    const res = await supertest(app).get('/api/admin/categories');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 
-  it('returns "visited_once" for JP when a locked trip has a trip_countries row for JP and no city visits', async () => {
-    const db = testDb!;
-    await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
-
-    const [trip] = await db
-      .insert(schema.trips)
-      .values({
-        name: 'Japan Completed Trip',
-        startDate: '2025-06-01',
-        endDate: '2025-06-14',
-        status: 'locked',
-        userId: TEST_USER_ID,
-      })
-      .returning();
-
-    await db.insert(schema.tripCountries).values({
-      tripId: trip.id,
-      countryCode: 'JP',
-    });
-
-    const results = await getAllCountryShading();
-
-    const jpResult = results.find((r) => r.countryCode === 'JP');
-    expect(jpResult).toBeDefined();
-    expect(jpResult!.stateKey).toBe('visited_once');
+  it('POST /api/admin/categories → 201 for owner', async () => {
+    mockIsOwner = 1;
+    await seedTestUser(testDb!, 1);
+    const res = await supertest(app).post('/api/admin/categories').send({ name: 'Owner Category' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ name: 'Owner Category' });
   });
 
-  it('trip_countries path does not affect countries with no trip association', async () => {
-    const db = testDb!;
-    await db.insert(schema.countries).values([
-      { countryCode: 'JP', name: 'Japan' },
-      { countryCode: 'DE', name: 'Germany' },
-    ]);
+  it('GET /api/admin/companions → 200 for owner', async () => {
+    mockIsOwner = 1;
+    await seedTestUser(testDb!, 1);
+    const res = await supertest(app).get('/api/admin/companions');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
 
-    // JP has a planning trip via trip_countries
-    const [trip] = await db
-      .insert(schema.trips)
-      .values({
-        name: 'Japan Trip',
-        startDate: '2026-09-01',
-        endDate: '2026-09-14',
-        status: 'planning',
-        userId: TEST_USER_ID,
-      })
-      .returning();
+  it('POST /api/admin/companions → 201 for owner', async () => {
+    mockIsOwner = 1;
+    await seedTestUser(testDb!, 1);
+    const res = await supertest(app)
+      .post('/api/admin/companions')
+      .send({ name: 'Owner Companion' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ name: 'Owner Companion' });
+  });
+});
 
-    await db.insert(schema.tripCountries).values({ tripId: trip.id, countryCode: 'JP' });
+// ================================================================
+// HC-05: Map shading routes require owner
+// ================================================================
 
-    const results = await getAllCountryShading();
+describe('HC-05: Map shading routes require owner', () => {
+  it('GET /api/map/shading → 403 for non-owner', async () => {
+    mockIsOwner = 0;
+    await seedTestUser(testDb!, 0);
+    const res = await supertest(app).get('/api/map/shading');
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
+  });
 
-    // JP should be planned; DE should be never_visited
-    const jpResult = results.find((r) => r.countryCode === 'JP');
-    const deResult = results.find((r) => r.countryCode === 'DE');
+  it('GET /api/map/shading → 200 for owner', async () => {
+    mockIsOwner = 1;
+    await seedTestUser(testDb!, 1);
+    const res = await supertest(app).get('/api/map/shading');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+});
 
-    expect(jpResult!.stateKey).toBe('planned');
-    expect(deResult!.stateKey).toBe('never_visited');
+// ================================================================
+// HC-06: POST /api/cities requires owner
+// ================================================================
+
+describe('HC-06: POST /api/cities requires owner', () => {
+  it('POST /api/cities → 403 for non-owner', async () => {
+    mockIsOwner = 0;
+    await seedTestUser(testDb!, 0);
+    await seedCountry(testDb!);
+    const res = await supertest(app)
+      .post('/api/cities')
+      .send({ name: 'New City', country_code: 'US' });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
+  });
+
+  it('POST /api/cities → 201 for owner', async () => {
+    mockIsOwner = 1;
+    await seedTestUser(testDb!, 1);
+    await seedCountry(testDb!);
+    const res = await supertest(app)
+      .post('/api/cities')
+      .send({ name: 'Owner City', country_code: 'US' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ name: 'Owner City', country_code: 'US' });
   });
 });

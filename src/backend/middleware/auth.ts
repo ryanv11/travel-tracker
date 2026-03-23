@@ -31,6 +31,8 @@ declare global {
         id: string;
         clerkId: string;
         email: string;
+        // ADL-27: 1 = owner, 0 = non-owner. Set from the DB row returned by findOrCreateByClerkId.
+        isOwner: number;
       };
     }
   }
@@ -65,11 +67,16 @@ function getJWKS(): ReturnType<typeof createRemoteJWKSet> {
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   // CI escape hatch: skip JWT verification in contract tests.
   // Only active when BYPASS_AUTH is explicitly set to 'true'.
+  // ADL-27: isOwner is derived from whether the bypass test user's clerkId matches
+  // OWNER_CLERK_ID. This allows CI contract tests to run as owner by setting
+  // OWNER_CLERK_ID=test_clerk_id in the environment.
   if (process.env.BYPASS_AUTH === 'true') {
+    const bypassClerkId = 'test_clerk_id';
     req.user = {
       id: 'test-user-00000000-0000-0000-0000-000000000000',
-      clerkId: 'test_clerk_id',
+      clerkId: bypassClerkId,
       email: 'test@example.com',
+      isOwner: bypassClerkId === process.env.OWNER_CLERK_ID ? 1 : 0,
     };
     return next();
   }
@@ -94,6 +101,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       id: user.id,
       clerkId: user.clerkId,
       email: user.email,
+      isOwner: user.isOwner,
     };
 
     next();
