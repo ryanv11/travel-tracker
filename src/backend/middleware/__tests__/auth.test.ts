@@ -124,6 +124,7 @@ describe('requireAuth middleware', () => {
       id: 'internal-uuid-456',
       clerkId: 'user_clerk123',
       email: 'test@example.com',
+      isOwner: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -142,6 +143,7 @@ describe('requireAuth middleware', () => {
       id: 'internal-uuid-456',
       clerkId: 'user_clerk123',
       email: 'test@example.com',
+      isOwner: 0,
     });
     expect(next).toHaveBeenCalledOnce();
     expect(res.status).not.toHaveBeenCalled();
