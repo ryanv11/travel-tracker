@@ -4,8 +4,8 @@
  * Handles adding places (cities) to a trip and tagging activities to places.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiPost, apiDelete } from '../utils/apiClient';
 import type { TripPlaceNoItems } from '../types/api';
+import { apiDelete, apiPost } from '../utils/apiClient';
 
 /** Response shape from POST /api/trips/:tripId/places/:placeId/carry-forward */
 interface CarryForwardResult {
@@ -71,10 +71,9 @@ export function useCarryForward() {
       placeId: number;
       sourceItemIds: number[];
     }) =>
-      apiPost<CarryForwardResult>(
-        `/api/trips/${tripId}/places/${placeId}/carry-forward`,
-        { source_item_ids: sourceItemIds },
-      ),
+      apiPost<CarryForwardResult>(`/api/trips/${tripId}/places/${placeId}/carry-forward`, {
+        source_item_ids: sourceItemIds,
+      }),
     onSuccess: (_result, vars) => {
       void qc.invalidateQueries({ queryKey: ['trips', vars.tripId] });
     },

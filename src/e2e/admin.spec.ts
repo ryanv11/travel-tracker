@@ -5,7 +5,7 @@
  * across test runs. Each test uses a timestamp-suffixed name to avoid conflicts.
  * CategoryTab, ActivityTab, CompanionTab all render rows as <div> elements.
  */
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 /**
  * Finds the admin list row <div> that contains the given item name.
@@ -13,7 +13,10 @@ import { test, expect } from '@playwright/test';
  * matching ancestor containers that also contain a Rename button.
  */
 function adminRow(page: import('@playwright/test').Page, name: string) {
-  return page.locator('span').filter({ hasText: new RegExp(`^${name}$`) }).locator('..');
+  return page
+    .locator('span')
+    .filter({ hasText: new RegExp(`^${name}$`) })
+    .locator('..');
 }
 
 // ─── Categories ──────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createTrip, deleteAllTrips } from './helpers/factories';
 
 test.beforeEach(async ({ request }) => {
@@ -31,9 +31,6 @@ test('trip detail opens on click', async ({ page, request }) => {
   await page.getByText('Rome Trip').click();
   // Right panel should show the trip name
   await expect(
-    page
-      .locator('[data-testid="trip-detail"]')
-      .or(page.getByRole('main'))
-      .getByText('Rome Trip'),
+    page.locator('[data-testid="trip-detail"]').or(page.getByRole('main')).getByText('Rome Trip'),
   ).toBeVisible();
 });

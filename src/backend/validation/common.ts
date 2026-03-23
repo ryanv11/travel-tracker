@@ -40,21 +40,10 @@ export const zItemType = z.enum([
 ]);
 
 /** Item status enum */
-export const zItemStatus = z.enum([
-  'consider',
-  'confirmed',
-  'completed',
-  'cancelled',
-  'next_time',
-]);
+export const zItemStatus = z.enum(['consider', 'confirmed', 'completed', 'cancelled', 'next_time']);
 
 /** Trip status enum */
-export const zTripStatus = z.enum([
-  'planning',
-  'active',
-  'review_pending',
-  'locked',
-]);
+export const zTripStatus = z.enum(['planning', 'active', 'review_pending', 'locked']);
 
 /** Optional non-empty trimmed string (undefined is fine, empty string is not) */
 export const zOptionalString = z.string().trim().min(1).optional();

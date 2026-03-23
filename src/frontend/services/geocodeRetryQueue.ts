@@ -37,11 +37,11 @@ type QueueListener = (queue: RetryQueueEntry[]) => void;
 
 /** Progressive delay per attempt index (ms). Index 0 = attempt 1. */
 const RETRY_DELAYS_MS = [
-  0,          // Attempt 1: immediately on failure
-  30_000,     // Attempt 2: 30 seconds
-  120_000,    // Attempt 3: 2 minutes
-  300_000,    // Attempt 4: 5 minutes
-  600_000,    // Attempt 5+: 10 minutes
+  0, // Attempt 1: immediately on failure
+  30_000, // Attempt 2: 30 seconds
+  120_000, // Attempt 3: 2 minutes
+  300_000, // Attempt 4: 5 minutes
+  600_000, // Attempt 5+: 10 minutes
 ];
 
 function getDelayMs(attemptCount: number): number {
@@ -92,7 +92,9 @@ class GeocodeRetryQueueService {
   /** Subscribe to queue changes. Returns an unsubscribe function. */
   subscribe(listener: QueueListener): () => void {
     this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   getQueue(): RetryQueueEntry[] {
@@ -125,7 +127,9 @@ class GeocodeRetryQueueService {
     if (existing !== undefined) clearTimeout(existing);
 
     const delay = Math.max(0, new Date(nextRetryAt).getTime() - Date.now());
-    const timer = setTimeout(() => { void this.attemptRetry(cityId); }, delay);
+    const timer = setTimeout(() => {
+      void this.attemptRetry(cityId);
+    }, delay);
     this.timers.set(cityId, timer);
   }
 

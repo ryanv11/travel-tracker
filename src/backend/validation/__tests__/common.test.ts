@@ -7,18 +7,18 @@
  * Source:  src/backend/validation/common.ts
  * BUG-10:  zName max length fixed to 200 (was 255) to match BRD spec.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  zName,
-  zIsoDate,
-  zHexColor,
-  zRating,
   zCountryCode,
-  zItemType,
-  zItemStatus,
-  zTripStatus,
-  zOptionalString,
+  zHexColor,
   zId,
+  zIsoDate,
+  zItemStatus,
+  zItemType,
+  zName,
+  zOptionalString,
+  zRating,
+  zTripStatus,
 } from '../common.js';
 
 // ----------------------------------------------------------------
@@ -126,14 +126,28 @@ describe('zHexColor', () => {
 // ----------------------------------------------------------------
 
 describe('zRating', () => {
-  it('accepts 1', () => { expect(passes(zRating, 1)).toBe(1); });
-  it('accepts 5', () => { expect(passes(zRating, 5)).toBe(5); });
-  it('accepts 3', () => { expect(passes(zRating, 3)).toBe(3); });
+  it('accepts 1', () => {
+    expect(passes(zRating, 1)).toBe(1);
+  });
+  it('accepts 5', () => {
+    expect(passes(zRating, 5)).toBe(5);
+  });
+  it('accepts 3', () => {
+    expect(passes(zRating, 3)).toBe(3);
+  });
 
-  it('rejects 0', () => { fails(zRating, 0); });
-  it('rejects 6', () => { fails(zRating, 6); });
-  it('rejects a float', () => { fails(zRating, 2.5); });
-  it('rejects a string rating', () => { fails(zRating, '3'); });
+  it('rejects 0', () => {
+    fails(zRating, 0);
+  });
+  it('rejects 6', () => {
+    fails(zRating, 6);
+  });
+  it('rejects a float', () => {
+    fails(zRating, 2.5);
+  });
+  it('rejects a string rating', () => {
+    fails(zRating, '3');
+  });
 });
 
 // ----------------------------------------------------------------
@@ -166,11 +180,17 @@ describe('zItemType', () => {
   const valid = ['restaurant', 'hotel', 'flight', 'car_rental', 'experience', 'note'] as const;
 
   valid.forEach((type) => {
-    it(`accepts "${type}"`, () => { expect(passes(zItemType, type)).toBe(type); });
+    it(`accepts "${type}"`, () => {
+      expect(passes(zItemType, type)).toBe(type);
+    });
   });
 
-  it('rejects an unknown type', () => { fails(zItemType, 'bar'); });
-  it('rejects an empty string', () => { fails(zItemType, ''); });
+  it('rejects an unknown type', () => {
+    fails(zItemType, 'bar');
+  });
+  it('rejects an empty string', () => {
+    fails(zItemType, '');
+  });
 });
 
 // ----------------------------------------------------------------
@@ -183,12 +203,20 @@ describe('zItemStatus', () => {
   const valid = ['consider', 'confirmed', 'completed', 'cancelled', 'next_time'] as const;
 
   valid.forEach((status) => {
-    it(`accepts "${status}"`, () => { expect(passes(zItemStatus, status)).toBe(status); });
+    it(`accepts "${status}"`, () => {
+      expect(passes(zItemStatus, status)).toBe(status);
+    });
   });
 
-  it('rejects "booked" (not a valid item status)', () => { fails(zItemStatus, 'booked'); });
-  it('rejects "skipped" (not a valid item status)', () => { fails(zItemStatus, 'skipped'); });
-  it('rejects an empty string', () => { fails(zItemStatus, ''); });
+  it('rejects "booked" (not a valid item status)', () => {
+    fails(zItemStatus, 'booked');
+  });
+  it('rejects "skipped" (not a valid item status)', () => {
+    fails(zItemStatus, 'skipped');
+  });
+  it('rejects an empty string', () => {
+    fails(zItemStatus, '');
+  });
 });
 
 // ----------------------------------------------------------------
@@ -199,10 +227,14 @@ describe('zTripStatus', () => {
   const valid = ['planning', 'active', 'review_pending', 'locked'] as const;
 
   valid.forEach((status) => {
-    it(`accepts "${status}"`, () => { expect(passes(zTripStatus, status)).toBe(status); });
+    it(`accepts "${status}"`, () => {
+      expect(passes(zTripStatus, status)).toBe(status);
+    });
   });
 
-  it('rejects "draft" (not a valid trip status)', () => { fails(zTripStatus, 'draft'); });
+  it('rejects "draft" (not a valid trip status)', () => {
+    fails(zTripStatus, 'draft');
+  });
   it('rejects "completed" (not a valid trip status — use review_pending/locked)', () => {
     fails(zTripStatus, 'completed');
   });
@@ -213,12 +245,22 @@ describe('zTripStatus', () => {
 // ----------------------------------------------------------------
 
 describe('zOptionalString', () => {
-  it('accepts undefined', () => { expect(passes(zOptionalString, undefined)).toBeUndefined(); });
-  it('accepts a non-empty string', () => { expect(passes(zOptionalString, 'hello')).toBe('hello'); });
-  it('trims and accepts', () => { expect(passes(zOptionalString, ' hello ')).toBe('hello'); });
+  it('accepts undefined', () => {
+    expect(passes(zOptionalString, undefined)).toBeUndefined();
+  });
+  it('accepts a non-empty string', () => {
+    expect(passes(zOptionalString, 'hello')).toBe('hello');
+  });
+  it('trims and accepts', () => {
+    expect(passes(zOptionalString, ' hello ')).toBe('hello');
+  });
 
-  it('rejects an empty string', () => { fails(zOptionalString, ''); });
-  it('rejects a whitespace-only string', () => { fails(zOptionalString, '   '); });
+  it('rejects an empty string', () => {
+    fails(zOptionalString, '');
+  });
+  it('rejects a whitespace-only string', () => {
+    fails(zOptionalString, '   ');
+  });
 });
 
 // ----------------------------------------------------------------
@@ -226,11 +268,23 @@ describe('zOptionalString', () => {
 // ----------------------------------------------------------------
 
 describe('zId', () => {
-  it('accepts a positive integer', () => { expect(passes(zId, 1)).toBe(1); });
-  it('coerces a numeric string', () => { expect(passes(zId, '42')).toBe(42); });
+  it('accepts a positive integer', () => {
+    expect(passes(zId, 1)).toBe(1);
+  });
+  it('coerces a numeric string', () => {
+    expect(passes(zId, '42')).toBe(42);
+  });
 
-  it('rejects 0', () => { fails(zId, 0); });
-  it('rejects a negative number', () => { fails(zId, -1); });
-  it('rejects a float', () => { fails(zId, 1.5); });
-  it('rejects a non-numeric string', () => { fails(zId, 'abc'); });
+  it('rejects 0', () => {
+    fails(zId, 0);
+  });
+  it('rejects a negative number', () => {
+    fails(zId, -1);
+  });
+  it('rejects a float', () => {
+    fails(zId, 1.5);
+  });
+  it('rejects a non-numeric string', () => {
+    fails(zId, 'abc');
+  });
 });

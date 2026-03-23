@@ -1,11 +1,3 @@
-/**
- * RatingStars — clickable 1–5 star rating component.
- *
- * Used in ItemForm and ReviewItemRow for restaurant, hotel, and experience items.
- * When value is null, all stars render as empty (unrated state).
- */
-import React from 'react';
-
 interface RatingStarsProps {
   /** Current rating (1–5), or null if unrated. */
   value: number | null;

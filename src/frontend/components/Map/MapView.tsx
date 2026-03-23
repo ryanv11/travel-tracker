@@ -9,21 +9,16 @@
  *
  * SEC-12: Map labels use MapLibre's text-field layout property — no innerHTML.
  */
-import React, { useCallback, useRef, useState } from 'react';
-import Map, {
-  Source,
-  Layer,
-  type MapRef,
-  type MapLayerMouseEvent,
-} from 'react-map-gl/maplibre';
+import { useCallback, useRef, useState } from 'react';
+import MapGL, { type MapLayerMouseEvent, type MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useNavigate } from 'react-router-dom';
 import { useMapShading, useRegionShading } from '../../hooks/useMapShading';
+import type { TripSummary } from '../../types/api';
+import { LoadingSpinner } from '../shared/LoadingSpinner';
+import { CityMarkers } from './CityMarkers';
 import { CountryLayer } from './CountryLayer';
 import { RegionLayer } from './RegionLayer';
-import { CityMarkers } from './CityMarkers';
-import { LoadingSpinner } from '../shared/LoadingSpinner';
-import type { TripSummary } from '../../types/api';
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY as string;
 const MAP_STYLE = `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`;
@@ -69,7 +64,7 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
   /** Changes cursor to pointer when hovering over interactive layers (MP-03, GE-09). */
   const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
     const canvas = e.target.getCanvas();
-    canvas.style.cursor = (e.features && e.features.length > 0) ? 'pointer' : '';
+    canvas.style.cursor = e.features && e.features.length > 0 ? 'pointer' : '';
   }, []);
 
   /** Handles clicks on country, region, and city layers. */
@@ -93,7 +88,9 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
         const isoCode = feature.properties?.iso_3166_2 as string | undefined;
         if (isoCode) {
           const countryCode = isoCode.split('-')[0];
-          navigate(`/trips?country=${encodeURIComponent(countryCode)}&region=${encodeURIComponent(isoCode)}`);
+          navigate(
+            `/trips?country=${encodeURIComponent(countryCode)}&region=${encodeURIComponent(isoCode)}`,
+          );
         }
       } else if (feature.layer.id === 'city-markers') {
         // CityMarkers click — city id from GeoJSON properties
@@ -109,12 +106,22 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       {shadingLoading && (
-        <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, background: '#fff', borderRadius: 6, boxShadow: '0 1px 4px rgba(0,0,0,.2)' }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            zIndex: 10,
+            background: '#fff',
+            borderRadius: 6,
+            boxShadow: '0 1px 4px rgba(0,0,0,.2)',
+          }}
+        >
           <LoadingSpinner message="Loading map data…" />
         </div>
       )}
 
-      <Map
+      <MapGL
         ref={mapRef}
         mapStyle={MAP_STYLE}
         initialViewState={{ longitude: 10, latitude: 20, zoom: 2 }}
@@ -134,7 +141,7 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
 
         {/* City pins — only for geocoded cities */}
         <CityMarkers trips={trips} />
-      </Map>
+      </MapGL>
     </div>
   );
 }

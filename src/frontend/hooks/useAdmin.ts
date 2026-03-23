@@ -5,9 +5,9 @@
  * All three list types (categories, activities, companions) share the same
  * CRUD pattern, so helper factories are used to reduce duplication.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPatch, apiDelete } from '../utils/apiClient';
-import type { Category, Activity, Companion, Country } from '../types/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Activity, Category, Companion, Country } from '../types/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../utils/apiClient';
 
 // ============================================================
 // CATEGORIES
@@ -39,8 +39,7 @@ export function useActiveCategories() {
 export function useCreateCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      apiPost<Category>('/api/admin/categories', { name }),
+    mutationFn: (name: string) => apiPost<Category>('/api/admin/categories', { name }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
     },
@@ -51,13 +50,8 @@ export function useCreateCategory() {
 export function useUpdateCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: { name?: string; is_active?: boolean };
-    }) => apiPatch<Category>(`/api/admin/categories/${id}`, data),
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
+      apiPatch<Category>(`/api/admin/categories/${id}`, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
     },
@@ -99,8 +93,7 @@ export function useActiveActivities() {
 export function useCreateActivity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      apiPost<Activity>('/api/admin/activities', { name }),
+    mutationFn: (name: string) => apiPost<Activity>('/api/admin/activities', { name }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
     },
@@ -111,13 +104,8 @@ export function useCreateActivity() {
 export function useUpdateActivity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: { name?: string; is_active?: boolean };
-    }) => apiPatch<Activity>(`/api/admin/activities/${id}`, data),
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
+      apiPatch<Activity>(`/api/admin/activities/${id}`, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
     },
@@ -159,8 +147,7 @@ export function useActiveCompanions() {
 export function useCreateCompanion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      apiPost<Companion>('/api/admin/companions', { name }),
+    mutationFn: (name: string) => apiPost<Companion>('/api/admin/companions', { name }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
     },
@@ -171,13 +158,8 @@ export function useCreateCompanion() {
 export function useUpdateCompanion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: { name?: string; is_active?: boolean };
-    }) => apiPatch<Companion>(`/api/admin/companions/${id}`, data),
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
+      apiPatch<Companion>(`/api/admin/companions/${id}`, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
     },
@@ -222,7 +204,8 @@ export function useCountries() {
 export function useCountryRegions(countryCode: string | undefined) {
   return useQuery({
     queryKey: ['admin', 'countries', countryCode, 'regions'],
-    queryFn: () => apiGet<import('../types/api').Region[]>(`/api/admin/countries/${countryCode}/regions`),
+    queryFn: () =>
+      apiGet<import('../types/api').Region[]>(`/api/admin/countries/${countryCode}/regions`),
     enabled: countryCode !== undefined && countryCode !== '',
     staleTime: 5 * 60 * 1000,
   });

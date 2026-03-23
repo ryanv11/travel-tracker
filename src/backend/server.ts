@@ -21,24 +21,25 @@
 
 import 'dotenv/config';
 import { config } from 'dotenv';
+
 config({ path: '.env.local' }); // explicit .env.local load
 
-import express from 'express';
-import helmet from 'helmet';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import helmet from 'helmet';
 
 import { getDb } from './db/index.js';
 import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
-import { tripsRouter } from './routes/trips.js';
+import { adminRouter } from './routes/admin.js';
 import { citiesRouter } from './routes/cities.js';
 import { mapRouter } from './routes/map.js';
-import { adminRouter } from './routes/admin.js';
-import { seedAdminData, seedCountries, seedRegions } from './services/startup.service.js';
+import { tripsRouter } from './routes/trips.js';
 import { processQueue } from './services/geocoding.service.js';
+import { seedAdminData, seedCountries, seedRegions } from './services/startup.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -137,7 +138,7 @@ app.use('/geo', express.static(path.join(__dirname, '../../geo')));
 // Route handlers
 // ----------------------------------------------------------------
 
-app.use('/api/trips', tripsRouter);   // includes nested /:tripId/places and /:tripId/items
+app.use('/api/trips', tripsRouter); // includes nested /:tripId/places and /:tripId/items
 app.use('/api/cities', citiesRouter);
 app.use('/api/map', mapRouter);
 app.use('/api/admin', adminRouter);
@@ -194,11 +195,14 @@ async function startup(): Promise<void> {
   });
 
   // 6. Schedule geocoding queue every 15 minutes
-  setInterval(() => {
-    processQueue().catch((err: unknown) => {
-      console.error('[GEO] Scheduled queue error:', (err as Error).message);
-    });
-  }, 15 * 60 * 1000);
+  setInterval(
+    () => {
+      processQueue().catch((err: unknown) => {
+        console.error('[GEO] Scheduled queue error:', (err as Error).message);
+      });
+    },
+    15 * 60 * 1000,
+  );
 
   // Start HTTP server — bound to HOST (127.0.0.1 by default, SEC-03)
   app.listen(PORT, HOST, () => {

@@ -11,16 +11,16 @@
  *
  * Locked trips show a read-only banner and hide all write controls.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useLockTrip, useUnlockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
+import type { TripDetail as TripDetailType, TripStatus } from '../../types/api';
+import { formatDate } from '../../utils/formatDate';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { ErrorMessage } from '../shared/ErrorMessage';
 import { StatusBadge } from '../shared/StatusBadge';
+import { AddPlaceFlow } from './AddPlaceFlow';
 import { PlaceSection } from './PlaceSection';
 import { TripForm } from './TripForm';
-import { ConfirmDialog } from '../shared/ConfirmDialog';
-import { AddPlaceFlow } from './AddPlaceFlow';
-import { useUpdateTripStatus, useLockTrip, useUnlockTrip } from '../../hooks/useTrips';
-import { ErrorMessage } from '../shared/ErrorMessage';
-import { formatDate } from '../../utils/formatDate';
-import type { TripDetail as TripDetailType, TripStatus } from '../../types/api';
 
 interface TripDetailProps {
   /** Full trip detail data including places and items. */
@@ -120,12 +120,18 @@ export function TripDetail({ trip }: TripDetailProps) {
                 <>
                   <span className="text-slate-300 text-xs">|</span>
                   {trip.categories.map((c) => (
-                    <span key={c.id} className="bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                    <span
+                      key={c.id}
+                      className="bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full text-xs font-medium"
+                    >
                       {c.name}
                     </span>
                   ))}
                   {trip.activities.map((a) => (
-                    <span key={a.id} className="bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                    <span
+                      key={a.id}
+                      className="bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full text-xs font-medium"
+                    >
                       {a.name}
                     </span>
                   ))}
@@ -168,7 +174,9 @@ export function TripDetail({ trip }: TripDetailProps) {
             <>
               <button
                 type="button"
-                onClick={() => { void handleNextStep(); }}
+                onClick={() => {
+                  void handleNextStep();
+                }}
                 disabled={isPending}
                 className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
                   nextStep.to === 'locked'
@@ -192,9 +200,7 @@ export function TripDetail({ trip }: TripDetailProps) {
             </button>
           )}
           {trip.status === 'locked' && !nextStep && (
-            <span className="px-4 py-1.5 rounded-md text-sm bg-gray-100 text-gray-500">
-              Locked
-            </span>
+            <span className="px-4 py-1.5 rounded-md text-sm bg-gray-100 text-gray-500">Locked</span>
           )}
         </div>
       </div>
@@ -252,7 +258,9 @@ export function TripDetail({ trip }: TripDetailProps) {
         title="Lock this trip?"
         message="This will lock the trip. No further edits will be possible without unlocking. Continue?"
         confirmLabel="Lock Trip"
-        onConfirm={() => { void handleLockConfirm(); }}
+        onConfirm={() => {
+          void handleLockConfirm();
+        }}
         onCancel={() => setConfirmLock(false)}
       />
 
@@ -261,7 +269,9 @@ export function TripDetail({ trip }: TripDetailProps) {
         title="Unlock this trip?"
         message="Unlock this trip? It will return to Review Pending status."
         confirmLabel="Unlock"
-        onConfirm={() => { void handleUnlockConfirm(); }}
+        onConfirm={() => {
+          void handleUnlockConfirm();
+        }}
         onCancel={() => setConfirmUnlock(false)}
       />
     </div>

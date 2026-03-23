@@ -1,10 +1,10 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import {
+  createItem,
+  createPlace,
   createTrip,
   deleteAllTrips,
   getOrCreateCity,
-  createPlace,
-  createItem,
 } from './helpers/factories';
 
 test.beforeEach(async ({ request }) => {
@@ -26,7 +26,9 @@ test('add place via city search', async ({ page, request }) => {
   await page.getByText('Testville').first().click();
 
   // Modal closes; city appears in trip detail
-  await expect(page.getByRole('heading', { name: 'Add Place' })).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('heading', { name: 'Add Place' })).not.toBeVisible({
+    timeout: 5_000,
+  });
   await expect(page.getByText('Testville').first()).toBeVisible();
 });
 

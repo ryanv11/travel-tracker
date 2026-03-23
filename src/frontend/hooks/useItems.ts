@@ -4,8 +4,8 @@
  * Handles creating, updating, and deleting items of all types.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiPost, apiPatch, apiDelete } from '../utils/apiClient';
-import type { Item, ItemType, ItemStatus } from '../types/api';
+import type { Item, ItemStatus, ItemType } from '../types/api';
+import { apiDelete, apiPatch, apiPost } from '../utils/apiClient';
 
 /** Body for POST /api/trips/:tripId/items */
 export interface CreateItemData {
@@ -43,10 +43,12 @@ export interface CreateItemData {
 }
 
 /** Body for PATCH /api/trips/:tripId/items/:itemId (all fields optional) */
-export type UpdateItemData = Partial<Omit<CreateItemData, 'item_type' | 'trip_place_id'> & {
-  rating?: number | null;
-  post_visit_notes?: string | null;
-}>;
+export type UpdateItemData = Partial<
+  Omit<CreateItemData, 'item_type' | 'trip_place_id'> & {
+    rating?: number | null;
+    post_visit_notes?: string | null;
+  }
+>;
 
 // ============================================================
 // MUTATIONS

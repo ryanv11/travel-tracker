@@ -4,9 +4,9 @@
  * Tests client-side search-by-name, sort-by-date, sort-by-name, and map
  * filter params (country / city). Pure function — no React rendering needed.
  */
-import { describe, it, expect } from 'vitest';
-import { filterAndSortTrips } from '../TripList.js';
+import { describe, expect, it } from 'vitest';
 import type { TripSummary } from '../../../types/api.js';
+import { filterAndSortTrips } from '../TripList.js';
 
 function makeTrip(
   id: number,
@@ -141,8 +141,12 @@ describe('filterAndSortTrips — map filters', () => {
 
 describe('filterAndSortTrips — city-name search (TR-13)', () => {
   const tripsWithCityNames: TripSummary[] = [
-    makeTrip(10, 'Spring Getaway', '2024-04-01', [{ city_id: 100, country_code: 'FR', city_name: 'Paris' }]),
-    makeTrip(11, 'Summer Vacation', '2024-07-01', [{ city_id: 101, country_code: 'JP', city_name: 'Tokyo' }]),
+    makeTrip(10, 'Spring Getaway', '2024-04-01', [
+      { city_id: 100, country_code: 'FR', city_name: 'Paris' },
+    ]),
+    makeTrip(11, 'Summer Vacation', '2024-07-01', [
+      { city_id: 101, country_code: 'JP', city_name: 'Tokyo' },
+    ]),
     makeTrip(12, 'Multi-city Tour', '2024-09-01', [
       { city_id: 102, country_code: 'IT', city_name: 'Rome' },
       { city_id: 103, country_code: 'IT', city_name: 'Milan' },

@@ -11,8 +11,8 @@
  * or database access occur in these tests.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ----------------------------------------------------------------
 // Set required env vars before module import
@@ -153,9 +153,7 @@ describe('requireAuth middleware', () => {
       protectedHeader: { alg: 'RS256' },
     } as unknown as Awaited<ReturnType<typeof jwtVerify>>);
 
-    vi.mocked(userRepository.findOrCreateByClerkId).mockRejectedValueOnce(
-      new Error('DB error'),
-    );
+    vi.mocked(userRepository.findOrCreateByClerkId).mockRejectedValueOnce(new Error('DB error'));
 
     const req = makeReq('Bearer valid.jwt.token');
     const { res } = makeRes();

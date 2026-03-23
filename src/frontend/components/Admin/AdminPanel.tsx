@@ -8,12 +8,12 @@
  *   4. Map Shading  — configure country-level shading colours
  *   5. Countries    — toggle region_tier_enabled per country
  */
-import React, { useState } from 'react';
-import { CategoryTab } from './CategoryTab';
+import { useState } from 'react';
 import { ActivityTab } from './ActivityTab';
+import { CategoryTab } from './CategoryTab';
 import { CompanionTab } from './CompanionTab';
-import { ShadingTab } from './ShadingTab';
 import { CountryTab } from './CountryTab';
+import { ShadingTab } from './ShadingTab';
 
 type Tab = 'categories' | 'activities' | 'companions' | 'shading' | 'countries';
 

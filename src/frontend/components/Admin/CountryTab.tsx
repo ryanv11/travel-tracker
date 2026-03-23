@@ -4,7 +4,7 @@
  * Lists all 250 countries. Allows toggling region_tier_enabled per country.
  * Region tier name (e.g. "State") is read-only — set by seed data.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useCountries, useUpdateCountry } from '../../hooks/useAdmin';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
@@ -17,9 +17,10 @@ export function CountryTab() {
   const updateCountry = useUpdateCountry();
   const [search, setSearch] = useState('');
 
-  const filtered = countries.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.country_code.toLowerCase().includes(search.toLowerCase()),
+  const filtered = countries.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.country_code.toLowerCase().includes(search.toLowerCase()),
   );
 
   if (isLoading) return <LoadingSpinner message="Loading countries…" />;
@@ -32,31 +33,71 @@ export function CountryTab() {
         placeholder="Search countries…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '14px', marginBottom: '16px', boxSizing: 'border-box' }}
+        style={{
+          width: '100%',
+          padding: '8px 10px',
+          border: '1px solid #D1D5DB',
+          borderRadius: '6px',
+          fontSize: '14px',
+          marginBottom: '16px',
+          boxSizing: 'border-box',
+        }}
       />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '500px', overflowY: 'auto' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+          maxHeight: '500px',
+          overflowY: 'auto',
+        }}
+      >
         {filtered.map((country) => (
-          <div key={country.country_code} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: '6px' }}>
-            <span style={{ width: '32px', fontSize: '12px', color: '#6B7280', flexShrink: 0 }}>{country.country_code}</span>
+          <div
+            key={country.country_code}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 10px',
+              border: '1px solid #E5E7EB',
+              borderRadius: '6px',
+            }}
+          >
+            <span style={{ width: '32px', fontSize: '12px', color: '#6B7280', flexShrink: 0 }}>
+              {country.country_code}
+            </span>
             <span style={{ flex: 1, fontSize: '14px' }}>{country.name}</span>
 
             {/* Region tier label (read-only) */}
             {country.region_tier_label && (
-              <span style={{
-                fontSize: '12px',
-                color: country.region_tier_enabled ? '#5B21B6' : '#9CA3AF',
-                background: country.region_tier_enabled ? '#EDE9FE' : '#F3F4F6',
-                padding: '1px 8px',
-                borderRadius: '4px',
-                flexShrink: 0,
-              }}>
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: country.region_tier_enabled ? '#5B21B6' : '#9CA3AF',
+                  background: country.region_tier_enabled ? '#EDE9FE' : '#F3F4F6',
+                  padding: '1px 8px',
+                  borderRadius: '4px',
+                  flexShrink: 0,
+                }}
+              >
                 {country.region_tier_label}
               </span>
             )}
 
             {/* Toggle */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0, fontSize: '13px', color: '#374151' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                flexShrink: 0,
+                fontSize: '13px',
+                color: '#374151',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={country.region_tier_enabled}
@@ -75,7 +116,9 @@ export function CountryTab() {
       </div>
 
       {filtered.length === 0 && (
-        <p style={{ color: '#6B7280', textAlign: 'center', padding: '20px 0' }}>No countries match your search.</p>
+        <p style={{ color: '#6B7280', textAlign: 'center', padding: '20px 0' }}>
+          No countries match your search.
+        </p>
       )}
 
       {updateCountry.error && <ErrorMessage error={updateCountry.error} />}

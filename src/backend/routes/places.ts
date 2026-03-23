@@ -9,23 +9,16 @@
  * for user-owned data.
  */
 
+import { and, eq, inArray } from 'drizzle-orm';
 import { Router } from 'express';
-import { eq, and, inArray } from 'drizzle-orm';
-import {
-  getDb,
-  cities,
-  tripPlaceActivitiesMap,
-  activities,
-  items,
-  tripPlaces,
-} from '../db/index.js';
+import { cities, getDb, items, tripPlaceActivitiesMap, tripPlaces } from '../db/index.js';
+import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
-import { CreatePlaceSchema, AddPlaceActivitySchema } from '../validation/places.schemas.js';
-import { CarryForwardBodySchema } from '../validation/items.schemas.js';
-import { NotFoundError, ConflictError, ValidationError } from '../errors.js';
-import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
 import { placeRepository } from '../repositories/places.js';
+import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
+import { CarryForwardBodySchema } from '../validation/items.schemas.js';
+import { AddPlaceActivitySchema, CreatePlaceSchema } from '../validation/places.schemas.js';
 
 const placesRouter = Router({ mergeParams: true });
 export default placesRouter;
@@ -38,7 +31,7 @@ placesRouter.get(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const result = await placeRepository.findByTrip(userId, tripId);
 
@@ -63,7 +56,7 @@ placesRouter.post(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const { city_id } = req.body;
     const db = getDb();
@@ -103,7 +96,7 @@ placesRouter.delete(
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
     const placeId = parseInt(String(req.params.placeId), 10);
-    if (isNaN(tripId) || isNaN(placeId)) throw new NotFoundError('Place');
+    if (Number.isNaN(tripId) || Number.isNaN(placeId)) throw new NotFoundError('Place');
 
     const deleted = await placeRepository.delete(userId, tripId, placeId);
     if (!deleted) throw new NotFoundError('Place');
@@ -122,7 +115,7 @@ placesRouter.post(
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
     const placeId = parseInt(String(req.params.placeId), 10);
-    if (isNaN(tripId) || isNaN(placeId)) throw new NotFoundError('Place');
+    if (Number.isNaN(tripId) || Number.isNaN(placeId)) throw new NotFoundError('Place');
 
     const db = getDb();
 
@@ -178,7 +171,7 @@ placesRouter.post(
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
     const placeId = parseInt(String(req.params.placeId), 10);
-    if (isNaN(tripId) || isNaN(placeId)) throw new NotFoundError('Place');
+    if (Number.isNaN(tripId) || Number.isNaN(placeId)) throw new NotFoundError('Place');
 
     const { activity_id } = req.body;
     const db = getDb();
@@ -200,7 +193,9 @@ placesRouter.post(
       .limit(1);
     if (existing.length) throw new ConflictError('Activity already tagged to this place');
 
-    await db.insert(tripPlaceActivitiesMap).values({ tripPlaceId: placeId, activityId: activity_id });
+    await db
+      .insert(tripPlaceActivitiesMap)
+      .values({ tripPlaceId: placeId, activityId: activity_id });
 
     res.status(201).json({ trip_place_id: placeId, activity_id });
   }),
@@ -215,7 +210,7 @@ placesRouter.delete(
     const userId = req.user!.id;
     const placeId = parseInt(String(req.params.placeId), 10);
     const activityId = parseInt(String(req.params.activityId), 10);
-    if (isNaN(placeId) || isNaN(activityId)) throw new NotFoundError('Activity');
+    if (Number.isNaN(placeId) || Number.isNaN(activityId)) throw new NotFoundError('Activity');
 
     // SEC-03: verify the place belongs to the requesting user before deleting
     const place = await placeRepository.findById(userId, placeId);

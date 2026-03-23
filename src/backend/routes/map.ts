@@ -6,19 +6,19 @@
  * Config updates invalidate the in-memory config cache.
  */
 
-import { Router } from 'express';
 import { eq } from 'drizzle-orm';
-import { getDb, countries, regions, mapShadingConfig } from '../db/index.js';
+import { Router } from 'express';
+import { countries, getDb, mapShadingConfig } from '../db/index.js';
+import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
-import { UpdateShadingConfigSchema } from '../validation/map.schemas.js';
-import { NotFoundError, ValidationError } from '../errors.js';
 import {
   getAllCountryShading,
   getCountryShading,
   getRegionShading,
   invalidateConfigCache,
 } from '../services/shading.service.js';
+import { UpdateShadingConfigSchema } from '../validation/map.schemas.js';
 
 export const mapRouter = Router();
 
@@ -29,12 +29,14 @@ mapRouter.get(
   '/shading',
   asyncHandler(async (_req, res) => {
     const result = await getAllCountryShading();
-    res.json(result.map((r) => ({
-      country_code: r.countryCode,
-      state_key: r.stateKey,
-      color_hex: r.colorHex,
-      display_name: r.displayName,
-    })));
+    res.json(
+      result.map((r) => ({
+        country_code: r.countryCode,
+        state_key: r.stateKey,
+        color_hex: r.colorHex,
+        display_name: r.displayName,
+      })),
+    );
   }),
 );
 
@@ -46,12 +48,14 @@ mapRouter.get(
   asyncHandler(async (_req, res) => {
     const db = getDb();
     const rows = await db.select().from(mapShadingConfig);
-    res.json(rows.map((r) => ({
-      state_key: r.stateKey,
-      display_name: r.displayName,
-      color_hex: r.colorHex,
-      updated_at: r.updatedAt,
-    })));
+    res.json(
+      rows.map((r) => ({
+        state_key: r.stateKey,
+        display_name: r.displayName,
+        color_hex: r.colorHex,
+        updated_at: r.updatedAt,
+      })),
+    );
   }),
 );
 
@@ -118,9 +122,7 @@ mapRouter.get(
     if (!shading) throw new NotFoundError('Country');
 
     const regionShading =
-      countryRow[0].regionTierEnabled === 1
-        ? await getRegionShading(countryCode)
-        : [];
+      countryRow[0].regionTierEnabled === 1 ? await getRegionShading(countryCode) : [];
 
     res.json({
       country_code: shading.countryCode,

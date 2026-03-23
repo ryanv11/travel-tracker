@@ -1,14 +1,4 @@
-/**
- * StatusBadge — displays a trip or item status with colour coding.
- *
- * Trip status colours:
- *   planning → blue
- *   active → green
- *   review_pending → orange
- *   locked → grey
- */
-import React from 'react';
-import type { TripStatus, ItemStatus } from '../../types/api';
+import type { ItemStatus, TripStatus } from '../../types/api';
 
 interface StatusBadgeProps {
   /** The status value to display. Accepts both trip and item status strings. */

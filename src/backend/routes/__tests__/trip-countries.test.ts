@@ -16,9 +16,9 @@
  * LockError → HTTP 403 (see src/backend/errors.ts)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
 
 // ----------------------------------------------------------------
@@ -220,7 +220,8 @@ vi.mock('../../db/index.js', async (importOriginal) => {
   return {
     ...real,
     getDb: () => {
-      if (!testDb) throw new Error('[TEST] testDb not initialised — call createTestDb in beforeEach');
+      if (!testDb)
+        throw new Error('[TEST] testDb not initialised — call createTestDb in beforeEach');
       return testDb;
     },
   };
@@ -258,13 +259,16 @@ const TEST_USER_ID = 'test-user-id';
 
 async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>) {
   const now = Date.now();
-  await db.insert(schema.users).values({
-    id: TEST_USER_ID,
-    clerkId: 'user_test',
-    email: 'test@example.com',
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
-  }).onConflictDoNothing();
+  await db
+    .insert(schema.users)
+    .values({
+      id: TEST_USER_ID,
+      clerkId: 'user_test',
+      email: 'test@example.com',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    })
+    .onConflictDoNothing();
 }
 
 async function seedCountry(
@@ -279,14 +283,17 @@ async function seedTrip(
   db: Awaited<ReturnType<typeof createTestDb>>,
   overrides: Partial<typeof schema.trips.$inferInsert> = {},
 ) {
-  const [trip] = await db.insert(schema.trips).values({
-    name: 'Test Trip',
-    startDate: '2026-06-01',
-    endDate: '2026-06-10',
-    status: 'planning',
-    userId: TEST_USER_ID,
-    ...overrides,
-  }).returning();
+  const [trip] = await db
+    .insert(schema.trips)
+    .values({
+      name: 'Test Trip',
+      startDate: '2026-06-01',
+      endDate: '2026-06-10',
+      status: 'planning',
+      userId: TEST_USER_ID,
+      ...overrides,
+    })
+    .returning();
   return trip;
 }
 
@@ -302,7 +309,9 @@ describe('POST /api/trips — country_codes field', () => {
     await seedCountry(testDb, 'FR', 'France');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('creates a trip with country_codes and response includes countries array with both entries', async () => {
     const res = await supertest(app)
@@ -350,7 +359,9 @@ describe('PATCH /api/trips/:id — country_codes field', () => {
     await seedCountry(testDb, 'FR', 'France');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('replaces existing countries when country_codes is provided', async () => {
     // Create trip with JP via the countries sub-resource (or directly seed)
@@ -399,7 +410,9 @@ describe('GET /api/trips?country=XX — country filter', () => {
     await seedCountry(testDb, 'DE', 'Germany');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('returns only the trip that has JP in trip_countries, not the one without', async () => {
     const db = testDb!;
@@ -408,9 +421,7 @@ describe('GET /api/trips?country=XX — country filter', () => {
 
     await db.insert(schema.tripCountries).values({ tripId: jpTrip.id, countryCode: 'JP' });
 
-    const res = await supertest(app)
-      .get('/api/trips?country=JP')
-      .expect(200);
+    const res = await supertest(app).get('/api/trips?country=JP').expect(200);
 
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body).toHaveLength(1);
@@ -422,9 +433,7 @@ describe('GET /api/trips?country=XX — country filter', () => {
     await seedTrip(db, { name: 'Germany Trip' });
     // no trip_countries rows for JP
 
-    const res = await supertest(app)
-      .get('/api/trips?country=JP')
-      .expect(200);
+    const res = await supertest(app).get('/api/trips?country=JP').expect(200);
 
     expect(res.body).toHaveLength(0);
   });
@@ -442,7 +451,9 @@ describe('GET /api/trips/:id — countries field', () => {
     await seedCountry(testDb, 'FR', 'France');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('returns countries array on GET /api/trips/:id', async () => {
     const db = testDb!;
@@ -452,9 +463,7 @@ describe('GET /api/trips/:id — countries field', () => {
       { tripId: trip.id, countryCode: 'FR' },
     ]);
 
-    const res = await supertest(app)
-      .get(`/api/trips/${trip.id}`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/trips/${trip.id}`).expect(200);
 
     expect(res.body).toHaveProperty('countries');
     const codes = res.body.countries.map((c: { country_code: string }) => c.country_code);
@@ -467,9 +476,7 @@ describe('GET /api/trips/:id — countries field', () => {
     const db = testDb!;
     const trip = await seedTrip(db);
 
-    const res = await supertest(app)
-      .get(`/api/trips/${trip.id}`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/trips/${trip.id}`).expect(200);
 
     expect(res.body).toHaveProperty('countries');
     expect(res.body.countries).toEqual([]);
@@ -488,7 +495,9 @@ describe('POST /api/trips/:id/countries', () => {
     await seedCountry(testDb, 'FR', 'France');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('adds multiple countries and returns 200 with both in response', async () => {
     const db = testDb!;
@@ -552,10 +561,7 @@ describe('POST /api/trips/:id/countries', () => {
     const db = testDb!;
     const trip = await seedTrip(db);
 
-    const res = await supertest(app)
-      .post(`/api/trips/${trip.id}/countries`)
-      .send({})
-      .expect(400);
+    const res = await supertest(app).post(`/api/trips/${trip.id}/countries`).send({}).expect(400);
 
     expect(res.body).toHaveProperty('error');
   });
@@ -573,16 +579,16 @@ describe('DELETE /api/trips/:id/countries/:code', () => {
     await seedCountry(testDb, 'FR', 'France');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('removes a country and returns 204 No Content', async () => {
     const db = testDb!;
     const trip = await seedTrip(db);
     await db.insert(schema.tripCountries).values({ tripId: trip.id, countryCode: 'JP' });
 
-    await supertest(app)
-      .delete(`/api/trips/${trip.id}/countries/JP`)
-      .expect(204);
+    await supertest(app).delete(`/api/trips/${trip.id}/countries/JP`).expect(204);
   });
 
   it('returns 404 when trying to delete a country that is not on the trip', async () => {
@@ -590,9 +596,7 @@ describe('DELETE /api/trips/:id/countries/:code', () => {
     const trip = await seedTrip(db);
     // JP not added — should 404
 
-    const res = await supertest(app)
-      .delete(`/api/trips/${trip.id}/countries/JP`)
-      .expect(404);
+    const res = await supertest(app).delete(`/api/trips/${trip.id}/countries/JP`).expect(404);
 
     expect(res.body).toHaveProperty('error');
   });
@@ -603,22 +607,16 @@ describe('DELETE /api/trips/:id/countries/:code', () => {
     await db.insert(schema.tripCountries).values({ tripId: trip.id, countryCode: 'JP' });
 
     // First delete succeeds
-    await supertest(app)
-      .delete(`/api/trips/${trip.id}/countries/JP`)
-      .expect(204);
+    await supertest(app).delete(`/api/trips/${trip.id}/countries/JP`).expect(204);
 
     // Second delete: JP is gone → 404
-    const res = await supertest(app)
-      .delete(`/api/trips/${trip.id}/countries/JP`)
-      .expect(404);
+    const res = await supertest(app).delete(`/api/trips/${trip.id}/countries/JP`).expect(404);
 
     expect(res.body).toHaveProperty('error');
   });
 
   it('returns 404 when the trip does not exist', async () => {
-    const res = await supertest(app)
-      .delete('/api/trips/99999/countries/JP')
-      .expect(404);
+    const res = await supertest(app).delete('/api/trips/99999/countries/JP').expect(404);
 
     expect(res.body).toHaveProperty('error');
   });
@@ -628,9 +626,7 @@ describe('DELETE /api/trips/:id/countries/:code', () => {
     const trip = await seedTrip(db, { status: 'locked' });
     await db.insert(schema.tripCountries).values({ tripId: trip.id, countryCode: 'JP' });
 
-    const res = await supertest(app)
-      .delete(`/api/trips/${trip.id}/countries/JP`)
-      .expect(403);
+    const res = await supertest(app).delete(`/api/trips/${trip.id}/countries/JP`).expect(403);
 
     expect(res.body).toHaveProperty('error');
   });

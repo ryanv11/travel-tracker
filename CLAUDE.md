@@ -21,8 +21,9 @@ npm run type:check:all         # TypeScript type check (frontend + backend)
 ```
 
 ## Pre-push checklist (mandatory)
-Before every `git push`, run all four checks and iterate fixes until they pass:
+Before every `git push`, run all checks and iterate fixes until they pass:
 ```bash
+npm run check              # Biome lint + format (fast, run first)
 npm run type:check:all
 npm run test:backend
 npm run test:frontend
@@ -45,6 +46,12 @@ clearly in your commit message and push. Do not hold a push indefinitely for ano
 - Branch off `main`, commit to your branch, then open a PR
 - PR title and description must reference the GitHub issue number (`Closes #N`) and BRD section if applicable
 - **COO reviews and merges PRs** — agents do not merge their own PRs
+
+### GitHub issue ↔ tracker cross-referencing (mandatory)
+When raising a GitHub issue for something that has a tracker entry, include the tracker ID
+in the issue title — e.g. `fix(BUG-15): wrap executeCarryForward in a transaction`.
+The tracker entry's `notes` field must include the GitHub issue number in return.
+This applies to all new issues — bugs, features, chores — anything with a tracker entry.
 
 ### Opening a PR
 ```bash

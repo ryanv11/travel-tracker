@@ -7,8 +7,8 @@
  * Source: src/backend/services/shading.service.ts
  * Spec:   docs/map-shading-spec.md §2
  */
-import { describe, it, expect } from 'vitest';
-import { computeState, computeCountryState } from '../shading.service.js';
+import { describe, expect, it } from 'vitest';
+import { computeCountryState, computeState } from '../shading.service.js';
 
 describe('computeState()', () => {
   // ----------------------------------------------------------------
@@ -183,7 +183,9 @@ describe('computeCountryState()', () => {
 
     it('returns "never_visited" when totalRegions = 0 (edge case)', () => {
       const row = { ...baseRow, regionTierEnabled: 1, completedCount: 1 };
-      expect(computeCountryState(row, { totalRegions: 0, visitedRegions: 0 })).toBe('never_visited');
+      expect(computeCountryState(row, { totalRegions: 0, visitedRegions: 0 })).toBe(
+        'never_visited',
+      );
     });
   });
 
@@ -215,8 +217,8 @@ describe('computeCountryState()', () => {
       const row = {
         ...baseRow,
         regionTierEnabled: 1,
-        completedCount: 3,        // all-city: 3 completed
-        completedUnregioned: 1,   // unregioned: only 1
+        completedCount: 3, // all-city: 3 completed
+        completedUnregioned: 1, // unregioned: only 1
       };
       // Should return visited_multiple (from all-city stats), not visited_once (from unregioned)
       expect(computeCountryState(row, fullCoverage)).toBe('visited_multiple');

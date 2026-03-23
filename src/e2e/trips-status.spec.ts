@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createTrip, deleteAllTrips, transitionTripStatus } from './helpers/factories';
 
 test.beforeEach(async ({ request }) => {
@@ -14,7 +14,9 @@ test('planning → active via status bar', async ({ page, request }) => {
   await page.getByRole('button', { name: 'Mark as Active' }).click();
 
   // After transition, the next action button confirms we're now active
-  await expect(page.getByRole('button', { name: 'Move to Review' })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('button', { name: 'Move to Review' })).toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 test('active → review pending via status bar', async ({ page, request }) => {

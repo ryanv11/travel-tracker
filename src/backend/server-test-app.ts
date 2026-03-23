@@ -13,21 +13,22 @@
 
 import 'dotenv/config';
 import { config } from 'dotenv';
+
 config({ path: '.env.local' });
 
-import express from 'express';
-import helmet from 'helmet';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import helmet from 'helmet';
 
 import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
-import { tripsRouter } from './routes/trips.js';
+import { adminRouter } from './routes/admin.js';
 import { citiesRouter } from './routes/cities.js';
 import { mapRouter } from './routes/map.js';
-import { adminRouter } from './routes/admin.js';
+import { tripsRouter } from './routes/trips.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

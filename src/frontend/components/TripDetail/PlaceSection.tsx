@@ -9,11 +9,11 @@
  * Shows city name, country, activity tags, date range, and a list of ItemCards.
  * Contains the "Add Item" button (hidden when trip is locked).
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
+import type { Item, TripPlace } from '../../types/api';
+import { formatDate } from '../../utils/formatDate';
 import { ItemCard } from './ItemCard';
 import { ItemForm } from './ItemForm';
-import { formatDate } from '../../utils/formatDate';
-import type { TripPlace, Item } from '../../types/api';
 
 interface PlaceSectionProps {
   /** The place (city + items) to render. */
@@ -62,7 +62,13 @@ function derivePlaceDateRange(
  * @param tripStartDate - Trip start date for fallback date range.
  * @param tripEndDate - Trip end date for fallback date range.
  */
-export function PlaceSection({ place, tripId, isLocked, tripStartDate, tripEndDate }: PlaceSectionProps) {
+export function PlaceSection({
+  place,
+  tripId,
+  isLocked,
+  tripStartDate,
+  tripEndDate,
+}: PlaceSectionProps) {
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
 
@@ -85,7 +91,8 @@ export function PlaceSection({ place, tripId, isLocked, tripStartDate, tripEndDa
 
           {/* D-03/DELTA-09: Country name · date range on single subtitle line (DP-04) */}
           <p className="mt-0.5 text-xs text-gray-500">
-            {place.city.country_name ?? place.city.country_code} · {formatDate(dateRange.start)} – {formatDate(dateRange.end)}
+            {place.city.country_name ?? place.city.country_code} · {formatDate(dateRange.start)} –{' '}
+            {formatDate(dateRange.end)}
           </p>
 
           {/* Activity tags */}
@@ -133,13 +140,7 @@ export function PlaceSection({ place, tripId, isLocked, tripStartDate, tripEndDa
       </div>
 
       {/* Add item modal */}
-      {showAddItem && (
-        <ItemForm
-          tripId={tripId}
-          tripPlaceId={place.id}
-          onClose={handleCloseForm}
-        />
-      )}
+      {showAddItem && <ItemForm tripId={tripId} tripPlaceId={place.id} onClose={handleCloseForm} />}
 
       {/* Edit item modal */}
       {editingItem && (

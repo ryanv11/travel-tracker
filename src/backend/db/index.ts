@@ -30,12 +30,13 @@
  */
 
 import { config } from 'dotenv';
+
 config({ path: '.env.local' }); // Explicit load — dotenv/config only reads .env by default
 
 import { createClient } from '@libsql/client';
-import { Pool } from 'pg';
 import { drizzle as drizzleLibSQL } from 'drizzle-orm/libsql';
 import { drizzle as drizzlePG } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from './schema.js';
 
 // Re-export schema types for convenience — consumers only need to import from here
@@ -122,9 +123,7 @@ function createLibSQLDb(): LibSQLDb {
 function createPostgresDb(): PgDb {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error(
-      '[DB] DATABASE_URL is required when DB_TYPE=postgres.',
-    );
+    throw new Error('[DB] DATABASE_URL is required when DB_TYPE=postgres.');
   }
 
   const client = new Pool({ connectionString: databaseUrl });

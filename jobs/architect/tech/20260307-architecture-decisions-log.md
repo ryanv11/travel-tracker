@@ -953,3 +953,102 @@ WHERE trips.id IN (
 - **Tests:** backend tests for the new endpoints; update shading service unit tests
   to cover `trip_countries` contributions and case (d).
 
+---
+
+## ADL-25 — Backend db typing: narrow to SQLite now; Postgres migration is a Phase 2 cutover
+
+**Date:** 2026-03-21
+**Status:** Decided — resolves COO inbox 2026-03-21 22:00
+**Triggered by:** ~40–50 TypeScript type errors across `repositories/` and `routes/` from the `AppDatabase = LibSQLDb | PgDb` union type
+
+---
+
+### 1. Problem
+
+`src/backend/db/index.ts` exports `AppDatabase = LibSQLDb | PgDb` (a union of the Drizzle libSQL and node-postgres instances). TypeScript cannot call Drizzle query-builder methods on this union because `LibSQLDatabase` and `NodePgDatabase` belong to completely separate class hierarchies with no shared callable ancestor — `LibSQLDatabase` extends `BaseSQLiteDatabase<'async', ResultSet, TSchema>` (sqlite-core) while `NodePgDatabase` extends `PgDatabase<NodePgQueryResultHKT, TSchema>` (pg-core). Every call site that does `const db = getDb(); db.select()...` produces TS2349.
+
+---
+
+### 2. Option C ruled out — no usable generic Drizzle db type
+
+Investigation of `node_modules/drizzle-orm` type definitions confirms:
+
+- `BaseSQLiteDatabase` (sqlite-core/db.d.ts) and `PgDatabase` (pg-core/db.d.ts) do **not** share a common abstract base class or interface in Drizzle's type system.
+- There is no exported `AnyDatabase`, `BaseDatabase`, or dialect-agnostic query-builder type in Drizzle ORM that covers both SQLite and PostgreSQL.
+- Both classes define `.select()`, `.insert()`, `.update()`, `.delete()` etc. independently — the signatures are not intersectable by TypeScript because the table type parameters (`SQLiteTable` vs `PgTable`) are different and not related by inheritance.
+
+**Option C is not viable.** No Drizzle generic type exists that would allow calling query methods on a variable typed as "either SQLite or Postgres."
+
+---
+
+### 3. Timeline decision: Postgres migration is a Phase 2 cutover, not near-term work
+
+The iOS scope decision (2026-03-11) states "Drizzle schema should target both SQLite and Postgres/Turso." This is a schema design constraint — it means the table definitions in `schema.ts` must be written in a way that can be re-expressed in PostgreSQL when Phase 2 arrives. It does **not** mean the runtime database connection must support both dialects simultaneously today.
+
+The current phase is Phase 1. There is no timeline for Phase 2 (hosted/cloud). The application runs exclusively against SQLite via libSQL. There is no Postgres deployment, no Postgres test environment, and no near-term work item that requires a live Postgres connection.
+
+**Decision: the Postgres migration timeline is indefinite — it is Phase 2 work, not planned work.**
+
+Paying the abstraction cost of Option B (a typed repository interface satisfying both dialects) before a Postgres deployment exists would be engineering for a speculative future. The interface would need to be tested against real Postgres behaviour to be meaningful; untested, it provides false confidence. The right time to build the dual-dialect abstraction is when Phase 2 begins and a Postgres instance is available.
+
+---
+
+### 4. Decision: Option A — narrow `getDb()` to return `LibSQLDb` now
+
+**Fix:**
+
+1. Change `getDb()`'s return type from `AppDatabase` (the union) to `LibSQLDb` (the SQLite instance type only).
+2. The `AppDatabase` union type alias and the `PgDb` type alias may be retained as documentation, or removed. If retained, they must **not** be used as parameter/return types at any call site.
+3. The Postgres branch (`createPostgresDb()`) in `db/index.ts` remains in the file — it is the Phase 2 entrypoint and deleting it would require re-writing it later. It simply does not affect the type of `getDb()`.
+
+**Concrete TypeScript pattern for `db/index.ts`:**
+
+```typescript
+type LibSQLDb = ReturnType<typeof drizzleLibSQL<typeof schema>>;
+type PgDb     = ReturnType<typeof drizzlePG<typeof schema>>;
+
+// AppDatabase is retained as a documentation alias only.
+// It is NOT used as the return type of getDb().
+export type AppDatabase = LibSQLDb | PgDb;
+
+let _db: LibSQLDb | null = null;
+
+export function getDb(): LibSQLDb {
+  if (_db) return _db;
+  // ... sqlite branch only populates _db
+}
+```
+
+All repository files and route files that call `const db = getDb()` will automatically resolve `db` to `LibSQLDb` — a concrete `BaseSQLiteDatabase<'async', ResultSet, typeof schema>` — and the TS2349 errors will clear without any changes to the call sites.
+
+---
+
+### 5. What "schema must target both dialects" means in practice
+
+The iOS scope constraint is satisfied at the **schema definition** level, not the runtime type level:
+
+- `schema.ts` uses `sqliteTable`, `text`, `integer`, `real` — all of which have PostgreSQL analogs in Drizzle (`pgTable`, `varchar`/`text`, `integer`, `real`). When Phase 2 begins, a parallel `schema.pg.ts` (or inline `if DB_TYPE === 'postgres'` branch) can be generated mechanically from the existing definitions. Column names and relationships are identical; only the builder imports change. This is what ADL-04 already specifies.
+- The existing `DB_TYPE` environment variable switch in `db/index.ts` is the correct Phase 2 entrypoint. When Phase 2 starts: (a) generate the Postgres schema file, (b) update `getDb()` to return `LibSQLDb | PgDb` (the union), (c) fix the type errors that emerge at that point using Option B or C (whichever is feasible with the Drizzle version then in use). That is the correct sequencing.
+
+---
+
+### 6. Why not Option B now?
+
+Option B (typed repository interface) is the correct long-term architecture if dual-dialect support is required simultaneously (e.g. running tests against SQLite while production runs Postgres). It is not warranted today because:
+
+- The test environment also uses SQLite (`DB_TYPE=sqlite`, `SQLITE_PATH=./dev.db` or `./e2e.db`). There is no scenario in the current phase where two dialect implementations of the interface would be exercised.
+- The interface boundary would be unverified against Postgres. A typed interface that has never been tested against the second implementation is a liability, not an asset — it creates the illusion of portability.
+- The ADL-18 repository layer already provides the correct seam: when Phase 2 arrives and a Postgres instance exists, the repositories are the right place to introduce a dialect-aware abstraction. The current `getDb()` factory is the right place to return the correct concrete type.
+
+Option B is deferred to Phase 2, not rejected permanently.
+
+---
+
+### 7. Implications
+
+- **BACKEND (immediate):** Change `getDb()` return type from `AppDatabase` to `LibSQLDb`. No other file changes are required — the 40–50 type errors are all downstream of the return type of `getDb()` and will clear automatically.
+- **db/index.ts:** `AppDatabase` union alias may remain as a comment / future marker. `PgDb` alias and `createPostgresDb()` function remain unchanged (Phase 2 entrypoint).
+- **schema.ts:** No change required. The SQLite schema definitions already satisfy the "must be re-expressible in Postgres" constraint per ADL-04.
+- **Phase 2 (future):** When Postgres deployment begins, restore the union return type, expose both dialect implementations, and address the resulting type errors at that time using Option B (repository interface) or whatever Drizzle generic type support exists in the then-current version.
+- **No other ADL is affected.** ADL-04, ADL-18, and the iOS scope decision are all consistent with this approach.
+

@@ -5,24 +5,37 @@
  * rateable item types (restaurant, hotel, experience).
  * Each change calls PATCH /api/trips/:tripId/items/:itemId immediately (not batched).
  */
-import React, { useState } from 'react';
-import { RatingStars } from '../shared/RatingStars';
-import { StatusBadge } from '../shared/StatusBadge';
+import { useState } from 'react';
 import { useUpdateItem } from '../../hooks/useItems';
 import type { Item, ItemStatus, ItemType } from '../../types/api';
+import { RatingStars } from '../shared/RatingStars';
 
 interface ReviewItemRowProps {
   item: Item;
   tripId: number;
 }
 
-const STATUS_OPTIONS: ItemStatus[] = ['consider', 'confirmed', 'completed', 'cancelled', 'next_time'];
+const STATUS_OPTIONS: ItemStatus[] = [
+  'consider',
+  'confirmed',
+  'completed',
+  'cancelled',
+  'next_time',
+];
 const STATUS_LABELS: Record<ItemStatus, string> = {
-  consider: 'Consider', confirmed: 'Confirmed', completed: 'Completed',
-  cancelled: 'Cancelled', next_time: 'Next Time',
+  consider: 'Consider',
+  confirmed: 'Confirmed',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  next_time: 'Next Time',
 };
 const TYPE_ICONS: Record<ItemType, string> = {
-  restaurant: '🍽️', hotel: '🏨', flight: '✈️', car_rental: '🚗', experience: '🎫', note: '📝',
+  restaurant: '🍽️',
+  hotel: '🏨',
+  flight: '✈️',
+  car_rental: '🚗',
+  experience: '🎫',
+  note: '📝',
 };
 const RATEABLE_TYPES: ItemType[] = ['restaurant', 'hotel', 'experience'];
 
@@ -70,19 +83,30 @@ export function ReviewItemRow({ item, tripId }: ReviewItemRowProps) {
         <div style={{ flex: 1, minWidth: '160px' }}>
           <div style={{ fontWeight: 600, fontSize: '14px' }}>{getItemLabel(item)}</div>
           {item.notes && (
-            <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>{item.notes.slice(0, 80)}</div>
+            <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+              {item.notes.slice(0, 80)}
+            </div>
           )}
         </div>
 
         {/* Status selector */}
         <select
           value={status}
-          onChange={(e) => { void handleStatusChange(e.target.value as ItemStatus); }}
+          onChange={(e) => {
+            void handleStatusChange(e.target.value as ItemStatus);
+          }}
           disabled={updateItem.isPending}
-          style={{ padding: '5px 8px', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '13px' }}
+          style={{
+            padding: '5px 8px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '6px',
+            fontSize: '13px',
+          }}
         >
           {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+            <option key={s} value={s}>
+              {STATUS_LABELS[s]}
+            </option>
           ))}
         </select>
       </div>
@@ -91,16 +115,28 @@ export function ReviewItemRow({ item, tripId }: ReviewItemRowProps) {
       {showRating && (
         <div style={{ marginTop: '10px', paddingLeft: '28px' }}>
           <div style={{ marginBottom: '6px' }}>
-            <RatingStars value={rating} onChange={(r) => { void handleRatingChange(r); }} />
+            <RatingStars
+              value={rating}
+              onChange={(r) => {
+                void handleRatingChange(r);
+              }}
+            />
           </div>
           <textarea
             value={postVisitNotes}
             onChange={(e) => setPostVisitNotes(e.target.value)}
-            onBlur={() => { void handleNotesBlur(); }}
+            onBlur={() => {
+              void handleNotesBlur();
+            }}
             placeholder="Post-visit notes…"
             style={{
-              width: '100%', padding: '7px 10px', border: '1px solid #D1D5DB',
-              borderRadius: '6px', fontSize: '13px', resize: 'vertical', height: '70px',
+              width: '100%',
+              padding: '7px 10px',
+              border: '1px solid #D1D5DB',
+              borderRadius: '6px',
+              fontSize: '13px',
+              resize: 'vertical',
+              height: '70px',
               boxSizing: 'border-box',
             }}
           />

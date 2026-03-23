@@ -5,30 +5,30 @@
  * Geocoding is attempted immediately on city creation; failures are silent (GE-12).
  */
 
+import { and, desc, eq, inArray, like, notInArray, sql } from 'drizzle-orm';
 import { Router } from 'express';
-import { eq, and, like, inArray, notInArray, desc, sql } from 'drizzle-orm';
 import {
-  getDb,
   cities,
   countries,
-  regions,
-  items,
-  itemRestaurants,
-  itemHotels,
+  getDb,
   itemExperiences,
+  itemHotels,
+  itemRestaurants,
+  items,
+  regions,
   tripPlaces,
   trips,
 } from '../db/index.js';
+import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
-import {
-  CreateCitySchema,
-  SearchCitiesQuerySchema,
-  CityItemsQuerySchema,
-  PatchCitySchema,
-} from '../validation/cities.schemas.js';
-import { NotFoundError, ValidationError } from '../errors.js';
 import { resolveCity } from '../services/geocoding.service.js';
+import {
+  CityItemsQuerySchema,
+  CreateCitySchema,
+  PatchCitySchema,
+  SearchCitiesQuerySchema,
+} from '../validation/cities.schemas.js';
 
 export const citiesRouter = Router();
 
@@ -87,9 +87,7 @@ citiesRouter.post(
     // Correction 2: region_id is OPTIONAL even when region_tier_enabled = 1
     // But region_id MUST be NULL when region_tier_enabled = 0
     if (regionTierEnabled === 0 && region_id != null) {
-      throw new ValidationError(
-        'region_id must not be provided for countries without region tier',
-      );
+      throw new ValidationError('region_id must not be provided for countries without region tier');
     }
 
     // If region_id is provided, verify it belongs to the country
@@ -147,7 +145,7 @@ citiesRouter.patch(
   validateBody(PatchCitySchema),
   asyncHandler(async (req, res) => {
     const cityId = parseInt(String(req.params.id), 10);
-    if (isNaN(cityId)) throw new NotFoundError('City');
+    if (Number.isNaN(cityId)) throw new NotFoundError('City');
 
     const db = getDb();
 
@@ -174,11 +172,7 @@ citiesRouter.patch(
         ? { regionId: region_id ?? null, updatedAt: now }
         : { updatedAt: now };
 
-    const updated = await db
-      .update(cities)
-      .set(setValues)
-      .where(eq(cities.id, cityId))
-      .returning();
+    const updated = await db.update(cities).set(setValues).where(eq(cities.id, cityId)).returning();
 
     const city = updated[0];
     res.json({
@@ -200,7 +194,7 @@ citiesRouter.get(
   '/:id/carry-forward',
   asyncHandler(async (req, res) => {
     const cityId = parseInt(String(req.params.id), 10);
-    if (isNaN(cityId)) throw new NotFoundError('City');
+    if (Number.isNaN(cityId)) throw new NotFoundError('City');
 
     const db = getDb();
 
@@ -255,7 +249,7 @@ citiesRouter.get(
   validateQuery(CityItemsQuerySchema),
   asyncHandler(async (req, res) => {
     const cityId = parseInt(String(req.params.id), 10);
-    if (isNaN(cityId)) throw new NotFoundError('City');
+    if (Number.isNaN(cityId)) throw new NotFoundError('City');
 
     const userId = req.user!.id;
     const { type, min_rating } = req.query as { type?: string; min_rating?: number };
@@ -271,7 +265,7 @@ citiesRouter.get(
     ];
     if (type) conditions.push(eq(items.itemType, type));
 
-    let query = db
+    const query = db
       .select({
         id: items.id,
         itemType: items.itemType,
@@ -288,7 +282,9 @@ citiesRouter.get(
         experienceRating: itemExperiences.rating,
         experiencePostVisitNotes: itemExperiences.postVisitNotes,
         // Computed rating for sort/filter — COALESCE across types
-        effectiveRating: sql<number | null>`COALESCE(${itemRestaurants.rating}, ${itemHotels.rating}, ${itemExperiences.rating})`,
+        effectiveRating: sql<
+          number | null
+        >`COALESCE(${itemRestaurants.rating}, ${itemHotels.rating}, ${itemExperiences.rating})`,
       })
       .from(items)
       .innerJoin(tripPlaces, eq(tripPlaces.id, items.tripPlaceId))

@@ -7,9 +7,10 @@
  *
  * SEC-12: No innerHTML — MapLibre's feature-state drives all rendering.
  */
-import React, { useEffect } from 'react';
-import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+
 import type { FillLayerSpecification } from 'maplibre-gl';
+import { useEffect } from 'react';
+import { Layer, Source, useMap } from 'react-map-gl/maplibre';
 import type { RegionShading } from '../../types/api';
 
 const REGIONS_GEOJSON_URL = '/geo/regions.json';
@@ -64,12 +65,7 @@ export function RegionLayer({ regionData }: RegionLayerProps) {
   }, [map, regionData]);
 
   return (
-    <Source
-      id="regions-source"
-      type="geojson"
-      data={REGIONS_GEOJSON_URL}
-      promoteId="iso_3166_2"
-    >
+    <Source id="regions-source" type="geojson" data={REGIONS_GEOJSON_URL} promoteId="iso_3166_2">
       <Layer {...regionFillLayer} />
     </Source>
   );

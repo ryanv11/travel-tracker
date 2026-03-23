@@ -4,18 +4,7 @@
  */
 
 import { z } from 'zod';
-import { zName, zIsoDate, zTripStatus, zOptionalString } from './common.js';
-
-/** Shared date range refinement — end_date must be >= start_date */
-const withDateRefinement = <T extends z.ZodTypeAny>(schema: T) =>
-  (schema as unknown as z.ZodObject<{ start_date: z.ZodTypeAny; end_date: z.ZodTypeAny }>).refine(
-    (data: { start_date: unknown; end_date: unknown }) => {
-      const start = data.start_date as string;
-      const end = data.end_date as string;
-      return end >= start;
-    },
-    { message: 'end_date must be on or after start_date', path: ['end_date'] },
-  );
+import { zIsoDate, zName, zOptionalString, zTripStatus } from './common.js';
 
 const tripAssociations = {
   category_ids: z.array(z.number().int().positive()).optional(),
@@ -58,9 +47,7 @@ export const UpdateTripSchema = z
   );
 
 /** Schema for PATCH /api/trips/:id/status */
-export const UpdateTripStatusSchema = z
-  .object({ status: zTripStatus })
-  .strict();
+export const UpdateTripStatusSchema = z.object({ status: zTripStatus }).strict();
 
 /** Schema for GET /api/trips query params */
 export const ListTripsQuerySchema = z.object({

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createTrip, deleteAllTrips } from './helpers/factories';
 
 test.beforeEach(async ({ request }) => {
@@ -30,13 +30,21 @@ test('form rejects end date before start date', async ({ page }) => {
 
   // Force end date < start date: native setter bypasses the browser's min constraint,
   // and form.noValidate=true prevents Chrome's HTML validation from blocking React's handleSubmit.
-  await page.locator('form input[type="date"]').nth(1).evaluate((el: HTMLInputElement) => {
-    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
-    nativeSetter.call(el, '2026-08-01');
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
+  await page
+    .locator('form input[type="date"]')
+    .nth(1)
+    .evaluate((el: HTMLInputElement) => {
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )!.set!;
+      nativeSetter.call(el, '2026-08-01');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  await page.locator('form').evaluate((f: HTMLFormElement) => {
+    f.noValidate = true;
   });
-  await page.locator('form').evaluate((f: HTMLFormElement) => { f.noValidate = true; });
   await page.getByRole('button', { name: 'Create Trip' }).click();
 
   await expect(page.getByText(/End date must be on or after start date/)).toBeVisible();

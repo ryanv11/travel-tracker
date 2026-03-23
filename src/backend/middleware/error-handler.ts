@@ -7,7 +7,7 @@
  * All other errors return 500 with a generic message — full details logged server-side.
  */
 
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
 interface AppError extends Error {
   statusCode?: number;
@@ -28,14 +28,7 @@ export function errorHandler(
   const statusCode = err.statusCode ?? 500;
 
   // Log full error server-side (SEC-08: never log req/res body)
-  console.error(
-    '[ERROR]',
-    req.method,
-    req.path,
-    statusCode,
-    err.message,
-    err.stack,
-  );
+  console.error('[ERROR]', req.method, req.path, statusCode, err.message, err.stack);
 
   // Return sanitised error to client — never expose stack traces
   if (statusCode < 500) {

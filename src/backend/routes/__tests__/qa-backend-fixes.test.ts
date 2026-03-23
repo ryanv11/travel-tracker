@@ -10,9 +10,9 @@
  * Uses an in-memory libSQL database per test (full isolation).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
 
 // ----------------------------------------------------------------
@@ -257,24 +257,41 @@ const supertest = (await import('supertest')).default;
 const TEST_USER_ID = 'test-user-id';
 const OTHER_USER_ID = 'other-user-id';
 
-async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>, id = TEST_USER_ID, email = 'test@example.com') {
+async function seedTestUser(
+  db: Awaited<ReturnType<typeof createTestDb>>,
+  id = TEST_USER_ID,
+  email = 'test@example.com',
+) {
   const now = Date.now();
-  await db.insert(schema.users).values({
-    id,
-    clerkId: `clerk_${id}`,
-    email,
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
-  }).onConflictDoNothing();
+  await db
+    .insert(schema.users)
+    .values({
+      id,
+      clerkId: `clerk_${id}`,
+      email,
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    })
+    .onConflictDoNothing();
 }
 
-async function seedCountryAndCity(db: Awaited<ReturnType<typeof createTestDb>>, countryCode = 'FR', cityName = 'Paris') {
-  await db.insert(schema.countries).values({ countryCode, name: countryCode === 'FR' ? 'France' : 'Ireland' }).onConflictDoNothing();
-  const [city] = await db.insert(schema.cities).values({
-    name: cityName,
-    countryCode,
-    geocodeStatus: 'resolved',
-  }).returning();
+async function seedCountryAndCity(
+  db: Awaited<ReturnType<typeof createTestDb>>,
+  countryCode = 'FR',
+  cityName = 'Paris',
+) {
+  await db
+    .insert(schema.countries)
+    .values({ countryCode, name: countryCode === 'FR' ? 'France' : 'Ireland' })
+    .onConflictDoNothing();
+  const [city] = await db
+    .insert(schema.cities)
+    .values({
+      name: cityName,
+      countryCode,
+      geocodeStatus: 'resolved',
+    })
+    .returning();
   return city;
 }
 
@@ -284,13 +301,16 @@ async function seedTrip(
   startDate = '2026-06-01',
   endDate = '2026-06-10',
 ) {
-  const [trip] = await db.insert(schema.trips).values({
-    name: 'Test Trip',
-    startDate,
-    endDate,
-    status: 'planning',
-    userId,
-  }).returning();
+  const [trip] = await db
+    .insert(schema.trips)
+    .values({
+      name: 'Test Trip',
+      startDate,
+      endDate,
+      status: 'planning',
+      userId,
+    })
+    .returning();
   return trip;
 }
 
@@ -304,7 +324,9 @@ describe('BUG-A: PATCH /api/trips/:id — effective date validation', () => {
     await seedTestUser(testDb);
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('rejects when only end_date sent and it is before existing start_date', async () => {
     const db = testDb!;
@@ -312,7 +334,7 @@ describe('BUG-A: PATCH /api/trips/:id — effective date validation', () => {
 
     const res = await supertest(app)
       .patch(`/api/trips/${trip.id}`)
-      .send({ end_date: '2026-06-01' })  // before start_date 2026-06-10
+      .send({ end_date: '2026-06-01' }) // before start_date 2026-06-10
       .expect(400);
 
     expect(res.body).toHaveProperty('error');
@@ -324,7 +346,7 @@ describe('BUG-A: PATCH /api/trips/:id — effective date validation', () => {
 
     const res = await supertest(app)
       .patch(`/api/trips/${trip.id}`)
-      .send({ start_date: '2026-06-20' })  // after end_date 2026-06-10
+      .send({ start_date: '2026-06-20' }) // after end_date 2026-06-10
       .expect(400);
 
     expect(res.body).toHaveProperty('error');
@@ -336,7 +358,7 @@ describe('BUG-A: PATCH /api/trips/:id — effective date validation', () => {
 
     const res = await supertest(app)
       .patch(`/api/trips/${trip.id}`)
-      .send({ end_date: '2026-06-20' })  // after start_date 2026-06-10
+      .send({ end_date: '2026-06-20' }) // after start_date 2026-06-10
       .expect(200);
 
     expect(res.body.end_date).toBe('2026-06-20');
@@ -348,7 +370,7 @@ describe('BUG-A: PATCH /api/trips/:id — effective date validation', () => {
 
     const res = await supertest(app)
       .patch(`/api/trips/${trip.id}`)
-      .send({ start_date: '2026-06-05' })  // before end_date 2026-06-10
+      .send({ start_date: '2026-06-05' }) // before end_date 2026-06-10
       .expect(200);
 
     expect(res.body.start_date).toBe('2026-06-05');
@@ -360,7 +382,7 @@ describe('BUG-A: PATCH /api/trips/:id — effective date validation', () => {
 
     const res = await supertest(app)
       .patch(`/api/trips/${trip.id}`)
-      .send({ end_date: '2026-06-01' })  // same as start_date → valid
+      .send({ end_date: '2026-06-01' }) // same as start_date → valid
       .expect(200);
 
     expect(res.body.end_date).toBe('2026-06-01');
@@ -376,7 +398,9 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
     testDb = await createTestDb();
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('GET /api/admin/categories returns is_active, not isActive', async () => {
     const db = testDb!;
@@ -428,12 +452,15 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
   it('PATCH /api/admin/companions/:id returns snake_case', async () => {
     const db = testDb!;
     const now = new Date().toISOString();
-    const [inserted] = await db.insert(schema.companions).values({
-      name: 'Alice',
-      isActive: 1,
-      createdAt: now,
-      updatedAt: now,
-    }).returning();
+    const [inserted] = await db
+      .insert(schema.companions)
+      .values({
+        name: 'Alice',
+        isActive: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
 
     const res = await supertest(app)
       .patch(`/api/admin/companions/${inserted.id}`)
@@ -448,16 +475,17 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
   it('DELETE /api/admin/categories/:id (soft-delete) returns snake_case', async () => {
     const db = testDb!;
     const now = new Date().toISOString();
-    const [inserted] = await db.insert(schema.tripCategories).values({
-      name: 'TempCat',
-      isActive: 1,
-      createdAt: now,
-      updatedAt: now,
-    }).returning();
+    const [inserted] = await db
+      .insert(schema.tripCategories)
+      .values({
+        name: 'TempCat',
+        isActive: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
 
-    const res = await supertest(app)
-      .delete(`/api/admin/categories/${inserted.id}`)
-      .expect(200);
+    const res = await supertest(app).delete(`/api/admin/categories/${inserted.id}`).expect(200);
 
     expect(res.body).toHaveProperty('is_active');
     expect(res.body.is_active).toBe(false);
@@ -475,17 +503,22 @@ describe('SEC-01: GET /api/cities/:id/items — userId isolation', () => {
     await seedTestUser(testDb, OTHER_USER_ID, 'other@example.com');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('returns completed items belonging to the requesting user', async () => {
     const db = testDb!;
     const city = await seedCountryAndCity(db, 'FR', 'Paris');
     const trip = await seedTrip(db, TEST_USER_ID);
 
-    const [place] = await db.insert(schema.tripPlaces).values({
-      tripId: trip.id,
-      cityId: city.id,
-    }).returning();
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: trip.id,
+        cityId: city.id,
+      })
+      .returning();
 
     await db.insert(schema.items).values({
       tripId: trip.id,
@@ -495,9 +528,7 @@ describe('SEC-01: GET /api/cities/:id/items — userId isolation', () => {
       userId: TEST_USER_ID,
     });
 
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/items`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/items`).expect(200);
 
     expect(res.body).toHaveLength(1);
   });
@@ -507,10 +538,13 @@ describe('SEC-01: GET /api/cities/:id/items — userId isolation', () => {
     const city = await seedCountryAndCity(db, 'FR', 'Paris');
     const otherTrip = await seedTrip(db, OTHER_USER_ID);
 
-    const [place] = await db.insert(schema.tripPlaces).values({
-      tripId: otherTrip.id,
-      cityId: city.id,
-    }).returning();
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: otherTrip.id,
+        cityId: city.id,
+      })
+      .returning();
 
     // Item belongs to OTHER user
     await db.insert(schema.items).values({
@@ -522,9 +556,7 @@ describe('SEC-01: GET /api/cities/:id/items — userId isolation', () => {
     });
 
     // Auth mock sets user to TEST_USER_ID — should not see OTHER user's items
-    const res = await supertest(app)
-      .get(`/api/cities/${city.id}/items`)
-      .expect(200);
+    const res = await supertest(app).get(`/api/cities/${city.id}/items`).expect(200);
 
     expect(res.body).toHaveLength(0);
   });
@@ -541,7 +573,9 @@ describe('SEC-02: POST carry-forward — source_item_ids ownership check', () =>
     await seedTestUser(testDb, OTHER_USER_ID, 'other@example.com');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
   it('rejects carry-forward of items owned by another user', async () => {
     const db = testDb!;
@@ -549,25 +583,34 @@ describe('SEC-02: POST carry-forward — source_item_ids ownership check', () =>
 
     // Other user's source trip + item
     const otherTrip = await seedTrip(db, OTHER_USER_ID);
-    const [otherPlace] = await db.insert(schema.tripPlaces).values({
-      tripId: otherTrip.id,
-      cityId: city.id,
-    }).returning();
-    const [otherItem] = await db.insert(schema.items).values({
-      tripId: otherTrip.id,
-      tripPlaceId: otherPlace.id,
-      itemType: 'restaurant',
-      status: 'next_time',
-      userId: OTHER_USER_ID,
-    }).returning();
+    const [otherPlace] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: otherTrip.id,
+        cityId: city.id,
+      })
+      .returning();
+    const [otherItem] = await db
+      .insert(schema.items)
+      .values({
+        tripId: otherTrip.id,
+        tripPlaceId: otherPlace.id,
+        itemType: 'restaurant',
+        status: 'next_time',
+        userId: OTHER_USER_ID,
+      })
+      .returning();
 
     // Test user's target trip + place
     const myTrip = await seedTrip(db, TEST_USER_ID);
-    const [myPlace] = await db.insert(schema.tripPlaces).values({
-      tripId: myTrip.id,
-      cityId: city.id,
-      userId: TEST_USER_ID,
-    }).returning();
+    const [myPlace] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: myTrip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     // Test user tries to carry-forward other user's item
     const res = await supertest(app)
@@ -584,26 +627,35 @@ describe('SEC-02: POST carry-forward — source_item_ids ownership check', () =>
 
     // My source trip + item (next_time)
     const mySourceTrip = await seedTrip(db, TEST_USER_ID, '2025-06-01', '2025-06-10');
-    const [mySourcePlace] = await db.insert(schema.tripPlaces).values({
-      tripId: mySourceTrip.id,
-      cityId: city.id,
-      userId: TEST_USER_ID,
-    }).returning();
-    const [myItem] = await db.insert(schema.items).values({
-      tripId: mySourceTrip.id,
-      tripPlaceId: mySourcePlace.id,
-      itemType: 'restaurant',
-      status: 'next_time',
-      userId: TEST_USER_ID,
-    }).returning();
+    const [mySourcePlace] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: mySourceTrip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+      })
+      .returning();
+    const [myItem] = await db
+      .insert(schema.items)
+      .values({
+        tripId: mySourceTrip.id,
+        tripPlaceId: mySourcePlace.id,
+        itemType: 'restaurant',
+        status: 'next_time',
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     // My target trip + place
     const myTargetTrip = await seedTrip(db, TEST_USER_ID, '2026-06-01', '2026-06-10');
-    const [myTargetPlace] = await db.insert(schema.tripPlaces).values({
-      tripId: myTargetTrip.id,
-      cityId: city.id,
-      userId: TEST_USER_ID,
-    }).returning();
+    const [myTargetPlace] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: myTargetTrip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     const res = await supertest(app)
       .post(`/api/trips/${myTargetTrip.id}/places/${myTargetPlace.id}/carry-forward`)
@@ -625,28 +677,36 @@ describe('SEC-03: DELETE place activity — ownership check', () => {
     await seedTestUser(testDb, OTHER_USER_ID, 'other@example.com');
   });
 
-  afterEach(() => { testDb = null; });
+  afterEach(() => {
+    testDb = null;
+  });
 
-  it('returns 404 when trying to delete activity from another user\'s place', async () => {
+  it("returns 404 when trying to delete activity from another user's place", async () => {
     const db = testDb!;
     const city = await seedCountryAndCity(db, 'FR', 'Paris');
 
     // Other user's trip and place
     const otherTrip = await seedTrip(db, OTHER_USER_ID);
-    const [otherPlace] = await db.insert(schema.tripPlaces).values({
-      tripId: otherTrip.id,
-      cityId: city.id,
-      userId: OTHER_USER_ID,
-    }).returning();
+    const [otherPlace] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: otherTrip.id,
+        cityId: city.id,
+        userId: OTHER_USER_ID,
+      })
+      .returning();
 
     // Create an activity and tag it to other user's place
     const now = new Date().toISOString();
-    const [act] = await db.insert(schema.activities).values({
-      name: 'Hiking',
-      isActive: 1,
-      createdAt: now,
-      updatedAt: now,
-    }).returning();
+    const [act] = await db
+      .insert(schema.activities)
+      .values({
+        name: 'Hiking',
+        isActive: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
     await db.insert(schema.tripPlaceActivitiesMap).values({
       tripPlaceId: otherPlace.id,
       activityId: act.id,
@@ -660,26 +720,32 @@ describe('SEC-03: DELETE place activity — ownership check', () => {
     expect(res.body).toHaveProperty('error');
   });
 
-  it('allows deleting activity from the requesting user\'s own place', async () => {
+  it("allows deleting activity from the requesting user's own place", async () => {
     const db = testDb!;
     const city = await seedCountryAndCity(db, 'FR', 'Paris');
 
     // Test user's trip and place
     const myTrip = await seedTrip(db, TEST_USER_ID);
-    const [myPlace] = await db.insert(schema.tripPlaces).values({
-      tripId: myTrip.id,
-      cityId: city.id,
-      userId: TEST_USER_ID,
-    }).returning();
+    const [myPlace] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: myTrip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+      })
+      .returning();
 
     // Tag activity to my place
     const now = new Date().toISOString();
-    const [act] = await db.insert(schema.activities).values({
-      name: 'Swimming',
-      isActive: 1,
-      createdAt: now,
-      updatedAt: now,
-    }).returning();
+    const [act] = await db
+      .insert(schema.activities)
+      .values({
+        name: 'Swimming',
+        isActive: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
     await db.insert(schema.tripPlaceActivitiesMap).values({
       tripPlaceId: myPlace.id,
       activityId: act.id,

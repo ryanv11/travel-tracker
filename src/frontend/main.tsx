@@ -8,11 +8,12 @@
  *  - BrowserRouter for client-side navigation
  *  - Global CSS reset (minimal — no external stylesheet dependency)
  */
+
+import { ClerkProvider, RedirectToSignIn, Show, useAuth } from '@clerk/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
-import { ClerkProvider, Show, RedirectToSignIn, useAuth } from '@clerk/react';
 import { App } from './App';
 import { setTokenGetter } from './utils/apiClient';
 import './index.css';

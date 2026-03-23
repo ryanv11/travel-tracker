@@ -5,12 +5,18 @@
  * Validates using the shared Zod schema from the backend.
  * On submit: POST /api/trips (create) or PATCH /api/trips/:id (edit).
  */
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCreateTrip, useUpdateTrip, type TripFormData } from '../../hooks/useTrips';
-import { useActiveCategories, useActiveCompanions, useActiveActivities, useCountries } from '../../hooks/useAdmin';
-import { ErrorMessage } from '../shared/ErrorMessage';
+import {
+  useActiveActivities,
+  useActiveCategories,
+  useActiveCompanions,
+  useCountries,
+} from '../../hooks/useAdmin';
+import { type TripFormData, useCreateTrip, useUpdateTrip } from '../../hooks/useTrips';
 import type { TripSummary } from '../../types/api';
+import { ErrorMessage } from '../shared/ErrorMessage';
 
 interface TripFormProps {
   /** When set, the form is in edit mode and pre-populated with this trip's data. */
@@ -73,10 +79,22 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
     e.preventDefault();
     setValidationError('');
 
-    if (!name.trim()) { setValidationError('Name is required.'); return; }
-    if (!startDate) { setValidationError('Start date is required.'); return; }
-    if (!endDate) { setValidationError('End date is required.'); return; }
-    if (endDate < startDate) { setValidationError('End date must be on or after start date.'); return; }
+    if (!name.trim()) {
+      setValidationError('Name is required.');
+      return;
+    }
+    if (!startDate) {
+      setValidationError('Start date is required.');
+      return;
+    }
+    if (!endDate) {
+      setValidationError('End date is required.');
+      return;
+    }
+    if (endDate < startDate) {
+      setValidationError('End date must be on or after start date.');
+      return;
+    }
 
     const data: TripFormData = {
       name: name.trim(),
@@ -121,7 +139,11 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
           {isEditing ? 'Edit Trip' : 'New Trip'}
         </h2>
 
-        <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <form
+          onSubmit={(e) => {
+            void handleSubmit(e);
+          }}
+        >
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">Name *</label>
             <input
@@ -134,7 +156,9 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
 
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Start Date *</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Start Date *
+              </label>
               <input
                 type="date"
                 className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -173,7 +197,9 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
                       {country?.name ?? code}
                       <button
                         type="button"
-                        onClick={() => setSelectedCountryCodes(selectedCountryCodes.filter((c) => c !== code))}
+                        onClick={() =>
+                          setSelectedCountryCodes(selectedCountryCodes.filter((c) => c !== code))
+                        }
                         className="ml-0.5 text-teal-700 hover:text-teal-900 leading-none cursor-pointer"
                         aria-label={`Remove ${country?.name ?? code}`}
                       >
@@ -206,7 +232,10 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
                         type="button"
                         onClick={() => {
                           if (!selectedCountryCodes.includes(country.country_code)) {
-                            setSelectedCountryCodes([...selectedCountryCodes, country.country_code]);
+                            setSelectedCountryCodes([
+                              ...selectedCountryCodes,
+                              country.country_code,
+                            ]);
                           }
                           setCountrySearch('');
                         }}
@@ -225,7 +254,9 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
           {/* Photo album — edit only */}
           {isEditing && (
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Photo Album URL (optional)</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Photo Album URL (optional)
+              </label>
               <input
                 className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 value={photoRef}

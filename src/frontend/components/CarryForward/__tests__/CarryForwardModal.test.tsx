@@ -19,12 +19,12 @@
  *
  * Source: src/frontend/components/CarryForward/CarryForwardModal.tsx
  */
-import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CarryForwardModal } from '../CarryForwardModal.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CarryForwardCandidate } from '../../../types/api.js';
+import { CarryForwardModal } from '../CarryForwardModal.js';
 
 // ----------------------------------------------------------------
 // Mock hooks
@@ -107,7 +107,9 @@ describe('CarryForwardModal', () => {
     render(<CarryForwardModal {...defaultProps} />);
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes).toHaveLength(2);
-    checkboxes.forEach((cb) => expect(cb).not.toBeChecked());
+    checkboxes.forEach((cb) => {
+      expect(cb).not.toBeChecked();
+    });
   });
 
   it('shows carry-forward button with count of 0 on mount (button disabled)', () => {
@@ -202,9 +204,13 @@ describe('CarryForwardModal', () => {
     // Use fireEvent (synchronous) to avoid userEvent's internal timer dependency
     fireEvent.click(screen.getByRole('button', { name: /Carry Forward \(1\)/ }));
     // Flush promises (mutateAsync resolves via microtask)
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
     // Success message should now be set; advance timers past the 1500ms delay
-    act(() => { vi.runAllTimers(); });
+    act(() => {
+      vi.runAllTimers();
+    });
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
   });
 

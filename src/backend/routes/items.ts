@@ -10,16 +10,16 @@
  */
 
 import { Router } from 'express';
+import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
+import { itemRepository } from '../repositories/items.js';
+import { assertNotLocked } from '../services/items.service.js';
 import {
   CreateItemSchema,
-  UpdateItemSchema,
   ListItemsQuerySchema,
+  UpdateItemSchema,
 } from '../validation/items.schemas.js';
-import { NotFoundError, ValidationError } from '../errors.js';
-import { assertNotLocked } from '../services/items.service.js';
-import { itemRepository } from '../repositories/items.js';
 
 const itemsRouter = Router({ mergeParams: true });
 export default itemsRouter;
@@ -33,7 +33,7 @@ itemsRouter.get(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const { place_id, type, status } = req.query as {
       place_id?: number;
@@ -41,7 +41,11 @@ itemsRouter.get(
       status?: string;
     };
 
-    const result = await itemRepository.findByTrip(userId, tripId, { placeId: place_id, type, status });
+    const result = await itemRepository.findByTrip(userId, tripId, {
+      placeId: place_id,
+      type,
+      status,
+    });
     res.json(result);
   }),
 );
@@ -55,7 +59,7 @@ itemsRouter.post(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
-    if (isNaN(tripId)) throw new NotFoundError('Trip');
+    if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     await assertNotLocked(tripId);
 
@@ -97,7 +101,7 @@ itemsRouter.patch(
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
     const itemId = parseInt(String(req.params.itemId), 10);
-    if (isNaN(tripId) || isNaN(itemId)) throw new NotFoundError('Item');
+    if (Number.isNaN(tripId) || Number.isNaN(itemId)) throw new NotFoundError('Item');
 
     await assertNotLocked(tripId);
 
@@ -131,7 +135,7 @@ itemsRouter.delete(
     const userId = req.user!.id;
     const tripId = parseInt(String(req.params.tripId), 10);
     const itemId = parseInt(String(req.params.itemId), 10);
-    if (isNaN(tripId) || isNaN(itemId)) throw new NotFoundError('Item');
+    if (Number.isNaN(tripId) || Number.isNaN(itemId)) throw new NotFoundError('Item');
 
     await assertNotLocked(tripId);
 

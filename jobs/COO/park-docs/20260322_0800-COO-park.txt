@@ -1,0 +1,114 @@
+PARK DOCUMENT — COO
+Date: 2026-03-22
+Session: 7
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+Biome implementation session. Installed @biomejs/biome, configured,
+applied to full codebase, fixed all warnings (safe + unsafe analysis),
+opened PR #51. Full codebase review triggered two outputs: bug list
+(BUG-15–20, GitHub #53–58) and health scorecard (8.3/10). Conventions
+and documentation gaps closed out. PR #51 ready to merge.
+
+================================================================================
+DECISIONS MADE
+================================================================================
+
+1. BIOME — implemented (PR #51, chore/biome-setup)
+   - @biomejs/biome@2.4.8 installed
+   - Config: 2-space, single quotes, semis, lineWidth 100
+   - Recommended lint rules; a11y disabled (personal app)
+   - `npm run check` = biome ci — added to pre-push checklist
+   - CI job added to ci.yml
+   - All 103 src/ files formatted; all warnings resolved
+   - Two manual fixes: Map→MapGL (noShadowRestrictedNames),
+     forEach block body in CarryForwardModal test
+   - Unsafe fixes applied after per-case analysis: noGlobalIsNan (all
+     on parseInt results — safe), noUnusedImports, dead code removed
+   - TripCard.onEdit dead prop removed + TripsLayout cleanup
+   - Dead eslint-disable comment removed from AddPlaceFlow (deps were
+     completed by --unsafe run)
+   - PR #51 is open, all CI green, awaiting COO merge
+
+2. BUG-17 (BUG-A comment in trips.ts)
+   - Cannot be specced until someone reads the comment
+   - Status: pending investigation — assign to Backend agent at next
+     dispatch opportunity
+
+3. REGION FILTERING — design decision
+   - Rejected zoom-inference approach
+   - Adopted: filter granularity = highlighted area granularity
+     (region_tier_enabled countries highlight regions → region filter;
+     others highlight country → country filter)
+   - No zoom inference needed
+   - Needs ADL — GitHub #52, tracker MAP-01, blocked on Architect brief
+
+4. GITHUB ↔ TRACKER CONVENTION — adopted
+   - GitHub issue titles must include tracker ID: fix(BUG-15): ...
+   - Tracker notes must include GitHub issue number
+   - Documented in CLAUDE.md
+
+5. CODEBASE HEALTH SCORECARD — 8.3/10
+   TypeScript strictness: 8/10
+   Lint baseline:        10/10
+   Test coverage:         7/10  ← biggest gap
+   Pattern consistency:   9/10
+   Structural health:     8/10
+   Dead code/debt:        9/10
+   Dependency health:     6/10 (esbuild chain via drizzle-kit, known constraint)
+
+================================================================================
+RECOMMENDED STARTING POINT — NEXT SESSION
+================================================================================
+
+  1. Merge PR #51 (Biome)
+     gh pr merge 51 --repo ryanv11/travel-tracker --squash --delete-branch
+
+  2. Dispatch UX-02 (place date ranges) — Backend + Frontend in parallel
+     ADL-24 at jobs/architect/tech/ADL-24-place-date-ranges.md
+
+  3. Dispatch Gate 1.5-A (BYPASS_AUTH prod guard) — Backend agent
+     Small: console.warn guard in server.ts + .env.example update
+
+  4. Commission MAP-01 Architect brief (region-aware map click filtering)
+     GitHub #52 — open questions documented in tracker MAP-01 notes
+
+  5. Scope and dispatch QUAL-01 (test coverage)
+     Priority: Backend agent for repositories + untested routes first
+
+================================================================================
+STATE OF PLAY
+================================================================================
+
+Outstanding (actionable):
+  PR #51         Biome implementation              — awaiting merge
+  UX-02          Place date ranges (DP-05)         — ADL-24 done, dispatch ready
+  Gate 1.5-A     BYPASS_AUTH prod guard            — small Backend task
+  BUG-15         executeCarryForward transaction   — Backend, GitHub #53
+  BUG-16         replaceAssociations transaction   — Backend, GitHub #54
+  BUG-17         BUG-A untracked comment           — investigate first
+  BUG-18         AddPlaceFlow onClose memoisation  — Frontend, GitHub #56, P3
+  BUG-19         Deprecated authenticate alias     — Backend, GitHub #57, P3
+  BUG-20         alert() in bulk delete            — Frontend, GitHub #58, P3
+
+Blocked on ADL/design:
+  MAP-01         Region-aware map filtering        — needs Architect brief
+  QUAL-01        Test coverage plan                — COO to scope
+
+Deferred:
+  Gate 1.5-B/C   Auth + IDOR spot-check           — QA, pending PO testing
+  #23            Clerk JWKS firewall               — low priority
+  UX-05          Photos                            — Phase 2
+  FL-04          Flight lookup (Amadeus)           — Phase 2
+
+================================================================================
+OPEN DOCUMENTATION GAPS (all now closed)
+================================================================================
+
+  MAP-01  Added to tracker, GitHub #52 title updated
+  QUAL-01 Added to tracker, no GitHub issue (COO scopes first)
+  BUG-17  In tracker — unblockable until BUG-A comment is read
+
+================================================================================
