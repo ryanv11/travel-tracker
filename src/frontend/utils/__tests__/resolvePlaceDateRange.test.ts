@@ -139,7 +139,10 @@ describe('resolvePlaceDateRange', () => {
     });
 
     it('ignores hotel items missing check_in_date or check_out_date', () => {
-      const incompleteHotel: Item = { ...hotelItem('2025-06-05', '2025-06-10'), check_in_date: null };
+      const incompleteHotel: Item = {
+        ...hotelItem('2025-06-05', '2025-06-10'),
+        check_in_date: null,
+      };
       const result = resolvePlaceDateRange(
         place({ items: [incompleteHotel] }),
         TRIP_START,
@@ -150,12 +153,11 @@ describe('resolvePlaceDateRange', () => {
     });
 
     it('ignores non-hotel items', () => {
-      const restaurant: Item = { ...hotelItem('2025-06-05', '2025-06-10'), item_type: 'restaurant' };
-      const result = resolvePlaceDateRange(
-        place({ items: [restaurant] }),
-        TRIP_START,
-        TRIP_END,
-      );
+      const restaurant: Item = {
+        ...hotelItem('2025-06-05', '2025-06-10'),
+        item_type: 'restaurant',
+      };
+      const result = resolvePlaceDateRange(place({ items: [restaurant] }), TRIP_START, TRIP_END);
       expect(result).toEqual({ from: TRIP_START, to: TRIP_END });
     });
   });
