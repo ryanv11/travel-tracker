@@ -784,12 +784,12 @@
       "id": "UX-04",
       "type": "feature",
       "title": "Auto-populate region/state when creating a new city",
-      "status": "in-progress",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
       "phase": 3,
-      "notes": "PO direction 2026-03-23. AddPlaceFlow already auto-detects country from Nominatim (GE-15). Nominatim returns ISO3166-2-lvl4 (e.g. US-CA) in same response — currently ignored. Fix: extend lookupCityCountry to return regionIso, add useEffect to auto-select region dropdown match. Also requires regions endpoint to return iso_3166_2 (backend one-liner). Prerequisite for MAP-01 region filter to work on newly-added cities."
+      "notes": "Done — PR #67 merged 2026-03-23. lookupCityCountry now returns {countryCode, regionIso} from Nominatim ISO3166-2-lvl4. regions endpoint adds iso_3166_2. AddPlaceFlow useEffect auto-selects matching region when both Nominatim result and regions list are ready. Graceful: no auto-select if no match."
     },
     {
       "id": "UX-05",
