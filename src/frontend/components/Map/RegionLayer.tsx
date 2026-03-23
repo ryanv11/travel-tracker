@@ -55,12 +55,16 @@ export function RegionLayer({ regionData }: RegionLayerProps) {
           { colorHex: region.color_hex ?? null },
         );
       }
+      map.off('sourcedata', applyShading);
     };
 
     if (map.isSourceLoaded('regions-source')) {
       applyShading();
     } else {
-      map.once('sourcedata', applyShading);
+      map.on('sourcedata', applyShading);
+      return () => {
+        map.off('sourcedata', applyShading);
+      };
     }
   }, [map, regionData]);
 

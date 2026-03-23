@@ -61,6 +61,21 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
     setZoom(map.getZoom());
   }, []);
 
+  /**
+   * When the map finishes moving/zooming and is at region-zoom level, auto-detect
+   * the country at the viewport center so region shading loads without requiring a click.
+   */
+  const handleMoveEnd = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || map.getZoom() < REGION_ZOOM_THRESHOLD) return;
+    const centerPoint = map.project(map.getCenter());
+    const features = map.queryRenderedFeatures(centerPoint, { layers: ['countries-fill'] });
+    if (features.length > 0) {
+      const code = features[0].properties?.ISO_A2 as string | undefined;
+      if (code && code !== '-99') setVisibleCountryCode(code);
+    }
+  }, []);
+
   /** Changes cursor to pointer when hovering over interactive layers (MP-03, GE-09). */
   const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
     const canvas = e.target.getCanvas();
@@ -127,6 +142,7 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
         initialViewState={{ longitude: 10, latitude: 20, zoom: 2 }}
         style={{ width: '100%', height: '100%' }}
         onZoom={handleZoom}
+        onMoveEnd={handleMoveEnd}
         onMouseMove={handleMouseMove}
         onClick={handleMapClick}
         interactiveLayerIds={['countries-fill', 'regions-fill', 'city-markers']}
