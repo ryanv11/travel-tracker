@@ -81,6 +81,7 @@ async function buildTripResponse(trip: {
       name: p.cityName,
       country_code: p.cityCountryCode,
       region_id: p.cityRegionId,
+      region_iso: p.cityRegionIso ?? null,
       latitude: p.cityLatitude,
       longitude: p.cityLongitude,
       geocode_status: p.cityGeocodeStatus,

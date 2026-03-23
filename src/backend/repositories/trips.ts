@@ -14,6 +14,7 @@ import {
   companions,
   countries,
   getDb,
+  regions,
   tripActivitiesMap,
   tripCategories,
   tripCategoriesMap,
@@ -294,6 +295,7 @@ export const tripRepository = {
         cityCountryCode: cities.countryCode,
         cityCountryName: countries.name,
         cityRegionId: cities.regionId,
+        cityRegionIso: regions.iso3166_2,
         cityLatitude: cities.latitude,
         cityLongitude: cities.longitude,
         cityGeocodeStatus: cities.geocodeStatus,
@@ -301,6 +303,7 @@ export const tripRepository = {
       .from(tripPlaces)
       .leftJoin(cities, eq(cities.id, tripPlaces.cityId))
       .leftJoin(countries, eq(countries.countryCode, cities.countryCode))
+      .leftJoin(regions, eq(regions.id, cities.regionId))
       .where(eq(tripPlaces.tripId, tripId));
   },
 

@@ -114,6 +114,7 @@ function makePlace(items: Item[], overrides: Partial<TripPlace> = {}): TripPlace
       country_code: 'JP',
       country_name: 'Japan',
       region_id: null,
+      region_iso: null,
       latitude: null,
       longitude: null,
       geocode_status: 'pending' as const,

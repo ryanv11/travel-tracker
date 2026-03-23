@@ -22,14 +22,16 @@ export function filterAndSortTrips(
   searchText: string,
   sortBy: SortOption,
   countryFilter: string | null,
-  _regionFilter: string | null,
+  regionFilter: string | null,
   cityFilter: number | null,
 ): TripSummary[] {
   let result = trips;
 
-  // Map filter: city takes priority, then country (_regionFilter not yet implemented)
+  // Map filter priority: city > region > country
   if (cityFilter !== null) {
     result = result.filter((t) => t.places.some((p) => p.city_id === cityFilter));
+  } else if (regionFilter !== null) {
+    result = result.filter((t) => t.places.some((p) => p.city.region_iso === regionFilter));
   } else if (countryFilter !== null) {
     result = result.filter((t) => t.places.some((p) => p.city.country_code === countryFilter));
   }

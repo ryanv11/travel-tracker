@@ -12,7 +12,12 @@ function makeTrip(
   id: number,
   name: string,
   start_date: string,
-  places: Array<{ city_id: number; country_code: string; city_name?: string }> = [],
+  places: Array<{
+    city_id: number;
+    country_code: string;
+    city_name?: string;
+    region_iso?: string | null;
+  }> = [],
 ): TripSummary {
   return {
     id,
@@ -36,6 +41,7 @@ function makeTrip(
         country_code: p.country_code,
         country_name: null,
         region_id: null,
+        region_iso: p.region_iso ?? null,
         latitude: null,
         longitude: null,
         geocode_status: 'resolved',
@@ -187,5 +193,60 @@ describe('filterAndSortTrips — city-name search (TR-13)', () => {
     const result = filterAndSortTrips(tripsWithCityNames, 'Spring', 'date_desc', null, null, null);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(10);
+  });
+});
+
+describe('filterAndSortTrips — region filter (MAP-01)', () => {
+  const tripsWithRegions: TripSummary[] = [
+    makeTrip(20, 'California Dreaming', '2024-05-01', [
+      { city_id: 200, country_code: 'US', region_iso: 'US-CA' },
+    ]),
+    makeTrip(21, 'New York State of Mind', '2024-06-01', [
+      { city_id: 201, country_code: 'US', region_iso: 'US-NY' },
+    ]),
+    makeTrip(22, 'Texas Trip', '2024-07-01', [
+      { city_id: 202, country_code: 'US', region_iso: 'US-TX' },
+    ]),
+    makeTrip(23, 'No Region City', '2024-08-01', [
+      { city_id: 203, country_code: 'FR', region_iso: null },
+    ]),
+  ];
+
+  it('returns trips with matching region_iso', () => {
+    const result = filterAndSortTrips(tripsWithRegions, '', 'date_desc', null, 'US-CA', null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(20);
+  });
+
+  it('does not return trips without matching region_iso', () => {
+    const result = filterAndSortTrips(tripsWithRegions, '', 'date_desc', null, 'US-CA', null);
+    const ids = result.map((t) => t.id);
+    expect(ids).not.toContain(21);
+    expect(ids).not.toContain(22);
+    expect(ids).not.toContain(23);
+  });
+
+  it('region filter takes priority over country filter when both present', () => {
+    // All trips are US but only US-NY should match when region filter is set
+    const result = filterAndSortTrips(tripsWithRegions, '', 'date_desc', 'US', 'US-NY', null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(21);
+  });
+
+  it('city filter takes priority over region filter when both present', () => {
+    // city 202 is US-TX but city filter should win
+    const result = filterAndSortTrips(tripsWithRegions, '', 'date_desc', null, 'US-CA', 202);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(22);
+  });
+
+  it('returns empty array when region filter matches no trips', () => {
+    const result = filterAndSortTrips(tripsWithRegions, '', 'date_desc', null, 'US-WA', null);
+    expect(result).toHaveLength(0);
+  });
+
+  it('does not match trips where city region_iso is null', () => {
+    const result = filterAndSortTrips(tripsWithRegions, '', 'date_desc', null, 'US-CA', null);
+    expect(result.map((t) => t.id)).not.toContain(23);
   });
 });
