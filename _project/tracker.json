@@ -843,12 +843,23 @@
       "id": "QUAL-01",
       "type": "chore",
       "title": "Test coverage — repositories, routes, and frontend components",
-      "status": "partial",
+      "status": "done",
       "owner": "coo",
       "priority": "P2",
       "brdRefs": [],
       "phase": 4,
-      "notes": "Backend done — PR #65 merged 2026-03-23. 156 new tests: all 4 repository files (trips, items, places, users) and routes (trips CRUD, items, places). Total 342 tests. Frontend coverage still pending: resolvePlaceDateRange (has tests from UX-02 PR #63), TripDetail component, sort utilities."
+      "notes": "Done — PR #65 merged 2026-03-23. 156 new tests across all 4 repositories and routes (trips CRUD, items, places). Total 342 tests. Happy-path + security scoping coverage deemed sufficient for personal-app scale. QA gaps logged as QUAL-02."
+    },
+    {
+      "id": "QUAL-02",
+      "type": "chore",
+      "title": "Test assertion strength and edge case gaps (QA follow-up)",
+      "status": "backlog",
+      "owner": "backend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "QA review (2026-03-23) flagged gaps in QUAL-01 tests. Top priorities: (1) filter inversion bug undetectable — category/activity/country filter tests seed 1 trip and assert length=1; inverted filter would also return 1. Fix: seed 3 trips, assert exactly 1. (2) GET /api/trips sort order (startDate desc) not tested. (3) Response shape assertions too shallow — toHaveProperty() without type/value checks. (4) Cross-trip item isolation (same user, different trips). Deferred: personal app scale makes exhaustive edge case coverage low ROI."
     },
 
     // ─── CODE REVIEW FINDINGS — 2026-03-22 ───────────────────────────────────
