@@ -43,6 +43,13 @@
       "when": 1774246112988,
       "tag": "0005_perpetual_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774394520000,
+      "tag": "0006_complex_killraven",
+      "breakpoints": true
     }
   ]
 }
