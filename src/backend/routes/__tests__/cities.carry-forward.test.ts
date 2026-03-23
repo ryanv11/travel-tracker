@@ -65,6 +65,7 @@ async function createTestDb() {
       id TEXT PRIMARY KEY NOT NULL,
       clerk_id TEXT NOT NULL UNIQUE,
       email TEXT NOT NULL,
+      is_owner INTEGER DEFAULT 0 NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`,
@@ -242,6 +243,7 @@ vi.mock('../../middleware/auth.js', () => ({
       id: 'test-user-id',
       clerkId: 'user_test',
       email: 'test@example.com',
+      isOwner: 0,
     };
     next();
   },

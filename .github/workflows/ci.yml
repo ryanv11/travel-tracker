@@ -78,6 +78,9 @@ jobs:
           PORT: 3001
           GEOCODING_ENABLED: false
           BYPASS_AUTH: true
+          # ADL-27: Set test_clerk_id as owner so bypass test user gets is_owner=1 at startup.
+          # Contract tests that call owner-only routes (POST /api/cities, admin, shading) require this.
+          OWNER_CLERK_ID: test_clerk_id
       - name: Wait for backend to be ready
         run: |
           for i in $(seq 1 30); do
