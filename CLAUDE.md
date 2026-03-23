@@ -144,9 +144,20 @@ what this step misses — if startup reads are consistently clean, the verificat
 is working. Repeated gaps signal that more work should move to dedicated sessions.
 
 ## Key files
-- `src/backend/server.ts` — Express app entry point
-- `src/backend/db/schema.ts` — Drizzle schema
+- `src/backend/server.ts` — Express app entry point, startup sequence, middleware
+- `src/backend/db/schema.ts` — Drizzle schema (single source of truth for all tables)
+- `src/backend/db/index.ts` — DB connection + table exports
+- `src/backend/routes/` — Express routers (trips, places, cities, map, admin)
+- `src/backend/repositories/` — User-scoped DB queries (ADL-18)
+- `src/backend/services/shading.service.ts` — Map shading state computation
+- `src/backend/migrations/` — Drizzle migration SQL files (0000–0005)
 - `src/frontend/main.tsx` — React entry point
-- `drizzle.config.ts` — DB config
-- `.github/workflows/` — CI/CD pipelines
+- `src/frontend/components/Map/` — MapLibre map, country + region shading layers
+- `src/frontend/components/TripDetail/AddPlaceFlow.tsx` — Add place modal (city search, create, carry-forward)
+- `src/frontend/hooks/` — TanStack Query hooks for all API resources
+- `src/frontend/services/geocodeRetryQueue.ts` — NR-06 offline geocoding retry
+- `_project/tracker.json` — Feature/bug tracker (COO-maintained)
+- `_project/travel-tracker-BRD.md` — Business requirements document (v2.6)
+- `drizzle.config.ts` — Drizzle + DB config
+- `.github/workflows/` — CI (type check, tests) + security (audit, Gitleaks, Semgrep)
 - `patches/drizzle-kit+0.31.9.patch` — drizzle-kit SQLite bug fixes (patch-package)
