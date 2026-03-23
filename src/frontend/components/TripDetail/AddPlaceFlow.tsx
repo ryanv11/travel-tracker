@@ -3,7 +3,7 @@
  *
  * Step 1: city search (GET /api/cities?q=...) with debounce.
  * Step 2: select existing city or "Add new city" form.
- * Step 3: POST /api/trips/:tripId/places.
+ * Step 3: POST /api/trips/:tripId/places (with optional arrived_on / departed_on — UX-02).
  * Step 4: check carry-forward candidates; open CarryForwardModal if any.
  *
  * Reference: spec §6.3 (Add Place flow), AC-07.
@@ -34,7 +34,7 @@ const DEBOUNCE_MS = 300;
 
 /**
  * Renders the multi-step Add Place modal. Handles city search, city creation,
- * place creation, and triggering carry-forward when applicable.
+ * place creation (with optional dates), and triggering carry-forward when applicable.
  */
 export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   const [query, setQuery] = useState('');
@@ -47,6 +47,13 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   const [addedPlaceId, setAddedPlaceId] = useState<number | null>(null);
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
   const [showCarryForward, setShowCarryForward] = useState(false);
+
+  // UX-02: optional date fields for place creation
+  const [arrivedOn, setArrivedOn] = useState('');
+  const [departedOn, setDepartedOn] = useState('');
+  const [dateValidationError, setDateValidationError] = useState<string | null>(null);
+  const [placeWarnings, setPlaceWarnings] = useState<string[]>([]);
+
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: searchResults = [], isLoading: searching } = useCitySearch(debouncedQuery);
@@ -93,11 +100,33 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     showCarryForward,
   ]);
 
+  /** Validates dates and adds a place for the given city. */
   const handleSelectCity = async (city: City) => {
+    setDateValidationError(null);
+
+    // UX-02: client-side date validation
+    if (arrivedOn && departedOn && arrivedOn > departedOn) {
+      setDateValidationError('Arrival date cannot be after departure date.');
+      return;
+    }
+
     try {
-      const place = await addPlace.mutateAsync({ tripId, cityId: city.id });
+      const place = await addPlace.mutateAsync({
+        tripId,
+        cityId: city.id,
+        arrivedOn: arrivedOn || null,
+        departedOn: departedOn || null,
+      });
       setAddedPlaceId(place.id);
       setAddedCityId(city.id);
+
+      // UX-02: show backend warnings (e.g. dates outside trip range) if present
+      if (place.warnings && place.warnings.length > 0) {
+        setPlaceWarnings(place.warnings);
+        // Don't close — user sees warnings, then can close manually
+        return;
+      }
+
       // NR-06: queue geocoding retry if city wasn't resolved yet
       if (city.geocode_status !== 'resolved') {
         geocodeRetryQueue.add(city);
@@ -159,6 +188,38 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     );
   }
 
+  // UX-02: if we have warnings from the backend, show them and let user close
+  if (placeWarnings.length > 0) {
+    return (
+      <div
+        className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-lg p-6 w-[480px] max-w-[95vw] shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Place Added</h2>
+          <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
+            <p className="font-semibold mb-1">Warning</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              {placeWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 cursor-pointer"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
@@ -205,6 +266,48 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
                 </div>
               </div>
             )}
+
+            {/* UX-02: Optional date fields for place creation */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-3">
+                Optional: set arrival / departure dates for this place.
+              </p>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className={labelClass}>
+                    Arrival date <span className="font-normal text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={arrivedOn}
+                    onChange={(e) => {
+                      setArrivedOn(e.target.value);
+                      setDateValidationError(null);
+                    }}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className={labelClass}>
+                    Departure date <span className="font-normal text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={departedOn}
+                    onChange={(e) => {
+                      setDepartedOn(e.target.value);
+                      setDateValidationError(null);
+                    }}
+                  />
+                </div>
+              </div>
+              {dateValidationError && (
+                <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs">
+                  {dateValidationError}
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <form
@@ -268,6 +371,48 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
                 </select>
               </div>
             )}
+
+            {/* UX-02: Optional date fields — shown in new-city form too */}
+            <div className="mb-4 pt-3 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-3">
+                Optional: set arrival / departure dates for this place.
+              </p>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className={labelClass}>
+                    Arrival date <span className="font-normal text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={arrivedOn}
+                    onChange={(e) => {
+                      setArrivedOn(e.target.value);
+                      setDateValidationError(null);
+                    }}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className={labelClass}>
+                    Departure date <span className="font-normal text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={departedOn}
+                    onChange={(e) => {
+                      setDepartedOn(e.target.value);
+                      setDateValidationError(null);
+                    }}
+                  />
+                </div>
+              </div>
+              {dateValidationError && (
+                <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs">
+                  {dateValidationError}
+                </div>
+              )}
+            </div>
 
             {mutationError && <ErrorMessage error={mutationError} />}
             <div className="flex gap-2.5 mt-1">

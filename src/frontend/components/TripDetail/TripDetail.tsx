@@ -223,18 +223,27 @@ export function TripDetail({ trip }: TripDetailProps) {
 
         {statusError && <ErrorMessage error={statusError} />}
 
-        {/* Places */}
+        {/* Places — sorted by arrived_on ascending, nulls last (UX-02 / ADL-24) */}
         <div className="mb-4">
-          {trip.places.map((place) => (
-            <PlaceSection
-              key={place.id}
-              place={place}
-              tripId={trip.id}
-              isLocked={isLocked}
-              tripStartDate={trip.start_date}
-              tripEndDate={trip.end_date}
-            />
-          ))}
+          {[...trip.places]
+            .sort((a, b) => {
+              const aDate = a.arrived_on ?? null;
+              const bDate = b.arrived_on ?? null;
+              if (aDate === null && bDate === null) return 0;
+              if (aDate === null) return 1; // nulls last
+              if (bDate === null) return -1;
+              return aDate.localeCompare(bDate); // lexicographic = chronological for YYYY-MM-DD
+            })
+            .map((place) => (
+              <PlaceSection
+                key={place.id}
+                place={place}
+                tripId={trip.id}
+                isLocked={isLocked}
+                tripStartDate={trip.start_date}
+                tripEndDate={trip.end_date}
+              />
+            ))}
         </div>
 
         {/* Add place button */}

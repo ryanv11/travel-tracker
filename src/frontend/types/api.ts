@@ -161,6 +161,10 @@ export interface Item {
 export interface TripPlace {
   id: number;
   city_id: number;
+  /** Explicit place arrival date (YYYY-MM-DD). Absent or null means not set. */
+  arrived_on?: string | null;
+  /** Explicit place departure date (YYYY-MM-DD). Absent or null means not set. */
+  departed_on?: string | null;
   created_at: string;
   city: City;
   activities: AssocActivity[];
