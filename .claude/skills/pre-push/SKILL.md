@@ -1,7 +1,6 @@
 ---
 name: pre-push
 description: Mandatory pre-push checklist. Run before every git push.
-disable-model-invocation: true
 ---
 
 Run the following in order. Fix all failures before pushing.
