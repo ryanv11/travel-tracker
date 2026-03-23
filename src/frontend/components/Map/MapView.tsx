@@ -24,7 +24,7 @@ const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY as string;
 const MAP_STYLE = `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`;
 
 /** Minimum zoom level at which region shading is loaded. */
-const REGION_ZOOM_THRESHOLD = 4;
+const REGION_ZOOM_THRESHOLD = 3;
 
 interface MapViewProps {
   /** All loaded trips — city pins are derived from their places. */
