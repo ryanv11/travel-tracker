@@ -1,7 +1,7 @@
 /**
  * RegionLayer — MapLibre fill layer for region-level shading.
  *
- * Loaded lazily when map zoom >= 4. Uses the 40 MB regions GeoJSON served
+ * Loaded lazily when map zoom >= 3. Uses the 40 MB regions GeoJSON served
  * at /geo/regions.json. Feature matching uses the iso_3166_2 property
  * (e.g. 'US-CA' for California).
  *
@@ -31,7 +31,12 @@ const regionFillLayer: FillLayerSpecification = {
       ['feature-state', 'colorHex'],
       'transparent',
     ],
-    'fill-opacity': 0.6,
+    // Higher opacity than the country layer (0.7) so visited regions visibly
+    // stand out even when using the same colour — stacking creates contrast.
+    'fill-opacity': 0.9,
+    // Always draw region boundaries when this layer is active, giving a clear
+    // state/province grid regardless of visit status.
+    'fill-outline-color': '#64748B',
   },
 };
 
