@@ -762,12 +762,12 @@
       "id": "UX-02",
       "type": "feature",
       "title": "Place date ranges — optional input on create/edit, order cities by date",
-      "status": "pending",
-      "owner": "frontend",
+      "status": "partial",
+      "owner": "backend",
       "priority": "P2",
       "brdRefs": ["DP-05"],
       "phase": 3,
-      "notes": "PO direction 2026-03-21. trip_places has no date fields. User wants optional date range on place create/edit. Trip detail panel should order place sections by date when set. Requires schema migration (add arrived_on, departed_on to trip_places) — Architect sign-off needed."
+      "notes": "Frontend done — PR #63 merged 2026-03-23 (PlaceDateForm, resolvePlaceDateRange, sort by arrived_on). Backend pending: schema migration 0005 on feat/ux-02-backend-place-dates (arrived_on/departed_on on trip_places) needs schema.ts + PATCH /api/trips/:id/places/:placeId endpoint. ADL-24 approved."
     },
     {
       "id": "UX-03",
@@ -831,11 +831,11 @@
       "type": "feature",
       "title": "Region-aware map click filtering",
       "status": "pending",
-      "owner": "frontend",
+      "owner": "fullstack",
       "priority": "P2",
       "brdRefs": [],
       "phase": 3,
-      "notes": "ADL-26 complete 2026-03-23. Unblocked. Contract: city.region_iso: string|null. Backend: add regions join to trips summary query, include region_iso in city serialisation. Frontend: replace _regionFilter stub in filterAndSortTrips — filter by p.city.region_iso === regionFilter. Discriminator = click layer ID (regions-fill vs countries-fill) — no shading API changes needed. Deferred UX polish: human-readable region label (shows US-CA not California). GitHub #52."
+      "notes": "ADL-26 merged PR #61 (2026-03-23). Unblocked. Contract: city.region_iso: string|null. Backend: add regions join to trips summary query, include region_iso in city serialisation. Frontend: replace _regionFilter stub in filterAndSortTrips — filter by p.city.region_iso === regionFilter. Discriminator = click layer ID (regions-fill vs countries-fill). GitHub #52."
     },
 
     // ─── QUALITY ─────────────────────────────────────────────────────────────
