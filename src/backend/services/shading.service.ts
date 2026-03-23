@@ -148,13 +148,14 @@ function buildResult(stateKey: string, config: ShadingConfigMap): ShadingResult 
 // ----------------------------------------------------------------
 
 /**
- * Computes the country shading state key applying the v1.1 rule
- * (shading-spec.md §4.0):
+ * Computes the country shading state key.
  *
- *   (a) region_tier_enabled = 0 → shade on any visit (all-city stats)
- *   (c) all regions visited     → shade whole country (all-city stats)
- *   (b) unregioned cities exist → shade from those trips only
- *   otherwise                   → never_visited
+ * Any visit to any city in the country highlights the country at country zoom
+ * level, regardless of whether the country has a region tier enabled.
+ * Region-level detail is shown via the RegionLayer at zoom >= 4 (MAP-01).
+ *
+ * The `_coverage` parameter is kept in the signature for call-site compatibility
+ * but is no longer used.
  *
  * Exported for unit testing.
  */
@@ -168,45 +169,15 @@ export function computeCountryState(
     completedUnregioned: number;
     planningUnregioned: number;
   },
-  coverage: RegionCoverage | undefined,
+  _coverage: RegionCoverage | undefined,
 ): string {
-  if (!row.regionTierEnabled) {
-    // Case (a): no region tier
-    return computeState(
-      Number(row.completedCount),
-      Number(row.planningCount),
-      Number(row.hasActive) === 1,
-    );
-  }
-
-  const allRegionsVisited =
-    coverage !== undefined &&
-    coverage.totalRegions > 0 &&
-    coverage.visitedRegions === coverage.totalRegions;
-
-  if (allRegionsVisited) {
-    // Case (c): every region visited — roll up to whole-country state
-    return computeState(
-      Number(row.completedCount),
-      Number(row.planningCount),
-      Number(row.hasActive) === 1,
-    );
-  }
-
-  if (
-    Number(row.completedUnregioned) > 0 ||
-    Number(row.planningUnregioned) > 0 ||
-    Number(row.hasActiveUnregioned) === 1
-  ) {
-    // Case (b): cities with no region assignment have trips
-    return computeState(
-      Number(row.completedUnregioned),
-      Number(row.planningUnregioned),
-      Number(row.hasActiveUnregioned) === 1,
-    );
-  }
-
-  return 'never_visited';
+  // Country is highlighted based on any visit to any city, regardless of region tier.
+  // Region-level detail is shown via the RegionLayer at higher zoom (MAP-01).
+  return computeState(
+    Number(row.completedCount),
+    Number(row.planningCount),
+    Number(row.hasActive) === 1,
+  );
 }
 
 /**
