@@ -101,9 +101,3 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     res.status(401).json({ error: 'Unauthorized' });
   }
 }
-
-/**
- * @deprecated Phase 1 passthrough alias — kept for backward compatibility during
- * transition. server.ts has been updated to use requireAuth directly.
- */
-export const authenticate = requireAuth;

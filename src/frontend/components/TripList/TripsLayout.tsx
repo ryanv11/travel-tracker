@@ -49,6 +49,7 @@ export function TripsLayout() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<Error | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
     ids: Set<number>;
     timer: ReturnType<typeof setTimeout>;
@@ -170,9 +171,7 @@ export function TripsLayout() {
             navigate('/trips', { replace: true });
           }
         } catch (err) {
-          alert(
-            `Some trips could not be deleted: ${err instanceof Error ? err.message : String(err)}`,
-          );
+          setDeleteError(err instanceof Error ? err : new Error(String(err)));
         } finally {
           setIsDeleting(false);
           setPendingDelete(null);
@@ -350,6 +349,7 @@ export function TripsLayout() {
         <div className="flex-1 overflow-y-auto px-4 pb-4 flex flex-col gap-2">
           {isLoading && <LoadingSpinner message="Loading trips…" />}
           {error && <ErrorMessage error={error} />}
+          {deleteError && <ErrorMessage error={deleteError} />}
 
           {!isLoading && !error && displayedTrips.length === 0 && (
             <p className="text-gray-500 text-center py-10 text-sm">

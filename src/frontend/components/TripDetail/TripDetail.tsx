@@ -11,7 +11,7 @@
  *
  * Locked trips show a read-only banner and hide all write controls.
  */
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useLockTrip, useUnlockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
 import type { TripDetail as TripDetailType, TripStatus } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
@@ -61,6 +61,9 @@ export function TripDetail({ trip }: TripDetailProps) {
   const isLocked = trip.status === 'locked';
   const statusError = updateStatus.error ?? lockTrip.error ?? unlockTrip.error;
   const isPending = updateStatus.isPending || lockTrip.isPending || unlockTrip.isPending;
+
+  // BUG-18: memoised so AddPlaceFlow's useEffect dep on onClose is stable
+  const handleAddPlaceClose = useCallback(() => setShowAddPlace(false), []);
 
   const nextStep = NEXT_STATUS[trip.status];
 
@@ -251,7 +254,7 @@ export function TripDetail({ trip }: TripDetailProps) {
 
       {/* Modals */}
       {showEdit && <TripForm existingTrip={trip} onClose={() => setShowEdit(false)} />}
-      {showAddPlace && <AddPlaceFlow tripId={trip.id} onClose={() => setShowAddPlace(false)} />}
+      {showAddPlace && <AddPlaceFlow tripId={trip.id} onClose={handleAddPlaceClose} />}
 
       <ConfirmDialog
         isOpen={confirmLock}
