@@ -156,6 +156,19 @@ app.use(errorHandler);
 async function startup(): Promise<void> {
   console.info('[STARTUP] Travel Tracker API starting...');
 
+  // 0. Guard: BYPASS_AUTH must never be set outside test/CI environments.
+  if (process.env.BYPASS_AUTH === 'true') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'BYPASS_AUTH=true is not allowed in production. Remove it from your environment and restart.',
+      );
+    }
+    console.warn(
+      '[SECURITY WARNING] BYPASS_AUTH=true — JWT authentication is DISABLED. ' +
+        'This must only be used in test/CI environments. Never set this in production.',
+    );
+  }
+
   // 1. Verify DB connection
   const db = getDb();
   console.info('[STARTUP] Database connection: OK');
