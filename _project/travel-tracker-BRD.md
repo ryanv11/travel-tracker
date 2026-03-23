@@ -265,8 +265,7 @@ The following are explicitly out of scope for MVP but must not be architecturall
 - Pre-trip planning as a first-class mode
 - iOS mobile app
 - Multi-user hosted web app with real-time sync (replaces OneDrive sync)
-- In-panel tab navigation within trip detail (Itinerary / Review / Map tabs) — requires region/area tagging capability first
-- Per-trip scoped map tab showing only cities within the selected trip — dependent on in-panel tabs above
+
 - Booking confirmation import — parse flight, hotel, and car rental confirmation emails or PDFs to pre-populate item fields
 - Companion endorsements — each place and item shows who added it; other trip companions can endorse it
 - Companion invite model — companions can be unlinked placeholders or linked to real user accounts. Owner searches for a user; if not found, an unlinked placeholder is created. An invite activates and links the account when the invitee signs up
@@ -315,5 +314,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 2.3 | March 2026 | COO / Ryan V (PO) | Added EX-01 (Experience ratings: 1–5 stars); updated IT-08 to include experiences in rating sort/filter |
 | 2.4 | March 2026 | COO / Ryan V (PO) | UI direction approved from UX audit + mockup review. Updated TR-10 (search by name + status filter chips); added TR-11 (two-panel layout), TR-12 (persistent status bar), PH-03 (photos from detail header); added section 5.9 Trip List and Detail Display (DP-01–DP-04); renumbered Admin to section 5.10; added F-02/F-03 to future features |
 | 2.5 | March 2026 | COO / Ryan V (PO) | Added TR-13 (search includes city names); GE-14/15 (city search-first + country autopopulate); DP-05 (place date ranges, chronological ordering); FL-04 (flight lookup, Phase 2); PH-04 (photos direct attachment, Phase 2); AD-07/08/09 (admin split model — map shading + companions per-user, categories/activities global seeded); added booking import, companion endorsements, companion invite model to §9 Future Features |
+| 2.6 | March 2026 | COO / Ryan V (PO) | Removed F-02 (in-panel tab navigation) and F-03 (per-trip scoped map tab) from §9 Future Features — PO direction: not worth implementing without the map tab; scrapped entirely |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*

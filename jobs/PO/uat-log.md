@@ -114,7 +114,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 1. Sort regression — was in pre-migration app, dropped during Tailwind migration. PO confirmed: "shouldn't have dropped features from the original version."
 2. Multiple visual discrepancies between delivered UI and approved Option B mockup. UX dispatched to do formal side-by-side comparison and produce delta doc.
-3. **Open scope question:** F-02 in-panel tabs (Itinerary + Review) were deferred in BRD v2.4. PO now wants them reinstated (Map tab excluded — F-03 remains scrapped). COO to confirm scope reinstatement before speccing.
+3. ~~Open scope question: F-02 in-panel tabs.~~ **Closed 2026-03-23** — PO decision: not worth implementing without the map tab. F-02 and F-03 removed from BRD §9 entirely (v2.6).
 4. BYPASS_AUTH=true added to .env.local — local dev was blocked by devcontainer firewall unable to reach Clerk JWKS endpoint.
 
 ---
