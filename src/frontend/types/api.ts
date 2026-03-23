@@ -100,6 +100,7 @@ export interface City {
   /** Full country name — present in trip detail responses (DP-04). Null for list/map endpoints. */
   country_name: string | null;
   region_id: number | null;
+  region_iso: string | null;
   latitude: number | null;
   longitude: number | null;
   geocode_status: GeocodeStatus;
