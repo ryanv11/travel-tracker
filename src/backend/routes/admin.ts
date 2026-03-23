@@ -229,6 +229,7 @@ adminRouter.get(
         id: r.id,
         country_code: r.countryCode,
         name: r.name,
+        iso_3166_2: r.iso3166_2,
         created_at: r.createdAt,
         updated_at: r.updatedAt,
       })),

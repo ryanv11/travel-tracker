@@ -43,6 +43,7 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   const [newCityName, setNewCityName] = useState('');
   const [newCityCountryCode, setNewCityCountryCode] = useState('');
   const [newCityRegionId, setNewCityRegionId] = useState<number | null>(null);
+  const [autoRegionIso, setAutoRegionIso] = useState<string | null>(null);
   const [countryLookupPending, setCountryLookupPending] = useState(false);
   const [addedPlaceId, setAddedPlaceId] = useState<number | null>(null);
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
@@ -152,18 +153,27 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
     }
   };
 
+  // UX-04: auto-select region once both ISO code and regions list are available
+  useEffect(() => {
+    if (!autoRegionIso || !countryRegions.length) return;
+    const match = countryRegions.find((r) => r.iso_3166_2 === autoRegionIso);
+    if (match) setNewCityRegionId(match.id);
+  }, [autoRegionIso, countryRegions]);
+
   /** Opens the new-city form and fires a background Nominatim lookup to
-   *  auto-populate the country field (GE-15). */
+   *  auto-populate the country and region fields (GE-15, UX-04). */
   const handleOpenNewCityForm = (cityName: string) => {
     setShowNewCityForm(true);
     setNewCityName(cityName);
     setNewCityCountryCode('');
     setNewCityRegionId(null);
+    setAutoRegionIso(null);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
       lookupCityCountry(cityName.trim())
-        .then((code) => {
-          if (code) setNewCityCountryCode(code);
+        .then(({ countryCode, regionIso }) => {
+          if (countryCode) setNewCityCountryCode(countryCode);
+          if (regionIso) setAutoRegionIso(regionIso);
           setCountryLookupPending(false);
         })
         .catch(() => setCountryLookupPending(false));
@@ -337,6 +347,7 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
                 onChange={(e) => {
                   setNewCityCountryCode(e.target.value);
                   setNewCityRegionId(null);
+                  setAutoRegionIso(null);
                 }}
                 required
               >
