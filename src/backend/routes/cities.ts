@@ -21,6 +21,7 @@ import {
 } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
+import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
 import { resolveCity } from '../services/geocoding.service.js';
 import {
@@ -66,9 +67,11 @@ citiesRouter.get(
 
 // ----------------------------------------------------------------
 // POST /api/cities
+// ADL-27 / HC-06: owner-only (city creation pollutes the global seed)
 // ----------------------------------------------------------------
 citiesRouter.post(
   '/',
+  requireOwner,
   validateBody(CreateCitySchema),
   asyncHandler(async (req, res) => {
     const { name, country_code, region_id } = req.body;

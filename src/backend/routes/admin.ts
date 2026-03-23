@@ -10,6 +10,7 @@ import { Router } from 'express';
 import { activities, companions, countries, getDb, regions, tripCategories } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
+import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody } from '../middleware/validate.js';
 import {
   CreateAdminItemSchema,
@@ -20,6 +21,10 @@ import {
 } from '../validation/admin.schemas.js';
 
 export const adminRouter = Router();
+
+// ADL-27 / HC-04: All admin routes require owner status.
+// Applied at the router level — covers all current and future routes automatically.
+adminRouter.use(requireOwner);
 
 // ----------------------------------------------------------------
 // Admin list CRUD factory

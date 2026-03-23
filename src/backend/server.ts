@@ -34,6 +34,7 @@ import helmet from 'helmet';
 import { getDb } from './db/index.js';
 import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { userRepository } from './repositories/users.js';
 import { adminRouter } from './routes/admin.js';
 import { citiesRouter } from './routes/cities.js';
 import { mapRouter } from './routes/map.js';
@@ -200,6 +201,17 @@ async function startup(): Promise<void> {
       })
       .onConflictDoNothing();
     console.info('[STARTUP] Bypass test user seeded (BYPASS_AUTH=true)');
+  }
+
+  // 4c. ADL-27: Reconciliation pass — set is_owner flag from OWNER_CLERK_ID env var.
+  // This corrects any drift (manual DB edits, test data from BYPASS_AUTH sessions,
+  // or OWNER_CLERK_ID changes after initial deployment).
+  // The primary assignment is in findOrCreateByClerkId (handles fresh-DB case).
+  if (process.env.OWNER_CLERK_ID) {
+    await userRepository.setOwner(process.env.OWNER_CLERK_ID);
+    console.info('[STARTUP] Owner reconciliation pass complete.');
+  } else {
+    console.warn('[SECURITY] OWNER_CLERK_ID is not set — no admin owner configured.');
   }
 
   // 5. Process any pending geocoding (offline-safe — GE-12)
