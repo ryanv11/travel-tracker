@@ -69,6 +69,7 @@ export interface Region {
   id: number;
   country_code: string;
   name: string;
+  iso_3166_2: string;
   created_at: string;
   updated_at: string;
 }

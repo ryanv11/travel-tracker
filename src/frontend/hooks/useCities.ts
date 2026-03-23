@@ -18,21 +18,24 @@ const NOMINATIM_USER_AGENT = 'TravelTracker/1.0 (personal-use-app)';
 interface NominatimResult {
   address?: {
     country_code?: string;
+    'ISO3166-2-lvl4'?: string;
   };
 }
 
 /**
  * Looks up a city name via Nominatim and returns the ISO 3166-1 alpha-2
- * country code (upper-cased) if found, or null otherwise.
+ * country code (upper-cased) and ISO 3166-2 subdivision code if found.
  *
- * Used by AddPlaceFlow to auto-populate the country field (GE-15).
+ * Used by AddPlaceFlow to auto-populate the country and region fields (GE-15, UX-04).
  * Fire-and-forget style — errors are silently swallowed so the user
- * can still select the country manually if lookup fails.
+ * can still select the country/region manually if lookup fails.
  *
  * @param cityName - The city name to look up.
- * @returns Upper-cased country code (e.g. "FR") or null.
+ * @returns Object with upper-cased country code (e.g. "FR") and region ISO (e.g. "US-CA"), both nullable.
  */
-export async function lookupCityCountry(cityName: string): Promise<string | null> {
+export async function lookupCityCountry(
+  cityName: string,
+): Promise<{ countryCode: string | null; regionIso: string | null }> {
   try {
     const params = new URLSearchParams({
       q: cityName,
@@ -43,12 +46,15 @@ export async function lookupCityCountry(cityName: string): Promise<string | null
     const resp = await fetch(`${NOMINATIM_BASE}?${params}`, {
       headers: { 'User-Agent': NOMINATIM_USER_AGENT },
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) return { countryCode: null, regionIso: null };
     const data = (await resp.json()) as NominatimResult[];
-    const code = data[0]?.address?.country_code;
-    return code ? code.toUpperCase() : null;
+    const item = data[0];
+    return {
+      countryCode: item?.address?.country_code?.toUpperCase() ?? null,
+      regionIso: item?.address?.['ISO3166-2-lvl4'] ?? null,
+    };
   } catch {
-    return null;
+    return { countryCode: null, regionIso: null };
   }
 }
 
