@@ -830,12 +830,12 @@
       "id": "MAP-01",
       "type": "feature",
       "title": "Region-aware map click filtering",
-      "status": "pending",
+      "status": "done",
       "owner": "fullstack",
       "priority": "P2",
       "brdRefs": [],
       "phase": 3,
-      "notes": "ADL-26 merged PR #61 (2026-03-23). Unblocked. Contract: city.region_iso: string|null. Backend: add regions join to trips summary query, include region_iso in city serialisation. Frontend: replace _regionFilter stub in filterAndSortTrips — filter by p.city.region_iso === regionFilter. Discriminator = click layer ID (regions-fill vs countries-fill). GitHub #52."
+      "notes": "Done — PR #66 merged 2026-03-23. Added city.region_iso (regions join in getPlaces), serialised in buildTripResponse, City type updated, _regionFilter stub replaced with live filter (priority: city > region > country). 6 new filter tests. GitHub #52."
     },
 
     // ─── QUALITY ─────────────────────────────────────────────────────────────
