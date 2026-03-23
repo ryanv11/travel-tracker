@@ -32,6 +32,7 @@ Run `/pre-push` before every `git push` and iterate until all checks pass.
   - `fix/<slug>` — bug fixes (e.g. `fix/d04-country-name`)
   - `chore/<slug>` — tooling, housekeeping (e.g. `chore/update-claude-md`)
 - Branch off `main`, commit to your branch, then open a PR
+- **Agents must never leave deliverables as uncommitted working tree changes** — all output must be committed to the agent's branch before filing a completion report
 - PR title and description must reference the GitHub issue number (`Closes #N`) and BRD section if applicable
 - **COO reviews and merges PRs** — agents do not merge their own PRs
 

@@ -1,7 +1,6 @@
 ---
 name: coo-startup
 description: COO session startup audit. Invoked by the COO at the start of every session.
-disable-model-invocation: true
 ---
 
 ## Current state
