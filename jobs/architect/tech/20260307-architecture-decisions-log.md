@@ -1052,3 +1052,25 @@ Option B is deferred to Phase 2, not rejected permanently.
 - **Phase 2 (future):** When Postgres deployment begins, restore the union return type, expose both dialect implementations, and address the resulting type errors at that time using Option B (repository interface) or whatever Drizzle generic type support exists in the then-current version.
 - **No other ADL is affected.** ADL-04, ADL-18, and the iOS scope decision are all consistent with this approach.
 
+---
+
+## ADL-26 — Region-aware map click filtering
+
+**Date:** 2026-03-21
+**Status:** Decided
+**Tracker:** MAP-01 | **GitHub:** #52
+**Full ADL:** `jobs/architect/tech/ADL-26-region-aware-map-filtering.md`
+
+**Decision:** Filter granularity for map clicks is determined by which MapLibre layer was clicked (`countries-fill` vs `regions-fill`), not by zoom level or an API flag. A region click filters by ISO 3166-2 code (`?region=US-CA`); a country click filters by country code (`?country=US`).
+
+**Key finding:** The `City` object in the trip summary API response does not currently expose `iso_3166_2`. The backend must add `region_iso: string | null` to the city serialisation (joined from `cities → regions`). The frontend filter matches `place.city.region_iso === regionFilter`.
+
+**`filterAndSortTrips` change:** Replace the `_regionFilter` stub with a `regionFilter !== null` branch that uses `places.some((p) => p.city.region_iso === regionFilter)`, with priority order: city > region > country.
+
+**No new endpoints. No schema migration. No shading API changes.**
+
+**Implications:**
+- **Backend:** Add `regions` join to the trips summary query; include `region_iso` in city serialisation.
+- **Frontend:** Add `region_iso: string | null` to the `City` type; implement `regionFilter` matching in `filterAndSortTrips`; rename parameter from `_regionFilter` to `regionFilter`.
+- Both agents are unblocked on MAP-01 immediately.
+

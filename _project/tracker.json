@@ -830,12 +830,12 @@
       "id": "MAP-01",
       "type": "feature",
       "title": "Region-aware map click filtering",
-      "status": "blocked",
-      "owner": "architect",
+      "status": "pending",
+      "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
       "phase": 3,
-      "notes": "Clicking a highlighted region on the map should filter the trip list by that region — but only for countries with region_tier_enabled (e.g. US states). Countries without region config should still filter by country. Currently _regionFilter is accepted by filterAndSortTrips but intentionally unimplemented. Needs ADL before implementation — open questions: zoom threshold for proactive region rendering, which field identifies city→region for filter matching, shading API changes for region-tier countries. GitHub #52 (feat(MAP-01)). Blocked on Architect brief."
+      "notes": "ADL-26 complete 2026-03-23. Unblocked. Contract: city.region_iso: string|null. Backend: add regions join to trips summary query, include region_iso in city serialisation. Frontend: replace _regionFilter stub in filterAndSortTrips — filter by p.city.region_iso === regionFilter. Discriminator = click layer ID (regions-fill vs countries-fill) — no shading API changes needed. Deferred UX polish: human-readable region label (shows US-CA not California). GitHub #52."
     },
 
     // ─── QUALITY ─────────────────────────────────────────────────────────────
@@ -848,7 +848,7 @@
       "priority": "P2",
       "brdRefs": [],
       "phase": 4,
-      "notes": "Codebase health scorecard (2026-03-22) scored test coverage 7/10. Key gaps: 0 repository tests (trips, items, places, users), 8 of 12 route files have no __tests__, only 4 of 29 frontend component files tested. Repositories are where data integrity bugs live — BUG-15/16 (transaction gaps) were found by review, not tests. Needs a test plan dispatch: Backend agent for repositories + untested routes, Frontend agent for component coverage. No spec written yet — COO to scope and dispatch."
+      "notes": "Codebase health scorecard (2026-03-22) scored test coverage 7/10. Scoped 2026-03-23. PRIORITY 1 (Backend): 0 repository tests across all 4 repos (trips, items, places, users) — repositories are where data integrity bugs live (BUG-15/16 found by review, not tests). Also untested routes: admin.ts, items.ts, map.ts, places.ts (partial), trips.ts (partial — only delete tested). PRIORITY 2 (Frontend): resolvePlaceDateRange utility, sort functions, TripDetail component coverage. Dispatching Backend agent first; Frontend agent after."
     },
 
     // ─── CODE REVIEW FINDINGS — 2026-03-22 ───────────────────────────────────
@@ -878,12 +878,12 @@
       "id": "BUG-17",
       "type": "bug",
       "title": "BUG-A untracked — trips.ts comment references unlogged issue",
-      "status": "pending",
+      "status": "not-a-bug",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": [],
       "phase": 4,
-      "notes": "src/backend/routes/trips.ts — comment tagged BUG-A with no corresponding GitHub issue or tracker entry. Needs investigation to determine severity and whether it is already fixed. Found in codebase review 2026-03-22."
+      "notes": "Investigated 2026-03-23. The // BUG-A comment at trips.ts:280 is a documentation marker for an already-implemented fix: effective date validation on PATCH /api/trips/:id (validate using existing values when only one date is sent). The fix is correct and has regression test coverage in routes/__tests__/qa-backend-fixes.test.ts (describe block 'BUG-A: PATCH /api/trips/:id — effective date validation'). Not an outstanding bug. Closed."
     },
     {
       "id": "BUG-18",
