@@ -144,4 +144,7 @@ Extended the HC-07c Verification section to include a review step before `db:mig
 
 ## PR
 
-PR number to be added once opened.
+**PR #79** — https://github.com/ryanv11/travel-tracker/pull/79
+
+Branch: `chore/op06-adl27-corrections`
+CI: all checks pass (CI + Security Checks, both green on the pull_request run).
