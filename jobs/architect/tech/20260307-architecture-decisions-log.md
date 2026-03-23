@@ -1074,3 +1074,23 @@ Option B is deferred to Phase 2, not rejected permanently.
 - **Frontend:** Add `region_iso: string | null` to the `City` type; implement `regionFilter` matching in `filterAndSortTrips`; rename parameter from `_regionFilter` to `regionFilter`.
 - Both agents are unblocked on MAP-01 immediately.
 
+
+---
+
+## ADL-27 — Admin panel role model
+
+**Date:** 2026-03-23
+**Status:** Decided
+**Tracker:** OP-06, NR-14
+**Full ADL:** `jobs/architect/tech/ADL-27-admin-role-model.md`
+
+**Decision:** Add `is_owner: integer NOT NULL DEFAULT 0` to the `users` table. Owner status is seeded at startup from `OWNER_CLERK_ID` env var using an idempotent `setOwner()` call. A new `requireOwner` middleware checks `req.user.isOwner === 1` and returns 403 otherwise. Applied to all admin writes, shading config updates, and city creation.
+
+**Key rationale:** DB enforcement (not env var comparison per request) is the primary control. Survives misconfiguration safely (lockout not escalation). Adds no extra query per request — `is_owner` is returned as part of the existing `findOrCreateByClerkId` user row lookup during auth.
+
+**Implications:**
+- Schema migration: `ALTER TABLE users ADD is_owner integer NOT NULL DEFAULT 0`
+- New `requireOwner` middleware in `src/backend/middleware/auth.ts`
+- `req.user` type extended with `isOwner: number`
+- `OWNER_CLERK_ID` env var documented in `.env.local.example`
+- Contract tests must seed `is_owner = 1` for owner-required tests
