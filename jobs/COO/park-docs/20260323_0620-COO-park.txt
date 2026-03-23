@@ -1,0 +1,65 @@
+COO SESSION PARK — 2026-03-23 ~06:20 UTC
+========================================
+
+## Session summary
+Productive session. Shipped: BUG-15/16, UX-02 frontend, MAP-01 ADL+impl,
+QUAL-01 backend tests, UX-04 region auto-populate. Main is clean, all CI green.
+
+## Completed this session
+- BUG-15/16 (PR #64): executeCarryForward + replaceAssociations transactions.
+  Root cause: libSQL Sqlite3Client.transaction() sets #db=null, causing new
+  empty :memory: connection for subsequent queries. Fixed with db.batch().
+- UX-02 frontend (PR #63): PlaceDateForm, resolvePlaceDateRange, sort by arrived_on
+- MAP-01 ADL-26 (PR #61): design doc merged
+- MAP-01 impl (PR #66): city.region_iso added, filterAndSortTrips _regionFilter stub replaced
+- QUAL-01 (PR #65): 156 new backend tests, 342 total. QUAL-02 logged (P3/backlog)
+- UX-04 (PR #67): region auto-populate in AddPlaceFlow from Nominatim ISO3166-2-lvl4
+- Issue #55 closed (BUG-17 was not-a-bug)
+- Architect brief filed for Issue #23 (Clerk JWKS firewall, NR-14)
+- Stale worktrees pruned (6 removed)
+
+## Active branch
+- feat/ux-02-backend-place-dates — STALE, do not use
+  Only has migration 0005 SQL + snapshot. Schema.ts not updated.
+  Predates BUG-16 batch fix and everything merged today.
+  DELETE this branch and start fresh from main.
+
+## UX-02 backend — what the next agent needs
+Fresh branch from main. Three things to implement:
+
+1. schema.ts: add arrivedOn/departedOn to tripPlaces table
+   - arrivedOn: text('arrived_on') — nullable, no default
+   - departedOn: text('departed_on') — nullable, no default
+
+2. Migration: npm run db:generate to regenerate 0005 (or verify existing
+   0005_uneven_kabuki.sql is still correct after schema update).
+   Migration SQL: ALTER TABLE trip_places ADD arrived_on text;
+                  ALTER TABLE trip_places ADD departed_on text;
+
+3. PATCH /api/trips/:tripId/places/:placeId endpoint
+   - Already partially exists in src/backend/routes/places.ts
+   - Request body: { arrived_on?: string | null, departed_on?: string | null }
+   - Validates ownership (userId from req.user)
+   - Returns: { id, trip_id, city_id, user_id, arrived_on, departed_on, created_at, updated_at }
+   - Frontend calls this via useUpdatePlaceDates hook in usePlaces.ts
+   - PlaceUpdateResponse shape at usePlaces.ts:23-28
+   - ADL-24: three-source precedence for display (explicit > hotel check-in/out > trip dates)
+     — that's frontend-only (resolvePlaceDateRange.ts), backend just stores and returns
+
+4. getPlaces() in trips.ts already selects from trip_places. Once schema.ts has
+   the new fields, Drizzle will include them automatically in select(*).
+   Check that getPlaces result includes arrivedOn/departedOn and serialise them
+   in buildTripResponse as arrived_on/departed_on (snake_case for API).
+
+Also: QUAL-01 tests added src/backend/routes/__tests__/places.test.ts.
+      Make sure the new PATCH handler has test coverage there.
+
+## Open items (not started)
+- UX-02 backend (see above)
+- QUAL-02 (backlog, P3): test assertion strength gaps
+- Issue #23: waiting on Architect (Clerk JWKS firewall)
+
+## Notes for next session
+- No UAT sessions open
+- Drift ledger is clean (reviewed sentinel written)
+- git branch: only main + stale feat/ux-02-backend-place-dates (delete it)
