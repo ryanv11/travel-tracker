@@ -127,6 +127,8 @@ async function createTestDb() {
       trip_id INTEGER NOT NULL,
       city_id INTEGER NOT NULL,
       user_id TEXT,
+      arrived_on TEXT,
+      departed_on TEXT,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,

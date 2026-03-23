@@ -404,6 +404,34 @@ describe('POST /api/trips/:tripId/places', () => {
     expect(Array.isArray(res.body.activities)).toBe(true);
   });
 
+  it('returns 201 with arrived_on and departed_on when provided', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Nice');
+    const trip = await seedTrip(db);
+
+    const res = await supertest(app)
+      .post(`/api/trips/${trip.id}/places`)
+      .send({ city_id: city.id, arrived_on: '2026-06-01', departed_on: '2026-06-05' })
+      .expect(201);
+
+    expect(res.body).toHaveProperty('arrived_on', '2026-06-01');
+    expect(res.body).toHaveProperty('departed_on', '2026-06-05');
+  });
+
+  it('returns 201 with null dates when not provided', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Grenoble');
+    const trip = await seedTrip(db);
+
+    const res = await supertest(app)
+      .post(`/api/trips/${trip.id}/places`)
+      .send({ city_id: city.id })
+      .expect(201);
+
+    expect(res.body).toHaveProperty('arrived_on', null);
+    expect(res.body).toHaveProperty('departed_on', null);
+  });
+
   it('returns 409 when city is already added to the trip', async () => {
     const db = testDb!;
     const city = await seedCity(db, 'FR', 'Marseille');
@@ -539,6 +567,102 @@ describe('DELETE /api/trips/:tripId/places/:placeId', () => {
 
     // Second delete
     const res = await supertest(app).delete(`/api/trips/${trip.id}/places/${place.id}`).expect(404);
+
+    expect(res.body).toHaveProperty('error');
+  });
+});
+
+// ----------------------------------------------------------------
+// PATCH /api/trips/:tripId/places/:placeId
+// ----------------------------------------------------------------
+
+describe('PATCH /api/trips/:tripId/places/:placeId', () => {
+  beforeEach(async () => {
+    testDb = await createTestDb();
+    await seedTestUser(testDb);
+    await seedCountry(testDb, 'FR', 'France');
+  });
+
+  afterEach(() => {
+    testDb = null;
+  });
+
+  it('returns 200 with updated dates', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Toulouse');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: '2026-07-01', departed_on: '2026-07-05' })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('id', place.id);
+    expect(res.body).toHaveProperty('arrived_on', '2026-07-01');
+    expect(res.body).toHaveProperty('departed_on', '2026-07-05');
+  });
+
+  it('returns 200 and clears dates when null values sent', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Montpellier');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: trip.id,
+        cityId: city.id,
+        arrivedOn: '2026-07-01',
+        departedOn: '2026-07-05',
+      })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: null, departed_on: null })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('arrived_on', null);
+    expect(res.body).toHaveProperty('departed_on', null);
+  });
+
+  it('returns 404 when place does not exist', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/99999`)
+      .send({ arrived_on: '2026-07-01' })
+      .expect(404);
+
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('returns 404 when trip does not exist', async () => {
+    const res = await supertest(app)
+      .patch('/api/trips/99999/places/1')
+      .send({ arrived_on: '2026-07-01' })
+      .expect(404);
+
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('returns 403 when trip is locked', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Strasbourg');
+    const trip = await seedTrip(db, { status: 'locked' });
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: '2026-07-01' })
+      .expect(403);
 
     expect(res.body).toHaveProperty('error');
   });
