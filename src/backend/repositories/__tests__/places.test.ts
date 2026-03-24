@@ -110,7 +110,9 @@ describe('placeRepository.findByTrip', () => {
     const db = testDb!;
     const city = await seedCity(db, 'FR', 'Paris');
     const trip = await seedTrip(db);
-    await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city.id });
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
 
     const result = await placeRepository.findByTrip(TEST_USER_ID, trip.id);
 
@@ -127,8 +129,8 @@ describe('placeRepository.findByTrip', () => {
     const city2 = await seedCity(db, 'DE', 'Berlin');
     const trip = await seedTrip(db);
     await db.insert(schema.tripPlaces).values([
-      { tripId: trip.id, cityId: city1.id },
-      { tripId: trip.id, cityId: city2.id },
+      { tripId: trip.id, cityId: city1.id, userId: TEST_USER_ID },
+      { tripId: trip.id, cityId: city2.id, userId: TEST_USER_ID },
     ]);
 
     const result = await placeRepository.findByTrip(TEST_USER_ID, trip.id);
@@ -179,7 +181,7 @@ describe('placeRepository.findById', () => {
     const trip = await seedTrip(db, { userId: OTHER_USER_ID });
     const [place] = await db
       .insert(schema.tripPlaces)
-      .values({ tripId: trip.id, cityId: city.id })
+      .values({ tripId: trip.id, cityId: city.id, userId: OTHER_USER_ID })
       .returning();
 
     const result = await placeRepository.findById(TEST_USER_ID, place.id);

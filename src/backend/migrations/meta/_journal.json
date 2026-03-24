@@ -50,6 +50,13 @@
       "when": 1774394520000,
       "tag": "0006_complex_killraven",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1774404520000,
+      "tag": "0007_secret_quasimodo",
+      "breakpoints": true
     }
   ]
 }

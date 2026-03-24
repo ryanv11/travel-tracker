@@ -462,7 +462,9 @@ describe('tripRepository.getPlaces', () => {
     await seedCountry(db, 'IT', 'Italy');
     const city = await seedCity(db, 'IT', 'Rome');
     const trip = await seedTrip(db);
-    await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city.id });
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
 
     const result = await tripRepository.getPlaces(trip.id);
 

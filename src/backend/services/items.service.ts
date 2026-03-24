@@ -22,8 +22,8 @@ interface CarryForwardParams {
   targetTripId: number;
   targetTripPlaceId: number;
   sourceItemIds: number[];
-  /** ADL-18: The user who owns the new items. */
-  userId?: string;
+  /** ADL-18: The user who owns the new items. HC-07c: required — NOT NULL at DB level. */
+  userId: string;
 }
 
 // ----------------------------------------------------------------
@@ -128,7 +128,7 @@ export async function executeCarryForward(params: CarryForwardParams): Promise<n
           notes: src.notes,
           isCarriedForward: 1,
           carriedFromItemId: src.id,
-          userId: userId ?? null,
+          userId,
           createdAt: now,
           updatedAt: now,
         })

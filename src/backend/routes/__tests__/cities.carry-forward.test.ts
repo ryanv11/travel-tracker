@@ -319,6 +319,7 @@ async function seedCityAndTrip(
     .values({
       tripId: trip.id,
       cityId: city.id,
+      userId: TEST_USER_ID,
     })
     .returning();
 
@@ -349,6 +350,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       itemType: 'restaurant',
       status: 'next_time',
       notes: 'Try next time',
+      userId: TEST_USER_ID,
     });
 
     const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
@@ -367,6 +369,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       tripPlaceId: place.id,
       itemType: 'restaurant',
       status: 'next_time',
+      userId: TEST_USER_ID,
     });
 
     const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
@@ -384,6 +387,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       tripPlaceId: place.id,
       itemType: 'hotel',
       status: 'next_time',
+      userId: TEST_USER_ID,
     });
 
     const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
@@ -401,6 +405,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       tripPlaceId: place.id,
       itemType: 'restaurant',
       status: 'next_time',
+      userId: TEST_USER_ID,
     });
 
     const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
@@ -421,6 +426,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
         tripPlaceId: place.id,
         itemType: 'restaurant',
         status,
+        userId: TEST_USER_ID,
       });
     }
 
@@ -438,6 +444,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       tripPlaceId: place.id,
       itemType: 'flight',
       status: 'next_time',
+      userId: TEST_USER_ID,
     });
 
     const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
@@ -454,6 +461,7 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
       tripPlaceId: place.id,
       itemType: 'car_rental',
       status: 'next_time',
+      userId: TEST_USER_ID,
     });
 
     const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
