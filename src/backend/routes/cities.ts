@@ -5,7 +5,7 @@
  * Geocoding is attempted immediately on city creation; failures are silent (GE-12).
  */
 
-import { and, desc, eq, inArray, like, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, notInArray, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import {
   cities,
@@ -255,7 +255,12 @@ citiesRouter.get(
     if (Number.isNaN(cityId)) throw new NotFoundError('City');
 
     const userId = req.user!.id;
-    const { type, min_rating } = req.query as { type?: string; min_rating?: number };
+    const { type, min_rating, sort_by, sort_order } = req.query as {
+      type?: string;
+      min_rating?: number;
+      sort_by?: 'rating';
+      sort_order?: 'asc' | 'desc';
+    };
 
     const db = getDb();
 
@@ -267,6 +272,10 @@ citiesRouter.get(
       eq(items.status, 'completed'),
     ];
     if (type) conditions.push(eq(items.itemType, type));
+
+    const effectiveRatingSql = sql<
+      number | null
+    >`COALESCE(${itemRestaurants.rating}, ${itemHotels.rating}, ${itemExperiences.rating})`;
 
     const query = db
       .select({
@@ -285,9 +294,7 @@ citiesRouter.get(
         experienceRating: itemExperiences.rating,
         experiencePostVisitNotes: itemExperiences.postVisitNotes,
         // Computed rating for sort/filter — COALESCE across types
-        effectiveRating: sql<
-          number | null
-        >`COALESCE(${itemRestaurants.rating}, ${itemHotels.rating}, ${itemExperiences.rating})`,
+        effectiveRating: effectiveRatingSql,
       })
       .from(items)
       .innerJoin(tripPlaces, eq(tripPlaces.id, items.tripPlaceId))
@@ -298,8 +305,15 @@ citiesRouter.get(
       .where(and(...conditions))
       .$dynamic();
 
+    // Default: sort by rating DESC (existing behaviour). sort_by=rating makes it explicit;
+    // sort_order=asc flips the direction.
+    const useRatingSort = !sort_by || sort_by === 'rating';
     const rows = await query.orderBy(
-      sql`COALESCE(${itemRestaurants.rating}, ${itemHotels.rating}, ${itemExperiences.rating}) DESC NULLS LAST`,
+      useRatingSort
+        ? sort_order === 'asc'
+          ? asc(effectiveRatingSql)
+          : desc(effectiveRatingSql)
+        : desc(effectiveRatingSql),
     );
 
     // Apply min_rating filter in JS (simpler than raw SQL for this case)

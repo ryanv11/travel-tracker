@@ -6,7 +6,7 @@
  */
 
 import type { SQL } from 'drizzle-orm';
-import { desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import {
   getDb,
   itemCarRentals,
@@ -65,6 +65,8 @@ interface ItemRow {
   // experience (lazy row — may be null)
   experienceRating: number | null;
   experiencePostVisitNotes: string | null;
+  // computed
+  effectiveRating: number | null;
 }
 
 /**
@@ -72,11 +74,20 @@ interface ItemRow {
  * Returns flat objects with type-specific fields merged in.
  *
  * @param conditions - Drizzle WHERE conditions to apply (can be undefined for no filter).
+ * @param opts - Optional sort and filter options.
+ * @param opts.sortBy - If 'rating', sort by effective rating across type-specific tables.
+ * @param opts.sortOrder - 'asc' or 'desc'. Defaults to 'desc' when sortBy is 'rating'.
+ * @param opts.minRating - If set, only return items with effectiveRating >= minRating.
  */
 export async function fetchItemsWithExtensions(
   conditions?: SQL,
+  opts?: { sortBy?: 'rating'; sortOrder?: 'asc' | 'desc'; minRating?: number },
 ): Promise<Record<string, unknown>[]> {
   const db = getDb();
+
+  const effectiveRatingSql = sql<
+    number | null
+  >`COALESCE(${itemRestaurants.rating}, ${itemHotels.rating}, ${itemExperiences.rating})`;
 
   const rows = await db
     .select({
@@ -121,6 +132,7 @@ export async function fetchItemsWithExtensions(
       restaurantPostVisitNotes: itemRestaurants.postVisitNotes,
       experienceRating: itemExperiences.rating,
       experiencePostVisitNotes: itemExperiences.postVisitNotes,
+      effectiveRating: effectiveRatingSql,
     })
     .from(items)
     .leftJoin(itemFlights, eq(itemFlights.itemId, items.id))
@@ -129,9 +141,23 @@ export async function fetchItemsWithExtensions(
     .leftJoin(itemRestaurants, eq(itemRestaurants.itemId, items.id))
     .leftJoin(itemExperiences, eq(itemExperiences.itemId, items.id))
     .where(conditions)
-    .orderBy(desc(items.createdAt));
+    .orderBy(
+      opts?.sortBy === 'rating'
+        ? opts.sortOrder === 'asc'
+          ? asc(effectiveRatingSql)
+          : desc(effectiveRatingSql)
+        : desc(items.createdAt),
+    );
 
-  return rows.map((r) => flattenItem(r as ItemRow));
+  // Apply min_rating filter post-query (avoids duplicating SQL expression)
+  const filtered =
+    opts?.minRating != null
+      ? rows.filter(
+          (r) => (r.effectiveRating ?? null) != null && r.effectiveRating! >= opts.minRating!,
+        )
+      : rows;
+
+  return filtered.map((r) => flattenItem(r as ItemRow));
 }
 
 /**

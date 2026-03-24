@@ -35,16 +35,22 @@ itemsRouter.get(
     const tripId = parseInt(String(req.params.tripId), 10);
     if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
-    const { place_id, type, status } = req.query as {
+    const { place_id, type, status, sort_by, sort_order, min_rating } = req.query as {
       place_id?: number;
       type?: string;
       status?: string;
+      sort_by?: 'rating';
+      sort_order?: 'asc' | 'desc';
+      min_rating?: number;
     };
 
     const result = await itemRepository.findByTrip(userId, tripId, {
       placeId: place_id,
       type,
       status,
+      sortBy: sort_by,
+      sortOrder: sort_order,
+      minRating: min_rating != null ? Number(min_rating) : undefined,
     });
     res.json(result);
   }),

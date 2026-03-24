@@ -34,7 +34,14 @@ export const itemRepository = {
   async findByTrip(
     userId: string,
     tripId: number,
-    filters?: { placeId?: number; type?: string; status?: string },
+    filters?: {
+      placeId?: number;
+      type?: string;
+      status?: string;
+      sortBy?: 'rating';
+      sortOrder?: 'asc' | 'desc';
+      minRating?: number;
+    },
   ): Promise<Record<string, unknown>[]> {
     const { and: drizzleAnd, eq: drizzleEq } = await import('drizzle-orm');
 
@@ -43,7 +50,11 @@ export const itemRepository = {
     if (filters?.type) conditions.push(drizzleEq(items.itemType, filters.type));
     if (filters?.status) conditions.push(drizzleEq(items.status, filters.status));
 
-    return fetchItemsWithExtensions(drizzleAnd(...conditions));
+    return fetchItemsWithExtensions(drizzleAnd(...conditions), {
+      sortBy: filters?.sortBy,
+      sortOrder: filters?.sortOrder,
+      minRating: filters?.minRating,
+    });
   },
 
   /**

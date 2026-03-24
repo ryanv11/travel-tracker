@@ -75,6 +75,9 @@ export const ListItemsQuerySchema = z.object({
   place_id: z.coerce.number().int().positive().optional(),
   type: zItemType.optional(),
   status: zItemStatus.optional(),
+  sort_by: z.literal('rating').optional(),
+  sort_order: z.enum(['asc', 'desc']).optional(),
+  min_rating: z.coerce.number().int().min(1).max(5).optional(),
 });
 
 /** Schema for POST /api/trips/:tripId/places/:placeId/carry-forward (C1) */
