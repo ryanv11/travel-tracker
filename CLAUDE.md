@@ -41,6 +41,19 @@ Whenever the BRD is updated (a changelog entry is written), the COO must create 
 entries for every new requirement ID introduced before closing the session. No BRD version
 bump is complete until all new IDs have a corresponding tracker entry.
 
+### BRD gate before dispatching briefs (mandatory)
+Before dispatching implementation briefs from any Architect deliverable or spec, the COO
+must add any new requirement IDs to the BRD and bump the version. No backend or frontend
+brief goes out without a BRD home for its requirements.
+
+### Security checklist for Backend briefs (mandatory)
+Every Backend brief that adds or modifies routes must include a security checklist requiring
+the agent to confirm for each new route:
+1. Auth middleware applied — `requireAuth` at minimum; `requireOwner` for owner-only operations
+2. All repository queries that touch user data include `userId` scoping (`eq(table.userId, req.user.id)`)
+3. Any new user-data table columns that reference a user have `.notNull()` on the FK
+Reference: `jobs/architect/tech/OP-06-hardening-checklist.md` §2 access matrix and ADL-27.
+
 ### GitHub issue ↔ tracker cross-referencing (mandatory)
 When raising a GitHub issue for something that has a tracker entry, include the tracker ID
 in the issue title — e.g. `fix(BUG-15): wrap executeCarryForward in a transaction`.
@@ -99,6 +112,6 @@ Screenshots are stored in `jobs/PO/screenshots/`.
 ## Key files
 See [CODEBASE.md](./CODEBASE.md) for the full repository map. Essential references:
 - `_project/tracker.json` — Feature/bug tracker (COO-maintained)
-- `_project/travel-tracker-BRD.md` — Business requirements document (v2.6)
+- `_project/travel-tracker-BRD.md` — Business requirements document (v2.7)
 - `src/backend/db/schema.ts` — Drizzle schema (single source of truth)
 - `patches/drizzle-kit+0.31.9.patch` — drizzle-kit SQLite bug fixes (patch-package)

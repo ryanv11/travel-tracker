@@ -569,12 +569,12 @@
       "id": "NR-14",
       "type": "requirement",
       "title": "Pre-shared-access hardening gate — formal go/no-go before non-owner access",
-      "status": "pending",
+      "status": "in-progress",
       "owner": "coo",
       "priority": "P1",
-      "brdRefs": ["NF-07"],
+      "brdRefs": ["NF-07", "SE-01", "SE-02", "SE-03", "SE-04", "SE-05", "SE-06", "SE-07"],
       "phase": 1,
-      "notes": "Phase 1.5 gate. Must be completed before access expands beyond owner. Brief filed to Architect 2026-03-23 (jobs/architect/inbox/20260323_1600-COO-op06-nr14-hardening.md). Spec covers: three-role access model (owner/explicitly-shared/authenticated-but-ungranted), resource/action matrix, token validation, failure behaviour + response minimisation, isolation enforcement layers, current state assessment, future requirements security review. Awaiting Architect deliverables."
+      "notes": "Phase 1.5 gate. Architect deliverables received 2026-03-23: OP-06 checklist (13 items HC-01–HC-13), ADL-27 (is_owner column + requireOwner middleware), ADL-27 corrections. DONE: HC-01 firewall (#80), HC-02 JWT issuer (#88), HC-03 shading scope (#84), HC-04 admin routes (#82), HC-05 shading config (#82), HC-06 city creation (#82), HC-07b null audit (#81), HC-07c NOT NULL migration (#86), ADL-27 schema+middleware (#82). PRs #84/#86/#88 pending merge. NR-14 closes after merge + PO HC-01 UAT sign-off (6-step sequence in park doc)."
     },
     {
       "id": "NR-15",
@@ -648,13 +648,92 @@
       "id": "OP-06",
       "type": "requirement",
       "title": "Pre-access hardening checklist — tied to NR-14",
-      "status": "pending",
+      "status": "in-progress",
       "owner": "coo",
       "priority": "P1",
-      "brdRefs": [],
+      "brdRefs": ["SE-01", "SE-02", "SE-03", "SE-04", "SE-05", "SE-06", "SE-07"],
       "phase": 1,
-      "notes": "Brief filed to Architect 2026-03-23 — see NR-14 notes for full scope. Awaiting Architect deliverable: OP-06 checklist document with six domains, current state assessment, ADLs, and future requirements security review."
+      "notes": "Architect checklist delivered 2026-03-23 (jobs/architect/tech/OP-06-hardening-checklist.md). ADL-27 delivered + corrected. Implementation underway — see NR-14 notes for item-by-item status. Closes when NR-14 passes."
     },
+    // ─── SE REQUIREMENTS (Security — BRD §5.11, v2.7) ────────────────────────
+    {
+      "id": "SE-01",
+      "type": "requirement",
+      "title": "Three-role access model: owner / explicitly-shared (Phase 3+) / authenticated-but-ungranted",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-01"],
+      "phase": 1,
+      "notes": "Implemented via ADL-27: is_owner column on users table, requireOwner middleware. PR #82 merged."
+    },
+    {
+      "id": "SE-02",
+      "type": "requirement",
+      "title": "User data scoped to authenticated user — no cross-user leakage",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-02"],
+      "phase": 1,
+      "notes": "Trip/place/item queries already scoped by userId (ADL-18 repository layer). Map shading scoped in PR #84 (HC-03). Pending merge."
+    },
+    {
+      "id": "SE-03",
+      "type": "requirement",
+      "title": "Admin operations and city creation restricted to owner — 403 for authenticated-but-ungranted",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-03"],
+      "phase": 1,
+      "notes": "requireOwner applied to adminRouter, shading config routes, POST /api/cities. PR #82 merged."
+    },
+    {
+      "id": "SE-04",
+      "type": "requirement",
+      "title": "JWT validated for signature, expiry, and issuer against configured Clerk instance",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-04"],
+      "phase": 1,
+      "notes": "Issuer validation added to jwtVerify. No aud claim in default Clerk JWTs — issuer-only per confirmed JWT decode. PR #88 (HC-02) pending merge."
+    },
+    {
+      "id": "SE-05",
+      "type": "requirement",
+      "title": "Auth and authorisation failures return opaque responses — no detail leakage",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-05"],
+      "phase": 1,
+      "notes": "HC-09 PASS (pre-existing). 401 returns {error:'Unauthorized'}, 403 returns {error:'Forbidden'}, cross-user trip returns 404. Verified in OP-06 checklist assessment."
+    },
+    {
+      "id": "SE-06",
+      "type": "requirement",
+      "title": "BYPASS_AUTH impossible in production",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-06"],
+      "phase": 1,
+      "notes": "HC-08 PASS (pre-existing). server.ts startup guard throws if BYPASS_AUTH=true and NODE_ENV=production."
+    },
+    {
+      "id": "SE-07",
+      "type": "requirement",
+      "title": "User ownership columns NOT NULL at database level",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-07"],
+      "phase": 1,
+      "notes": "trips.user_id, trip_places.user_id, items.user_id changed to notNull(). HC-07b null audit clean (PR #81). HC-07c NOT NULL migration PR #86 pending merge."
+    },
+
     {
       "id": "OP-07",
       "type": "requirement",
@@ -941,6 +1020,29 @@
       "notes": "src/frontend/components/TripList/TripsLayout.tsx — handleBulkDelete() catches errors with alert() rather than rendering an error state in the UI. Inconsistent with the rest of the app's error handling pattern. Fix: add error state and render inline. Found in codebase review 2026-03-22."
     },
 
+    {
+      "id": "BUG-22",
+      "type": "bug",
+      "title": "PATCH /api/cities/:id missing requireOwner guard",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-03"],
+      "phase": 1,
+      "notes": "requireOwner added to citiesRouter.patch('/:id'). PR #92 CI green, pending merge. GitHub issue #91."
+    },
+    {
+      "id": "OP-08",
+      "type": "requirement",
+      "title": "Security enforcement mechanisms for new work — regression suite + Semgrep rules",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": ["SE-01","SE-02","SE-03","SE-04","SE-05","SE-06","SE-07"],
+      "phase": 1,
+      "notes": "All three layers implemented 2026-03-24. (1) CLAUDE.md brief template gate added. (2) Access matrix regression suite PR #93: 59 tests (28 unauth 401, 26 non-owner 403, 5 cross-user isolation) — 1 test skipped pending BUG-22 merge. (3) Custom Semgrep Rule 1 active (PR #94): flags route files missing auth import. Rule 2 (Drizzle unscoped query) commented out — Drizzle fluent chain AST too complex for Semgrep; TODO filed in .semgrep/security.yml."
+    },
+
     // ─── BRD BACKFILL — 2026-03-23 (requirements added in v2.4/v2.5 never tracked) ──
     {
       "id": "BRD-TR11",
@@ -979,34 +1081,34 @@
       "id": "BRD-IT0809",
       "type": "feature",
       "title": "Rating sort and filter in item list views, cross-trip by city (IT-08/09)",
-      "status": "pending",
+      "status": "in-progress",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["IT-08","IT-09"],
       "phase": 3,
-      "notes": "NOT built. Ratings are stored and displayed per item but no sort/filter UI exists in any item list view. IT-09 (cross-trip aggregation across all visits to a city) also unbuilt. Incorrectly marked done in FEAT-IT — corrected in audit 2026-03-23."
+      "notes": "Backend API done: PR #90 (issue #89), CI green, pending merge. sort_by=rating, sort_order=asc|desc, min_rating=1-5 added to GET /api/trips/:tripId/items and GET /api/cities/:id/items. Frontend UI (sort/filter controls in item list views) is a separate pending dispatch."
     },
     {
       "id": "BRD-AD07",
       "type": "feature",
       "title": "Map shading configuration is per-user (AD-07)",
-      "status": "pending",
+      "status": "in-progress",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": ["AD-07"],
       "phase": 3,
-      "notes": "NOT built. Admin panel manages shading colours globally. No per-user scoping in backend. Added in BRD v2.5, never tracked. Backfilled 2026-03-23."
+      "notes": "Architect spec delivered 2026-03-24: ADL-28 (jobs/architect/tech/ADL-28-per-user-shading-companions.md). Decision: userId FK on map_shading_config with composite PK (state_key, user_id), lazy seeding on first access. SE-03 scope narrows — shading config moves to requireAuth (per-user) not requireOwner. Awaiting Backend implementation brief."
     },
     {
       "id": "BRD-AD08",
       "type": "feature",
       "title": "Companions list is per-user (AD-08)",
-      "status": "pending",
+      "status": "in-progress",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": ["AD-08"],
       "phase": 3,
-      "notes": "NOT built. No per-user scoping on companions in backend repositories. Added in BRD v2.5, never tracked. Backfilled 2026-03-23."
+      "notes": "Architect spec delivered 2026-03-24: ADL-28 (jobs/architect/tech/ADL-28-per-user-shading-companions.md). Decision: userId FK on companions, UNIQUE changes to (user_id, name), companions route moves from /api/admin/companions (requireOwner) to new /api/companions router (requireAuth). Cross-user companion assignment validated in tripRepository. Awaiting Backend implementation brief."
     },
     {
       "id": "BRD-AD09",

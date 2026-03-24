@@ -1,0 +1,47 @@
+COO SESSION PARK — 2026-03-24
+========================================
+
+## Session summary
+Short targeted session. Processed inbox backlog from last session close, then
+completed the three remaining NR-14 blocking items (B4/B5/B6).
+
+## Completed this session
+
+- Inbox processed: 7 unread items from previous session moved to read/
+- Tracker updated: NR-14 and OP-06 both moved to in-progress with full status notes
+
+- B4 — HC-03 (PR #84): Map shading queries scoped to req.user!.id in all three
+  service functions. Also caught two shading routes missing requireOwner and added
+  them. 8 new two-user isolation tests.
+
+- B5 — HC-07c (PR #86): NOT NULL constraint on trips.user_id, trip_places.user_id,
+  items.user_id. Had drizzle-kit journal timestamp bugs (now familiar territory) —
+  fixed manually. Also tightened CarryForwardParams.userId from optional to required.
+
+- B6 — HC-02 (PR #88): JWT issuer validation added to jwtVerify. Decoded a real
+  Clerk JWT — no aud claim present (Clerk uses azp), so issuer-only validation.
+  CLERK_ISSUER confirmed as https://just-raptor-89.clerk.accounts.dev.
+  CLERK_ISSUER added to .env.local and documented in .env.example.
+
+## State of play
+
+NR-14 implementation is COMPLETE. All HC items now implemented:
+- HC-01: done (#80) — awaiting UAT closure only
+- HC-02: done (#88) — pending merge
+- HC-03: done (#84) — pending merge
+- HC-04/05/06: done (#82) — merged
+- HC-07b: done (#81) — merged
+- HC-07c: done (#86) — pending merge
+
+Three PRs pending merge by COO: #84, #86, #88
+
+## Next action
+
+PO to perform HC-01 UAT sequence after merging #84/#86/#88:
+1. Rebuild devcontainer (to pick up Clerk JWKS domain in firewall)
+2. Sign in — confirm Clerk sign-in completes, no JWKS error in server log
+3. GET /api/trips → 200 with owner's real trips
+4. Admin write (e.g. create a category) → 201
+5. Sign in as second Clerk account → GET /api/trips → 200 [] (empty), POST /api/admin/categories → 403
+6. Confirm no BYPASS_AUTH warnings in server log
+UAT PASS on all six steps closes HC-01 and NR-14.

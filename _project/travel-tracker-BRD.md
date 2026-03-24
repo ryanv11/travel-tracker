@@ -217,6 +217,20 @@ There is currently no system for tracking travel history, planning future trips,
 
 ---
 
+### 5.11 Security and Access Control
+
+| ID | Requirement |
+|----|-------------|
+| SE-01 | The system must implement a three-role access model: owner (the designated app owner), explicitly-shared (Phase 3+, not yet operative), and authenticated-but-ungranted (valid Clerk token, no explicit grants) |
+| SE-02 | All user data (trips, places, items, map shading) must be scoped to the authenticated user — no cross-user data leakage permitted |
+| SE-03 | Admin operations (category, activity, companion management; map shading config; city creation) must be restricted to the designated owner. Authenticated-but-ungranted users must receive 403 |
+| SE-04 | JWT tokens must be validated for signature, expiry, and issuer against the configured Clerk instance. Tokens issued by a different Clerk instance must be rejected |
+| SE-05 | Authentication and authorisation failures must return opaque error responses. Internal error detail, user existence, and ownership must not be leaked to callers |
+| SE-06 | Development authentication bypass (BYPASS_AUTH) must be impossible in production environments |
+| SE-07 | All user ownership columns (trips, trip_places, items) must enforce NOT NULL at the database level to prevent unowned records |
+
+---
+
 ## 6. Non-Functional Requirements
 
 | ID | Requirement |
@@ -315,5 +329,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 2.4 | March 2026 | COO / Ryan V (PO) | UI direction approved from UX audit + mockup review. Updated TR-10 (search by name + status filter chips); added TR-11 (two-panel layout), TR-12 (persistent status bar), PH-03 (photos from detail header); added section 5.9 Trip List and Detail Display (DP-01–DP-04); renumbered Admin to section 5.10; added F-02/F-03 to future features |
 | 2.5 | March 2026 | COO / Ryan V (PO) | Added TR-13 (search includes city names); GE-14/15 (city search-first + country autopopulate); DP-05 (place date ranges, chronological ordering); FL-04 (flight lookup, Phase 2); PH-04 (photos direct attachment, Phase 2); AD-07/08/09 (admin split model — map shading + companions per-user, categories/activities global seeded); added booking import, companion endorsements, companion invite model to §9 Future Features |
 | 2.6 | March 2026 | COO / Ryan V (PO) | Removed F-02 (in-panel tab navigation) and F-03 (per-trip scoped map tab) from §9 Future Features — PO direction: not worth implementing without the map tab; scrapped entirely |
+| 2.7 | March 2026 | COO | Added §5.11 Security and Access Control (SE-01–SE-07) — formalises the NR-14/OP-06 hardening gate requirements: three-role access model, user data scoping, owner-only admin, JWT issuer validation, opaque error responses, BYPASS_AUTH production block, NOT NULL ownership constraints |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*

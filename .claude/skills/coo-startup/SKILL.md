@@ -45,10 +45,24 @@ echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"action\":\"reviewed\"}" >> /w
 
 If no `subagent_stop` entries since last `reviewed`, write the sentinel immediately.
 
-### 3. Park doc
+### 3. BRD coverage check
+
+Scan the most recent park doc and any unread inbox items for Architect deliverables or
+agent specs produced since the last session. For each one, ask: do the requirements it
+introduced have entries in `_project/travel-tracker-BRD.md`?
+
+- Read the BRD changelog to find the current version and last update date
+- If any spec introduced requirement IDs that are absent from the BRD, flag them to the
+  user and add them before proceeding — the BRD is the single source of truth
+- If the BRD was updated, confirm tracker entries exist for every new requirement ID
+  (per the BRD → tracker rule in CLAUDE.md)
+
+If nothing new was specced last session, note "BRD coverage clean" and move on.
+
+### 4. Park doc
 
 Summarise from the most recent park doc: what was completed, current state, suggested next actions.
 
-### 4. Report to user
+### 5. Report to user
 
-Give a concise pickup summary: UAT status, ledger status, state of play, suggested next.
+Give a concise pickup summary: UAT status, ledger status, BRD coverage status, state of play, suggested next.

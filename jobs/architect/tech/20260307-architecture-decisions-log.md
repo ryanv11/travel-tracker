@@ -1094,3 +1094,31 @@ Option B is deferred to Phase 2, not rejected permanently.
 - `req.user` type extended with `isOwner: number`
 - `OWNER_CLERK_ID` env var documented in `.env.local.example`
 - Contract tests must seed `is_owner = 1` for owner-required tests
+
+---
+
+## ADL-29 — Security enforcement mechanisms
+
+**Date:** 2026-03-23
+**Status:** Decided
+**Tracker:** OP-06, NR-14
+**Links:** OP-06 hardening checklist (`jobs/architect/tech/OP-06-hardening-checklist.md`), ADL-27
+
+**Decision:** Two enforcement layers are adopted to prevent OP-06 compliance regressions on new work:
+
+1. **Security regression test suite** — a dedicated contract test file `src/backend/routes/__tests__/security.access-matrix.test.ts` that exercises every route in the access matrix against three scenarios: unauthenticated (401), non-owner authenticated (403 on owner-only routes), and cross-user data isolation (SE-02/SE-03/SE-04/SE-05). These tests run as part of `npm run test:contract` on every PR.
+
+2. **Custom Semgrep rules** — project-specific rules at `.semgrep/security.yml` integrated into the existing `security.yml` CI workflow. Rule 1 flags Express route handlers in `src/backend/routes/` that lack auth middleware. Rule 2 flags Drizzle `db.select().from(trips/trip_places/items)` calls without a `userId` scope in the `where` clause.
+
+**Rationale:** The OP-06 checklist is a point-in-time audit. It establishes the security baseline but provides no enforcement guarantee for future work. A new route added next week receives zero coverage unless a CI gate exists. The two layers are complementary: the regression tests catch runtime failures (wrong status codes, data leaking across users); Semgrep catches structural failures at static analysis time before the code even runs. Together they close the gap between "we audited this once" and "we enforce this on every commit".
+
+**Alternatives considered:**
+- Point-in-time manual re-audit — rejected: does not scale, not triggered by PRs, depends on human discipline.
+- Contract tests only, no Semgrep — rejected: tests verify existing routes but cannot catch a new route that was never added to the test file.
+- Semgrep only — rejected: static patterns are imprecise (false positives on router-level middleware); runtime tests provide ground truth.
+
+**Implications:**
+- `src/backend/routes/__tests__/security.access-matrix.test.ts` — new file, implemented by Backend/QA agent per spec in `jobs/COO/inbox/20260323T000000Z-ARCHITECT-security-enforcement.md`
+- `.semgrep/security.yml` — new file, implemented by Backend agent per spec in same inbox file
+- `.github/workflows/security.yml` — add `--config .semgrep/security.yml` to the Semgrep step
+- Both enforcement artefacts must be kept current when the route table changes; the implementing agent brief must note this maintenance obligation
