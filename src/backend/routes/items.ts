@@ -27,6 +27,7 @@ export default itemsRouter;
 // ----------------------------------------------------------------
 // GET /api/trips/:tripId/items
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 itemsRouter.get(
   '/',
   validateQuery(ListItemsQuerySchema),
@@ -59,6 +60,7 @@ itemsRouter.get(
 // ----------------------------------------------------------------
 // POST /api/trips/:tripId/items
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 itemsRouter.post(
   '/',
   validateBody(CreateItemSchema),
@@ -100,6 +102,7 @@ itemsRouter.post(
 // ----------------------------------------------------------------
 // PATCH /api/trips/:tripId/items/:itemId
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 itemsRouter.patch(
   '/:itemId',
   validateBody(UpdateItemSchema),
@@ -135,6 +138,7 @@ itemsRouter.patch(
 // ----------------------------------------------------------------
 // DELETE /api/trips/:tripId/items/:itemId
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 itemsRouter.delete(
   '/:itemId',
   asyncHandler(async (req, res) => {

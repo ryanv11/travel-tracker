@@ -1,0 +1,52 @@
+# Travel Tracker — Custom Semgrep Rules
+# ADL-29: Security enforcement for OP-06 compliance
+#
+# These rules enforce the access control model established by ADL-27 and OP-06.
+# Run automatically in CI alongside generic rulesets (security.yml).
+#
+# Maintenance: Update when new route files are added or auth middleware pattern changes.
+# See ADL-29 and jobs/architect/tech/OP-06-hardening-checklist.md for rationale.
+#
+# Suppression format:
+#   // nosemgrep: travel-tracker.<rule-id> -- reason: <justification>
+
+rules:
+  - id: express-route-no-auth
+    patterns:
+      - pattern: |
+          $ROUTER.$METHOD($PATH, ...)
+      - pattern-not-inside: |
+          import { requireAuth } from ...
+      - pattern-not-inside: |
+          import { requireOwner } from ...
+    message: >
+      Express route handler in src/backend/routes/ with no reference to requireAuth or
+      requireOwner. All routes under /api/ must be protected. If this route is legitimately
+      public, add a nosemgrep suppression with justification.
+    languages: [typescript]
+    severity: ERROR
+    paths:
+      include:
+        - src/backend/routes/*.ts
+      exclude:
+        - src/backend/routes/__tests__/**
+        - src/backend/routes/items-helper.ts
+
+  # Rule 2 — drizzle-unscoped-user-table (WARNING)
+  # TODO: Rule 2 — see ADL-29
+  #
+  # Drizzle's fluent query API chains (.select().from().innerJoin().where()) produce
+  # deeply nested AST nodes that Semgrep's generic pattern matching cannot reliably
+  # distinguish from properly-scoped variants without excessive false positives.
+  # Specifically, `pattern-not: $DB.select(...).from($TABLE).$CHAIN.where(...userId...)`
+  # does not traverse through multi-level method chains in the TypeScript AST,
+  # resulting in every chained query being flagged regardless of whether userId
+  # scoping is present somewhere in the chain.
+  #
+  # The shading.service.ts queries (trips, tripPlaces) are intentionally unscoped —
+  # they aggregate across all users to compute map shading states, applied via JOIN
+  # condition rather than WHERE clause. A reliable rule would need to either:
+  #   (a) Use taint tracking (semgrep Pro), or
+  #   (b) Be narrowed to only flag direct .where()-less terminations with no chain at all
+  #
+  # Raise a GitHub issue to revisit once semgrep Pro or a refined pattern is available.
