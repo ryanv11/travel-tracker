@@ -6,6 +6,7 @@
  *   2. Non-Bearer Authorization header → 401
  *   3. Invalid/malformed token → 401
  *   4. Valid token → calls userRepository, attaches req.user, calls next()
+ *   5. Wrong JWT issuer → 401 (HC-02)
  *
  * jose's jwtVerify and userRepository are mocked so no network calls
  * or database access occur in these tests.
@@ -20,6 +21,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // CLERK_JWKS_URI must be set before auth.ts is imported (lazy init reads it on first request)
 process.env.CLERK_JWKS_URI = 'https://test.clerk.accounts.dev/.well-known/jwks.json';
+// CLERK_ISSUER must be set so the issuer guard does not throw (HC-02)
+process.env.CLERK_ISSUER = 'https://test.clerk.accounts.dev';
 
 // ----------------------------------------------------------------
 // Mock jose — must be declared before importing auth middleware
@@ -158,6 +161,25 @@ describe('requireAuth middleware', () => {
     vi.mocked(userRepository.findOrCreateByClerkId).mockRejectedValueOnce(new Error('DB error'));
 
     const req = makeReq('Bearer valid.jwt.token');
+    const { res } = makeRes();
+    const next = vi.fn();
+
+    await requireAuth(req, res, next as unknown as NextFunction);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  // HC-02: issuer validation
+  it('returns 401 when jwtVerify throws due to wrong issuer', async () => {
+    // Simulate jose throwing a JWTClaimValidationFailed error for a mismatched iss claim.
+    // In the real flow, jwtVerify is called with { issuer: process.env.CLERK_ISSUER } and
+    // rejects when the token's `iss` does not match — the catch block returns 401.
+    vi.mocked(jwtVerify).mockRejectedValueOnce(
+      new Error('JWT issuer claim (iss) validation failed'),
+    );
+
+    const req = makeReq('Bearer forged.wrong.issuer.token');
     const { res } = makeRes();
     const next = vi.fn();
 
