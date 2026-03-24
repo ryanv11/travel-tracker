@@ -21,6 +21,8 @@ export const SearchCitiesQuerySchema = z.object({
 export const CityItemsQuerySchema = z.object({
   type: z.enum(['restaurant', 'hotel', 'flight', 'car_rental', 'experience', 'note']).optional(),
   min_rating: z.coerce.number().int().min(1).max(5).optional(),
+  sort_by: z.literal('rating').optional(),
+  sort_order: z.enum(['asc', 'desc']).optional(),
 });
 
 /** Schema for PATCH /api/cities/:id (C2) */
