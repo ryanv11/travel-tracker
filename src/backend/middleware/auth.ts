@@ -55,6 +55,18 @@ function getJWKS(): ReturnType<typeof createRemoteJWKSet> {
   return _jwks;
 }
 
+/**
+ * Returns the expected JWT issuer from the environment.
+ * Throws a fatal error at startup if CLERK_ISSUER is not set (and BYPASS_AUTH is not active).
+ */
+function getIssuer(): string {
+  const issuer = process.env.CLERK_ISSUER;
+  if (!issuer) {
+    throw new Error('[AUTH] CLERK_ISSUER is not set in environment. Check .env.local.');
+  }
+  return issuer;
+}
+
 // ----------------------------------------------------------------
 // Middleware
 // ----------------------------------------------------------------
@@ -91,7 +103,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   try {
     const jwks = getJWKS();
-    const { payload } = await jwtVerify(token, jwks);
+    const issuer = getIssuer();
+    const { payload } = await jwtVerify(token, jwks, { issuer });
     const clerkId = payload.sub!;
     const email = (payload.email as string | undefined) ?? '';
 
