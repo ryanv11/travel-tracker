@@ -33,9 +33,9 @@ import tripCountriesRouter from './trip-countries.js';
 export const tripsRouter = Router();
 
 // Mount nested routers with mergeParams: true (defined in those files)
-tripsRouter.use('/:tripId/places', placesRouter);
-tripsRouter.use('/:tripId/items', itemsRouter);
-tripsRouter.use('/:tripId/countries', tripCountriesRouter);
+tripsRouter.use('/:tripId/places', placesRouter); // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
+tripsRouter.use('/:tripId/items', itemsRouter); // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
+tripsRouter.use('/:tripId/countries', tripCountriesRouter); // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 
 // ----------------------------------------------------------------
 // Helpers
@@ -106,7 +106,7 @@ async function buildTripResponse(trip: {
 // ----------------------------------------------------------------
 // GET /api/trips
 // ----------------------------------------------------------------
-tripsRouter.get(
+tripsRouter.get( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/',
   validateQuery(ListTripsQuerySchema),
   asyncHandler(async (req, res) => {
@@ -133,7 +133,7 @@ tripsRouter.get(
 // ----------------------------------------------------------------
 // POST /api/trips
 // ----------------------------------------------------------------
-tripsRouter.post(
+tripsRouter.post( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/',
   validateBody(CreateTripSchema),
   asyncHandler(async (req, res) => {
@@ -174,7 +174,7 @@ tripsRouter.post(
 // ----------------------------------------------------------------
 // GET /api/trips/:id
 // ----------------------------------------------------------------
-tripsRouter.get(
+tripsRouter.get( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:id',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
@@ -256,7 +256,7 @@ tripsRouter.get(
 // ----------------------------------------------------------------
 // PATCH /api/trips/:id
 // ----------------------------------------------------------------
-tripsRouter.patch(
+tripsRouter.patch( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:id',
   validateBody(UpdateTripSchema),
   asyncHandler(async (req, res) => {
@@ -305,7 +305,7 @@ tripsRouter.patch(
 // ----------------------------------------------------------------
 // PATCH /api/trips/:id/status
 // ----------------------------------------------------------------
-tripsRouter.patch(
+tripsRouter.patch( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:id/status',
   validateBody(UpdateTripStatusSchema),
   asyncHandler(async (req, res) => {
@@ -327,7 +327,7 @@ tripsRouter.patch(
 // ----------------------------------------------------------------
 // PATCH /api/trips/:id/lock  (convenience alias)
 // ----------------------------------------------------------------
-tripsRouter.patch(
+tripsRouter.patch( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:id/lock',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
@@ -350,7 +350,7 @@ tripsRouter.patch(
 // ----------------------------------------------------------------
 // PATCH /api/trips/:id/unlock  (convenience alias → review_pending)
 // ----------------------------------------------------------------
-tripsRouter.patch(
+tripsRouter.patch( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:id/unlock',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
@@ -392,7 +392,7 @@ tripsRouter.patch(
  * @returns 400 if id is not a positive integer.
  * @returns 404 if trip does not exist.
  */
-tripsRouter.delete(
+tripsRouter.delete( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:id',
   asyncHandler(async (req, res) => {
     // Validate path param — id must be a positive integer

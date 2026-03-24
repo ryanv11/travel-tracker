@@ -21,7 +21,7 @@ const AddCountriesSchema = z.object({
   country_codes: z.array(z.string().length(2)).min(1),
 });
 
-router.post(
+router.post( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/',
   validateBody(AddCountriesSchema),
   asyncHandler(async (req, res) => {
@@ -36,7 +36,7 @@ router.post(
   }),
 );
 
-router.delete(
+router.delete( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:code',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;

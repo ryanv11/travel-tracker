@@ -63,6 +63,7 @@ jobs:
             --config p/react \
             --config p/nodejs \
             --config p/owasp-top-ten \
+            --config .semgrep/security.yml \
             --error \
             --quiet
         # To suppress a false positive, add a comment above the line:

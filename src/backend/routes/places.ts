@@ -30,7 +30,7 @@ export default placesRouter;
 // ----------------------------------------------------------------
 // GET /api/trips/:tripId/places
 // ----------------------------------------------------------------
-placesRouter.get(
+placesRouter.get( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
@@ -56,7 +56,7 @@ placesRouter.get(
 // ----------------------------------------------------------------
 // POST /api/trips/:tripId/places
 // ----------------------------------------------------------------
-placesRouter.post(
+placesRouter.post( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/',
   validateBody(CreatePlaceSchema),
   asyncHandler(async (req, res) => {
@@ -98,7 +98,7 @@ placesRouter.post(
 // ----------------------------------------------------------------
 // DELETE /api/trips/:tripId/places/:placeId
 // ----------------------------------------------------------------
-placesRouter.delete(
+placesRouter.delete( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:placeId',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
@@ -116,7 +116,7 @@ placesRouter.delete(
 // ----------------------------------------------------------------
 // PATCH /api/trips/:tripId/places/:placeId
 // ----------------------------------------------------------------
-placesRouter.patch(
+placesRouter.patch( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:placeId',
   validateBody(UpdatePlaceDatesSchema),
   asyncHandler(async (req, res) => {
@@ -151,7 +151,7 @@ placesRouter.patch(
 // ----------------------------------------------------------------
 // POST /api/trips/:tripId/places/:placeId/carry-forward  (C1 — IT-07 execution)
 // ----------------------------------------------------------------
-placesRouter.post(
+placesRouter.post( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:placeId/carry-forward',
   validateBody(CarryForwardBodySchema),
   asyncHandler(async (req, res) => {
@@ -207,7 +207,7 @@ placesRouter.post(
 // ----------------------------------------------------------------
 // POST /api/trips/:tripId/places/:placeId/activities
 // ----------------------------------------------------------------
-placesRouter.post(
+placesRouter.post( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:placeId/activities',
   validateBody(AddPlaceActivitySchema),
   asyncHandler(async (req, res) => {
@@ -247,7 +247,7 @@ placesRouter.post(
 // ----------------------------------------------------------------
 // DELETE /api/trips/:tripId/places/:placeId/activities/:activityId
 // ----------------------------------------------------------------
-placesRouter.delete(
+placesRouter.delete( // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
   '/:placeId/activities/:activityId',
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
