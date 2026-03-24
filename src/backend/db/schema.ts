@@ -213,7 +213,9 @@ export const trips = sqliteTable(
     // Status progression: planning → active → review_pending → locked
     status: text('status').notNull().default('planning'),
     photoAlbumRef: text('photo_album_ref'), // URL or folder path — no file stored (PH-01)
-    userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id), // HC-07c: NOT NULL enforced at DB level
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
@@ -312,7 +314,9 @@ export const tripPlaces = sqliteTable(
     cityId: integer('city_id')
       .notNull()
       .references(() => cities.id),
-    userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id), // HC-07c: NOT NULL enforced at DB level
     arrivedOn: text('arrived_on'), // nullable, no default (ADL-24)
     departedOn: text('departed_on'), // nullable, no default (ADL-24)
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
@@ -410,7 +414,9 @@ export const items = sqliteTable(
     // Self-referential FK — preserves lineage to the source item (ADL-13)
     // Uses a lazy reference function to avoid circular dependency at module load time
     carriedFromItemId: integer('carried_from_item_id').references((): AnySQLiteColumn => items.id),
-    userId: text('user_id').references(() => users.id), // NULL = no owner yet (ADL-16)
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id), // HC-07c: NOT NULL enforced at DB level
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },

@@ -446,6 +446,7 @@ describe('DELETE /api/trips/:id', () => {
     await db.insert(schema.tripPlaces).values({
       tripId: trip.id,
       cityId: city.id,
+      userId: TEST_USER_ID,
     });
 
     // Confirm the place exists before delete

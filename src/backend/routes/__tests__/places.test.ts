@@ -336,7 +336,9 @@ describe('GET /api/trips/:tripId/places', () => {
     const db = testDb!;
     const city = await seedCity(db, 'FR', 'Paris');
     const trip = await seedTrip(db);
-    await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city.id });
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
 
     const res = await supertest(app).get(`/api/trips/${trip.id}/places`).expect(200);
 
@@ -522,7 +524,7 @@ describe('DELETE /api/trips/:tripId/places/:placeId', () => {
     const trip = await seedTrip(db);
     const [place] = await db
       .insert(schema.tripPlaces)
-      .values({ tripId: trip.id, cityId: city.id })
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
       .returning();
 
     await supertest(app).delete(`/api/trips/${trip.id}/places/${place.id}`).expect(204);
@@ -543,7 +545,7 @@ describe('DELETE /api/trips/:tripId/places/:placeId', () => {
     const trip = await seedTrip(db);
     const [place] = await db
       .insert(schema.tripPlaces)
-      .values({ tripId: trip.id, cityId: city.id })
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
       .returning();
 
     // Lock the trip
@@ -561,7 +563,7 @@ describe('DELETE /api/trips/:tripId/places/:placeId', () => {
     const trip = await seedTrip(db);
     const [place] = await db
       .insert(schema.tripPlaces)
-      .values({ tripId: trip.id, cityId: city.id })
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
       .returning();
 
     // First delete
@@ -595,7 +597,7 @@ describe('PATCH /api/trips/:tripId/places/:placeId', () => {
     const trip = await seedTrip(db);
     const [place] = await db
       .insert(schema.tripPlaces)
-      .values({ tripId: trip.id, cityId: city.id })
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
       .returning();
 
     const res = await supertest(app)
@@ -617,6 +619,7 @@ describe('PATCH /api/trips/:tripId/places/:placeId', () => {
       .values({
         tripId: trip.id,
         cityId: city.id,
+        userId: TEST_USER_ID,
         arrivedOn: '2026-07-01',
         departedOn: '2026-07-05',
       })
@@ -658,7 +661,7 @@ describe('PATCH /api/trips/:tripId/places/:placeId', () => {
     const trip = await seedTrip(db, { status: 'locked' });
     const [place] = await db
       .insert(schema.tripPlaces)
-      .values({ tripId: trip.id, cityId: city.id })
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
       .returning();
 
     const res = await supertest(app)

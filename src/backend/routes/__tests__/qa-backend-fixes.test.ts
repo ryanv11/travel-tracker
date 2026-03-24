@@ -521,6 +521,7 @@ describe('SEC-01: GET /api/cities/:id/items — userId isolation', () => {
       .values({
         tripId: trip.id,
         cityId: city.id,
+        userId: TEST_USER_ID,
       })
       .returning();
 
@@ -547,6 +548,7 @@ describe('SEC-01: GET /api/cities/:id/items — userId isolation', () => {
       .values({
         tripId: otherTrip.id,
         cityId: city.id,
+        userId: OTHER_USER_ID,
       })
       .returning();
 
@@ -592,6 +594,7 @@ describe('SEC-02: POST carry-forward — source_item_ids ownership check', () =>
       .values({
         tripId: otherTrip.id,
         cityId: city.id,
+        userId: OTHER_USER_ID,
       })
       .returning();
     const [otherItem] = await db

@@ -259,7 +259,7 @@ describe('itemRepository.findByTrip', () => {
     const trip = await seedTrip(db);
     const [place] = await db
       .insert(schema.tripPlaces)
-      .values({ tripId: trip.id, cityId: city.id })
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
       .returning();
 
     // Item with place
