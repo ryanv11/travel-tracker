@@ -1,0 +1,53 @@
+COO SESSION PARK — 2026-03-24
+========================================
+
+## Session summary
+Full implementation session. Completed NR-14 (all HC items), OP-08 security
+enforcement, process improvements, feature work, and a new security bug find.
+
+## Completed this session
+
+### NR-14 — All HC items implemented (PRs merged)
+- B4 HC-03: shading queries scoped to req.user.id (#84) — also fixed 2 routes
+  missing requireOwner on shading/countries/:code and shading/regions/:code
+- B5 HC-07c: NOT NULL migration on trips/trip_places/items user_id (#86)
+- B6 HC-02: JWT issuer validation in jwtVerify — issuer only, no aud (Clerk
+  default JWTs have no aud claim, confirmed from live JWT decode) (#88)
+- BUG-22: PATCH /api/cities/:id was missing requireOwner — fixed (#92)
+NR-14 implementation COMPLETE. Awaiting PO HC-01 UAT to formally close.
+
+### OP-08 — Security enforcement for new work (all merged)
+- Access matrix regression suite: 59 tests (401/403/isolation) (#93)
+  1 test skipped (BUG-22) — now unblocked after #92 merge
+- Custom Semgrep Rule 1: flags route files missing auth import (#94)
+  Rule 2 (Drizzle query scoping) commented out — AST pattern too complex
+- CLAUDE.md: Backend brief security checklist gate added
+- coo-startup skill: BRD coverage check added as step 3
+
+### Process improvements
+- BRD v2.7: §5.11 Security and Access Control (SE-01–SE-07) added
+- BRD gate rule in CLAUDE.md: no brief dispatched without BRD home
+- BRD coverage check in /coo-startup: catches spec→BRD gaps at next pickup
+
+### Feature work
+- IT-08/09: Rating sort/filter on item list endpoints — backend done (#90)
+  Frontend UI controls are a separate pending dispatch
+- AD-07/08: Architect spec delivered (ADL-28) — per-user shading config and
+  companions. Awaiting Backend implementation brief.
+
+## State of play
+
+main is clean and up to date. No stale branches.
+
+Open / next actions:
+- PO UAT: HC-01 end-to-end sequence (closes NR-14)
+  Steps: rebuild devcontainer → sign in → trip access → admin write →
+  second account 200[]/403 → no BYPASS_AUTH warnings in log
+- Backend brief for AD-07/08 (ADL-28 spec ready)
+- Frontend brief for IT-08/09 UI sort/filter controls
+- OP-07: UI/UX expert review (still pending)
+- Access matrix test (#93): remove .skip on BUG-22 test (already unblocked)
+
+## Inbox
+- 20260324T050726Z-ARCHITECT-ad0708-spec.md — unread (AD-07/08 spec)
+- 20260324T052513Z-BACKEND-bug22-complete.md — unread (BUG-22 completion)
