@@ -30,8 +30,8 @@ export const mapRouter = Router();
 mapRouter.get(
   '/shading',
   requireOwner,
-  asyncHandler(async (_req, res) => {
-    const result = await getAllCountryShading();
+  asyncHandler(async (req, res) => {
+    const result = await getAllCountryShading(req.user!.id);
     res.json(
       result.map((r) => ({
         country_code: r.countryCode,
@@ -111,11 +111,14 @@ mapRouter.patch(
 
 // ----------------------------------------------------------------
 // GET /api/map/shading/countries/:countryCode  — single country + regions
+// ADL-27 / HC-03: owner-only (shading data is personally identifiable per AD-07)
 // ----------------------------------------------------------------
 mapRouter.get(
   '/shading/countries/:countryCode',
+  requireOwner,
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
+    const userId = req.user!.id;
     const db = getDb();
 
     const countryRow = await db
@@ -125,11 +128,11 @@ mapRouter.get(
       .limit(1);
     if (!countryRow.length) throw new NotFoundError('Country');
 
-    const shading = await getCountryShading(countryCode);
+    const shading = await getCountryShading(countryCode, userId);
     if (!shading) throw new NotFoundError('Country');
 
     const regionShading =
-      countryRow[0].regionTierEnabled === 1 ? await getRegionShading(countryCode) : [];
+      countryRow[0].regionTierEnabled === 1 ? await getRegionShading(countryCode, userId) : [];
 
     res.json({
       country_code: shading.countryCode,
@@ -150,9 +153,11 @@ mapRouter.get(
 
 // ----------------------------------------------------------------
 // GET /api/map/shading/regions/:countryCode  — all regions for country
+// ADL-27 / HC-03: owner-only (shading data is personally identifiable per AD-07)
 // ----------------------------------------------------------------
 mapRouter.get(
   '/shading/regions/:countryCode',
+  requireOwner,
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
     const db = getDb();
@@ -168,7 +173,7 @@ mapRouter.get(
       throw new ValidationError('Country does not have region tier enabled');
     }
 
-    const result = await getRegionShading(countryCode);
+    const result = await getRegionShading(countryCode, req.user!.id);
 
     res.json(
       result.map((r) => ({

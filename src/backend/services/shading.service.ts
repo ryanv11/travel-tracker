@@ -8,7 +8,7 @@
  * The shading config (6 rows) is cached in memory and invalidated on PATCH.
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import {
   cities,
   countries,
@@ -183,10 +183,11 @@ export function computeCountryState(
 /**
  * Returns a map of country_code → { hasActive, completedCount, planningCount }
  * derived from the trip_countries junction table (case (d): explicitly-tagged countries).
+ * Scoped to the given userId.
  */
-async function getTripCountriesStats(): Promise<
-  Map<string, { hasActive: number; completedCount: number; planningCount: number }>
-> {
+async function getTripCountriesStats(
+  userId: string,
+): Promise<Map<string, { hasActive: number; completedCount: number; planningCount: number }>> {
   const db = getDb();
   const rows = await db
     .select({
@@ -197,6 +198,7 @@ async function getTripCountriesStats(): Promise<
     })
     .from(tripCountries)
     .leftJoin(trips, eq(trips.id, tripCountries.tripId))
+    .where(eq(trips.userId, userId))
     .groupBy(tripCountries.countryCode);
   return new Map(
     rows.map((r) => [
@@ -227,13 +229,14 @@ const countrySelectShape = (co: typeof countries, c: typeof cities, t: typeof tr
 /**
  * Returns shading state for every country.
  * Implements shading-spec.md §4.1 (v1.1 — two queries + application logic).
+ * Scoped to the given userId so each user sees only their own trip data.
  */
-export async function getAllCountryShading(): Promise<CountryShadingResult[]> {
+export async function getAllCountryShading(userId: string): Promise<CountryShadingResult[]> {
   const db = getDb();
   const [config, coverage, tcStats] = await Promise.all([
     getConfigMap(),
     getRegionCoverageMap(),
-    getTripCountriesStats(),
+    getTripCountriesStats(userId),
   ]);
 
   const rows = await db
@@ -241,7 +244,7 @@ export async function getAllCountryShading(): Promise<CountryShadingResult[]> {
     .from(countries)
     .leftJoin(cities, eq(cities.countryCode, countries.countryCode))
     .leftJoin(tripPlaces, eq(tripPlaces.cityId, cities.id))
-    .leftJoin(trips, eq(trips.id, tripPlaces.tripId))
+    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
     .groupBy(countries.countryCode, countries.regionTierEnabled);
 
   return rows.map((r) => {
@@ -262,13 +265,17 @@ export async function getAllCountryShading(): Promise<CountryShadingResult[]> {
 /**
  * Returns shading state for a single country.
  * Returns null if country does not exist.
+ * Scoped to the given userId so each user sees only their own trip data.
  */
-export async function getCountryShading(countryCode: string): Promise<CountryShadingResult | null> {
+export async function getCountryShading(
+  countryCode: string,
+  userId: string,
+): Promise<CountryShadingResult | null> {
   const db = getDb();
   const [config, coverage, tcStats] = await Promise.all([
     getConfigMap(),
     getRegionCoverageMap(),
-    getTripCountriesStats(),
+    getTripCountriesStats(userId),
   ]);
 
   const rows = await db
@@ -276,7 +283,7 @@ export async function getCountryShading(countryCode: string): Promise<CountrySha
     .from(countries)
     .leftJoin(cities, eq(cities.countryCode, countries.countryCode))
     .leftJoin(tripPlaces, eq(tripPlaces.cityId, cities.id))
-    .leftJoin(trips, eq(trips.id, tripPlaces.tripId))
+    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
     .where(eq(countries.countryCode, countryCode))
     .groupBy(countries.countryCode, countries.regionTierEnabled);
 
@@ -298,8 +305,12 @@ export async function getCountryShading(countryCode: string): Promise<CountrySha
 /**
  * Returns shading state for all regions in a country.
  * Uses the bulk aggregate query from shading spec §5.1.
+ * Scoped to the given userId so each user sees only their own trip data.
  */
-export async function getRegionShading(countryCode: string): Promise<RegionShadingResult[]> {
+export async function getRegionShading(
+  countryCode: string,
+  userId: string,
+): Promise<RegionShadingResult[]> {
   const db = getDb();
   const config = await getConfigMap();
 
@@ -316,7 +327,7 @@ export async function getRegionShading(countryCode: string): Promise<RegionShadi
     .from(regions)
     .leftJoin(cities, eq(cities.regionId, regions.id))
     .leftJoin(tripPlaces, eq(tripPlaces.cityId, cities.id))
-    .leftJoin(trips, eq(trips.id, tripPlaces.tripId))
+    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
     .where(eq(regions.countryCode, countryCode))
     .groupBy(regions.id);
 

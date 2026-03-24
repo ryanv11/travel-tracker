@@ -283,7 +283,7 @@ describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () =
       countryCode: 'JP',
     });
 
-    const results = await getAllCountryShading();
+    const results = await getAllCountryShading(TEST_USER_ID);
 
     const jpResult = results.find((r) => r.countryCode === 'JP');
     expect(jpResult).toBeDefined();
@@ -294,7 +294,7 @@ describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () =
     const db = testDb!;
     await db.insert(schema.countries).values({ countryCode: 'JP', name: 'Japan' });
 
-    const results = await getAllCountryShading();
+    const results = await getAllCountryShading(TEST_USER_ID);
 
     const jpResult = results.find((r) => r.countryCode === 'JP');
     expect(jpResult).toBeDefined();
@@ -321,7 +321,7 @@ describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () =
       countryCode: 'JP',
     });
 
-    const results = await getAllCountryShading();
+    const results = await getAllCountryShading(TEST_USER_ID);
 
     const jpResult = results.find((r) => r.countryCode === 'JP');
     expect(jpResult).toBeDefined();
@@ -349,7 +349,7 @@ describe('getAllCountryShading() — ADL-23 case (d): trip_countries path', () =
 
     await db.insert(schema.tripCountries).values({ tripId: trip.id, countryCode: 'JP' });
 
-    const results = await getAllCountryShading();
+    const results = await getAllCountryShading(TEST_USER_ID);
 
     // JP should be planned; DE should be never_visited
     const jpResult = results.find((r) => r.countryCode === 'JP');
