@@ -427,3 +427,24 @@ describe('HC-06: POST /api/cities requires owner', () => {
     expect(res.body).toMatchObject({ name: 'Owner City', country_code: 'US' });
   });
 });
+
+// ================================================================
+// BUG-22: PATCH /api/cities/:id requires owner (SE-03)
+// ================================================================
+
+describe('BUG-22: PATCH /api/cities/:id requires owner', () => {
+  it('PATCH /api/cities/1 → 403 for non-owner', async () => {
+    mockIsOwner = 0;
+    await seedTestUser(testDb!, 0);
+    const res = await supertest(app).patch('/api/cities/1').send({ region_id: null });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
+  });
+
+  it('PATCH /api/cities/1 → 404 for owner (city does not exist, but auth gate passes)', async () => {
+    mockIsOwner = 1;
+    await seedTestUser(testDb!, 1);
+    const res = await supertest(app).patch('/api/cities/1').send({ region_id: null });
+    expect(res.status).toBe(404);
+  });
+});

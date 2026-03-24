@@ -142,9 +142,11 @@ citiesRouter.post(
 
 // ----------------------------------------------------------------
 // PATCH /api/cities/:id  (C2)
+// ADL-27 / SE-03: owner-only (city edits pollute the global seed)
 // ----------------------------------------------------------------
 citiesRouter.patch(
   '/:id',
+  requireOwner,
   validateBody(PatchCitySchema),
   asyncHandler(async (req, res) => {
     const cityId = parseInt(String(req.params.id), 10);
