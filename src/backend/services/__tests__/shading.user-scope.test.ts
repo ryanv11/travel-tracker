@@ -293,7 +293,9 @@ describe('HC-03 — shading queries scoped to userId', () => {
         })
         .returning();
 
-      await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city[0].id });
+      await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: trip.id, cityId: city[0].id, userId: OWNER_USER_ID });
 
       const results = await getAllCountryShading(OWNER_USER_ID);
       const jp = results.find((r) => r.countryCode === 'JP');
@@ -320,7 +322,9 @@ describe('HC-03 — shading queries scoped to userId', () => {
         })
         .returning();
 
-      await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city[0].id });
+      await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: trip.id, cityId: city[0].id, userId: OWNER_USER_ID });
 
       const results = await getAllCountryShading(OTHER_USER_ID);
       const jp = results.find((r) => r.countryCode === 'JP');
@@ -378,7 +382,9 @@ describe('HC-03 — shading queries scoped to userId', () => {
           userId: OWNER_USER_ID,
         })
         .returning();
-      await db.insert(schema.tripPlaces).values({ tripId: ownerTrip.id, cityId: jpCity.id });
+      await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: ownerTrip.id, cityId: jpCity.id, userId: OWNER_USER_ID });
 
       // Other user visited DE
       const [otherTrip] = await db
@@ -391,7 +397,9 @@ describe('HC-03 — shading queries scoped to userId', () => {
           userId: OTHER_USER_ID,
         })
         .returning();
-      await db.insert(schema.tripPlaces).values({ tripId: otherTrip.id, cityId: deCity.id });
+      await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: otherTrip.id, cityId: deCity.id, userId: OTHER_USER_ID });
 
       // Owner sees JP visited, DE never visited
       const ownerResults = await getAllCountryShading(OWNER_USER_ID);
@@ -427,7 +435,9 @@ describe('HC-03 — shading queries scoped to userId', () => {
           userId: OWNER_USER_ID,
         })
         .returning();
-      await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city.id });
+      await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: trip.id, cityId: city.id, userId: OWNER_USER_ID });
 
       const result = await getCountryShading('FR', OWNER_USER_ID);
       expect(result).not.toBeNull();
@@ -451,7 +461,9 @@ describe('HC-03 — shading queries scoped to userId', () => {
           userId: OWNER_USER_ID,
         })
         .returning();
-      await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city.id });
+      await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: trip.id, cityId: city.id, userId: OWNER_USER_ID });
 
       const result = await getCountryShading('FR', OTHER_USER_ID);
       expect(result).not.toBeNull();
@@ -487,7 +499,9 @@ describe('HC-03 — shading queries scoped to userId', () => {
           userId: OWNER_USER_ID,
         })
         .returning();
-      await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city.id });
+      await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: trip.id, cityId: city.id, userId: OWNER_USER_ID });
 
       const results = await getRegionShading('AU', OWNER_USER_ID);
       const nsw = results.find((r) => r.iso3166_2 === 'AU-NSW');
@@ -518,7 +532,9 @@ describe('HC-03 — shading queries scoped to userId', () => {
           userId: OWNER_USER_ID,
         })
         .returning();
-      await db.insert(schema.tripPlaces).values({ tripId: trip.id, cityId: city.id });
+      await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: trip.id, cityId: city.id, userId: OWNER_USER_ID });
 
       const results = await getRegionShading('AU', OTHER_USER_ID);
       const nsw = results.find((r) => r.iso3166_2 === 'AU-NSW');

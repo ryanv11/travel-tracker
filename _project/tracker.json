@@ -1032,6 +1032,28 @@
       "notes": "requireOwner added to citiesRouter.patch('/:id'). PR #92 CI green, pending merge. GitHub issue #91."
     },
     {
+      "id": "BUG-24",
+      "type": "bug",
+      "title": "Main CI red — test fixtures missing userId (Type Check) + unpinned action tags (Semgrep)",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "Type Check: 9 errors — shading.user-scope.test.ts (8) and items.rating-sort-filter.test.ts (1) inserted trip_places without userId after HC-07c NOT NULL (#86); squash-merge race. Semgrep: new registry rule github-actions-mutable-action-tag flagged 15 mutable uses: refs — all pinned to full commit SHAs. Fixed 2026-07-07. GitHub issue #97."
+    },
+    {
+      "id": "DEP-01",
+      "type": "task",
+      "title": "npm audit — 26 vulnerabilities (3 critical, 10 high) accrued since 2026-03 dependency freeze",
+      "status": "open",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "Dependency Vulnerability Scan job red since 2026-07-07 on a docs-only diff — advisories published post-freeze. Needs deliberate update pass (not audit fix --force): dev vs runtime split, majors assessed individually, full test suite + app verification, security-backlog.md npm-audit section updated in same PR per Document lifecycle rule. GitHub issue #98."
+    },
+    {
       "id": "OP-08",
       "type": "requirement",
       "title": "Security enforcement mechanisms for new work — regression suite + Semgrep rules",
