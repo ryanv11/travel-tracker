@@ -1032,6 +1032,17 @@
       "notes": "requireOwner added to citiesRouter.patch('/:id'). PR #92 CI green, pending merge. GitHub issue #91."
     },
     {
+      "id": "BUG-23",
+      "type": "bug",
+      "title": "scripts/tracker.js comment stripper truncates strings containing // — tracker CLI unusable",
+      "status": "open",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "Regex at tracker.js:27 strips comment syntax inside JSON string literals; the BUG-A note added 2026-03-23 contains 'trips.ts:280' preceded by a double-slash, truncating the string — every tracker.js run since fails to parse. Fix: string-aware comment stripping. Found 2026-07-07 during OP-09 work. GitHub issue #96."
+    },
+    {
       "id": "BUG-24",
       "type": "bug",
       "title": "Main CI red — test fixtures missing userId (Type Check) + unpinned action tags (Semgrep)",
@@ -1063,6 +1074,18 @@
       "brdRefs": ["SE-01","SE-02","SE-03","SE-04","SE-05","SE-06","SE-07"],
       "phase": 1,
       "notes": "All three layers implemented 2026-03-24. (1) CLAUDE.md brief template gate added. (2) Access matrix regression suite PR #93: 59 tests (28 unauth 401, 26 non-owner 403, 5 cross-user isolation) — 1 test skipped pending BUG-22 merge. (3) Custom Semgrep Rule 1 active (PR #94): flags route files missing auth import. Rule 2 (Drizzle unscoped query) commented out — Drizzle fluent chain AST too complex for Semgrep; TODO filed in .semgrep/security.yml."
+    },
+
+    {
+      "id": "OP-09",
+      "type": "requirement",
+      "title": "Document lifecycle rule — status/verdict docs updated in the same PR that changes their facts",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "Adopted 2026-07-07 from doc-integrity audit finding (audits/session-a-doc-integrity.md): all HIGH stale-doc failures traced to missing closing steps. CLAUDE.md rule (5 clauses: same-PR updates, supersession stamps, historical banners, open-question closure, one canonical home) + enforcement hooks in pre-push and coo-startup skills. GitHub issue #95."
     },
 
     // ─── BRD BACKFILL — 2026-03-23 (requirements added in v2.4/v2.5 never tracked) ──
