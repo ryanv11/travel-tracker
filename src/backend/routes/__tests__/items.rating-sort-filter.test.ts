@@ -323,7 +323,10 @@ async function seedTripPlace(
   tripId: number,
   cityId: number,
 ) {
-  const [place] = await db.insert(schema.tripPlaces).values({ tripId, cityId }).returning();
+  const [place] = await db
+    .insert(schema.tripPlaces)
+    .values({ tripId, cityId, userId: TEST_USER_ID })
+    .returning();
   return place;
 }
 
