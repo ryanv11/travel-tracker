@@ -1,0 +1,87 @@
+COO SESSION PARK — 2026-07-07
+========================================
+
+## Session summary
+Documentation integrity audit (read-only) + governance fix + main CI restoration.
+Full audit report: audits/session-a-doc-integrity.md (committed, #100).
+Doc health scores: product docs 52/100, governance layer 74/100. Key finding:
+drift concentrates exactly where no closing rule exists — fixed as OP-09.
+
+## Completed this session
+
+### Doc-integrity audit (Session A)
+- 33-item audit of all project documentation vs code/git/CI ground truth
+- 7 HIGH drift findings (would mislead an agent into wrong action), full
+  tables with dispositions in the report; 12 questions for Ryan in §5
+- Provenance result: near-zero confabulation; one SUSPECT citation
+  (security-backlog H1 "issues #1–4 merged 2026-03-20")
+
+### OP-09 — Document lifecycle rule (#95, PR #100, merged)
+- CLAUDE.md: mandatory rule — same-PR status-doc updates, supersession
+  stamps, historical banners, open-question closure, one canonical home
+- Enforcement hooks: /pre-push status-doc check; /coo-startup lifecycle
+  spot-check (check 4)
+
+### BUG-24 — main CI restored (#97, PR #99, merged)
+- main had been RED: Type Check since the 03-24 merge window (fixture
+  userId missing after HC-07c — squash-merge race), Semgrep + npm audit
+  since 2026-07-07 (registry/advisory drift on docs-only commits)
+- Fixed: 9 fixture inserts (shading.user-scope, items.rating-sort-filter);
+  all 15 workflow action refs pinned to commit SHAs
+- NOT fixed (deliberate): npm audit → DEP-01 below
+
+## ⚠️ OUTSTANDING — surface these at startup
+
+1. DEP-01 / issue #98 — npm audit: 26 vulnerabilities (3 critical, 10 high)
+   accrued since the March dependency freeze. The ONLY red CI job on main.
+   Every PR merges with a documented exception until this is done. Needs a
+   deliberate dependency pass (dev/runtime split, majors assessed
+   individually, full test suite + app verification), NOT audit fix --force.
+   Update security-backlog.md npm-audit section in the same PR (OP-09 rule).
+   FIRST ITEM of the cleanup phase.
+
+2. BUG-23 / issue #96 — scripts/tracker.js cannot parse tracker.json since
+   2026-03-23: comment-stripper regex eats // inside string literals.
+   Tracker CLI is unusable until fixed (string-aware stripping).
+
+3. OP-06 checklist statuses are STALE — 6× FAIL / 2× PARTIAL all fixed by
+   PRs #80–#94 but never flipped. CLAUDE.md points agents at this checklist.
+   Awaiting Ryan's answer to audit Q1 before flipping (flip with commit
+   citations per the OP-09 rule). Do NOT trust its verdicts meanwhile.
+
+4. Audit §5 — 12 questions for Ryan gate most doc fixes (OP-06 flip, local
+   real-auth + issue #23 closure, depwire status, claude-code/ clone, BRD
+   v2.7 sign-off, local-vs-hosted product direction, 403-vs-423, project
+   objective home, PO screenshots dir, DOCX artifacts, shadcn/ui, Electron).
+
+5. Doc-fix queue (dispositions in audit §2 tables; cleanup phase):
+   README env vars + .env.example (HIGH — setup broken as documented),
+   CODEBASE.md firewall/contract-test claims, security-spec supersession
+   stamps, ER-schema historical banner + schema.ts:15 repoint, API
+   reference auth section + missing endpoints, frontend component
+   reference, BRD header v2.5→v2.7 + OQ closures, map-shading spec user
+   scoping, ADL-28 entry in main log.
+
+6. Untracked working-tree items pending Ryan (audit Q3/Q4): .mcp.json +
+   .depwire/ (depwire was removed by 3823044 but resurrected untracked);
+   .planning/drift-ledger.jsonl has uncommitted pre-session edits.
+
+## Carried forward from 2026-03-24 park (still open)
+- PO UAT: HC-01 end-to-end sequence (formally closes NR-14) — rebuild
+  devcontainer → sign in → trip access → admin write → second account
+  200[]/403 → no BYPASS_AUTH warnings. GitHub issue #23 also still open.
+- Backend brief for AD-07/08 (ADL-28 spec ready, not implemented)
+- Frontend brief for IT-08/09 UI sort/filter controls
+- OP-07: UI/UX expert review (still pending)
+- Access matrix suite (#93): remove .skip on the BUG-22 test (unblocked)
+
+## State of play
+main is green except the npm-audit job (DEP-01). No stale branches.
+Tracker: OP-09/BUG-24 done, BUG-23/DEP-01 open (105 items, parseable only
+with a string-aware JSONC reader until BUG-23 lands).
+
+## Suggested next session
+1. Run /coo-startup (now includes main-CI check + lifecycle spot-check)
+2. DEP-01 dependency pass (#98) — unblocks "all jobs green"
+3. BUG-23 tracker.js fix (#96)
+4. Collect Ryan's answers to audit §5 → dispatch the doc-fix queue
