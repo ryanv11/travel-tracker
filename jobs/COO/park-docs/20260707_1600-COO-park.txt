@@ -62,9 +62,11 @@ drift concentrates exactly where no closing rule exists — fixed as OP-09.
    reference, BRD header v2.5→v2.7 + OQ closures, map-shading spec user
    scoping, ADL-28 entry in main log.
 
-6. Untracked working-tree items pending Ryan (audit Q3/Q4): .mcp.json +
-   .depwire/ (depwire was removed by 3823044 but resurrected untracked);
-   .planning/drift-ledger.jsonl has uncommitted pre-session edits.
+6. Untracked working-tree items: RESOLVED for depwire — Ryan confirmed
+   (2026-07-07) it was tried and rejected ("took some ideas from it, that's
+   about it"); .depwire/ + .mcp.json deleted, 3823044 removal stands (audit
+   Q3 stamped). Q4 (claude-code/ clone) still open.
+   .planning/drift-ledger.jsonl still has uncommitted pre-session edits.
 
 ## Carried forward from 2026-03-24 park (still open)
 - PO UAT: HC-01 end-to-end sequence (formally closes NR-14) — rebuild

@@ -168,6 +168,7 @@ tech-blueprint, ER-schema, project-plan.txt, dependency-graph.txt, security-spec
 1. **OP-06 checklist statuses:** HC-01…HC-07c, ADL-27, and OP-08 all merged (PRs #80–#94) but the checklist still shows 6× FAIL / 2× PARTIAL. May I (in a writing session) flip the verified items to PASS with commit citations — or do you want an independent re-verification first? *(Also: the agent-memory note "gate BLOCKED, 4 FAIL/2 PARTIAL" is stale and updated per this audit.)*
 2. **Local real-auth:** the firewall now allows Clerk JWKS (HC-01), but CLAUDE.md/CODEBASE.md still say it's unreachable and GitHub issue #23 is still open. Is real-JWT local dev confirmed working, so the docs can be fixed and #23 closed? Is `BYPASS_AUTH=true` still the intended local default?
 3. **Depwire:** it was removed by commit 3823044, but an untracked `.mcp.json` re-registers it and `.depwire/` output (dated 2026-03-20) sits in the working tree. Deliberate re-adoption (needs an ADL per the Architect-involvement guardrail) or leftover to delete?
+   > RESOLVED (2026-07-07) by Ryan: leftover, not re-adoption — "we tried depwire and it wasn't worth incorporating; we took some ideas from it, but that's about it." `.depwire/` and `.mcp.json` deleted from the working tree; commit 3823044's removal stands. Remaining follow-up: strip the depwire steps from the codebase-health.md methodology (doc 26, doc-fix queue).
 4. **`claude-code/` clone:** why is a git-ignored clone of the upstream claude-code repo in the workspace, and should CODEBASE.md keep describing it as project content slated for extraction?
 5. **BRD v2.7 sign-off:** every changelog entry lists you as approving author except v2.7 (SE-01–07), which lists only "COO". Do you retroactively approve §5.11 as written?
 6. **Product direction conflict:** BRD §3/NF-01 still promise a solo, offline-capable local Mac app, while §5.11 + the shipped code mandate Clerk-authenticated multi-user operation (internet-dependent). Which is the real target, and should NF-01/§3 be rewritten?
@@ -555,6 +556,8 @@ Notes: the UAT log itself is in good shape — findings carry checkboxes, bug ID
 | Sev | Class | Doc location | Evidence | Disposition |
 |-----|-------|--------------|----------|-------------|
 | MED | STALE + CONTRADICTORY (with a committed decision) | Entire `.depwire/` directory + untracked `.mcp.json` registering the depwire MCP server | Commit 3823044 (2026-03-21) removed Depwire deliberately ("remove Depwire"), the day *after* these files were generated. The untracked working-tree state resurrects the tool with no recorded decision. Any agent (or the MCP server itself) consuming these files gets a March-era codebase view presented as current. | Confirm with Ryan: delete, or regenerate + record re-adoption decision (also affects codebase-health.md methodology, doc 26) |
+
+> RESOLVED (2026-07-07): Ryan confirmed leftover (see Q3 in §5) — `.depwire/` and `.mcp.json` deleted; the 3823044 removal decision stands.
 
 
 
