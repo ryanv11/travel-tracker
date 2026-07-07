@@ -18,7 +18,7 @@ description: COO session startup audit. Invoked by the COO at the start of every
 
 ## Startup procedure
 
-Work through these three checks in order. Surface any issues to the user before doing anything else.
+Work through these four checks in order. Surface any issues to the user before doing anything else.
 
 ### 1. UAT check
 
@@ -59,10 +59,26 @@ introduced have entries in `_project/travel-tracker-BRD.md`?
 
 If nothing new was specced last session, note "BRD coverage clean" and move on.
 
-### 4. Park doc
+### 4. Document lifecycle spot-check
+
+Per the Document lifecycle rule in CLAUDE.md: for each PR merged since the last session
+(`git log --oneline` since the last park doc / reviewed sentinel), ask — did it change a
+fact asserted by a status/verdict document (OP-06 checklist, hardening-gate.md,
+security-backlog.md, BRD open questions, tracker.json, any PASS/FAIL or "current state"
+section)?
+
+- If yes and the document was updated in that PR → clean.
+- If yes and the document was NOT updated → fix the document now, citing the PR that
+  changed the fact, before starting new work.
+- If a merged PR superseded part of a spec or ADL without stamping it → add the
+  `> SUPERSEDED` stamp now.
+
+If no merged PRs since last session, note "lifecycle clean" and move on.
+
+### 5. Park doc
 
 Summarise from the most recent park doc: what was completed, current state, suggested next actions.
 
-### 5. Report to user
+### 6. Report to user
 
-Give a concise pickup summary: UAT status, ledger status, BRD coverage status, state of play, suggested next.
+Give a concise pickup summary: UAT status, ledger status, BRD coverage status, lifecycle status, state of play, suggested next.

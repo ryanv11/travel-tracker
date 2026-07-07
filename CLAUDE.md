@@ -54,6 +54,32 @@ ambiguous "done" in the tracker. Adopted 2026-07-07 after finding the project ha
 definition-of-done doc anywhere (the `objective.txt` stub meant to hold this was never
 filled in and has been deleted).
 
+### Document lifecycle (mandatory)
+Adopted 2026-07-07 after the doc-integrity audit (`audits/session-a-doc-integrity.md`)
+found that every HIGH-severity stale-doc failure traced to a missing closing step, not
+rule non-compliance (worst case: OP-06 checklist verdicts never flipped after PRs #80–#94
+fixed them). Every document that renders a status or verdict — gate checklists, backlogs,
+open-questions sections, "current state" assessments — is presumed live until stamped
+otherwise:
+
+1. **Same-PR updates** — a PR that changes a fact asserted by a status/verdict document
+   must update that document in the same PR, citing the PR/commit (e.g. flipping an
+   OP-06 item FAIL → PASS).
+2. **Supersession stamps** — when a new decision or spec supersedes part of an existing
+   document, the same PR stamps the superseded section:
+   `> SUPERSEDED (YYYY-MM-DD) by <successor> — retained for history.` Old text stays.
+3. **Historical banners** — a document nobody will maintain must say so at the top:
+   `> HISTORICAL — snapshot as of YYYY-MM-DD, not maintained.` This removes it from the
+   "current truth" set without deleting the record.
+4. **Open-question closure** — when a decision answers an open question in the BRD or a
+   spec, the answering PR records the resolution in that open-questions section.
+5. **One canonical home per topic** — no new document may claim to be "authoritative",
+   "binding", or a "single source of truth" for a topic that already has a canonical
+   document; it must point at the canonical home instead.
+
+Enforcement hooks: `/pre-push` includes a status-doc check; `/coo-startup` includes a
+lifecycle spot-check over PRs merged since the last session.
+
 ### Security checklist for Backend briefs (mandatory)
 Every Backend brief that adds or modifies routes must include a security checklist requiring
 the agent to confirm for each new route:
