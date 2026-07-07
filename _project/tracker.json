@@ -1087,6 +1087,17 @@
       "phase": 1,
       "notes": "Adopted 2026-07-07 from doc-integrity audit finding (audits/session-a-doc-integrity.md): all HIGH stale-doc failures traced to missing closing steps. CLAUDE.md rule (5 clauses: same-PR updates, supersession stamps, historical banners, open-question closure, one canonical home) + enforcement hooks in pre-push and coo-startup skills. GitHub issue #95."
     },
+    {
+      "id": "OP-10",
+      "type": "requirement",
+      "title": "Main CI visibility — startup health check + post-merge verification",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 1,
+      "notes": "Main was red 2026-03-24 → 2026-07-07 with the human PO as the only detection mechanism (BUG-24). Two closing mechanisms added 2026-07-07: coo-startup check 1 (main CI health, blocking) and CLAUDE.md post-merge verification step. Branch-protection escalation offered to PO as follow-up decision. GitHub issue #101."
+    },
 
     // ─── BRD BACKFILL — 2026-03-23 (requirements added in v2.4/v2.5 never tracked) ──
     {

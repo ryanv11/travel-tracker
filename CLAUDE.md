@@ -121,6 +121,18 @@ git branch -D <branch-name>   # force-delete local branch (expected with squash 
 - Local branch must be manually deleted after merge — do not leave stale local branches
 - Run `git branch` after every merge session to confirm no branches remain except `main`
 
+### Post-merge verification (mandatory)
+After every merge, confirm **main's own CI runs go green** before the next merge or
+session end:
+```bash
+gh run list --repo ryanv11/travel-tracker --branch main --limit 4
+```
+A PR being green does not guarantee main stays green — two individually-green PRs can
+compose to a red main via squash-merge races (this is exactly how BUG-24's Type Check
+failure landed and sat undetected from 2026-03-24 to 2026-07-07). If main goes red after
+a merge, fixing it is the immediate next action — it is never left for a future session
+without a tracked issue. `/coo-startup` check 1 is the backstop, not the primary control.
+
 ## Environment
 - Running inside a devcontainer (Docker) — workspace at `/workspace`
 - Claude config dir: `/home/node/.claude`

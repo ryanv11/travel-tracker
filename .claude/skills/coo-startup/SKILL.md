@@ -18,9 +18,25 @@ description: COO session startup audit. Invoked by the COO at the start of every
 
 ## Startup procedure
 
-Work through these four checks in order. Surface any issues to the user before doing anything else.
+Work through these five checks in order. Surface any issues to the user before doing anything else.
 
-### 1. UAT check
+### 1. Main CI health check
+
+```bash
+gh run list --repo ryanv11/travel-tracker --branch main --limit 6 \
+  --json conclusion,workflowName,displayTitle \
+  --jq '.[] | "\(.conclusion)\t\(.workflowName)\t\(.displayTitle)"'
+```
+
+- Any `failure` on main → **blocking first item**: diagnose which job failed
+  (`gh run view <id> --log-failed`) and either fix it this session or raise a
+  tracked issue before starting other work. Main red is never left unowned —
+  agents only exist during sessions, so an unsurfaced red main has no other
+  detection mechanism.
+- Known-red jobs with an open tracked issue (e.g. DEP-01/#98 npm audit) →
+  note them in the pickup summary; everything else must be green.
+
+### 2. UAT check
 
 Read the UAT Log above. For each open session:
 - **PARTIAL or FAIL verdict** → surface to user before proceeding
@@ -29,7 +45,7 @@ Read the UAT Log above. For each open session:
 
 If all sessions are closed and all findings are `[x]`, UAT is clean.
 
-### 2. Drift ledger audit
+### 3. Drift ledger audit
 
 Find the last `"action":"reviewed"` entry. Scan forward to the end.
 
@@ -45,7 +61,7 @@ echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"action\":\"reviewed\"}" >> /w
 
 If no `subagent_stop` entries since last `reviewed`, write the sentinel immediately.
 
-### 3. BRD coverage check
+### 4. BRD coverage check
 
 Scan the most recent park doc and any unread inbox items for Architect deliverables or
 agent specs produced since the last session. For each one, ask: do the requirements it
@@ -59,7 +75,7 @@ introduced have entries in `_project/travel-tracker-BRD.md`?
 
 If nothing new was specced last session, note "BRD coverage clean" and move on.
 
-### 4. Document lifecycle spot-check
+### 5. Document lifecycle spot-check
 
 Per the Document lifecycle rule in CLAUDE.md: for each PR merged since the last session
 (`git log --oneline` since the last park doc / reviewed sentinel), ask — did it change a
@@ -75,10 +91,10 @@ section)?
 
 If no merged PRs since last session, note "lifecycle clean" and move on.
 
-### 5. Park doc
+### 6. Park doc
 
 Summarise from the most recent park doc: what was completed, current state, suggested next actions.
 
-### 6. Report to user
+### 7. Report to user
 
-Give a concise pickup summary: UAT status, ledger status, BRD coverage status, lifecycle status, state of play, suggested next.
+Give a concise pickup summary: main CI status, UAT status, ledger status, BRD coverage status, lifecycle status, state of play, suggested next.
