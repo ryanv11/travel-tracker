@@ -46,6 +46,14 @@ Before dispatching implementation briefs from any Architect deliverable or spec,
 must add any new requirement IDs to the BRD and bump the version. No backend or frontend
 brief goes out without a BRD home for its requirements.
 
+### Success criteria before dispatch (mandatory)
+Every requirement or spec must state its success criteria — a measurable definition of
+"done" — before the COO dispatches any implementation brief from it. A requirement with no
+stated success criteria has no way to be UAT'd or closed cleanly; it just accumulates as an
+ambiguous "done" in the tracker. Adopted 2026-07-07 after finding the project had no
+definition-of-done doc anywhere (the `objective.txt` stub meant to hold this was never
+filled in and has been deleted).
+
 ### Security checklist for Backend briefs (mandatory)
 Every Backend brief that adds or modifies routes must include a security checklist requiring
 the agent to confirm for each new route:

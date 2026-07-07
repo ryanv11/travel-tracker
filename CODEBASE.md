@@ -204,6 +204,10 @@ working directory under `jobs/`. The COO (this agent) coordinates; specialists e
 
 ### Agent roster
 
+Canonical list: `_project/job-registry.txt` (responsibility, system prompt path,
+job ID prefix per role). The table below is a short-form summary — update both
+when adding a role, not just this one.
+
 | Agent | Directory | Responsibility |
 |---|---|---|
 | **COO** | `jobs/COO/` | Coordination, prioritisation, PR reviews, session management |
@@ -214,6 +218,8 @@ working directory under `jobs/`. The COO (this agent) coordinates; specialists e
 | **Database** | `jobs/database/` | Schema changes, migrations, seed data |
 | **QA** | `jobs/qa/` | Test suites — unit, contract, E2E |
 | **UX** | `jobs/ux/` | UI mockups, design direction, visual specs |
+| **Docs** | `jobs/docs/` | User-facing and maintenance documentation |
+| **Integrations** | `jobs/integrations/` | Phase 2 notification engine and external integrations (pending, post-MVP) |
 
 ### Job directory structure (same for every agent)
 
@@ -257,12 +263,10 @@ cleanly without re-reading all history.
 | `travel-tracker-standalone-BRD.docx` | Formatted DOCX version of the BRD |
 | `travel-tracker-project-audit.md/.docx` | Project audit report (see DOCX for formatted version) |
 | `tracker.json` | Live feature/bug/task tracker (JSON, COO-maintained) |
-| `project-plan.txt` | High-level phase plan |
-| `objective.txt` | Project goals and success criteria |
+| `project-plan.txt` | High-level phase plan, incl. project objective/launch target |
 | `job-registry.txt` | Canonical list of agent roles and responsibilities |
 | `test-policy.md` | Testing philosophy and coverage requirements |
 | `security-backlog.md` | Known security findings and remediation status |
-| `document-index.txt` | Index of all project documents |
 
 ---
 
@@ -318,4 +322,4 @@ in CI they run against a test Express app (`server-test-app.ts`).
 
 ---
 
-*Last updated by COO — 2026-03-23. Agent-specific sections appended as agents contribute.*
+*Last updated by COO — 2026-07-07. Agent-specific sections appended as agents contribute.*

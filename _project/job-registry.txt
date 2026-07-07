@@ -1,0 +1,136 @@
+TRAVEL TRACKER — AGENT JOB REGISTRY
+Version: 1.0
+Date: 2026-07-07 (backfilled — file existed as an empty 0-byte stub since
+      project init, 2026-03-07, and was never populated)
+Author: COO
+
+================================================================================
+PURPOSE
+================================================================================
+
+Canonical list of every agent role in the jobs/ workflow system, its
+responsibility, and where to find its full system prompt. This file is the
+single source of truth for "what roles exist." CODEBASE.md's agent roster
+table is a short-form summary of this file and must be kept in sync with it —
+not the other way around.
+
+================================================================================
+ACTIVE AGENT ROLES
+================================================================================
+
+COO
+  Directory:        jobs/COO/
+  System prompt:    jobs/COO/COO-system-prompt.txt
+  Responsibility:   Coordination, prioritisation, PR review and merge, session
+                     management. Writes briefs to other agents' inboxes and
+                     reviews their completion reports.
+  Job ID prefix:    COO   (e.g. 20260306_1430-COO-topic.md)
+
+PO (Product Owner)
+  Directory:        jobs/PO/
+  System prompt:    none — PO is human, not an agent
+  Responsibility:   UAT, requirements sign-off, verdict on scope. UAT findings
+                     go in jobs/PO/uat-log.md; UAT is a mandatory phase-close
+                     gate — no phase closes without a PASS verdict.
+  Job ID prefix:    n/a
+
+Architect
+  Directory:        jobs/architect/
+  System prompt:    jobs/architect/architect-system-prompt.txt
+  Responsibility:   ADL decisions, infrastructure, cross-cutting design. Owns
+                     the data model and the architecture decisions log.
+                     Reviews Database/Backend output against its blueprint;
+                     schema changes require Architect review.
+  Job ID prefix:    ARCHITECT
+
+Backend
+  Directory:        jobs/backend/
+  System prompt:    jobs/backend/backend-system-prompt.txt
+  Responsibility:   Express routes, repositories, business logic.
+  Job ID prefix:    BACKEND
+
+Frontend
+  Directory:        jobs/frontend/
+  System prompt:    jobs/frontend/frontend-system-prompt.txt
+  Responsibility:   React components, hooks, UI.
+  Job ID prefix:    FRONTEND
+
+Database
+  Directory:        jobs/database/
+  System prompt:    jobs/database/database-system-prompt.txt
+  Responsibility:   Schema changes, migrations, seed data.
+  Job ID prefix:    DATABASE
+
+QA
+  Directory:        jobs/qa/
+  System prompt:    jobs/qa/qa-system-prompt.txt
+  Responsibility:   Test suites — unit, contract, E2E. Last line of defence
+                     before the PO sees a defect.
+  Job ID prefix:    QA
+
+UX
+  Directory:        jobs/ux/
+  System prompt:    jobs/ux/ux-system-prompt.txt
+  Responsibility:   UI mockups, design direction, visual specs.
+  Job ID prefix:    UX
+
+Docs
+  Directory:        jobs/docs/
+  System prompt:    jobs/docs/docs-system-prompt.txt
+  Responsibility:   User-facing and maintenance documentation. Downstream of
+                     every other role — synthesises the BRD and the
+                     Architect/Backend/Frontend tech notes into documentation
+                     a non-developer can use. Flags to COO when built
+                     behaviour doesn't match the BRD.
+  Job ID prefix:    DOCS
+
+Integrations
+  Directory:        jobs/integrations/
+  System prompt:    jobs/integrations/integrations-system-prompt.txt
+  Responsibility:   Phase 2 notification engine and external integrations.
+                     Consumes the Backend API and Database schema; does not
+                     modify either directly — raises schema/endpoint needs to
+                     COO instead. Currently PENDING (Phase 5, post-MVP); no
+                     active work yet.
+  Job ID prefix:    INTEGRATIONS
+
+================================================================================
+STANDARD JOB DIRECTORY SHAPE (every agent above except PO)
+================================================================================
+
+jobs/<agent>/
+  <agent>-system-prompt.txt   Full persona + responsibilities + init/close-out
+                              checklist + git requirement — read this first
+  inbox/                      Briefs awaiting action; inbox/read/ = processed
+  outbox/                     Completed work / responses sent
+  history/                    Archive of completed briefs and sessions
+  park-docs/                  Session state snapshots (resume point)
+  context/                    Persistent reference material (context/current.txt)
+  tech/                       Technical notes and research this agent produced
+
+================================================================================
+ADDING A NEW ROLE
+================================================================================
+
+1. Create jobs/<new-agent>/ with the six standard folders above.
+2. Write jobs/<new-agent>/<new-agent>-system-prompt.txt following the shape of
+   an existing one (architect-system-prompt.txt is a clean reference):
+   persona, responsibilities, ON INITIALISATION read-list, AT THE END OF EVERY
+   THREAD checklist, GIT REQUIREMENT, INBOX MESSAGE FORMAT.
+3. Add an entry to this file (job-registry.txt).
+4. Add a row to the agent roster table in CODEBASE.md.
+
+Steps 3 and 4 are mandatory, not optional housekeeping — this file went
+unfilled for 4 months and the CODEBASE.md table drifted out of sync as a
+direct result (see change log below).
+
+================================================================================
+CHANGE LOG
+================================================================================
+
+2026-07-07  COO   Backfilled this file — it existed as an empty 0-byte stub
+                   since project init (2026-03-07) and was never populated.
+                   Also registered Docs and Integrations here and in
+                   CODEBASE.md's roster table — both existed as full agent
+                   directories with system prompts but had never been
+                   registered anywhere.
