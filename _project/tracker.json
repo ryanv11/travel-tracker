@@ -1075,7 +1075,7 @@
       "priority": "P1",
       "brdRefs": ["DP-01","DP-02","DP-03","DP-04"],
       "phase": 3,
-      "notes": "Built in Tailwind migration + subsequent fixes. DP-01: trip card shows name/date/status/places. DP-02: trip count shown. DP-03: detail header shows name/date/status/categories/companions. DP-04: place date range derived from hotel check-in/check-out via resolvePlaceDateRange utility. Backfilled to tracker 2026-03-23."
+      "notes": "Built in Tailwind migration + subsequent fixes. DP-01: trip card shows name/date/status/places. DP-02: trip count shown. DP-03: detail header shows name/date/status/categories/companions. DP-04: PlaceSection shows city + full country name (PR #18, fix/d04-country-name — country_name joined from countries table) and the place date range derived from hotel check-in/check-out via resolvePlaceDateRange utility. Backfilled to tracker 2026-03-23."
     },
     {
       "id": "BRD-IT0809",

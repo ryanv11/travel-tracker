@@ -1,5 +1,10 @@
 # ADL-24 — Place date ranges: schema, API, ordering, and DP-04 precedence
 
+> **Merged into the main log 2026-07-07** — see `## ADL-24` in
+> `jobs/architect/tech/20260307-architecture-decisions-log.md` for the
+> authoritative decision record. This file is retained for the detailed
+> §7 effort estimate table, not duplicated in the main log.
+
 **Date:** 2026-03-20
 **Status:** Decided
 **BRD ref:** DP-05 (v2.5); DP-04 (v2.4)

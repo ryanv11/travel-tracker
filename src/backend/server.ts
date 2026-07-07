@@ -124,8 +124,8 @@ app.post('/api/cities', citiesCreateLimiter);
 
 // 5. Auth — Clerk JWT verification via jose (NR-14 / ADL-20)
 // Applies to all /api/* routes. Exceptions: /health (public, registered after).
-// NOTE: /api/map/shading routes are protected here; flagged for COO review in
-// NR-14 completion report — map shading may need to be public in future.
+// Map shading routes are included — shading data is scoped per req.user.id, so
+// there is no version of this endpoint that is both public and per-user private.
 app.use('/api/', requireAuth);
 
 // ----------------------------------------------------------------

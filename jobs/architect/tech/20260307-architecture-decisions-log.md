@@ -955,6 +955,170 @@ WHERE trips.id IN (
 
 ---
 
+## ADL-24 — Place date ranges: schema, API, ordering, and DP-04 precedence
+
+**Date:** 2026-03-20
+**Status:** Decided — full design ready for implementation, no further Architect input needed
+**BRD ref:** DP-05 (v2.5); DP-04 (v2.4)
+
+**Decision:** Add nullable `arrived_on` / `departed_on` (`text`, ISO 8601 `YYYY-MM-DD`)
+columns to `trip_places` for optional, explicit place-level dates — distinct from
+DP-04's hotel-derived *display* dates. New `PATCH /api/trips/:tripId/places/:placeId`
+endpoint required (does not currently exist). Chronological ordering of place
+sections is a frontend client-side sort (nulls last, stable). DP-04's date-range
+display now follows a three-source precedence: explicit place dates > hotel
+check-in/check-out > trip start/end.
+
+---
+
+### 1. Schema change
+
+**Column naming — `arrived_on` / `departed_on`:** `date_from`/`date_to` reads like
+an internal filter range, not a semantic travel event. `start_date`/`end_date` is
+already the vocabulary on `trips` — reusing it on `trip_places` would create a
+misleading symmetry (a trip has a definitive, gating start/end; a place arrival/
+departure is optional and advisory). `arrived_on`/`departed_on` is domain-precise
+("I arrived in Paris on…") and consistent in spirit with `item_hotels`'
+`check_in_date`/`check_out_date`.
+
+**Data type — `text` ISO 8601:** Consistent with every other date column in the
+schema (`trips.start_date/end_date`, `item_hotels.check_in_date/check_out_date`).
+ISO 8601 strings sort correctly with lexicographic ordering, so `ORDER BY
+arrived_on` needs no casting. Integer epoch would add conversion overhead for a
+date-only value with no benefit. `text` also gives a mechanical, no-transform
+migration path to PostgreSQL `DATE` in Phase 2.
+
+**Nullability:** Both columns nullable, no default — nullability *is* the
+"optional date" mechanism. No DB-level CHECK enforcing `arrived_on <= departed_on`
+(SQLite CHECK constraints on cross-column text-date comparisons are unreliable,
+per the `trips` table precedent — validated at the backend service layer
+instead). No CHECK requiring both columns set together — partial dates (only
+`arrived_on` set) are a valid, expected use case (§6).
+
+```typescript
+arrivedOn:  text('arrived_on'),   // ISO 8601 date 'YYYY-MM-DD', NULL = not set
+departedOn: text('departed_on'),  // ISO 8601 date 'YYYY-MM-DD', NULL = not set
+```
+
+No index — ordering is only ever within one trip's places (2–20 rows typically);
+a full-table index would go unused. Add one later only if cross-trip "places by
+date" queries become a real requirement.
+
+**Migration:** Two plain `ALTER TABLE ADD COLUMN` statements — no table
+recreation, so none of the patched drizzle-kit bugs (ADL-15) are triggered.
+Backward-compatible (existing rows get NULL), idempotent, no backfill needed.
+
+```sql
+ALTER TABLE trip_places ADD COLUMN arrived_on TEXT;
+ALTER TABLE trip_places ADD COLUMN departed_on TEXT;
+```
+
+### 2. API changes
+
+| Endpoint | Change |
+|----------|--------|
+| `GET /api/trips/:tripId/places` | Return `arrived_on`, `departed_on` on each place |
+| `POST /api/trips/:tripId/places` | Accept optional `arrived_on`, `departed_on` |
+| `PATCH /api/trips/:tripId/places/:placeId` | **New endpoint** — required for DP-05 date edits; does not currently exist |
+| `GET /api/trips/:id` | Return `arrived_on`, `departed_on` on each place in the `places` array |
+
+Both fields optional on POST; on PATCH, explicit `null` clears the value,
+omitting the field leaves it unchanged (standard partial-update semantics).
+`CreatePlaceSchema` gains both fields (regex-validated `YYYY-MM-DD`, optional +
+nullable); a new `UpdatePlaceSchema` backs the PATCH handler. Service layer
+validates `arrived_on <= departed_on` when both are non-null (422 otherwise) —
+no constraint requiring both to be set together.
+
+`placeRepository.create()` and `findByTrip()` (plus the `PlaceWithCity` type)
+must select/persist the new columns; a new `placeRepository.update()` backs the
+PATCH endpoint using the existing `assertWritable` write-guard pattern.
+`tripRepository.getPlaces()` must expose the same columns for `GET /api/trips/:id`.
+
+### 3. Frontend ordering — client-side sort
+
+Chronological ordering is applied on the frontend, not the API, because the trip
+detail response already returns the full place set regardless of order, a
+client-side `places.sort(byArrivedOn)` adds no backend complexity or API-contract
+risk, and the BRD frames ordering as a trip-detail *view* concern. A future API
+consumer (e.g. iOS) can apply the same sort client-side, or the API can grow an
+optional `?sort=arrived_on` param later without breaking the existing contract.
+
+```
+places.sort((a, b) => {
+  const aDate = a.arrived_on ?? null;
+  const bDate = b.arrived_on ?? null;
+  if (aDate === null && bDate === null) return 0;  // preserve insertion order
+  if (aDate === null) return 1;   // nulls last
+  if (bDate === null) return -1;  // nulls last
+  return aDate.localeCompare(bDate);  // lexicographic = chronological for YYYY-MM-DD
+})
+```
+
+Stable sort (ES2019+) preserves insertion order for equal keys (both null, or
+same `arrived_on`) — matches the BRD's "existing insertion order is preserved."
+
+### 4. Interaction with DP-04 — three-source precedence
+
+**Explicit place dates > hotel dates > trip dates.**
+
+```
+displayDateRange(place, hotelItems, trip):
+  if place.arrived_on IS NOT NULL OR place.departed_on IS NOT NULL:
+    return { from: place.arrived_on ?? null, to: place.departed_on ?? null }
+  else if hotelItems.length > 0:
+    return { from: min(check_in_date), to: max(check_out_date) }  // across hotels at this place
+  else:
+    return { from: trip.start_date, to: trip.end_date }
+```
+
+Explicit place dates win because DP-05 is a direct, deliberate user statement
+("I was in Paris June 1–5") that should not be silently overridden by a hotel
+booking; the user controls this by leaving the fields null if they want hotel
+dates to show instead. If only `arrived_on` is set, the display shows an
+open-ended range ("from June 1") rather than falling back to the trip end date —
+the user has explicitly started a date record for this place. Ordering
+(`arrived_on`, frontend sort) and display (`resolvePlaceDateRange(place, items,
+trip)`, a pure utility) are kept as separate concerns in code; no derived/computed
+date-range column is stored.
+
+### 5. Edge cases
+
+- **Partial dates:** `arrived_on` without `departed_on` is valid (e.g. arrival
+  known, departure not yet decided). `departed_on` without `arrived_on` is also
+  schema-permitted but treated as undated for sort purposes (nulls last) — if
+  this proves confusing in practice, a service-layer rule ("`departed_on` implies
+  `arrived_on`") can be added without a schema change.
+- **Overlapping place dates across a trip:** No validation. Same-day
+  transitions in multi-city trips are legitimate; enforcing non-overlap would be
+  incorrect.
+- **Dates outside the trip's date range:** Warn, don't block. A `warnings: [...]`
+  field in the response body surfaces the discrepancy (e.g. side-trip extends
+  past the trip window) without losing data or affecting HTTP status.
+- **Trip dates change after place dates are set:** No retroactive validation or
+  clearing — consistent with how hotel check-in/check-out already behaves when
+  trip dates change.
+- **Deleting a place:** Dates live on the `trip_places` row and are removed
+  atomically with it — no orphan concern.
+
+### Implications
+
+- **DATABASE:** add `arrivedOn`/`departedOn` to `tripPlaces` in `schema.ts`;
+  generate + review + apply the migration (`ALTER TABLE ADD COLUMN` only).
+- **BACKEND:** update `CreatePlaceSchema`, add `UpdatePlaceSchema`; update
+  `placeRepository` (`create`, `findByTrip`, new `update`) and
+  `tripRepository.getPlaces()`; add the `PATCH /:placeId` route handler; return
+  the new fields from every place-read response.
+- **FRONTEND:** add `arrived_on`/`departed_on` date pickers to the place
+  create/edit UI; add the `byArrivedOn` client-side sort in the trip detail
+  component; update `resolvePlaceDateRange()` with the three-source precedence
+  rule; surface the out-of-range warning in the UI.
+- **Effort:** ~10 hours total across backend + frontend — additive schema change,
+  one new endpoint, no table recreation. Full estimate breakdown in
+  `jobs/architect/tech/ADL-24-place-date-ranges.md` (superseded by this entry;
+  retained for the detailed effort table only).
+
+---
+
 ## ADL-25 — Backend db typing: narrow to SQLite now; Postgres migration is a Phase 2 cutover
 
 **Date:** 2026-03-21
