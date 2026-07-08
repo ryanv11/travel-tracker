@@ -82,6 +82,9 @@ path-to-regexp, picomatch, tmp, undici, ws). Remaining dispositions:
 Gate status after this pass: `npm audit --audit-level=high` exits 0 (4 accepted moderates
 remain, below the gate threshold).
 
+**PO sign-off:** residual acceptance of the 4 esbuild/drizzle-kit moderates approved by
+Ryan, 2026-07-08 ("I'm accepting of those moderates").
+
 ---
 
 ## Accepted Risks
