@@ -1057,12 +1057,12 @@
       "id": "DEP-01",
       "type": "task",
       "title": "npm audit — 26 vulnerabilities (3 critical, 10 high) accrued since 2026-03 dependency freeze",
-      "status": "open",
+      "status": "done",
       "owner": "backend",
       "priority": "P1",
       "brdRefs": [],
       "phase": 1,
-      "notes": "Dependency Vulnerability Scan job red since 2026-07-07 on a docs-only diff — advisories published post-freeze. Needs deliberate update pass (not audit fix --force): dev vs runtime split, majors assessed individually, full test suite + app verification, security-backlog.md npm-audit section updated in same PR per Document lifecycle rule. GitHub issue #98."
+      "notes": "Dependency Vulnerability Scan job red since 2026-07-07 on a docs-only diff — advisories published post-freeze. Needs deliberate update pass (not audit fix --force): dev vs runtime split, majors assessed individually, full test suite + app verification, security-backlog.md npm-audit section updated in same PR per Document lifecycle rule. GitHub issue #98. RESOLVED 2026-07-08: ADL-30 ruling (PR #104) — drizzle-orm 0.38.4→0.45.2 (GHSA-gpj5-g38j-94v9 fixed), drizzle-kit stays 0.31.9 (ADL-15 patch intact); 23 non-breaking fixes via npm audit fix; 4 esbuild/drizzle-kit moderates formally ACCEPTED (security-backlog.md v1.1, revisit at drizzle 1.0 GA). Implementation PR #105 merged, all CI jobs green incl. Dependency Vulnerability Scan. Issue #98 closed."
     },
     {
       "id": "OP-08",
