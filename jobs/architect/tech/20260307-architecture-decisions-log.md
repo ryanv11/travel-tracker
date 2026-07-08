@@ -1261,6 +1261,26 @@ Option B is deferred to Phase 2, not rejected permanently.
 
 ---
 
+## ADL-28 — Per-user map shading config and companions
+
+**Date:** 2026-03-23
+**Status:** Decided
+**BRD refs:** AD-07, AD-08, AD-09 | **Depends on:** ADL-27
+**Full ADL:** `jobs/architect/tech/ADL-28-per-user-shading-companions.md`
+
+*(Backfilled pointer, 2026-07-07 — the full ADL was delivered 2026-03-23/24 and referenced
+from the tracker, but this log entry was never appended; gap flagged by the doc-integrity
+audit, `audits/session-a-doc-integrity.md` §17.)*
+
+**Decision:** Map shading config and companions become per-user. `map_shading_config` gains
+a `userId` FK with composite PK (`state_key`, `user_id`) and lazy per-user seeding on first
+access; `companions` gains a `userId` FK with UNIQUE (`user_id`, `name`) and moves from
+`/api/admin/companions` (`requireOwner`) to a new `/api/companions` router (`requireAuth`).
+Categories and activities stay global (AD-09). Cross-user companion assignment is validated
+in `tripRepository`.
+
+---
+
 ## ADL-29 — Security enforcement mechanisms
 
 **Date:** 2026-03-23
@@ -1286,3 +1306,43 @@ Option B is deferred to Phase 2, not rejected permanently.
 - `.semgrep/security.yml` — new file, implemented by Backend agent per spec in same inbox file
 - `.github/workflows/security.yml` — add `--config .semgrep/security.yml` to the Semgrep step
 - Both enforcement artefacts must be kept current when the route table changes; the implementing agent brief must note this maintenance obligation
+
+---
+
+## ADL-30 — DEP-01: drizzle-orm 0.45.2 upgrade ruling & drizzle-kit residual acceptance
+
+**Date:** 2026-07-07
+**Status:** Decided
+**Tracker:** DEP-01 | **GitHub:** #98 | **Depends on:** ADL-15
+**Full ADL:** `jobs/architect/tech/ADL-30-dep01-drizzle-upgrade.md`
+
+*(Numbering note: the dispatching brief assigned ADL-29 to this ruling, but ADL-29 was
+already taken above; this ruling is ADL-30. Next free number: ADL-31.)*
+
+**Decision 1 — drizzle-orm 0.38.4 → `^0.45.2`, upgraded NOW inside the DEP-01 pass.**
+Resolves HIGH advisory GHSA-gpj5-g38j-94v9 (identifier-escaping SQL injection). Our code
+never hits the vulnerable path (zero `sql.identifier()`/`.as()`/`sql.raw()` usage; all
+`orderBy` calls use static column refs), but accepting a HIGH would leave the
+`npm audit --audit-level=high` CI gate permanently red. Cost is low: **no drizzle-kit bump
+required** — kit 0.31.9 requires ORM `compatibilityVersion = 10` and orm 0.45.2 still
+exports 10 (verified against the published tarball), so the ADL-15 patch
+(`patches/drizzle-kit+0.31.9.patch`) remains valid. Changelog survey 0.39→0.45 found no
+SQLite/libSQL breaking changes; the one behavior change (0.44.0 `DrizzleQueryError`
+wrapping driver errors) is inert here because the backend never matches on driver error
+codes.
+
+**Decision 2 — drizzle-kit/esbuild moderate cluster (4 findings): residual ACCEPTED.**
+Dev-only esbuild dev-server advisory reached via drizzle-kit's deprecated esbuild-kit
+config loader; drizzle-kit never runs esbuild's serve mode and is not in the runtime
+bundle. npm's suggested fix (`drizzle-kit@0.18.1`) is a downgrade violating ADL-15 —
+rejected. Moderates do not fail the `--audit-level=high` gate, so no gate exception is
+needed. Revisit trigger: drizzle 1.0 GA → paired orm+kit upgrade as its own tracked issue,
+with mandatory re-verification of the four patched SQLite bugs.
+
+**Implications:**
+- Backend DEP-01 brief: pin `drizzle-orm@^0.45.2`, keep `drizzle-kit@0.31.9` exact,
+  verify patch-package applies, `db:generate` reports no schema changes, full test suites
+  plus constraint-error spot check, update `_project/security-backlog.md` npm-audit
+  section in the same PR (accepted residuals recorded with rationale). Full checklist in
+  ADL-30 §Instructions.
+- `db:push` remains forbidden; Node/CI runner versions untouched (out of scope).
