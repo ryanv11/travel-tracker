@@ -16,9 +16,10 @@ import {
   itemHotels,
   itemRestaurants,
   items,
+  trips,
 } from '../db/index.js';
 import type { Item } from '../db/schema.js';
-import { NotFoundError } from '../errors.js';
+import { LockError, NotFoundError } from '../errors.js';
 import { fetchItemsWithExtensions } from '../routes/items-helper.js';
 import { ensureExperienceExtension } from '../services/items.service.js';
 
@@ -89,6 +90,23 @@ export const itemRepository = {
    * Creates a new item on a trip owned by userId. Returns the created item
    * with extension fields merged in.
    */
+  /**
+   * Verifies the trip exists, is owned by userId, and is not locked.
+   * Mirrors placeRepository.assertWritable — child inserts (items) carry no
+   * userId scoping of their own, so the owning trip must be checked before create.
+   */
+  async assertWritable(userId: string, tripId: number): Promise<void> {
+    const db = getDb();
+    const rows = await db
+      .select({ status: trips.status, userId: trips.userId })
+      .from(trips)
+      .where(eq(trips.id, tripId))
+      .limit(1);
+    if (!rows.length) throw new NotFoundError('Trip');
+    if (rows[0].userId !== userId) throw new NotFoundError('Trip');
+    if (rows[0].status === 'locked') throw new LockError();
+  },
+
   async create(
     userId: string,
     tripId: number,
