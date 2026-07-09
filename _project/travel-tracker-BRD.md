@@ -1,6 +1,6 @@
 # Business Requirements Document
 ## Travel Tracker Application
-**Version:** 2.5
+**Version:** 2.7
 **Date:** March 2026
 **Author:** Claude (BSA) / Ryan V (Product Owner)
 **Status:** Approved

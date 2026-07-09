@@ -3,8 +3,11 @@
  *
  * Used by drizzle-kit for schema migration generation and application:
  *   npm run db:generate  → generate migration files from schema changes
- *   npm run db:push      → apply schema directly to the database (dev shortcut)
+ *   npm run db:migrate   → apply pending migrations
  *   npm run db:studio    → open Drizzle Studio to inspect the database
+ *
+ * db:push is FORBIDDEN (ADL-15) and removed from package.json — it bypasses the
+ * patched migration path and can desync the migrations journal. Use generate + migrate.
  *
  * The dialect and credentials are driven by environment variables so this
  * same config file works for both SQLite (Phase 1) and PostgreSQL (Phase 2).
@@ -14,8 +17,8 @@
  * SQLITE_PATH must be a libSQL URL: file:./dev.db or file:/absolute/path.
  */
 
-import { defineConfig } from 'drizzle-kit';
 import { config } from 'dotenv';
+import { defineConfig } from 'drizzle-kit';
 
 // Load .env.local explicitly — dotenv/config only reads .env by default
 config({ path: '.env.local' });

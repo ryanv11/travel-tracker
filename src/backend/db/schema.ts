@@ -12,7 +12,10 @@
  * column names and relationships are identical; only the table builder
  * and column type imports change.
  *
- * @see jobs/architect/tech/20260307-ER-schema.md (v1.1 — authoritative)
+ * @see jobs/architect/tech/20260307-ER-schema.md (v1.1 — original design, historical).
+ *      Schema evolution since v1.1 (users, trip_countries, is_owner, place dates,
+ *      user_id FKs) is recorded in the architecture-decisions-log (ADL-16/19/20/23/24/27).
+ *      This file — not the ER doc — is the authoritative current schema.
  */
 
 import { sql } from 'drizzle-orm';
