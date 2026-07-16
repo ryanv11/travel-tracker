@@ -15,23 +15,18 @@ import {
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 
-const inputStyle: React.CSSProperties = {
-  padding: '7px 10px',
-  border: '1px solid #D1D5DB',
-  borderRadius: '6px',
-  fontSize: '14px',
-  flex: 1,
-  minWidth: 0,
-};
-const btnStyle = (variant: 'primary' | 'secondary' | 'danger'): React.CSSProperties => ({
-  padding: '5px 12px',
-  border: 'none',
-  borderRadius: '5px',
-  cursor: 'pointer',
-  fontSize: '13px',
-  background: variant === 'primary' ? '#2563EB' : variant === 'danger' ? '#DC2626' : '#F3F4F6',
-  color: variant === 'secondary' ? '#374151' : '#fff',
-});
+const inputClass =
+  'flex-1 min-w-0 px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent';
+// Primary matches the app's teal "+ New" affordance (TripsLayout.tsx).
+const primaryBtnClass =
+  'px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-md hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
+// Secondary matches the app's neutral outline affordance (ItemCard.tsx Edit button).
+const secondaryBtnClass =
+  'px-3 py-1.5 border border-gray-300 rounded-md text-xs font-medium bg-white text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer';
+// Deactivate: quiet/neutral at rest, red only surfaces on hover (UX-06) — avoids
+// a page full of rows dominated by solid destructive-red at rest.
+const deactivateBtnClass =
+  'px-3 py-1.5 border border-gray-300 rounded-md text-xs font-medium bg-white text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors cursor-pointer';
 
 export function CategoryTab() {
   const { data: categories = [], isLoading, error } = useCategories();
@@ -66,74 +61,59 @@ export function CategoryTab() {
         onSubmit={(e) => {
           void handleCreate(e);
         }}
-        style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}
+        className="flex gap-2 mb-5"
       >
         <input
-          style={inputStyle}
+          className={inputClass}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder="New category name…"
         />
-        <button type="submit" style={btnStyle('primary')} disabled={create.isPending}>
+        <button type="submit" className={primaryBtnClass} disabled={create.isPending}>
           Add
         </button>
       </form>
       {create.error && <ErrorMessage error={create.error} />}
 
       {/* List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div className="flex flex-col gap-1.5">
         {categories.map((cat) => (
           <div
             key={cat.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 10px',
-              border: '1px solid #E5E7EB',
-              borderRadius: '6px',
-              opacity: cat.is_active ? 1 : 0.5,
-              background: cat.is_active ? '#fff' : '#F9FAFB',
-            }}
+            className={`flex items-center gap-2 px-2.5 py-2 border rounded-md ${
+              cat.is_active ? 'border-gray-200 bg-white' : 'border-gray-200 bg-gray-50 opacity-50'
+            }`}
           >
             {editingId === cat.id ? (
               <>
                 <input
-                  style={{ ...inputStyle, flex: 1 }}
+                  className={inputClass}
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   autoFocus
                 />
                 <button
-                  style={btnStyle('primary')}
+                  className={primaryBtnClass}
                   onClick={() => {
                     void handleEditSave(cat.id);
                   }}
                 >
                   Save
                 </button>
-                <button style={btnStyle('secondary')} onClick={() => setEditingId(null)}>
+                <button className={secondaryBtnClass} onClick={() => setEditingId(null)}>
                   Cancel
                 </button>
               </>
             ) : (
               <>
-                <span style={{ flex: 1, fontSize: '14px' }}>{cat.name}</span>
+                <span className="flex-1 text-sm">{cat.name}</span>
                 {!cat.is_active && (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      color: '#6B7280',
-                      background: '#F3F4F6',
-                      padding: '1px 6px',
-                      borderRadius: '4px',
-                    }}
-                  >
+                  <span className="text-[11px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
                     Inactive
                   </span>
                 )}
                 <button
-                  style={btnStyle('secondary')}
+                  className={secondaryBtnClass}
                   onClick={() => {
                     setEditingId(cat.id);
                     setEditName(cat.name);
@@ -143,7 +123,7 @@ export function CategoryTab() {
                 </button>
                 {cat.is_active ? (
                   <button
-                    style={btnStyle('danger')}
+                    className={deactivateBtnClass}
                     onClick={() => {
                       void del.mutateAsync(cat.id);
                     }}
@@ -152,7 +132,7 @@ export function CategoryTab() {
                   </button>
                 ) : (
                   <button
-                    style={btnStyle('secondary')}
+                    className={secondaryBtnClass}
                     onClick={() => {
                       void update.mutateAsync({ id: cat.id, data: { is_active: true } });
                     }}

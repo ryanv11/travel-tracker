@@ -32,39 +32,21 @@ export function AdminPanel() {
   const [activeTab, setActiveTab] = useState<Tab>('categories');
 
   return (
-    <div style={{ maxWidth: '860px', margin: '0 auto', padding: '24px 16px' }}>
-      <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '20px', color: '#111827' }}>
-        Admin
-      </h1>
+    <div className="max-w-[860px] mx-auto px-4 py-6">
+      <h1 className="text-xl font-bold text-gray-900 mb-5">Admin</h1>
 
-      {/* Tab bar */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '4px',
-          borderBottom: '2px solid #E5E7EB',
-          marginBottom: '24px',
-          overflowX: 'auto',
-        }}
-      >
+      {/* Tab bar — mirrors the app nav's rounded pill treatment (App.tsx) */}
+      <div className="flex items-center gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '8px 18px',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid #2563EB' : '2px solid transparent',
-              marginBottom: '-2px',
-              background: 'none',
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              color: activeTab === tab.id ? '#2563EB' : '#4B5563',
-              cursor: 'pointer',
-              fontSize: '14px',
-              whiteSpace: 'nowrap',
-              borderRadius: '0',
-            }}
+            className={
+              activeTab === tab.id
+                ? 'px-3.5 py-2 mb-[-1px] rounded-t-md text-sm font-semibold text-teal-700 bg-teal-50 border border-b-0 border-teal-100 whitespace-nowrap transition-colors cursor-pointer'
+                : 'px-3.5 py-2 mb-[-1px] rounded-t-md text-sm font-normal text-gray-600 border border-b-0 border-transparent hover:bg-gray-100 whitespace-nowrap transition-colors cursor-pointer'
+            }
           >
             {tab.label}
           </button>

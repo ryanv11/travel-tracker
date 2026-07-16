@@ -33,71 +33,34 @@ export function CountryTab() {
         placeholder="Search countries…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        style={{
-          width: '100%',
-          padding: '8px 10px',
-          border: '1px solid #D1D5DB',
-          borderRadius: '6px',
-          fontSize: '14px',
-          marginBottom: '16px',
-          boxSizing: 'border-box',
-        }}
+        className="w-full box-border px-2.5 py-2 mb-4 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
       />
 
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
-          maxHeight: '500px',
-          overflowY: 'auto',
-        }}
-      >
+      <div className="flex flex-col gap-1 max-h-[500px] overflow-y-auto">
         {filtered.map((country) => (
           <div
             key={country.country_code}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '8px 10px',
-              border: '1px solid #E5E7EB',
-              borderRadius: '6px',
-            }}
+            className="flex items-center gap-2.5 px-2.5 py-2 border border-gray-200 rounded-md"
           >
-            <span style={{ width: '32px', fontSize: '12px', color: '#6B7280', flexShrink: 0 }}>
-              {country.country_code}
-            </span>
-            <span style={{ flex: 1, fontSize: '14px' }}>{country.name}</span>
+            <span className="w-8 flex-shrink-0 text-xs text-gray-500">{country.country_code}</span>
+            <span className="flex-1 text-sm">{country.name}</span>
 
-            {/* Region tier label (read-only) */}
+            {/* Region tier label (read-only) — reuses the app's indigo badge vocabulary
+                (StatusBadge.tsx "confirmed") rather than a one-off purple. */}
             {country.region_tier_label && (
               <span
-                style={{
-                  fontSize: '12px',
-                  color: country.region_tier_enabled ? '#5B21B6' : '#9CA3AF',
-                  background: country.region_tier_enabled ? '#EDE9FE' : '#F3F4F6',
-                  padding: '1px 8px',
-                  borderRadius: '4px',
-                  flexShrink: 0,
-                }}
+                className={`flex-shrink-0 text-xs px-2 py-0.5 rounded ${
+                  country.region_tier_enabled
+                    ? 'text-indigo-800 bg-indigo-100'
+                    : 'text-gray-400 bg-gray-100'
+                }`}
               >
                 {country.region_tier_label}
               </span>
             )}
 
             {/* Toggle */}
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-                flexShrink: 0,
-                fontSize: '13px',
-                color: '#374151',
-              }}
-            >
+            <label className="flex items-center gap-1.5 flex-shrink-0 text-[13px] text-gray-700 cursor-pointer">
               <input
                 type="checkbox"
                 checked={country.region_tier_enabled}
@@ -108,6 +71,7 @@ export function CountryTab() {
                   });
                 }}
                 disabled={updateCountry.isPending}
+                className="accent-teal-600"
               />
               Region tier
             </label>
@@ -116,9 +80,7 @@ export function CountryTab() {
       </div>
 
       {filtered.length === 0 && (
-        <p style={{ color: '#6B7280', textAlign: 'center', padding: '20px 0' }}>
-          No countries match your search.
-        </p>
+        <p className="text-gray-500 text-center py-5">No countries match your search.</p>
       )}
 
       {updateCountry.error && <ErrorMessage error={updateCountry.error} />}
