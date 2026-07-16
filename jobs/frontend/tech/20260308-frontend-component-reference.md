@@ -1,6 +1,14 @@
 # Frontend Component Reference
 Date: 2026-03-08
 
+> PARTIAL SNAPSHOT (banner added 2026-07-15) — the component/hook tree below is a Phase-1
+> snapshot and predates the two-panel layout (TR-11), the Tailwind migration, Clerk auth
+> (`main.tsx` now wraps the app in `ClerkProvider`), and UX-02. It omits components added since
+> (e.g. `TripsLayout.tsx`, `PlaceDateForm.tsx`, `useGeocodeRetryQueue.ts`). For **authoritative
+> API paths and methods, use `jobs/backend/tech/20260307-api-reference.md`** — do not treat the
+> hook→endpoint mappings here as current. The specific method/path/transition errors called out
+> by the 2026-07 audit have been corrected inline below; the tree itself has not been rebuilt.
+
 ## Architecture Overview
 
 ```
@@ -35,7 +43,7 @@ src/frontend/
     ├── Map/
     │   ├── MapView.tsx         ← Full-page MapLibre map, integrates all map layers
     │   ├── CountryLayer.tsx    ← GeoJSON country fills + feature-state shading
-    │   ├── RegionLayer.tsx     ← GeoJSON region fills (lazy, zoom >= 4)
+    │   ├── RegionLayer.tsx     ← GeoJSON region fills (lazy, zoom >= 3)
     │   └── CityMarkers.tsx     ← GeoJSON symbol layer for city pins
     ├── TripList/
     │   ├── TripList.tsx        ← Filter bar + card grid + TripForm modal trigger
@@ -70,8 +78,8 @@ src/frontend/
 | useCreateTrip() | Mutation | invalidates ['trips'] | POST /api/trips |
 | useUpdateTrip() | Mutation | invalidates ['trips', id] | PATCH /api/trips/:id |
 | useUpdateTripStatus() | Mutation | invalidates ['trips', id] | PATCH /api/trips/:id (status only) |
-| useLockTrip() | Mutation | invalidates ['trips', id] | POST /api/trips/:id/lock |
-| useUnlockTrip() | Mutation | invalidates ['trips', id] | POST /api/trips/:id/unlock |
+| useLockTrip() | Mutation | invalidates ['trips', id] | PATCH /api/trips/:id/lock |
+| useUnlockTrip() | Mutation | invalidates ['trips', id] | PATCH /api/trips/:id/unlock |
 | useAddPlace() | Mutation | invalidates ['trips', tripId] | POST /api/trips/:id/places |
 | useRemovePlace() | Mutation | invalidates ['trips', tripId] | DELETE /api/trips/:id/places/:placeId |
 | useCarryForward() | Mutation | invalidates ['trips', tripId] | POST /api/trips/:id/places/:placeId/carry-forward |
@@ -83,8 +91,8 @@ src/frontend/
 | useCreateCity() | Mutation | — | POST /api/cities |
 | useMapShading() | Query (5min stale) | ['map', 'shading'] | GET /api/map/shading |
 | useRegionShading(countryCode?) | Query | ['map', 'regions', countryCode] | GET /api/map/shading/regions/:code |
-| useShadingConfig() | Query | ['map', 'shading-config'] | GET /api/admin/shading-config |
-| useUpdateShadingColor() | Mutation | invalidates ['map'] | PATCH /api/admin/shading-config/:key |
+| useShadingConfig() | Query | ['map', 'shading-config'] | GET /api/map/shading/config |
+| useUpdateShadingColor() | Mutation | invalidates ['map'] | PATCH /api/map/shading/config/:stateKey |
 | useCategories() | Query | ['admin', 'categories'] | GET /api/admin/categories |
 | useActivities() | Query | ['admin', 'activities'] | GET /api/admin/activities |
 | useCompanions() | Query | ['admin', 'companions'] | GET /api/admin/companions |
@@ -110,5 +118,6 @@ src/frontend/
 planning → active
 active → review_pending
 review_pending → locked
-locked → active  (unlock)
+review_pending → planning
+locked → review_pending  (unlock — returns to review_pending, NOT active)
 ```

@@ -6,7 +6,15 @@
 
 ## How to Run This Assessment
 
-This is the project's own health scoring methodology, calibrated for the Travel Tracker stack. It replaces depwire's health score, which is inaccurate for this codebase (see CLAUDE.md for depwire limitations).
+This is the project's own health scoring methodology, calibrated for the Travel Tracker stack.
+
+> DEPWIRE REMOVED (2026-07-15, per Q3 resolution 2026-07-07) — the `depwire` tool was evaluated
+> and rejected; the removal commit (3823044) stands and CLAUDE.md carries no depwire content
+> (the old cross-reference was dead). **Every `depwire …` command referenced below is defunct.**
+> Substitute manual methods: for coupling/dependents use `grep -rn "from '.*<module>'" src` and
+> read the import blocks; for God-file symbol counts read the file; for circular dependencies use
+> `npx madge --circular src` if a tool is wanted. The scoring dimensions and thresholds still hold —
+> only the depwire data source is gone.
 
 ### Scoring dimensions and weights
 
@@ -38,7 +46,7 @@ This is the project's own health scoring methodology, calibrated for the Travel 
 
 **God Files:** `depwire list_files --directory src` symbol counts. Flag any route file >30 symbols or service file >60 symbols. Verify by reading — tree-sitter inflates counts with local variable declarations.
 
-**Orphans & Dead Code:** Read `src/backend/middleware/auth.ts` (is it still a stub?), check for any TODO (Phase 2) blocks that were never actioned. Do not use depwire dead-code output.
+**Orphans & Dead Code:** Genuine unreachable application code only. (Historical note: `auth.ts` was a Phase-1 stub when this methodology was written; it is now full Clerk JWT verification, so the "is it still a stub?" prompt is obsolete.) Check for any TODO (Phase 2) blocks that were never actioned.
 
 **Dependency Depth:** Trace the longest import chain manually from a page/server entry point. Count hops.
 
@@ -88,7 +96,7 @@ Zero. Confirmed. Clean.
 Three large files: `schema.ts` (57 symbols — appropriate, it is the schema), `shading.service.ts` (50 symbols — appropriate, multi-path shading computation), `trips.ts` (47 raw symbols — inflated by inline helper functions that belong in repositories). None are doing unrelated things; size is domain-justified except in `trips.ts`.
 
 **Orphans & Dead Code — 85/B**
-No genuine dead application code. `auth.ts` is a live SEC-09 stub with exactly 2 dependents (server.ts, server-test-app.ts) — seam is clean for Clerk replacement per ADL-20. No unreachable routes or unused exports identified.
+No genuine dead application code. (As of this assessment `auth.ts` was a live SEC-09 stub with 2 dependents — server.ts, server-test-app.ts — and the seam was clean for Clerk replacement per ADL-20; the replacement has since shipped and auth.ts now performs real JWT verification.) No unreachable routes or unused exports identified.
 
 **Dependency Depth — 85/B**
 Backend: server → routes → services → db = 4 levels. Frontend: pages → components → hooks → apiClient = 4 levels. Validation adds one layer where needed. Max depth 7 is end-to-end across the full stack, not within either side alone.

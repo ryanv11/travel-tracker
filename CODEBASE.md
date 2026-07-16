@@ -69,9 +69,10 @@ a data model rebuild.
 /workspace
 ├── src/                        App source code (frontend + backend)
 ├── geo/                        Static GeoJSON data (countries, regions)
-├── data/                       Seed data and DB output directory
+├── data/                       Seed data (countries.json, regions.json). The SQLite
+│                               file is written to the repo root, not here.
 ├── tests/                      Contract tests
-├── scripts/                    Utility scripts (GitHub issue lifecycle etc.)
+├── scripts/                    tracker.js — tracker.json dashboard CLI
 ├── patches/                    patch-package patches (drizzle-kit bug fixes)
 ├── .github/workflows/          CI/CD pipelines
 │
@@ -119,7 +120,7 @@ src/
 │       ├── TripList/           Left panel — trip list, search, filters, sort
 │       │   ├── TripsLayout.tsx Two-panel shell (list + <Outlet />)
 │       │   ├── TripCard.tsx    Individual trip card
-│       │   └── TripList.ts     Filter/sort logic (pure function)
+│       │   └── TripList.tsx    Trip list rendering + filter/sort logic
 │       ├── TripDetail/         Right panel — trip detail view and edit form
 │       │   ├── TripDetail.tsx  Main detail view
 │       │   ├── TripForm.tsx    Create/edit trip modal
@@ -140,7 +141,8 @@ src/
 │
 └── backend/
     ├── server.ts               Express app — middleware, route mounting, startup
-    ├── server-test-app.ts      Lightweight Express app for contract tests (no auth)
+    ├── server-test-app.ts      Lightweight Express app for backend route unit tests
+    │                           (mirrors server.ts's pipeline; contract tests use the real server)
     ├── errors.ts               Typed error classes
     ├── db/
     │   ├── schema.ts           Drizzle schema — single source of truth for DB shape
@@ -221,7 +223,11 @@ when adding a role, not just this one.
 | **Docs** | `jobs/docs/` | User-facing and maintenance documentation |
 | **Integrations** | `jobs/integrations/` | Phase 2 notification engine and external integrations (pending, post-MVP) |
 
-### Job directory structure (same for every agent)
+### Job directory structure (typical agent)
+
+The structure below is the full layout used by the working software agents. Not every agent
+has every subdirectory — the PO role (`jobs/PO/`), being human-driven, holds only its UAT
+logs (`uat-log.md`, `uat-archive.md`) and no inbox/outbox/tech tree.
 
 ```
 jobs/<agent>/
@@ -298,13 +304,14 @@ Two GitHub Actions workflows run on every push and PR:
 
 | Workflow | Jobs |
 |---|---|
-| `ci.yml` | Type Check · Backend Tests · Frontend Tests · Contract Tests |
+| `ci.yml` | Biome (lint + format) · Type Check · Backend Tests · Frontend Tests · Contract Tests |
 | `security.yml` | Dependency Scan (npm audit) · Secret Scan (Gitleaks) · SAST (Semgrep) |
 
 E2E tests (Playwright) are **not in CI** — run on demand with `npm run test:e2e`.
 
-All jobs must be green before a PR is merged. Contract tests require a live backend;
-in CI they run against a test Express app (`server-test-app.ts`).
+All jobs must be green before a PR is merged. Contract tests require a live backend; in CI
+they run against the **real** server (`npm run start` with `BYPASS_AUTH=true`), not
+`server-test-app.ts` — that lightweight app is used only by the backend route unit tests.
 
 ---
 

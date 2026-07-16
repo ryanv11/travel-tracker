@@ -66,6 +66,8 @@ over-engineering (security theatre that slows delivery and adds no real protecti
 - SQLite file is unencrypted on disk. Personal travel data is exposed to anyone with filesystem access.
   Accepted: this is a personal single-user app; OS-level encryption (FileVault) mitigates.
 - No auth on localhost API. Accepted: localhost only; no other user on the machine.
+  > SUPERSEDED (2026-07-15): this acceptance was reversed by NR-14 — the API now requires Clerk
+  > JWT auth (`requireAuth`) in Phase 1. The STRIDE "Phase 1 — no auth" cells above are historical.
 
 **Phase 2 — all HIGH STRIDE items must be resolved before launch.** See Phase 2 gate below.
 
@@ -250,6 +252,12 @@ server-side only and never returned to the client.
 
 ## SEC-09: Authentication Stub — Phase 1
 
+> SUPERSEDED (2026-07-15) by NR-14 / ADL-20 / ADL-27 — retained for history.
+> Real authentication shipped in Phase 1, not Phase 2: `server.ts` applies `requireAuth`
+> to all `/api/*` routes, and `middleware/auth.ts` performs full Clerk JWT verification via
+> jose/JWKS. Owner-only routes additionally use `requireOwner` (ADL-27). The "empty passthrough
+> stub" described below no longer exists. Current auth truth: OP-06 hardening checklist + ADL-20.
+
 **Owner: BACKEND**
 **Required by: Phase 2 — stub only in Phase 1**
 
@@ -389,6 +397,12 @@ Semgrep runs in seconds on a codebase this size. There is no reason not to have 
 Implement before any hosted deployment. These are not optional.
 
 ### Authentication
+
+> SUPERSEDED (2026-07-15) by ADL-20 / NR-14 — retained for history.
+> The design below (OAuth2/OIDC or session cookies; self-managed JWTs with 15-min tokens and
+> refresh rotation) was NOT the design implemented. Phase 1 shipped Clerk-issued JWTs verified
+> via JWKS (jose); token lifecycle is managed by Clerk's SDK. The authoritative auth design is
+> ADL-20; the current control status is the OP-06 hardening checklist.
 
 - Replace `authenticate()` stub with real auth.
 - Use **OAuth 2.0 / OpenID Connect** (preferred) or secure session cookies.
@@ -542,6 +556,12 @@ Additional packages to add to `package.json`:
 ## What This Spec Does NOT Require in Phase 1
 
 These are explicitly deferred — not forgotten:
+
+> PARTIALLY SUPERSEDED (2026-07-15) by NR-14 / ADL-27 — retained for history.
+> The **Authentication** row (and by extension the "no auth" rationale in the IDOR and
+> Password-hashing rows) is no longer accurate: Clerk JWT auth and owner-based access control
+> shipped in Phase 1. The remaining rows (HTTPS, DAST, encrypted-at-rest, pentest, RBAC/ABAC,
+> audit logging) are still deferred as stated.
 
 | Item | Deferred to | Reason |
 |------|-------------|--------|

@@ -2,7 +2,18 @@
 **Version:** 1.2
 **Date:** 2026-03-21
 **Author:** Architect
-**Status:** Approved — implement in BACKEND
+**Status:** Approved — implemented in BACKEND (with the user-scoping correction below).
+
+> ⚠️ USER-SCOPING CORRECTION (2026-07-15, HC-03) — read before re-implementing from this spec.
+> The example SQL throughout this document (`WHERE tp.city_id = :city_id`, the country/region
+> aggregates in §3–§5) is written **without `user_id` scoping**. That predates HC-03: as
+> shipped, **every serving shading query must additionally filter to the requesting user**
+> (`JOIN trips t … AND t.user_id = :user_id`). OP-06 found that the unscoped form leaks other
+> users' travel into a user's map. Do not copy the SQL below verbatim — add the user_id join.
+>
+> Per-user *shading configuration* (colours/labels per user) is decided but NOT yet implemented
+> (ADL-28): `map_shading_config` remains a single global table. Treat per-user config as future
+> work, not current behaviour.
 
 **Amendment (v1.2 — 2026-03-21):** Country shading extended to include
 `trip_countries` direct associations (ADL-23). §4 replaced in full. §3 and §5
