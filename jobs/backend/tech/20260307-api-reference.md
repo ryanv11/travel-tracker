@@ -1,7 +1,8 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.3
-**Date:** 2026-03-19 (updated: FEAT-BD — DELETE /api/trips/:id endpoint)
+**Version:** 1.4
+**Date:** 2026-07-15 (updated: auth conventions (NR-14); trip-countries, place-date PATCH,
+item rating sort/filter — audit doc-fix pass)
 **Base URL:** `http://localhost:3001`
 **Author:** BACKEND
 
@@ -14,7 +15,8 @@ This document is the authoritative contract between BACKEND and FRONTEND. FRONTE
 1. [Conventions](#conventions)
 2. [Trips](#trips)
 3. [Places (nested under Trips)](#places)
-4. [Items (nested under Trips)](#items)
+4. [Trip Countries (nested under Trips)](#trip-countries)
+5. [Items (nested under Trips)](#items)
 5. [Cities](#cities)
 6. [Map Shading](#map-shading)
 7. [Admin](#admin)
@@ -29,7 +31,22 @@ This document is the authoritative contract between BACKEND and FRONTEND. FRONTE
 All API endpoints are prefixed with `/api`. The server runs on `http://localhost:3001` by default.
 
 ### Authentication
-Phase 1: No authentication required. All endpoints are open. Phase 2 will add token-based auth — the `Authorization` header is reserved.
+Since NR-14 (ADL-20), **all `/api/*` routes require a Clerk-issued JWT**. Send it as a bearer token:
+
+```
+Authorization: Bearer <clerk_jwt>
+```
+
+- Missing/invalid/expired token → **401 Unauthorized** (`{ "error": "Unauthorized" }`).
+- The token is verified server-side against Clerk's JWKS (jose); the `iss` claim must match `CLERK_ISSUER`.
+- Exempt (no token): `GET /health` and the `/geo/*` static assets — these sit outside `/api/`.
+- **Owner-only routes** additionally require the caller to be the app owner (ADL-27); a non-owner
+  gets **403 Forbidden** (`{ "error": "Forbidden" }`). These are: all `/api/admin/*` routes,
+  `POST /api/cities`, and the shading-config writes under `/api/map/shading/config`.
+- Cross-user access to another user's resource returns **404** (opaque, per SE-05), not 403.
+- **Local/CI bypass:** with `BYPASS_AUTH=true` (backend) the server injects a fixed test user and
+  skips verification. Contract tests run this way. Never set it in production (the server refuses
+  to boot with it under `NODE_ENV=production`).
 
 ### Date Format
 All dates are ISO 8601 strings:
@@ -46,7 +63,8 @@ Fields with no data are returned as `null` (not omitted).
 | `201 Created` | Successful POST |
 | `204 No Content` | Successful DELETE — no body |
 | `400 Bad Request` | Validation failure or invalid input |
-| `403 Forbidden` | Trip is locked; write rejected |
+| `401 Unauthorized` | Missing, invalid, or expired auth token |
+| `403 Forbidden` | Trip is locked (write rejected), or owner-only route accessed by a non-owner |
 | `404 Not Found` | Resource does not exist |
 | `409 Conflict` | Uniqueness violation |
 | `500 Internal Server Error` | Unexpected server error |
@@ -519,6 +537,37 @@ Remove a place from a trip. This also deletes all items and activity tags associ
 
 ---
 
+### PATCH /api/trips/:tripId/places/:placeId
+
+Update a place's date range (UX-02). Both fields are optional and nullable.
+
+> Note: this is a full-replace PATCH — a field omitted from the body is set to `null`, not left
+> unchanged (unlike the other PATCH endpoints in this API). Send both fields to preserve both.
+> *(Whether this replace-semantics is intended is Session B Q6, pending PO confirmation.)*
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tripId` | integer | Trip ID |
+| `placeId` | integer | Place ID |
+
+**Request Body:**
+```json
+{ "arrived_on": "2026-06-01", "departed_on": "2026-06-05" }
+```
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `arrived_on` | string \| null | No | ISO date (YYYY-MM-DD) the traveller arrived |
+| `departed_on` | string \| null | No | ISO date (YYYY-MM-DD) the traveller departed |
+
+**Response: `200 OK`** — the updated place object.
+
+**Errors:**
+- `403` — trip is locked
+- `404` — place not found on trip
+
+---
+
 ### POST /api/trips/:tripId/places/:placeId/activities
 
 Tag an activity to a trip place.
@@ -604,6 +653,53 @@ For each source item, a new item is created with:
 - `400` — `source_item_ids` is empty, contains non-integer values, or one or more IDs do not exist
 - `403` — target trip is locked
 - `404` — trip or place not found (or place does not belong to trip)
+
+---
+
+## Trip Countries
+
+Countries associated with a trip (ADL-23). This denormalised set drives map shading independently
+of the trip's places. Nested under a trip; both writes reject a locked trip.
+
+### POST /api/trips/:tripId/countries
+
+Add one or more ISO 3166-1 alpha-2 country codes to a trip. Idempotent per code.
+
+**Request Body:**
+```json
+{ "country_codes": ["AU", "NZ"] }
+```
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `country_codes` | string[] | Yes | One or more 2-letter country codes (min 1) |
+
+**Response: `200 OK`**
+```json
+{ "countries": ["AU", "NZ"] }
+```
+
+**Errors:**
+- `400` — validation failure (empty array, or a code not exactly 2 characters)
+- `403` — trip is locked
+- `404` — trip not found (or not owned by the caller)
+
+---
+
+### DELETE /api/trips/:tripId/countries/:code
+
+Remove a single country association from a trip.
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tripId` | integer | Trip ID |
+| `code` | string | ISO 3166-1 alpha-2 country code |
+
+**Response: `204 No Content`**
+
+**Errors:**
+- `403` — trip is locked
+- `404` — trip not found, or the country is not associated with the trip
 
 ---
 
@@ -1001,6 +1097,8 @@ Get all completed items at this city across all trips. Useful for building a "be
 |-----------|------|----------|-------------|
 | `type` | string | No | Filter by `item_type` (e.g. `"restaurant"`) |
 | `min_rating` | integer | No | Only include items with rating ≥ this value (1–5) |
+| `sort_by` | string | No | `rating` — sort by effective rating (IT-08) |
+| `sort_order` | string | No | `asc` or `desc` (default `desc`); applies when `sort_by` is set |
 
 **Response: `200 OK`**
 ```json

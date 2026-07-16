@@ -42,9 +42,16 @@ cp .env.example .env.local
 |----------|----------|-------|
 | `SQLITE_PATH` | Yes | e.g. `file:./dev.db` |
 | `VITE_MAPTILER_KEY` | Yes | Free key at [maptiler.com](https://www.maptiler.com/) |
-| `BYPASS_AUTH` | Dev only | Set to `true` to skip Clerk auth locally |
-| `CLERK_PUBLISHABLE_KEY` | Production | Clerk dashboard |
-| `CLERK_SECRET_KEY` | Production | Clerk dashboard |
+| `BYPASS_AUTH` | Dev only | Backend: `true` skips JWT auth locally. Server throws a fatal error if set with `NODE_ENV=production`. |
+| `VITE_BYPASS_AUTH` | Dev only | Frontend counterpart — must match `BYPASS_AUTH`, or the app throws at startup. |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Unless bypassing | Clerk publishable key. Frontend throws at startup if unset and not bypassing. |
+| `CLERK_JWKS_URI` | Unless bypassing | Clerk JWKS endpoint, e.g. `https://<instance>.clerk.accounts.dev/.well-known/jwks.json`. |
+| `CLERK_ISSUER` | Unless bypassing | Clerk instance URL; validated as the JWT `iss` claim. |
+| `OWNER_CLERK_ID` | For admin | Clerk user ID granted owner/admin access (ADL-27). Unset = safe lockout (no admin), not escalation. |
+
+Auth uses Clerk-issued JWTs verified via JWKS (jose) — there is no Clerk *secret* key in this
+architecture. See `.env.example` for the complete annotated list (`HOST`, `ALLOWED_ORIGINS`,
+`VITE_API_BASE_URL`, `GEOCODING_ENABLED`, etc. all have working defaults).
 
 ### Database (first run)
 
