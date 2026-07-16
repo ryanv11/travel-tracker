@@ -38,31 +38,19 @@ function ShadingRow({
   return (
     <div
       key={cfg.state_key}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '10px 12px',
-        border: '1px solid #E5E7EB',
-        borderRadius: '6px',
-      }}
+      className="flex items-center gap-3 px-3 py-2.5 border border-gray-200 rounded-md"
     >
-      {/* Colour swatch — updates in real time via localColor */}
+      {/* Colour swatch — updates in real time via localColor. Fill colour is data-driven,
+          so it stays an inline style rather than a Tailwind class. */}
       <div
-        style={{
-          width: '28px',
-          height: '28px',
-          borderRadius: '4px',
-          background: localColor,
-          border: '1px solid #D1D5DB',
-          flexShrink: 0,
-        }}
+        className="w-7 h-7 rounded flex-shrink-0 border border-gray-300"
+        style={{ background: localColor }}
       />
 
       {/* Display name */}
-      <span style={{ flex: 1, fontSize: '14px', fontWeight: 500 }}>{cfg.display_name}</span>
+      <span className="flex-1 text-sm font-medium">{cfg.display_name}</span>
       {/* Hex label — updates in real time via localColor */}
-      <span style={{ fontSize: '12px', color: '#6B7280' }}>{localColor}</span>
+      <span className="text-xs text-gray-500">{localColor}</span>
 
       {/* Colour picker — onChange updates local preview only; onBlur fires the mutation */}
       <input
@@ -76,14 +64,7 @@ function ShadingRow({
           // Fire the PATCH mutation once the user settles on a colour and leaves.
           onCommit(cfg.state_key, e.target.value);
         }}
-        style={{
-          width: '40px',
-          height: '32px',
-          padding: '2px',
-          border: '1px solid #D1D5DB',
-          borderRadius: '4px',
-          cursor: 'pointer',
-        }}
+        className="w-10 h-8 p-0.5 border border-gray-300 rounded cursor-pointer"
         aria-label={`Colour for ${cfg.display_name}`}
       />
     </div>
@@ -107,10 +88,10 @@ export function ShadingTab() {
 
   return (
     <div>
-      <p style={{ margin: '0 0 16px', fontSize: '14px', color: '#4B5563' }}>
+      <p className="mb-4 text-sm text-gray-600">
         Choose the colour for each map shading state. Changes update the map immediately.
       </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div className="flex flex-col gap-2.5">
         {configs.map((cfg) => (
           <ShadingRow key={cfg.state_key} cfg={cfg} onCommit={handleCommit} />
         ))}
