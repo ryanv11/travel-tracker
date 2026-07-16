@@ -9,6 +9,16 @@ This document is the authoritative pre-condition for NR-14. NR-14 passes only wh
 checklist item below is marked PASS. Items currently assessed FAIL or PARTIAL constitute
 the NR-14 implementation backlog.
 
+> **STATUS UPDATE (2026-07-15, audit Q4).** The code remediations for HC-03/04/05/06/07
+> merged 2026-03-23/24 (PRs #80–#94) and are verified against the current tree; their
+> markers below have been flipped FAIL/PARTIAL → PASS with commit citations. **Two items
+> remain open and both are gated on real-auth verification (audit Q5, not yet run):**
+> HC-01 (firewall config landed in #80, but closure requires end-to-end PO UAT with real
+> Clerk auth — `BYPASS_AUTH=true` is still in `.env.local`) and HC-02 (issuer validation
+> landed in #88, but `aud`/audience validation was deferred because the real `aud` value
+> can only be confirmed from a live Clerk JWT). **NR-14 therefore remains BLOCKED** on
+> these two real-auth items — see §7. Per-item citations are inline below.
+
 ---
 
 ## 1. Trust Boundaries
@@ -73,6 +83,12 @@ and is required for the map to render before the auth flow completes in the brow
 ---
 
 ## 2. Resource/Action Access Matrix
+
+> SUPERSEDED (2026-07-15) by the §6 remediations — retained for history. The **FAIL**
+> markers in the matrix below for map shading, shading config, and the admin tables are
+> resolved by PR #82 (`requireOwner` on the admin router + map routes, HC-04/05) and
+> PR #84 (shading scoped to `userId`, HC-03); the city-creation **FLAG** is resolved by
+> PR #82/#92 (HC-06). Current per-item status lives in §6 and the §7 gate table.
 
 For the three authenticated roles defined in the brief:
 - **Owner** — the user_id that created each resource
@@ -168,6 +184,11 @@ to `jwtVerify`. Requires adding `CLERK_ISSUER` and `CLERK_AUDIENCE` env vars.
 
 ## 4. Failure Behaviour and Response Minimisation
 
+> SUPERSEDED (2026-07-15) in part — retained for history. The **FAIL** assessments in
+> §4.2 and §4.3 for admin routes (no owner guard) and map shading (not user-scoped) are
+> resolved by PR #82 (HC-04/05) and PR #84 (HC-03). Non-owner admin reads/writes now
+> return 403 and shading is user-scoped. The PASS assessments in §4.1/§4.3 are unchanged.
+
 ### 4.1 Authentication failures (before application logic)
 
 | Failure mode | Status | Body | Logged | Session |
@@ -219,6 +240,12 @@ the map shading computed from all users' trip data combined.
 ---
 
 ## 5. Isolation Enforcement Layers
+
+> SUPERSEDED (2026-07-15) in part — retained for history. The **FAIL**/**PARTIAL**
+> assessments below for admin repositories/routes (§5.1, §5.2, §5.3, §5.5) are resolved by
+> PR #82 (`requireOwner` at the admin router level, HC-04); the shading **FAIL** markers by
+> PR #84 (HC-03); and the nullable-userId **PARTIAL** in §5.4 by PR #86 (NOT NULL
+> constraint on `trips`/`trip_places`/`items`, HC-07c). Current status is in §6 and §7.
 
 ### 5.1 Route guards
 
@@ -320,9 +347,13 @@ primary remediation target for NR-14.
 **Requirement:** Real JWT auth must work in local dev. `BYPASS_AUTH=true` must not be
 required in `.env.local` for the PO's manual testing session.
 
-**Current state: FAIL** — Clerk JWKS endpoint (`just-raptor-89.clerk.accounts.dev`) is
-blocked by the devcontainer firewall (`init-firewall.sh`). `BYPASS_AUTH=true` is
-permanent in `.env.local`.
+**Current state: FAIL — config landed, closure pending UAT (audit Q5).** The firewall
+allow-list change merged in PR #80 (`d6c9236`) adds `just-raptor-89.clerk.accounts.dev`
+to `init-firewall.sh`. Per the verification note below, that change is necessary but not
+sufficient: HC-01 closes only when real-auth is verified end-to-end by the PO under UAT.
+That UAT has **not** run — `BYPASS_AUTH=true` is still present in `.env.local`. This is
+the open item tracked as audit Q5 ("is real local auth working now — work through
+together"); it and HC-02's audience gap are the only two things blocking NR-14.
 
 **Remediation:**
 1. Add `just-raptor-89.clerk.accounts.dev` to the allowed-domains loop in
@@ -361,8 +392,14 @@ Required UAT steps (all must pass):
 **Requirement:** `jwtVerify` must validate `iss` and `aud` to prevent token reuse across
 Clerk instances or apps.
 
-**Current state: PARTIAL** — jose's `jwtVerify` is called without `issuer` or `audience`
-options. Signature and expiry are validated; issuer and audience are not.
+**Current state: PARTIAL — issuer done (PR #88 `a12ca3c`), audience deferred.** `auth.ts`
+now calls `jwtVerify(token, jwks, { issuer })` with `issuer` sourced from a required
+`CLERK_ISSUER` env var (startup-guarded like `CLERK_JWKS_URI`); a mismatched `iss` is
+rejected with 401 and is covered by a unit test. **`audience` is still not validated** —
+it was deferred because the real `aud` value can only be confirmed by decoding a live
+Clerk JWT, which requires real auth to be running (HC-01 / audit Q5). Adding
+`audience: process.env.CLERK_AUDIENCE` to the `jwtVerify` options is the remaining work,
+and it should land together with the HC-01 real-auth verification.
 
 **Remediation:**
 1. Add `CLERK_ISSUER` and `CLERK_AUDIENCE` to `.env.local` and document in `.env.local.example`.
@@ -403,8 +440,10 @@ options. Signature and expiry are validated; issuer and audience are not.
 `GET /api/map/shading/:code/regions` must return shading computed only from the
 authenticated user's trips.
 
-**Current state: FAIL** — shading queries join trips without `WHERE trips.user_id = ?`.
-All shading functions in `shading.service.ts` are not user-aware.
+**Current state: PASS (2026-03-23, PR #84 `cf7ea36`).** `getAllCountryShading`,
+`getCountryShading`, and `getRegionShading` in `shading.service.ts` now take a `userId`
+parameter and join with `and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId))`;
+`map.ts` route handlers pass `req.user!.id` and are additionally gated by `requireOwner`.
 
 **Remediation:**
 1. Add `userId: string` parameter to `getAllCountryShading`, `getCountryShading`, and
@@ -438,10 +477,12 @@ The position for NR-14 is: all admin routes require `requireOwner`. If a future 
 proposes opening specific read routes to shared users (e.g. shared-trip companions
 reading category names), that requires an explicit security spec at that time.
 
-**Current state: FAIL** — all admin routes are protected by `requireAuth` only. Any
-authenticated user can read and write all admin data.
+**Current state: PASS (2026-03-23, PR #82 `5ade19e`).** `adminRouter.use(requireOwner)`
+is applied at the router level in `admin.ts` (line 27), so every admin route — GET and
+write — is owner-only and no future route addition can miss it. `requireOwner` is backed
+by the `is_owner` column and middleware added in the same PR (ADL-27).
 
-**Remediation:** Apply `requireOwner` middleware to all admin routes (GET and write).
+**Remediation (done):** Applied `requireOwner` middleware at the admin router level.
 See ADL-27 for the owner determination model.
 
 **Verification:**
@@ -461,7 +502,9 @@ It is retained as a named item so future scope changes to HC-04 (e.g. opening ca
 reads) cannot silently reopen companion or shading config reads without an explicit
 assessment against HC-05.
 
-**Current state: FAIL** — same root cause as HC-04.
+**Current state: PASS (2026-03-23, PR #82 `5ade19e`)** — resolved with HC-04. The
+router-level `requireOwner` on `adminRouter` covers the companions and shading-config
+routes, so non-owners receive 403 on read and write.
 
 **Verification:**
 - HC-04 passing is necessary but not sufficient. Verify specifically:
@@ -475,9 +518,11 @@ assessment against HC-05.
 **Requirement:** `POST /api/cities` creates a new city in the global cities seed. This is
 a privileged write that should not be available to ungranted users.
 
-**Current state: FAIL** — city creation is behind `requireAuth` only.
+**Current state: PASS (2026-03-23, PR #82 `5ade19e`; PATCH hardened in PR #92 `01a5ee4`).**
+`requireOwner` is applied to `POST /api/cities` (cities.ts line 74) and to
+`PATCH /api/cities/:id` (line 149, BUG-22) — non-owners receive 403.
 
-**Remediation:** Apply owner guard (per ADL-27) to `POST /api/cities`.
+**Remediation (done):** Applied owner guard (per ADL-27) to the privileged cities writes.
 
 **Verification:**
 - Contract test: Authenticate as non-owner; confirm POST `/api/cities` returns 403.
@@ -511,8 +556,11 @@ constraint) so it cannot re-emerge after a future refactor.
 
 #### HC-07b — Existing null-owned records in the database
 
-**Current state: UNKNOWN** — pre-auth data may exist. This must be audited against
-the production database before NR-14 closes.
+**Current state: RESOLVED (PR #81 `1450c47` audit/backfill script; proven clean by PR #86).**
+The audit-and-backfill script landed in #81. The NOT NULL migration (HC-07c, #86) applied
+successfully against the dev DB — which is only possible with zero null-owned rows — so
+the backfill is confirmed complete for the current database. If a separate production DB
+is ever provisioned, re-run the Step-1 audit there before applying the NOT NULL migration.
 
 **Remediation:**
 
@@ -558,9 +606,10 @@ while any null-owned records remain — the migration will fail with a constrain
 
 #### HC-07c — Schema allows future null-owned records
 
-**Current state: FAIL** — `trips.user_id`, `trip_places.user_id`, and `items.user_id`
-are declared as nullable FK columns in `schema.ts`. No application-layer or DB-level
-constraint prevents a future route or migration from inserting a null user_id.
+**Current state: PASS (2026-03-23, PR #86 `b74e296`).** `trips.userId`, `tripPlaces.userId`,
+and `items.userId` in `schema.ts` are now declared `.notNull().references(() => users.id)`
+(each carries the `// HC-07c: NOT NULL enforced at DB level` comment). The generated
+migration applied cleanly, so the DB now rejects any null-owned insert.
 
 **Remediation:** Change userId column declarations in `schema.ts` from nullable to
 `.notNull().references(() => users.id)` on all three tables. Generate and apply a
@@ -582,9 +631,11 @@ NOT NULL constraint is applied).
 
 #### HC-07d — Can current routes surface or mutate null-owned rows?
 
-**Current state: PARTIAL** — repository queries use `eq(trips.userId, userId)` which
-will never match a null userId (SQL equality `user_id = ?` does not match NULL). Null-owned
-trips are therefore invisible to all scoped reads. However:
+**Current state: PASS (mitigation in place via PR #86 `b74e296`).** Repository queries use
+`eq(trips.userId, userId)`, which never matches a null userId, so null-owned rows were
+already invisible to scoped reads. The residual defensive risk — a future bug or migration
+silently inserting a null userId — is now closed by the HC-07c NOT NULL constraint. The
+original notes below are retained for history:
 
 - **Mutation risk:** No current write path explicitly sets user_id to NULL. The risk is
   defensive — a future bug or migration that omits userId would silently create invisible
@@ -716,13 +767,13 @@ NR-14 PASSES when all of the following are GREEN:
 
 | Item | Requirement | Current |
 |---|---|---|
-| HC-01 | Clerk JWKS reachable in local dev | FAIL |
-| HC-02 | JWT issuer + audience validated | PARTIAL |
-| HC-03 | Map shading user-scoped | FAIL |
-| HC-04 | Admin writes owner-only | FAIL |
-| HC-05 | Companion + shading config not leaked | FAIL |
-| HC-06 | City creation owner-only | FAIL |
-| HC-07 | No null userId records | PARTIAL |
+| HC-01 | Clerk JWKS reachable in local dev | FAIL — firewall landed (#80); **pending real-auth PO UAT (Q5)** |
+| HC-02 | JWT issuer + audience validated | PARTIAL — issuer done (#88); **audience deferred (needs live `aud`, Q5)** |
+| HC-03 | Map shading user-scoped | PASS (#84) |
+| HC-04 | Admin writes owner-only | PASS (#82) |
+| HC-05 | Companion + shading config not leaked | PASS (#82) |
+| HC-06 | City creation owner-only | PASS (#82, #92) |
+| HC-07 | No null userId records | PASS (#81 backfill, #86 NOT NULL) |
 | HC-08 | BYPASS_AUTH blocked in production | PASS |
 | HC-09 | Auth failures opaque | PASS |
 | HC-10 | Cross-user trip → 404 | PASS |
@@ -730,7 +781,10 @@ NR-14 PASSES when all of the following are GREEN:
 | HC-12 | Geo files are public data only | PASS |
 | HC-13 | Explicitly-shared role non-operative (no implicit fallback) | PASS |
 
-**NR-14 status: BLOCKED** — 4 FAIL, 2 PARTIAL
+**NR-14 status: BLOCKED** — 11 PASS, 1 FAIL (HC-01), 1 PARTIAL (HC-02). Both remaining
+items are gated solely on real-auth end-to-end verification (audit Q5); no code work
+remains for them beyond the audience-validation addition, which itself needs a live
+Clerk `aud` value to configure.
 
 ---
 
@@ -789,3 +843,4 @@ to any NR-09–13 brief.
 | Date | Change |
 |---|---|
 | 2026-03-23 | Initial issue — current state assessment included |
+| 2026-07-15 | Audit Q4: flipped HC-03/04/05/06/07 FAIL/PARTIAL → PASS with commit citations (PRs #80–#94, verified against current tree); §2/§4/§5 stamped superseded-in-part. HC-01 (FAIL) and HC-02 audience (PARTIAL) held open — both gated on real-auth PO UAT (audit Q5). NR-14 remains BLOCKED on those two. |
