@@ -275,3 +275,15 @@ export interface CityItem {
   experience_rating: number | null;
   experience_post_visit_notes: string | null;
 }
+
+// ============================================================
+// ME (GET /api/me) — BUG-26 / SE-02
+// ============================================================
+
+/** Identity of the authenticated caller, used for owner-only UI gating. */
+export interface Me {
+  id: string;
+  email: string;
+  /** ADL-27 owner flag: 1 = owner, 0 = non-owner. */
+  isOwner: number;
+}

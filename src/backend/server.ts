@@ -38,6 +38,7 @@ import { userRepository } from './repositories/users.js';
 import { adminRouter } from './routes/admin.js';
 import { citiesRouter } from './routes/cities.js';
 import { mapRouter } from './routes/map.js';
+import { meRouter } from './routes/me.js';
 import { tripsRouter } from './routes/trips.js';
 import { processQueue } from './services/geocoding.service.js';
 import { seedAdminData, seedCountries, seedRegions } from './services/startup.service.js';
@@ -143,6 +144,7 @@ app.use('/api/trips', tripsRouter); // includes nested /:tripId/places and /:tri
 app.use('/api/cities', citiesRouter);
 app.use('/api/map', mapRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/me', meRouter); // BUG-26: identity endpoint for frontend owner gating
 
 // Health check (useful for development)
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

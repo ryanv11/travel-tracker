@@ -10,6 +10,8 @@
  * Exempt from Part A: /health (liveness probe), /geo/* (public static — OP-06 §1.2)
  * Not in Part B: /api/map/shading/countries/:code and /api/map/shading/regions/:code
  *   are requireAuth only (not owner-restricted) — intentional per OP-06 §2 access matrix.
+ *   GET /api/me is also requireAuth only (BUG-26) — every authenticated user may ask
+ *   who they are; see Part D for its shape/isOwner coverage.
  */
 
 import { createClient } from '@libsql/client';
@@ -497,6 +499,11 @@ describe('Part A — Unauthenticated rejection: all API routes return 401', () =
     const res = await supertest(app).post('/api/admin/countries/US/regions').send({});
     expect(res.status).toBe(401);
   });
+
+  it('GET /api/me → 401', async () => {
+    const res = await supertest(app).get('/api/me');
+    expect(res.status).toBe(401);
+  });
 });
 
 // ================================================================
@@ -750,5 +757,53 @@ describe('Part C — Cross-user data isolation', () => {
   it('POST /api/trips/:tripAId/places → 404 (USER_B cannot add places to USER_A trip)', async () => {
     const res = await supertest(app).post(`/api/trips/${tripAId}/places`).send({ city_id: 1 });
     expect(res.status).toBe(404);
+  });
+});
+
+// ================================================================
+// Part D — GET /api/me identity endpoint (BUG-26 / SE-02)
+//
+// requireAuth only (NOT requireOwner — every authenticated user may
+// ask who they are). Returns exactly { id, email, isOwner } echoed
+// from the middleware-resolved req.user. No DB queries of its own.
+// ================================================================
+
+describe('Part D — GET /api/me returns the caller identity with isOwner flag', () => {
+  it('owner: 200 with { id, email, isOwner: 1 }', async () => {
+    mockAuthEnabled = true;
+    mockIsOwner = 1;
+    mockUserId = USER_A_ID;
+
+    const res = await supertest(app).get('/api/me');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      id: USER_A_ID,
+      email: 'usera@example.com',
+      isOwner: 1,
+    });
+  });
+
+  it('non-owner: 200 with { id, email, isOwner: 0 } — NOT 403', async () => {
+    mockAuthEnabled = true;
+    mockIsOwner = 0;
+    mockUserId = USER_B_ID;
+
+    const res = await supertest(app).get('/api/me');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      id: USER_B_ID,
+      email: 'userb@example.com',
+      isOwner: 0,
+    });
+  });
+
+  it('response contains no fields beyond id, email, isOwner (no clerkId leak)', async () => {
+    mockAuthEnabled = true;
+    mockIsOwner = 1;
+    mockUserId = USER_A_ID;
+
+    const res = await supertest(app).get('/api/me');
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual(['email', 'id', 'isOwner']);
   });
 });

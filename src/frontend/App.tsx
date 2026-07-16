@@ -11,18 +11,56 @@
  */
 
 import { UserButton } from '@clerk/react';
+import type { ReactNode } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { TripsLayout } from './components/TripList/TripsLayout';
 import { useGeocodeRetryQueue } from './hooks/useGeocodeRetryQueue';
+import { useMe } from './hooks/useMe';
 import { AdminPage } from './pages/AdminPage';
 import { MapPage } from './pages/MapPage';
 import { TripDetailPage } from './pages/TripDetailPage';
+
+/**
+ * BUG-26 / SE-02: Owner gate for the /admin route.
+ *
+ * Renders nothing while identity is loading (no flash of admin content),
+ * then either the guarded children (owner) or a small not-authorised
+ * message (non-owner). A message was chosen over a silent redirect so a
+ * hard refresh on /admin never bounces the owner to / mid-load, and a
+ * non-owner gets an explicit explanation instead of a mystery redirect.
+ * Backend enforcement (requireOwner → 403) is unaffected — this is
+ * presentation-layer gating only.
+ */
+function RequireOwner({ children }: { children: ReactNode }) {
+  const { data: me, isPending } = useMe();
+
+  if (isPending) return null;
+
+  if (!me?.isOwner) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-400 p-12 text-center">
+        <p className="text-base font-semibold text-gray-500 mb-1.5">Not authorised</p>
+        <p className="text-sm text-gray-400 max-w-[280px] leading-relaxed">
+          The admin panel is only available to the site owner.
+        </p>
+        <NavLink to="/map" className="mt-4 text-sm text-teal-600 underline">
+          Back to the map
+        </NavLink>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
 
 /**
  * Root application component with navigation and route definitions.
  */
 export function App() {
   const { pendingCount, retryAll, dismiss } = useGeocodeRetryQueue();
+  // BUG-26: owner-aware nav — me is undefined while loading, so the Admin
+  // link stays hidden until isOwner is confirmed (no flash for non-owners).
+  const { data: me } = useMe();
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -58,18 +96,21 @@ export function App() {
         >
           Trips
         </NavLink>
-        <NavLink
-          to="/admin"
-          className={({ isActive }) =>
-            `no-underline px-3.5 py-2 rounded-md text-sm transition-colors ${
-              isActive
-                ? 'font-semibold text-teal-700 bg-teal-50'
-                : 'font-normal text-gray-700 hover:bg-gray-100'
-            }`
-          }
-        >
-          Admin
-        </NavLink>
+        {/* BUG-26: Admin link is owner-only (hidden while identity loads) */}
+        {!!me?.isOwner && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              `no-underline px-3.5 py-2 rounded-md text-sm transition-colors ${
+                isActive
+                  ? 'font-semibold text-teal-700 bg-teal-50'
+                  : 'font-normal text-gray-700 hover:bg-gray-100'
+              }`
+            }
+          >
+            Admin
+          </NavLink>
+        )}
 
         {/* NR-06: offline geocoding indicator */}
         {pendingCount > 0 && (
@@ -127,7 +168,15 @@ export function App() {
             <Route path=":id" element={<TripDetailPage />} />
           </Route>
 
-          <Route path="/admin" element={<AdminPage />} />
+          {/* BUG-26: /admin is owner-gated — direct nav as non-owner never renders the panel */}
+          <Route
+            path="/admin"
+            element={
+              <RequireOwner>
+                <AdminPage />
+              </RequireOwner>
+            }
+          />
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/map" replace />} />
         </Routes>
