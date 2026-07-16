@@ -105,9 +105,20 @@ app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // 4. Rate limiter on /api/ (SEC-07) — 300 req/min for single-user local use
+//
+// OP-11: Playwright's webServer boots ONE backend process for the entire 36-spec
+// E2E run (workers:1, sequential, ~35-40s wall time). The limiter's counter is
+// per-process, so it accumulates across every spec file's beforeEach (deleteAllTrips
+// = 1 GET + N DELETEs) and test body requests — by the last couple of specs in
+// trips.spec.ts, cumulative requests were landing on/near the 300/60s ceiling and
+// getting 429'd. That looked like cross-spec DB state leakage (a test's own trip
+// wouldn't render) but was actually rate-limit exhaustion of one long-lived process.
+// BYPASS_AUTH=true is already fatal in production (guard above) and only ever set
+// in test/CI, so it's a safe signal to raise headroom here rather than disable the
+// control — SEC-07 stays enforced (and at its real limit) for every non-test process.
 const limiter = rateLimit({
   windowMs: 60_000,
-  max: 300,
+  max: process.env.BYPASS_AUTH === 'true' ? 5000 : 300,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -115,9 +126,10 @@ app.use('/api/', limiter);
 
 // C3 / SEC-M1: Secondary rate limit for POST /api/cities — 20 req/min (geocoding cost)
 // Independent of global limiter; configured separately as each city creation triggers geocoding.
+// OP-11: same BYPASS_AUTH headroom rationale as the global limiter above.
 const citiesCreateLimiter = rateLimit({
   windowMs: 60_000,
-  max: 20,
+  max: process.env.BYPASS_AUTH === 'true' ? 500 : 20,
   standardHeaders: true,
   legacyHeaders: false,
 });

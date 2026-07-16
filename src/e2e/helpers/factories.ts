@@ -32,10 +32,21 @@ export async function createTrip(
 
 export async function deleteAllTrips(request: APIRequestContext): Promise<void> {
   const res = await request.get('http://localhost:3001/api/trips');
-  if (!res.ok()) return;
+  // OP-11: previously returned silently on a non-ok response, which let a single
+  // rate-limited or errored GET leave every prior spec file's trips in place —
+  // the next test would then see stale trips with no indication why. Isolation
+  // failures must be loud, not swallowed.
+  if (!res.ok()) {
+    throw new Error(`deleteAllTrips: GET /api/trips failed: ${res.status()} ${await res.text()}`);
+  }
   const trips = (await res.json()) as TripSummary[];
   for (const trip of trips) {
-    await request.delete(`http://localhost:3001/api/trips/${trip.id}`);
+    const delRes = await request.delete(`http://localhost:3001/api/trips/${trip.id}`);
+    if (!delRes.ok()) {
+      throw new Error(
+        `deleteAllTrips: DELETE /api/trips/${trip.id} failed: ${delRes.status()} ${await delRes.text()}`,
+      );
+    }
   }
 }
 
