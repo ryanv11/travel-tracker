@@ -9,10 +9,11 @@
  *
  * Flow:
  *   1. Extract Bearer token from Authorization header
- *   2. Verify JWT signature against Clerk's JWKS endpoint (lazy-initialized)
- *   3. Resolve internal user via userRepository.findOrCreateByClerkId()
- *   4. Attach req.user = { id, clerkId, email } and call next()
- *   5. On any failure: respond 401 Unauthorized
+ *   2. Verify JWT signature + issuer against Clerk's JWKS endpoint (lazy-initialized)
+ *   3. Verify azp claim against the origin allowlist (HC-02 — Clerk's audience equivalent)
+ *   4. Resolve internal user via userRepository.findOrCreateByClerkId()
+ *   5. Attach req.user = { id, clerkId, email } and call next()
+ *   6. On any failure: respond 401 Unauthorized
  */
 
 import type { NextFunction, Request, Response } from 'express';
@@ -67,6 +68,23 @@ function getIssuer(): string {
   return issuer;
 }
 
+/**
+ * HC-02: Clerk session tokens carry no `aud` claim — the audience-equivalent is `azp`
+ * (authorized party), set to the browser origin the token was issued to (verified against
+ * a live token, 2026-07-16). The set of origins a session token may legitimately be
+ * issued to is exactly the CORS allowlist, so ALLOWED_ORIGINS is reused here (same
+ * parse + default as server.ts).
+ *
+ * Tokens with a missing azp are rejected too — every Clerk browser session token has one.
+ * Revisit if a native (iOS) client is added; its tokens may carry a different azp shape.
+ */
+function getAuthorizedParties(): string[] {
+  return (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:3001')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
 // ----------------------------------------------------------------
 // Middleware
 // ----------------------------------------------------------------
@@ -105,6 +123,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const jwks = getJWKS();
     const issuer = getIssuer();
     const { payload } = await jwtVerify(token, jwks, { issuer });
+
+    // HC-02: azp must be one of our known origins (Clerk's audience equivalent).
+    const azp = payload.azp;
+    if (typeof azp !== 'string' || !getAuthorizedParties().includes(azp)) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
     const clerkId = payload.sub!;
     const email = (payload.email as string | undefined) ?? '';
 
