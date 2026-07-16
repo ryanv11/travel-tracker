@@ -37,4 +37,22 @@ export default defineConfig({
       },
     },
   },
+
+  // OP-11: `vite preview` (used by the CI E2E job — see playwright.config.ts) does NOT
+  // inherit `server.proxy`; it is a separate config block. Without this, every /api and
+  // /geo request from the built app would 404 under `vite preview`.
+  preview: {
+    port: 5173,
+    host: '0.0.0.0',
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/geo': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
+  },
 });
