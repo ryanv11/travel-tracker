@@ -569,12 +569,12 @@
       "id": "NR-14",
       "type": "requirement",
       "title": "Pre-shared-access hardening gate — formal go/no-go before non-owner access",
-      "status": "in-progress",
+      "status": "done",
       "owner": "coo",
       "priority": "P1",
       "brdRefs": ["NF-07", "SE-01", "SE-02", "SE-03", "SE-04", "SE-05", "SE-06", "SE-07"],
       "phase": 1,
-      "notes": "Phase 1.5 gate. Architect deliverables received 2026-03-23: OP-06 checklist (13 items HC-01–HC-13), ADL-27 (is_owner column + requireOwner middleware), ADL-27 corrections. DONE: HC-01 firewall (#80), HC-02 JWT issuer (#88), HC-03 shading scope (#84), HC-04 admin routes (#82), HC-05 shading config (#82), HC-06 city creation (#82), HC-07b null audit (#81), HC-07c NOT NULL migration (#86), ADL-27 schema+middleware (#82). PRs #84/#86/#88 pending merge. NR-14 closes after merge + PO HC-01 UAT sign-off (6-step sequence in park doc)."
+      "notes": "Phase 1.5 gate. Architect deliverables received 2026-03-23: OP-06 checklist (13 items HC-01–HC-13), ADL-27 (is_owner column + requireOwner middleware), ADL-27 corrections. DONE: HC-01 firewall (#80), HC-02 JWT issuer (#88), HC-03 shading scope (#84), HC-04 admin routes (#82), HC-05 shading config (#82), HC-06 city creation (#82), HC-07b null audit (#81), HC-07c NOT NULL migration (#86), ADL-27 schema+middleware (#82). PRs #84/#86/#88 pending merge. NR-14 closes after merge + PO HC-01 UAT sign-off (6-step sequence in park doc). CLOSED 2026-07-16: Q5 real-auth PO UAT passed (owner + second non-owner account: Clerk sign-in through firewall, data separation, admin 403 for non-owner); HC-02 audience half landed as azp validation in PR #115 (live token decode showed Clerk session tokens carry azp, not aud). OP-06 gate 13/13 PASS. One non-blocking UAT finding: BUG-26 (#116, admin nav visible to non-owner, frontend polish)."
     },
     {
       "id": "NR-15",
@@ -1041,6 +1041,17 @@
       "brdRefs": [],
       "phase": 1,
       "notes": "Regex at tracker.js:27 strips comment syntax inside JSON string literals; the BUG-A note added 2026-03-23 contains 'trips.ts:280' preceded by a double-slash, truncating the string — every tracker.js run since fails to parse. Fix: string-aware comment stripping. Found 2026-07-07 during OP-09 work. GitHub issue #96."
+    },
+    {
+      "id": "BUG-26",
+      "type": "bug",
+      "title": "Admin panel nav entry visible to non-owner users",
+      "status": "open",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": ["SE-02"],
+      "phase": 1,
+      "notes": "Found during Q5 real-auth UAT (2026-07-16), HC-01 step 5 second-account check. Non-owner sees the admin button in the banner, page loads, every section renders 'not authorised' (backend requireOwner correctly 403s — not a security hole, presentation gating only). Frontend should hide the nav entry for non-owners. PO verdict: 'suboptimal pass'. GitHub issue #116. Does not block NR-14."
     },
     {
       "id": "BUG-25",

@@ -14,6 +14,14 @@
 > (audit Q5):** the live auth/IDOR spot-checks (1.5-B, 1.5-C) and JWT audience validation.
 > Gate 2.0 (hosted deployment) and Gate 3.0 (companion access) items remain open by design.
 
+> **GATE 1.5 CLOSED (2026-07-16, audit Q5 — PR #115).** The real-auth PO UAT ran and
+> passed (owner + second non-owner account — see the 2026-07-16 session in
+> `jobs/PO/uat-log.md`), closing the 1.5-B/1.5-C live spot-checks. Audience validation
+> landed as `azp`-against-`ALLOWED_ORIGINS` (Clerk session tokens carry no `aud` claim —
+> corrected premise, PR #115). **OP-06 §7 now reads 13/13 PASS; NR-14 is formally
+> closed.** UAT finding BUG-26 (#116, admin nav visible to non-owners) is tracked
+> separately and does not affect the gate.
+
 ---
 
 ## Purpose
@@ -285,10 +293,12 @@ The following items in `security-backlog.md` need updating to reflect current st
 ### Gate 1.5 — Auth Hardening
 - [x] 1.5-A: BYPASS_AUTH guard — production startup guard in `server.ts` (HC-08 PASS);
   `BYPASS_AUTH=false` documented in `.env.example`
-- [~] 1.5-B: Auth enforcement — code-verified (`requireAuth` mounted; 401 on missing/invalid
-  token unit-tested, HC-09/HC-10 PASS). **Live spot-check pending real-auth PO UAT (Q5).**
-- [~] 1.5-C: IDOR — cross-user → 404 code-verified (HC-10 PASS) + access-matrix regression
-  suite (PR #93). **Two-user live spot-check pending real-auth PO UAT (Q5).**
+- [x] 1.5-B: Auth enforcement — code-verified (`requireAuth` mounted; 401 on missing/invalid
+  token unit-tested, HC-09/HC-10 PASS). Live spot-check passed in the Q5 real-auth PO UAT
+  (2026-07-16, PR #115).
+- [x] 1.5-C: IDOR — cross-user → 404 code-verified (HC-10 PASS) + access-matrix regression
+  suite (PR #93). Two-user live spot-check passed in the Q5 real-auth PO UAT (2026-07-16,
+  PR #115): non-owner account saw only its own (empty) data; admin writes 403'd.
 - [x] 1.5-D: Admin data model — per-user, deferred to Gate 3.0 (decision recorded 2026-03-21)
 
 ### Gate 2.0 — Hosted Deployment
