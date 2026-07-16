@@ -1043,6 +1043,17 @@
       "notes": "Regex at tracker.js:27 strips comment syntax inside JSON string literals; the BUG-A note added 2026-03-23 contains 'trips.ts:280' preceded by a double-slash, truncating the string — every tracker.js run since fails to parse. Fix: string-aware comment stripping. Found 2026-07-07 during OP-09 work. GitHub issue #96."
     },
     {
+      "id": "BUG-25",
+      "type": "bug",
+      "title": "POST items missing trip-ownership check (cross-user write)",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["SE-05"],
+      "phase": 1,
+      "notes": "Any authenticated user could add items to another user's unlocked trip: POST /api/trips/:tripId/items called assertNotLocked (lock-only) then itemRepository.create with no userId scoping. Fixed by adding itemRepository.assertWritable (existence+ownership+lock, mirroring places) and calling it before insert; cross-user attempts now return 404. Cross-user WRITE cases added to security.access-matrix.test.ts Part C. Found in audits/session-b-code-safety.md Area 3 HIGH (Q1). GitHub issue #108, PR #109. Ryan confirmed bug 2026-07-15; future shared-trip model will permit participant/companion writes layered on top of owner."
+    },
+    {
       "id": "BUG-24",
       "type": "bug",
       "title": "Main CI red — test fixtures missing userId (Type Check) + unpinned action tags (Semgrep)",
