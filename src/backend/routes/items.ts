@@ -69,7 +69,9 @@ itemsRouter.post(
     const tripId = parseInt(String(req.params.tripId), 10);
     if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
-    await assertNotLocked(tripId);
+    // Verify trip ownership before inserting (items carry no independent userId
+    // scoping on create — cross-user writes must 404 here, not fall through).
+    await itemRepository.assertWritable(userId, tripId);
 
     const body = req.body;
 

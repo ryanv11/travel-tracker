@@ -737,4 +737,18 @@ describe('Part C — Cross-user data isolation', () => {
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
+
+  // Cross-user WRITE isolation on nested resources — a create must not attach
+  // child rows to another user's trip (regression for the items-POST ownership hole).
+  it('POST /api/trips/:tripAId/items → 404 (USER_B cannot add items to USER_A trip)', async () => {
+    const res = await supertest(app)
+      .post(`/api/trips/${tripAId}/items`)
+      .send({ item_type: 'flight', status: 'confirmed', airline: 'BA', flight_number: 'BA001' });
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /api/trips/:tripAId/places → 404 (USER_B cannot add places to USER_A trip)', async () => {
+    const res = await supertest(app).post(`/api/trips/${tripAId}/places`).send({ city_id: 1 });
+    expect(res.status).toBe(404);
+  });
 });
