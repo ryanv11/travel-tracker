@@ -99,7 +99,7 @@ Minimum for frontend critical flows:
 
 Minimum for QA contract tests:
 
-- Every API endpoint: 200/201 on valid input, 400 on invalid, 423 on locked-trip write
+- Every API endpoint: 200/201 on valid input, 400 on invalid, 403 on locked-trip write
 - TripSummary shape includes places array
 - iso_3166_2 present on region objects (post BUG-02 fix)
 
@@ -122,3 +122,4 @@ All exemptions must be stated explicitly. Silence means tests are required.
 | Date | Change |
 |------|--------|
 | 2026-03-08 | Initial adoption. Going-forward only. Exempt: all work dispatched before this date. |
+| 2026-07-15 | §5 corrected: locked-trip write returns **403**, not 423 (audit Q6). 403 is the contract per the API reference (source of truth) and OP-06 §4.2. |

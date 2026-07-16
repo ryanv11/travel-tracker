@@ -5,6 +5,15 @@
 **Author:** COO
 **Status:** Draft — awaiting PO notes + Architect review on Phase 2 items
 
+> **STATUS UPDATE (2026-07-15, audit Q4).** The authoritative, per-item gate artifact is
+> now `jobs/architect/tech/OP-06-hardening-checklist.md` (§7 gate table) — consult it for
+> current HC-01…HC-13 status; this document is the earlier COO precursor. Gate 1.5's code
+> remediations have landed (PRs #80–#94): admin/shading/city owner-scoping (HC-03/04/05/06),
+> NOT NULL ownership (HC-07), the production BYPASS_AUTH guard (HC-08), and JWT issuer
+> validation (HC-02 issuer). **Still open, both gated on real-auth end-to-end PO UAT
+> (audit Q5):** the live auth/IDOR spot-checks (1.5-B, 1.5-C) and JWT audience validation.
+> Gate 2.0 (hosted deployment) and Gate 3.0 (companion access) items remain open by design.
+
 ---
 
 ## Purpose
@@ -274,9 +283,12 @@ The following items in `security-backlog.md` need updating to reflect current st
 ## Checklist Summary
 
 ### Gate 1.5 — Auth Hardening
-- [ ] 1.5-A: BYPASS_AUTH guard + .env.example warning
-- [ ] 1.5-B: Auth enforcement verified (spot-check)
-- [ ] 1.5-C: IDOR spot-check with two test users
+- [x] 1.5-A: BYPASS_AUTH guard — production startup guard in `server.ts` (HC-08 PASS);
+  `BYPASS_AUTH=false` documented in `.env.example`
+- [~] 1.5-B: Auth enforcement — code-verified (`requireAuth` mounted; 401 on missing/invalid
+  token unit-tested, HC-09/HC-10 PASS). **Live spot-check pending real-auth PO UAT (Q5).**
+- [~] 1.5-C: IDOR — cross-user → 404 code-verified (HC-10 PASS) + access-matrix regression
+  suite (PR #93). **Two-user live spot-check pending real-auth PO UAT (Q5).**
 - [x] 1.5-D: Admin data model — per-user, deferred to Gate 3.0 (decision recorded 2026-03-21)
 
 ### Gate 2.0 — Hosted Deployment
