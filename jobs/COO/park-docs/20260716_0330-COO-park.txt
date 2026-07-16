@@ -1,0 +1,105 @@
+COO SESSION PARK — 2026-07-15/16
+========================================
+
+## Session summary
+Audit follow-through: collected Ryan's answers to all 25 audit questions,
+merged the security fix (BUG-25) and the ungated doc-fix batch to main, and
+did session bookkeeping. Main is green after the merges.
+
+## Completed this session
+
+### Merged to main
+- PR #109 (BUG-25): items-POST ownership hole fixed. Any authenticated user
+  could add items to another user's unlocked trip (assertNotLocked was
+  lock-only; itemRepository.create had no userId scoping). Added
+  itemRepository.assertWritable + cross-user WRITE cases in the access matrix.
+  Issue #108. Ryan confirmed it's a bug (Q2).
+- PR #110 (audit-b doc fixes): the ungated queue from
+  jobs/COO/outbox/20260708_0645-COO-brief-audit-session-b-doc-fixes.md —
+  README/.env auth vars, CODEBASE.md CI/contract-test rows, security-spec
+  supersession stamps, api-reference v1.4 (auth + missing endpoints),
+  frontend ref banner+fixes, map-shading user-scoping, codebase-health
+  depwire removal, security-backlog H1 citation, ER-schema banner, BRD
+  header 2.5->2.7, drizzle.config db:push.
+
+### Records (on branch chore/audit-questions, pushed — NOT on main)
+- audits/questions-for-ryan.md — all 25 answered (or flagged "work through
+  together"). This is the source of the follow-up queue below.
+- audits/session-c-workflow-extraction.md — Session C report (was
+  previously uncommitted).
+
+### Tracker / bookkeeping (this close-out PR)
+- BUG-25 added to tracker.json (done; issue #108, PR #109). Inserted as raw
+  text + validated with a string-aware JSONC parse, since scripts/tracker.js
+  is still broken (BUG-23).
+
+## Ryan's answers — FOLLOW-UP WORK QUEUE (from audits/questions-for-ryan.md)
+
+Product direction (Q1): stays a solo offline Mac app FOR NOW, but must be
+easily scalable to multi-user web + iOS (possibly friends/family first).
+Keep this in mind for all architecture — do not foreclose it.
+
+Confirmed bugs to fix (new briefs needed):
+- Q3: locked trips must be fully read-only. Currently you can delete a locked
+  trip and tag/untag place activities on one — both bugs. Fix + lock-matrix
+  contract test (Session B invariant 18).
+- Q8: PATCH place dates wipes the omitted field (destructive PATCH) — bug.
+  Fix to leave omitted fields unchanged AND validate arrived_on <= departed_on.
+- Q12: geocode retry loop — fix (dead 404 branch; empty-PATCH-as-poll).
+- Q13: enforce the 200-char trip-name limit (zName max(200)); the contract
+  test currently accepts either outcome.
+
+Doc fixes now UNBLOCKED by answers (extend the doc-fix work):
+- Q4 (YES): flip OP-06 checklist FAIL/PARTIAL -> PASS with commit citations;
+  hardening-gate.md too. Highest-value remaining doc fix.
+- Q6: 403 is the contract (API reference is source of truth); fix test-policy
+  §5 "423" -> 403.
+- Q16: create jobs/PO/screenshots/ (was never used; wants the folder).
+- Q18: convert the two .docx BRD/audit artifacts to .md (diffable in-repo).
+- Q19 (agree): move project objective into CODEBASE.md; banner project-plan.txt
+  historical.
+- Q15: OQ-02 Electron — "if Electron is for the iOS app then yes." Clarify
+  Electron-vs-iOS-packaging before closing OQ-02 (Electron is desktop; iOS
+  needs a different path — worth an Architect note).
+- Q14: shadcn is drift; UI is a bigger discussion for later. Banner the UX
+  design-system doc; don't chase shadcn now.
+- Q17: claude-code/ clone is the (aspirational) split of Travel Tracker from
+  the orchestration layer. Have CODEBASE.md describe it accurately (not
+  "project content slated for extraction").
+
+Needs Architect / deeper work (not solo doc fixes):
+- Q5: is real local auth working now? Work through together — run the HC-01
+  end-to-end UAT (rebuild devcontainer, sign in, etc.) and then fix the
+  firewall/BYPASS_AUTH docs + close issue #23.
+- Q7: locate BRD v2.7 §5.11 sign-off and record PO approval — together.
+- Q10: Architect review of async/Express-5 usage (asyncHandler may be
+  vestigial).
+- Q11: confirm which db.transaction vs db.batch statement is current; delete
+  the wrong one.
+- Q20 (YES): make the BYPASS_AUTH prod guard fail-closed (when hosting).
+- Q22 (YES): consolidate the 13 hand-written test-DDL copies into one
+  migration-applying factory. High leverage; do before installing a schema skill.
+- Q23 (comment-aware): fix scripts/tracker.js (BUG-23) with a string-aware
+  comment stripper so notes can contain // and URLs.
+- Q24 (YES): slim CLAUDE.md — move procedures into per-task skills.
+- Q25: users-table integer-epoch timestamps are accidental; standardise on
+  text ISO-8601 for new tables (migrating users is optional/risky).
+- Q21: the four Session-C skill drafts — work through together before installing.
+
+## State of play
+main green after #109/#110. No stale MERGED branches (deleted
+fix/items-post-ownership, chore/audit-b-doc-fixes). NOTE: ~60 stale LOCAL
+branches + worktree-agent branches remain (pre-existing worktree/branch
+cleanup debt) — not addressed this session.
+chore/audit-questions branch holds the answer sheet + Session C report
+(pushed, unmerged by design — living working docs).
+
+## Suggested next session
+1. /coo-startup
+2. Flip OP-06 checklist (Q4) + fix test-policy 403 (Q6) — quick unblocked doc wins
+3. Brief the confirmed bug fixes: Q3 locked read-only, Q8 place-date PATCH,
+   Q12 geocode retry, Q13 name limit
+4. BUG-23 tracker.js comment-aware fix (Q23) — unbreaks the tracker CLI
+5. Q22 test-DDL consolidation
+6. Work-through-together items with Ryan: Q5 local auth/#23, Q7 BRD sign-off,
+   Q21 skills, Q1 product-direction BRD rewrite
