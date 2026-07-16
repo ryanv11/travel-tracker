@@ -1,0 +1,71 @@
+COO SESSION PARK — 2026-07-15 (audit follow-through, cont'd)
+============================================================
+
+## Session summary
+Picked up the audit thread. Knocked out the two "quick unblocked doc wins"
+from Ryan's audit answers: Q4 (flip OP-06 gate statuses) and Q6 (test-policy
+403). One PR, merged to main, main green after merge.
+
+## Completed this session
+
+### Merged to main
+- PR #112 (audit Q4/Q6): status/verdict doc corrections, NO code.
+  - Q4: OP-06 hardening checklist + hardening-gate.md. Verified each HC item
+    against the CURRENT tree (not just trusting the merge history), then
+    flipped with commit citations:
+      HC-03 -> PASS (#84, shading userId scoping)
+      HC-04 -> PASS (#82, adminRouter.use(requireOwner))
+      HC-05 -> PASS (#82, subsumed by HC-04)
+      HC-06 -> PASS (#82 + #92, cities POST/PATCH owner-only)
+      HC-07 -> PASS (#81 backfill + #86 NOT NULL user_id columns)
+    HELD OPEN (deliberately, honest):
+      HC-01 stays FAIL — firewall landed (#80) but closes only on real-auth
+        end-to-end PO UAT; BYPASS_AUTH=true still in .env.local.
+      HC-02 stays PARTIAL — issuer done (#88) but audience NEVER added
+        (jwtVerify gets { issuer } only); needs a live Clerk aud value.
+    NR-14 gate: BLOCKED — 11 PASS / 1 FAIL / 1 PARTIAL. Both open items are
+    gated on audit Q5 (real-auth UAT). §2/§4/§5 stamped superseded-in-part.
+  - Q6: test-policy.md §5 — locked-trip write is 403, not 423 (403 is the
+    contract per API reference + OP-06 §4.2). Changelog entry added.
+
+### Memory updated
+- project_nr14_status.md (nr-14-gate-status): statuses now current post-#112;
+  don't-trust-the-markers guidance removed; NR-14 close = Q5 UAT + add
+  audience validation to jwtVerify.
+
+## State of play
+main green after #112. NR-14 = 11 PASS / 1 FAIL / 1 PARTIAL, blocked only on
+the two real-auth items (Q5). Stale local branches + worktree-agent branches
+still present (known cleanup debt, unaddressed). chore/audit-questions holds
+the answer sheet (pushed, unmerged by design).
+
+## Follow-up work queue (unchanged from last park doc, minus Q4/Q6 now DONE)
+Remaining from audits/questions-for-ryan.md:
+
+Confirmed bugs needing briefs:
+- Q3: locked trips fully read-only (can currently delete a locked trip +
+  tag/untag activities). Fix + lock-matrix contract test.
+- Q8: destructive PATCH on place dates wipes omitted fields; add
+  arrived_on <= departed_on validation.
+- Q12: geocode retry loop (dead 404 branch; empty-PATCH-as-poll).
+- Q13: enforce 200-char trip-name limit.
+- Q23: fix scripts/tracker.js (BUG-23) comment-aware stripper.
+
+Doc/other unblocked:
+- Q16 (create jobs/PO/screenshots/), Q18 (.docx->.md), Q19 (objective ->
+  CODEBASE.md), Q14/Q17 banners.
+- Q22: consolidate 13 test-DDL copies into one migration-applying factory.
+
+Work-through-together with Ryan:
+- Q5: real local auth end-to-end UAT + close #23  <-- unblocks HC-01, HC-02
+  audience, and formal NR-14 close. Highest leverage.
+- Q7 (BRD v2.7 §5.11 sign-off), Q21 (Session-C skill drafts), Q1 (product-
+  direction BRD rewrite), Q10/Q11/Q20/Q25 (Architect/backend items).
+
+## Suggested next session
+1. /coo-startup
+2. Brief the confirmed bug fixes: Q3 locked read-only, Q8 place-date PATCH,
+   Q12 geocode retry, Q13 name limit (proper fix/ branches + contract tests)
+3. BUG-23 tracker.js comment-aware fix (Q23) — unbreaks tracker CLI
+4. Q22 test-DDL consolidation
+5. With Ryan: Q5 real-auth UAT (this is what finally closes NR-14)
