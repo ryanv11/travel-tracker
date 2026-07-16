@@ -51,6 +51,35 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-07-16 (ad hoc)
+
+**Scope:** Ad hoc testing with non-owner user account
+**Build:** main @ 89294cd
+**Verdict:** FAIL (not yet triaged/fixed)
+
+#### Findings
+
+- [ ] Non-owner user could not add a country to their trip
+      Steps: 1. Sign in as a non-owner user account 2. Open/create a trip 3. Attempt to add a country
+      Expected: Country can be added, same as owner
+      Actual: Add-country action fails for non-owner account
+      Screenshot: none
+      Fixed myself: no
+      Root cause (confirmed): PO retested with Japan (already seeded, exists on owner account) —
+      still missing for non-owner, which rules out lazy-seeding. Real cause: `GET /api/admin/countries`
+      (the full 250-country reference list used to populate the country picker) sits behind
+      `adminRouter.use(requireOwner)` (src/backend/routes/admin.ts:26, comment: "ADL-27/HC-04: All
+      admin routes require owner status... Applied at the router level"). `useAdmin.ts:191` is the
+      only frontend call site (`apiGet<Country[]>('/api/admin/countries')`) — any non-owner gets a
+      403 there and the picker comes up empty regardless of what's seeded. Looks like a regression
+      from the NR-14/HC-04 hardening pass: it correctly owner-gated the admin *write* routes but
+      swept this read-only reference-data endpoint into the same router-level gate, when every user
+      needs to read the country catalog to add a country to their own trip. Matches the
+      [[project_shared_trip_model]] direction (owner + participants can edit). Fix shape: split GET
+      /api/admin/countries (and likely GET .../regions) out from requireOwner — auth-only is enough
+      for reads; keep PATCH/write routes owner-gated. No bug ID assigned yet — pending next-session
+      triage; should reference ADL-27/HC-04 when filed.
+
 ### UAT Session — 2026-07-16
 
 **Scope:** Q5 real-auth end-to-end (OP-06 HC-01 verification, 6-step sequence)
