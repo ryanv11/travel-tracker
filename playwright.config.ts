@@ -63,8 +63,10 @@ export default defineConfig({
       // Backend — Express on port 3001
       // SQLITE_PATH: isolated e2e database (db:migrate runs before playwright starts)
       // BYPASS_AUTH: skips Clerk JWT verification for all API requests
+      // OWNER_CLERK_ID: makes the bypass test user the owner (ADL-27) — owner-gated
+      // routes (admin, cities POST, shading config) 403 without it
       command:
-        'SQLITE_PATH=file:./e2e.db BYPASS_AUTH=true npm run dev:api',
+        'SQLITE_PATH=file:./e2e.db BYPASS_AUTH=true OWNER_CLERK_ID=test_clerk_id npm run dev:api',
       url: 'http://localhost:3001/api/trips',
       reuseExistingServer: false,
       timeout: 30_000,
