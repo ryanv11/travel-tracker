@@ -110,6 +110,25 @@
 
 **Systemic pattern worth fixing once, not per-doc:** documents here declare authority ("binding", "authoritative", "single source of truth", "implement from this document") and then freeze. Five docs claim authority over security alone. The consolidation map (§4) proposes one canonical home per topic.
 
+---
+
+> **DOC-FIX EXECUTION STATUS (updated 2026-07-15, PR #110)**
+> The **ungated** (decision-free) items from the doc-fix brief have been executed on branch
+> `chore/audit-b-doc-fixes` (PR #110):
+> - **DONE:** README + `.env.example` env-var reconciliation (doc 3); CODEBASE.md contract-test /
+>   Biome-CI / scripts / data / job-dir / TripList.tsx rows (doc 2); security-spec.md supersession
+>   stamps (doc 7); API reference auth section + missing endpoints, v1.3→1.4 (doc 27);
+>   frontend-component-reference snapshot banner + path/transition/zoom fixes (doc 28);
+>   map-shading-spec user-scoping correction (doc 20); codebase-health.md depwire removal (doc 26);
+>   security-backlog.md H1 citation (§3 SUSPECT); ER-schema banner + `schema.ts:15` (doc 19);
+>   BRD header 2.5→2.7 (doc 6); `drizzle.config.ts` db:push comment.
+> - **STILL PENDING (gated on Ryan's answers, see `audits/questions-for-ryan.md`):** OP-06 status
+>   flips + hardening-gate (Q4/doc 25/9); CLAUDE.md/CODEBASE.md firewall-Clerk claims + issue #23
+>   (Q5); test-policy 423-vs-403 (Q6/doc 10); BRD §3/NF-01 + OQ closures (Q1/Q15/doc 6); project
+>   objective home (Q19/doc 11); screenshots dir (Q16); DOCX (Q18); shadcn (Q14); `claude-code/`
+>   framing (Q17/doc 2).
+> Individual disposition rows below are NOT restamped per-line; this block is the execution index.
+
 ## 2. Drift findings (Audit 1)
 
 *Per-document tables below (severity/classification/evidence/disposition in each doc's section).*
