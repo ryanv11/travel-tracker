@@ -7,6 +7,7 @@
  *   3. Invalid/malformed token → 401
  *   4. Valid token → calls userRepository, attaches req.user, calls next()
  *   5. Wrong JWT issuer → 401 (HC-02)
+ *   6. Missing or non-allowlisted azp claim → 401 (HC-02)
  *
  * jose's jwtVerify and userRepository are mocked so no network calls
  * or database access occur in these tests.
@@ -119,7 +120,7 @@ describe('requireAuth middleware', () => {
 
   it('attaches req.user and calls next() on a valid token', async () => {
     vi.mocked(jwtVerify).mockResolvedValueOnce({
-      payload: { sub: 'user_clerk123', email: 'test@example.com' },
+      payload: { sub: 'user_clerk123', email: 'test@example.com', azp: 'http://localhost:5173' },
       protectedHeader: { alg: 'RS256' },
     } as unknown as Awaited<ReturnType<typeof jwtVerify>>);
 
@@ -154,7 +155,7 @@ describe('requireAuth middleware', () => {
 
   it('returns 401 when userRepository throws', async () => {
     vi.mocked(jwtVerify).mockResolvedValueOnce({
-      payload: { sub: 'user_clerk123', email: 'test@example.com' },
+      payload: { sub: 'user_clerk123', email: 'test@example.com', azp: 'http://localhost:5173' },
       protectedHeader: { alg: 'RS256' },
     } as unknown as Awaited<ReturnType<typeof jwtVerify>>);
 
@@ -185,6 +186,41 @@ describe('requireAuth middleware', () => {
 
     await requireAuth(req, res, next as unknown as NextFunction);
 
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  // HC-02: azp (authorized party) validation — Clerk session tokens carry azp, not aud.
+  it('returns 401 when azp is not in the origin allowlist', async () => {
+    vi.mocked(jwtVerify).mockResolvedValueOnce({
+      payload: { sub: 'user_clerk123', azp: 'https://evil.example.com' },
+      protectedHeader: { alg: 'RS256' },
+    } as unknown as Awaited<ReturnType<typeof jwtVerify>>);
+
+    const req = makeReq('Bearer other.apps.token');
+    const { res } = makeRes();
+    const next = vi.fn();
+
+    await requireAuth(req, res, next as unknown as NextFunction);
+
+    expect(userRepository.findOrCreateByClerkId).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it('returns 401 when azp is missing from the payload', async () => {
+    vi.mocked(jwtVerify).mockResolvedValueOnce({
+      payload: { sub: 'user_clerk123' },
+      protectedHeader: { alg: 'RS256' },
+    } as unknown as Awaited<ReturnType<typeof jwtVerify>>);
+
+    const req = makeReq('Bearer token.without.azp');
+    const { res } = makeRes();
+    const next = vi.fn();
+
+    await requireAuth(req, res, next as unknown as NextFunction);
+
+    expect(userRepository.findOrCreateByClerkId).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(401);
   });

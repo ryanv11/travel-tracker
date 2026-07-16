@@ -19,6 +19,13 @@ the NR-14 implementation backlog.
 > can only be confirmed from a live Clerk JWT). **NR-14 therefore remains BLOCKED** on
 > these two real-auth items — see §7. Per-item citations are inline below.
 
+> **GATE CLOSED (2026-07-16, audit Q5 — PR #115).** The Q5 real-auth PO UAT ran and
+> passed (owner + second non-owner account), closing HC-01. HC-02's audience half closed
+> with a corrected premise: Clerk session tokens carry no `aud` claim — `azp` is
+> validated against `ALLOWED_ORIGINS` instead. **All 13 items PASS; NR-14 is formally
+> closed** — see §7. One non-blocking UAT finding: BUG-26 / #116 (admin nav visible to
+> non-owners; backend 403 enforcement verified correct).
+
 ---
 
 ## 1. Trust Boundaries
@@ -347,13 +354,24 @@ primary remediation target for NR-14.
 **Requirement:** Real JWT auth must work in local dev. `BYPASS_AUTH=true` must not be
 required in `.env.local` for the PO's manual testing session.
 
-**Current state: FAIL — config landed, closure pending UAT (audit Q5).** The firewall
-allow-list change merged in PR #80 (`d6c9236`) adds `just-raptor-89.clerk.accounts.dev`
-to `init-firewall.sh`. Per the verification note below, that change is necessary but not
-sufficient: HC-01 closes only when real-auth is verified end-to-end by the PO under UAT.
-That UAT has **not** run — `BYPASS_AUTH=true` is still present in `.env.local`. This is
-the open item tracked as audit Q5 ("is real local auth working now — work through
-together"); it and HC-02's audience gap are the only two things blocking NR-14.
+**Current state: PASS (2026-07-16 — Q5 real-auth PO UAT, recorded in the PO UAT log;
+PR #115).** The firewall allow-list change merged in PR #80 (`d6c9236`) adds
+`just-raptor-89.clerk.accounts.dev` to `init-firewall.sh`; JWKS fetch confirmed 200 from
+inside the container. The required end-to-end UAT ran 2026-07-16 with `BYPASS_AUTH`
+absent from `.env.local`:
+- Steps 1–2: Clerk sign-in screen appeared and completed in-browser; no JWKS errors.
+- Step 3: API requests authenticated as the PO's real Clerk user (verified JWT `sub`
+  matched `OWNER_CLERK_ID`); trip data scoped to that user (fresh real account, empty
+  list — correct, pre-UAT data lives under the BYPASS_AUTH test user by design, #23).
+- Step 4: owner role resolved from a real token; admin functionality available to the
+  owner. (Prerequisite fix: `OWNER_CLERK_ID` in `.env.local` had literal `<>` brackets
+  from a placeholder paste — corrected during the UAT session.)
+- Step 5: second non-owner Clerk account signed in; saw only its own (empty) data; all
+  admin sections refused ("not authorised", backend 403 via `requireOwner`). One
+  non-blocking finding: the admin nav button is visible to non-owners (frontend
+  presentation gating only) — logged as **BUG-26 / issue #116**, does not block HC-01.
+- Step 6: no BYPASS_AUTH warnings in the server log.
+PO verdict: PASS ("suboptimal pass" on step 5 UX, tracked separately).
 
 **Remediation:**
 1. Add `just-raptor-89.clerk.accounts.dev` to the allowed-domains loop in
@@ -392,14 +410,23 @@ Required UAT steps (all must pass):
 **Requirement:** `jwtVerify` must validate `iss` and `aud` to prevent token reuse across
 Clerk instances or apps.
 
-**Current state: PARTIAL — issuer done (PR #88 `a12ca3c`), audience deferred.** `auth.ts`
-now calls `jwtVerify(token, jwks, { issuer })` with `issuer` sourced from a required
+**Current state: PASS (issuer PR #88 `a12ca3c`; azp PR #115, 2026-07-16).** `auth.ts`
+calls `jwtVerify(token, jwks, { issuer })` with `issuer` sourced from a required
 `CLERK_ISSUER` env var (startup-guarded like `CLERK_JWKS_URI`); a mismatched `iss` is
-rejected with 401 and is covered by a unit test. **`audience` is still not validated** —
-it was deferred because the real `aud` value can only be confirmed by decoding a live
-Clerk JWT, which requires real auth to be running (HC-01 / audit Q5). Adding
-`audience: process.env.CLERK_AUDIENCE` to the `jwtVerify` options is the remaining work,
-and it should land together with the HC-01 real-auth verification.
+rejected with 401 and is covered by a unit test. The audience half closed with a
+**corrected premise**: a live Clerk session token decoded during the Q5 real-auth UAT
+(2026-07-16) confirmed Clerk session tokens carry **no `aud` claim** — the audience
+equivalent is `azp` (authorized party), set to the browser origin the token was issued
+to (`http://localhost:5173`). PR #115 adds `azp` validation: after `jwtVerify`, a token
+whose `azp` is missing or not in the `ALLOWED_ORIGINS` allowlist is rejected with 401
+(this mirrors Clerk's own `verifyToken` `authorizedParties` semantics, strict on missing
+`azp`). Unit tests cover both rejection paths. No `CLERK_AUDIENCE` env var exists or is
+needed.
+
+> SUPERSEDED (2026-07-16) by PR #115 — retained for history. The `CLERK_AUDIENCE`
+> prescription below assumed Clerk session tokens carry an `aud` claim; a live token
+> decode showed they do not (the audience equivalent is `azp`, validated against
+> `ALLOWED_ORIGINS` instead — see Current state above).
 
 **Remediation:**
 1. Add `CLERK_ISSUER` and `CLERK_AUDIENCE` to `.env.local` and document in `.env.local.example`.
@@ -426,10 +453,12 @@ and it should land together with the HC-01 real-auth verification.
   env vars are not read during BYPASS_AUTH sessions. Contract tests that use `BYPASS_AUTH`
   do not need these vars set and are unaffected by this validation addition.
 
-**Verification:**
-- Contract test: Supply a JWT signed by a different Clerk instance (or forge `iss`); confirm 401.
-- Contract test: Supply a JWT with a mismatched `aud`; confirm 401.
-- Code review: Confirm `jwtVerify` options include issuer and audience.
+**Verification (updated 2026-07-16, PR #115 — `aud` → `azp` per the corrected premise):**
+- Unit test: token verified but `azp` not in allowlist → 401 (`auth.test.ts`).
+- Unit test: token verified but `azp` missing → 401 (`auth.test.ts`).
+- Unit test: wrong `iss` → 401 (`auth.test.ts`, since #88).
+- Code review: Confirm `jwtVerify` options include issuer, and `azp` is checked against
+  `ALLOWED_ORIGINS` after verification.
 - Code review: Confirm BYPASS_AUTH short-circuit runs before `jwtVerify` is called.
 
 ---
@@ -767,8 +796,8 @@ NR-14 PASSES when all of the following are GREEN:
 
 | Item | Requirement | Current |
 |---|---|---|
-| HC-01 | Clerk JWKS reachable in local dev | FAIL — firewall landed (#80); **pending real-auth PO UAT (Q5)** |
-| HC-02 | JWT issuer + audience validated | PARTIAL — issuer done (#88); **audience deferred (needs live `aud`, Q5)** |
+| HC-01 | Clerk JWKS reachable in local dev | PASS — firewall (#80); real-auth PO UAT passed 2026-07-16 (Q5, PR #115) |
+| HC-02 | JWT issuer + audience validated | PASS — issuer (#88); azp-as-audience (#115, no `aud` in Clerk tokens) |
 | HC-03 | Map shading user-scoped | PASS (#84) |
 | HC-04 | Admin writes owner-only | PASS (#82) |
 | HC-05 | Companion + shading config not leaked | PASS (#82) |
@@ -781,10 +810,10 @@ NR-14 PASSES when all of the following are GREEN:
 | HC-12 | Geo files are public data only | PASS |
 | HC-13 | Explicitly-shared role non-operative (no implicit fallback) | PASS |
 
-**NR-14 status: BLOCKED** — 11 PASS, 1 FAIL (HC-01), 1 PARTIAL (HC-02). Both remaining
-items are gated solely on real-auth end-to-end verification (audit Q5); no code work
-remains for them beyond the audience-validation addition, which itself needs a live
-Clerk `aud` value to configure.
+**NR-14 status: PASS (2026-07-16)** — 13/13 PASS. The gate is formally closed: HC-01
+closed on the Q5 real-auth PO UAT; HC-02 closed with azp-as-audience validation (PR
+#115). One non-blocking UAT finding tracked separately (BUG-26 / #116 — admin nav
+visible to non-owners; backend enforcement verified correct).
 
 ---
 
@@ -844,3 +873,4 @@ to any NR-09–13 brief.
 |---|---|
 | 2026-03-23 | Initial issue — current state assessment included |
 | 2026-07-15 | Audit Q4: flipped HC-03/04/05/06/07 FAIL/PARTIAL → PASS with commit citations (PRs #80–#94, verified against current tree); §2/§4/§5 stamped superseded-in-part. HC-01 (FAIL) and HC-02 audience (PARTIAL) held open — both gated on real-auth PO UAT (audit Q5). NR-14 remains BLOCKED on those two. |
+| 2026-07-16 | Audit Q5 (PR #115): HC-01 → PASS on real-auth PO UAT (owner + non-owner accounts); HC-02 → PASS with corrected premise (Clerk tokens carry `azp` not `aud`; azp validated against ALLOWED_ORIGINS). **NR-14 gate closed, 13/13 PASS.** UAT finding BUG-26 (#116) logged, non-blocking. |

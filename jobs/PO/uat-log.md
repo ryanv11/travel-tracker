@@ -51,7 +51,38 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
-<!-- None — all sessions closed -->
+### UAT Session — 2026-07-16
+
+**Scope:** Q5 real-auth end-to-end (OP-06 HC-01 verification, 6-step sequence)
+**Build:** main @ 0c56fc2 + fix/hc02-azp-validation (azp validation live via tsx watch)
+**Verdict:** PASS — closes HC-01. One non-blocking UX finding (BUG-26).
+
+#### Findings
+
+- [ ] Admin panel nav button visible to non-owner users
+      Steps: 1. Sign in as a fresh non-owner Clerk account (ryanvilliers00+test@gmail.com)
+             2. Observe banner — admin button present
+             3. Click it — admin page loads, every section renders "not authorised"
+      Expected: Admin nav entry hidden entirely for non-owners
+      Actual: Button visible; page loads; backend requireOwner correctly 403s all sections
+      Screenshot: none
+      Fixed myself: no
+      Bug: BUG-26 / GitHub #116 (P3, frontend presentation gating — not a security hole;
+      backend enforcement verified correct in this same session)
+
+#### Notes / Observations
+
+1. Owner account: Clerk sign-in completed in-browser through the devcontainer firewall
+   (#80); JWKS 200 from inside the container; no BYPASS_AUTH in `.env.local`; app fully
+   functional under real auth ("it all works" — PO).
+2. Live JWT decoded during session: `sub` = PO's real Clerk user; **no `aud` claim** —
+   Clerk session tokens carry `azp` instead. Drove the HC-02 azp implementation (PR #115).
+3. `OWNER_CLERK_ID` in `.env.local` had literal `<>` brackets (placeholder paste error)
+   — would have broken owner resolution; fixed during session by COO.
+4. Non-owner account saw only its own (empty) data — data separation confirmed
+   (1.5-C live spot-check satisfied alongside 1.5-B).
+5. PO verdict on step 5: "not a complete fail, just a suboptimal pass" — hence PASS with
+   BUG-26 logged.
 
 ### UAT Session — 2026-03-20
 
