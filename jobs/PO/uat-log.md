@@ -59,7 +59,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 #### Findings
 
-- [ ] Admin panel nav button visible to non-owner users
+- [x] Admin panel nav button visible to non-owner users
       Steps: 1. Sign in as a fresh non-owner Clerk account (ryanvilliers00+test@gmail.com)
              2. Observe banner — admin button present
              3. Click it — admin page loads, every section renders "not authorised"
@@ -69,6 +69,7 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
       Fixed myself: no
       Bug: BUG-26 / GitHub #116 (P3, frontend presentation gating — not a security hole;
       backend enforcement verified correct in this same session)
+      Fixed: PR #117 (merged 2026-07-16) — GET /api/me + owner-gated nav/route
 
 #### Notes / Observations
 

@@ -1,0 +1,112 @@
+COO SESSION PARK — 2026-07-16 (NR-14 close-out + UI/testing follow-through)
+============================================================
+
+## Session summary
+Picked up after the 2026-07-15 audit session. Closed the last security gate (NR-14),
+fixed a UAT finding, then did a testing/UI effectiveness review at Ryan's request and
+dispatched three follow-up fixes in parallel. One of the three (E2E CI) came back
+broken on first CI run and required a real diagnose-and-fix cycle before merge.
+
+## Completed this session
+
+### Merged to main (in order)
+- PR #114 — README refresh (features, E2E test scripts, docs pointers). Audited against
+  the tree first; found genuine gaps despite prior "current" status.
+- PR #115 — fix(HC-02): azp validation + NR-14 gate close-out. Q5 real-auth UAT run live
+  with Ryan (owner account + second non-owner account via Clerk). Key finding: Clerk
+  session tokens carry no `aud` claim — `azp` (authorized party) is the audience
+  equivalent, validated against ALLOWED_ORIGINS. **NR-14 gate formally CLOSED, 13/13
+  PASS** (OP-06 checklist, hardening-gate.md). Issue #23 closed. One UAT finding logged
+  as BUG-26 (non-blocking).
+  - Also fixed during the UAT: `.env.local` `OWNER_CLERK_ID` had literal `<>` brackets
+    from a placeholder paste — would have broken owner resolution.
+- PR #117 — fix(BUG-26): hide admin panel from non-owner users. New `GET /api/me`
+  endpoint + `useMe` hook; admin nav link and `/admin` route now owner-gated
+  (not-authorised message for non-owners, no flash while loading).
+- PR #118 — chore(e2e): set OWNER_CLERK_ID in E2E backend env. Found while assessing
+  test effectiveness for Ryan: E2E suite was never wired into CI and had silently rotted
+  for 4 months (owner-model env breakage). One-line fix: 24/12 → 34/2.
+- PR #122 — feat(MAP-02): map legend for shading colours. Data-driven overlay, no
+  hardcoded colours, 5 component tests.
+- PR #123 — feat(UX-06): admin panel restyle. Blue → teal, Deactivate demoted from
+  solid-red to quiet-outline-reddens-on-hover. Restyle only, no behaviour change.
+- PR #124 — chore(OP-11): E2E isolation + CI gate. Real root cause of the "2 isolation
+  failures" was SEC-07 rate-limit exhaustion (one long-lived process, 36 sequential
+  specs), not DB leakage — fixed narrowly (headroom only under BYPASS_AUTH=true).
+  **First PR version failed hard in real CI (30/36 specs, 8.5min) despite passing
+  locally — COO caught this by reading the actual GitHub Actions log rather than
+  trusting the agent's status, sent it back with evidence.** Agent found two genuine
+  CI-only bugs (cold Vite dev-server transform too slow for GH's 2-vCPU runners;
+  VITE_API_BASE_URL has no fallback and .env.local doesn't exist in CI) and fixed both.
+  Final: 36/36 passing in real CI, verified by COO reading the raw log before merging.
+  E2E suite is now a permanent CI gate.
+
+### Not yet committed to main (staged locally, going out in this close-out PR)
+- tracker.json: BUG-26, UX-06, MAP-02, OP-11 all → done, with fix narratives
+- jobs/PO/uat-log.md: 2026-07-16 session recorded, BUG-26 finding closed
+- 3 completion reports filed to jobs/COO/inbox/ for agents whose work merged before a
+  report was filed (MAP-02, UX-06, OP-11) — process gap noticed during ledger audit,
+  corrected before close
+- drift-ledger.jsonl reviewed sentinel
+
+## Process note for future sessions
+Three background agents hit an account session-limit cutoff mid-task simultaneously
+(dispatched in parallel, all cut off in the same window). All three resumed cleanly via
+SendMessage to their agentId with no lost work — the harness preserves transcript state
+across the cutoff. Not a bug, just worth knowing: if a batch of parallel agents all fail
+with "session limit" notifications, resume each one rather than re-dispatching from
+scratch.
+
+Also worth carrying forward: **a subagent's own "PR is up, CI passing" self-report is
+not sufficient — verify by reading the actual CI job log yourself before merging.** The
+OP-11 first-round PR had all *pre-existing* CI jobs green and would have looked mergeable
+from a shallow check; only reading the new E2E job's own log revealed it was failing
+30/36. This session is the concrete case study for that rule.
+
+## State of play
+main green after every merge this session (verified independently each time via
+`gh run list --branch main`, not just PR-level checks). NR-14/OP-06 formally closed.
+Real auth is now the default local dev path (BYPASS_AUTH removed from .env.local).
+E2E suite (36 specs) now gates CI — no longer silent-rot risk.
+
+Both dev servers were running at various points this session for manual verification;
+currently stopped. `.env.local` cleaned of unused `CLERK_SECRET_KEY` / non-VITE
+`MAPTILER_KEY`.
+
+## Follow-up work queue (carried from 2026-07-15 park doc, unchanged — not touched this session)
+Confirmed bugs needing briefs:
+- Q3: locked trips fully read-only (can currently delete a locked trip + tag/untag
+  activities). Fix + lock-matrix contract test.
+- Q8: destructive PATCH on place dates wipes omitted fields; add
+  arrived_on <= departed_on validation.
+- Q12: geocode retry loop (dead 404 branch; empty-PATCH-as-poll).
+- Q13: enforce 200-char trip-name limit.
+- Q23: fix scripts/tracker.js (BUG-23) comment-aware stripper.
+
+Doc/other unblocked:
+- Q16 (create jobs/PO/screenshots/), Q18 (.docx->.md), Q19 (objective -> CODEBASE.md),
+  Q14/Q17 banners.
+- Q22: consolidate 13 test-DDL copies into one migration-applying factory.
+
+Work-through-together with Ryan:
+- Q7 (BRD v2.7 §5.11 sign-off), Q21 (Session-C skill drafts), Q1 (product-direction BRD
+  rewrite — solo tool vs. multi-user/iOS destination), Q10/Q11/Q20/Q25
+  (Architect/backend items).
+
+New from this session:
+- **Data migration**: Ryan's real Clerk account is empty — all prior trip data lives
+  under the BYPASS_AUTH test user. One-time reassignment needed if Ryan wants his
+  history under his real login. Flagged, not actioned — needs a deliberate/backed-up
+  approach, discuss with Ryan first.
+- Clerk session tokens have no email claim — user.email is blank for real-auth users.
+  Cosmetic, worth fixing next time auth is touched.
+- Housekeeping debt unchanged: ~60 stale local branches, ~24 worktree-agent branches,
+  ~29-file COO inbox backlog (older items, pre-dates this session's 3 new reports).
+
+## Suggested next session
+1. /coo-startup
+2. Decide: data migration for Ryan's real account, OR continue the audit bug queue
+   (Q3/Q8/Q12/Q13/Q23), OR the BRD product-direction conversation (Q1) — COO should ask
+   Ryan which is highest priority rather than assume.
+3. Housekeeping sweep: stale branch purge, inbox backlog triage, Q22 test-DDL
+   consolidation — good candidate for a quiet session or background dispatch.
