@@ -392,14 +392,23 @@ Required UAT steps (all must pass):
 **Requirement:** `jwtVerify` must validate `iss` and `aud` to prevent token reuse across
 Clerk instances or apps.
 
-**Current state: PARTIAL — issuer done (PR #88 `a12ca3c`), audience deferred.** `auth.ts`
-now calls `jwtVerify(token, jwks, { issuer })` with `issuer` sourced from a required
+**Current state: PASS (issuer PR #88 `a12ca3c`; azp PR #115, 2026-07-16).** `auth.ts`
+calls `jwtVerify(token, jwks, { issuer })` with `issuer` sourced from a required
 `CLERK_ISSUER` env var (startup-guarded like `CLERK_JWKS_URI`); a mismatched `iss` is
-rejected with 401 and is covered by a unit test. **`audience` is still not validated** —
-it was deferred because the real `aud` value can only be confirmed by decoding a live
-Clerk JWT, which requires real auth to be running (HC-01 / audit Q5). Adding
-`audience: process.env.CLERK_AUDIENCE` to the `jwtVerify` options is the remaining work,
-and it should land together with the HC-01 real-auth verification.
+rejected with 401 and is covered by a unit test. The audience half closed with a
+**corrected premise**: a live Clerk session token decoded during the Q5 real-auth UAT
+(2026-07-16) confirmed Clerk session tokens carry **no `aud` claim** — the audience
+equivalent is `azp` (authorized party), set to the browser origin the token was issued
+to (`http://localhost:5173`). PR #115 adds `azp` validation: after `jwtVerify`, a token
+whose `azp` is missing or not in the `ALLOWED_ORIGINS` allowlist is rejected with 401
+(this mirrors Clerk's own `verifyToken` `authorizedParties` semantics, strict on missing
+`azp`). Unit tests cover both rejection paths. No `CLERK_AUDIENCE` env var exists or is
+needed.
+
+> SUPERSEDED (2026-07-16) by PR #115 — retained for history. The `CLERK_AUDIENCE`
+> prescription below assumed Clerk session tokens carry an `aud` claim; a live token
+> decode showed they do not (the audience equivalent is `azp`, validated against
+> `ALLOWED_ORIGINS` instead — see Current state above).
 
 **Remediation:**
 1. Add `CLERK_ISSUER` and `CLERK_AUDIENCE` to `.env.local` and document in `.env.local.example`.
@@ -426,10 +435,12 @@ and it should land together with the HC-01 real-auth verification.
   env vars are not read during BYPASS_AUTH sessions. Contract tests that use `BYPASS_AUTH`
   do not need these vars set and are unaffected by this validation addition.
 
-**Verification:**
-- Contract test: Supply a JWT signed by a different Clerk instance (or forge `iss`); confirm 401.
-- Contract test: Supply a JWT with a mismatched `aud`; confirm 401.
-- Code review: Confirm `jwtVerify` options include issuer and audience.
+**Verification (updated 2026-07-16, PR #115 — `aud` → `azp` per the corrected premise):**
+- Unit test: token verified but `azp` not in allowlist → 401 (`auth.test.ts`).
+- Unit test: token verified but `azp` missing → 401 (`auth.test.ts`).
+- Unit test: wrong `iss` → 401 (`auth.test.ts`, since #88).
+- Code review: Confirm `jwtVerify` options include issuer, and `azp` is checked against
+  `ALLOWED_ORIGINS` after verification.
 - Code review: Confirm BYPASS_AUTH short-circuit runs before `jwtVerify` is called.
 
 ---
@@ -768,7 +779,7 @@ NR-14 PASSES when all of the following are GREEN:
 | Item | Requirement | Current |
 |---|---|---|
 | HC-01 | Clerk JWKS reachable in local dev | FAIL — firewall landed (#80); **pending real-auth PO UAT (Q5)** |
-| HC-02 | JWT issuer + audience validated | PARTIAL — issuer done (#88); **audience deferred (needs live `aud`, Q5)** |
+| HC-02 | JWT issuer + audience validated | PASS — issuer (#88); azp-as-audience (#115, no `aud` in Clerk tokens) |
 | HC-03 | Map shading user-scoped | PASS (#84) |
 | HC-04 | Admin writes owner-only | PASS (#82) |
 | HC-05 | Companion + shading config not leaked | PASS (#82) |
