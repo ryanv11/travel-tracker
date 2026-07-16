@@ -1,0 +1,90 @@
+COO SESSION PARK — 2026-07-16 (evening) — ponytail plugin review + UAT finding
+============================================================
+
+## Session summary
+Short session. Ran /coo-startup (all clean, one anomaly fixed — see below), then
+reviewed a third-party Claude plugin the user found (ponytail, github.com/DietrichGebert/
+ponytail), ran its audit methodology against this repo as a one-off (no plugin installed),
+and logged one confirmed UAT bug found via live non-owner testing.
+
+## Startup anomaly (resolved)
+Repo had a stale `.git/rebase-merge` state left over from 2026-07-07 (an abandoned
+interactive rebase of `chore/op09-doc-lifecycle`), inconsistent with `git status` showing
+main clean and up to date. Confirmed inert (that commit is already merged into main
+history), user approved `git rebase --abort` to clear it. Done — no data lost, main
+untouched.
+
+## Ponytail plugin review
+Reviewed https://github.com/DietrichGebert/ponytail (84.5k stars, MIT) — a behavior
+plugin that injects a YAGNI/stdlib-first coding ruleset via lifecycle hooks. Cloned and
+read every hook/runtime file: no network calls, no eval/exec, no postinstall script,
+defensively coded (shell-metachar allowlisting, BOM stripping, fail-open timeouts).
+Verdict: safe, but not installed — judged low incremental value since this environment's
+own system prompt already carries similar YAGNI/no-premature-abstraction instructions.
+Not adopted this session; no CLAUDE.md or settings changes made.
+
+## Ponytail-audit trial (ad hoc, no plugin installed)
+Ran the plugin's `ponytail-audit` methodology (one-shot, read-only, "lists findings,
+applies nothing") as a manual prompt against src/frontend + src/backend (excluding tests,
+migrations, node_modules) via a background general-purpose agent. Findings, after PO
+correction of two false positives:
+- CONFIRMED false positive: `CityItem` type / `GET /api/cities/:id/items` — not dead,
+  it's IT-09 (rating sort/filter across trips to the same city), backend done (PR #90),
+  frontend UI still a separate pending dispatch per tracker.json.
+- CONFIRMED real: `TripsPage.tsx` is genuinely dead (verified via grep + App.tsx routing
+  — `/trips` routes directly to `TripsLayout`; file's own docstring calls itself "legacy").
+- Also confirmed real (not re-verified as deeply, but PO didn't dispute): CategoryTab/
+  ActivityTab/CompanionTab near-duplication, useAdmin.ts CRUD hook triplication,
+  sanitiseUrl() unused, `_coverage` dead param + wasted SQL query in shading.service.ts.
+- Postgres branch in db/index.ts flagged but excluded — deliberate ADL-04 future-proofing,
+  a product-direction call, not a cleanup target.
+- Codebase size check: 12,688 lines in audited scope; ~460 lines removable ≈ 3.6% —
+  a handful of real spots, not systemic bloat.
+**No tracker entry or branch created for this cleanup batch yet** — PO said "scope but
+don't implement" given end-of-session token budget. Scope is fully written up in this
+session's conversation; next session should turn it into a tracker entry (likely
+CHORE-xx) + one chore brief before dispatching.
+
+## UAT finding logged (real bug, root-caused, not fixed)
+PO ad hoc tested with a non-owner account: couldn't add a country to a trip, including
+Japan (already seeded under the owner account — rules out a lazy-seeding theory).
+Traced to: `GET /api/admin/countries` sits behind `adminRouter.use(requireOwner)`
+(src/backend/routes/admin.ts:26, comment cites ADL-27/HC-04). `useAdmin.ts:191` is the
+only frontend call site for this endpoint. Likely a regression from the NR-14/HC-04
+hardening pass — it correctly owner-gated admin *write* routes but swept in this
+read-only reference-data endpoint that every user needs for the country picker.
+Logged in jobs/PO/uat-log.md as an open, unchecked finding (verdict FAIL) with full
+root-cause detail. **No bug ID assigned yet** — needs filing next session, should
+reference ADL-27/HC-04.
+
+## Committed this session
+- Branch `chore/uat-note-country-picker-gap`, **PR #126 open, NOT yet merged** —
+  CI was still running (all jobs pending) when the session ended; deferred to next
+  session rather than burn tokens polling. Contains:
+  - jobs/PO/uat-log.md: country-picker UAT finding (see above)
+  - .planning/drift-ledger.jsonl: this session's reviewed sentinel + entries
+- Local branch left in place; `main` checked out and clean, matching origin.
+
+## State of play
+main unchanged this session (all work is in PR #126, unmerged). No code changes made —
+this was a review/scoping/triage session by design (PO explicitly said no implementation,
+low token budget).
+
+## Suggested next session
+1. /coo-startup
+2. **First action**: check PR #126 CI (`gh pr checks 126`), merge if green, fix if red
+   (standard post-merge main-green verification applies once merged).
+3. File a bug for the country-picker/HC-04 over-gate finding (tracker entry + GitHub
+   issue, cross-referenced per CLAUDE.md rule) — likely small backend fix (split GET
+   /api/admin/countries off requireOwner, keep PATCH owner-gated) plus a lock-matrix-style
+   regression test.
+4. Decide whether to write up the ponytail-audit cleanup batch as a tracker entry +
+   chore brief (5 confirmed items, ~460 lines) — PO showed interest, just deferred for
+   tokens, not declined.
+5. IT-09 frontend half (IT-08/IT-09 sort/filter UI) is still a known-pending dispatch,
+   unrelated to this session's new findings — carried from existing tracker.json note.
+
+## Unchanged from prior park doc (2026-07-16 earlier session), not touched this session
+Q3/Q8/Q12/Q13/Q23 audit bug queue, Q16/Q18/Q19/Q14/Q17 doc items, Q22 test-DDL
+consolidation, Q7/Q21/Q1/Q10/Q11/Q20/Q25 work-through-together items, data migration
+question, Clerk email-claim gap, stale-branch/worktree housekeeping (~60 local branches).
