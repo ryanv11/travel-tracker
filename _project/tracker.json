@@ -882,6 +882,17 @@
       "notes": "PO noted photos button currently shows 'coming soon'. PH-01/02 only implemented the reference field. Full photo feature (upload, gallery, attachment) deferred to Phase 2+."
     },
     {
+      "id": "UX-06",
+      "type": "feature",
+      "title": "Admin panel restyle — match app design language",
+      "status": "done",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "From COO UI review 2026-07-16: admin panel uses blue accents (rest of app is teal) and a solid-red Deactivate button on every row (wall-of-alarm). Restyle only — teal accents, destructive action demoted to quiet secondary treatment, tabs consistent with app patterns. No IA/behaviour changes; admin E2E specs must still pass. GitHub issue #120. DONE 2026-07-16 PR #123: all 5 tabs + AdminPanel converted from inline styles to Tailwind classes matching app conventions (teal primary/active-tab, neutral secondary, Deactivate quiet-outline reddening only on hover). No hardcoded blue/red hex values remain."
+    },
+    {
       "id": "ENV-01",
       "type": "bug",
       "title": "Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall",
@@ -926,6 +937,17 @@
       "brdRefs": [],
       "phase": 3,
       "notes": "Done — PR #66 merged 2026-03-23. Added city.region_iso (regions join in getPlaces), serialised in buildTripResponse, City type updated, _regionFilter stub replaced with live filter (priority: city > region > country). 6 new filter tests. GitHub #52."
+    },
+    {
+      "id": "MAP-02",
+      "type": "feature",
+      "title": "Map legend explaining shading colours",
+      "status": "done",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "From COO UI review 2026-07-16: shading colours have no explanation on /map. Data-driven legend overlay from GET /api/map/shading/config ({ stateKey, displayName, colorHex }) — no hardcoded colours; must not cover MapLibre attribution. GitHub issue #121. DONE 2026-07-16 PR #122: new MapLegend.tsx (bottom-left overlay, useShadingConfig hook, renders nothing while loading/empty), mounted in MapView.tsx. 5 component tests."
     },
 
     // ─── QUALITY ─────────────────────────────────────────────────────────────
@@ -1046,12 +1068,12 @@
       "id": "BUG-26",
       "type": "bug",
       "title": "Admin panel nav entry visible to non-owner users",
-      "status": "open",
+      "status": "done",
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": ["SE-02"],
       "phase": 1,
-      "notes": "Found during Q5 real-auth UAT (2026-07-16), HC-01 step 5 second-account check. Non-owner sees the admin button in the banner, page loads, every section renders 'not authorised' (backend requireOwner correctly 403s — not a security hole, presentation gating only). Frontend should hide the nav entry for non-owners. PO verdict: 'suboptimal pass'. GitHub issue #116. Does not block NR-14."
+      "notes": "Found during Q5 real-auth UAT (2026-07-16), HC-01 step 5 second-account check. Non-owner sees the admin button in the banner, page loads, every section renders 'not authorised' (backend requireOwner correctly 403s — not a security hole, presentation gating only). Frontend should hide the nav entry for non-owners. PO verdict: 'suboptimal pass'. GitHub issue #116. Does not block NR-14. FIXED 2026-07-16 PR #117: new GET /api/me ({ id, email, isOwner }, requireAuth only) + useMe hook; Admin nav link owner-only (hidden while loading, no flash); /admin route wrapped in RequireOwner guard (not-authorised message for non-owners, panel never mounts). Access-matrix Part D + 6 App component tests added."
     },
     {
       "id": "BUG-25",
@@ -1119,6 +1141,17 @@
       "brdRefs": [],
       "phase": 1,
       "notes": "Main was red 2026-03-24 → 2026-07-07 with the human PO as the only detection mechanism (BUG-24). Two closing mechanisms added 2026-07-07: coo-startup check 1 (main CI health, blocking) and CLAUDE.md post-merge verification step. Branch-protection escalation offered to PO as follow-up decision. GitHub issue #101."
+    },
+    {
+      "id": "OP-11",
+      "type": "requirement",
+      "title": "E2E suite stabilised and gating in CI",
+      "status": "done",
+      "owner": "qa",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "E2E suite (36 specs) was never wired into CI and silently rotted for 4 months (owner-model env breakage, fixed in PR #118: 24/12 → 34/2). GitHub issue #119. DONE 2026-07-16 PR #124: real root cause of the 2 'isolation' failures was SEC-07's per-process rate limiter exhausted by one long-lived backend serving all 36 specs sequentially (not DB state leakage) — max raised only under BYPASS_AUTH=true (fatal in prod), 300 req/min unchanged for real deployments; deleteAllTrips now throws loudly instead of swallowing failures. Real data-testid=\"trip-detail\" added (closes the panel-scoping debt). New E2E CI job added to ci.yml. First 2 CI attempts failed for real cold-runner reasons the COO caught and sent back: (1) Vite dev server too slow to cold-transform on 2-vCPU GH runners — CI now runs vite build + vite preview instead (needed a new preview.proxy block in vite.config.ts, since preview doesn't inherit server.proxy); (2) VITE_API_BASE_URL has no fallback and is normally supplied by gitignored .env.local, which doesn't exist in CI — set explicitly in the CI build command. Final: 36/36 passing in real GitHub Actions CI (30.6s). Related ADL-22."
     },
 
     // ─── BRD BACKFILL — 2026-03-23 (requirements added in v2.4/v2.5 never tracked) ──
