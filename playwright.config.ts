@@ -93,8 +93,13 @@ export default defineConfig({
       // VITE_BYPASS_AUTH: skips Clerk auth gate so E2E tests can access the app
       // unauthenticated. Must be set at BUILD time in CI (Vite statically replaces
       // import.meta.env.VITE_* at build time), not just at serve time.
+      // VITE_API_BASE_URL: src/frontend/utils/apiClient.ts prefixes every fetch() with
+      // this — it has no fallback, so an unset value bakes literal "undefined" into
+      // every API URL in the built bundle. Locally this is always set via .env.local
+      // (which Vite auto-loads independently of the backend's own dotenv calls), but
+      // .env.local doesn't exist in CI, so it must be set explicitly here for the build.
       command: process.env.CI
-        ? 'VITE_BYPASS_AUTH=true npm run build && npx vite preview --port 5173 --strictPort'
+        ? 'VITE_BYPASS_AUTH=true VITE_API_BASE_URL=http://localhost:3001 npm run build && npx vite preview --port 5173 --strictPort'
         : 'VITE_BYPASS_AUTH=true npm run dev',
       url: 'http://localhost:5173',
       reuseExistingServer: false,
