@@ -1,6 +1,6 @@
 # Travel Tracker
 
-A personal travel tracking app. Log trips, places, and items (restaurants, hotels, flights, experiences, and more), and view your travel history on an interactive world map with country and region shading.
+A personal travel tracking app. Log trips, attach places (cities), and record items within each place — restaurants, hotels, flights, experiences, and more. Trips move through a status lifecycle (Planning → Active → Review → Locked) with a post-trip review flow, and your travel history renders on an interactive world map with country and region shading.
 
 ---
 
@@ -8,14 +8,16 @@ A personal travel tracking app. Log trips, places, and items (restaurants, hotel
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 18, Vite, Tailwind CSS, TanStack Query v5 |
+| Frontend | React 18, Vite, Tailwind CSS v4, TanStack Query v5, React Router v6 |
 | Map | MapLibre GL JS via react-map-gl |
-| Backend | Node.js, Express, TypeScript |
+| Backend | Node.js 22, Express 5, TypeScript |
+| Validation | Zod |
 | ORM | Drizzle ORM |
 | Database | SQLite via @libsql/client (PostgreSQL-ready — config change only) |
 | Auth | Clerk (BYPASS_AUTH=true available for local dev) |
 | Geocoding | OpenStreetMap Nominatim (queued and retried when offline) |
 | Map data | Natural Earth GeoJSON (bundled — no internet required for boundaries) |
+| Testing | Vitest (unit + contract), Playwright (E2E) |
 | Linting | Biome |
 
 ---
@@ -88,6 +90,8 @@ npm run type:check:all     # TypeScript (frontend + backend)
 npm run test:backend       # Backend unit tests (Vitest)
 npm run test:frontend      # Frontend unit tests (Vitest)
 npm run test:contract      # Contract tests (requires backend running on :3001)
+npm run test:e2e           # Playwright E2E (uses its own e2e.db; browsers required)
+npm run test:e2e:clean     # Remove the E2E database file
 ```
 
 ---
@@ -103,6 +107,8 @@ npm run db:migrate    # apply pending migrations
 
 `db:push` is disabled. See `patches/drizzle-kit+0.31.9.patch` for context.
 
+To browse the database interactively: `npm run db:studio` (Drizzle Studio).
+
 ---
 
 ## Data storage
@@ -110,3 +116,12 @@ npm run db:migrate    # apply pending migrations
 All data is stored in a local SQLite file. The path is set by `SQLITE_PATH` in `.env.local`.
 
 **OneDrive / cloud sync:** The database file can live inside a synced folder for personal backup, but only one device should run the app at a time. SQLite does not support concurrent writes from multiple machines via a synced folder.
+
+---
+
+## More documentation
+
+- [CODEBASE.md](./CODEBASE.md) — full repository map, tech-stack notes, and how the multi-agent workflow directories (`jobs/`, `_project/`) fit together
+- [_project/travel-tracker-BRD.md](./_project/travel-tracker-BRD.md) — business requirements document
+- [jobs/backend/tech/20260307-api-reference.md](./jobs/backend/tech/20260307-api-reference.md) — REST API reference
+- [CLAUDE.md](./CLAUDE.md) — agent/contributor workflow rules (branching, testing gates, schema-change policy)
