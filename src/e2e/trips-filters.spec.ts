@@ -42,9 +42,18 @@ test('sort Name A–Z orders trips alphabetically', async ({ page, request }) =>
   await createTrip(request, { name: 'Mango Trip' });
 
   await page.goto('http://localhost:5173/trips');
+  // OP-11: wait for the initial (unsorted) list to actually render before interacting —
+  // the <select> exists in the DOM before the trips fetch resolves, so selectOption()
+  // doesn't wait for data. Without this, page.content() below could snapshot the page
+  // before React Query's fetch (or the post-sort re-render) had committed, making
+  // 'Apple Trip' intermittently absent — a real race, not a CI-speed artifact.
+  await expect(page.getByText('Zebra Trip')).toBeVisible();
 
   // Select by option value — matches <option value="name_asc">Name A–Z</option>
   await page.locator('select').selectOption('name_asc');
+
+  // Wait for the re-sorted render to commit before reading DOM order.
+  await expect(page.getByText('Apple Trip')).toBeVisible();
 
   // Apple should precede Mango, Mango should precede Zebra in DOM order
   const html = await page.content();

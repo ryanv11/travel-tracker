@@ -29,8 +29,7 @@ test('trip detail opens on click', async ({ page, request }) => {
   await createTrip(request, { name: 'Rome Trip' });
   await page.goto('http://localhost:5173/trips');
   await page.getByText('Rome Trip').click();
-  // Right panel should show the trip name
-  await expect(
-    page.locator('[data-testid="trip-detail"]').or(page.getByRole('main')).getByText('Rome Trip'),
-  ).toBeVisible();
+  // Right panel should show the trip name — trip-detail is a real testid on
+  // TripDetail's root element (see src/frontend/components/TripDetail/TripDetail.tsx)
+  await expect(page.getByTestId('trip-detail').getByText('Rome Trip')).toBeVisible();
 });

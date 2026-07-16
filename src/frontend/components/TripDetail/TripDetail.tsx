@@ -96,7 +96,7 @@ export function TripDetail({ trip }: TripDetailProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" data-testid="trip-detail">
       {/* Header zone */}
       <div className="flex-shrink-0 p-6 pb-3">
         {/* DELTA-04: Title left, actions [StatusBadge | Edit | Photos] right */}

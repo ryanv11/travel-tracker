@@ -234,6 +234,15 @@ const limiter = rateLimit({ windowMs: 60_000, max: 300, standardHeaders: true, l
 app.use('/api/', limiter);
 ```
 
+**OP-11 (2026-07-16, #119):** `max` is conditional on `BYPASS_AUTH === 'true'` in
+`src/backend/server.ts` (300 in every real deployment; raised to 5000 only under
+BYPASS_AUTH, which is already fatal in `NODE_ENV=production` — see the guard in
+`server.ts` startup). This exists because Playwright's E2E suite runs all 36 specs
+against one long-lived backend process, and the limiter's counter is per-process —
+it was hitting 300/60s within the suite's own request volume and producing 429s that
+looked like cross-spec state leakage. Production-facing behavior (300 req/min,
+single-user local use) is unchanged; only the test/CI harness gets headroom.
+
 300 req/min is generous for local single-user use. The structure (not the number) is what matters now.
 Phase 2 tightens this to ~60 general / ~20 for writes. No code change needed — config only.
 
