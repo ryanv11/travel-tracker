@@ -18,6 +18,7 @@ import type { TripSummary } from '../../types/api';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { CityMarkers } from './CityMarkers';
 import { CountryLayer } from './CountryLayer';
+import { MapLegend } from './MapLegend';
 import { RegionLayer } from './RegionLayer';
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY as string;
@@ -158,6 +159,10 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
         {/* City pins — only for geocoded cities */}
         <CityMarkers trips={trips} />
       </MapGL>
+
+      {/* Shading colour legend — bottom-left, clear of the MapLibre attribution
+          (bottom-right) and the loading overlay (top-left) */}
+      <MapLegend />
     </div>
   );
 }
