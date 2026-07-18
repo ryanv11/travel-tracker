@@ -18,6 +18,8 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run check
+      - name: STATUS.md freshness
+        run: npm run status:check
 
   typecheck:
     name: Type Check

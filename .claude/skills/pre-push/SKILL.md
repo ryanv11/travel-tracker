@@ -10,7 +10,11 @@ npm run check              # Biome lint + format
 npm run type:check:all     # TypeScript (frontend + backend)
 npm run test:backend       # Backend unit tests
 npm run test:frontend      # Frontend unit tests
+npm run status:check       # _project/STATUS.md in sync with tracker.json
 ```
+
+If `status:check` fails, run `npm run status` and commit the regenerated
+`_project/STATUS.md` alongside your change — STATUS.md is generated, never hand-edited.
 
 Contract tests require a live backend — only run `npm run test:contract` if the backend is running locally.
 
