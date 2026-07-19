@@ -141,6 +141,38 @@ citiesRouter.post(
 );
 
 // ----------------------------------------------------------------
+// GET /api/cities/:id  (BUG-29)
+// Read-only single-city fetch, used by the frontend geocode retry queue to
+// poll geocode_status without issuing writes. Authenticated read (app-level
+// requireAuth) — cities are global seed data, so no owner gate and no
+// per-user scoping (matches GET /api/cities search). Never triggers
+// geocoding (ADL-10) — the backend queue owns re-resolution.
+// ----------------------------------------------------------------
+citiesRouter.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const cityId = parseInt(String(req.params.id), 10);
+    if (Number.isNaN(cityId)) throw new NotFoundError('City');
+
+    const db = getDb();
+
+    const rows = await db.select().from(cities).where(eq(cities.id, cityId)).limit(1);
+    if (!rows.length) throw new NotFoundError('City');
+
+    const city = rows[0];
+    res.json({
+      id: city.id,
+      name: city.name,
+      country_code: city.countryCode,
+      region_id: city.regionId,
+      latitude: city.latitude,
+      longitude: city.longitude,
+      geocode_status: city.geocodeStatus,
+    });
+  }),
+);
+
+// ----------------------------------------------------------------
 // PATCH /api/cities/:id  (C2)
 // ADL-27 / SE-03: owner-only (city edits pollute the global seed)
 // ----------------------------------------------------------------

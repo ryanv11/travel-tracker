@@ -2,8 +2,9 @@
  * useGeocodeRetryQueue — React hook for NR-06 offline geocoding retry queue.
  *
  * Initialises the singleton geocodeRetryQueue service on first mount (App.tsx),
- * wires up the PATCH retry function, and exposes the current queue state plus
- * control methods to components.
+ * wires up the GET status-poll function, and exposes the current queue state
+ * plus control methods to components. Polling is read-only (BUG-29) — the
+ * backend re-runs geocoding itself every 15 minutes.
  *
  * Usage in App.tsx:
  *   const { pendingCount, retryAll, dismiss } = useGeocodeRetryQueue();
@@ -17,7 +18,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { geocodeRetryQueue, type RetryQueueEntry } from '../services/geocodeRetryQueue';
 import type { City } from '../types/api';
-import { apiPatch } from '../utils/apiClient';
+import { apiGet } from '../utils/apiClient';
 
 export type { RetryQueueEntry };
 
@@ -31,10 +32,12 @@ export function useGeocodeRetryQueue() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    // Wire up the retry function: PATCH /api/cities/:id (empty body).
-    // The response carries the current geocode_status so we can detect resolution.
+    // Wire up the poll function: GET /api/cities/:id (read-only — BUG-29).
+    // The response carries the current geocode_status so we can detect
+    // resolution; a 404 (ApiError) signals the city was deleted and the
+    // queue removes the entry permanently.
     geocodeRetryQueue.init(async (cityId: number) => {
-      const city = await apiPatch<City>(`/api/cities/${cityId}`, {});
+      const city = await apiGet<City>(`/api/cities/${cityId}`);
       return { geocode_status: city.geocode_status };
     });
 
