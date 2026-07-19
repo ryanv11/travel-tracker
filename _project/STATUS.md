@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-18 (OP-12 dashboard + stale-status sweep)_
+_Tracker last updated: 2026-07-18 (OP-14 COO skills installed, OP-15 deferred-skills design pass)_
 
 ## Phases
 
@@ -16,7 +16,7 @@ _Tracker last updated: 2026-07-18 (OP-12 dashboard + stale-status sweep)_
 | PHASE-4 | QA & Documentation | 🔄 In progress |
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 
-## Open work (12)
+## Open work (13)
 
 ### P0 — Blockers (1)
 
@@ -37,10 +37,11 @@ _Tracker last updated: 2026-07-18 (OP-12 dashboard + stale-status sweep)_
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
 | BRD-FL04 | Flight number lookup — auto-populate fields from flight number + date (FL-04) | backend | ⬜ Pending |
 
-### P3 — Minor (3)
+### P3 — Minor (4)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
+| OP-15 | Design pass for deferred skills — schema-change + backend-route-change | coo | ⬜ Pending |
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
 | QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
@@ -53,7 +54,7 @@ _Tracker last updated: 2026-07-18 (OP-12 dashboard + stale-status sweep)_
 | requirement | `███████████████████░` 29/30 | 29 | 1 | 5 |
 | bug | `████████████████████` 24/24 | 24 | 0 | 3 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
-| chore | `██████████░░░░░░░░░░` 1/2 | 1 | 1 | 0 |
+| chore | `██████████░░░░░░░░░░` 2/4 | 2 | 2 | 0 |
 
 <details>
 <summary>Deferred (8)</summary>
@@ -82,4 +83,4 @@ _Tracker last updated: 2026-07-18 (OP-12 dashboard + stale-status sweep)_
 
 ---
 
-_85 done · 8 deferred · 1 closed · 12 open — 106 tracked items_
+_86 done · 8 deferred · 1 closed · 13 open — 108 tracked items_

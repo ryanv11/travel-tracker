@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-18 (OP-12 dashboard + stale-status sweep)"
+    "updated": "2026-07-18 (OP-14 COO skills installed, OP-15 deferred-skills design pass)"
   },
   "items": [
 
@@ -744,6 +744,28 @@
       "brdRefs": [],
       "phase": 4,
       "notes": "PO direction 2026-03-09. Schedule after Phase 1 sign-off. Beta provides working baseline for UX review."
+    },
+    {
+      "id": "OP-14",
+      "type": "chore",
+      "title": "Install COO skills — coo-merge-and-close + record-decision (Session C, Q21)",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "GitHub issue #133. PO decision 2026-07-18 on the four Session-C skill drafts: install the two COO-lane skills, updated to current repo state (BUG-23 warnings replaced with status:check validation; OP-11 read-the-CI-log lesson institutionalised). CLAUDE.md merge/close sections slimmed to pointers (audit Q24, scoped). schema-change + backend-route-change deferred to OP-15; W5 frontend skill deferred until PHASE-6 friction data."
+    },
+    {
+      "id": "OP-15",
+      "type": "chore",
+      "title": "Design pass for deferred skills — schema-change + backend-route-change",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "PO direction 2026-07-18: these two Session-C drafts need more consideration and planning before installing. Prerequisites: (a) Q22 test-DDL consolidation lands first — it removes the schema skill's most error-prone step (13 hand-mirrored DDL copies); (b) Q3/Q8 lock/PATCH fixes land so the backend skill's carve-out warnings can be written as settled rules; (c) decide the brief-template enforcement mechanism (skills only work if COO briefs consistently instruct agents to load them). Drafts remain in audits/session-c-workflow-extraction.md on chore/audit-questions. W5 frontend skill: extract from real PHASE-6 friction, not speculatively."
     },
     {
       "id": "OP-12",
