@@ -18,7 +18,32 @@ description: COO session startup audit. Invoked by the COO at the start of every
 
 ## Startup procedure
 
-Work through these five checks in order. Surface any issues to the user before doing anything else.
+Work through these checks in order. Surface any issues to the user before doing anything else.
+
+### 0. Hook canary
+
+The `.claude/hooks/*.sh` hooks fail silently by design (`|| true`, `exit 0` paths) — if
+one breaks, its protection just stops with no error (audit Session B, invariant 30). Prove
+they work rather than trusting silence:
+
+```bash
+# db:push guard must emit a deny decision
+echo '{"tool_input":{"command":"npx drizzle-kit push"}}' \
+  | bash /workspace/.claude/hooks/block-db-push.sh | grep -q '"deny"' \
+  && echo "db:push guard OK" || echo "FAIL: db:push guard broken"
+
+# typecheck hook must append a perf-log line end-to-end
+before=$(wc -l < /workspace/.claude/hooks/typecheck-perf.log)
+echo '{"tool_input":{"file_path":"/workspace/src/backend/server.ts"}}' \
+  | bash /workspace/.claude/hooks/typecheck.sh >/dev/null
+after=$(wc -l < /workspace/.claude/hooks/typecheck-perf.log)
+[ "$after" -gt "$before" ] && echo "typecheck hook OK" || echo "FAIL: typecheck hook broken"
+```
+
+Any FAIL → fix the hook before doing anything else this session. Secondary tell for the
+drift ledger: an editing session that produced zero new ledger entries means the
+PostToolUse hooks are silently broken — investigate before trusting this session's
+typecheck feedback.
 
 ### 1. Main CI health check
 

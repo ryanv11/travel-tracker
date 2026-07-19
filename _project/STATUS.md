@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-18 (BRD v3.0 planning-first — new PHASE-6 + 9 tracker entries)_
+_Tracker last updated: 2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first + OP-13/14/15)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-18 (BRD v3.0 planning-first — new PHASE-6 + 9 t
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (21)
+## Open work (22)
 
 ### P0 — Blockers (1)
 
@@ -50,10 +50,11 @@ _Tracker last updated: 2026-07-18 (BRD v3.0 planning-first — new PHASE-6 + 9 t
 | BRD-LB01 | Destination recommendations view — aggregated across trips (LB-01) | fullstack | ⬜ Pending |
 | BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
 
-### P3 — Minor (5)
+### P3 — Minor (6)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
+| OP-15 | Design pass for deferred skills — schema-change + backend-route-change | coo | ⬜ Pending |
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
 | QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
@@ -68,7 +69,7 @@ _Tracker last updated: 2026-07-18 (BRD v3.0 planning-first — new PHASE-6 + 9 t
 | requirement | `███████████████████░` 29/31 | 29 | 2 | 5 |
 | bug | `████████████████████` 24/24 | 24 | 0 | 3 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
-| chore | `██████████░░░░░░░░░░` 1/2 | 1 | 1 | 0 |
+| chore | `████████████░░░░░░░░` 3/5 | 3 | 2 | 0 |
 
 <details>
 <summary>Deferred (8)</summary>
@@ -97,4 +98,4 @@ _Tracker last updated: 2026-07-18 (BRD v3.0 planning-first — new PHASE-6 + 9 t
 
 ---
 
-_85 done · 8 deferred · 1 closed · 21 open — 115 tracked items_
+_87 done · 8 deferred · 1 closed · 22 open — 118 tracked items_
