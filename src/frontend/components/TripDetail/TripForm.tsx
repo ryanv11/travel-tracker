@@ -150,6 +150,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
               className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              maxLength={200}
               required
             />
           </div>

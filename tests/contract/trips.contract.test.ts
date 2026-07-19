@@ -12,7 +12,7 @@
  *   PATCH  /api/trips/:id/status          — transitions, invalid transition
  *   PATCH  /api/trips/:id/lock            — lock shortcut
  *   PATCH  /api/trips/:id/unlock          — unlock shortcut
- *   GET    /api/trips/:id/summary         — TripSummary shape (BUG-01 regression)
+ *   GET    /api/trips/:id/summary         — 404 (endpoint never implemented; see BUG-01 note)
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -83,17 +83,25 @@ describe('POST /api/trips', () => {
     expect(res.body).toHaveProperty('error');
   });
 
-  it('BUG-10 — name > 200 chars should be rejected (currently accepted — backend defect)', async () => {
-    // BRD §5.1 and API reference specify max 200 chars.
-    // zName schema uses max(255) — does not enforce the documented 200-char limit.
-    // This test documents the gap. Expected behaviour post-fix: 400.
-    // Current (wrong) behaviour: 201 Created.
+  it('BUG-10 — 201 when name is exactly 200 chars (boundary accepted)', async () => {
+    // BRD §5.1 and API reference specify max 200 chars — 200 is valid.
+    const name = 'x'.repeat(200);
     const res = await api
       .post('/api/trips')
-      .send({ name: 'x'.repeat(201), start_date: '2026-06-01', end_date: '2026-06-15' });
+      .send({ name, start_date: '2026-06-01', end_date: '2026-06-15' })
+      .expect(201);
 
-    // TODO: change to .expect(400) once BUG-10 is fixed in backend validation schema
-    expect([201, 400]).toContain(res.status);
+    expect(res.body.name).toBe(name);
+  });
+
+  it('BUG-10 — 400 when name exceeds 200 chars', async () => {
+    const res = await api
+      .post('/api/trips')
+      .send({ name: 'x'.repeat(201), start_date: '2026-06-01', end_date: '2026-06-15' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+    expect(res.body).toHaveProperty('details');
   });
 });
 
@@ -162,10 +170,11 @@ describe('GET /api/trips/:id', () => {
     expect(res.body).toHaveProperty('error');
   });
 
-  it('400 — non-integer trip ID', async () => {
-    const res = await api.get('/api/trips/not-an-id');
-    // Backend may return 400 or 404 — either is acceptable; must not crash (500)
-    expect(res.status).not.toBe(500);
+  it('404 — non-integer trip ID', async () => {
+    // Route parses the id with parseInt and treats NaN as "Trip not found"
+    // (src/backend/routes/trips.ts GET /:id) — a non-integer id is a 404, never a 500.
+    const res = await api.get('/api/trips/not-an-id').expect(404);
+    expect(res.body).toHaveProperty('error');
   });
 });
 
@@ -187,6 +196,21 @@ describe('PATCH /api/trips/:id', () => {
 
     expect(res.body.name).toBe('[TEST] PATCH trip — updated');
     expect(res.body.id).toBe(tripId);
+  });
+
+  it('BUG-10 — 200 when updated name is exactly 200 chars (boundary accepted)', async () => {
+    const name = 'y'.repeat(200);
+    const res = await api.patch(`/api/trips/${tripId}`).send({ name }).expect(200);
+    expect(res.body.name).toBe(name);
+  });
+
+  it('BUG-10 — 400 when updated name exceeds 200 chars', async () => {
+    const res = await api
+      .patch(`/api/trips/${tripId}`)
+      .send({ name: 'y'.repeat(201) })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
   });
 
   it('400 — invalid date range on update', async () => {
@@ -315,7 +339,7 @@ describe('PATCH /api/trips/:id/lock and /unlock', () => {
 
 // ─── GET /api/trips/:id/summary — BUG-01 REGRESSION ──────────────────────────
 
-describe('GET /api/trips/:id/summary (BUG-01 regression)', () => {
+describe('GET /api/trips/:id/summary (BUG-01 history)', () => {
   let tripId: number;
 
   beforeAll(async () => {
@@ -323,37 +347,14 @@ describe('GET /api/trips/:id/summary (BUG-01 regression)', () => {
     tripId = trip.id;
   });
 
-  it('200 — summary endpoint exists and returns 200', async () => {
-    // NOTE: This endpoint may not exist yet — BC-01 (Backend correction round 2)
-    // adds places data. This test documents the EXPECTED contract post-fix.
-    // It is expected to FAIL until BC-01 is deployed.
-    const res = await api.get(`/api/trips/${tripId}/summary`);
-    // Accept 200 (fixed) or 404 (endpoint not yet implemented) — record which
-    expect([200, 404]).toContain(res.status);
-    if (res.status === 200) {
-      // BUG-01 fix: TripSummary must include a places array
-      expect(res.body).toHaveProperty('id');
-      expect(res.body).toHaveProperty('name');
-      expect(res.body).toHaveProperty('status');
-      expect(res.body).toHaveProperty('places');
-      expect(Array.isArray(res.body.places)).toBe(true);
-    }
-  });
-
-  it('PENDING — places array items must include city coordinates (BUG-01 fix verification)', async () => {
-    // This test is intentionally permissive until BC-01 lands.
-    // Once BC-01 is deployed, tighten this to:
-    //   expect(res.body.places[0]).toHaveProperty('city_id')
-    //   expect(res.body.places[0]).toHaveProperty('latitude')
-    //   expect(res.body.places[0]).toHaveProperty('longitude')
-    // For now: just confirm the summary endpoint shape is present.
-    const res = await api.get(`/api/trips/${tripId}/summary`);
-    if (res.status === 200 && res.body.places?.length > 0) {
-      const place = res.body.places[0];
-      expect(place).toHaveProperty('city_id');
-      expect(typeof place.latitude === 'number' || place.latitude === null).toBe(true);
-      expect(typeof place.longitude === 'number' || place.longitude === null).toBe(true);
-    }
-    // If no places or endpoint not yet implemented, pass silently
+  it('404 — no /summary endpoint exists; places data lives on GET /api/trips/:id', async () => {
+    // BUG-10 audit follow-up (2026-07): the old tests here accepted either 200 or 404
+    // ("expected to FAIL until BC-01 is deployed") and so could never fail. Reality:
+    // the /summary endpoint was never implemented — BUG-01's places data is served
+    // by GET /api/trips/:id instead (its places array is asserted above in this file).
+    // This test pins the actual contract: /summary is not a route. If a summary
+    // endpoint is ever added, replace this test with real TripSummary shape assertions
+    // (id, name, status, places[] with city_id/latitude/longitude).
+    await api.get(`/api/trips/${tripId}/summary`).expect(404);
   });
 });

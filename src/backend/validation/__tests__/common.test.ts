@@ -63,6 +63,14 @@ describe('zName', () => {
     const name = 'A'.repeat(201);
     fails(zName, name);
   });
+
+  it('BUG-10: over-limit rejection carries a clear message', () => {
+    const result = zName.safeParse('A'.repeat(201));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('Name must be 200 characters or fewer');
+    }
+  });
 });
 
 // ----------------------------------------------------------------

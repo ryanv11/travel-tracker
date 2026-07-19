@@ -92,6 +92,16 @@ describe('CreateTripSchema', () => {
     const result = passes(CreateTripSchema, { ...valid, name: '  Japan 2024  ' });
     expect(result.name).toBe('Japan 2024');
   });
+
+  it('BUG-10: accepts a name of exactly 200 characters', () => {
+    const name = 'A'.repeat(200);
+    const result = passes(CreateTripSchema, { ...valid, name });
+    expect(result.name).toBe(name);
+  });
+
+  it('BUG-10: rejects a name of 201 characters', () => {
+    fails(CreateTripSchema, { ...valid, name: 'A'.repeat(201) });
+  });
 });
 
 // ----------------------------------------------------------------
@@ -133,6 +143,16 @@ describe('UpdateTripSchema', () => {
 
   it('rejects an empty string for name', () => {
     fails(UpdateTripSchema, { name: '' });
+  });
+
+  it('BUG-10: accepts a name of exactly 200 characters', () => {
+    const name = 'B'.repeat(200);
+    const result = passes(UpdateTripSchema, { name });
+    expect(result.name).toBe(name);
+  });
+
+  it('BUG-10: rejects a name of 201 characters', () => {
+    fails(UpdateTripSchema, { name: 'B'.repeat(201) });
   });
 });
 
