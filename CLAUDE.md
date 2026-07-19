@@ -110,28 +110,18 @@ gh run view <run-id> --log-failed   # if any job failed
 - Do not consider a task complete until CI passes (all jobs green)
 - Fix any CI failures before filing your completion report
 
-### Merging a PR (COO only)
-```bash
-gh pr merge <number> --repo ryanv11/travel-tracker --squash --delete-branch
-git checkout main && git pull
-git branch -D <branch-name>   # force-delete local branch (expected with squash merges)
-```
-- GitHub is configured to auto-delete remote branches on merge (`delete_branch_on_merge=true`)
-- Squash merge is standard — one clean commit per PR on `main`
-- Local branch must be manually deleted after merge — do not leave stale local branches
-- Run `git branch` after every merge session to confirm no branches remain except `main`
+### Merging a PR and closing a session (COO only)
+The COO merges via the `/coo-merge-and-close` skill — squash merge, branch hygiene,
+and the full session-close checklist live there. Two rules bind regardless:
+- Squash merge is standard; no stale local branches after a merge session
+- **Post-merge verification is mandatory**: main's own CI must go green after every
+  merge (`gh run list --branch main`) — a green PR does not guarantee a green main
+  (BUG-24). Red main is fixed immediately, never left unowned.
 
-### Post-merge verification (mandatory)
-After every merge, confirm **main's own CI runs go green** before the next merge or
-session end:
-```bash
-gh run list --repo ryanv11/travel-tracker --branch main --limit 4
-```
-A PR being green does not guarantee main stays green — two individually-green PRs can
-compose to a red main via squash-merge races (this is exactly how BUG-24's Type Check
-failure landed and sat undetected from 2026-03-24 to 2026-07-07). If main goes red after
-a merge, fixing it is the immediate next action — it is never left for a future session
-without a tracked issue. `/coo-startup` check 1 is the backstop, not the primary control.
+### Recording decisions (ADL entries, BRD bumps)
+Load the `/record-decision` skill before editing the ADL log, a standalone ADL file,
+or the BRD — numbering, supersession stamps, open-question closure, and the
+three-places BRD version bump live there.
 
 ## Environment
 - Running inside a devcontainer (Docker) — workspace at `/workspace`
