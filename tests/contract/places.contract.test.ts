@@ -166,6 +166,81 @@ describe('POST /api/trips/:tripId/places', () => {
   });
 });
 
+// ─── PATCH /api/trips/:tripId/places/:placeId (BUG-28) ────────────────────────
+
+describe('PATCH /api/trips/:tripId/places/:placeId', () => {
+  let tripId: number;
+  let placeId: number;
+
+  beforeAll(async () => {
+    const trip = await createTestTrip({ name: '[TEST] PATCH place dates trip' });
+    tripId = trip.id;
+    const res = await api
+      .post(`/api/trips/${tripId}/places`)
+      .send({ city_id: sharedCityId, arrived_on: '2026-06-02', departed_on: '2026-06-06' })
+      .expect(201);
+    placeId = res.body.id;
+  });
+
+  it('200 — single-field PATCH preserves the omitted date (non-destructive)', async () => {
+    const res = await api
+      .patch(`/api/trips/${tripId}/places/${placeId}`)
+      .send({ arrived_on: '2026-06-03' })
+      .expect(200);
+
+    expect(res.body.arrived_on).toBe('2026-06-03');
+    expect(res.body.departed_on).toBe('2026-06-06');
+  });
+
+  it('400 — arrived_on after departed_on in same body is rejected', async () => {
+    const res = await api
+      .patch(`/api/trips/${tripId}/places/${placeId}`)
+      .send({ arrived_on: '2026-06-10', departed_on: '2026-06-05' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('400 — single-field PATCH violating ordering against stored value is rejected', async () => {
+    // stored departed_on is 2026-06-06; arriving after it must be rejected
+    const res = await api
+      .patch(`/api/trips/${tripId}/places/${placeId}`)
+      .send({ arrived_on: '2026-06-10' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('200 — arrived_on equal to departed_on is accepted (same day)', async () => {
+    const res = await api
+      .patch(`/api/trips/${tripId}/places/${placeId}`)
+      .send({ arrived_on: '2026-06-06', departed_on: '2026-06-06' })
+      .expect(200);
+
+    expect(res.body.arrived_on).toBe('2026-06-06');
+    expect(res.body.departed_on).toBe('2026-06-06');
+  });
+
+  it('200 — explicit null clears one date, preserving the other', async () => {
+    const res = await api
+      .patch(`/api/trips/${tripId}/places/${placeId}`)
+      .send({ arrived_on: null })
+      .expect(200);
+
+    expect(res.body.arrived_on).toBeNull();
+    expect(res.body.departed_on).toBe('2026-06-06');
+  });
+
+  it('404 — PATCH on non-existent place', async () => {
+    const res = await api
+      .patch(`/api/trips/${tripId}/places/999999999`)
+      .send({ arrived_on: '2026-06-03' })
+      .expect(404);
+
+    expect(res.body).toHaveProperty('error');
+  });
+});
+
 // ─── DELETE /api/trips/:tripId/places/:placeId ────────────────────────────────
 
 describe('DELETE /api/trips/:tripId/places/:placeId', () => {

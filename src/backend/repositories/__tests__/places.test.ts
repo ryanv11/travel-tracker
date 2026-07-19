@@ -374,6 +374,52 @@ describe('placeRepository.updateDates', () => {
     expect(result.departedOn).toBe('2026-07-15');
   });
 
+  it('leaves omitted (undefined) fields unchanged — BUG-28 non-destructive PATCH', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Bayonne');
+    const trip = await seedTrip(db);
+    const place = await placeRepository.create(
+      TEST_USER_ID,
+      trip.id,
+      city.id,
+      '2026-07-10',
+      '2026-07-15',
+    );
+
+    // Update arrived_on only — departed_on omitted (undefined) must be preserved
+    const afterArrived = await placeRepository.updateDates(
+      TEST_USER_ID,
+      trip.id,
+      place.id,
+      '2026-07-11',
+      undefined,
+    );
+    expect(afterArrived.arrivedOn).toBe('2026-07-11');
+    expect(afterArrived.departedOn).toBe('2026-07-15');
+
+    // Update departed_on only — arrived_on omitted (undefined) must be preserved
+    const afterDeparted = await placeRepository.updateDates(
+      TEST_USER_ID,
+      trip.id,
+      place.id,
+      undefined,
+      '2026-07-14',
+    );
+    expect(afterDeparted.arrivedOn).toBe('2026-07-11');
+    expect(afterDeparted.departedOn).toBe('2026-07-14');
+
+    // Explicit null still clears
+    const afterNull = await placeRepository.updateDates(
+      TEST_USER_ID,
+      trip.id,
+      place.id,
+      null,
+      undefined,
+    );
+    expect(afterNull.arrivedOn).toBeNull();
+    expect(afterNull.departedOn).toBe('2026-07-14');
+  });
+
   it('clears dates when null is passed', async () => {
     const db = testDb!;
     const city = await seedCity(db, 'FR', 'Angers');

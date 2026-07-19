@@ -493,6 +493,34 @@ describe('POST /api/trips/:tripId/places', () => {
     expect(res.body).toHaveProperty('error');
   });
 
+  it('returns 400 when arrived_on is after departed_on (BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Lille');
+    const trip = await seedTrip(db);
+
+    const res = await supertest(app)
+      .post(`/api/trips/${trip.id}/places`)
+      .send({ city_id: city.id, arrived_on: '2026-06-10', departed_on: '2026-06-05' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+    expect(JSON.stringify(res.body)).toContain('departed_on must be on or after arrived_on');
+  });
+
+  it('returns 201 when arrived_on equals departed_on (same-day allowed, BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Dijon');
+    const trip = await seedTrip(db);
+
+    const res = await supertest(app)
+      .post(`/api/trips/${trip.id}/places`)
+      .send({ city_id: city.id, arrived_on: '2026-06-03', departed_on: '2026-06-03' })
+      .expect(201);
+
+    expect(res.body).toHaveProperty('arrived_on', '2026-06-03');
+    expect(res.body).toHaveProperty('departed_on', '2026-06-03');
+  });
+
   it('returns 400 when city_id is missing', async () => {
     const db = testDb!;
     const trip = await seedTrip(db);
@@ -631,6 +659,180 @@ describe('PATCH /api/trips/:tripId/places/:placeId', () => {
       .expect(200);
 
     expect(res.body).toHaveProperty('arrived_on', null);
+    expect(res.body).toHaveProperty('departed_on', null);
+  });
+
+  it('preserves departed_on when only arrived_on is sent (BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Avignon');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: trip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+        arrivedOn: '2026-07-01',
+        departedOn: '2026-07-05',
+      })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: '2026-07-02' })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('arrived_on', '2026-07-02');
+    expect(res.body).toHaveProperty('departed_on', '2026-07-05');
+  });
+
+  it('preserves arrived_on when only departed_on is sent (BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Annecy');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: trip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+        arrivedOn: '2026-07-01',
+        departedOn: '2026-07-05',
+      })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ departed_on: '2026-07-08' })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('arrived_on', '2026-07-01');
+    expect(res.body).toHaveProperty('departed_on', '2026-07-08');
+  });
+
+  it('clears only the field explicitly set to null, preserving the other (BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Biarritz');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: trip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+        arrivedOn: '2026-07-01',
+        departedOn: '2026-07-05',
+      })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: null })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('arrived_on', null);
+    expect(res.body).toHaveProperty('departed_on', '2026-07-05');
+  });
+
+  it('returns 400 when arrived_on is after departed_on in the same body (BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Colmar');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: '2026-07-10', departed_on: '2026-07-05' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+    expect(JSON.stringify(res.body)).toContain('departed_on must be on or after arrived_on');
+  });
+
+  it('returns 400 when a single-field patch violates ordering against the stored value (BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Nancy');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: trip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+        arrivedOn: '2026-07-01',
+        departedOn: '2026-07-05',
+      })
+      .returning();
+
+    // arrived_on alone, after the stored departed_on → merged result invalid
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: '2026-07-10' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+    expect(JSON.stringify(res.body)).toContain('departed_on must be on or after arrived_on');
+
+    // departed_on alone, before the stored arrived_on → merged result invalid
+    const res2 = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ departed_on: '2026-06-28' })
+      .expect(400);
+
+    expect(res2.body).toHaveProperty('error');
+
+    // stored row untouched by the rejected patches
+    const { eq } = await import('drizzle-orm');
+    const [row] = await db
+      .select()
+      .from(schema.tripPlaces)
+      .where(eq(schema.tripPlaces.id, place.id));
+    expect(row.arrivedOn).toBe('2026-07-01');
+    expect(row.departedOn).toBe('2026-07-05');
+  });
+
+  it('returns 200 when arrived_on equals departed_on (same-day allowed, BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Chamonix');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: '2026-07-03', departed_on: '2026-07-03' })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('arrived_on', '2026-07-03');
+    expect(res.body).toHaveProperty('departed_on', '2026-07-03');
+  });
+
+  it('allows clearing a date via null even when the other date is stored (BUG-28)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Arles');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({
+        tripId: trip.id,
+        cityId: city.id,
+        userId: TEST_USER_ID,
+        arrivedOn: '2026-07-01',
+        departedOn: '2026-07-05',
+      })
+      .returning();
+
+    const res = await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ departed_on: null })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('arrived_on', '2026-07-01');
     expect(res.body).toHaveProperty('departed_on', null);
   });
 

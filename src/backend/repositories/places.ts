@@ -191,6 +191,9 @@ export const placeRepository = {
    * Verifies the parent trip is writable and the place belongs to it.
    * Returns the updated TripPlace row.
    * Throws NotFoundError if the place doesn't exist on the given trip.
+   *
+   * BUG-28: PATCH semantics — `undefined` (field omitted) leaves the stored
+   * value unchanged; explicit `null` clears it. Matches tripRepository.update.
    */
   async updateDates(
     userId: string,
@@ -211,9 +214,13 @@ export const placeRepository = {
     if (!existing.length) throw new NotFoundError('Place');
 
     const now = new Date().toISOString();
+    const updates: Partial<typeof tripPlaces.$inferInsert> = { updatedAt: now };
+    if (arrivedOn !== undefined) updates.arrivedOn = arrivedOn;
+    if (departedOn !== undefined) updates.departedOn = departedOn;
+
     const updated = await db
       .update(tripPlaces)
-      .set({ arrivedOn: arrivedOn ?? null, departedOn: departedOn ?? null, updatedAt: now })
+      .set(updates)
       .where(eq(tripPlaces.id, placeId))
       .returning();
     return updated[0];
