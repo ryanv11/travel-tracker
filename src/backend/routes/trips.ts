@@ -321,6 +321,14 @@ tripsRouter.patch(
     const trip = await tripRepository.findByIdOrThrow(userId, tripId);
     const { status } = req.body;
 
+    // BUG-27: a locked trip is fully read-only — the only permitted mutation is
+    // the unlock transition (locked → review_pending, TR-07). Any other status
+    // change attempt on a locked trip is a lock violation (403), not a plain
+    // invalid-transition validation error.
+    if (trip.status === 'locked' && status !== 'review_pending') {
+      throw new LockError();
+    }
+
     validateTransition(trip.status, status);
 
     const updated = await tripRepository.update(userId, tripId, { status });
@@ -394,9 +402,13 @@ tripsRouter.patch(
  * No soft-delete — trips are personal data owned entirely by the user (AD-06 applies
  * to admin list items only; trips are explicitly hard-deleted per spec).
  *
+ * BUG-27: locked trips are fully read-only (PO ruling, TR-06/TR-07) — a locked
+ * trip must be unlocked (→ review_pending) before it can be deleted.
+ *
  * @param id - Path param: positive integer trip ID. Returns 400 if invalid.
  * @returns 204 No Content on success.
  * @returns 400 if id is not a positive integer.
+ * @returns 403 if the trip is locked (LockError).
  * @returns 404 if trip does not exist.
  */
 // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
@@ -412,8 +424,12 @@ tripsRouter.delete(
     const tripId = parseResult.data.id;
     const userId = req.user!.id;
 
-    // Verify the trip exists and belongs to this user; throw 404 if not found
-    await tripRepository.findByIdOrThrow(userId, tripId);
+    // Verify the trip exists and belongs to this user; throw 404 if not found.
+    // Ownership check runs BEFORE the lock check (audit invariant 17).
+    const trip = await tripRepository.findByIdOrThrow(userId, tripId);
+
+    // BUG-27: locked trips are read-only — deleting one requires unlocking first
+    if (trip.status === 'locked') throw new LockError();
 
     // Delete the trip — CASCADE handles all related child records
     await tripRepository.delete(userId, tripId);

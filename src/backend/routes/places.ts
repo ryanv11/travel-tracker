@@ -3,7 +3,10 @@
  *
  * Nested under /api/trips/:tripId/places (mounted in trips.ts with mergeParams: true).
  * Handles place CRUD and place-level activity tagging.
- * All writes check locked trip status.
+ * All write endpoints verify trip ownership first, then reject writes to locked
+ * trips with LockError (403) — see BUG-27. Lock checks either go through
+ * placeRepository.assertWritable (ownership + lock) or run assertNotLocked
+ * AFTER an ownership check (assertNotLocked itself is not user-scoped).
  *
  * ADL-18: User-scoped queries go through placeRepository. No direct getDb() calls
  * for user-owned data.
@@ -225,9 +228,12 @@ placesRouter.post(
     const { activity_id } = req.body;
     const db = getDb();
 
-    // Verify place belongs to trip owned by user
+    // Verify place belongs to trip owned by user (ownership BEFORE lock check)
     const place = await placeRepository.findById(userId, placeId);
     if (!place || place.tripId !== tripId) throw new NotFoundError('Place');
+
+    // BUG-27: locked trips are read-only — activity tagging is a write
+    await assertNotLocked(tripId);
 
     // Check duplicate
     const existing = await db
@@ -263,8 +269,12 @@ placesRouter.delete(
     if (Number.isNaN(placeId) || Number.isNaN(activityId)) throw new NotFoundError('Activity');
 
     // SEC-03: verify the place belongs to the requesting user before deleting
+    // (ownership BEFORE lock check — audit invariant 17)
     const place = await placeRepository.findById(userId, placeId);
     if (!place) throw new NotFoundError('Place');
+
+    // BUG-27: locked trips are read-only — activity untagging is a write
+    await assertNotLocked(place.tripId);
 
     const db = getDb();
     await db
