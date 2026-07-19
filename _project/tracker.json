@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-03-21 (triage)"
+    "updated": "2026-07-18 (OP-12 dashboard + stale-status sweep)"
   },
   "items": [
 
@@ -60,7 +60,7 @@
       "priority": "P0",
       "brdRefs": [],
       "phase": 4,
-      "notes": "186 backend + 55 frontend unit tests passing. Contract tests passing. Playwright E2E suite (36 tests) delivered as POC — parked pending panel scoping refactor. README + CODEBASE.md done. Blocked by OP-06 (hardening checklist) before formal phase close."
+      "notes": "186 backend + 55 frontend unit tests passing. Contract tests passing. Playwright E2E suite (36 tests) now a permanent CI gate (OP-11, PR #124). README + CODEBASE.md done. OP-06 gate CLOSED 2026-07-16 (PR #115) — no longer a blocker. Remaining before formal close: OP-07 (UI/UX expert review) + PO phase UAT."
     },
     {
       "id": "PHASE-5",
@@ -648,12 +648,12 @@
       "id": "OP-06",
       "type": "requirement",
       "title": "Pre-access hardening checklist — tied to NR-14",
-      "status": "in-progress",
+      "status": "done",
       "owner": "coo",
       "priority": "P1",
       "brdRefs": ["SE-01", "SE-02", "SE-03", "SE-04", "SE-05", "SE-06", "SE-07"],
       "phase": 1,
-      "notes": "Architect checklist delivered 2026-03-23 (jobs/architect/tech/OP-06-hardening-checklist.md). ADL-27 delivered + corrected. Implementation underway — see NR-14 notes for item-by-item status. Closes when NR-14 passes."
+      "notes": "Architect checklist delivered 2026-03-23 (jobs/architect/tech/OP-06-hardening-checklist.md). ADL-27 delivered + corrected. Gate formally CLOSED 2026-07-16 — 13/13 PASS after Q5 real-auth UAT (PR #115, issue #23). Tracker status flip missed in the #115 close-out, corrected in the OP-12 PR."
     },
     // ─── SE REQUIREMENTS (Security — BRD §5.11, v2.7) ────────────────────────
     {
@@ -744,6 +744,17 @@
       "brdRefs": [],
       "phase": 4,
       "notes": "PO direction 2026-03-09. Schedule after Phase 1 sign-off. Beta provides working baseline for UX review."
+    },
+    {
+      "id": "OP-12",
+      "type": "requirement",
+      "title": "Generated human-readable status dashboard (STATUS.md) from tracker.json",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "GitHub issue #127. PO direction 2026-07-18: tracker.json is hard to read as a human — needs a derived, never-hand-maintained snapshot view. scripts/status.js renders _project/STATUS.md (phases, open work by priority, coverage rollup); npm run status regenerates, npm run status:check gates staleness in /pre-push. Shares the string-aware JSONC loader with tracker.js (BUG-23 fix). Part 1 of the prioritisation-mechanic work; part 2 (roadmap/bundles) and a visual dashboard (Artifact) to be designed with PO."
     },
 
     // ─── PO TESTING FEEDBACK (2026-03-09) ────────────────────────────────────
@@ -1057,12 +1068,12 @@
       "id": "BUG-23",
       "type": "bug",
       "title": "scripts/tracker.js comment stripper truncates strings containing // — tracker CLI unusable",
-      "status": "open",
+      "status": "done",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": [],
       "phase": 1,
-      "notes": "Regex at tracker.js:27 strips comment syntax inside JSON string literals; the BUG-A note added 2026-03-23 contains 'trips.ts:280' preceded by a double-slash, truncating the string — every tracker.js run since fails to parse. Fix: string-aware comment stripping. Found 2026-07-07 during OP-09 work. GitHub issue #96."
+      "notes": "Regex at tracker.js:27 strips comment syntax inside JSON string literals; the BUG-A note added 2026-03-23 contains 'trips.ts:280' preceded by a double-slash, truncating the string — every tracker.js run since fails to parse. Found 2026-07-07 during OP-09 work. GitHub issue #96. Fixed in OP-12 PR: string-aware stripper extracted to scripts/lib/tracker-data.js, shared by tracker.js and status.js."
     },
     {
       "id": "BUG-26",

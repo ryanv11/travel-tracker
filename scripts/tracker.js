@@ -11,30 +11,15 @@
  *   node scripts/tracker.js --brd MP           Items referencing BRD reqs starting with MP
  */
 
-import { readFileSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { loadTracker, isOpen } from './lib/tracker-data.js';
 
 // ─── Load data ───────────────────────────────────────────────────────────────
 
-const dataPath = resolve(__dirname, '../_project/tracker.json');
-let raw;
-try {
-  raw = readFileSync(dataPath, 'utf8');
-  // Strip JS-style comments so we can parse the JSON
-  raw = raw.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-} catch (e) {
-  console.error('Cannot read _project/tracker.json:', e.message);
-  process.exit(1);
-}
-
 let data;
 try {
-  data = JSON.parse(raw);
+  data = loadTracker();
 } catch (e) {
-  console.error('tracker.json parse error:', e.message);
+  console.error('Cannot load _project/tracker.json:', e.message);
   process.exit(1);
 }
 
@@ -66,9 +51,11 @@ function statusLabel(status) {
   switch (status) {
     case 'done':        return `${BGRN}✅ done       ${R}`;
     case 'in_progress': return `${BCYN}🔄 in progress${R}`;
+    case 'partial':     return `${BCYN}◐  partial    ${R}`;
     case 'blocked':     return `${BRED}⏸  blocked    ${R}`;
     case 'pending':     return `${BYLW}⬜ pending    ${R}`;
     case 'deferred':    return `${DIM}◌  deferred   ${R}`;
+    case 'closed':      return `${DIM}✕  closed     ${R}`;
     default:            return status;
   }
 }
@@ -77,9 +64,11 @@ function statusBadge(status) {
   switch (status) {
     case 'done':        return `${BGRN}DONE${R}`;
     case 'in_progress': return `${BCYN}IN PROGRESS${R}`;
+    case 'partial':     return `${BCYN}PARTIAL${R}`;
     case 'blocked':     return `${BRED}BLOCKED${R}`;
     case 'pending':     return `${BYLW}PENDING${R}`;
     case 'deferred':    return `${DIM}DEFERRED${R}`;
+    case 'closed':      return `${DIM}CLOSED${R}`;
     default:            return status;
   }
 }
@@ -140,10 +129,6 @@ const filterBrd      = getArg('--brd');
 const filterOpen     = hasFlag('--open');
 
 // ─── Views ───────────────────────────────────────────────────────────────────
-
-function isOpen(item) {
-  return item.status !== 'done' && item.status !== 'deferred';
-}
 
 function applyFilters(list) {
   return list.filter(item => {
@@ -281,6 +266,7 @@ function showOpenItems(list) {
     for (const item of group) {
       const statusIcon = {
         in_progress: `${BCYN}●${R}`,
+        partial:     `${BCYN}◐${R}`,
         blocked:     `${BRED}◼${R}`,
         pending:     `${BYLW}○${R}`,
       }[item.status] || '·';
