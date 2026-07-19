@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferred design pass)_
+_Tracker last updated: 2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first + OP-13/14/15)_
 
 ## Phases
 
@@ -15,8 +15,9 @@ _Tracker last updated: 2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferr
 | PHASE-3 | UI Layer — React Frontend SPA | ✅ Done |
 | PHASE-4 | QA & Documentation | 🔄 In progress |
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
+| PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (13)
+## Open work (22)
 
 ### P0 — Blockers (1)
 
@@ -24,7 +25,15 @@ _Tracker last updated: 2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferr
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P2 — Important (8)
+### P1 — Critical (3)
+
+| ID | Title | Owner | Status |
+|---|---|---|---|
+| BRD-PL0104 | Planning core — idea pool → shortlist → booked across all item types (PL-01–04) | fullstack | ⬜ Pending |
+| BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack | ⬜ Pending |
+| BRD-NF09 | Hosted deployment for personal use (NF-09) | architect | ⬜ Pending |
+
+### P2 — Important (12)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -36,8 +45,12 @@ _Tracker last updated: 2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferr
 | BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
 | BRD-FL04 | Flight number lookup — auto-populate fields from flight number + date (FL-04) | backend | ⬜ Pending |
+| BRD-PL05 | Day-by-day itinerary layer for region-sequential trips (PL-05, Phase 2) | fullstack | ⬜ Pending |
+| BRD-PL06 | Co-planning — companions contribute to idea pool on shared trips (PL-06, Phase 3) | architect | ⬜ Pending |
+| BRD-LB01 | Destination recommendations view — aggregated across trips (LB-01) | fullstack | ⬜ Pending |
+| BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
 
-### P3 — Minor (4)
+### P3 — Minor (6)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -45,13 +58,15 @@ _Tracker last updated: 2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferr
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
 | QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
+| BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
+| BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
 
 ## Coverage by type
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `██████████████▓▓▓▓░░` 23/33 | 23 | 10 | 1 |
-| requirement | `███████████████████░` 29/30 | 29 | 1 | 5 |
+| feature | `███████████▓▓▓░░░░░░` 23/41 | 23 | 18 | 1 |
+| requirement | `███████████████████░` 29/31 | 29 | 2 | 5 |
 | bug | `████████████████████` 24/24 | 24 | 0 | 3 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████░░░░░░░░` 3/5 | 3 | 2 | 0 |
@@ -83,4 +98,4 @@ _Tracker last updated: 2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferr
 
 ---
 
-_87 done · 8 deferred · 1 closed · 13 open — 109 tracked items_
+_87 done · 8 deferred · 1 closed · 22 open — 118 tracked items_

@@ -1,34 +1,48 @@
 # Business Requirements Document
 ## Travel Tracker Application
-**Version:** 2.7
-**Date:** March 2026
-**Author:** Claude (BSA) / Ryan V (Product Owner)
+**Version:** 3.0
+**Date:** July 2026
+**Author:** Claude (BSA/COO) / Ryan V (Product Owner)
 **Status:** Approved
 
 ---
 
 ## 1. Problem Statement
 
-There is currently no system for tracking travel history, planning future trips, or referencing past experiences. This creates three gaps:
+Trip planning today is scattered: booked flights, hotels and car hire live in confirmation
+emails; ideas for what to do live nowhere; and once a trip is over there is no structured
+way to look back on it. This creates three gaps:
 
-- No visual record of countries, states and cities visited
-- No structured reference when planning a return visit
-- No quick way to pull up recommendations when a friend asks
+- No single place where a trip comes together — booked items entered once, then a space to
+  brainstorm and shortlist everything else
+- No visual record of countries, regions and cities visited
+- No quick way to pull up recommendations when a friend asks ("you've been to Japan —
+  where should we go?")
 
 ---
 
 ## 2. Goals
 
-1. Provide a visual, at-a-glance map of everywhere visited with meaningful geographic hierarchy
-2. Create a living record of each trip that serves both as a retrospective log and a planning tool for future visits
-3. Become the single point of reference for all trip information — from initial research through to post-trip review
+The product identity, in priority order (PO direction 2026-07-18):
+
+1. **Plan** *(primary)* — the app is where trips get planned: booked items captured early,
+   then an idea pool that gets shortlisted and promoted as the trip firms up. Planning is
+   eventually collaborative (trip companions co-plan, Phase 3).
+2. **Look back** *(major)* — past trips become memories: the shaded map, stats and
+   patterns, and shareable recommendations pulled from real trip history.
+3. **Catch up** *(supporting)* — historic trips are backfilled as lightweight shell trips
+   so the map and stats reflect real travel history. Logging exists to serve looking back,
+   not as the app's identity.
 
 ---
 
 ## 3. Users
 
-**Primary user:** Ryan (solo, personal use — Mac desktop app, local)
-**Future users:** Trip companions (read-only or edit access — out of scope for MVP)
+**Primary user:** Ryan (personal use — browser app; hosted for own use on the near-term
+roadmap, laptop is always available when travelling, phone used as a reference device)
+**Near-term users (~6 months):** Trip companions with edit access — co-planning
+(contributing to the idea pool) is the target first companion capability
+**Future users:** Wider sharing (view links, recommendations) — Phase 3+
 
 ---
 
@@ -41,11 +55,21 @@ There is currently no system for tracking travel history, planning future trips,
 **Item:** Anything logged against a trip or place — a restaurant, hotel, flight, car rental, experience, or note. Items carry a status.
 
 **Item Status:**
-- **Consider** — something being researched or thought about
+- **Consider** — an idea: something being researched or thought about. Any item type
+  (including hotels, flights, car rentals) can exist as a Consider item with minimal detail
+- **Shortlisted** — promoted from the idea pool: a keeper the traveller intends to do or
+  book *(added in v3.0)*
 - **Confirmed** — booked or committed to
 - **Completed** — actually happened (set during post-trip review)
 - **Cancelled** — was confirmed but did not happen
 - **Next time** — not done this trip but flagged for a future visit
+
+**Planning stages:** the three pre-trip statuses map to the planning loop — the **idea
+pool** (Consider), the **shortlist** (Shortlisted), and **booked** (Confirmed).
+
+**Shell Trip:** a historic trip recorded with minimal detail — name, dates, and places
+only, no items required. Shell trips are first-class trips: they count toward map shading
+and stats. They exist so travel history can be backfilled quickly *(added in v3.0)*.
 
 **Trip Status:**
 - **Planning** — upcoming or in progress
@@ -124,7 +148,7 @@ There is currently no system for tracking travel history, planning future trips,
 |----|-------------|
 | IT-01 | User can log items against a trip or a specific place within a trip |
 | IT-02 | Item types: Restaurant, Hotel, Flight, Car Rental, Experience, Note |
-| IT-03 | All items carry a status: Consider, Confirmed, Completed, Cancelled, Next time |
+| IT-03 | All items carry a status: Consider, Shortlisted, Confirmed, Completed, Cancelled, Next time *(Shortlisted added in v3.0 — see §5.12)* |
 | IT-04 | Notes can be added to all item types |
 | IT-05 | Items can be updated at any time during Planning or Active status |
 | IT-06 | During post-trip review, user can bulk-update item statuses to reflect what actually happened |
@@ -231,18 +255,67 @@ There is currently no system for tracking travel history, planning future trips,
 
 ---
 
+### 5.12 Planning (v3.0 — core loop)
+
+The planning loop is **idea pool → shortlist → booked**, applying to every item type —
+a hotel or car rental is an idea until it's booked, exactly like a restaurant or activity.
+Day-by-day scheduling is a secondary layer for region-sequential trips (e.g. Japan, where
+places can't be revisited after moving on), not a requirement for every trip.
+
+| ID | Requirement | Success criteria |
+|----|-------------|------------------|
+| PL-01 | Any item type can be created as a quick-capture idea (status Consider) with minimal fields — name and type are sufficient; booking fields are not required until Confirmed | An idea for a restaurant, hotel, or activity can be added to a trip in one short interaction with no booking details |
+| PL-02 | Items can be promoted (Consider → Shortlisted → Confirmed) or demoted without re-entering data; existing field values are preserved across transitions | Promoting/demoting an item is a single action from any item list; no data loss on transition |
+| PL-03 | Trip detail provides a planning view grouping items by planning stage — idea pool, shortlist, booked — across all item types | For a trip in Planning status, the user can see at a glance what's booked, what's shortlisted, and what's still just an idea |
+| PL-04 | The planning view supports brainstorming: adding several ideas in quick succession without leaving the view | Five ideas can be captured in under a minute without navigating away |
+| PL-05 | *(Phase 2)* Items and places can optionally be assigned to days — a day-by-day itinerary layer for region-sequential trips. Unassigned items remain in the pool; day assignment is never mandatory | A Japan-style trip can show items per day per region; a weekend trip can ignore the layer entirely |
+| PL-06 | *(Phase 3)* Trip companions can contribute to the idea pool and shortlist on shared trips (co-planning — see §9 companion model) | A companion on a shared trip can add and promote ideas under their own identity |
+
+### 5.13 Looking Back (v3.0)
+
+| ID | Requirement | Success criteria |
+|----|-------------|------------------|
+| LB-01 | User can pull up a recommendations view for any visited destination (country, region, or city): best-rated and Next-time items aggregated across all trips there | The "friend is going to Japan" scenario: one view surfaces recommended restaurants, hotels, experiences and next-times from all Japan trips |
+| LB-02 | *(Phase 2)* Stats and patterns view: counts of countries/regions/cities/trips, trips per year, ratings patterns | User can answer "how many countries have I visited?" and "where do I keep going back to?" from one view |
+| LB-03 | *(Phase 3)* Recommendations can be shared externally via generated link (place-level, not full trip) — promotes the existing §9 item | A recommendations view can produce a shareable artefact without exposing the rest of the account |
+
+### 5.14 Historic Catch-up (v3.0)
+
+| ID | Requirement | Success criteria |
+|----|-------------|------------------|
+| CU-01 | A trip is valid with only name, dates, and places — no items, no companions beyond the default, no review required (shell trip) | A shell trip saves without warnings and appears in the trip list, map shading, and stats |
+| CU-02 | Shell trips can be created through a fast entry path — single form, no multi-step wizard | Backfilling a historic trip takes well under a minute |
+| CU-03 | Shell trips are visually distinguishable in the trip list (e.g. badge) and can be enriched into full trips later with no migration step | User can tell at a glance which trips are shells; adding items to a shell just works |
+
+### 5.15 Mobile Reference Mode (v3.0)
+
+The phone is a **reference device**, not an editing surface: mid-trip, the user checks
+booking details and gets directions. The laptop travels on every trip for everything else.
+
+| ID | Requirement | Success criteria |
+|----|-------------|------------------|
+| MB-01 | Booking details (flights, hotels, car rentals) for a trip are readable on a phone browser — the trip detail read path is usable at mobile viewport widths | Flight number, booking reference, and hotel address are legible and reachable on a phone without horizontal scrolling |
+| MB-02 | Places and address-bearing items expose a directions link that opens the device's map application (Google Maps URL scheme) | Tapping a place or hotel on the phone opens directions to it in one tap |
+
+---
+
 ## 6. Non-Functional Requirements
+
+> Deployment direction changed in v3.0 (PO direction 2026-07-18): the app will be
+> **hosted for personal use on the near-term roadmap** — before multi-user lands. NF-01
+> and NF-04 are superseded accordingly; original text retained for history.
 
 | ID | Requirement |
 |----|-------------|
-| NF-01 | Local Mac desktop app — no internet connection required for core features |
+| NF-01 | ~~Local Mac desktop app — no internet connection required for core features~~ **SUPERSEDED (2026-07-18) by NF-09** — retained for history |
 | NF-02 | Map view requires internet connection to render |
-| NF-03 | Data is stored locally on the user's machine as a file-based database (SQLite) |
-| NF-04 | Database file can be stored in OneDrive for single-user sync across personal devices |
-| NF-05 | Architecture must support future migration to a hosted web app without a data model rebuild |
-| NF-06 | Architecture must support future migration to an iOS mobile app without a data model rebuild |
-| NF-07 | Architecture must support future addition of trip companion access (read-only and edit) |
+| NF-03 | Data is stored as a file-based database (SQLite/libSQL); hosting may move this to a hosted libSQL service (e.g. Turso) — Architect decision, see OQ-04 |
+| NF-04 | ~~Database file can be stored in OneDrive for single-user sync across personal devices~~ **SUPERSEDED (2026-07-18) by NF-09** — hosting replaces file-sync |
+| NF-05 | Architecture must support migration to a hosted web app without a data model rebuild — **promoted from future-proofing to near-term requirement in v3.0** |
+| NF-06 | Architecture must support future migration to an iOS mobile app without a data model rebuild (iOS remains aspirational — mobile browser reference mode §5.15 is the near-term answer) |
+| NF-07 | Architecture must support trip companion access (read-only and edit) — target ~6 months for co-planning (PL-06) |
 | NF-08 | Architecture must support future notification engine without structural changes |
+| NF-09 | The app is deployed as a hosted web app for personal use, reachable from the user's devices over the internet with real authentication (Clerk). Local development remains fully supported *(added v3.0)* |
 
 ---
 
@@ -252,11 +325,11 @@ The following are explicitly out of scope for MVP but must not be architecturall
 
 - Push notifications and reminders of any kind
 - Post-trip review prompts
-- Trip companion access (shared or read-only)
-- Recommendation sharing via link
-- Import of historical trip data
+- Trip companion access (shared or read-only) — *v3.0: now a named ~6-month target (PL-06, NF-07), still out of current scope*
+- Recommendation sharing via link — *v3.0: now LB-03 (Phase 3)*
+- Import of historical trip data (booking-confirmation parsing etc.) — shell trips (§5.14) are the manual answer
 - Offline map rendering
-- Mobile app
+- Native mobile app — *v3.0: mobile browser reference mode (§5.15) is in scope; a native app is not*
 
 ---
 
@@ -274,11 +347,15 @@ The following are explicitly out of scope for MVP but must not be architecturall
 
 ## 9. Future Features (Phase 3+)
 
-- Recommendation sharing via generated link (place-level, not full trip)
-- Trip companion access — invite companions to view or edit a shared trip
-- Pre-trip planning as a first-class mode
+> Three items were promoted out of this section in v3.0: pre-trip planning is now the
+> core product identity (§5.12), recommendation sharing is LB-03 (§5.13), and hosting is
+> NF-09. Retained below with strikethrough for history.
+
+- ~~Recommendation sharing via generated link (place-level, not full trip)~~ **promoted to LB-03 (v3.0)**
+- Trip companion access — invite companions to view or edit a shared trip; **co-planning (contributing to the idea pool) is the target first capability, ~6-month horizon (v3.0, PL-06)**
+- ~~Pre-trip planning as a first-class mode~~ **promoted to core identity, §5.12 (v3.0)**
 - iOS mobile app
-- Multi-user hosted web app with real-time sync (replaces OneDrive sync)
+- ~~Multi-user hosted web app with real-time sync (replaces OneDrive sync)~~ **personal hosting promoted to NF-09 (v3.0); multi-user remains Phase 3**
 
 - Booking confirmation import — parse flight, hotel, and car rental confirmation emails or PDFs to pre-populate item fields
 - Companion endorsements — each place and item shows who added it; other trip companions can endorse it
@@ -290,18 +367,24 @@ The following are explicitly out of scope for MVP but must not be architecturall
 
 | ID | Question | Owner |
 |----|----------|-------|
-| OQ-01 | Mapping library — Google Maps API (requires API key, cost implications at scale) vs open-source alternative like Leaflet.js with OpenStreetMap | Deferred to Architect — recommendation required in technical blueprint |
-| OQ-02 | Desktop app framework — Electron, Tauri, or local web server in browser | PO direction: target is a packaged .app (Electron or Tauri preferred); localhost-in-browser is acceptable for beta phase. Final technology selection deferred to Architect |
+| OQ-01 | ~~Mapping library — Google Maps API vs open-source alternative~~ | **RESOLVED** — MapLibre GL + MapTiler tiles shipped in Phase 3 (see ADL record); bundled boundary polygons per GE-10 |
+| OQ-02 | ~~Desktop app framework — Electron, Tauri, or local web server in browser~~ | **RESOLVED (2026-07-18)** — v3.0 direction is a hosted web app accessed via browser (NF-09); packaged .app dropped. Supersedes the earlier packaged-.app direction |
+| OQ-03 | Shell trips (§5.14): historic trips may lack exact dates. Do we need approximate/partial dates (year-only, month-only), and how do they interact with map shading and chronological ordering? | PO + Architect — resolve before CU-01 is briefed |
+| OQ-04 | Hosting platform and database: where is the app hosted for personal use (NF-09), and does SQLite move to hosted libSQL (Turso) or stay file-based on the host? | Architect — ADL required before hosting work is briefed |
 
 ---
 
 ## 11. Assumptions
 
-- Ryan will manually enter all historical trip data — no import tooling required
-- The app will primarily be used on a single Mac
-- OneDrive sync is acceptable for personal multi-device use — simultaneous multi-user editing is not a requirement for MVP
+- Ryan will manually enter all historical trip data — no import tooling required; shell
+  trips (§5.14) keep the per-trip cost low. The existing seeded/test data is entirely
+  synthetic and will be wiped, not migrated
+- Primary usage is on the Mac (laptop travels on every trip); the phone is a reference
+  device only (§5.15)
+- ~~OneDrive sync is acceptable for personal multi-device use~~ **SUPERSEDED (2026-07-18)**
+  — hosting (NF-09) replaces file-sync
 - Photo albums are managed externally (Apple Photos, Google Photos etc) — the app stores a reference link only
-- SQLite is the assumed local database format pending Architect confirmation
+- SQLite/libSQL is the database format; hosted-vs-file deployment is OQ-04
 
 ---
 
@@ -330,5 +413,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 2.5 | March 2026 | COO / Ryan V (PO) | Added TR-13 (search includes city names); GE-14/15 (city search-first + country autopopulate); DP-05 (place date ranges, chronological ordering); FL-04 (flight lookup, Phase 2); PH-04 (photos direct attachment, Phase 2); AD-07/08/09 (admin split model — map shading + companions per-user, categories/activities global seeded); added booking import, companion endorsements, companion invite model to §9 Future Features |
 | 2.6 | March 2026 | COO / Ryan V (PO) | Removed F-02 (in-panel tab navigation) and F-03 (per-trip scoped map tab) from §9 Future Features — PO direction: not worth implementing without the map tab; scrapped entirely |
 | 2.7 | March 2026 | COO | Added §5.11 Security and Access Control (SE-01–SE-07) — formalises the NR-14/OP-06 hardening gate requirements: three-role access model, user data scoping, owner-only admin, JWT issuer validation, opaque error responses, BYPASS_AUTH production block, NOT NULL ownership constraints |
+| 3.0 | July 2026 | COO / Ryan V (PO) | **Planning-first identity rewrite** from PO requirements interview 2026-07-18. §1–§3 rewritten around three pillars: Plan (primary), Look back (major), Catch up (supporting). New sections with success criteria: §5.12 Planning PL-01–06 (idea pool → shortlist → booked across all item types; day-itinerary Phase 2; co-planning Phase 3), §5.13 Looking Back LB-01–03 (destination recommendations, stats, shareable highlights), §5.14 Historic Catch-up CU-01–03 (shell trips), §5.15 Mobile Reference MB-01–02 (phone as reference device). New item status Shortlisted (IT-03 amended). NF-09 hosting for personal use added; NF-01/NF-04 superseded (local-only + OneDrive sync dropped). §9 promotions stamped. OQ-01/OQ-02 closed; OQ-03 (approximate dates) and OQ-04 (hosting platform) opened. Trigger for the planning sections: Scotland trip dogfood trial (planned 2026-07 week) |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*

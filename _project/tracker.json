@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferred design pass)"
+    "updated": "2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first + OP-13/14/15)"
   },
   "items": [
 
@@ -1297,6 +1297,118 @@
       "brdRefs": ["FL-04"],
       "phase": 5,
       "notes": "Phase 2 feature. Given a flight number and date, auto-populate airline, airports, and scheduled times. Added in BRD v2.5, never tracked. Backfilled 2026-03-23."
+    },
+
+    // ─── BRD v3.0 — PLANNING-FIRST REWRITE (2026-07-18) ──────────────────────
+    {
+      "id": "PHASE-6",
+      "type": "phase",
+      "title": "v3 Planning-First Delivery",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "GitHub issue #129. BRD v3.0 identity rewrite (PO interview 2026-07-18): Plan / Look back / Catch up. Sequencing to be defined in roadmap.md (bundles/critical path — part 2 of the prioritisation mechanic). First input: Scotland dogfood trial findings."
+    },
+    {
+      "id": "BRD-PL0104",
+      "type": "feature",
+      "title": "Planning core — idea pool → shortlist → booked across all item types (PL-01–04)",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P1",
+      "brdRefs": ["PL-01", "PL-02", "PL-03", "PL-04"],
+      "phase": 6,
+      "notes": "BRD v3.0 §5.12. New Shortlisted item status (IT-03 amended), quick-capture ideas for every item type, planning view grouped by stage, rapid brainstorm entry. Hold briefs until Scotland dogfood findings land — the trial is the requirements input for this UX."
+    },
+    {
+      "id": "BRD-PL05",
+      "type": "feature",
+      "title": "Day-by-day itinerary layer for region-sequential trips (PL-05, Phase 2)",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": ["PL-05"],
+      "phase": 6,
+      "notes": "BRD v3.0 §5.12. Optional day assignment; pool remains for unassigned. Successor to the scrapped F-02 itinerary tab concept, now with a real driver (Japan-style trips)."
+    },
+    {
+      "id": "BRD-PL06",
+      "type": "feature",
+      "title": "Co-planning — companions contribute to idea pool on shared trips (PL-06, Phase 3)",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": ["PL-06"],
+      "phase": 6,
+      "notes": "BRD v3.0 §5.12. ~6-month PO target. Depends on companion invite/shared-trip model (§9, ADL required) — Architect spec before any briefs."
+    },
+    {
+      "id": "BRD-LB01",
+      "type": "feature",
+      "title": "Destination recommendations view — aggregated across trips (LB-01)",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": ["LB-01"],
+      "phase": 6,
+      "notes": "BRD v3.0 §5.13. Best-rated + Next-time items for a chosen country/region/city across all trips. Builds on IT-08/09 rating sort/filter backend."
+    },
+    {
+      "id": "BRD-LB02",
+      "type": "feature",
+      "title": "Stats and patterns view (LB-02, Phase 2)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": ["LB-02"],
+      "phase": 6,
+      "notes": "BRD v3.0 §5.13. Counts, trips per year, ratings patterns."
+    },
+    {
+      "id": "BRD-LB03",
+      "type": "feature",
+      "title": "Shareable recommendations link (LB-03, Phase 3)",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": ["LB-03"],
+      "phase": 6,
+      "notes": "BRD v3.0 §5.13. Promoted from §9 future features. Needs access-model thought (public link vs authed) — Architect input before brief."
+    },
+    {
+      "id": "BRD-CU0103",
+      "type": "feature",
+      "title": "Shell trips — fast historic catch-up entry (CU-01–03)",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P1",
+      "brdRefs": ["CU-01", "CU-02", "CU-03"],
+      "phase": 6,
+      "notes": "BRD v3.0 §5.14. Minimal-detail trips counting toward map/stats, fast single-form entry, badge + enrichable later. BLOCKED on OQ-03 (approximate dates) — resolve with PO before briefing."
+    },
+    {
+      "id": "BRD-MB0102",
+      "type": "feature",
+      "title": "Mobile reference mode — bookings readable + directions links on phone (MB-01–02)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["MB-01", "MB-02"],
+      "phase": 6,
+      "notes": "BRD v3.0 §5.15. Read-path responsive at mobile widths; Google Maps directions links on places/address items. Depends on NF-09 hosting to be useful in the field."
+    },
+    {
+      "id": "BRD-NF09",
+      "type": "requirement",
+      "title": "Hosted deployment for personal use (NF-09)",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P1",
+      "brdRefs": ["NF-09"],
+      "phase": 6,
+      "notes": "BRD v3.0 §6. Hosting before multi-user; supersedes local-only NF-01 and OneDrive NF-04. BLOCKED on OQ-04 (platform + hosted-libSQL vs file DB) — Architect ADL required first, per infrastructure guardrail."
     }
 
   ]
