@@ -754,7 +754,7 @@
       "priority": "P2",
       "brdRefs": [],
       "phase": 4,
-      "notes": "PO direction 2026-07-18: tracker.json is hard to read as a human — needs a derived, never-hand-maintained snapshot view. scripts/status.js renders _project/STATUS.md (phases, open work by priority, coverage rollup); npm run status regenerates, npm run status:check gates staleness in /pre-push. Shares the string-aware JSONC loader with tracker.js (BUG-23 fix). Part 1 of the prioritisation-mechanic work; part 2 (roadmap/bundles) and a visual dashboard (Artifact) to be designed with PO."
+      "notes": "GitHub issue #127. PO direction 2026-07-18: tracker.json is hard to read as a human — needs a derived, never-hand-maintained snapshot view. scripts/status.js renders _project/STATUS.md (phases, open work by priority, coverage rollup); npm run status regenerates, npm run status:check gates staleness in /pre-push. Shares the string-aware JSONC loader with tracker.js (BUG-23 fix). Part 1 of the prioritisation-mechanic work; part 2 (roadmap/bundles) and a visual dashboard (Artifact) to be designed with PO."
     },
 
     // ─── PO TESTING FEEDBACK (2026-03-09) ────────────────────────────────────
