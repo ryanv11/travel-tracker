@@ -131,6 +131,24 @@ placesRouter.patch(
 
     const { arrived_on, departed_on } = req.body;
 
+    // Ownership + lock verified before any read/mutation (audit invariant 17)
+    await placeRepository.assertWritable(userId, tripId);
+
+    const existing = await placeRepository.findById(userId, placeId);
+    if (!existing || existing.tripId !== tripId) throw new NotFoundError('Place');
+
+    // BUG-28: validate effective date order against the merged result — stored
+    // values fill in for omitted fields (same pattern as trips PATCH / BUG-A).
+    const effectiveArrivedOn = arrived_on !== undefined ? arrived_on : existing.arrivedOn;
+    const effectiveDepartedOn = departed_on !== undefined ? departed_on : existing.departedOn;
+    if (
+      effectiveArrivedOn != null &&
+      effectiveDepartedOn != null &&
+      effectiveArrivedOn > effectiveDepartedOn
+    ) {
+      throw new ValidationError('departed_on must be on or after arrived_on');
+    }
+
     const place = await placeRepository.updateDates(
       userId,
       tripId,
