@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# PostToolUse hook — incremental TypeScript type check on every .ts/.tsx edit.
+# PostToolUse hook — full TypeScript type check (frontend or backend project,
+# routed by file path) on every .ts/.tsx edit.
 # Reads tool data from stdin (Claude Code JSON format).
 # Outputs nothing on clean; outputs tsc errors on failure.
-# Appends a perf entry to typecheck-perf.log for the first week of monitoring.
+# Appends a perf entry to typecheck-perf.log (capped at 500 lines, rotated below).
 
 WORKSPACE="/workspace"
 LOG="$WORKSPACE/.claude/hooks/typecheck-perf.log"
+
+# Cap the perf log — it appended unbounded from 2026-03 to 2026-07 (audit Session B).
+if [ -f "$LOG" ] && [ "$(wc -l < "$LOG" 2>/dev/null || echo 0)" -gt 500 ]; then
+  tail -n 250 "$LOG" > "$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG" 2>/dev/null || true
+fi
 
 # Parse file_path from stdin JSON
 INPUT=$(cat)
