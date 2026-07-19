@@ -125,3 +125,5 @@ All data is stored in a local SQLite file. The path is set by `SQLITE_PATH` in `
 - [_project/travel-tracker-BRD.md](./_project/travel-tracker-BRD.md) — business requirements document
 - [jobs/backend/tech/20260307-api-reference.md](./jobs/backend/tech/20260307-api-reference.md) — REST API reference
 - [CLAUDE.md](./CLAUDE.md) — agent/contributor workflow rules (branching, testing gates, schema-change policy)
+
+<!-- CI verification probe, safe to ignore/revert -->
