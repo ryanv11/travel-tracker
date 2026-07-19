@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-18 (OP-12 dashboard + stale-status sweep)_
+_Tracker last updated: 2026-07-18 (OP-13 hook hardening)_
 
 ## Phases
 
@@ -53,7 +53,7 @@ _Tracker last updated: 2026-07-18 (OP-12 dashboard + stale-status sweep)_
 | requirement | `███████████████████░` 29/30 | 29 | 1 | 5 |
 | bug | `████████████████████` 24/24 | 24 | 0 | 3 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
-| chore | `██████████░░░░░░░░░░` 1/2 | 1 | 1 | 0 |
+| chore | `█████████████░░░░░░░` 2/3 | 2 | 1 | 0 |
 
 <details>
 <summary>Deferred (8)</summary>
@@ -82,4 +82,4 @@ _Tracker last updated: 2026-07-18 (OP-12 dashboard + stale-status sweep)_
 
 ---
 
-_85 done · 8 deferred · 1 closed · 12 open — 106 tracked items_
+_86 done · 8 deferred · 1 closed · 12 open — 107 tracked items_
