@@ -14,6 +14,28 @@
 /** Base URL for all API requests. Pulled from the Vite environment variable. */
 const BASE = import.meta.env.VITE_API_BASE_URL as string;
 
+/**
+ * Error thrown by all apiClient helpers on a 4xx/5xx response (BUG-29).
+ *
+ * Extends Error so existing `instanceof Error` / `.message` handling keeps
+ * working, while exposing the HTTP `status` and parsed response `body` so
+ * callers can branch on specific statuses (e.g. the geocode retry queue
+ * removing a city on 404).
+ */
+export class ApiError extends Error {
+  /** HTTP status code of the failed response (e.g. 404). */
+  readonly status: number;
+  /** Parsed JSON response body, or undefined if the body was not valid JSON. */
+  readonly body: unknown;
+
+  constructor(message: string, status: number, body?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 /** Holds the Clerk getToken function once initialised. */
 let _getToken: (() => Promise<string | null>) | null = null;
 
@@ -38,19 +60,25 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 /**
- * Extracts a human-readable error message from an API error response.
- * Prefers the response body's `error` field; falls back to a generic message.
+ * Builds an ApiError from a failed API response (status >= 400).
+ * The message prefers the response body's `error` field, falling back to a
+ * generic `HTTP <status>` string; the status and parsed body are carried on
+ * the ApiError so callers can branch on them.
  *
  * @param response - The fetch Response object (status >= 400).
- * @returns A Promise resolving to an error message string.
+ * @returns A Promise resolving to an ApiError ready to be thrown.
  */
-async function extractErrorMessage(response: Response): Promise<string> {
+async function buildApiError(response: Response): Promise<ApiError> {
+  let body: unknown;
+  let message = `HTTP ${response.status}`;
   try {
-    const body = (await response.json()) as { error?: string };
-    return body.error ?? `HTTP ${response.status}`;
+    body = await response.json();
+    const error = (body as { error?: string }).error;
+    if (error) message = error;
   } catch {
-    return `HTTP ${response.status}`;
+    // Non-JSON body — keep the generic message
   }
+  return new ApiError(message, response.status, body);
 }
 
 /**
@@ -58,14 +86,13 @@ async function extractErrorMessage(response: Response): Promise<string> {
  *
  * @param path - API path relative to VITE_API_BASE_URL (e.g. '/api/trips').
  * @returns A Promise resolving to the parsed response body typed as T.
- * @throws Error if the response status is 4xx or 5xx.
+ * @throws ApiError if the response status is 4xx or 5xx.
  */
 export async function apiGet<T>(path: string): Promise<T> {
   const headers = await authHeaders();
   const response = await fetch(`${BASE}${path}`, { headers });
   if (!response.ok) {
-    const message = await extractErrorMessage(response);
-    throw new Error(message);
+    throw await buildApiError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -76,7 +103,7 @@ export async function apiGet<T>(path: string): Promise<T> {
  * @param path - API path relative to VITE_API_BASE_URL.
  * @param body - Request payload — will be JSON-serialised.
  * @returns A Promise resolving to the parsed response body typed as T.
- * @throws Error if the response status is 4xx or 5xx.
+ * @throws ApiError if the response status is 4xx or 5xx.
  */
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const auth = await authHeaders();
@@ -86,8 +113,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const message = await extractErrorMessage(response);
-    throw new Error(message);
+    throw await buildApiError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -98,7 +124,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
  * @param path - API path relative to VITE_API_BASE_URL.
  * @param body - Partial update payload — will be JSON-serialised.
  * @returns A Promise resolving to the parsed response body typed as T.
- * @throws Error if the response status is 4xx or 5xx.
+ * @throws ApiError if the response status is 4xx or 5xx.
  */
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   const auth = await authHeaders();
@@ -108,8 +134,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const message = await extractErrorMessage(response);
-    throw new Error(message);
+    throw await buildApiError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -119,13 +144,12 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
  * Returns void — DELETE responses have no body (204 No Content).
  *
  * @param path - API path relative to VITE_API_BASE_URL.
- * @throws Error if the response status is 4xx or 5xx.
+ * @throws ApiError if the response status is 4xx or 5xx.
  */
 export async function apiDelete(path: string): Promise<void> {
   const auth = await authHeaders();
   const response = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: auth });
   if (!response.ok) {
-    const message = await extractErrorMessage(response);
-    throw new Error(message);
+    throw await buildApiError(response);
   }
 }

@@ -1,11 +1,18 @@
 /**
- * geocodeRetryQueue — NR-06 offline retry service for city geocoding.
+ * geocodeRetryQueue — NR-06 offline poll service for city geocoding status.
  *
- * Tracks cities that were created with geocode_status = 'pending' and retries
- * resolution on a progressive backoff schedule. State survives page reloads via
- * localStorage under the key 'geocode_retry_queue'.
+ * Tracks cities that were created with geocode_status = 'pending' and polls
+ * their status on a progressive backoff schedule. State survives page reloads
+ * via localStorage under the key 'geocode_retry_queue'.
  *
- * Retry schedule (Class A — background):
+ * The poll is a READ (GET /api/cities/:id via the injected pollFn) — the
+ * actual geocoding retries happen server-side, where the backend geocoding
+ * queue re-processes pending cities on startup and every 15 minutes under
+ * ADL-10 Nominatim rate discipline (see src/backend/services/
+ * geocoding.service.ts processQueue). This service only watches for the
+ * outcome; it never issues write requests (BUG-29).
+ *
+ * Poll schedule (Class A — background):
  *   Attempt 1: immediately
  *   Attempt 2: 30 seconds
  *   Attempt 3: 2 minutes
@@ -14,9 +21,11 @@
  *
  * The only ways to remove an entry from the queue are:
  *   (a) Successful geocode (geocode_status === 'resolved')
- *   (b) City record deleted (404 response on retry)
+ *   (b) City record deleted (ApiError with status 404 on poll)
  *   (c) User explicitly dismisses via dismiss()
  */
+
+import { ApiError } from '../utils/apiClient';
 
 export const GEOCODE_RETRY_STORAGE_KEY = 'geocode_retry_queue';
 
@@ -29,7 +38,11 @@ export interface RetryQueueEntry {
   nextRetryAt: string; // ISO 8601
 }
 
-/** Function type for the actual geocode retry call. */
+/**
+ * Function type for the geocode status poll call.
+ * Must be a READ (GET) — must throw ApiError with status 404 when the city
+ * no longer exists so the entry can be removed from the queue.
+ */
 type RetryFn = (cityId: number) => Promise<{ geocode_status: string }>;
 
 /** Listener called whenever the queue changes. */
@@ -156,8 +169,7 @@ class GeocodeRetryQueueService {
         this.advanceSchedule(cityId, entry.attemptCount + 1);
       }
     } catch (err) {
-      const status = (err as { status?: number }).status;
-      if (status === 404) {
+      if (err instanceof ApiError && err.status === 404) {
         // (b) City deleted — discard silently
         this.removeEntry(cityId);
       } else {

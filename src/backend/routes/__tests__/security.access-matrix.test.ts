@@ -415,6 +415,11 @@ describe('Part A — Unauthenticated rejection: all API routes return 401', () =
     expect(res.status).toBe(401);
   });
 
+  it('GET /api/cities/1 → 401', async () => {
+    const res = await supertest(app).get('/api/cities/1');
+    expect(res.status).toBe(401);
+  });
+
   it('GET /api/cities/1/carry-forward → 401', async () => {
     const res = await supertest(app).get('/api/cities/1/carry-forward');
     expect(res.status).toBe(401);
