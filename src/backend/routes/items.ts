@@ -14,7 +14,6 @@ import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
 import { itemRepository } from '../repositories/items.js';
-import { assertNotLocked } from '../services/items.service.js';
 import {
   CreateItemSchema,
   ListItemsQuerySchema,
@@ -114,7 +113,9 @@ itemsRouter.patch(
     const itemId = parseInt(String(req.params.itemId), 10);
     if (Number.isNaN(tripId) || Number.isNaN(itemId)) throw new NotFoundError('Item');
 
-    await assertNotLocked(tripId);
+    // BUG-27: ownership check BEFORE lock check (audit invariant 17) —
+    // assertWritable verifies trip existence + ownership (404) then lock (403)
+    await itemRepository.assertWritable(userId, tripId);
 
     // Verify item exists and belongs to user
     const existing = await itemRepository.findRawByIdOrThrow(userId, tripId, itemId);
@@ -149,7 +150,9 @@ itemsRouter.delete(
     const itemId = parseInt(String(req.params.itemId), 10);
     if (Number.isNaN(tripId) || Number.isNaN(itemId)) throw new NotFoundError('Item');
 
-    await assertNotLocked(tripId);
+    // BUG-27: ownership check BEFORE lock check (audit invariant 17) —
+    // assertWritable verifies trip existence + ownership (404) then lock (403)
+    await itemRepository.assertWritable(userId, tripId);
 
     const deleted = await itemRepository.delete(userId, tripId, itemId);
     if (!deleted) throw new NotFoundError('Item');

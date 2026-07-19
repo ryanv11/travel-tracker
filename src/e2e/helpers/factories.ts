@@ -41,6 +41,17 @@ export async function deleteAllTrips(request: APIRequestContext): Promise<void> 
   }
   const trips = (await res.json()) as TripSummary[];
   for (const trip of trips) {
+    // BUG-27: locked trips are fully read-only — DELETE returns 403 until the
+    // trip is unlocked (locked → review_pending, TR-07). Unlock before deleting
+    // so specs that leave a trip locked don't break the next spec's cleanup.
+    if (trip.status === 'locked') {
+      const unlockRes = await request.patch(`http://localhost:3001/api/trips/${trip.id}/unlock`);
+      if (!unlockRes.ok()) {
+        throw new Error(
+          `deleteAllTrips: PATCH /api/trips/${trip.id}/unlock failed: ${unlockRes.status()} ${await unlockRes.text()}`,
+        );
+      }
+    }
     const delRes = await request.delete(`http://localhost:3001/api/trips/${trip.id}`);
     if (!delRes.ok()) {
       throw new Error(
