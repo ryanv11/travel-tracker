@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-18 (OP-14 COO skills installed, OP-15 deferred-skills design pass)"
+    "updated": "2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferred design pass)"
   },
   "items": [
 
@@ -744,6 +744,17 @@
       "brdRefs": [],
       "phase": 4,
       "notes": "PO direction 2026-03-09. Schedule after Phase 1 sign-off. Beta provides working baseline for UX review."
+    },
+    {
+      "id": "OP-13",
+      "type": "chore",
+      "title": "Hook hardening — db:push PreToolUse guard, hook canary, typecheck.sh tidy",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "GitHub issue #131. Audit Session B dispositions (invariants 1 + 30): PreToolUse guard blocks all drizzle-kit push forms with invocation-shaped matching (quoted/heredoc prose exempt); /coo-startup check 0 canary proves hooks work end-to-end (they fail silent by design); typecheck.sh comment fixed + perf log capped at 500 lines. Guard proven live in-session (blocked a matching command, then correctly allowed prose after refinement)."
     },
     {
       "id": "OP-14",

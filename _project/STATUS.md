@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-18 (OP-14 COO skills installed, OP-15 deferred-skills design pass)_
+_Tracker last updated: 2026-07-18 (OP-13 hooks + OP-14 COO skills + OP-15 deferred design pass)_
 
 ## Phases
 
@@ -54,7 +54,7 @@ _Tracker last updated: 2026-07-18 (OP-14 COO skills installed, OP-15 deferred-sk
 | requirement | `███████████████████░` 29/30 | 29 | 1 | 5 |
 | bug | `████████████████████` 24/24 | 24 | 0 | 3 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
-| chore | `██████████░░░░░░░░░░` 2/4 | 2 | 2 | 0 |
+| chore | `████████████░░░░░░░░` 3/5 | 3 | 2 | 0 |
 
 <details>
 <summary>Deferred (8)</summary>
@@ -83,4 +83,4 @@ _Tracker last updated: 2026-07-18 (OP-14 COO skills installed, OP-15 deferred-sk
 
 ---
 
-_86 done · 8 deferred · 1 closed · 13 open — 108 tracked items_
+_87 done · 8 deferred · 1 closed · 13 open — 109 tracked items_
