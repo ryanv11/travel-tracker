@@ -68,7 +68,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 |---|---|---|---|---|
 | feature | `███████████▓▓▓░░░░░░` 23/41 | 23 | 18 | 1 |
 | requirement | `███████████████████░` 29/31 | 29 | 2 | 5 |
-| bug | `███████████████████░` 28/29 | 28 | 1 | 3 |
+| bug | `███████████████████░` 29/30 | 29 | 1 | 3 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████░░░░░░░░` 3/5 | 3 | 2 | 0 |
 
@@ -99,4 +99,4 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 ---
 
-_91 done · 8 deferred · 1 closed · 23 open — 123 tracked items_
+_92 done · 8 deferred · 1 closed · 23 open — 124 tracked items_

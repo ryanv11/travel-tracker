@@ -790,6 +790,17 @@
       "notes": "GitHub issue #144. Found 2026-07-19 during post-merge verification: push-triggered CI/Security Checks runs on main stopped after commit 911eccf; 5 subsequent merges produced no push-triggered run. Ruled out: workflow file changes, Actions permissions, branch protection, authorship, general outage (feature-branch and PR-triggered runs fire normally throughout). Main's tip confirmed functionally green via a throwaway no-op PR probe (9/9 checks). Looks GitHub-side, not a code problem — flagged for Architect/infra review, outside COO scope. Interim mitigation: post-merge verification now falls back to a throwaway-PR probe when gh run list shows nothing new for main."
     },
     {
+      "id": "OP-17",
+      "type": "bug",
+      "title": "Gitleaks CI check fails — free-tier eligibility API call unreliable, no license fallback",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "GitHub issue #146 (closed), fixed PR #145 (commit aea19e6). Found 2026-07-19/20 merging the session-close PR: gitleaks-action (both v2 and v3.0.0 — version pin alone did not fix it) hard-fails when its GitHub-API free-tier eligibility check 503s, with no GITLEAKS_LICENSE secret configured as fallback. Distinct root cause from OP-16 (different endpoint, different symptom). Fix: dropped the Action wrapper, run the pinned+sha256-verified gitleaks OSS binary directly (v8.30.1) — no license dependency. Verified locally (368 commits, clean) and in CI (9/9 green)."
+    },
+    {
       "id": "OP-12",
       "type": "requirement",
       "title": "Generated human-readable status dashboard (STATUS.md) from tracker.json",
