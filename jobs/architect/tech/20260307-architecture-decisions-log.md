@@ -1346,3 +1346,71 @@ with mandatory re-verification of the four patched SQLite bugs.
   section in the same PR (accepted residuals recorded with rationale). Full checklist in
   ADL-30 §Instructions.
 - `db:push` remains forbidden; Node/CI runner versions untouched (out of scope).
+
+---
+
+## ADL-31 — OP-16: main-branch push-triggered CI stall ruled transient GitHub-side incident
+
+**Date:** 2026-07-19
+**Status:** Decided — issue closed, no code change
+**Tracker:** OP-16 | **GitHub:** #144 (closed) | **Related:** OP-17/#146 (distinct root cause, see note)
+
+**Decision:** Close OP-16 as a **transient GitHub-side incident**, not a repo defect. On
+`main`, push-triggered `CI` and `Security Checks` runs (`on: push: branches: ["**"]`) stopped
+firing after commit 911eccf (OP-13, 2026-07-19 05:18 UTC). Five squash-merges over the next
+~18.5 hours (OP-14 #134, BRD v3.0 #130, BUG-28 #139, BUG-10 #141, BUG-29 #142, all ~18:02–18:18 UTC)
+produced no push-triggered run on main. Delivery then resumed on its own with BUG-27 #140
+(2026-07-19 23:50 UTC) and has fired correctly for every subsequent merge — #140, #145, #147,
+#148, #149: **five consecutive clean push-triggered runs, all `success`**, spanning and closing
+the incident window. No repo-side change was made to cause the resumption.
+
+**Why transient and not a config defect — the evidence combination, not the count alone:**
+- The original COO report exhaustively eliminated every repo-controllable cause: workflow
+  files byte-identical across the gap, both workflows `state: active`, Actions permissions
+  `enabled: true`/`allowed_actions: all`, no branch protection on main, identical authorship
+  (ryanv11) to the last commit that *did* trigger, and not a general outage (PR-triggered and
+  feature-branch push-triggered runs fired normally throughout). With no repo-side lever left,
+  the residual explanation is provider-side by elimination.
+- A confirmed same-night GitHub Actions API incident correlates: repeated 503s
+  ("No server is currently available") across `actions/runs/{id}`, `actions/jobs/{id}/logs`,
+  and `actions/workflows/{id}` while the plain REST API responded normally — i.e. degradation
+  isolated to the Actions subsystem, the same subsystem that delivers push-trigger events.
+- The symptom was a binary ON→OFF→ON state change with a well-defined start and a
+  self-resolution requiring no intervention — the signature of an incident, not a latent
+  misconfiguration (which would not spontaneously heal).
+- Zero recurrence across five consecutive merges after resumption.
+
+This is why 5-for-5 is sufficient here and a larger N is not required: this is not a flaky-test
+false-positive-rate problem where samples buy statistical confidence. The repo-config hypothesis
+was already dead (nothing repo-side changed, yet behaviour changed twice); what remained was to
+confirm the OFF state neither persisted nor recurred, and five clean fires across the incident's
+close does exactly that. Confidence: High that this is not a repo-config defect; High that no
+further action is warranted. The one honest residual is the *specific* attribution to that
+night's Actions incident — a strong confirmed correlation, not proof of causation — which does
+not change the disposition.
+
+**Alternatives considered:**
+- Longer observation window (e.g. 10–15 more merges) before closing — rejected: the marginal
+  evidence is low-value once the repo-config hypothesis is eliminated and the external correlate
+  is confirmed; the recurrence-reopen clause below already covers the tail risk at zero cost.
+- Escalate to GitHub Support now — rejected: the incident self-resolved and left no reproducer;
+  support has nothing actionable to investigate. Re-escalation is warranted only on recurrence.
+- Keep open indefinitely as "unexplained" — rejected: "started working again" plus an eliminated
+  repo-side cause and a confirmed external correlate is an adequate explanation for a P2 CI
+  observability issue; an open ticket with no owner action is worse hygiene than a documented close.
+
+**Implications:**
+- Interim mitigation is **retained as cheap standing insurance**: post-merge verification falls
+  back to a throwaway no-op PR probe against main's tip when `gh run list --branch main` shows
+  nothing new since the last known-good run. This costs nothing and de-risks any future silent
+  stall regardless of cause. (Documented in the OP-16 tracker note and the COO post-merge check.)
+- **Recurrence-reopen clause:** if push-triggered main CI silently stalls again, reopen OP-16;
+  the original report's repo-side ruling-outs still stand, and recurrence would move this from
+  "transient incident" to a reproducible pattern warranting direct Architect + GitHub Support
+  investigation.
+- No source, workflow, or config change. `.github/workflows/ci.yml` and `security.yml` untouched.
+- OP-17/#146 (Gitleaks license failure) is explicitly **not** correlated evidence for OP-16: its
+  root cause is a missing `GITLEAKS_LICENSE` secret after a gitleaks-action breaking change, fixed
+  by running the pinned OSS binary directly. The 503 the Gitleaks action surfaced was incidental;
+  the job would have failed regardless of Actions API health. That correlation was raised and then
+  retracted by the PO on #144 — recorded here so it is not silently re-conflated later.
