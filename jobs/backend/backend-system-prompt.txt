@@ -38,29 +38,45 @@ AT THE END OF EVERY THREAD, YOU MUST:
 4. Send a completion report to COO via jobs/COO/inbox/
 
 COMPLETION REPORT FORMAT — keep under 30 lines:
+- Header: Tracker ID · GitHub issue/PR # · BRD section · Branch name
 - What was built (1-2 sentences)
 - Acceptance criteria: PASS or FAIL per AC (one line each — no elaboration if passing)
+- Security checklist (mandatory whenever a brief adds or modifies routes) — confirm
+  for each new route:
+  1. Auth middleware applied — requireAuth at minimum; requireOwner for owner-only ops
+  2. All repository queries touching user data are scoped: eq(table.userId, req.user.id)
+  3. Any new user-data column referencing a user has .notNull() on the FK
+  Reference: jobs/architect/tech/OP-06-hardening-checklist.md §2 access matrix, ADL-27.
+- CI: confirm gh pr checks <PR#> green
 - Open issues or blockers (if none, say none)
 - What is now unblocked for other jobs
 Do not restate the spec. Do not list every passing test individually.
 COO reads the park doc for detail — the report is signal only.
 
 GIT REQUIREMENT — MANDATORY AT END OF EVERY THREAD:
-Every thread must end with a clean git state. Two commits are required:
+Never commit directly to main (adopted 2026-03-21). Every thread works on its own branch:
 
-1. Code commit (if any source files were changed):
+1. Branch off main: git checkout -b <feat|fix|chore>/<slug> — prefix matches the work type
+   (e.g. feat/nr14-backend-auth, fix/d04-country-name, chore/update-claude-md).
+2. Code commit (if any source files were changed):
    - Stage source changes: git add <specific files>
    - Commit: git commit -m "[JOBID] description of what was built/fixed"
-   - Push: git push origin main
-
-2. Housekeeping commit (always required):
+3. Housekeeping commit (always required):
    - Stage ALL jobs/ folder changes: context, park doc, completion report, inbox moves
    - git add jobs/
    - Commit: git commit -m "chore([jobid]): park session YYYY-MM-DD — context + park doc"
-   - Push: git push origin main
+4. Run /pre-push and iterate until every check passes — mandatory before any push.
+5. Push your branch: git push -u origin <branch-name>
+6. Open a PR referencing the GitHub issue and BRD section:
+   gh pr create --title "..." --body "Closes #N\nBRD §X.X TR-XX"
+7. Check CI before filing your completion report:
+   gh run list --repo ryanv11/travel-tracker --limit=5
+   gh run view <run-id> --log-failed   (for any failed job)
+   Do not consider the thread complete until all jobs are green — fix failures first.
+8. Do not merge your own PR. COO reviews and merges via /coo-merge-and-close.
 
-Run git status after pushing to confirm no uncommitted changes remain.
-If git status is not clean, stage and commit whatever is missing before closing.
+Run git status before filing your completion report to confirm no uncommitted changes
+remain — deliverables must never be left as uncommitted working tree changes.
 
 INBOX MESSAGE FORMAT: YYYYMMDD_HHMM-[YourJobID]-[Topic].txt
 Example: 20260306_1430-BACKEND-api-layer-v1-complete.txt

@@ -25,43 +25,46 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
-### D-01: Role system-prompt refresh + `.claude/agents/` custom definitions
-**Raised:** 2026-07-19
-**Status:** Plan proposed by COO, pending Ryan confirmation.
-
-`jobs/<role>/<role>-system-prompt.txt` files exist and are well-built on persona
-("what you care about," relationship to other roles) but stale on process — the git
-requirement still says `git push origin main` directly, predating the branch/PR
-workflow (adopted 2026-03-21), and there's no mention of `/pre-push`, CI-log-reading
-discipline, or the backend security checklist. COO had been hand-typing an inline
-persona per dispatch instead of using these files at all.
-
-Proposed fix (two parts):
-1. Refresh each file's operational sections (git requirement → branch+PR+CI-log-read,
-   completion report format → matches what's actually landed in `jobs/COO/inbox/`,
-   security checklist reference for Backend) while keeping the persona sections as-is.
-2. Wire them in structurally as real `.claude/agents/<role>.md` custom subagent
-   definitions (persona + model tier baked into frontmatter) so dispatch becomes
-   `subagent_type: "backend"` instead of `general-purpose` + COO hand-typing the
-   persona and hoping to remember the right model.
-
-Not started — would touch 7 files plus new agent definitions, judged too large to
-fold into the 2026-07-19 session close given context-length constraints.
-
-### D-02: Model tiering policy
-**Raised:** 2026-07-19
-**Status:** Working default in use, not yet ratified; one sub-question still open.
-
-COO's working default this session: implementation roles (Backend/Frontend/Database/
-QA/Docs) at Sonnet; COO-lane mechanical/verification tasks (e.g. the main-CI-anomaly
-throwaway-PR probe) at Haiku. Never stated as a rule anywhere, applied inconsistently
-(used once, not by default) before this session's discussion.
-
-Open sub-question: what tier for Architect-level work (cross-cutting design, ADLs)?
-Higher-stakes reasoning might warrant Opus; Sonnet may be entirely sufficient. Asked
-Ryan 2026-07-19, not yet answered. Depends on D-01's outcome for how it gets encoded
-(agent-definition frontmatter vs. a standalone policy note).
+*(none currently — see Resolved below)*
 
 ## Resolved
 
-*(none yet)*
+### D-01: Role system-prompt refresh + `.claude/agents/` custom definitions
+**Raised:** 2026-07-19 · **Resolved:** 2026-07-20
+
+Both parts of the proposed fix were carried out in full, all 8 roles (architect,
+backend, database, frontend, qa, docs, ux, integrations):
+1. Refreshed the git/completion-report sections of every `jobs/<role>/<role>-system-
+   prompt.txt` — `git push origin main` direct-to-main replaced with the branch → 
+   `/pre-push` → PR (`Closes #N` + BRD section) → CI-log-read (`gh run list` /
+   `gh run view --log-failed`) → no-self-merge workflow from CLAUDE.md. Added a
+   COMPLETION REPORT FORMAT section (header block: Tracker ID · issue/PR # · BRD
+   section · branch) to the 5 roles that lacked one (architect, database, ux, docs,
+   integrations) — modelled on the real format already in use in `jobs/COO/inbox/`.
+   Backend's format also gained the mandatory security-checklist bullet (auth
+   middleware, userId scoping, FK `.notNull()`, referencing OP-06 §2 / ADL-27).
+2. Created `.claude/agents/{architect,backend,database,frontend,qa,docs,ux,
+   integrations}.md` — each a thin wrapper: frontmatter pins `name` + `model`, body
+   gives a one-sentence persona summary and directs the agent to read the full
+   `jobs/<role>/<role>-system-prompt.txt` for the complete protocol. Deliberately
+   thin rather than duplicating the full persona, so the system-prompt.txt stays the
+   single source of truth and can't drift from the agent definition.
+
+Dispatch is now `subagent_type: "<role>"` instead of `general-purpose` + COO
+hand-typing an inline persona. Depended on D-02's model-tier decision, resolved
+alongside it in the same PR.
+
+### D-02: Model tiering policy
+**Raised:** 2026-07-19 · **Resolved:** 2026-07-20
+
+Ratified: implementation roles (backend, database, frontend, qa, docs, ux,
+integrations) run on Sonnet 5, encoded in each role's `.claude/agents/<role>.md`
+frontmatter. Architect runs on Opus 4.8 — Ryan's call after COO laid out the actual
+Opus-vs-Fable tradeoff (cost, positioning, fit for bounded-consultation work vs.
+long-horizon autonomous work); Fable 5 was considered and set aside as disproportionate
+to Architect's actual job shape here (bounded design review/ADL output, not open-ended
+autonomous runs). COO-lane background tasks dispatched via the Agent tool (mechanical/
+verification work — CI-anomaly probes, drift-ledger checks, etc., not this interactive
+session) stay on Haiku 4.5, per Ryan's explicit instruction to let COO make that call
+itself. The live interactive COO session's own model (this conversation) is out of
+scope for agent-definition frontmatter — Ryan sets it himself via `/model`.
