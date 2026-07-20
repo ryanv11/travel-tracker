@@ -1,0 +1,74 @@
+BACKEND PARK DOC — 2026-07-20
+SESSION: BUG-32 — remove a place from a trip (GitHub #156)
+
+WHAT WAS DONE
+
+Brief assumed DELETE /api/trips/:tripId/places/:placeId was missing (UAT found no UI
+affordance). Confirmed via code read that the route has existed since Phase 1
+(src/backend/routes/places.ts, commit 5853b6d) and already satisfies the mandatory
+security checklist:
+  - requireAuth applied globally at app.use('/api/', requireAuth) in server.ts
+  - placeRepository.assertWritable(userId, tripId) scopes by eq(trips.userId, userId)
+    (trip-owner model, matching PATCH/DELETE trip — not app-owner requireOwner)
+  - Ownership checked before lock status (NotFoundError before LockError) — audit
+    invariant 17
+  - Already the 7th of 15 rows in lock-matrix.test.ts's LOCKED_WRITE_MATRIX (added
+    alongside the BUG-27 fix, PR #140) — no 16th route to add, it was already there.
+
+So this was a confirm-not-missing task, not a build-from-scratch task. The real gap was
+item 4 of the brief — cascade behavior for items under a deleted place. Investigated and
+found a genuine bug:
+  - items.trip_place_id has no onDelete set in schema.ts (by design — nullable,
+    documented as "trip-level items ... not tied to a specific city").
+  - Production's DB connection (createLibSQLDb, src/backend/db/index.ts) never runs
+    PRAGMA foreign_keys = ON. Tests always do (see every __tests__/*.ts createTestDb).
+  - Empirically verified (scratch test, since removed): deleting a place with an item
+    attached threw an unhandled 500 (SQLite FK constraint violation) under the test
+    harness's FK-enforced connection. In production (FK enforcement off), the same
+    delete would have silently succeeded, leaving the item's trip_place_id dangling
+    (pointing at a deleted row) — silent data corruption.
+
+FIX: src/backend/repositories/places.ts placeRepository.delete — before deleting the
+place, reassigns any items under it to trip-level (trip_place_id = null) via db.batch()
+(atomic with the place delete). db.batch() chosen over db.transaction() per the existing
+comment in tripRepository.replaceAssociations — transaction() breaks libSQL :memory:
+test clients.
+
+Decision: reassign, not cascade-delete. Cascade-deleting logged items (flights, hotels,
+ratings, notes) as a side effect of removing a place would be a surprising, destructive
+UX — NULL trip_place_id is already a first-class "trip-level item" state per schema.ts,
+so reassignment is the natural, non-destructive choice. No migration needed — the FK's
+onDelete stays unset; the reassignment is owned by application code, now documented in
+both schema.ts and the route/repository comments.
+
+Contract confirmed unchanged for Frontend: DELETE /api/trips/:tripId/places/:placeId,
+204 on success, 403 if locked, 404 if not found/not owned.
+
+Changes made:
+  src/backend/repositories/places.ts — delete() reassigns items.tripPlaceId to null via
+    db.batch(), doc comment added
+  src/backend/routes/places.ts — doc comment added above the DELETE handler
+  src/backend/db/schema.ts — doc comment addendum on items.tripPlaceId re: BUG-32
+  src/backend/routes/__tests__/places.test.ts — new regression test: deleting a place
+    with an item attached returns 204, item survives with trip_place_id null, place gone
+
+TESTS
+  525 backend tests pass (1 new), 1 pre-existing skip unrelated to this change
+  Type check clean (type:check:backend)
+  lock-matrix.test.ts: all 21 tests still pass unchanged (DELETE places already covered)
+
+OPEN ISSUES (flagged to COO, not fixed here — out of scope for BUG-32)
+  1. PRAGMA foreign_keys is never enabled on the production libSQL connection. This
+     means every ON DELETE CASCADE/RESTRICT in schema.ts is untested-in-production;
+     only the test harness enforces them. Worth an Architect ADL review — this predates
+     BUG-32 and affects far more than trip_places/items.
+  2. security.access-matrix.test.ts / owner-access.test.ts don't have a cross-user 404
+     case for DELETE places specifically (only DELETE trip). Pre-existing coverage gap.
+
+COMMIT: (see PR)
+CI: pending — see completion report
+
+STATE ON PARK
+  No active tasks. Inbox empty (no unread messages besides this session's brief, which
+  came directly from COO/orchestrator, not via inbox file).
+  Awaiting next COO dispatch.

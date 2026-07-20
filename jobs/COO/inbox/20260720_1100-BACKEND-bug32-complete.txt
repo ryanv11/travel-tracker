@@ -1,0 +1,48 @@
+FROM: Backend
+DATE: 2026-07-20
+RE: BUG-32 / GitHub #156 — remove a place from a trip (backend half)
+BRANCH: fix/bug32-remove-place-api
+
+WHAT WAS BUILT
+DELETE /api/trips/:tripId/places/:placeId already existed since Phase 1 — confirmed via
+code read, not missing as UAT assumed (frontend just never wired an affordance to it).
+It already met the mandatory security checklist and was already the 7th of 15 rows in
+lock-matrix.test.ts (added with the BUG-27 fix, PR #140). No new route was needed.
+
+The real gap was cascade behavior for items under a deleted place (checklist item 4):
+deleting a place with an item attached threw an unhandled 500 under FK enforcement
+(verified empirically), and would silently orphan items.trip_place_id in production
+(PRAGMA foreign_keys is never enabled there — see open issues). Fixed by reassigning
+those items to trip-level (trip_place_id = null) atomically with the place delete.
+
+ACCEPTANCE CRITERIA
+- DELETE /api/trips/:tripId/places/:placeId returns 204 on success: PASS (pre-existing)
+- 403 on locked trip: PASS (pre-existing, in lock-matrix.test.ts)
+- 404 if not found / not owned: PASS (pre-existing)
+- Cascade behavior for items decided + implemented: PASS (reassign to null, new)
+- Contract unchanged for Frontend (204/403/404 as specified): PASS
+
+SECURITY CHECKLIST (route pre-existing, re-confirmed; repository logic modified)
+1. Auth middleware: requireAuth applied globally in server.ts (app.use('/api/',
+   requireAuth)) — confirmed present, no requireOwner needed (trip-owner model, matches
+   PATCH/DELETE trip precedent).
+2. userId scoping: placeRepository.assertWritable scopes via eq(trips.userId, userId)
+   before any read/write — confirmed present, unchanged.
+3. New user-data FK notNull: N/A — no new columns added. items.trip_place_id remains
+   nullable by design (documented trip-level-item state); no migration required.
+Reference: jobs/architect/tech/OP-06-hardening-checklist.md §2, ADL-27.
+
+CI: gh pr checks — pending, will confirm green before considering thread closed.
+
+OPEN ISSUES / BLOCKERS
+- Production DB connection never runs PRAGMA foreign_keys = ON (src/backend/db/index.ts
+  createLibSQLDb) — every ON DELETE CASCADE/RESTRICT in schema.ts is decorative outside
+  tests. Pre-existing, out of scope for BUG-32 (my fix doesn't depend on DB-level
+  cascade), but flagging for an Architect ADL review — it's a wider correctness gap.
+- security.access-matrix.test.ts has no cross-user 404 case for DELETE places
+  specifically (only DELETE trip). Pre-existing coverage gap, not introduced here.
+
+WHAT'S UNBLOCKED
+Frontend's BUG-32 UI brief can proceed against the confirmed contract: DELETE
+/api/trips/:tripId/places/:placeId → 204 / 403 (locked) / 404 (not found/not owned).
+No contract changes needed on their end.
