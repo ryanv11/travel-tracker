@@ -14,6 +14,9 @@ description: COO session startup audit. Invoked by the COO at the start of every
 ### Most recent park doc
 !`ls -t /workspace/jobs/COO/park-docs/*.txt 2>/dev/null | head -1 | xargs cat 2>/dev/null || echo "No park doc found"`
 
+### Open dialogues (not authoritative — see file header)
+!`cat /workspace/jobs/COO/open-dialogues.md 2>/dev/null || echo "No open-dialogues.md found"`
+
 ---
 
 ## Startup procedure

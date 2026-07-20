@@ -51,15 +51,44 @@ Installed 2026-07-18 from the Session C draft (audits/session-c-workflow-extract
    ID has a tracker entry and stated success criteria, and the BRD **header** version
    matches the latest changelog entry (the header lagged from v2.5 to v2.7 once). See
    /record-decision for the full BRD-bump procedure.
-4. **Park doc:** write `jobs/COO/park-docs/YYYYMMDD_HHMM-COO-park.txt` — session
-   summary, state of play, open threads, suggested next actions (this is what the next
-   /coo-startup reads). Point at the roadmap/tracker for work queues rather than
-   restating them.
-5. **Drift ledger:** `.planning/drift-ledger.jsonl` is appended automatically by the
+4. **Restart preview (mandatory before an actual session end — skip for mid-session
+   housekeeping checkpoints that aren't followed by `/clear`):** Adopted 2026-07-19 after
+   Ryan flagged that closing a session didn't make it visible what would and wouldn't
+   survive to the next one. Produce a two-tier summary and show it to Ryan **before**
+   writing the park doc, so he can catch gaps while the context is still live:
+
+   - **✅ Captured** — durable, will be there at next `/coo-startup`: tracker IDs +
+     status changed this session, merged PRs, memory entries written, open PRs awaiting
+     review. Mechanical — diff `tracker.json`/`git log`/the memory directory against
+     session start.
+   - **⚠️ Not captured** — reconcile two sources:
+     1. Every `pending`/`in_progress` TodoWrite item against tracker.json/GitHub issues.
+        TodoWrite is pure scratch state — it does not survive `/clear` — so any todo
+        with no matching durable artifact is a loose end by definition.
+     2. A scan back over the session's conversation for anything discussed, decided, or
+        proposed that has no tracker entry, memory write, ADL, or commit. This isn't
+        mechanical — reason about the actual thread; a plan Ryan hasn't confirmed yet,
+        a finding raised but not ticketed, a "we should do X later" that never got
+        written down, all belong here.
+   - **Split the uncaptured list before asking** — don't lump everything together
+     (this was the mistake the first run made, corrected 2026-07-19):
+     - *Clear-cut gaps* (a report that should exist and doesn't, a fix that's done
+       but untracked) → resolve now, in this close-out. Don't defer what's actionable.
+     - *Genuine open dialogue* (a proposal awaiting confirmation, an unresolved
+       sub-question, a plan too large to fold into this close) → an entry in
+       `jobs/COO/open-dialogues.md`, NOT a tracker.json entry — it isn't scoped,
+       ticketed work yet, and tracker.json isn't the place for half-decided ideas.
+   - Ask explicitly: *"anything here you want handled differently before we close?"*
+5. **Park doc:** write `jobs/COO/park-docs/YYYYMMDD_HHMM-COO-park.txt` — session
+   summary, state of play, suggested next actions. Its "open threads" section
+   **points at `jobs/COO/open-dialogues.md` rather than restating it** — one home
+   for open-dialogue content, not two copies that can drift apart. Clear-cut gaps
+   resolved during the restart preview don't appear here at all (they're closed).
+6. **Drift ledger:** `.planning/drift-ledger.jsonl` is appended automatically by the
    PostToolUse hook — commit whatever accumulated. Canary: an editing session that
    produced ZERO new ledger entries means the hooks are silently broken — investigate
    before trusting this session's typecheck feedback (see /coo-startup check 0).
-6. Close-out commit goes on a `chore/<slug>` branch → PR, like all work (never direct
+7. Close-out commit goes on a `chore/<slug>` branch → PR, like all work (never direct
    to main).
 
 ## Definition of done
@@ -68,6 +97,8 @@ Installed 2026-07-18 from the Session C draft (audits/session-c-workflow-extract
 - [ ] `git branch` shows only `main` + branches with open PRs awaiting review
 - [ ] `jobs/COO/inbox/` triaged; handled reports in `read/`
 - [ ] tracker.json statuses match merged reality; STATUS.md regenerated in same commit
-- [ ] Park doc written; drift ledger committed (and non-empty if files were edited)
+- [ ] Restart preview shown to Ryan before park doc written; any requested captures done
+- [ ] Park doc written (open threads = restart preview's uncaptured list); drift ledger
+      committed (and non-empty if files were edited)
 - [ ] If BRD touched: header version == changelog version; every new ID has tracker
       entry + success criteria
