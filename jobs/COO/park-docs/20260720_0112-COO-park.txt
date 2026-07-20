@@ -1,0 +1,79 @@
+COO SESSION PARK — 2026-07-20 (D-01/D-02 close-out: agent defs, model tiering, restart-preview fix)
+================================================================================
+
+## Session summary
+Short, focused session: picked up the two open dialogues from the 2026-07-19
+close-out (D-01 role system-prompt refresh + real agent definitions, D-02 model
+tiering policy), resolved both fully, merged the PR, and — during this session's
+own close-out — found and fixed a real flaw in the restart-preview mechanism itself
+(the first live-run fix from 2026-07-19 wasn't quite right either).
+
+## Completed this session
+
+### Merged to main
+- PR #148 — chore(D-01/D-02): role prompt refresh + .claude/agents/ definitions +
+  model tiering. Refreshed the git-workflow section of all 8 role system prompts
+  (jobs/<role>/<role>-system-prompt.txt) — replaced stale git-push-to-main
+  instructions with the real branch → /pre-push → PR → CI-log-read → no-self-merge
+  workflow adopted 2026-03-21. Added a COMPLETION REPORT FORMAT section to the 5
+  roles that lacked one (architect, database, ux, docs, integrations); backend's
+  format gained the mandatory security-checklist bullet. Created real
+  .claude/agents/{architect,backend,database,frontend,qa,docs,ux,integrations}.md
+  subagent definitions — thin wrappers (persona summary + model tier in frontmatter)
+  pointing at the system-prompt.txt files as the single source of truth, so dispatch
+  is now subagent_type: "backend" etc. instead of general-purpose + a hand-typed
+  persona. Model tiering ratified: Architect on Opus 4.8 (Ryan's call after weighing
+  cost/positioning against Fable 5 — Architect's job here is bounded design review,
+  not long-horizon autonomous work), other 7 roles on Sonnet 5, COO-lane background
+  tasks on Haiku 4.5 (COO's own call, per Ryan's instruction). All 9 CI checks green
+  before and after merge; main verified green post-merge.
+- OP-18 added to tracker.json (done) — same-session, not a separate PR; STATUS.md
+  regenerated in the same commit.
+
+### Also this session
+- D-01 and D-02 moved from Open to Resolved in jobs/COO/open-dialogues.md, both
+  citing PR #148.
+- Restart-preview mechanism corrected from two tiers to three. Ryan flagged that
+  labeling all outstanding pre-existing backlog "Not captured" reads as "/clear
+  erases this," when most of it (OP-16, OP-07, OP-15, the stale-branch pile, the
+  Scotland trial) is already durably tracked and simply wasn't touched this session.
+  Fixed in .claude/skills/coo-merge-and-close/SKILL.md step 4: Captured (new this
+  session) / Captured-not-actioned (already tracked, not this session's scope) /
+  Not captured (genuinely at risk — discussed this session, no durable artifact
+  yet). This is the mechanism's second live-run correction (first was 2026-07-19,
+  same day it was installed).
+- 4 new/updated cross-session memory files: model tiering policy, agent-defs
+  pointer, the restart-preview 3-tier feedback, and a fix to the previously-stale
+  BRD-version memory (header/changelog now both read v3.0, confirmed at this
+  session's /coo-startup).
+
+## State of play
+Main green (CI verified directly post-merge, not just trusted from the PR). `git
+branch` shows only main plus the pre-existing stale-branch pile (unrelated to this
+session — see below). All 8 roles now dispatchable via subagent_type with model
+tier structurally pinned. Open dialogues register is empty under Open.
+
+## Open Dialogues
+None open. jobs/COO/open-dialogues.md has D-01 and D-02 both under Resolved.
+
+## Untouched backlog (carried forward, not touched this session — already tracked
+elsewhere, see the 🟡 tier of this session's restart preview)
+- OP-16: main branch push-triggered CI anomaly (architect-owned, pending) — needs
+  Architect/infra review, not a COO fix.
+- OP-07: UI/UX expert review (pending, P2, scheduled after Phase 1 sign-off).
+- OP-15: design pass for the two deferred skills (schema-change, backend-route-
+  change) — prerequisites still unmet (Q22 test-DDL consolidation, Q3/Q8 fixes).
+- Stale local branch / worktree-agent pile (~70+ entries in `git branch`) — has
+  been noted as debt across multiple prior sessions; still not scheduled.
+- Scotland dogfood trial — still the concrete next input for PHASE-6's planning-
+  core work (BRD-PL0104 explicitly held pending it).
+
+## Suggested next session
+1. `/coo-startup` — will pick up cleanly; nothing new to surface beyond the usual
+   checks (open-dialogues.md is empty, so that check is a fast no-op this time).
+2. Scotland trial, or roadmap.md/bundles (part 2 of the prioritisation-mechanic
+   work), whichever Ryan wants to pick up next — both were already queued before
+   this session and neither was touched here.
+3. Stale-branch cleanup, if Ryan wants to allocate a session to it specifically —
+   raised as an option during this session's close-out and explicitly deferred,
+   not silently dropped.

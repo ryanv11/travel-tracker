@@ -801,6 +801,17 @@
       "notes": "GitHub issue #146 (closed), fixed PR #145 (commit aea19e6). Found 2026-07-19/20 merging the session-close PR: gitleaks-action (both v2 and v3.0.0 — version pin alone did not fix it) hard-fails when its GitHub-API free-tier eligibility check 503s, with no GITLEAKS_LICENSE secret configured as fallback. Distinct root cause from OP-16 (different endpoint, different symptom). Fix: dropped the Action wrapper, run the pinned+sha256-verified gitleaks OSS binary directly (v8.30.1) — no license dependency. Verified locally (368 commits, clean) and in CI (9/9 green)."
     },
     {
+      "id": "OP-18",
+      "type": "chore",
+      "title": "Role system-prompt refresh + real .claude/agents/ definitions + model tiering policy",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Resolves D-01/D-02 from jobs/COO/open-dialogues.md (raised 2026-07-19, resolved 2026-07-20, PR #148, merged squash). No separate GitHub issue raised — this was direct COO-session work, fully captured by the PR diff and the open-dialogues.md resolution entries. D-01: refreshed all 8 role system prompts' git workflow (stale git-push-to-main → branch/pre-push/PR/CI-log-read, matching the 2026-03-21 branch workflow) and added a completion report format to the 5 roles missing one; created .claude/agents/{architect,backend,database,frontend,qa,docs,ux,integrations}.md as thin wrappers (persona summary + model tier in frontmatter) pointing at the system-prompt.txt files, so dispatch uses subagent_type instead of general-purpose + a hand-typed persona. D-02: ratified model tiering — Architect on Opus 4.8, other 7 roles on Sonnet 5, COO-lane background tasks on Haiku 4.5."
+    },
+    {
       "id": "OP-12",
       "type": "requirement",
       "title": "Generated human-readable status dashboard (STATUS.md) from tracker.json",
