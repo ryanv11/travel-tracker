@@ -57,6 +57,13 @@
       "when": 1774404520000,
       "tag": "0007_secret_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784569572909,
+      "tag": "0008_bug30_uk_region_seed",
+      "breakpoints": true
     }
   ]
 }
