@@ -1,0 +1,103 @@
+COO SESSION PARK — 2026-07-20 (OP-16 close + stale-branch cleanup + OP-19 agent isolation)
+================================================================================
+
+## Session summary
+Picked up clean per /coo-startup (main green, UAT clean, drift ledger clean, BRD
+coverage clean, lifecycle clean — last session's own close-out already accounted
+for everything). Ryan asked to kick off two things: OP-16 (main-branch push-trigger
+CI anomaly, architect-owned) and stale branch/worktree cleanup. Both completed, plus
+a third item raised mid-session after a real process failure surfaced during OP-16's
+dispatch: OP-19, making agent-dispatch isolation mandatory.
+
+## Completed this session
+
+### Merged to main
+- PR #150 — docs(audit): archive Ryan's answered audit questionnaire + Session C
+  report. Found during the branch-cleanup survey: `chore/audit-questions` held two
+  files (the completed 25-question answer sheet, the Session C workflow-extraction
+  report) that only ever existed on that branch — both commits explicitly said "not
+  merged to main as-is." Ryan chose to archive before deleting; done under
+  `audits/`. 9/9 CI green.
+- PR #151 — chore(OP-16): close main-CI push-trigger stall as transient — ADL-31.
+  Dispatched to Architect with the evidence (5 consecutive clean push-triggered
+  runs on main since the incident, matching the closure bar the GitHub issue #144
+  itself asked for). Architect's independent judgment: the repo-side causes were
+  already exhaustively eliminated in the original report; a confirmed same-night
+  GitHub Actions API 503 incident correlates directly; the anomaly was a binary
+  state change that self-resolved without any repo-side intervention, which reads
+  as an incident signature, not a latent misconfiguration. Closed issue #144, wrote
+  ADL-31 (full ruling + rejected alternatives + recurrence-reopen clause), flipped
+  OP-16 pending → done, regenerated STATUS.md. 9/9 CI green.
+- PR #152 — chore(OP-19): mandate isolation:worktree for git-touching agent
+  dispatches. New tracker entry, raised and closed same-session. See "process
+  finding" below for what prompted it. 9/9 CI green.
+- Main's own CI verified green after all three merges (push-triggered, not just
+  trusted from the PR — this was itself another clean data point for the OP-16
+  transient-incident conclusion).
+
+### Branch / worktree cleanup
+Local branches: 98 → 1 (`main`, plus the one pre-existing branch with an open PR,
+`chore/uat-note-country-picker-gap`, left untouched). Worktrees: 29 → 1 (main only).
+Surveyed before deleting anything — cross-referenced every branch against its
+GitHub PR state (merged/closed/open/none), checked ahead-of-main commit counts, and
+checked every worktree for genuinely uncommitted work (all "dirty" worktree states
+turned out to be index/checkout drift noise, duplicate completion reports already
+captured in `jobs/COO/inbox/read/`, or zero-content diffs — nothing at risk). Two
+worktrees had corrupted `.git` gitdir links from broken setups (detached HEAD at
+the null SHA); removed manually since `git worktree remove` refused them. Remote
+was already clean (auto-delete-on-merge working as intended) — this was purely
+local cruft with zero remote/collaborator impact.
+
+### Process finding: OP-19 (new, raised and closed this session)
+The Architect agent dispatched for OP-16 was not given `isolation: "worktree"` and
+so shared this session's own working tree. Mid-task, a concurrent `git checkout` by
+COO (creating the audit-archive branch) moved `HEAD` out from under the agent; its
+commit landed on the COO's branch instead of its own. Caught via `git status`
+before anything was pushed — relocated the commit to the correct branch
+(`chore/op16-close`), pushed, opened the PR. No work was lost, but Ryan confirmed
+explicitly this needs to be a standing rule, not a one-off recovery: "yeah agent
+needs to be isolated and should have been working on his own branch." Fixed in
+CLAUDE.md's Git workflow section — `isolation: "worktree"` is now mandatory for
+every Agent-tool dispatch of a role agent doing git work; read-only dispatches
+(research/review/investigation with no commits) are exempt. Also captured as a
+feedback memory (`feedback_agent_dispatch_isolation.md`) so the reasoning survives
+independent of CLAUDE.md.
+
+### Also this session
+- 2 new memory files: `feedback_agent_dispatch_isolation.md` (the OP-19 reasoning)
+  and this session's park doc pointer in MEMORY.md.
+- Confirmed the JSON-comments concern Ryan raised was a non-issue in the codebase —
+  `scripts/lib/tracker-data.js` already has a proper string-aware JSONC stripper
+  (BUG-23, fixed in OP-12) and parses tracker.json correctly. The parse error seen
+  earlier in the session was from COO running Python's strict `json.load` directly
+  on the file, not a live bug. Nothing to fix in the app.
+
+## State of play
+Main green (verified directly post-merge for all three PRs, not just trusted from
+each PR's own checks). `git branch` shows only `main` plus the one branch with a
+genuinely open PR — the stale-branch debt noted in prior park docs is now fully
+cleared. OP-16 and OP-19 both closed. Agent-dispatch isolation is now a written,
+enforceable rule, not tribal knowledge.
+
+## Open Dialogues
+None open. jobs/COO/open-dialogues.md unchanged this session (D-01/D-02 already
+resolved last session; nothing new rose to open-dialogue status this session —
+everything discussed landed in a tracker entry, PR, ADL, or memory file directly).
+
+## Untouched backlog (carried forward, not touched this session — already tracked
+elsewhere; see the restart preview shown to Ryan before this park doc)
+- OP-07: UI/UX expert review (pending, P2, scheduled after Phase 1 sign-off).
+- OP-15: design pass for the two deferred skills (schema-change, backend-route-
+  change) — prerequisites still unmet (Q22 test-DDL consolidation, Q3/Q8 fixes).
+- Scotland dogfood trial — still the concrete next input for PHASE-6's planning-
+  core work (BRD-PL0104 explicitly held pending it).
+
+## Suggested next session
+1. `/coo-startup` — will pick up cleanly. Note for whoever runs it: any future
+   agent dispatch that does git work must pass `isolation: "worktree"` per the new
+   CLAUDE.md rule (OP-19) — this applies to COO's own dispatches going forward,
+   not just something to audit for.
+2. Scotland trial, or roadmap.md/bundles (part 2 of the prioritisation-mechanic
+   work) — both queued before this session, neither touched here.
+3. OP-07 (UI/UX expert review) or OP-15 (schema/route-change skill design) if
+   their prerequisites are ready to pick up.
