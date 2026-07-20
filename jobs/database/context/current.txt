@@ -1,64 +1,80 @@
-DATABASE CONTEXT — 2026-03-07
+DATABASE CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: Phase 1 complete — all deliverables verified, COO and BACKEND notified
+CURRENT STATUS: BUG-33 schema half complete — cities dedup migration + unique
+index shipped on fix/bug33-city-dedup-schema, PR pending COO review/merge.
 
 ================================================================================
-COMPLETED DELIVERABLES
+NOTE ON THIS FILE'S GAP (March 2026 -> July 2026)
 ================================================================================
 
-  1. src/backend/db/schema.ts
-     19-table Drizzle ORM schema. All constraints, indexes, FKs, and type
-     exports matching ER schema v1.1 exactly.
-
-  2. src/backend/db/index.ts
-     Connection factory (singleton). DB_TYPE=sqlite → @libsql/client.
-     DB_TYPE=postgres → node-postgres.
-
-  3. drizzle.config.ts
-     Drizzle Kit config. Dialect driven by DB_TYPE.
-
-  4. src/backend/db/seed.ts
-     Idempotent seed loader. trip_categories (11), activities (17),
-     companions (7), map_shading_config (6).
-
-  5. src/backend/migrations/0000_open_electro.sql
-     Generated migration. Verified correct SQL.
+This file was last updated 2026-03-07, at the end of the original Phase 1
+schema delivery. Between then and now, many schema changes landed directly
+via other roles' branches (ADL-16/19/20/23/24/27/28/30, HC-07 series, DEP-01
+drizzle upgrade, etc. — see architecture-decisions-log.md) without a Database
+thread updating this file or jobs/database/park-docs/. `jobs/database/tech/`
+(schema.ts, index.ts, etc.) is correspondingly stale/drifted from the real
+`src/backend/db/schema.ts` — that file's own header comment already states it,
+not the ER doc or this tech mirror, is the authoritative current schema.
+Flagging this as a housekeeping gap rather than silently back-filling four
+months of unrelated drift in this thread.
 
 ================================================================================
-VERIFICATION RESULTS
+THIS THREAD — BUG-33 (GitHub #157, BRD GE-11)
 ================================================================================
 
-  npm run db:push  → "✓ Changes applied"
-  npm run db:seed  → all 4 tables seeded, correct counts
-  Idempotency      → second seed run produces no errors or duplicates
-  Table count      → 19 application tables in dev.db
+Problem: `cities` had no uniqueness constraint on (name, country_code) — the
+find-or-create lookup path created a duplicate "Glasgow" row instead of
+reusing the existing one (found in UAT 2026-07-20).
+
+Delivered (branch fix/bug33-city-dedup-schema):
+  1. src/backend/migrations/0008_bug33_dedupe_cities_data.sql — merges
+     existing duplicate city rows (canonical = lowest id; geocode fields
+     coalesced from the best-resolved duplicate). Re-points trip_places to
+     canonical city; handles the case where that collides with
+     uniq_trip_places_trip_city (two trip_places rows for one trip now
+     targeting the same city) by keeping the earlier trip_place row and
+     migrating items/activity-tags off the later one before deleting it —
+     no user data lost.
+  2. src/backend/migrations/0009_stiff_meltdown.sql — adds
+     UNIQUE(name COLLATE NOCASE, country_code) on cities (schema.ts:
+     uniq_cities_name_country_ci).
+  3. src/backend/db/schema.ts — cities table now has the unique index.
+
+Approach reviewed with Architect before implementation (collation mechanism,
+trip_places collision handling) per the no-schema-change-without-review rule.
+Verified against the real dev.db duplicate data set (2x Glasgow/GB, 3x
+Seattle/US, including one live trip_places collision) — cleanup output
+matched expected merge exactly; unique index verified to block a
+case-variant duplicate insert while allowing genuinely distinct cities.
+
+NOT in this thread's scope: the find-or-create application logic that let
+duplicates get created — that's Backend's parallel brief on
+fix/bug33-city-dedup-logic. Backend's lookup WHERE clause needs to match the
+new index's COLLATE NOCASE (ASCII-only case fold) or it will fail to find the
+canonical row.
 
 ================================================================================
-DRIVER NOTE (flagged to COO)
+VERIFICATION
 ================================================================================
-
-  Used @libsql/client instead of better-sqlite3 because better-sqlite3
-  v9.x fails to compile on Node.js v24. @libsql/client is pure JS,
-  fully Drizzle-compatible, and a cleaner solution overall.
+  npm run db:generate   → clean both times (0008 custom + 0009 schema diff);
+                           re-running after produced "No schema changes"
+  npm run db:migrate    → applied clean, both migrations
+  npm run type:check:all, test:backend (523 pass), test:frontend (101 pass),
+  npm run check, npm run status:check → all clean
 
 ================================================================================
 OUTBOX SENT
 ================================================================================
-
-  jobs/COO/inbox/20260307_1600-DATABASE-schema-complete.txt
-  jobs/backend/inbox/20260307_1600-DATABASE-schema-ready.txt
-
-================================================================================
-LAST PARK DOC
-================================================================================
-
-  jobs/database/park-docs/20260307-DATABASE-park.txt
+  jobs/COO/inbox/20260720_1100-DATABASE-bug33-schema-complete.md
 
 ================================================================================
 NEXT DATABASE THREAD
 ================================================================================
-
-  Awaiting COO review and acceptance. No known defects.
-  Phase 2 (PostgreSQL schema + data migration script) when project moves
-  to hosted deployment.
-
+  Awaiting COO review/merge of PR (Closes #157, BRD GE-11).
+  Once Backend's fix/bug33-city-dedup-logic lands, QA should re-verify the
+  autocomplete no longer offers duplicate Glasgow entries end-to-end.
+  Separate housekeeping item (not blocking): jobs/database/tech/ and this
+  context file had gone stale for ~4 months — worth a COO decision on
+  whether to keep maintaining the jobs/database/tech/ mirror going forward
+  or stamp it HISTORICAL per the Document Lifecycle rule, since
+  src/backend/db/schema.ts has been the de facto sole source of truth.

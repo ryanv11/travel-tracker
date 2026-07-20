@@ -1,0 +1,139 @@
+DATABASE PARK DOCUMENT — 2026-07-20
+Thread: BUG-33 schema half (GitHub #157, BRD GE-11)
+Branch: fix/bug33-city-dedup-schema
+
+================================================================================
+SCOPE
+================================================================================
+
+Brief: add a uniqueness constraint on cities(name, country_code) — case-
+insensitive if it can be done cleanly at the DB level — plus a data-cleanup
+migration for existing duplicates found in UAT ("Glasgow" appeared twice in
+the place autocomplete). Explicitly NOT in scope: the find-or-create
+application logic that let the duplicates get created — that's a parallel
+Backend brief (fix/bug33-city-dedup-logic).
+
+================================================================================
+ARCHITECT REVIEW (pre-implementation)
+================================================================================
+
+Per the no-schema-change-without-Architect-review rule, consulted Architect
+before writing any migration. Two open design questions and the ruling on
+each:
+
+1. Case-insensitivity mechanism — ruled: DB-level
+   UNIQUE(name COLLATE NOCASE, country_code) as the hard guarantee (not
+   backend-only normalization — that only prevents the bug from one call
+   site, not from recurring via any other path), PLUS Backend's find-or-create
+   read must match the same collation or it will fail to find the canonical
+   row and attempt (and fail) an insert instead of reusing it. NOCASE's
+   ASCII-only limitation (no Unicode/diacritic folding) is an accepted,
+   documented tradeoff, not a silent gap.
+
+2. Cleanup migration collision (two trip_places rows for the same trip
+   colliding on the same canonical city_id, given uniq_trip_places_trip_city)
+   — ruled: keep the earlier trip_place row, delete the later one, but
+   re-point items.trip_place_id and merge trip_place_activities_map onto the
+   survivor first — never lose booked items/notes as a side effect. Ruled
+   this is a scoped one-time repair, NOT blocked by BRD OQ-05 (the open
+   question about whether uniq_trip_places_trip_city should allow same-city
+   revisits going forward) — OQ-05 is a forward-looking identity-model
+   question; this migration works within today's constraint as it stands.
+
+   Additional flags from Architect, both incorporated: canonical row keeps
+   lowest id, but geocode fields (lat/long/status/attempted_at) are coalesced
+   from the best-resolved duplicate in the group if canonical isn't already
+   resolved; region_id divergence between duplicates should not be silently
+   picked — implemented as a NULL-fill only (never overwrites a non-null
+   value), so genuine divergence surfaces rather than getting erased.
+
+================================================================================
+WHAT WAS BUILT
+================================================================================
+
+1. src/backend/migrations/0008_bug33_dedupe_cities_data.sql (custom migration,
+   via `drizzle-kit generate --custom`)
+   - Maps every city to its duplicate-group canonical id (lower(name),
+     country_code; canonical = MIN(id)).
+   - Coalesces geocode fields onto canonical from the best-resolved duplicate.
+   - Computes, per (trip_id, canonical city_id), which trip_place row
+     survives (MIN(id)) — covers every trip_place row, not just ones sitting
+     on a duplicate city, since a trip may already have a row on the
+     canonical city that a duplicate's row will now collide with.
+   - Re-points items.trip_place_id and merges trip_place_activities_map from
+     losing trip_place rows onto the survivor (INSERT OR IGNORE against the
+     composite PK to skip already-present activity tags).
+   - Deletes losing trip_place rows, re-points surviving trip_places.city_id
+     to canonical, deletes the now-unreferenced duplicate city rows.
+
+2. src/backend/migrations/0009_stiff_meltdown.sql (schema diff via
+   `drizzle-kit generate`)
+   - CREATE UNIQUE INDEX uniq_cities_name_country_ci ON cities
+     (name COLLATE NOCASE, country_code)
+
+3. src/backend/db/schema.ts — cities table (t) => [...] array: added the
+   uniqueIndex entry with an inline comment on the NOCASE tradeoff and the
+   note that Backend's lookup must match the collation.
+
+================================================================================
+VERIFICATION
+================================================================================
+
+- Validated migration 0008's logic first against a throwaway copy of the
+  shared dev environment's actual dev.db (real duplicate data: 2x
+  Glasgow/GB ids 10/11, 3x Seattle/US ids 4/5/6) before writing it into the
+  repo. That data included a live instance of the exact collision case
+  Architect and I discussed: trip_id=12 had trip_place id=10 (city_id=11,
+  the dup) and trip_place id=12 (city_id=10, already canonical). Migration
+  correctly kept trip_place id=10 (earlier), remapped its city_id to 10,
+  deleted trip_place id=12, and left item id=11 (which already pointed at
+  the survivor) untouched. 0 duplicate groups remained after.
+- Re-ran the same verification after generating the real migration files and
+  applying them via `npm run db:migrate` in this worktree's own dev.db copy —
+  identical result.
+- Confirmed the unique index actually blocks a case-variant duplicate insert
+  (`'GLASGOW'` vs `'Glasgow'`) while still allowing a genuinely distinct city
+  (`'Paris'/FR`) to insert normally.
+- `npm run db:generate` re-run after 0009 produced "No schema changes,
+  nothing to migrate" — snapshot is stable.
+- npm run check (biome), type:check:all, test:backend (523 pass, 1 skipped),
+  test:frontend (101 pass), status:check — all clean.
+
+================================================================================
+BUGS DISCOVERED
+================================================================================
+
+None beyond BUG-33 itself. Noted but not investigated further: no
+`PRAGMA foreign_keys = ON` anywhere in src/backend/db/index.ts, so declared
+`onDelete: 'cascade'` FKs (e.g. trip_place_activities_map -> trip_places) are
+not actually enforced at the SQLite engine level today — this is why the
+cleanup migration explicitly re-points/deletes child rows itself rather than
+relying on cascade. Not fixing this pre-existing condition here (out of
+scope for BUG-33), but flagging it since it means ANY manual DELETE against a
+parent row in this codebase can silently orphan children rather than erroring
+or cascading. Worth an Architect/Backend look if it hasn't already been
+raised elsewhere.
+
+================================================================================
+HOUSEKEEPING GAP NOTED (not blocking)
+================================================================================
+
+jobs/database/context/current.txt and jobs/database/tech/ had not been
+touched since the original 2026-03-07 Phase 1 delivery, despite numerous
+schema changes landing via other roles' branches since. jobs/database/tech/
+is now visibly drifted from src/backend/db/schema.ts (which is itself already
+marked as the authoritative source in its own header comment). Flagged to
+COO in the completion report — recommend either resuming the mirror or
+stamping it HISTORICAL per the Document Lifecycle rule rather than leaving it
+ambiguous.
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+- COO: review PR (fix/bug33-city-dedup-schema, Closes #157, BRD GE-11).
+- Backend (parallel brief fix/bug33-city-dedup-logic): find-or-create lookup
+  must use a case-insensitive WHERE (matching COLLATE NOCASE) against
+  cities.name, or reads will miss the canonical row post-merge.
+- QA: once both halves merge, re-verify the place autocomplete no longer
+  offers duplicate city entries.
