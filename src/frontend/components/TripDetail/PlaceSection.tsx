@@ -6,14 +6,17 @@
  *         falling back to trip start/end dates.
  *   D-04: Full country name shown in subtitle (joined from countries table — issue #5).
  *   UX-02: Explicit arrived_on / departed_on dates on place; edit dates via PATCH.
+ *   BUG-32: Remove-place affordance — confirmation required, hidden when trip is locked.
  *
  * Shows city name, country, activity tags, date range, and a list of ItemCards.
- * Contains the "Add Item" button (hidden when trip is locked).
+ * Contains the "Add Item" button and the "Remove" button (both hidden when trip is locked).
  */
 import { useState } from 'react';
+import { useRemovePlace } from '../../hooks/usePlaces';
 import type { Item, TripPlace } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
 import { resolvePlaceDateRange } from '../../utils/resolvePlaceDateRange';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ItemCard } from './ItemCard';
 import { ItemForm } from './ItemForm';
 import { PlaceDateForm } from './PlaceDateForm';
@@ -61,11 +64,35 @@ export function PlaceSection({
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [showEditDates, setShowEditDates] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  const removePlace = useRemovePlace();
 
   const handleEditItem = (item: Item) => setEditingItem(item);
   const handleCloseForm = () => {
     setShowAddItem(false);
     setEditingItem(null);
+  };
+
+  // BUG-32: opens the confirmation dialog and clears any previous attempt's error
+  const handleOpenRemoveConfirm = () => {
+    removePlace.reset();
+    setShowRemoveConfirm(true);
+  };
+
+  const handleCancelRemove = () => {
+    removePlace.reset();
+    setShowRemoveConfirm(false);
+  };
+
+  // Dialog stays open on failure so the user sees why (e.g. the trip locked
+  // between opening the confirm and clicking it, or a backend error) —
+  // it only closes after a confirmed success.
+  const handleConfirmRemove = () => {
+    removePlace.mutate(
+      { tripId, placeId: place.id },
+      { onSuccess: () => setShowRemoveConfirm(false) },
+    );
   };
 
   // UX-02: resolve date range using three-source precedence (ADL-24 §5)
@@ -134,6 +161,20 @@ export function PlaceSection({
               + Add Item
             </button>
           )}
+
+          {/* BUG-32: Remove place button (hidden when locked, consistent with the
+              other write controls above) */}
+          {!isLocked && (
+            <button
+              type="button"
+              onClick={handleOpenRemoveConfirm}
+              className="px-2.5 py-1.5 border border-red-200 rounded-md bg-red-50 text-xs text-red-600 hover:bg-red-100 cursor-pointer"
+              title="Remove this place from the trip"
+              aria-label={`Remove ${place.city.name} from trip`}
+            >
+              Remove
+            </button>
+          )}
         </div>
       </div>
 
@@ -179,6 +220,23 @@ export function PlaceSection({
           onClose={() => setShowEditDates(false)}
         />
       )}
+
+      {/* BUG-32: Remove place confirmation — cascades to items/activity tags server-side */}
+      <ConfirmDialog
+        isOpen={showRemoveConfirm}
+        title={`Remove ${place.city.name}?`}
+        message={
+          place.items.length > 0
+            ? `This permanently removes ${place.city.name} from the trip, along with the ` +
+              `${place.items.length} item${place.items.length === 1 ? '' : 's'} logged under it. This cannot be undone.`
+            : `This permanently removes ${place.city.name} from the trip. This cannot be undone.`
+        }
+        confirmLabel="Remove"
+        onConfirm={handleConfirmRemove}
+        onCancel={handleCancelRemove}
+        error={removePlace.error}
+        isConfirming={removePlace.isPending}
+      />
     </div>
   );
 }
