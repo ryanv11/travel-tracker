@@ -163,14 +163,26 @@ export function PlaceSection({
           )}
 
           {/* BUG-32: Remove place button (hidden when locked, consistent with the
-              other write controls above) */}
+              other write controls above).
+              Deliberately NOT using an aria-label built from place.city.name here:
+              an earlier version used aria-label={`Remove ${place.city.name} from trip`},
+              which broke two pre-existing E2E tests (places-items.spec.ts) whose fixture
+              cities are named "EditCity" / "DeleteCity" — Playwright's getByRole name
+              matching is a case-insensitive SUBSTRING match by default (no exact:true),
+              so "Remove EditCity from trip" matched name:'Edit' and "Remove DeleteCity
+              from trip" matched name:'Delete', hijacking .nth(1)/.first() clicks meant
+              for the item's own Edit/Delete buttons. The visible text "Remove" is the
+              accessible name here (title is a tooltip only, not a name source when
+              text content is present) — it's identical to the dialog's confirm button,
+              which is intentional and safe: they're never both mounted at once (the
+              dialog is unmounted until opened), so tests select the header button by
+              plain name before opening, then scope the confirm click to the dialog. */}
           {!isLocked && (
             <button
               type="button"
               onClick={handleOpenRemoveConfirm}
               className="px-2.5 py-1.5 border border-red-200 rounded-md bg-red-50 text-xs text-red-600 hover:bg-red-100 cursor-pointer"
               title="Remove this place from the trip"
-              aria-label={`Remove ${place.city.name} from trip`}
             >
               Remove
             </button>

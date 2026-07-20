@@ -132,12 +132,13 @@ describe('PlaceSection — remove place (BUG-32)', () => {
 
   it('shows the Remove button when the trip is unlocked', () => {
     render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
-    expect(screen.getByRole('button', { name: /remove lisbon from trip/i })).toBeInTheDocument();
+    // Dialog is unmounted until opened, so this is the only "Remove"-named button here.
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
   });
 
   it('opens a confirmation dialog on click, without mentioning items when there are none', async () => {
     render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
-    await userEvent.click(screen.getByRole('button', { name: /remove lisbon from trip/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     expect(screen.getByText('Remove Lisbon?')).toBeInTheDocument();
     expect(
@@ -148,14 +149,14 @@ describe('PlaceSection — remove place (BUG-32)', () => {
   it('mentions the item count in the confirmation message when the place has items', async () => {
     const place = makePlace([makeItem({ id: 1 }), makeItem({ id: 2 })]);
     render(<PlaceSection place={place} isLocked={false} {...defaultProps} />);
-    await userEvent.click(screen.getByRole('button', { name: /remove lisbon from trip/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     expect(screen.getByText(/along with the 2 items logged under it/)).toBeInTheDocument();
   });
 
   it('cancel closes the dialog without calling the mutation', async () => {
     render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
-    await userEvent.click(screen.getByRole('button', { name: /remove lisbon from trip/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.queryByText('Remove Lisbon?')).not.toBeInTheDocument();
@@ -164,7 +165,7 @@ describe('PlaceSection — remove place (BUG-32)', () => {
 
   it('confirm calls the mutation with tripId and placeId', async () => {
     render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
-    await userEvent.click(screen.getByRole('button', { name: /remove lisbon from trip/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     // Two "Remove" buttons now exist (row button + dialog confirm) — the dialog's
     // is scoped inside the modal, found via its distinct accessible role ordering.
@@ -180,7 +181,7 @@ describe('PlaceSection — remove place (BUG-32)', () => {
   it('keeps the dialog open and shows the error when the mutation fails', async () => {
     mockRemovePlace.error = new Error('Internal server error');
     render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
-    await userEvent.click(screen.getByRole('button', { name: /remove lisbon from trip/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     await waitFor(() => {
       expect(screen.getByText('Internal server error')).toBeInTheDocument();
