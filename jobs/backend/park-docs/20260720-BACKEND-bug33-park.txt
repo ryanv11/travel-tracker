@@ -1,0 +1,106 @@
+PARK DOCUMENT — BACKEND — 2026-07-20
+BUG-33 / GitHub #157 / BRD GE-11
+Branch: fix/bug33-city-dedup-logic
+
+SCOPE
+Application-logic half of BUG-33 only (duplicate "Glasgow" entries in place
+autocomplete). A separate database brief adds a unique index on cities(name,
+country_code) plus a cleanup migration for existing duplicate rows — out of
+scope here, and this fix does not depend on it landing first.
+
+ROOT CAUSE
+POST /api/cities (src/backend/routes/cities.ts) always inserted a new `cities`
+row on every call. GE-14 says the frontend should search existing cities before
+offering "add new city", and AddPlaceFlow.tsx does call GET /api/cities?q= for
+that — but the "+ Add new: '<query>'" affordance is always shown alongside
+search results (src/frontend/components/TripDetail/AddPlaceFlow.tsx lines
+271-277), even when an exact/near match is already in the results list. A user
+who clicks "+ Add new" for a city that's already in the DB (or a case-mismatched
+query, or a double-submit) reaches POST /api/cities and gets a second row for
+the same real-world city. No frontend change was in scope for this brief —
+this fix closes the gap server-side instead, which also covers the double-
+submit/case-mismatch cases the frontend can't fully prevent on its own.
+
+FIX
+src/backend/routes/cities.ts — POST /api/cities now finds-or-creates:
+  1. Verify country (and region, if given) exist — unchanged.
+  2. NEW: look up an existing city by (name, country_code), matching name
+     case-insensitively via `sql\`lower(cities.name) = lower(${name})\`` —
+     name is already whitespace-trimmed by CreateCitySchema's zod .trim().
+  3. If found: return it as-is, HTTP 200 (not 201 — no row created). Does NOT
+     overwrite region_id from the request; that stays PATCH's job.
+  4. If not found: insert as before (201, geocoding fire-and-forget).
+
+Response status change (200 on match vs 201 on insert) is safe for the existing
+frontend caller — src/frontend/utils/apiClient.ts's apiPost() treats any
+`response.ok` (2xx) as success and returns the parsed body regardless of exact
+status code. Confirmed by reading apiClient.ts; no frontend change needed or
+made.
+
+API doc updated in the same PR (document lifecycle rule): jobs/backend/tech/
+20260307-api-reference.md POST /api/cities section — was asserting always-201,
+now documents the find-or-create behavior and the 200 response case.
+
+TESTS ADDED
+src/backend/routes/__tests__/owner-access.test.ts — new "BUG-33: POST
+/api/cities find-or-create" describe block, 3 tests:
+  1. Exact-name repeat → 200, same id, only 1 row in DB.
+  2. Case-insensitive match ("glasgow" vs "Glasgow") → 200, same id, returns
+     stored casing not request casing, only 1 row in DB.
+  3. Same name, different country_code → still 201, distinct id, 2 rows in DB
+     (confirms the match is scoped correctly, not overly broad).
+All existing owner-access.test.ts cases (HC-06 etc.) still pass unmodified —
+no test relied on POST /api/cities always returning 201 for a repeat name.
+
+VERIFICATION
+- npm run type:check:all — clean
+- npm run test:backend — 23 files, 526 passed, 1 pre-existing skip
+- npx biome check (targeted files) — clean
+- npm run status:check — STATUS.md already in sync, no change needed
+
+BUGS DISCOVERED
+[TRIVIAL] Pre-existing flaky test in src/frontend/components/CarryForward/
+__tests__/CarryForwardModal.test.tsx ("calls onClose immediately when Skip is
+clicked") — fails intermittently under the full test:frontend run (mock called
+3x instead of 1x) but passes in isolation. Re-evaluated per framework rule 26:
+does not touch shared state/FK relationships relevant to this brief, is not
+silently persisting bad data, and isn't new (confirmed via git blame — file
+last touched in an unrelated 2026-03 commit, well before this session).
+Disposition: not fixed (out of scope, pre-existing, not caused by this diff —
+confirmed by running on a clean tree). Flagged to COO/whoever owns
+CarryForwardModal next; not reclassified above TRIVIAL.
+
+PROCESS INCIDENT — flagging for COO, not part of BUG-33 scope
+Mid-task, I used a bare `git stash` / `git stash pop` (no pathspec) to test my
+diff against a clean tree. Because this session has many concurrent agent
+worktrees (bug10-name-limit-frontend, bug10-name-limit-backend, bug30, bug31,
+bug32, bug34, etc.) all sharing one repository's stash ref (`refs/stash` is
+NOT per-worktree — worktrees share one .git), my stash and another worktree's
+concurrent stash interleaved. My `pop` retrieved a foreign uncommitted change
+(a BUG-10 trip-name-length edit to src/frontend/components/TripDetail/
+TripForm.tsx, 75-char limit) instead of my own; my own two files vanished from
+my working tree (they were sitting stashed, not lost, but not where I expected
+them). I did NOT lose either side's work:
+  - Recovered by re-stashing the foreign TripForm.tsx diff with a clear message
+    ("recovered: foreign TripForm.tsx WIP picked up via cross-worktree stash
+    collision during BUG-33 work") so it's still retrievable from the shared
+    stash list — currently stash@{0} in this repo as of this writing.
+  - Reapplied my own cities.ts + owner-access.test.ts edits from scratch (I had
+    the exact diff content from my own prior edit calls) and re-verified type-
+    check + tests pass identically to before.
+This is the same class of hazard as the OP-19 checkout/HEAD collision already
+documented in CLAUDE.md (Agent dispatch isolation) — but `isolation:
+"worktree"` does not fully fix it, since git stash's ref is shared across
+worktrees regardless of isolation. Recommend: (a) whoever owns
+fix/bug10-name-limit-frontend check their working tree — their WIP may
+currently be missing (it's recoverable from stash@{0}, message above) —
+and (b) consider a project rule against bare `git stash` for
+mid-task scratch testing in concurrent-agent sessions (prefer `git worktree`
+or a scratch branch/commit instead, since stash is the one piece of git state
+NOT scoped per-worktree).
+
+WHAT'S UNBLOCKED
+- COO can merge this PR independently of the database brief (no dependency
+  either direction) — the DB unique index is an additional safety net, not a
+  prerequisite.
+- QA can verify BUG-33's application-logic fix now merged.

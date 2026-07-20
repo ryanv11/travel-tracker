@@ -1,7 +1,7 @@
-BACKEND CONTEXT — 2026-03-20
+BACKEND CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-17 fix complete. Carry-forward trip status filter removed. CI green.
+CURRENT STATUS: BUG-33 application-logic fix complete (find-or-create in POST /api/cities). Branch fix/bug33-city-dedup-logic pushed, PR opened, CI check pending.
 ACTIVE TASKS: None
-PENDING MESSAGES TO COO: 20260320_0215-BACKEND-bug17-complete.txt (sent)
-OPEN ISSUES: None
-LAST PARK DOC: jobs/backend/park-docs/20260320-BACKEND-bug17-park.txt
+PENDING MESSAGES TO COO: 20260720_BACKEND-bug33-complete.txt (sent)
+OPEN ISSUES: Pre-existing, unrelated flaky test in src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx ("calls onClose immediately when Skip is clicked") — fails intermittently on full test:frontend runs, passes in isolation. Not touched by this brief; flagged for whoever owns CarryForwardModal next.
+LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug33-park.txt
