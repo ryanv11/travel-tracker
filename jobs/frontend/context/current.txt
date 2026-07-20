@@ -22,6 +22,15 @@ WHAT WAS DONE (this thread — BUG-32 / GitHub #156)
     "+ Add Item" / "Set dates" (hidden when isLocked, same pattern as the others), opening
     a ConfirmDialog. Confirmation copy mentions the item count when the place has items
     ("...along with the N items logged under it...") since deletion is meant to cascade.
+    IMPORTANT (learned the hard way): this button intentionally has NO aria-label — an
+    earlier version added `aria-label={`Remove ${place.city.name} from trip`}` and it
+    broke two pre-existing E2E tests (places-items.spec.ts) whose fixture cities are named
+    "EditCity"/"DeleteCity", because Playwright's getByRole name match is substring-based
+    by default and "Remove EditCity from trip" contains "Edit". Caught by PR #170's first
+    CI run, fixed by dropping the aria-label (plain visible text "Remove" is the accessible
+    name, disambiguated from the dialog's own "Remove" button by the dialog being unmounted
+    until opened, not by name). Don't reintroduce a name-based aria-label on this button
+    without checking it against existing E2E fixture names first.
   - src/frontend/components/shared/ConfirmDialog.tsx: added optional `error` and
     `isConfirming`/`confirmingLabel` props (all default to no-op, so ItemCard/ReviewPanel/
     TripDetail's existing usages are unaffected) so a failed mutation keeps the dialog open
