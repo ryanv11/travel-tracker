@@ -8,12 +8,12 @@
 
 import { z } from 'zod';
 
-/** Non-empty trimmed string, max 200 chars (BUG-10, BRD TR-01) */
+/** Non-empty trimmed string, max 75 chars (BUG-10, BRD TR-01) */
 export const zName = z
   .string()
   .trim()
   .min(1, 'Name must not be empty')
-  .max(200, 'Name must be 200 characters or fewer');
+  .max(75, 'Name must be 75 characters or fewer');
 
 /** ISO 8601 date string YYYY-MM-DD */
 export const zIsoDate = z

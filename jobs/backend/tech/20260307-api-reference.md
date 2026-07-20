@@ -216,7 +216,7 @@ Create a new trip.
 
 | Field | Type | Required | Validation |
 |-------|------|----------|------------|
-| `name` | string | **Yes** | 1–200 chars, trimmed |
+| `name` | string | **Yes** | 1–75 chars, trimmed (BUG-10, corrected 2026-07-20 — was 200) |
 | `start_date` | string | **Yes** | YYYY-MM-DD format |
 | `end_date` | string | **Yes** | YYYY-MM-DD format; must be ≥ `start_date` |
 | `photo_album_ref` | string \| null | No | URL or reference string |
