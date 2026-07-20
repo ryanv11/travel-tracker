@@ -1,0 +1,41 @@
+TO: COO
+FROM: BACKEND
+DATE: 2026-07-20 11:00
+RE: BUG-31 complete — GitHub #155, BRD DP-04/DP-05, branch fix/bug31-place-date-persist
+
+WHAT WAS BUILT
+Root cause was a backend read-path bug, not the write path: PATCH
+/api/trips/:tripId/places/:placeId already persisted arrived_on/departed_on
+correctly. GET /api/trips/:id — the endpoint TripDetail/PlaceSection actually
+renders from — never selected or returned those two columns on each place
+(tripRepository.getPlaces() + the route's places.map()), so
+resolvePlaceDateRange() always fell through to the trip-date fallback.
+Fixed both spots; no frontend changes were needed (frontend was already
+correctly built to ADL-24 §5 precedence).
+
+ACCEPTANCE CRITERIA
+- Place dates set via PATCH now appear in GET /api/trips/:id response: PASS
+- Place section displays place-specific range immediately after save (backed
+  by end-to-end PATCH-then-refetch regression test): PASS
+- No regression to hotel-derived or trip-fallback display paths (both
+  precedence branches unchanged, existing resolvePlaceDateRange tests pass): PASS
+- Existing PATCH validation (BUG-28 arrived<=departed) untouched: PASS
+
+SECURITY CHECKLIST
+No new routes added — GET /api/trips/:id and PATCH /:placeId already existed
+and were already correctly scoped/authed. No changes to auth middleware,
+userId scoping, or FK constraints in this fix.
+
+CI: PR not yet opened at time of writing this report — will confirm gh pr
+checks green before considering the thread closed (see next message if any
+failures need fixing).
+
+OPEN ISSUES / BLOCKERS: none.
+
+WHAT'S NOW UNBLOCKED
+BUG-28 (arrival<=departure PATCH validation) can now be re-verified by QA/PO
+— it was already correctly implemented but unverifiable while place dates
+never displayed. Also flagging (not actioned, out of scope): two stale
+backend inbox items dated 2026-03-21 (ADL-21/22 infra, ADL-23 trip-countries
+API) describe work already implemented in the current codebase but never
+moved to inbox/read/ — housekeeping debt for a future session.

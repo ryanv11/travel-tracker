@@ -1,7 +1,9 @@
-BACKEND CONTEXT — 2026-03-20
+BACKEND CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-17 fix complete. Carry-forward trip status filter removed. CI green.
+CURRENT STATUS: BUG-31 fix complete (GET /api/trips/:id was missing arrived_on/
+  departed_on on each place — read-path bug, PATCH persistence was already correct).
+  Branch fix/bug31-place-date-persist, PR open, CI pending review.
 ACTIVE TASKS: None
-PENDING MESSAGES TO COO: 20260320_0215-BACKEND-bug17-complete.txt (sent)
-OPEN ISSUES: None
-LAST PARK DOC: jobs/backend/park-docs/20260320-BACKEND-bug17-park.txt
+PENDING MESSAGES TO COO: 20260720_1100-BACKEND-bug31-complete.txt (sent)
+OPEN ISSUES: None from this session. Unblocks BUG-28 UAT re-verification.
+LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug31-park.txt
