@@ -68,6 +68,16 @@ citiesRouter.get(
 // ----------------------------------------------------------------
 // POST /api/cities
 // ADL-27 / HC-06: owner-only (city creation pollutes the global seed)
+//
+// BUG-33: find-or-create. GE-14 says the frontend should search before
+// offering "add new city", but that's a UX nicety, not a guarantee — a
+// case-mismatched query, a stale search-results list, or a double-submit
+// can all reach this route for a city that already exists. This handler
+// is the last line of defense against duplicate `cities` rows: it looks
+// up an existing (name, country_code) match case-insensitively before
+// ever inserting, and only inserts when genuinely not found. This holds
+// regardless of whether the DB-level unique index (separate DB brief,
+// same bug) has landed yet — defense in depth, not a dependency on it.
 // ----------------------------------------------------------------
 citiesRouter.post(
   '/',
@@ -101,6 +111,31 @@ citiesRouter.post(
         .where(and(eq(regions.id, region_id), eq(regions.countryCode, country_code)))
         .limit(1);
       if (!regionRows.length) throw new NotFoundError('Region');
+    }
+
+    // BUG-33: find-or-create — look up an existing city by (name, country_code),
+    // case-insensitively, before inserting a new row. `name` arrives already
+    // whitespace-trimmed by CreateCitySchema (zod .trim()).
+    const existingRows = await db
+      .select()
+      .from(cities)
+      .where(and(eq(cities.countryCode, country_code), sql`lower(${cities.name}) = lower(${name})`))
+      .limit(1);
+
+    if (existingRows.length) {
+      // Existing city found — return it as-is (200, not 201: no row was created).
+      // Deliberately does NOT overwrite region_id from the request; that's PATCH's job.
+      const existing = existingRows[0];
+      res.status(200).json({
+        id: existing.id,
+        name: existing.name,
+        country_code: existing.countryCode,
+        region_id: existing.regionId,
+        latitude: existing.latitude,
+        longitude: existing.longitude,
+        geocode_status: existing.geocodeStatus,
+      });
+      return;
     }
 
     const now = new Date().toISOString();

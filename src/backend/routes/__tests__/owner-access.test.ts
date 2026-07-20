@@ -14,6 +14,7 @@
  */
 
 import { createClient } from '@libsql/client';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
@@ -425,6 +426,75 @@ describe('HC-06: POST /api/cities requires owner', () => {
       .send({ name: 'Owner City', country_code: 'US' });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ name: 'Owner City', country_code: 'US' });
+  });
+});
+
+// ================================================================
+// BUG-33: POST /api/cities find-or-create (no duplicate rows)
+// ================================================================
+
+describe('BUG-33: POST /api/cities find-or-create', () => {
+  beforeEach(async () => {
+    mockIsOwner = 1;
+    await seedTestUser(testDb!, 1);
+    await seedCountry(testDb!);
+  });
+
+  it('returns the existing city (200) on an exact-name repeat instead of inserting a duplicate', async () => {
+    const first = await supertest(app)
+      .post('/api/cities')
+      .send({ name: 'Glasgow', country_code: 'US' });
+    expect(first.status).toBe(201);
+
+    const second = await supertest(app)
+      .post('/api/cities')
+      .send({ name: 'Glasgow', country_code: 'US' });
+    expect(second.status).toBe(200);
+    expect(second.body.id).toBe(first.body.id);
+
+    const rows = await testDb!
+      .select()
+      .from(schema.cities)
+      .where(eq(schema.cities.countryCode, 'US'));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('matches an existing city case-insensitively (e.g. "glasgow" vs "Glasgow")', async () => {
+    const first = await supertest(app)
+      .post('/api/cities')
+      .send({ name: 'Glasgow', country_code: 'US' });
+    expect(first.status).toBe(201);
+
+    const second = await supertest(app)
+      .post('/api/cities')
+      .send({ name: 'glasgow', country_code: 'US' });
+    expect(second.status).toBe(200);
+    expect(second.body.id).toBe(first.body.id);
+    expect(second.body.name).toBe('Glasgow'); // returns the stored casing, not the request's
+
+    const rows = await testDb!
+      .select()
+      .from(schema.cities)
+      .where(eq(schema.cities.countryCode, 'US'));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('does not match a same-named city in a different country', async () => {
+    await seedCountry(testDb!, 'GB', 'United Kingdom');
+
+    const first = await supertest(app)
+      .post('/api/cities')
+      .send({ name: 'Glasgow', country_code: 'GB' });
+    expect(first.status).toBe(201);
+
+    const second = await supertest(app)
+      .post('/api/cities')
+      .send({ name: 'Glasgow', country_code: 'US' });
+    expect(second.status).toBe(201);
+    expect(second.body.id).not.toBe(first.body.id);
+
+    const rows = await testDb!.select().from(schema.cities);
+    expect(rows).toHaveLength(2);
   });
 });
 
