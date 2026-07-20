@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (23)
+## Open work (22)
 
 ### P0 — Blockers (1)
 
@@ -33,12 +33,11 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack | ⬜ Pending |
 | BRD-NF09 | Hosted deployment for personal use (NF-09) | architect | ⬜ Pending |
 
-### P2 — Important (13)
+### P2 — Important (12)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | OP-07 | UI/UX expert review of frontend | coo | ⬜ Pending |
-| OP-16 | Main branch push-triggered CI runs stopped firing after OP-13 merge | architect | ⬜ Pending |
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
 | BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | 🔄 In progress |
 | BRD-AD07 | Map shading configuration is per-user (AD-07) | backend | 🔄 In progress |
@@ -68,7 +67,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 |---|---|---|---|---|
 | feature | `███████████▓▓▓░░░░░░` 23/41 | 23 | 18 | 1 |
 | requirement | `███████████████████░` 29/31 | 29 | 2 | 5 |
-| bug | `███████████████████░` 29/30 | 29 | 1 | 3 |
+| bug | `████████████████████` 30/30 | 30 | 0 | 3 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `█████████████░░░░░░░` 4/6 | 4 | 2 | 0 |
 
@@ -99,4 +98,4 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 ---
 
-_93 done · 8 deferred · 1 closed · 23 open — 125 tracked items_
+_94 done · 8 deferred · 1 closed · 22 open — 125 tracked items_
