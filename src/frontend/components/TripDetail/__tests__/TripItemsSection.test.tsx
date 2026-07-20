@@ -7,8 +7,10 @@
  * Covers:
  *   - Renders trip-level items with an ItemCard each.
  *   - Empty state prompts the user to add a flight or car rental.
- *   - "+ Add Item" opens ItemForm restricted to Flight and Car Rental only
- *     (no Restaurant/Hotel/Experience/Note options at trip level).
+ *   - "+ Add Trip Item" opens ItemForm restricted to Flight and Car Rental only
+ *     (no Restaurant/Hotel/Experience/Note options at trip level). Labelled
+ *     distinctly from PlaceSection's "+ Add Item" so the two never collide
+ *     under an accessible-name query (see TripItemsSection.tsx module doc).
  *   - Locked trips hide the add button; an empty+locked trip renders nothing.
  *
  * Source: src/frontend/components/TripDetail/TripItemsSection.tsx
@@ -88,7 +90,7 @@ describe('TripItemsSection', () => {
     mockUseDeleteItem.mockReturnValue(idleMutation);
 
     render(<TripItemsSection tripId={1} isLocked={false} />);
-    await userEvent.click(screen.getByText('+ Add Item'));
+    await userEvent.click(screen.getByText('+ Add Trip Item'));
 
     expect(screen.getByText('Flight')).toBeInTheDocument();
     expect(screen.getByText('Car Rental')).toBeInTheDocument();
@@ -110,7 +112,7 @@ describe('TripItemsSection', () => {
 
     render(<TripItemsSection tripId={1} isLocked={true} />);
 
-    expect(screen.queryByText('+ Add Item')).not.toBeInTheDocument();
+    expect(screen.queryByText('+ Add Trip Item')).not.toBeInTheDocument();
   });
 
   it('renders nothing when locked with no trip-level items', () => {

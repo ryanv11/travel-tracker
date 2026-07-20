@@ -3,10 +3,18 @@
  *
  * BUG-36 / IT-01: flights (and car rentals, per PO decision) are trip-wide —
  * they don't belong to one city, so they shouldn't be forced into a
- * PlaceSection. This mirrors PlaceSection's header + item-list + "+ Add Item"
+ * PlaceSection. This mirrors PlaceSection's header + item-list + Add Item
  * pattern for consistency, restricted to the Flight and Car Rental item
  * types (the trip-level-appropriate subset — Restaurant/Hotel/Experience
  * are inherently tied to a specific city and stay under PlaceSection).
+ *
+ * The trigger button is labelled "+ Add Trip Item", not "+ Add Item" —
+ * deliberately distinct from PlaceSection's per-place "+ Add Item" button.
+ * Two buttons sharing one accessible name on the same page is itself a
+ * usability smell (ambiguous for screen-reader users tabbing through, and
+ * exactly what broke `.first()` in the pre-existing places-items.spec.ts
+ * E2E tests once this section started rendering above the Places list —
+ * the label collision, not the DOM position, was the real defect).
  *
  * Data comes from useTripLevelItems, which reads GET /api/trips/:tripId/items
  * (unfiltered) rather than the nested GET /api/trips/:id response — the
@@ -31,8 +39,8 @@ interface TripItemsSectionProps {
 const TRIP_LEVEL_ITEM_TYPES: ItemType[] = ['flight', 'car_rental'];
 
 /**
- * Renders the trip-level items section, including its own "+ Add Item" entry
- * point restricted to Flight and Car Rental.
+ * Renders the trip-level items section, including its own "+ Add Trip Item"
+ * entry point restricted to Flight and Car Rental.
  *
  * @param tripId - Parent trip ID for item queries/mutations.
  * @param isLocked - When true, hides all write controls.
@@ -66,7 +74,7 @@ export function TripItemsSection({ tripId, isLocked }: TripItemsSectionProps) {
             onClick={() => setShowAddItem(true)}
             className="px-3.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 cursor-pointer"
           >
-            + Add Item
+            + Add Trip Item
           </button>
         )}
       </div>
@@ -77,8 +85,8 @@ export function TripItemsSection({ tripId, isLocked }: TripItemsSectionProps) {
         {error && <ErrorMessage error={error} />}
         {!isLoading && !error && items.length === 0 && (
           <p className="text-gray-400 text-xs m-0">
-            No trip-level items yet. Use "+ Add Item" for a flight or car rental that isn't tied to
-            a specific city.
+            No trip-level items yet. Use "+ Add Trip Item" for a flight or car rental that isn't
+            tied to a specific city.
           </p>
         )}
         {items.map((item) => (
