@@ -474,6 +474,44 @@ describe('tripRepository.getPlaces', () => {
     expect(result[0].cityCountryCode).toBe('IT');
     expect(result[0].cityCountryName).toBe('Italy');
   });
+
+  // BUG-31: getPlaces previously omitted arrivedOn/departedOn from its select
+  // entirely, so explicit place dates set via PATCH never made it back out
+  // through GET /api/trips/:id (trip detail).
+  it('returns arrivedOn / departedOn when set on the place', async () => {
+    const db = testDb!;
+    await seedCountry(db, 'IT', 'Italy');
+    const city = await seedCity(db, 'IT', 'Rome');
+    const trip = await seedTrip(db);
+    await db.insert(schema.tripPlaces).values({
+      tripId: trip.id,
+      cityId: city.id,
+      userId: TEST_USER_ID,
+      arrivedOn: '2025-06-01',
+      departedOn: '2025-06-05',
+    });
+
+    const result = await tripRepository.getPlaces(trip.id);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].arrivedOn).toBe('2025-06-01');
+    expect(result[0].departedOn).toBe('2025-06-05');
+  });
+
+  it('returns null arrivedOn / departedOn when not set on the place', async () => {
+    const db = testDb!;
+    await seedCountry(db, 'IT', 'Italy');
+    const city = await seedCity(db, 'IT', 'Rome');
+    const trip = await seedTrip(db);
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
+
+    const result = await tripRepository.getPlaces(trip.id);
+
+    expect(result[0].arrivedOn).toBeNull();
+    expect(result[0].departedOn).toBeNull();
+  });
 });
 
 // ----------------------------------------------------------------
