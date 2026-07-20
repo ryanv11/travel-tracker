@@ -54,14 +54,25 @@ Installed 2026-07-18 from the Session C draft (audits/session-c-workflow-extract
 4. **Restart preview (mandatory before an actual session end — skip for mid-session
    housekeeping checkpoints that aren't followed by `/clear`):** Adopted 2026-07-19 after
    Ryan flagged that closing a session didn't make it visible what would and wouldn't
-   survive to the next one. Produce a two-tier summary and show it to Ryan **before**
-   writing the park doc, so he can catch gaps while the context is still live:
+   survive to the next one. Produce a **three-tier** summary and show it to Ryan
+   **before** writing the park doc, so he can catch gaps while the context is still live.
+   (Revised 2026-07-20 — the original two-tier version labeled all outstanding pre-existing
+   backlog "Not captured," which reads as "`/clear` will erase this," when most of it is
+   already durably tracked elsewhere and simply wasn't touched this session. Conflating
+   "at risk of being forgotten" with "already tracked, just not actioned" was the bug.)
 
-   - **✅ Captured** — durable, will be there at next `/coo-startup`: tracker IDs +
-     status changed this session, merged PRs, memory entries written, open PRs awaiting
-     review. Mechanical — diff `tracker.json`/`git log`/the memory directory against
-     session start.
-   - **⚠️ Not captured** — reconcile two sources:
+   - **✅ Captured** — durable, will be there at next `/coo-startup`, and is *new this
+     session*: tracker IDs + status changed this session, merged PRs, memory entries
+     written, open PRs awaiting review. Mechanical — diff `tracker.json`/`git log`/the
+     memory directory against session start.
+   - **🟡 Captured, not actioned** — already exists in a durable place (a `pending`
+     tracker entry, an existing `open-dialogues.md` item, a prior park doc's "suggested
+     next") but nothing happened on it this session. This will **not** vanish at
+     `/clear` — it's already tracked — it's just still outstanding. List it so Ryan has
+     the full picture, but don't imply urgency or risk that isn't there.
+   - **⚠️ Not captured** — genuinely at risk: discussed, decided, or proposed *this
+     session* with no durable artifact yet (no tracker entry, memory write, ADL, PR, or
+     prior park-doc mention). Reconcile two sources:
      1. Every `pending`/`in_progress` TodoWrite item against tracker.json/GitHub issues.
         TodoWrite is pure scratch state — it does not survive `/clear` — so any todo
         with no matching durable artifact is a loose end by definition.
@@ -70,7 +81,7 @@ Installed 2026-07-18 from the Session C draft (audits/session-c-workflow-extract
         mechanical — reason about the actual thread; a plan Ryan hasn't confirmed yet,
         a finding raised but not ticketed, a "we should do X later" that never got
         written down, all belong here.
-   - **Split the uncaptured list before asking** — don't lump everything together
+   - **Split the "Not captured" list before asking** — don't lump everything together
      (this was the mistake the first run made, corrected 2026-07-19):
      - *Clear-cut gaps* (a report that should exist and doesn't, a fix that's done
        but untracked) → resolve now, in this close-out. Don't defer what's actionable.
