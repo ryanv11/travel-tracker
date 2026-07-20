@@ -1,0 +1,94 @@
+COO SESSION PARK — 2026-07-19 (Prioritisation mechanic, BRD v3.0, audit close-out, process hardening)
+================================================================================
+
+## Session summary
+Long session, several major threads: built the STATUS.md dashboard (OP-12), ran a
+structured PO requirements interview that produced BRD v3.0's planning-first identity
+rewrite, closed out the audit findings queue (hooks + skills + 4 confirmed bugs), and
+— triggered by testing today's actual close-out — redesigned the session-close process
+itself (Restart Preview + open-dialogues.md). This park doc is the first one written
+under the new mechanism.
+
+## Completed this session
+
+### Merged to main (in order)
+- PR #128 — feat(OP-12): generated STATUS.md dashboard from tracker.json + fixed
+  BUG-23 (tracker.js comment-stripper, broken since March — string-aware JSONC parser
+  shared by tracker.js and the new status.js). npm run status / status:check added,
+  gated in /pre-push and CI.
+- PR #132 — chore(OP-13): hook hardening. PreToolUse guard blocking all drizzle-kit
+  push forms (ADL-15) with invocation-shaped matching (v1 blocked its own GitHub issue
+  creation — fixed to strip quoted/heredoc prose before matching). Hook canary added
+  to /coo-startup (hooks fail silent by design). typecheck.sh perf-log capped at 500
+  lines (was unbounded since March).
+- PR #134 — chore(OP-14): installed coo-merge-and-close + record-decision skills
+  (from the 5-month-old Session C drafts, updated to current repo state). schema-change
+  and backend-route-change deferred to OP-15 with stated prerequisites (Q22 test-DDL
+  consolidation; Q3/Q8 fixes; brief-enforcement decision).
+- PR #130 — **docs(BRD): v3.0 planning-first identity rewrite.** PO requirements
+  interview (Scotland trip as the concrete driver) produced a genuine product-direction
+  shift: three pillars — Plan (primary, idea-pool→shortlist→booked across all item
+  types), Look back (major — map/stats/shareable recommendations), Catch up
+  (supporting — shell trips). New §5.12–5.15 (PL/LB/CU/MB families, all with success
+  criteria), NF-09 hosting-for-personal-use, new Shortlisted item status. PO-approved
+  before merge (adoption gate). PHASE-6 + 9 tracker entries created same-PR.
+- PR #139/#141/#142/#140 — **all four confirmed audit bugs closed**: BUG-28 (place-date
+  PATCH now non-destructive + arrived<=departed validation), BUG-10 (200-char name limit
+  — turned out already enforced since March, the real bug was a hollow contract test),
+  BUG-29 (geocode retry — reachable 404 cleanup via new ApiError class, poll replaced
+  with a read), BUG-27 (locked trips fully read-only — found and fixed a third gap
+  beyond the brief: items.ts was checking lock before ownership, leaking other users'
+  trip lock status; 21-test lock-matrix contract test added; first CI run caught real
+  E2E fallout from the newly-enforced lock, fixed correctly in the E2E layer).
+
+### Also this session (not yet in a merged PR — going out in the close-out PR)
+- **Restart Preview mechanism** added to `/coo-merge-and-close` — a two-tier
+  captured/not-captured summary shown to Ryan before park-doc write, so nothing
+  silently vanishes at session close. First live run (this session) surfaced three
+  real gaps, described below.
+- **jobs/COO/open-dialogues.md** — new non-authoritative register for genuine open
+  discussion (proposals awaiting confirmation, unresolved sub-questions) that doesn't
+  belong in tracker.json/BRD/ADL. Wired into `/coo-startup` pickup.
+- OP-16 raised (issue #144): main's push-triggered CI runs stopped firing after the
+  OP-13 merge — 5 subsequent merges landed with no native main-CI confirmation.
+  Root-caused as far as COO scope allows (workflow files unchanged, permissions fine,
+  no branch protection, not a general outage — feature-branch/PR-triggered runs fire
+  normally); looks GitHub-side. Main's actual tip confirmed green via a throwaway-PR
+  probe. Flagged for Architect/infra review — not a COO fix.
+- Inbox fully triaged: 6 backlog reports (some months old) + this session's reports,
+  all verified against corresponding `done` tracker entries and moved to `read/`.
+- 3 reconstructed completion reports written (BUG-28/29/10 agents didn't file theirs
+  before finishing — see Open Dialogues below, this was closed as a clear-cut gap,
+  not left open).
+
+## State of play
+Main green (verified via throwaway-PR probe, given the OP-16 anomaly). All four audit
+bugs closed. BRD v3.0 adopted — planning-first is now the governing product direction.
+Two COO-lane skills installed and already load-bearing (this park doc was produced
+under the new coo-merge-and-close procedure). `git branch` should show only `main`
+after this close-out PR merges.
+
+## Open Dialogues
+See `jobs/COO/open-dialogues.md` for full detail — not restated here per the new
+park-doc convention (one home, not two copies that can drift). Currently open:
+- **D-01**: role system-prompt refresh (`jobs/<role>/*.txt` files are stale on
+  process — predate the branch/PR workflow) + wiring them as real `.claude/agents/`
+  definitions so model tier is enforced, not remembered. Plan proposed, not started.
+- **D-02**: model tiering policy (working default: Sonnet for implementation roles,
+  Haiku for COO-lane mechanical tasks). Architect's tier still an open question for Ryan.
+
+## Untouched backlog (carried forward, not touched this session)
+From the 2026-07-16 park doc, still open: Q22 test-DDL consolidation (13 hand-mirrored
+DDL copies — also an OP-15 prerequisite), OP-07 (UI/UX expert review), doc/housekeeping
+items (Q16/Q18/Q19), ~60 stale local branches + worktree-agent branches (pre-existing
+git hygiene debt, unrelated to this session).
+
+## Suggested next session
+1. `/coo-startup` — will now surface open-dialogues.md automatically.
+2. **Scotland trial** — the dogfood plan from the BRD interview (plan the actual trip
+   in the app, log friction as UAT findings) is still the concrete next input for
+   PHASE-6's planning-core work (BRD-PL0104 is explicitly held pending it).
+3. **roadmap.md / bundles** — part 2 of the prioritisation-mechanic work from earlier
+   this session, now unblocked by BRD v3.0 being adopted.
+4. D-01/D-02 from Open Dialogues, whenever Ryan wants to pick them up.
+5. OP-16 (main CI anomaly) needs an Architect look, not a COO one.

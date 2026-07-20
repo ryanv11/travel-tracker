@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first + OP-13/14/15)_
+_Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 raised, restart-preview mechanism installed)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first +
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (22)
+## Open work (23)
 
 ### P0 — Blockers (1)
 
@@ -33,11 +33,12 @@ _Tracker last updated: 2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first +
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack | ⬜ Pending |
 | BRD-NF09 | Hosted deployment for personal use (NF-09) | architect | ⬜ Pending |
 
-### P2 — Important (12)
+### P2 — Important (13)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | OP-07 | UI/UX expert review of frontend | coo | ⬜ Pending |
+| OP-16 | Main branch push-triggered CI runs stopped firing after OP-13 merge | architect | ⬜ Pending |
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
 | BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | 🔄 In progress |
 | BRD-AD07 | Map shading configuration is per-user (AD-07) | backend | 🔄 In progress |
@@ -67,7 +68,7 @@ _Tracker last updated: 2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first +
 |---|---|---|---|---|
 | feature | `███████████▓▓▓░░░░░░` 23/41 | 23 | 18 | 1 |
 | requirement | `███████████████████░` 29/31 | 29 | 2 | 5 |
-| bug | `████████████████████` 24/24 | 24 | 0 | 3 |
+| bug | `███████████████████░` 28/29 | 28 | 1 | 3 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████░░░░░░░░` 3/5 | 3 | 2 | 0 |
 
@@ -98,4 +99,4 @@ _Tracker last updated: 2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first +
 
 ---
 
-_87 done · 8 deferred · 1 closed · 22 open — 118 tracked items_
+_91 done · 8 deferred · 1 closed · 23 open — 123 tracked items_

@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-19 (BRD v3.0 adopted — PHASE-6 planning-first + OP-13/14/15)"
+    "updated": "2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 raised, restart-preview mechanism installed)"
   },
   "items": [
 
@@ -779,6 +779,17 @@
       "notes": "PO direction 2026-07-18: these two Session-C drafts need more consideration and planning before installing. Prerequisites: (a) Q22 test-DDL consolidation lands first — it removes the schema skill's most error-prone step (13 hand-mirrored DDL copies); (b) Q3/Q8 lock/PATCH fixes land so the backend skill's carve-out warnings can be written as settled rules; (c) decide the brief-template enforcement mechanism (skills only work if COO briefs consistently instruct agents to load them). Drafts remain in audits/session-c-workflow-extraction.md on chore/audit-questions. W5 frontend skill: extract from real PHASE-6 friction, not speculatively."
     },
     {
+      "id": "OP-16",
+      "type": "bug",
+      "title": "Main branch push-triggered CI runs stopped firing after OP-13 merge",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "GitHub issue #144. Found 2026-07-19 during post-merge verification: push-triggered CI/Security Checks runs on main stopped after commit 911eccf; 5 subsequent merges produced no push-triggered run. Ruled out: workflow file changes, Actions permissions, branch protection, authorship, general outage (feature-branch and PR-triggered runs fire normally throughout). Main's tip confirmed functionally green via a throwaway no-op PR probe (9/9 checks). Looks GitHub-side, not a code problem — flagged for Architect/infra review, outside COO scope. Interim mitigation: post-merge verification now falls back to a throwaway-PR probe when gh run list shows nothing new for main."
+    },
+    {
       "id": "OP-12",
       "type": "requirement",
       "title": "Generated human-readable status dashboard (STATUS.md) from tracker.json",
@@ -1118,6 +1129,50 @@
       "brdRefs": ["SE-02"],
       "phase": 1,
       "notes": "Found during Q5 real-auth UAT (2026-07-16), HC-01 step 5 second-account check. Non-owner sees the admin button in the banner, page loads, every section renders 'not authorised' (backend requireOwner correctly 403s — not a security hole, presentation gating only). Frontend should hide the nav entry for non-owners. PO verdict: 'suboptimal pass'. GitHub issue #116. Does not block NR-14. FIXED 2026-07-16 PR #117: new GET /api/me ({ id, email, isOwner }, requireAuth only) + useMe hook; Admin nav link owner-only (hidden while loading, no flash); /admin route wrapped in RequireOwner guard (not-authorised message for non-owners, panel never mounts). Access-matrix Part D + 6 App component tests added."
+    },
+    {
+      "id": "BUG-27",
+      "type": "bug",
+      "title": "Locked trips not fully read-only — DELETE and activity tag/untag bypass the lock",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["TR-06", "TR-07"],
+      "phase": 4,
+      "notes": "GitHub issue #135, PR #140 (merged 2026-07-19). Audit Q3 (Session B Q2), PO ruling 2026-07-16: locked = read-only, only unlock allowed. Fixed both gaps (trip DELETE, place-activity tag/untag) plus a third found during implementation: items PATCH/DELETE called assertNotLocked before ownership check, leaking lock status of other users' trips (audit invariant 17 violation) — reordered to ownership-then-lock. 21-test lock-matrix contract test added (src/backend/routes/__tests__/lock-matrix.test.ts), asserts 403 across all 15 mutating routes. First CI run caught a real E2E fallout (deleteAllTrips cleanup helper 403'd against its own newly-enforced lock) — fixed in the E2E layer, not by weakening enforcement."
+    },
+    {
+      "id": "BUG-28",
+      "type": "bug",
+      "title": "PATCH place dates wipes omitted fields; no arrival<=departure validation",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["DP-05"],
+      "phase": 4,
+      "notes": "GitHub issue #136, PR #139 (merged 2026-07-19). Audit Q8 (Session B Q6), PO ruling: bug + add arrived_on <= departed_on validation (same day OK). PATCH now preserves omitted fields (undefined leaves stored value unchanged, explicit null clears); validation checks the merged result (stored + patch) so single-field updates are still caught."
+    },
+    {
+      "id": "BUG-29",
+      "type": "bug",
+      "title": "Geocode retry queue — dead 404 cleanup branch, empty-PATCH used as poll",
+      "status": "done",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": ["GE-12", "GE-13"],
+      "phase": 4,
+      "notes": "GitHub issue #137, PR #142 (merged 2026-07-19). Audit Q12 (Session B Q8), PO ruling: fix it. New ApiError extends Error carrying status — the 404-removal branch is now reachable, deleted cities leave the retry queue instead of retrying forever. Poll replaced with GET /api/cities/:id (new read-only route, authenticated, no owner gate — cities are global reference data) — no more write-as-poll."
+    },
+    {
+      "id": "BUG-10",
+      "type": "bug",
+      "title": "200-character trip-name limit documented but never enforced",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["TR-01"],
+      "phase": 4,
+      "notes": "GitHub issue #138, PR #141 (merged 2026-07-19). Backfilled 2026-07-18 — the BUG-10 label existed only in trips.contract.test.ts (permanently-green expect([201,400]) assertion since March). Audit Q13 (Session B Q9), PO ruling: enforce. Investigation found zName had actually been .max(200) since 32c9f1a (2026-03-09) — the enduring gap was the hollow test itself, not the validation. Fixed: clear 400 message, real boundary assertions (contract + unit, create + update), frontend maxLength=200, all accept-either-outcome assertions removed from the file."
     },
     {
       "id": "BUG-25",
