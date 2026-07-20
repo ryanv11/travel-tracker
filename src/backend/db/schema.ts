@@ -394,7 +394,10 @@ export const tripCountries = sqliteTable(
  *
  * item_type determines which extension table (if any) holds additional fields.
  * trip_place_id is NULL for trip-level items (e.g. a flight attached to the trip,
- * not a specific city).
+ * not a specific city). This is also the target state when a place is deleted —
+ * BUG-32: placeRepository.delete reassigns trip_place_id to NULL for any items
+ * under the deleted place rather than cascade-deleting them (no onDelete is set
+ * on this FK deliberately — application code owns this reassignment).
  *
  * Carry-forward pattern (ADL-13, IT-07):
  *   is_carried_forward = 1 AND carried_from_item_id IS NOT NULL → carried item
