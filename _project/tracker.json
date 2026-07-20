@@ -782,12 +782,12 @@
       "id": "OP-16",
       "type": "bug",
       "title": "Main branch push-triggered CI runs stopped firing after OP-13 merge",
-      "status": "pending",
+      "status": "done",
       "owner": "architect",
       "priority": "P2",
       "brdRefs": [],
       "phase": 4,
-      "notes": "GitHub issue #144. Found 2026-07-19 during post-merge verification: push-triggered CI/Security Checks runs on main stopped after commit 911eccf; 5 subsequent merges produced no push-triggered run. Ruled out: workflow file changes, Actions permissions, branch protection, authorship, general outage (feature-branch and PR-triggered runs fire normally throughout). Main's tip confirmed functionally green via a throwaway no-op PR probe (9/9 checks). Looks GitHub-side, not a code problem — flagged for Architect/infra review, outside COO scope. Interim mitigation: post-merge verification now falls back to a throwaway-PR probe when gh run list shows nothing new for main."
+      "notes": "GitHub issue #144 (closed). CLOSED AS TRANSIENT GitHub-side incident per ADL-31 (Architect ruling, no code change). Found 2026-07-19: push-triggered CI/Security Checks on main stopped after commit 911eccf; 5 merges (~18:02-18:18 UTC) produced no push run. Ruled out (all repo-side causes): workflow file changes, Actions permissions, branch protection, authorship, general outage (feature-branch and PR-triggered runs fired throughout). Resumed on its own with BUG-27 #140 (2026-07-19 23:50 UTC) — earlier than first noticed. Spot-check confirmed 5 consecutive clean push-triggered runs since (#140/#145/#147/#148/#149, all success) with zero recurrence, correlated with a confirmed same-night GitHub Actions API incident (503s across actions/runs, actions/jobs/logs, actions/workflows endpoints). Repo-config hypothesis eliminated + external correlate confirmed + self-resolution + no recurrence = transient. Interim mitigation RETAINED as standing insurance: post-merge verification falls back to a throwaway-PR probe when gh run list shows nothing new for main. Recurrence-reopen clause: if it stalls again, reopen — original ruling-outs stand and would warrant GitHub Support. NOT correlated with OP-17/#146 (Gitleaks: missing GITLEAKS_LICENSE secret, distinct root cause; that correlation was retracted)."
     },
     {
       "id": "OP-17",
