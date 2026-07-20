@@ -812,6 +812,17 @@
       "notes": "Resolves D-01/D-02 from jobs/COO/open-dialogues.md (raised 2026-07-19, resolved 2026-07-20, PR #148, merged squash). No separate GitHub issue raised — this was direct COO-session work, fully captured by the PR diff and the open-dialogues.md resolution entries. D-01: refreshed all 8 role system prompts' git workflow (stale git-push-to-main → branch/pre-push/PR/CI-log-read, matching the 2026-03-21 branch workflow) and added a completion report format to the 5 roles missing one; created .claude/agents/{architect,backend,database,frontend,qa,docs,ux,integrations}.md as thin wrappers (persona summary + model tier in frontmatter) pointing at the system-prompt.txt files, so dispatch uses subagent_type instead of general-purpose + a hand-typed persona. D-02: ratified model tiering — Architect on Opus 4.8, other 7 roles on Sonnet 5, COO-lane background tasks on Haiku 4.5."
     },
     {
+      "id": "OP-19",
+      "type": "chore",
+      "title": "Mandate isolation: worktree for git-touching agent dispatches",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Live collision 2026-07-20: an Architect agent dispatched for OP-16 without isolation:\"worktree\" shared the COO session's own working tree; a concurrent `git checkout` by COO moved HEAD out from under the agent mid-task and its commit landed on the wrong branch. Caught and recovered manually before anything was pushed (relocated to chore/op16-close, pushed, PR #151) — no work lost, but the failure mode is real. Fix: CLAUDE.md Git workflow section now mandates isolation:\"worktree\" for every Agent-tool dispatch of a role agent doing git work (commits/branches/PRs); read-only dispatches exempted. No GitHub issue raised — direct COO-session process fix, no code/app impact."
+    },
+    {
       "id": "OP-12",
       "type": "requirement",
       "title": "Generated human-readable status dashboard (STATUS.md) from tracker.json",

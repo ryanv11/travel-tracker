@@ -36,6 +36,20 @@ Run `/pre-push` before every `git push` and iterate until all checks pass.
 - PR title and description must reference the GitHub issue number (`Closes #N`) and BRD section if applicable
 - **COO reviews and merges PRs** — agents do not merge their own PRs
 
+### Agent dispatch isolation (mandatory)
+Adopted 2026-07-20 after a live collision: an Architect agent dispatched without
+`isolation: "worktree"` shared the COO session's own working tree, and the COO's
+concurrent `git checkout` moved `HEAD` out from under the agent mid-task. Its commit
+landed on the COO's branch instead of its own; caught and recovered manually before
+anything was pushed, but the failure mode is real and will recur without isolation.
+
+**Every Agent-tool dispatch of a role agent that will do git work (commits, branches,
+PRs) must pass `isolation: "worktree"`.** This is what makes the branch-per-brief rule
+above actually hold — a shared working tree means "each brief gets its own branch" is
+true in name only, since two concurrent processes fight over the same `HEAD`, index,
+and working directory. Read-only dispatches (research, review, investigation with no
+commits) don't need it.
+
 ### BRD → tracker rule (mandatory)
 Whenever the BRD is updated (a changelog entry is written), the COO must create tracker
 entries for every new requirement ID introduced before closing the session. No BRD version
