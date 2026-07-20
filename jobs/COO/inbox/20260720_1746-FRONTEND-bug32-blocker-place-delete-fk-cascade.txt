@@ -1,0 +1,61 @@
+FROM: Frontend
+RE: BUG-32 (#156) — CRITICAL finding during implementation, flagging per frameworks.txt rule 8/29
+
+CONTEXT: Implementing the frontend delete-place affordance for BUG-32. The DELETE
+route documented in jobs/backend/tech/20260307-api-reference.md (line 522-537) already
+exists in src/backend/routes/places.ts + placeRepository.delete, and a frontend hook
+(useRemovePlace in src/frontend/hooks/usePlaces.ts) already exists too — it was just
+never wired to a UI control. So the actual gap was UI-only, not a missing route as the
+tracker note assumed. I proceeded to wire it up (see completion report), but found a
+real defect in the route itself while verifying the documented cascade behavior.
+
+INITIAL CLASSIFICATION: N/A — new discovery, not a reclassification.
+ACTUAL CLASSIFICATION: CRITICAL (breakage of a primary user-facing workflow — the exact
+  feature BUG-32 asks for, in the majority-case scenario where a place has items logged
+  under it, which is the normal case for a real trip).
+
+SYMPTOM: DELETE /api/trips/:tripId/places/:placeId documents "This also deletes all
+  items and activity tags associated with that place (CASCADE)." Activity tags do
+  cascade correctly. Items do not — attempting to delete a place that still has any
+  items attached fails with an unhandled SQLITE_CONSTRAINT_FOREIGNKEY error, which the
+  global error handler (src/backend/middleware/error-handler.ts) turns into a generic
+  500 "Internal server error". No items are deleted; the place is not deleted either
+  (the whole operation fails atomically, so no partial/corrupt state — but the feature
+  is simply broken for this case).
+
+ROOT CAUSE: src/backend/db/schema.ts — items.tripPlaceId has no onDelete action:
+    tripPlaceId: integer('trip_place_id').references(() => tripPlaces.id),
+  vs. tripPlaceActivities.tripPlaceId, which correctly has:
+    .references(() => tripPlaces.id, { onDelete: 'cascade' })
+  Migration SQL confirms: items.trip_place_id FK is `ON DELETE no action` while
+  trip_place_activities.trip_place_id FK is `ON DELETE cascade` (migrations/0000 and
+  0007). I confirmed empirically (isolated @libsql/client script, not guessing from
+  docs) that this client enforces foreign_keys ON BY DEFAULT even with no explicit
+  PRAGMA statement — so this isn't masked in production, it actively throws.
+
+SCOPE: Only affects DELETE on a trip_place that still has items attached — which is
+  the normal case (a place usually has logged items; that's the point of the app).
+  The existing places.test.ts DELETE suite (4 tests) never attaches an item before
+  deleting, so this gap has never been exercised by CI. No other route/table appears
+  to share this specific gap — activity tags cascade correctly, and trips->places /
+  trips->items both correctly specify onDelete: 'cascade'. This looks like a one-off
+  miss on the items.tripPlaceId column specifically.
+
+PROPOSED FIX (for whoever owns the parallel BUG-32 backend brief, or a follow-up):
+  Add onDelete: 'cascade' to items.tripPlaceId in schema.ts, generate a migration via
+  `npm run db:generate` (never db:push per ADL-15), and add a DELETE-with-items test
+  case to places.test.ts asserting the item is gone after the place delete. Given
+  IT-01 lets items live at trip-level (tripPlaceId NULL) or place-level, cascading on
+  place delete is consistent with "delete a place removes what's under it" and matches
+  the doc's existing claim — this is a bug in the schema, not the doc.
+
+BLOCKING: Does not block my own frontend PR — the delete affordance, confirmation, and
+  lock-gating are independently correct and I've built them to render any backend error
+  (including this 500) via the existing ErrorMessage component rather than failing
+  silently or crashing. But it does block BUG-32 being closed as fully working: right
+  now, clicking "Remove place" on any place with items will show a generic error
+  instead of removing anything. Recommend a tracker entry (next available BUG-37) and
+  routing the schema fix into the parallel backend brief (fix/bug32-remove-place-api)
+  if it hasn't already merged, since it's the same feature and same route.
+
+Full details also in my park doc: jobs/frontend/park-docs/20260720-FRONTEND-park.txt

@@ -1,31 +1,91 @@
-FRONTEND CONTEXT — as of 2026-03-20 20:11
+FRONTEND CONTEXT — as of 2026-07-20 18:10
 
-STATUS: BUG-18 investigated — already resolved. No pending work. Awaiting next COO brief.
+STATUS: BUG-32 (#156) frontend done — Remove-place affordance wired up. PR open on
+  fix/bug32-remove-place-ui. A CRITICAL backend bug was found and flagged to COO during
+  verification (see OPEN FLAGS below) — it does not block this PR but blocks BUG-32
+  being fully closeable.
 
-LAST COMMIT: 1fe7bc7 (fix(frontend): BUG-11/12/13 — cache invalidation, map click-through, search+sort)
+NOTE ON STALENESS: this file was last updated 2026-03-20 and clearly missed several
+  frontend-touching threads since (e.g. BUG-26/#116 admin-nav owner gating per memory,
+  BUG-34 map icon assigned to frontend in the tracker). Whoever picks up frontend next
+  should treat KEY FILE LOCATIONS below as still accurate but treat the history above
+  the 2026-07-20 entry as an incomplete record, not a full log.
 
-WHAT WAS DONE (this thread — 20260320_0030-COO-bug18-cache-invalidation)
-  BUG-18 (cache invalidation): Investigated useCreateTrip, useUpdateTripStatus, useLockTrip,
-    useUnlockTrip in src/frontend/hooks/useTrips.ts. All four hooks already invalidate
-    ['trips'] on success — this was applied in commit 1fe7bc7 (BUG-11 fix). No code
-    change required. type:check and test:frontend both pass (55/55).
+LAST COMMIT: (this thread) — see fix/bug32-remove-place-ui branch, not yet merged.
+  Prior main commit: c4340ef (chore: session close-out — OP-16/OP-19, 2026-07-20)
+
+WHAT WAS DONE (this thread — BUG-32 / GitHub #156)
+  - Confirmed the documented DELETE /api/trips/:tripId/places/:placeId route and the
+    useRemovePlace hook (src/frontend/hooks/usePlaces.ts) already existed — the gap was
+    UI-only (tracker note assumed the route might be missing; it wasn't).
+  - src/frontend/components/TripDetail/PlaceSection.tsx: added a "Remove" button next to
+    "+ Add Item" / "Set dates" (hidden when isLocked, same pattern as the others), opening
+    a ConfirmDialog. Confirmation copy mentions the item count when the place has items
+    ("...along with the N items logged under it...") since deletion is meant to cascade.
+  - src/frontend/components/shared/ConfirmDialog.tsx: added optional `error` and
+    `isConfirming`/`confirmingLabel` props (all default to no-op, so ItemCard/ReviewPanel/
+    TripDetail's existing usages are unaffected) so a failed mutation keeps the dialog open
+    and shows why, instead of silently closing on a rejected promise (ItemCard's existing
+    delete-item flow has this same silent-failure gap — not fixed here, out of scope, but
+    worth a follow-up since it's the same shared component).
+  - src/frontend/hooks/usePlaces.ts: useRemovePlace's onSuccess invalidated only
+    ['trips', tripId] — found via live verification that the trip-list sidebar card (DP-01
+    shows place names per card) kept a stale place chip after a successful removal.
+    Fixed to invalidate ['trips'] (bare), matching the convention already used in
+    useTrips.ts (['trips'] is a prefix of ['trips', id], so one call covers both the list
+    and the detail query). Classified MINOR per frameworks.txt severity scale, fixed
+    directly (in-scope: same hook this PR newly wires up for the first time).
+  - New test file: src/frontend/components/TripDetail/__tests__/PlaceSection.test.tsx —
+    7 tests (hidden when locked, visible + opens dialog when unlocked, item-count copy
+    with/without items, cancel doesn't call mutation, confirm calls mutation with right
+    args, failed mutation keeps dialog open + shows error).
+
+VERIFICATION (ran the real app, not just tests)
+  Spun up backend + frontend dev servers with BYPASS_AUTH=true / VITE_BYPASS_AUTH=true on
+  scratch ports (3057/5188, to avoid colliding with any other session's 3001/5173) against
+  a scratch SQLite DB, then drove it with a throwaway Playwright script (not committed):
+    1. Place with 0 items: Remove → confirm → DELETE returns 204, place disappears from
+       trip detail AND (after the invalidation fix) the sidebar trip-list card.
+    2. Place with 1 item: Remove → confirm → DELETE returns 500 "Internal server error".
+       This is the CRITICAL bug below, confirmed live end-to-end (screenshots taken).
+       ConfirmDialog stayed open and showed "Internal server error" instead of silently
+       failing — this is exactly the failure mode the ConfirmDialog error-prop change
+       was built to handle gracefully.
+    3. Locked trip: Remove button correctly absent (locked-trip read-only banner shown,
+       same as every other write control).
+
+OPEN FLAGS FOR COO
+  FLAG-F1 (carried over, unresolved): Item status names in API reference doc don't match
+    Zod schema (see original Phase 1 completion report for details).
+  FLAG-F2 (carried over, unresolved): No standalone GET /api/cities list endpoint exists
+    (not needed currently).
+  FLAG-F3 (NEW, CRITICAL): DELETE /api/trips/:tripId/places/:placeId fails with a 500 when
+    the place has any items attached — items.tripPlaceId has no onDelete cascade in
+    src/backend/db/schema.ts (trip_place_activities.tripPlaceId does). Confirmed both via
+    an isolated @libsql/client script and live through the running app (screenshots).
+    Full bug report: jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt
+    Does not block this PR; blocks BUG-32 being fully closed. Recommend routing the schema
+    fix + migration into whichever backend brief is touching this route.
+  FLAG-F4 (NEW, MINOR, informational only — not fixed): ItemCard.tsx's delete-item flow
+    (ConfirmDialog usage) doesn't surface mutation errors — a failed item delete silently
+    closes/does nothing visible. Same class of gap as FLAG-F3's UX side, now that
+    ConfirmDialog supports an error prop it would be a small follow-up to wire it there too.
 
 KEY FILE LOCATIONS
   Entry point:        src/frontend/main.tsx
   Router / layout:   src/frontend/App.tsx
   Pages:             src/frontend/pages/{MapPage,TripsPage,TripDetailPage,AdminPage}.tsx
-  Hooks:             src/frontend/hooks/{useTrips,usePlaces,useItems,useCities,useMapShading,useAdmin}.ts
+  Hooks:             src/frontend/hooks/{useTrips,usePlaces,useItems,useCities,useMapShading,useAdmin,useMe,useGeocodeRetryQueue}.ts
   Types:             src/frontend/types/api.ts
   API client:        src/frontend/utils/apiClient.ts
   URL sanitiser:     src/frontend/utils/urlSanitiser.ts (SEC-12)
-  Date formatter:    src/frontend/utils/formatDate.ts (FIX 1 from P0 session)
+  Date formatter:    src/frontend/utils/formatDate.ts
+  Shared dialogs:    src/frontend/components/shared/{ConfirmDialog,ErrorMessage}.tsx
   Config:            vite.config.ts, tsconfig.frontend.json, index.html
 
-OPEN FLAGS FOR COO
-  FLAG-F1: Item status names in API reference doc don't match Zod schema
-           (see original Phase 1 completion report for details)
-  FLAG-F2: No standalone GET /api/cities list endpoint exists (not needed currently)
-
 NEXT STEPS (when resumed)
-  - Await Tailwind + shadcn/ui migration brief from COO
-  - No other outstanding frontend bugs
+  - Once FLAG-F3 (backend schema fix) merges, re-verify place removal with items attached
+    actually succeeds and cascades — this PR's UI/copy already assumes that will be true.
+  - Consider FLAG-F4 (ItemCard error surfacing) as a small follow-up.
+  - BUG-34 (map standout icon) and other 2026-07-20 UAT bugs are tracked but untouched by
+    this thread.
