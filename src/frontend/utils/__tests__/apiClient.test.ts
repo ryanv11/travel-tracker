@@ -86,4 +86,13 @@ describe('apiClient error handling', () => {
       geocode_status: 'resolved',
     });
   });
+
+  it('never constructs a request URL containing the literal string "undefined" (regression: prod white-screened on this exact bug when VITE_API_BASE_URL was unset)', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+
+    await apiGet('/api/trips');
+
+    const requestedUrl = fetchMock.mock.calls[0][0] as string;
+    expect(requestedUrl).not.toContain('undefined');
+  });
 });
