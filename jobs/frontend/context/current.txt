@@ -1,18 +1,23 @@
-FRONTEND CONTEXT — as of 2026-07-20 18:10
+FRONTEND CONTEXT — as of 2026-07-20 (merge-conflict resolution pass)
 
-STATUS: BUG-32 (#156) frontend done — Remove-place affordance wired up. PR open on
-  fix/bug32-remove-place-ui. A CRITICAL backend bug was found and flagged to COO during
-  verification (see OPEN FLAGS below) — it does not block this PR but blocks BUG-32
-  being fully closeable.
+STATUS: BUG-32 (#156) frontend done — Remove-place affordance wired up. PR #170 open on
+  fix/bug32-remove-place-ui, being rebased against main to pick up several other
+  2026-07-20 UAT-triage threads that merged in the meantime (BUG-10, BUG-30, BUG-31,
+  BUG-34, BUG-35, BUG-36 — see PRIOR THREAD below for the one that conflicted with this
+  file). A CRITICAL backend bug was found and flagged to COO during verification (see
+  OPEN FLAGS below) — it does not block this PR but blocks BUG-32 being fully closeable.
 
-NOTE ON STALENESS: this file was last updated 2026-03-20 and clearly missed several
-  frontend-touching threads since (e.g. BUG-26/#116 admin-nav owner gating per memory,
-  BUG-34 map icon assigned to frontend in the tracker). Whoever picks up frontend next
-  should treat KEY FILE LOCATIONS below as still accurate but treat the history above
-  the 2026-07-20 entry as an incomplete record, not a full log.
+PRIOR THREAD (merged first, conflicted with this file on merge): BUG-10 frontend fix
+  (fix/bug10-name-limit-frontend, commit ed2821c, merged as 9e5b020 — trip-name field now
+  hard-restricts to 75 chars with an inline "75 character limit reached" error, replacing
+  the old 200-char maxLength + silent-truncation behavior). Fixed in TripForm.tsx. Its own
+  park doc has full detail; not duplicated here. Its "await COO merge" next-step is now
+  moot (merged) — dropped below. Its flaky-CarryForwardModal-test finding is folded into
+  OPEN FLAGS below (renumbered to avoid colliding with this thread's own FLAG-F3/F4).
 
-LAST COMMIT: (this thread) — see fix/bug32-remove-place-ui branch, not yet merged.
-  Prior main commit: c4340ef (chore: session close-out — OP-16/OP-19, 2026-07-20)
+  This resolves the "staleness" note that was in this file before either of these threads
+  ran (it dated from 2026-03-20 and predates BUG-10/26/30/31/34/35/36 — those have since
+  happened and merged; the note is retired rather than carried forward as if still true).
 
 WHAT WAS DONE (this thread — BUG-32 / GitHub #156)
   - Confirmed the documented DELETE /api/trips/:tripId/places/:placeId route and the
@@ -62,23 +67,9 @@ VERIFICATION (ran the real app, not just tests)
        was built to handle gracefully.
     3. Locked trip: Remove button correctly absent (locked-trip read-only banner shown,
        same as every other write control).
-
-OPEN FLAGS FOR COO
-  FLAG-F1 (carried over, unresolved): Item status names in API reference doc don't match
-    Zod schema (see original Phase 1 completion report for details).
-  FLAG-F2 (carried over, unresolved): No standalone GET /api/cities list endpoint exists
-    (not needed currently).
-  FLAG-F3 (NEW, CRITICAL): DELETE /api/trips/:tripId/places/:placeId fails with a 500 when
-    the place has any items attached — items.tripPlaceId has no onDelete cascade in
-    src/backend/db/schema.ts (trip_place_activities.tripPlaceId does). Confirmed both via
-    an isolated @libsql/client script and live through the running app (screenshots).
-    Full bug report: jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt
-    Does not block this PR; blocks BUG-32 being fully closed. Recommend routing the schema
-    fix + migration into whichever backend brief is touching this route.
-  FLAG-F4 (NEW, MINOR, informational only — not fixed): ItemCard.tsx's delete-item flow
-    (ConfirmDialog usage) doesn't surface mutation errors — a failed item delete silently
-    closes/does nothing visible. Same class of gap as FLAG-F3's UX side, now that
-    ConfirmDialog supports an error prop it would be a small follow-up to wire it there too.
+  Also reproduced the two E2E fixture-name-collision scenarios (EditCity/DeleteCity)
+  live, before and after the aria-label fix, since the official test:e2e harness's
+  hardcoded ports (3001/5173) collided with another concurrent session in this workspace.
 
 KEY FILE LOCATIONS
   Entry point:        src/frontend/main.tsx
@@ -90,11 +81,37 @@ KEY FILE LOCATIONS
   URL sanitiser:     src/frontend/utils/urlSanitiser.ts (SEC-12)
   Date formatter:    src/frontend/utils/formatDate.ts
   Shared dialogs:    src/frontend/components/shared/{ConfirmDialog,ErrorMessage}.tsx
+  Trip form:         src/frontend/components/TripDetail/TripForm.tsx (BUG-10 fix here)
+  Field-level error pattern reference: AddPlaceFlow.tsx:316, PlaceDateForm.tsx:149
   Config:            vite.config.ts, tsconfig.frontend.json, index.html
+
+OPEN FLAGS FOR COO
+  FLAG-F1 (carried over, unresolved): Item status names in API reference doc don't match
+    Zod schema (see original Phase 1 completion report for details).
+  FLAG-F2 (carried over, unresolved): No standalone GET /api/cities list endpoint exists
+    (not needed currently).
+  FLAG-F3 (CRITICAL, this thread): DELETE /api/trips/:tripId/places/:placeId fails with a
+    500 when the place has any items attached — items.tripPlaceId has no onDelete cascade
+    in src/backend/db/schema.ts (trip_place_activities.tripPlaceId does). Confirmed both
+    via an isolated @libsql/client script and live through the running app (screenshots).
+    Full bug report: jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt
+    Does not block this PR; blocks BUG-32 being fully closed. Recommend routing the schema
+    fix + migration into whichever backend brief is touching this route.
+  FLAG-F4 (MINOR, this thread, informational only — not fixed): ItemCard.tsx's delete-item
+    flow (ConfirmDialog usage) doesn't surface mutation errors — a failed item delete
+    silently closes/does nothing visible. Same class of gap as FLAG-F3's UX side, now that
+    ConfirmDialog supports an error prop it would be a small follow-up to wire it there too.
+  FLAG-F5 (carried over from the BUG-10 frontend thread, unresolved): CarryForwardModal
+    .test.tsx has a flaky assertion ("calls onClose immediately when Skip is clicked" —
+    onClose called 2-3x instead of 1x). Reproducible on a clean main checkout with no
+    BUG-10 or BUG-32 changes applied (verified independently by both threads via git
+    stash). Worth a QA/backend look; not blocking either PR.
 
 NEXT STEPS (when resumed)
   - Once FLAG-F3 (backend schema fix) merges, re-verify place removal with items attached
     actually succeeds and cascades — this PR's UI/copy already assumes that will be true.
   - Consider FLAG-F4 (ItemCard error surfacing) as a small follow-up.
-  - BUG-34 (map standout icon) and other 2026-07-20 UAT bugs are tracked but untouched by
-    this thread.
+  - Consider FLAG-F5 (flaky CarryForwardModal test) as a small follow-up — flagged twice
+    now by independent threads, worth fixing rather than re-flagging a third time.
+  - Coordinate wording with BUG-10's backend half if its 400 message text differs from
+    the frontend's "75 character limit reached" (per tracker guidance).

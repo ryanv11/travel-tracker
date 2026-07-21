@@ -1,64 +1,104 @@
-DATABASE CONTEXT — 2026-03-07
+DATABASE CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: Phase 1 complete — all deliverables verified, COO and BACKEND notified
+CURRENT STATUS: BUG-30 fix complete — branch fix/bug30-uk-region-seed pushed, PR open
 
 ================================================================================
-COMPLETED DELIVERABLES
+LATEST THREAD — BUG-30 (GitHub #154)
 ================================================================================
 
-  1. src/backend/db/schema.ts
-     19-table Drizzle ORM schema. All constraints, indexes, FKs, and type
-     exports matching ER schema v1.1 exactly.
+Bug: UK constituent countries (Scotland, England, Wales, Northern Ireland)
+unavailable when adding a place. Root cause: GB was present in the countries
+seed but with region_tier_enabled=0 — those four are ISO 3166-2 regions under
+GB, not ISO 3166-1 countries themselves (GE-01/GE-02), so the Region tier
+never surfaced for GB.
 
-  2. src/backend/db/index.ts
-     Connection factory (singleton). DB_TYPE=sqlite → @libsql/client.
-     DB_TYPE=postgres → node-postgres.
-
-  3. drizzle.config.ts
-     Drizzle Kit config. Dialect driven by DB_TYPE.
-
-  4. src/backend/db/seed.ts
-     Idempotent seed loader. trip_categories (11), activities (17),
-     companions (7), map_shading_config (6).
-
-  5. src/backend/migrations/0000_open_electro.sql
-     Generated migration. Verified correct SQL.
-
-================================================================================
-VERIFICATION RESULTS
-================================================================================
-
-  npm run db:push  → "✓ Changes applied"
-  npm run db:seed  → all 4 tables seeded, correct counts
-  Idempotency      → second seed run produces no errors or duplicates
-  Table count      → 19 application tables in dev.db
+Deliverables (branch fix/bug30-uk-region-seed):
+  1. data/countries.json — GB row: region_tier_enabled 0->1,
+     region_tier_label null -> 'Constituent Country'
+  2. data/regions.json — added England/GB-ENG, Scotland/GB-SCT, Wales/GB-WLS,
+     Northern Ireland/GB-NIR (real ISO 3166-2 codes, same shape as existing
+     US/AU/CA rows)
+  3. src/backend/migrations/0008_bug30_uk_region_seed.sql — data-only custom
+     migration (drizzle-kit generate --custom; no DDL diff since
+     region_tier_enabled/label and iso_3166_2 columns already exist from
+     migration 0001). UPDATEs the GB countries row and INSERTs the 4 regions,
+     guarded with `WHERE EXISTS (SELECT 1 FROM regions LIMIT 1)` so it is a
+     no-op on fresh installs (see IMPORTANT FINDING below).
+  4. src/backend/migrations/meta/_journal.json + 0008_snapshot.json —
+     generated migration metadata.
 
 ================================================================================
-DRIVER NOTE (flagged to COO)
+IMPORTANT FINDING — self-caught bug in my own first draft
 ================================================================================
 
-  Used @libsql/client instead of better-sqlite3 because better-sqlite3
-  v9.x fails to compile on Node.js v24. @libsql/client is pure JS,
-  fully Drizzle-compatible, and a cleaner solution overall.
+First draft of the migration inserted the 4 GB regions unconditionally
+(guarded only by `NOT EXISTS (... iso_3166_2 = ...)`, i.e. per-row dedup).
+Caught via a from-scratch fresh-install simulation (migrate() on an empty
+db, then replaying seedCountries()/seedRegions() from startup.service.ts):
+migrations always run before the server boots (db:migrate is a deploy step
+ahead of server start), so on a truly fresh install this migration would run
+against an EMPTY regions table and insert 4 rows — tripping
+seedRegions()'s "table already has >0 rows -> skip entirely" idempotency
+guard in src/backend/services/startup.service.ts. Fresh installs would end
+up with ONLY the 4 GB regions and NONE of the other 72 US/AU/CA ones.
+
+Fixed by adding `WHERE EXISTS (SELECT 1 FROM regions LIMIT 1)` to each
+region INSERT — scopes the migration's effect to installs that have already
+run the app-level seed at least once. Verified both paths explicitly:
+  - Fresh install simulation: migrate() on empty db -> 0 rows in
+    countries/regions immediately after -> full seedCountries()/seedRegions()
+    replay -> 250 countries, 76 regions (incl. all 4 GB + all 51 US), GB
+    row correct.
+  - Already-seeded path: existing dev.db (had GB region_tier_enabled=1 from
+    an earlier partial UAT-investigation edit, label=null, 0 GB regions,
+    but 72 pre-existing US/AU/CA regions) -> migration correctly set the
+    label and inserted exactly the 4 GB regions, idempotent on re-run.
 
 ================================================================================
-OUTBOX SENT
+TOOLING NOTE — drizzle-kit CLI `migrate` command journal instability
 ================================================================================
 
-  jobs/COO/inbox/20260307_1600-DATABASE-schema-complete.txt
-  jobs/backend/inbox/20260307_1600-DATABASE-schema-ready.txt
+Observed once during this thread: after `npx drizzle-kit generate --custom`
+created the 0008 journal entry + snapshot, the FIRST subsequent
+`npm run db:migrate` reported "migrations applied successfully" but neither
+touched dev.db NOR persisted the new journal entry (meta/_journal.json
+reverted to its pre-generate state, matching HEAD exactly, while the
+0008 .sql/snapshot files remained on disk). Not reproduced on later runs in
+this same thread once the journal entry was restored — worked cleanly and
+idempotently afterward, and drizzle-orm's own migrate() (imported directly,
+bypassing the drizzle-kit CLI wrapper) also worked correctly throughout.
+Root cause not confirmed — plausibly related to the drizzle-kit@0.31.9
+SQLite bugs already tracked in patches/drizzle-kit+0.31.9.patch (see
+MEMORY.md), but this symptom (journal entry silently dropped for a --custom
+migration with no schema diff) doesn't match any of the four documented
+bugs exactly. Flagging for Architect/COO awareness — not blocking, since the
+committed migration file + journal entry are verified correct and the
+normal `npm run db:generate` / `npm run db:migrate` workflow was used
+throughout (no db:push).
 
 ================================================================================
-LAST PARK DOC
+VERIFICATION
 ================================================================================
-
-  jobs/database/park-docs/20260307-DATABASE-park.txt
+  npm run type:check:backend    -> clean
+  npm run type:check:all        -> clean
+  npm run test:backend          -> 23 files, 523 passed, 1 skipped
+  npm run test:frontend         -> 1 pre-existing failure unrelated to this
+                                    change (CarryForwardModal BUG-03
+                                    regression test — confirmed failing on
+                                    HEAD with this thread's changes fully
+                                    stashed out; not caused by BUG-30 work)
+  npm run check (biome)         -> clean
+  npm run status:check          -> FAILS, but pre-existing/not-mine: this
+                                    worktree had uncommitted tracker.json /
+                                    STATUS.md / BRD.md / drift-ledger.jsonl /
+                                    uat-log.md changes already present before
+                                    this thread started (COO session state,
+                                    not part of this brief). Left untouched
+                                    and NOT committed on this branch — only
+                                    BUG-30-relevant files were staged/committed.
 
 ================================================================================
 NEXT DATABASE THREAD
 ================================================================================
-
-  Awaiting COO review and acceptance. No known defects.
-  Phase 2 (PostgreSQL schema + data migration script) when project moves
-  to hosted deployment.
-
+  None expected unless COO returns this PR with defects. Awaiting COO review
+  and merge via /coo-merge-and-close.

@@ -58,4 +58,7 @@ BLOCKING: Does not block my own frontend PR — the delete affordance, confirmat
   routing the schema fix into the parallel backend brief (fix/bug32-remove-place-api)
   if it hasn't already merged, since it's the same feature and same route.
 
-Full details also in my park doc: jobs/frontend/park-docs/20260720-FRONTEND-park.txt
+Full details also in my park doc: jobs/frontend/park-docs/20260720-FRONTEND-bug32-park.txt
+  (renamed from 20260720-FRONTEND-park.txt during the main-merge conflict resolution —
+  the BUG-10 frontend thread used the same date-based filename first and kept it; this
+  file's content is unchanged otherwise)

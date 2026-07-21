@@ -3,9 +3,9 @@
  *
  * Handles creating, updating, and deleting items of all types.
  */
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Item, ItemStatus, ItemType } from '../types/api';
-import { apiDelete, apiPatch, apiPost } from '../utils/apiClient';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../utils/apiClient';
 
 /** Body for POST /api/trips/:tripId/items */
 export interface CreateItemData {
@@ -49,6 +49,43 @@ export type UpdateItemData = Partial<
     post_visit_notes?: string | null;
   }
 >;
+
+// ============================================================
+// QUERIES
+// ============================================================
+
+/**
+ * Fetches trip-level items (items with no associated place, trip_place_id
+ * IS NULL) for a trip — BUG-36 / IT-01.
+ *
+ * GET /api/trips/:tripId/items (unfiltered) returns every item on the trip
+ * including trip-level ones; the nested GET /api/trips/:id response used to
+ * hydrate TripDetail only surfaces items nested under `places[].items` and
+ * currently drops trip-level items entirely (see src/backend/routes/trips.ts
+ * buildTripResponse / the `/:id` handler — `allItems` is filtered per-place
+ * with no branch for trip_place_id === null). Flagged to Backend/COO as a
+ * contract gap; this hook works around it using the flat items endpoint,
+ * which already returns the full set correctly, so trip-level items are
+ * visible today without waiting on that fix.
+ *
+ * Query key is nested under ['trips', tripId, ...] so the existing
+ * invalidation in useCreateItem/useUpdateItem/useDeleteItem (which
+ * invalidates ['trips', tripId] with the default fuzzy/prefix match)
+ * refreshes this list too — no changes needed to those mutations.
+ *
+ * @param tripId - Parent trip ID. Pass undefined to disable the query.
+ * @returns React Query result containing only items where trip_place_id is null.
+ */
+export function useTripLevelItems(tripId: number | undefined) {
+  return useQuery({
+    queryKey: ['trips', tripId, 'items', 'trip-level'],
+    queryFn: async () => {
+      const items = await apiGet<Item[]>(`/api/trips/${tripId}/items`);
+      return items.filter((item) => item.trip_place_id === null);
+    },
+    enabled: tripId !== undefined,
+  });
+}
 
 // ============================================================
 // MUTATIONS

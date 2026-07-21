@@ -233,7 +233,7 @@
   { "country_code": "UG", "name": "Uganda", "region_tier_enabled": 0, "region_tier_label": null },
   { "country_code": "UA", "name": "Ukraine", "region_tier_enabled": 0, "region_tier_label": null },
   { "country_code": "AE", "name": "United Arab Emirates", "region_tier_enabled": 0, "region_tier_label": null },
-  { "country_code": "GB", "name": "United Kingdom", "region_tier_enabled": 0, "region_tier_label": null },
+  { "country_code": "GB", "name": "United Kingdom", "region_tier_enabled": 1, "region_tier_label": "Constituent Country" },
   { "country_code": "UM", "name": "United States Minor Outlying Islands", "region_tier_enabled": 0, "region_tier_label": null },
   { "country_code": "US", "name": "United States of America", "region_tier_enabled": 1, "region_tier_label": "State" },
   { "country_code": "UY", "name": "Uruguay", "region_tier_enabled": 0, "region_tier_label": null },
