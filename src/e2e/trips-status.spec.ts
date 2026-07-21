@@ -48,7 +48,7 @@ test('review → locked via PostTripReview panel', async ({ page, request }) => 
 
   // After locking, PostTripReview navigates to the trips list — go to the trip detail to verify
   await page.goto(`http://localhost:5173/trips/${trip.id}`);
-  await expect(page.getByText('🔒 Read-only — trip is locked.')).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText('Read-only — trip is locked.')).toBeVisible({ timeout: 5_000 });
 });
 
 test('locked trip hides write controls', async ({ page, request }) => {
@@ -58,7 +58,7 @@ test('locked trip hides write controls', async ({ page, request }) => {
   await transitionTripStatus(request, trip.id, 'locked');
   await page.goto(`http://localhost:5173/trips/${trip.id}`);
 
-  await expect(page.getByText('🔒 Read-only — trip is locked.')).toBeVisible();
+  await expect(page.getByText('Read-only — trip is locked.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit' })).not.toBeVisible();
   await expect(page.getByRole('button', { name: /Add Place/ })).not.toBeVisible();
 });
@@ -79,5 +79,5 @@ test('unlock locked trip via confirmation', async ({ page, request }) => {
 
   // Lock Trip button reappears when back in review_pending; banner gone
   await expect(page.getByRole('button', { name: 'Lock Trip' })).toBeVisible({ timeout: 5_000 });
-  await expect(page.getByText('🔒 Read-only — trip is locked.')).not.toBeVisible();
+  await expect(page.getByText('Read-only — trip is locked.')).not.toBeVisible();
 });
