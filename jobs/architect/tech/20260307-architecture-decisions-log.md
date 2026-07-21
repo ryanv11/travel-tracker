@@ -1580,3 +1580,229 @@ dispatch" gate, since none existed for NF-09 previously:
   by running the pinned OSS binary directly. The 503 the Gitleaks action surfaced was incidental;
   the job would have failed regardless of Actions API health. That correlation was raised and then
   retracted by the PO on #144 — recorded here so it is not silently re-conflated later.
+
+---
+
+## ADL-33 — Agent read-only diagnostic access to Railway, Turso, and Clerk
+
+**Date:** 2026-07-21
+**Status:** Decided — design only; **no code/config committed with this ADL**. Firewall +
+credential wiring is a follow-up COO/Backend action gated on PO provisioning the tokens
+called for below. Not implemented this session.
+**Tracker:** operational — needs an OP-series tracker entry (suggest **OP-21**); COO to
+create. No BRD requirement ID (see §8). **BRD ref:** none — this is dev-operational
+tooling, not a product requirement.
+
+**Triggered by:** PO request (2026-07-21). While the COO was debugging a live Railway
+deploy stuck "queued due to upstream GitHub issues" with no visible logs, the only way to
+see error output was Ryan pasting logs back and forth by hand. Ryan asked that the
+COO/Claude Code agent be given **read-only** diagnostic access to Railway, Turso, and Clerk
+directly so future debugging doesn't depend on manual log-relay. Builds on ADL-32 (the
+Railway + Turso + Clerk hosted stack). Scope was pre-negotiated with Ryan and is binding:
+Railway read-only (logs, build status, env-var *names* not values), Turso read-only SELECT
+(never write/migrate), Clerk read-only dashboard config (never write to auth config).
+
+### 0. Summary
+
+| # | Decision | Recommendation | Confidence |
+|---|---|---|---|
+| 1 | **Turso** read-only DB access | **GRANT.** Genuinely read-only is achievable — `turso db tokens create <db> --read-only` is a real DB-scoped, read-only token. Allowlist the DB connection hosts only; invoke via a `@libsql/client` script (already a dependency). Do **not** provision a platform token or allowlist `api.turso.tech`. | High |
+| 2 | **Railway** read-only ops access | **GRANT WITH CAVEAT.** Railway has **no read-only token scope** — every token type carries the full permissions of its scope (a Project token can still deploy/redeploy/delete). "Read-only" is behavioural only, not enforceable. Use a **Project-scoped token** (narrowest blast radius) and treat it as a write-capable secret. | High |
+| 3 | **Clerk** read-only config access | **DO NOT GRANT (recommend against).** Clerk has **no read-only credential** — the only Backend-API credential is the Secret Key (`sk_*`), which carries full write to the identity provider's config *and* full user CRUD (all PII). "Read-only Clerk config" as scoped is **not achievable**. Keep the manual-paste workflow for the rare config lookup. | High |
+| 4 | Credential storage | **Separate gitignored file** (`.env.agent-diagnostics`), **not** `.env.local`. Agent-operator secrets have a different blast radius and lifecycle than the app's runtime secrets and must not be loaded into the running app process. | High |
+| 5 | Invocation | Turso: `@libsql/client` one-off script (no new dep, no CLI). Railway: `@railway/cli` authenticated via `RAILWAY_TOKEN`. Proportionate — diagnostic tooling for a solo project, not infra. | High |
+
+### 1. Problem
+
+The sandbox firewall (`.devcontainer/init-firewall.sh`) is a default-DROP outbound
+allowlist — only GitHub, npm, the Anthropic API, and a short static domain list are
+reachable. None of Railway, Turso's platform/DB hosts, or Clerk's management API are
+reachable, so the agent cannot read a deploy log, run a debugging SELECT, or check an
+auth-config value without Ryan copying it in by hand. The ask is to close that gap
+**read-only**. Two things have to be true for each service: (a) the API/DB host must be
+allowlistable, and (b) a genuinely read-only credential must exist — otherwise granting
+API reach necessarily hands over more power than "read-only" implies. The three services
+answer (b) very differently, which is the whole substance of this decision.
+
+### 2. Turso — GRANT (clean read-only)
+
+**Hosts to allowlist:** the two database connection hosts only —
+`libsql://<db>-<org>.turso.io` and its regional form `<db>-<org>.<region>.turso.io`
+(HTTP form `https://<db>-<org>.turso.io`), for **both** the production and staging
+databases provisioned under ADL-32. The firewall resolves and pins A-records, so both the
+prod and staging hostnames must be listed explicitly.
+
+**Read-only is real and DB-scoped.** `turso db tokens create <database-name> --read-only`
+(`-r`) mints a token restricted to read-only access on that one database (verified against
+current Turso CLI docs). This is the one service where the requested scope is achievable
+exactly as asked: read-only, per-database, no broader reach.
+
+**Deliberately NOT included:** the Turso **Platform API** (`api.turso.tech`) and any
+platform/account token. The Platform API is infrastructure management (create/destroy
+databases, rotate tokens, read org billing) — an account-scoped token there is *not*
+read-only and is not needed to run a debugging SELECT. Keeping `api.turso.tech` off the
+allowlist and using only per-DB `--read-only` tokens means the agent can read data but has
+no path to touch database lifecycle. This is strictly better than the naive "give the agent
+Turso access" and costs nothing.
+
+**Prefer staging over production.** For schema/shape/logic debugging, point queries at the
+**staging** database (seeded, no real trip data). Only query the production Turso database
+when the bug is specifically about production data — see §6 residual risk.
+
+### 3. Railway — GRANT WITH CAVEAT (no enforceable read-only)
+
+**Host to allowlist:** `backboard.railway.com` — this is both the GraphQL API
+(`https://backboard.railway.com/graphql/v2`) and the host the `railway` CLI streams deploy
+logs from (over WebSocket). Older docs reference `backboard.railway.app`; the implementer
+must confirm the exact host(s) the installed CLI actually dials (a quick check of CLI
+traffic) and allowlist what it uses — do not assume from docs alone.
+
+**No read-only scope exists — this is the finding to flag, not paper over.** Railway's
+token model has three types (Account, Workspace, Project) and none is read-only: each
+carries the full permissions of its scope. A Project token — the narrowest — can still
+trigger deploys, redeploys, and deletions within that project. There is no scope, service
+account, or fine-grained permission control that yields "logs + status + var names, nothing
+else." Per Ryan's binding scope decision (read-only) and the "don't quietly widen scope"
+instruction, I am **not** working around this by pretending a Project token is read-only.
+Instead:
+
+- **Use a Project-scoped token** for the single production Railway project. This does not
+  make it read-only, but it bounds the blast radius to that one project (vs. an Account
+  token's reach across the whole Railway account/workspace).
+- **The "read-only" guarantee is behavioural:** the agent issues only read operations
+  (`railway logs`, `railway status`, `railway variables` for names). This is an operating
+  convention, not an enforced boundary — the token *could* deploy or delete. It must
+  therefore be treated as a **privileged, write-capable secret** in storage and handling
+  (§5, §6), even though its intended use is read-only.
+
+Net: Railway access is worth granting for the log-relay pain it removes, but with eyes open
+that the read-only property is a discipline, not a wall. If Railway ships read-only tokens
+later, switch to one and drop the caveat.
+
+### 4. Clerk — DO NOT GRANT (read-only not achievable; highest stakes)
+
+**Would-be host:** `api.clerk.com` (Backend API v1). *This is distinct from
+`just-raptor-89.clerk.accounts.dev` already in the firewall* — that existing entry is the
+app's runtime JWKS endpoint for verifying Clerk tokens, and it does **not** provide any
+management/config read.
+
+**There is no read-only Clerk credential.** The only credential that authenticates the
+Backend API is the Secret Key (`sk_*`), and it is all-permissions: the same key that
+`GET`s instance config also `PATCH`es `allowed_origins`, and carries full user CRUD — read
+every user's PII, create users, delete users. Clerk's newer "API keys" feature is
+machine-auth for *the app's own end users*, not a scoping mechanism for management/dashboard
+access, so it does not help here. "Read-only Clerk config" as Ryan scoped it is therefore
+**not achievable** — any API reach into Clerk is write reach into the identity provider.
+
+**Recommendation: do not provision a Clerk token for the agent.** Clerk is the highest-stakes
+of the three (it is the identity provider), the diagnostic need is low-frequency (allowed
+origins / redirect URLs, checked occasionally, e.g. the ADL-32 §6 preview-origin question),
+and all of that config is visible in the Clerk dashboard for Ryan to read or paste on the
+rare occasion it is needed. Placing a full-write identity-provider secret inside the sandbox
+to save a handful of manual lookups per quarter is a bad trade. This is the honest finding:
+the read-only ask cannot be met for Clerk, so the correct move is to decline Clerk API
+access, not to smuggle in a write-capable `sk_*` key under a "read-only" label. If a
+recurring, concrete Clerk-debugging need emerges that the dashboard/paste flow genuinely
+cannot serve, reopen this as its own decision with that evidence.
+
+### 5. Credential storage
+
+**Do not reuse `.env.local`.** `.env.local` holds the running app's runtime secrets
+(loaded into the Express process via dotenv). The agent-diagnostic tokens are operator
+credentials with a different blast radius and lifecycle — the app process has no reason to
+carry them, and loading them there needlessly widens where they are exposed and blurs the
+"these are the app's secrets" boundary.
+
+Use a **separate, gitignored** file — `.env.agent-diagnostics` at the repo root (or under a
+`.secrets/` dir) — **not** referenced by the app's dotenv load, sourced only when the agent
+runs a diagnostic command. It must be added to `.gitignore` in the same PR that introduces
+it (verify the ignore actually matches before any token is written into it — `.env.local`
+is already ignored, but a new filename is not covered unless the pattern includes it).
+Given §3, the Railway token in this file is write-capable; the file must never be echoed
+into logs, PRs, or completion reports.
+
+### 6. Residual risk (even under the granted read-only scopes)
+
+- **Turso (granted):** read-only prevents mutation, **not disclosure** — a debugging SELECT
+  against the production DB returns real user PII (trip data, and the `users` table carries
+  email). Mitigation: default to the **staging** database; touch production only for
+  production-data-specific bugs; query narrowly (no `SELECT *` dumps of `users`). On token
+  leak the worst case is *read* of trip data on one database — the token cannot alter data
+  or reach database lifecycle (no platform token, §2).
+- **Railway (granted, weakest link):** deploy/build logs can leak secrets **if the app ever
+  logs something sensitive** (env values, an Authorization header, a token). That is a
+  separate app-hygiene concern, but it means log access is not risk-free. And per §3 the
+  token itself can deploy/delete within the project — on leak, an attacker could take down
+  or tamper with the deployment. Mitigations: Project-scoped token (bounds reach to one
+  project), stored only in the §5 gitignored file, never echoed; treat as privileged.
+- **Clerk (not granted):** no new residual risk is introduced precisely because no token is
+  provisioned. For the record, had an `sk_*` key been placed in the sandbox, a leak would be
+  full identity-provider compromise (read all users, create/delete users, repoint
+  `allowed_origins` to enable a redirect/social-engineering attack). Declining the grant is
+  what removes this risk class entirely — the reason it is the recommended call.
+
+### 7. Deployment mechanics (why this is a next-session-boundary change)
+
+Adding hostnames to `init-firewall.sh` only takes effect on the **next container start** —
+`postStartCommand` re-runs the script (`sudo /usr/local/bin/init-firewall.sh`) at container
+boot, rebuilding the ipset from scratch. **It cannot be hot-applied mid-session:** even
+after the file is edited and merged, the *current* container keeps its existing ruleset
+until it restarts. So the agent gains this access at the next session boundary, not the
+moment the PR merges.
+
+Second caveat for the implementer: the firewall pins **A-records resolved at start time**.
+Railway and Turso sit behind CDNs (Cloudflare) that rotate edge IPs; a single start-time
+`dig` snapshot may not cover every edge IP the CDN later hands out, which can cause
+intermittent reachability failures within a long session — a limitation the existing
+`clerk.accounts.dev` entry already shares. This is an implementation risk to validate
+(confirm connectivity holds after the firewall change), not a blocker to the decision.
+
+### 8. BRD / tracker classification
+
+**No new BRD requirement ID.** The BRD holds product/business requirements — things a user
+experiences and that get UAT'd against success criteria. Agent diagnostic access is
+dev-operational tooling with no user-facing behaviour, in the same class as ADL-22 (E2E
+infra) and ADL-31 (a CI incident), neither of which took a BRD ID. Creating a BRD
+requirement for it would misfile operational tooling as product scope. It also answers no
+open BRD question (OQ-03/OQ-05 remain the live ones; OQ-04 was hosting, closed by ADL-32),
+so there is no open-question closure to record. It **does** warrant an **operational tracker
+entry** (OP series — latest is OP-20, so suggest OP-21) to track PO provisioning +
+follow-up implementation, mirroring OP-16/OP-20. COO to create.
+
+### 9. Invocation mechanism (proportionate — solo-project diagnostics)
+
+- **Turso:** a one-off Node script using the already-installed `@libsql/client`
+  (`createClient({ url, authToken })` → `client.execute('SELECT …')`), reading URL + the
+  `--read-only` token from `.env.agent-diagnostics`. No new dependency, no `turso` CLI (the
+  CLI would drag in platform auth we deliberately avoid, §2). SQL-over-HTTP `curl` to
+  `https://<db>-<org>.turso.io/v2/pipeline` is an equivalent fallback.
+- **Railway:** install `@railway/cli` (`npm i -g @railway/cli`), authenticate via
+  `RAILWAY_TOKEN` (the Project token) from `.env.agent-diagnostics`, use `railway logs`
+  (`--build` / `--deployment`), `railway status`, `railway variables` (names). Direct
+  GraphQL `curl` to `backboard.railway.com/graphql/v2` is the fallback.
+- **Clerk:** not applicable — not granted (§4). Manual dashboard read / paste stays the
+  flow for the rare config lookup.
+
+### 10. Implications / next steps
+
+- **PO / Ryan — provision before COO can implement:**
+  1. **Turso:** run `turso db tokens create <prod-db> --read-only` and
+     `turso db tokens create <staging-db> --read-only`; supply both tokens + both
+     `libsql://…turso.io` connection URLs.
+  2. **Railway:** create a **Project token** (not Account/Workspace) for the production
+     project; supply it. Understand it is not technically read-only (§3).
+  3. **Clerk:** nothing to provision — recommended decline (§4). If you disagree and want
+     Clerk API access anyway, that is a conscious acceptance of placing a full-write `sk_*`
+     identity-provider secret in the sandbox; say so explicitly and it becomes its own
+     tracked decision, not a silent widening of this one.
+- **COO — after provisioning exists:**
+  1. Create the OP-21 (or next) tracker entry for this work (§8).
+  2. Dispatch a Backend/infra brief to: add `backboard.railway.com` and the two Turso DB
+     hosts to `init-firewall.sh`'s domain loop; create `.env.agent-diagnostics` + `.gitignore`
+     entry; drop in the provisioned tokens; add a short runbook for the two invocation
+     patterns (§9). Validate reachability after the next container start (§7), including the
+     CDN A-record caveat.
+  3. Do **not** add `api.turso.tech` or `api.clerk.com` to the allowlist (§2, §4).
+- **No source/config change ships with this ADL.** The firewall and credential wiring are
+  the follow-up brief's deliverable, gated on PO provisioning. This entry is the design
+  decision only.

@@ -1,99 +1,74 @@
-ARCHITECT CONTEXT — 2026-07-20
+ARCHITECT CONTEXT — 2026-07-21
 PROJECT: Travel Tracker
-CURRENT STATUS: OQ-04 resolved (ADL-32) — hosted deployment platform + database decided.
-BRD-NF09 unblocked, owner reassigned architect -> backend for implementation.
+CURRENT STATUS: ADL-33 decided — read-only agent diagnostic access to the ADL-32 hosted
+stack (Railway/Turso/Clerk). Design only; no code/config committed. Implementation is a
+follow-up COO/Backend brief gated on PO provisioning tokens.
 
 ================================================================================
-WORK COMPLETED THIS THREAD
+WORK COMPLETED THIS THREAD (ADL-33)
 ================================================================================
 
-PO request: work through a hosted deployment plan (BRD-NF09 / OQ-04).
+PO ask (2026-07-21): give the COO/Claude Code agent direct READ-ONLY diagnostic access to
+Railway, Turso, Clerk so live-deploy debugging stops depending on Ryan pasting logs by hand.
+Scope pre-negotiated + binding: Railway read-only (logs/status/var names), Turso read-only
+SELECT, Clerk read-only config.
 
-Presented options brief covering compute platform (Fly.io, Railway, Render, VPS) and
-database (file-based+volume vs Turso). PO asked for Railway vs Fly.io comparison
-specifically; surfaced Railway's per-PR preview environments as the differentiator
-relevant to a recurring project pain point (changes that work locally/in CI but break
-only once actually deployed as a live server). PO confirmed Railway is worth the
-~$5/mo over Fly's ~$0-3/mo for that reason (plus no cold starts, simpler deploy DX).
+Research (WebSearch/WebFetch — current API surfaces, not assumed):
+- Turso: `turso db tokens create <db> --read-only` is a GENUINE DB-scoped read-only token.
+  DB hosts: libsql://<db>-<org>.turso.io (+ regional <db>-<org>.<region>.turso.io).
+  Platform API api.turso.tech is account-level, NOT read-only — deliberately excluded.
+  => GRANT (clean). Allowlist DB hosts only; invoke via @libsql/client (existing dep).
+- Railway: API + CLI log host = backboard.railway.com (/graphql/v2). NO read-only token
+  scope — Account/Workspace/Project tokens all carry full perms of scope; Project token can
+  still deploy/delete. => GRANT WITH CAVEAT. Project-scoped token = narrowest blast radius;
+  read-only is behavioural only; treat as write-capable secret.
+- Clerk: Backend API api.clerk.com; only credential is Secret Key sk_* = full write to auth
+  config + full user CRUD (PII). NO read-only credential. => DO NOT GRANT (recommend). Keep
+  manual dashboard/paste for rare config lookups. Highest stakes (identity provider).
+- Storage: separate gitignored .env.agent-diagnostics, NOT .env.local (operator vs app
+  secrets; don't load into app process).
+- No BRD ID (operational tooling; ADL-33 §8). Suggested OP-21 tracker entry (COO to create).
 
-Raised a design question the PO hadn't considered: PR preview environments must not
-point at the production Turso database. PO confirmed a separate shared staging Turso
-database (seeded via existing db:seed), not local ephemeral SQLite per preview — the
-staging DB tests the real Turso connection path, which is exactly the class of bug
-previews are meant to catch.
-
-PO flagged Railway's pricing page mid-session ("free tier, kind of") — verified via
-WebFetch: it's a one-time $5 trial credit, not a recurring free tier. Confirmed the
-ADL's $5/mo Hobby-plan cost figure is accurate as the real ongoing cost.
-
-ADL-32 logged in jobs/architect/tech/20260307-architecture-decisions-log.md:
-  Decision: Railway (compute, Hobby plan ~$5/mo) + Turso (database — production
-  instance + separate staging instance for PR previews)
-  Confirms ADL-25 unaffected (still LibSQLDb via @libsql/client, remote URL + authToken
-  only — no dialect union, no schema change)
-  Flagged open implementation risk (§6): whether Clerk's allowed-origin config supports
-  Railway's dynamic per-PR preview URLs — unverified, must be checked during the brief
-  Added success criteria for NF-09 (none existed previously — required by the
-  success-criteria-before-dispatch gate)
-
-BRD bumped to v3.2 (_project/travel-tracker-BRD.md):
-  NF-03: RESOLVED, points to ADL-32
-  NF-09: success criteria added (blockquote note under §6 table)
-  OQ-04: RESOLVED, points to ADL-32
-  §13 changelog entry added, header version bumped 3.1 -> 3.2
-
-Tracker updated (_project/tracker.json): BRD-NF09 unblocked, owner architect -> backend,
-notes reference ADL-32 and the open Clerk-origin risk.
-
-Branch: chore/adl-32-hosted-deployment (not yet merged — awaiting PO review/merge).
+ADL-33 logged in jobs/architect/tech/20260307-architecture-decisions-log.md. Completion
+report: jobs/COO/inbox/20260721_2100-ARCHITECT-adl33-agent-service-access.txt.
+Branch: chore/adl-agent-service-access (not yet merged — awaiting PO review/merge).
 
 ================================================================================
-OPEN QUESTIONS / PENDING
+OPEN / HANDOFF
 ================================================================================
 
-  1. PO/Ryan: create Railway account + project; create two Turso databases
-     (production, staging); obtain connection URLs and auth tokens. Blocks dispatch of
-     the implementing briefs below.
+  1. PO/Ryan to provision (blocks implementation):
+     - Turso: `turso db tokens create <prod-db> --read-only` AND `<staging-db> --read-only`;
+       supply both tokens + both libsql:// URLs.
+     - Railway: create a PROJECT token (not Account/Workspace); supply it.
+     - Clerk: nothing — recommended decline. Overriding = conscious sk_* acceptance, own decision.
+  2. COO: create OP-21 tracker entry; after provisioning, dispatch firewall+credential brief
+     (add backboard.railway.com + two Turso DB hosts to init-firewall.sh; create
+     .env.agent-diagnostics + .gitignore entry; short invocation runbook). Firewall change
+     only takes effect on NEXT container start (postStartCommand) — not hot-appliable.
+     Validate reachability after restart; CDN A-record pinning caveat (Cloudflare edge IPs).
+     Do NOT allowlist api.turso.tech or api.clerk.com.
 
-  2. COO: once provisioning above exists, dispatch:
-     - Backend brief: express.static serving of dist/ + SPA fallback (does not exist
-       today — dev is Vite/Express two-process split only); db/index.ts authToken
-       support for Turso (createClient({ url, authToken }) — currently url only, see
-       src/backend/db/index.ts:110); resolve the Clerk dynamic-preview-origin question
-       (ADL-32 §6) — verify against Railway's actual generated preview URL pattern and
-       Clerk's dashboard options; fallback if unsupported is scoping BYPASS_AUTH=true to
-       preview environments only, which narrows what previews can catch for auth-related
-       changes — flag this tradeoff back to COO/PO if it comes to that.
-     - Database brief: provision the staging Turso database, define a seed/reset
-       cadence so preview environments don't accumulate cruft over time.
-
-  3. Not yet resolved (carried over, unrelated to this thread): OQ-03 (shell trip
-     approximate dates), OQ-05 (trip_places one-row-per-city constraint vs realistic
-     same-city revisits).
+  3. Carried over from ADL-32 (unrelated to this thread, still live):
+     - Clerk preview-origin question (ADL-32 §6) + §10 success criteria pending an actual
+       Railway deploy — see BRD-NF09 tracker.
+  4. Still open, unrelated: OQ-03 (shell trip approximate dates), OQ-05 (trip_places
+     one-row-per-city constraint vs realistic same-city revisits).
 
 ================================================================================
 TECH FILES
 ================================================================================
 
-  jobs/architect/tech/20260307-architecture-decisions-log.md
-                                                       ADL-01 through ADL-32
-  jobs/architect/tech/OP-06-hardening-checklist.md     unchanged, 13/13 PASS (NR-14 closed)
-
-================================================================================
-LAST PARK DOC
-================================================================================
-
-  jobs/COO/park-docs/20260716_0330-COO-park.txt (no architect-specific park doc since
-  20260320; this session's work is captured above instead)
+  jobs/architect/tech/20260307-architecture-decisions-log.md  ADL-01 through ADL-33
+  jobs/architect/tech/OP-06-hardening-checklist.md            unchanged, 13/13 PASS
 
 ================================================================================
 NEXT ARCHITECT THREAD — RECOMMENDED STARTING POINT
 ================================================================================
 
-  1. Check whether chore/adl-32-hosted-deployment has been merged; if not, that's
-     still open
-  2. Check whether PO has completed Railway/Turso account provisioning (item 1 above)
-  3. If Backend's implementing brief surfaces a real answer on the Clerk
-     dynamic-preview-origin question (ADL-32 §6), record the resolution as an ADL-32
-     addendum or a new short ADL, whichever the answer's shape warrants
-  4. OQ-03 and OQ-05 remain open and unrelated to hosting — pick up independently
+  1. Check whether chore/adl-agent-service-access (ADL-33) and chore/adl-32-hosted-deployment
+     have merged.
+  2. If Ryan chose to override the Clerk decline, capture that as its own tracked decision.
+  3. If Backend's ADL-32 implementing brief resolves the Clerk dynamic-preview-origin
+     question, record it as an ADL-32 addendum or a short new ADL.
+  4. OQ-03 and OQ-05 remain open — pick up independently.
