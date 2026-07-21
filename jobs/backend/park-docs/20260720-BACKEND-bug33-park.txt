@@ -104,3 +104,50 @@ WHAT'S UNBLOCKED
   either direction) — the DB unique index is an additional safety net, not a
   prerequisite.
 - QA can verify BUG-33's application-logic fix now merged.
+
+ADDENDUM — REBASE ONTO MERGED DB BRIEF (same day, later in session)
+The database brief referenced above (SCOPE section) landed as PR #169 while
+this PR was open — migrations renumbered to 0009 (data cleanup) / 0010 (unique
+index `uniq_cities_name_country_ci`: `UNIQUE(name COLLATE NOCASE, country_code)`
+on `cities`). Also merged in the same window: PR #168 (BUG-30), #164/#161
+(BUG-10), #162 (BUG-31), #170 (BUG-32), #171 (BUG-36), #163 (BUG-34), #165
+(BUG-35), #166 (BUG-32 cascade fix, merged in a second wave after the first
+rebase). Rebased twice (`git merge origin/main` into this branch, no bare
+stash used this time — OP-20 applied) as main kept moving during the session.
+
+Changes made in this rebase, beyond conflict resolution:
+- Switched the find-or-create lookup in cities.ts from a generic
+  `lower(cities.name) = lower(name)` comparison to an explicit
+  `sql\`${cities.name} = ${name} COLLATE NOCASE\`` — matches
+  uniq_cities_name_country_ci's collation exactly, per the schema comment's own
+  instruction ("Backend's find-or-create lookup must match this collation").
+  Verified empirically (scratch libSQL script, in-memory DB) that lower() and
+  COLLATE NOCASE agreed on every case tested — ASCII (Glasgow/glasgow/GLASGOW)
+  and non-ASCII (café/CAFÉ, Straße/STRASSE, İstanbul/istanbul/ISTANBUL) — so the
+  prior lower()-based version was not actually missing any canonical row; the
+  switch is for auditability (self-evidently matches the constraint) rather
+  than fixing a real divergence.
+- Added `uniq_cities_name_country_ci` to owner-access.test.ts's in-memory
+  `cities` table DDL so the three BUG-33 tests exercise the same constraint
+  the merged migration adds in production — they were previously only
+  testing the application-logic path in isolation.
+- Verified migrations 0000-0010 apply cleanly end-to-end on a fresh scratch DB
+  (`npm run db:migrate` against a throwaway SQLITE_PATH) and confirmed the
+  resulting index DDL matches `CREATE UNIQUE INDEX \`uniq_cities_name_country_ci\`
+  ON \`cities\` ("name" COLLATE NOCASE,\`country_code\`)` via a direct
+  sqlite_master query.
+- Did NOT add race-condition handling (catch-constraint-violation-and-retry)
+  for the theoretical window between the SELECT check and the INSERT under
+  concurrent requests — this mirrors the existing, unremediated pattern in
+  routes/admin.ts (same check-then-insert shape, same comment "table has
+  UNIQUE constraint — catch the DB error too" that isn't actually implemented
+  there either). A race would now surface as a generic 500 via the existing
+  global error handler (never a crash, never a silent duplicate) rather than
+  succeeding — no worse than before the unique index existed, and consistent
+  with codebase convention. Flagging as a possible follow-up (shared across
+  cities.ts and admin.ts) rather than fixing unilaterally in a bug-fix PR.
+
+Full pre-push suite (biome, type:check:all, test:backend, test:frontend,
+status:check) re-run clean after each rebase. PR #167 confirmed MERGEABLE
+(not CONFLICTING) after the second rebase; final CI status in the completion
+report.
