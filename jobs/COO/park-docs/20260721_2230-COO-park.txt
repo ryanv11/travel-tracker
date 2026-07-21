@@ -1,0 +1,103 @@
+COO SESSION PARK — 2026-07-21 (Waypoint UI redesign intake + prod/staging git model, paused before Frontend Phase 1 dispatch)
+================================================================================
+
+## Session summary
+Picked up via /coo-startup: main CI green, hooks canary passing, no drift-ledger gaps,
+UAT log clean (2026-07-20 PARTIAL session's findings were all already tracked/BRD'd by
+a prior session, nothing new to action). Ryan then brought three threads at once:
+
+1. **BRD-NF09 close-out progress.** Ryan confirmed the prod URL is reachable and fully
+   functional over cellular/HTTPS, and that a second real user signed up with no issues.
+   Logged directly into the BRD-NF09 tracker note — closes the "cellular HTTPS" success
+   criterion and extends the multi-user confirmation beyond the original owner account.
+
+2. **Prod/staging git workflow.** Ryan flagged that both Railway environments currently
+   deploy from `main` with zero soak time before production — acceptable during initial
+   bootstrap, not going forward. Dispatched to Architect (worktree-isolated), who
+   produced **ADL-35**: Staging keeps watching `main` continuously; Production is
+   repointed to watch a new long-lived `production` branch, promoted only by explicit
+   `git merge --ff-only origin/main` + push. Deliberately branch-based, not tags or a
+   GitHub Action, to preserve Railway's zero-glue native branch-watching (ADL-32's whole
+   rationale). Merged as PR #193. COO then created and pushed the `production` branch
+   itself (ADL-35 §8 step 1) — currently identical to `main`. Two manual steps remain,
+   tracked in **OP-22**: the Railway dashboard repoint (Production env's watched branch
+   main→production) and a CLAUDE.md workflow-doc addition, the latter deliberately held
+   until the former is actually live (document-lifecycle rule — don't assert a model
+   that isn't real yet).
+
+3. **UI redesign ("Waypoint").** Ryan has a finished UI redesign commissioned from Claude
+   Design — a full visual rebrand (new color system, Newsreader/Manrope typography, an
+   icon set replacing emoji, unified status badges) plus finished desktop + mobile
+   mockups of the Trips screen only (Map/Admin untouched). COO read the mockups directly
+   via the `DesignSync` tool (main-session-only access — confirmed the hard way when a
+   dispatched UX agent hit the same tool as unavailable in its own environment).
+   Ryan chose: route the mockups through UX for formal spec-writing rather than treating
+   them as an immediately-briefable spec, and phase the rollout (design-system foundation
+   first, Trips reskin second) rather than one combined brief.
+
+   UX's first dispatch blocked cleanly on the DesignSync-access gap (correctly refused to
+   approximate exact color/token values). COO placed verbatim copies of the three mockup
+   files directly into the agent's worktree and resumed it — UX then delivered the real
+   spec: `jobs/ux/tech/20260721-UX-waypoint-spec.md`, 600 lines, exact token values, full
+   desktop+mobile layout breakdown, and **13 explicit conflicts** between the mockup and
+   shipped functionality (rating stars, carried-forward tags, bulk-delete/undo, per-place
+   date editing, remove-place, trip-level items, the Unlock affordance, first-run empty
+   state, and more) — none resolved silently, each flagged for a COO/PO call.
+
+   Ryan made the real judgment calls: rename the product to "Waypoint" (in-app UI only —
+   not the repo/README), add an overflow menu for mobile's missing Edit/Photos entry
+   point, keep Confirmed/Completed item-status colors visually distinct (reject the
+   mockup's collapse to one hue), and self-host the two fonts rather than a live Google
+   Fonts CDN. Everything else in the 13 conflicts defaults to UX's own recommendation:
+   preserve every shipped feature under the new visual tokens, don't let a demo mockup's
+   simplifications read as scope removal.
+
+   PR #194 (UX spec) and PR #195 (BRD v3.3 gate: §5.16 WP-01–WP-05, tracker entries,
+   TR-12 annotated to note it's satisfied via the new stepper not superseded) both
+   merged. PR #195 initially failed CI on a stale STATUS.md (fixed same-thread, regenerated
+   via `npm run status`). Main CI confirmed green after every merge this session.
+
+Ryan then asked to pause and close out **before** Frontend gets dispatched for Phase 1 —
+the design-system foundation brief is fully BRD-gated and ready to go, but intentionally
+not sent this session.
+
+## Completed this session
+- BRD-NF09 tracker: cellular HTTPS + second-user signup confirmed working
+- PR #193 — ADL-35: environment promotion model (prod/staging git strategy)
+- `production` branch created and pushed to origin (ADL-35 §8 step 1)
+- PR #194 — UX Waypoint redesign spec (Phase 1 + Phase 2), 13 conflicts flagged
+- PR #195 — BRD v3.3 (§5.16 WP-01–WP-05), tracker entries WP-01–05 + OP-22, TR-12
+  annotated, STATUS.md regenerated
+- Main CI confirmed green after all three merges
+- Inbox triaged: 2 items moved to `jobs/COO/inbox/read/`
+- Branch/worktree hygiene: both agent worktrees removed, all merged branches deleted;
+  `git branch` now shows only `main` + `chore/uat-note-country-picker-gap` (open PR #126)
+
+## State of play
+- **Waypoint redesign is fully specced and BRD-gated (WP-01–WP-05), ready for a Phase 1
+  Frontend brief (design-system foundation: colors/type/icons/badges/buttons) whenever
+  the next session picks this up.** Phase 2 (Trips reskin, desktop+mobile) is gated on
+  Phase 1 shipping first, per the phasing decision.
+- BRD-NF09: two items remain before it can formally close — Ryan's own full shakedown
+  pass across all tabs, and Clerk dashboard verification for dynamic preview-domain
+  origins (ADL-32 §6). PR-preview DB isolation was effectively folded into this
+  session's cellular/second-user confirmation but hasn't had an explicit dedicated check.
+- OP-22 (env promotion): `production` branch exists and is pushed; Railway dashboard
+  repoint and the CLAUDE.md workflow addition are both still manual, outstanding steps.
+- D-04, D-05, D-06, D-07 open dialogues: untouched this session, still open.
+- Standing backlog untouched: OQ-03, OQ-05, PR #126 (country picker UAT finding).
+- Ryan has a separate local UAT findings list from earlier testing — explicitly deferred
+  by Ryan to be raised after the UI redesign work is done. Not logged anywhere per his
+  explicit instruction; this is intentional, not a gap.
+
+## Open threads
+See jobs/COO/open-dialogues.md for D-04 through D-07 — nothing new added this session.
+
+## Restart preview (shown to Ryan before this doc was written)
+Captured: PRs #193/#194/#195 merged, ADL-35, production branch created, BRD v3.3 +
+WP-01–05 + OP-22 tracker entries, BRD-NF09 cellular/second-user confirmation, inbox
+triage, branch/worktree cleanup. Captured-not-actioned: BRD-NF09's remaining 2 items,
+Railway repoint + CLAUDE.md doc update (OP-22), D-04–D-07, OQ-03/OQ-05/PR #126,
+Frontend Phase 1 dispatch (ready, intentionally paused per Ryan). Not captured: none —
+Ryan's local UAT list was raised as a gap but he explicitly declined to have it logged
+anywhere this session, to be brought up himself after the UI work concludes.
