@@ -223,6 +223,13 @@ tripsRouter.get(
     const places = placesRows.map((p) => ({
       id: p.id,
       city_id: p.cityId,
+      // BUG-31: these were previously omitted here even though placeRepository
+      // persists them correctly on PATCH — trip detail (the response PlaceSection
+      // renders from) never surfaced explicit place dates, so
+      // resolvePlaceDateRange (ADL-24 §5) always fell through to the hotel/trip
+      // fallback regardless of what was saved.
+      arrived_on: p.arrivedOn ?? null,
+      departed_on: p.departedOn ?? null,
       created_at: p.createdAt,
       city: {
         id: p.cityId,
