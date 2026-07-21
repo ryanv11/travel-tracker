@@ -1806,3 +1806,102 @@ follow-up implementation, mirroring OP-16/OP-20. COO to create.
 - **No source/config change ships with this ADL.** The firewall and credential wiring are
   the follow-up brief's deliverable, gated on PO provisioning. This entry is the design
   decision only.
+
+---
+
+## ADL-34 — Firewall fail-open bug: init-firewall.sh aborted before applying lockdown
+
+**Date:** 2026-07-21
+**Status:** Decided and implemented — fixed as part of the ADL-33/OP-21 implementation branch,
+authorized directly by PO in real-time conversation (not a separate Architect dispatch, given
+the severity and that the fix is a well-contained, mechanical reordering).
+**Tracker:** OP-21 (folded into the same tracker entry as ADL-33's implementation — this is
+infrastructure remediation discovered while implementing that decision, not a separate product
+requirement). **BRD ref:** none — operational/infra, same class as ADL-33.
+
+**Triggered by:** while implementing ADL-33's firewall allowlist additions (adding the Turso and
+Railway hosts), COO tested reachability against the *running* container and found it could reach
+arbitrary external hosts (`example.com`, `api.clerk.com`) that should have been blocked entirely
+by `.devcontainer/init-firewall.sh`'s intended default-deny posture.
+
+### 1. Root cause
+
+`init-firewall.sh` ran under `set -euo pipefail`. Its structure was: flush all iptables rules →
+bootstrap DNS/SSH/localhost → fetch GitHub IP ranges → **resolve a static list of ~10 other
+allowed domains, one by one, exiting the whole script (`exit 1`) if any single one failed to
+resolve** → *only then* apply the default-DROP policy and the final allowlist-match/REJECT rule.
+
+`statsig.anthropic.com`, one entry in that static list, currently resolves to a genuine `NXDOMAIN`
+(confirmed via `dig`/`nslookup` — not a transient blip; likely a decommissioned/renamed telemetry
+subdomain, given `statsig.com` is separately and correctly listed). Hitting that resolution
+failure triggered `exit 1` — which happened *after* `iptables -F` had already flushed every prior
+rule, but *before* the script ever reached the default-DROP/REJECT lines at the bottom. Net effect:
+one dead domain in a static list silently left the container's outbound network **completely
+unrestricted** instead of the intended GitHub/npm/Anthropic-only allowlist. This runs via
+`postStartCommand` on every container start (`devcontainer.json`), so this was the actual live
+state of the running container this whole session, not a one-off test artifact.
+
+The script's own final verification block (checking `example.com` is unreachable and
+`api.github.com` is reachable) was specifically designed to catch exactly this failure mode — but
+it could never run, because the fatal exit happened earlier in the script. The safety check
+existed; the control flow just never let it execute.
+
+### 2. Fix
+
+Restructured so the restrictive posture is established as early as possible, and everything after
+that point is purely additive:
+
+1. Flush rules, bootstrap DNS/SSH/localhost/host-network (as before — these are prerequisites for
+   the script itself to function, not external services that can rot).
+2. Create the (empty) `allowed-domains` ipset.
+3. **Apply the default-DROP policy, the allowed-domains match-ACCEPT rule, and the explicit REJECT
+   rule immediately** — before any external domain resolution is attempted.
+4. Fetch GitHub IP ranges and resolve the static domain list, adding successfully-resolved
+   entries to the (already-enforced) ipset as they come in.
+
+Because the ipset is referenced by an iptables rule that's already active, adding entries to it
+later works identically to adding them before — enforcement is dynamic, not a one-time snapshot.
+This means no single domain, CIDR, or IP failure can ever leave the container in an open state
+again: at worst, that one host stays unreachable (a loud, legible failure downstream — e.g. a
+`git push` erroring with a connection failure) rather than a silent total loss of the firewall.
+
+Every per-item failure path was changed from `exit 1` to a warning that's collected and printed
+in a summary at the end (`FAILED_ITEMS` array), then the loop `continue`s to the next item rather
+than aborting. `set -e` was removed script-wide (kept `-uo pipefail`) for the same reason — no
+future edit should be able to reintroduce an early exit that skips the lockdown lines.
+
+Also removed the dead `statsig.anthropic.com` entry (confirmed `NXDOMAIN`) rather than leaving it
+in the list to print a warning on every single container start indefinitely; `statsig.com` (kept)
+resolves correctly and was already separately listed.
+
+The final `example.com`-unreachable / `api.github.com`-reachable verification block is unchanged
+and still runs (and can still legitimately `exit 1` on failure) — but it now runs *after* lockdown
+is already durably established, so a failure there is a "something didn't get allowlisted
+correctly, go check" signal, not a symptom of an open firewall.
+
+### 3. Verification performed
+
+- `bash -n` syntax check: clean.
+- Confirmed the original bug empirically: `sudo -n /usr/local/bin/init-firewall.sh` (the
+  currently-installed, pre-fix copy — passwordless sudo is scoped to exactly that path) reproduced
+  the exact failure (`ERROR: Failed to resolve statsig.anthropic.com`, script aborted).
+- Confirmed `statsig.anthropic.com` is genuinely `NXDOMAIN` via `dig`/`nslookup` (not a resolver
+  hiccup) and that `statsig.com` resolves correctly.
+- Dry-ran the corrected control flow with `iptables`/`ipset` mocked as no-ops, injecting both a
+  total GitHub-fetch failure and one broken domain among several real ones: confirmed the script
+  reaches its end, collects both failures into the warning summary, and does not abort.
+- **Not verified live end-to-end in this container**: the passwordless sudo grant is scoped
+  specifically to the already-built `/usr/local/bin/init-firewall.sh` (root-owned, not writable by
+  the `node` user), not the repo copy this ADL modifies. The corrected script will first run for
+  real via `postStartCommand` on the *next* container start/rebuild (same deployment-mechanics
+  caveat as ADL-33 §7) — that first real run is the outstanding verification step, not yet done.
+
+### 4. Implications
+
+- No app code touched — this is entirely within `.devcontainer/init-firewall.sh`.
+- Ships in the same PR/branch as the ADL-33 implementation (Turso/Railway hosts added to the
+  allowlist, `.env.agent-diagnostics` credential file, diagnostic script) — both were being worked
+  in the same session and the bug was found while implementing ADL-33's own firewall change.
+- **Next container start is the real verification point.** Confirm the startup log shows "Firewall
+  configuration complete" and both final verification checks pass; if any `FAILED_ITEMS` warnings
+  appear, check whether they're expected (e.g. a genuinely offline host) or a new regression.
