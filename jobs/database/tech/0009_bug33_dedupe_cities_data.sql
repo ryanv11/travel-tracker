@@ -1,5 +1,5 @@
 -- BUG-33 (#157) — cities deduplication: data cleanup pass
--- BRD GE-11. Must run BEFORE 0009 (which adds the case-insensitive
+-- BRD GE-11. Must run BEFORE 0010 (which adds the case-insensitive
 -- UNIQUE(name, country_code) index) — that index creation fails while
 -- duplicate rows still exist.
 --

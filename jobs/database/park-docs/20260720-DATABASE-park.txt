@@ -307,3 +307,90 @@ NEXT STEPS
   cities.name, or reads will miss the canonical row post-merge.
 - QA: once both halves merge, re-verify the place autocomplete no longer
   offers duplicate city entries.
+
+================================================================================
+SECTION 3 — RENUMBERING THREAD (migration-index collision fix, PR #169)
+================================================================================
+
+THREAD SUMMARY
+--------------
+PR #168 (BUG-30) and PR #169 (BUG-33 schema half) were both dispatched from the
+same COO session, forked from the same main commit, and both independently
+generated a migration at idx 8 (0008_bug30_uk_region_seed.sql vs
+0008_bug33_dedupe_cities_data.sql). #168 merged first. This thread rebased
+fix/bug33-city-dedup-schema onto post-merge main and renumbered BUG-33's two
+migrations to the next free slots.
+
+ISOLATION NOTE
+--------------
+On startup, `fix/bug33-city-dedup-schema` was found already checked out in a
+different worktree (agent-ac7ee35ec44fd6acf) — a leftover from the original
+BUG-33 schema thread, not cleaned up after that thread's PR was opened.
+Confirmed it was clean and fully in sync with origin (no uncommitted work)
+before running `git worktree remove` on it, then checked the branch out fresh
+in my own assigned worktree (agent-ad3a210f8a78ae137). Did not touch or
+operate against the shared /workspace tree at any point.
+
+WHAT WAS DONE
+--------------
+1. `git merge origin/main` into fix/bug33-city-dedup-schema. Conflicts in
+   jobs/database/context/current.txt, jobs/database/park-docs/
+   20260720-DATABASE-park.txt (add/add — both threads produced a same-day,
+   same-filename park doc), src/backend/migrations/meta/0008_snapshot.json
+   (add/add), and meta/_journal.json (both branches inserted an idx-8 entry).
+   Resolved by keeping main's (BUG-30) 0008 entries as canonical and combining
+   both threads' narrative content in current.txt / the park doc rather than
+   discarding either.
+2. Removed the now-stale idx-8/9 bug33 files (0008_bug33_dedupe_cities_data.sql,
+   0009_stiff_meltdown.sql, meta/0009_snapshot.json) rather than hand-editing
+   them in place.
+3. Renumbered via drizzle-kit regeneration, not hand-edited IDs: temporarily
+   reverted the uniqueIndex from schema.ts, ran `drizzle-kit generate --custom
+   --name bug33_dedupe_cities_data` — produced 0009_bug33_dedupe_cities_data.sql
+   + meta/0009_snapshot.json identical (schema-wise) to main's post-bug30 state,
+   exactly mirroring how the original 0008 draft was created. Pasted in the
+   unchanged 150-line data-cleanup SQL (one comment line updated: "before 0009"
+   -> "before 0010"). Restored the uniqueIndex to schema.ts and ran
+   `drizzle-kit generate --name bug33_add_unique_index` — auto-generated
+   0010_bug33_add_unique_index.sql; its CREATE UNIQUE INDEX statement is
+   byte-identical to the original 0009_stiff_meltdown.sql. Re-ran `generate`
+   once more — "No schema changes, nothing to migrate" confirms stability.
+4. Updated jobs/database/tech/ mirror files to match the new numbering
+   (renamed 0008_bug33_dedupe_cities_data.sql -> 0009_..., 0009_stiff_meltdown.sql
+   -> 0010_bug33_add_unique_index.sql, content re-synced).
+5. Added a same-day supersession note to the original completion report
+   (jobs/COO/inbox/20260720_1100-DATABASE-bug33-schema-complete.md) flagging
+   the renumbering rather than silently rewriting the historical numbers.
+
+VERIFICATION
+------------
+- Fresh-DB full-sequence migrate (drizzle-kit migrate, 0000-0010): applied
+  cleanly, 11 rows in __drizzle_migrations, all 21 application tables present,
+  uniq_cities_name_country_ci index present with the expected COLLATE NOCASE
+  DDL.
+- Synthetic duplicate-data re-verification (drizzle-orm migrate() directly,
+  mirroring the original thread's dev.db test): migrated 0000-0008 first,
+  seeded 2 duplicate Glasgow/GB city rows (id 10 pending/canonical, id 11
+  resolved-with-coords/dup) plus a live trip_places collision (trip 5: one
+  trip_place on the dup city, one already on canonical) and an item pointing
+  at the surviving trip_place. Applied 0009+0010: 1 city row remained (id 10,
+  geocode fields correctly coalesced from the resolved duplicate), the
+  colliding trip_place resolved to the earlier row with its item preserved,
+  the losing trip_place deleted. Confirmed the unique index rejects a
+  case-variant duplicate insert (GLASGOW vs Glasgow) while allowing a
+  genuinely distinct city (Paris/FR) to insert normally. Result matches the
+  original thread's dev.db verification exactly — renumbering did not change
+  behavior.
+- Full pre-push suite: npm run check (biome) clean, type:check:all clean,
+  test:backend 523 passed/1 skipped, test:frontend 101/101 passed (the
+  CarryForwardModal failure noted as pre-existing in the BUG-30 park doc no
+  longer reproduces), status:check clean.
+- Pushed branch; PR #169 CI confirmed green (see completion report for run
+  link/detail).
+
+NEXT STEPS
+----------
+COO: review and merge PR #169 (Closes #157, BRD GE-11) — no remaining
+migration-index collision with main. Once merged, Backend's parallel brief
+(fix/bug33-city-dedup-logic) and QA's autocomplete re-verification are
+unblocked as previously noted.

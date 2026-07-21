@@ -1,5 +1,12 @@
 # Completion Report — BUG-33: cities dedup (schema half)
 
+> UPDATE (2026-07-20, same-day renumbering thread): after PR #168 (BUG-30) merged
+> to main first, this branch was rebased and its two migrations renumbered from
+> 0008/0009 to 0009/0010 to resolve an index collision — both PRs had independently
+> generated a migration at idx 8 from the same pre-merge main commit. Migration
+> content is unchanged; only the numbers below are superseded. See
+> `jobs/database/context/current.txt` "RENUMBERING THREAD" section for detail.
+
 **Tracker:** BUG-33 · **GitHub:** issue #157 · **BRD:** GE-11 · **Branch:** `fix/bug33-city-dedup-schema`
 
 ## What was built
