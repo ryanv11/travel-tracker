@@ -25,7 +25,28 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
-*(none currently — see Resolved below)*
+### D-04: Clerk API version upgrade practice
+**Raised:** 2026-07-21
+
+Ryan noticed the app is pinned to Clerk API version `2025-11-10` while `2026-05-12` is
+current. Not a specific upgrade request — Ryan wants this kept as a general note about
+upgrade practice (periodically checking for Clerk API version drift and weighing whether
+to move), not a scoped task to bump to the latest version now. COO doesn't have visibility
+into what actually changed between those two versions (Clerk's docs site isn't in this
+container's firewall allowlist) — would need to check Clerk's changelog before any real
+upgrade decision. No action until Ryan revisits this.
+
+### D-05: Separate prod/staging Clerk applications
+**Raised:** 2026-07-21
+
+Ryan proposed cloning the current Clerk app into a dedicated staging/dev instance,
+mirroring the existing Turso prod/staging split, so staging sign-ins don't mix with real
+production users. Directionally reasonable hygiene, but flagged as NOT a full fix for
+ADL-32 §6's still-open question (whether Clerk's allowed-origins config supports the
+dynamic per-PR preview URLs Railway generates) — that's about the app's origin config, not
+which app backs it. This is an auth-topology change, so per the standing infra/runtime
+guardrail (Architect review before COO acts) it should get a brief Architect pass before
+implementation. Ryan said to leave it as an open note for now, not act on it.
 
 ## Resolved
 
