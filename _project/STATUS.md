@@ -31,7 +31,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 |---|---|---|---|
 | BRD-PL0104 | Planning core — idea pool → shortlist → booked across all item types (PL-01–04) | fullstack | ⬜ Pending |
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack | ⬜ Pending |
-| BRD-NF09 | Hosted deployment for personal use (NF-09) | architect | ⬜ Pending |
+| BRD-NF09 | Hosted deployment for personal use (NF-09) | backend | ⬜ Pending |
 
 ### P2 — Important (14)
 
