@@ -20,13 +20,31 @@ item 4 of the brief — cascade behavior for items under a deleted place. Invest
 found a genuine bug:
   - items.trip_place_id has no onDelete set in schema.ts (by design — nullable,
     documented as "trip-level items ... not tied to a specific city").
-  - Production's DB connection (createLibSQLDb, src/backend/db/index.ts) never runs
-    PRAGMA foreign_keys = ON. Tests always do (see every __tests__/*.ts createTestDb).
   - Empirically verified (scratch test, since removed): deleting a place with an item
-    attached threw an unhandled 500 (SQLite FK constraint violation) under the test
-    harness's FK-enforced connection. In production (FK enforcement off), the same
-    delete would have silently succeeded, leaving the item's trip_place_id dangling
-    (pointing at a deleted row) — silent data corruption.
+    attached threw an unhandled 500 (SQLite FK constraint violation).
+
+CORRECTION (post-first-push): this park doc originally claimed production's libSQL
+connection never enables PRAGMA foreign_keys and so the delete would "silently succeed"
+in prod, leaving a dangling reference. That was wrong. Frontend independently hit the
+same defect building the parallel UI brief and, per
+jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt,
+verified with an isolated @libsql/client script that this driver enforces
+`foreign_keys` ON by default even with no explicit PRAGMA call — I reproduced that same
+check myself and confirmed it. So the bug is CRITICAL, not latent: every delete of a
+place with any item attached 500s in production too, not just in FK-enforced tests.
+This doesn't change the fix (it explicitly reassigns before deleting, so it's correct
+regardless of the FK-enforcement default either way) — it changes the severity and
+corrects the "open issue" below. Fixed in the second commit to this branch, after
+reconciling with Frontend's independent report on the second main-merge.
+
+Frontend's report proposed a different fix — onDelete: 'cascade' on items.trip_place_id
+(destroy the items with the place) — flagged for "whoever owns the parallel backend
+brief." I'd already implemented and tested the reassign-to-null approach before reading
+their report (found the same bug independently, same day). Keeping reassignment: it
+preserves logged items (flights, hotels, ratings, notes) instead of destroying them as
+a side effect of removing a place, and NULL trip_place_id is already a first-class
+"trip-level item" state per schema.ts. Recommend COO does not open a separate BUG-37 for
+this — it's resolved in this PR, same feature/route Frontend was flagging against.
 
 FIX: src/backend/repositories/places.ts placeRepository.delete — before deleting the
 place, reassigns any items under it to trip-level (trip_place_id = null) via db.batch()
@@ -58,14 +76,14 @@ TESTS
   lock-matrix.test.ts: all 21 tests still pass unchanged (DELETE places already covered)
 
 OPEN ISSUES (flagged to COO, not fixed here — out of scope for BUG-32)
-  1. PRAGMA foreign_keys is never enabled on the production libSQL connection. This
-     means every ON DELETE CASCADE/RESTRICT in schema.ts is untested-in-production;
-     only the test harness enforces them. Worth an Architect ADL review — this predates
-     BUG-32 and affects far more than trip_places/items.
-  2. security.access-matrix.test.ts / owner-access.test.ts don't have a cross-user 404
+  1. security.access-matrix.test.ts / owner-access.test.ts don't have a cross-user 404
      case for DELETE places specifically (only DELETE trip). Pre-existing coverage gap.
 
-COMMIT: (see PR)
+(No longer an open issue: PRAGMA foreign_keys enforcement — corrected above. libSQL
+enforces it by default; no Architect ADL needed on that specific point.)
+
+COMMIT: (see PR) — includes a merge-conflict resolution pass (two main-merges during
+this session; second one required this correction)
 CI: pending — see completion report
 
 STATE ON PARK

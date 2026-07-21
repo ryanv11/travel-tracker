@@ -10,10 +10,19 @@ It already met the mandatory security checklist and was already the 7th of 15 ro
 lock-matrix.test.ts (added with the BUG-27 fix, PR #140). No new route was needed.
 
 The real gap was cascade behavior for items under a deleted place (checklist item 4):
-deleting a place with an item attached threw an unhandled 500 under FK enforcement
-(verified empirically), and would silently orphan items.trip_place_id in production
-(PRAGMA foreign_keys is never enabled there — see open issues). Fixed by reassigning
-those items to trip-level (trip_place_id = null) atomically with the place delete.
+deleting a place with an item attached threw an unhandled 500 (verified empirically —
+libSQL's @libsql/client enforces PRAGMA foreign_keys ON by default even with no
+explicit pragma call, so this reproduces in production too, not just under a
+test-only pragma). Frontend independently hit the same defect building the parallel UI
+brief (jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt,
+merged as part of #170) and proposed a different fix (onDelete: 'cascade' on the
+schema FK). I'd already implemented and tested reassignment before reading their
+report — kept reassignment over cascade-delete since it preserves logged items
+(flights, hotels, ratings, notes) instead of destroying them as a side effect of
+removing a place; NULL trip_place_id is already a first-class "trip-level item" state
+per schema.ts. Fixed by reassigning affected items to trip-level (trip_place_id = null)
+atomically with the place delete via db.batch(). Recommend not opening a separate
+BUG-37 for this — it's resolved in this PR, same route Frontend flagged.
 
 ACCEPTANCE CRITERIA
 - DELETE /api/trips/:tripId/places/:placeId returns 204 on success: PASS (pre-existing)
@@ -32,17 +41,18 @@ SECURITY CHECKLIST (route pre-existing, re-confirmed; repository logic modified)
    nullable by design (documented trip-level-item state); no migration required.
 Reference: jobs/architect/tech/OP-06-hardening-checklist.md §2, ADL-27.
 
-CI: gh pr checks — pending, will confirm green before considering thread closed.
+CI: green (both push and pull_request events, after two main-merges this session).
 
 OPEN ISSUES / BLOCKERS
-- Production DB connection never runs PRAGMA foreign_keys = ON (src/backend/db/index.ts
-  createLibSQLDb) — every ON DELETE CASCADE/RESTRICT in schema.ts is decorative outside
-  tests. Pre-existing, out of scope for BUG-32 (my fix doesn't depend on DB-level
-  cascade), but flagging for an Architect ADL review — it's a wider correctness gap.
 - security.access-matrix.test.ts has no cross-user 404 case for DELETE places
   specifically (only DELETE trip). Pre-existing coverage gap, not introduced here.
+- Correction to my own earlier report: I originally (incorrectly) flagged production
+  as never enforcing PRAGMA foreign_keys. Verified empirically that libSQL's
+  @libsql/client enforces it by default — withdrawing that open issue, no Architect
+  ADL needed on that specific point.
 
 WHAT'S UNBLOCKED
-Frontend's BUG-32 UI brief can proceed against the confirmed contract: DELETE
+Frontend's BUG-32 UI brief already merged (#170) against the confirmed contract: DELETE
 /api/trips/:tripId/places/:placeId → 204 / 403 (locked) / 404 (not found/not owned).
-No contract changes needed on their end.
+No contract changes were needed on their end. Both halves of BUG-32 are now complete
+once this PR merges.
