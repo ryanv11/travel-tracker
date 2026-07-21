@@ -1,0 +1,199 @@
+DATABASE PARK DOCUMENT — 2026-07-21
+PROJECT: Travel Tracker
+THREAD: BRD-NF09 / ADL-32 — staging Turso seed & reset strategy
+BRANCH: chore/nf09-staging-seed-strategy
+
+================================================================================
+BRIEF
+================================================================================
+ADL-32 (jobs/architect/tech/20260307-architecture-decisions-log.md, §5/§9)
+decided the hosted deployment topology: Railway (compute) + Turso (database),
+production and a separate shared staging instance for PR preview environments.
+Ryan provisioned both Turso databases outside this thread's scope. Database's
+piece of ADL-32 §9: "Provision the staging Turso database and seed strategy
+(db:seed on creation; document a reset cadence so preview environments don't
+accumulate cruft)." No schema changes involved.
+
+Explicitly out of scope (per brief): creating the Turso databases (done by
+Ryan), any schema change, src/backend/db/index.ts (Backend's parallel brief,
+running concurrently on feat/nf09-hosted-deployment-backend in its own
+worktree — avoided to prevent a merge collision).
+
+================================================================================
+WHAT WAS BUILT
+================================================================================
+
+1. VERIFIED db:seed needs no changes. It goes through getDb() exactly like
+   everything else in the app — no filesystem-specific assumptions anywhere in
+   src/backend/db/seed.ts. Confirmed idempotent: ran twice against a freshly
+   migrated database, second run's onConflictDoNothing() left row counts
+   unchanged.
+
+2. VERIFIED db:migrate applies cleanly against a fresh, empty database. All
+   11 migration files (0000 through 0010) applied in one pass, no errors.
+
+3. FOUND AND FIXED a gap ADL-32 §9 didn't cover: drizzle.config.ts (used by
+   drizzle-kit's own db:generate/db:migrate commands) is a SEPARATE connection
+   from the app's runtime getDb() in db/index.ts. ADL-32 §9 only scoped
+   "add authToken to createClient() in db/index.ts" to Backend — it said
+   nothing about drizzle.config.ts, which drizzle-kit reads independently.
+   Without a fix, db:migrate would have had no way to authenticate against a
+   real Turso database, regardless of what Backend wires into db/index.ts.
+
+   The fix needed two things, not one:
+     a. TURSO_AUTH_TOKEN threaded into dbCredentials.
+     b. dialect: 'turso' (not 'sqlite') for remote libsql:// URLs — confirmed
+        by reading drizzle-kit's own Config type (node_modules/drizzle-kit/
+        index.d.ts): the 'sqlite' dialect branch's dbCredentials type is
+        `{ url: string }` only, no authToken field exists in that branch at
+        all. Only the 'turso' dialect branch adds `authToken?: string`. This
+        was caught by TypeScript failing to compile my first draft (authToken
+        under dialect:'sqlite'), not by guesswork — I read the type
+        definition to understand exactly why and fixed it properly rather
+        than reaching for an `as any`.
+     'turso' and 'sqlite' are otherwise the same SQL grammar (both libSQL) —
+     this is a drizzle-kit config-surface distinction only, not a schema or
+     ORM dialect change; does not touch ADL-25 (backend db typing stays
+     LibSQLDb, confirmed by re-reading ADL-25's own reasoning before making
+     this change).
+
+   drizzle.config.ts now branches: dialect 'sqlite' + { url } for local
+   file: URLs (unchanged behavior), dialect 'turso' + { url, authToken } for
+   remote libsql:// URLs. Verified both branches directly: local file:
+   migration still applies clean; a deliberately fake, unreachable libsql://
+   URL with a dummy token correctly selected the turso dialect and attempted
+   a real HTTP round-trip (got a 404 from the fake host, as expected — proves
+   the auth token and turso wire protocol actually engaged, not silently
+   skipped).
+
+4. NEW SCRIPT: src/backend/db/reset-staging.ts, exposed as
+   `npm run db:reset-staging`.
+     - Dry run by default (prints per-table row counts, deletes nothing).
+       --yes required to actually delete.
+     - Clears all user-owned/trip data (items + 5 item-subtype tables,
+       trip_places + its join table, trips + its 4 join tables, users) in
+       explicit child-before-parent order via Drizzle's query builder — never
+       raw/concatenated SQL (Shared Standard 21). Order is enforced
+       explicitly rather than relying on SQLite's ON DELETE CASCADE actually
+       firing, because whether libSQL enforces FK constraints (PRAGMA
+       foreign_keys) is a connection-level setting this script doesn't
+       control or want to assume.
+     - Leaves countries/regions/cities untouched — reference/lookup data, not
+       test cruft. countries/regions self-heal via startup.service.ts's
+       idempotent seed-if-empty on every server boot; cities is deduplicated
+       (BUG-33 unique index) and naturally bounded by real-world geography.
+       users is intentionally NOT re-seeded after clearing — it self-heals on
+       next sign-in via findOrCreateByClerkId (auth middleware), same
+       self-healing pattern.
+     - Re-seeds admin lists (trip_categories/activities/companions/
+       map_shading_config) immediately after clearing, rather than waiting on
+       the next Railway restart's auto-seed.
+     - Safety guardrail: refuses to run against a remote (libsql:// or
+       https://) URL unless it contains the substring "staging" — even with
+       --yes. Documented as a blunt footgun-removal check, not a security
+       control. --i-know-what-im-doing bypasses it. file: URLs (local dev)
+       are exempt.
+     - Functional-tested end to end: migrate -> seed -> insert a small
+       user/trip/trip_place/item fixture -> reset --yes -> verified trip/user
+       tables cleared, admin lists re-seeded, countries/cities left alone.
+       Also tested the "staging" name guard both ways (fake prod-looking URL
+       correctly refused; fake staging-looking URL correctly passed the guard
+       and attempted a real connection).
+
+5. RUNBOOK: jobs/database/tech/20260721-staging-reset-runbook.md. Covers: what
+   accumulates on shared staging and why it's a deliberate low-stakes tradeoff
+   (ADL-32's explicit choice, not per-PR isolated — cross-preview visibility
+   when two PRs are open at once is expected, not a bug); the drizzle.config.ts
+   finding in full; the reset script; and a judgment-based reset cadence (not
+   a cron schedule — proportionate to a solo, low-traffic project per the
+   brief's own instruction not to over-engineer). Also documents what's left
+   for whoever runs the actual first deploy (§6 of the runbook).
+
+6. Added a pointer from ADL-32 §9's Database bullet to the runbook, noting
+   this piece delivered — did NOT flip ADL-32's overall "Status: Decided —
+   pending implementation" line, since Backend's parallel piece (db/index.ts,
+   static serving, Clerk-origin question) hasn't merged yet. That flip is a
+   COO/Architect call once both pieces are in.
+
+7. Housekeeping: filed a stale March 2026 inbox message
+   (20260321_2300-COO-adl23-trip-countries-migration.md) to inbox/read/ — it
+   was already fully implemented (trip_countries has existed in schema.ts
+   since ADL-23 merged) but never got moved.
+
+================================================================================
+IMPORTANT — VERIFICATION LIMITATION, READ BEFORE ACTING ON THIS
+================================================================================
+No credentials for the real travel-tracker-staging Turso instance were
+available in this sandbox — Ryan provisioned the actual databases outside
+this environment, and no TURSO_DATABASE_URL/TURSO_AUTH_TOKEN for staging
+could be injected here. Everything above was verified against a local file:
+libSQL database standing in for a fresh remote Turso instance. This is a
+valid substitute for what was actually being checked — migration/seed
+code-path correctness, delete-order correctness, and (via the fake
+unreachable libsql:// URL test) that the turso-dialect/authToken wiring
+engages the right code path — because @libsql/client uses the identical
+driver regardless of file:/libsql: transport. It is NOT a substitute for a
+live, successful auth round-trip against the real staging database. That one
+step is explicitly flagged as outstanding in the runbook (§3, §6) for
+whoever holds the real credentials to spot-check on first deploy. Flagging
+this clearly rather than implying full end-to-end verification happened.
+
+================================================================================
+PROCESS NOTE — worktree isolation self-correction mid-thread
+================================================================================
+Partway through this thread, a `cd /workspace` in one bash command switched
+the persistent shell cwd to the SHARED checkout instead of staying in this
+thread's assigned worktree (/workspace/.claude/worktrees/agent-a781a2cc9012af378)
+— the exact failure mode CLAUDE.md's OP-20 guardrail warns about. Caught it
+before any file was written or committed there (only a throwaway inspection
+script was created and immediately deleted in the shared tree — confirmed via
+`git -C /workspace status --porcelain` showing no residue beyond a pre-existing
+unrelated change). Corrected by re-confirming pwd, discovering the worktree had
+no node_modules of its own (needed `npm install` there — the shared checkout's
+node_modules is NOT symlinked/shared into linked worktrees in this repo setup),
+and redoing all verification (migrate, seed, reset-script tests, drizzle.config.ts
+type-checking) fully inside the correct worktree before writing or committing
+anything. All work in this park doc and the commits on this branch was done
+from within the correct worktree.
+
+================================================================================
+ACCEPTANCE CRITERIA
+================================================================================
+  db:seed confirmed transport-agnostic, no changes needed        PASS
+  db:migrate verified clean against a fresh empty database        PASS
+  Reset cadence designed and documented                           PASS
+  Reset script implemented, dry-run + live tested                 PASS
+  Runbook written, cross-referenced from ADL-32                   PASS
+  Live round-trip against the REAL staging Turso instance         NOT DONE —
+    no credentials in this sandbox; flagged as outstanding, not silently
+    skipped. See "VERIFICATION LIMITATION" above and runbook §3/§6.
+
+================================================================================
+FILES TOUCHED
+================================================================================
+  src/backend/db/reset-staging.ts       new — the reset script
+  drizzle.config.ts                     TURSO_AUTH_TOKEN + turso dialect branch
+  .env.example                          documented TURSO_AUTH_TOKEN
+  package.json                          added db:reset-staging script
+  jobs/database/tech/reset-staging.ts   mirror (new)
+  jobs/database/tech/drizzle.config.ts  mirror (updated)
+  jobs/database/tech/20260721-staging-reset-runbook.md   new — full writeup
+  jobs/architect/tech/20260307-architecture-decisions-log.md   ADL-32 §9
+    pointer only — status line untouched
+  jobs/database/inbox/read/20260321_2300-...adl23...   housekeeping move
+
+NOT touched: src/backend/db/index.ts (Backend's parallel brief), any schema
+file, any migration file, tracker.json (BRD-NF09 status is COO's call).
+
+================================================================================
+WHAT'S NOW UNBLOCKED
+================================================================================
+  - Whoever sets up Railway's Preview environment variables now has a
+    documented TURSO_AUTH_TOKEN contract for both the app runtime (Backend's
+    db/index.ts piece) and drizzle-kit (this thread's drizzle.config.ts fix).
+  - `npm run db:reset-staging` is available for the first UAT/QA session
+    against a preview once Backend's piece merges and Railway is live.
+  - BRD-NF09 remains blocked on Backend's parallel piece (db/index.ts
+    authToken, static serving, Clerk-origin verification, ADL-32 §6) and the
+    live staging credential spot-check noted above — not blocked on anything
+    from this thread.
