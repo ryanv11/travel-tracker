@@ -64,6 +64,20 @@
       "when": 1784569572909,
       "tag": "0008_bug30_uk_region_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784593099955,
+      "tag": "0009_bug33_dedupe_cities_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1784593112729,
+      "tag": "0010_bug33_add_unique_index",
+      "breakpoints": true
     }
   ]
 }
