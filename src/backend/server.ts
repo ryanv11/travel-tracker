@@ -91,8 +91,15 @@ app.use(
         // calls (sign-in, session refresh) — both directives need it or Clerk
         // fails to load entirely (blank screen, no error boundary can catch it).
         scriptSrc: CLERK_ORIGIN ? ["'self'", CLERK_ORIGIN] : ["'self'"],
+        // Clerk spins up a Web Worker (blob: URL) for background token
+        // handling. With no explicit worker-src, browsers fall back to
+        // script-src for worker creation — which doesn't allow blob:, so the
+        // worker gets blocked. Needs its own directive rather than relying
+        // on that fallback.
+        workerSrc: ["'self'", 'blob:'],
         styleSrc: ["'self'", "'unsafe-inline'"], // React needs inline styles
-        imgSrc: ["'self'", 'data:', 'blob:', '*.maptiler.com'],
+        // img.clerk.com serves Clerk's own user avatar images.
+        imgSrc: ["'self'", 'data:', 'blob:', '*.maptiler.com', 'img.clerk.com'],
         connectSrc: CLERK_ORIGIN
           ? ["'self'", '*.maptiler.com', CLERK_ORIGIN] // MapLibre tiles + Clerk API
           : ["'self'", '*.maptiler.com'],
