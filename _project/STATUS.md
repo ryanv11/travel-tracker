@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (27)
+## Open work (28)
 
 ### P0 — Blockers (1)
 
@@ -52,13 +52,14 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
 | OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
 
-### P3 — Minor (9)
+### P3 — Minor (10)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | OP-15 | Design pass for deferred skills — schema-change + backend-route-change | coo | ⬜ Pending |
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | BUG-37 | Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked' | frontend | ⬜ Pending |
+| OP-21 | Agent read-only diagnostic access to Railway, Turso, Clerk (ADL-33) | coo | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
 | QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
@@ -74,7 +75,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | requirement | `██████████████████▓░` 29/32 | 29 | 3 | 5 |
 | bug | `███████████████████░` 37/38 | 37 | 1 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
-| chore | `███████████████░░░░░` 6/8 | 6 | 2 | 0 |
+| chore | `█████████████░░░░░░░` 6/9 | 6 | 3 | 0 |
 
 <details>
 <summary>Deferred (8)</summary>
@@ -104,4 +105,4 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 ---
 
-_103 done · 8 deferred · 2 closed · 27 open — 140 tracked items_
+_103 done · 8 deferred · 2 closed · 28 open — 141 tracked items_
