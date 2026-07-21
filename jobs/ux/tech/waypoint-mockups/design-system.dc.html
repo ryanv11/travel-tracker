@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: oklch(97.5% 0.006 80); }
+    ::selection { background: oklch(94% 0.025 195); }
+  </style>
+</helmet>
+
+<div style="max-width:1120px;margin:0 auto;padding:64px 40px 120px;font-family:'Manrope',sans-serif;color:oklch(22% 0.02 75);">
+
+  <!-- Header -->
+  <div style="margin-bottom:64px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.5 2 6 5 6 8.5C6 13 12 21 12 21C12 21 18 13 18 8.5C18 5 15.5 2 12 2Z" fill="oklch(38% 0.07 195)"/><circle cx="12" cy="8.5" r="2.6" fill="oklch(97.5% 0.006 80)"/></svg>
+      <span style="font-family:'Newsreader',serif;font-weight:600;font-size:20px;letter-spacing:0.2px;">Waypoint</span>
+    </div>
+    <h1 style="font-family:'Newsreader',serif;font-weight:500;font-size:44px;line-height:1.1;margin:0 0 12px;letter-spacing:-0.5px;">Design system</h1>
+    <p style="font-size:15px;color:oklch(48% 0.015 75);max-width:560px;line-height:1.6;margin:0;">A working palette, type scale and component set for Travel Tracker — proposed name "Waypoint." Restyle proof-of-concept for the Trips screen follows in two companion files.</p>
+  </div>
+
+  <!-- Color -->
+  <section style="margin-bottom:56px;">
+    <h2 style="font-family:'Newsreader',serif;font-weight:600;font-size:22px;margin:0 0 6px;">Color</h2>
+    <p style="font-size:13px;color:oklch(48% 0.015 75);margin:0 0 24px;">Warm paper neutrals + a deep pine primary. Status/category accents share the same lightness and chroma, varying only hue — so meaning comes from color, not intensity.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;">
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(97.5% 0.006 80);border:1px solid oklch(89% 0.012 80);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">bg-page</div>
+      </div>
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">bg-surface</div>
+      </div>
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(89% 0.012 80);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">border</div>
+      </div>
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(48% 0.015 75);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">ink-muted</div>
+      </div>
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(22% 0.02 75);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">ink</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;">
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(38% 0.07 195);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">primary (pine)</div>
+      </div>
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(45% 0.1 325);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">accent (plum)</div>
+      </div>
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(55% 0.14 75);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">status: active</div>
+      </div>
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(48% 0.1 150);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">status: success</div>
+      </div>
+      <div>
+        <div style="height:64px;border-radius:10px;background:oklch(52% 0.15 25);"></div>
+        <div style="font-size:11px;margin-top:6px;color:oklch(48% 0.015 75);">status: danger</div>
+      </div>
+    </div>
+
+    <p style="font-size:12px;color:oklch(65% 0.01 75);margin:4px 0 0;">Compare to today's app: teal-600 on most screens, blue-600 in Admin, plus indigo/green/emerald/yellow scattered across statuses with no shared logic.</p>
+  </section>
+
+  <!-- Type -->
+  <section style="margin-bottom:56px;">
+    <h2 style="font-family:'Newsreader',serif;font-weight:600;font-size:22px;margin:0 0 6px;">Type</h2>
+    <p style="font-size:13px;color:oklch(48% 0.015 75);margin:0 0 24px;">Newsreader for display — gives the editorial, journal-like warmth the brand wants. Manrope for UI text — stays legible and dense at small sizes.</p>
+
+    <div style="display:flex;flex-direction:column;gap:18px;padding:28px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:14px;">
+      <div style="display:flex;align-items:baseline;gap:16px;"><span style="font-family:'Newsreader',serif;font-weight:500;font-size:40px;letter-spacing:-0.5px;">Kyoto, Autumn</span><span style="font-size:11px;color:oklch(65% 0.01 75);font-family:'Manrope';">Newsreader 500 / 40px — page titles</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;"><span style="font-family:'Newsreader',serif;font-weight:500;font-size:26px;">Arashiyama Bamboo Grove</span><span style="font-size:11px;color:oklch(65% 0.01 75);font-family:'Manrope';">Newsreader 500 / 26px — trip / place names</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;"><span style="font-family:'Manrope';font-weight:700;font-size:15px;">Section label</span><span style="font-size:11px;color:oklch(65% 0.01 75);">Manrope 700 / 15px — UI headers</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;"><span style="font-family:'Manrope';font-weight:500;font-size:14px;">Body / control text sits here at comfortable reading size.</span><span style="font-size:11px;color:oklch(65% 0.01 75);">Manrope 500 / 14px — body</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;"><span style="font-family:'Manrope';font-weight:600;font-size:12px;color:oklch(48% 0.015 75);">METADATA · DATES · TAGS</span><span style="font-size:11px;color:oklch(65% 0.01 75);">Manrope 600 / 12px — meta / labels</span></div>
+    </div>
+  </section>
+
+  <!-- Icons -->
+  <section style="margin-bottom:56px;">
+    <h2 style="font-family:'Newsreader',serif;font-weight:600;font-size:22px;margin:0 0 6px;">Icons</h2>
+    <p style="font-size:13px;color:oklch(48% 0.015 75);margin:0 0 24px;">One consistent filled-glyph set, replacing the emoji (🍽️🏨✈️🚗🎫📝🔒📷) used throughout today.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:8px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 20V9.5L12 4l8 5.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1Z" fill="oklch(38% 0.07 195)"/></svg>
+        <span style="font-size:10px;color:oklch(48% 0.015 75);">hotel</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M21 15.5v-2l-8-5V4.5a1.5 1.5 0 0 0-3 0V8.5l-8 5v2l8-2.5V17l-2.5 2v1.5l3.5-1 3.5 1V19L13 17v-4.5l8 2.5Z" fill="oklch(38% 0.07 195)"/></svg>
+        <span style="font-size:10px;color:oklch(48% 0.015 75);">flight</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 3v7a2 2 0 0 0 2 2v9h1.5v-9a2 2 0 0 0 2-2V3H10v6H9V3H8v6H7V3H6Zm9.5 0c-1.4 0-2.5 2.1-2.5 5s1 5 2 5.6V21H16.5V3.05c-.35-.03-.68-.05-1-.05Z" fill="oklch(38% 0.07 195)"/></svg>
+        <span style="font-size:10px;color:oklch(48% 0.015 75);">dining</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 16.5V11l1.8-4.5A2 2 0 0 1 8.7 5h6.6a2 2 0 0 1 1.9 1.5L19 11v5.5a1 1 0 0 1-1 1H17a1 1 0 0 1-1-1V16H8v.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1ZM7.5 14a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Zm9 0a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM7 10.5h10L15.7 7H8.3L7 10.5Z" fill="oklch(38% 0.07 195)"/></svg>
+        <span style="font-size:10px;color:oklch(48% 0.015 75);">car</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a1.5 1.5 0 0 0 0 3V14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.5a1.5 1.5 0 0 0 0-3V8Zm9-1v2h1.5V7H12Zm0 4v2h1.5v-2H12Zm0 4v2h1.5v-2H12Z" fill="oklch(38% 0.07 195)"/></svg>
+        <span style="font-size:10px;color:oklch(48% 0.015 75);">experience</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 3.5h14a1 1 0 0 1 1 1V20a1 1 0 0 1-1.45.9L12 18.4l-6.55 2.5A1 1 0 0 1 4 20V4.5a1 1 0 0 1 1-1ZM7 8h10V6.5H7V8Zm0 3.5h10V10H7v1.5Z" fill="oklch(38% 0.07 195)"/></svg>
+        <span style="font-size:10px;color:oklch(48% 0.015 75);">note</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h.5A1.5 1.5 0 0 1 19 11.5v8A1.5 1.5 0 0 1 17.5 21h-11A1.5 1.5 0 0 1 5 19.5v-8A1.5 1.5 0 0 1 6.5 10H7Zm1.5 0h7V7a3.5 3.5 0 0 0-7 0v3Z" fill="oklch(38% 0.07 195)"/></svg>
+        <span style="font-size:10px;color:oklch(48% 0.015 75);">locked</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;background:oklch(99% 0.002 80);border:1px solid oklch(89% 0.012 80);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M9.5 5h5l.9 1.5H18a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 18 18.5H6A1.5 1.5 0 0 1 4.5 17V8A1.5 1.5 0 0 1 6 6.5h2.6L9.5 5Zm2.5 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="oklch(38% 0.07 195)"/></svg>
+        <span style="font-size:10px;color:oklch(48% 0.015 75);">photos</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Status badges -->
+  <section style="margin-bottom:56px;">
+    <h2 style="font-family:'Newsreader',serif;font-weight:600;font-size:22px;margin:0 0 6px;">Status &amp; category badges</h2>
+    <p style="font-size:13px;color:oklch(48% 0.015 75);margin:0 0 20px;">Every hue is used once, at the same tint/weight, so a color always means the same status across trips and items.</p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <span style="font-family:'Manrope';font-weight:700;font-size:11px;letter-spacing:0.3px;padding:5px 12px;border-radius:20px;background:oklch(94% 0.025 195);color:oklch(30% 0.07 195);">PLANNING</span>
+      <span style="font-family:'Manrope';font-weight:700;font-size:11px;letter-spacing:0.3px;padding:5px 12px;border-radius:20px;background:oklch(94% 0.03 75);color:oklch(40% 0.12 75);">ACTIVE</span>
+      <span style="font-family:'Manrope';font-weight:700;font-size:11px;letter-spacing:0.3px;padding:5px 12px;border-radius:20px;background:oklch(94% 0.025 325);color:oklch(38% 0.1 325);">REVIEW</span>
+      <span style="font-family:'Manrope';font-weight:700;font-size:11px;letter-spacing:0.3px;padding:5px 12px;border-radius:20px;background:oklch(93% 0.006 80);color:oklch(40% 0.01 80);">LOCKED</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;">
+      <span style="font-family:'Manrope';font-weight:700;font-size:11px;letter-spacing:0.3px;padding:5px 12px;border-radius:20px;background:oklch(94% 0.025 150);color:oklch(38% 0.1 150);">CONFIRMED</span>
+      <span style="font-family:'Manrope';font-weight:700;font-size:11px;letter-spacing:0.3px;padding:5px 12px;border-radius:20px;background:oklch(95% 0.03 25);color:oklch(42% 0.13 25);">CANCELLED</span>
+      <span style="font-family:'Manrope';font-weight:700;font-size:11px;letter-spacing:0.3px;padding:5px 12px;border-radius:20px;background:oklch(93% 0.006 80);color:oklch(40% 0.01 80);">CONSIDER</span>
+    </div>
+  </section>
+
+  <!-- Buttons & inputs -->
+  <section>
+    <h2 style="font-family:'Newsreader',serif;font-weight:600;font-size:22px;margin:0 0 6px;">Buttons &amp; inputs</h2>
+    <p style="font-size:13px;color:oklch(48% 0.015 75);margin:0 0 20px;">10px radius throughout (vs. today's inconsistent md/lg/full mix).</p>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <button type="button" style="font-family:'Manrope';font-weight:600;font-size:14px;padding:10px 20px;border-radius:10px;border:none;background:oklch(38% 0.07 195);color:white;cursor:pointer;">New Trip</button>
+      <button type="button" style="font-family:'Manrope';font-weight:600;font-size:14px;padding:10px 20px;border-radius:10px;border:1px solid oklch(89% 0.012 80);background:oklch(99% 0.002 80);color:oklch(22% 0.02 75);cursor:pointer;">Edit</button>
+      <button type="button" style="font-family:'Manrope';font-weight:600;font-size:14px;padding:10px 20px;border-radius:10px;border:1px solid oklch(89% 0.03 25);background:oklch(97% 0.02 25);color:oklch(42% 0.13 25);cursor:pointer;">Delete</button>
+      <input type="search" placeholder="Search trips…" style="font-family:'Manrope';font-size:14px;padding:10px 14px;border-radius:10px;border:1px solid oklch(89% 0.012 80);background:oklch(99% 0.002 80);width:220px;" />
+    </div>
+  </section>
+
+</div>
+
+</x-dc>
+</body>
+</html>

@@ -1,7 +1,8 @@
-UX CONTEXT — 2026-07-21 (updated)
+UX CONTEXT — 2026-07-21 (updated, unblocked + completed)
 PROJECT: Travel Tracker
-CURRENT STATUS: Waypoint redesign spec BLOCKED — DesignSync tool unavailable in this
-environment. Preparatory groundwork done; formal Phase 1/Phase 2 spec not yet written.
+CURRENT STATUS: Waypoint redesign spec DELIVERED. Phase 1 (design-system foundation) +
+Phase 2 (Trips screen reskin, desktop + mobile) spec complete, with 13 flagged
+conflicts/open questions for COO/Ryan to resolve before Frontend dispatch.
 
 ================================================================================
 ROLE SUMMARY
@@ -25,73 +26,85 @@ PROJECT CONTEXT (verified 2026-07-21)
                 migration. Only the Tailwind half of that plan landed.
   Mapping:      MapLibre GL JS + react-map-gl + MapTiler tiles
   Current palette: Teal primary / amber (active/review) / violet (category
-                badges) / emerald (positive CTA) — NOT blue. A full rebrand
-                already happened once (see 20260321-UX-delivered-vs-mockup-delta.md).
-                The incoming "Waypoint" rebrand (warm paper neutrals + pine
-                primary) replaces THIS palette, not the original blue one.
-  Current icons: literal emoji throughout (ItemCard TYPE_ICONS: 🍽️🏨✈️🚗🎫📝,
-                plus 📷 Photos, 🔒 locked banner, 🗺 empty state) — exact match
-                to the icon set named in the Waypoint brief.
+                badges) / emerald (positive CTA) — being replaced by the
+                Waypoint palette (warm paper neutrals + deep pine primary,
+                oklch-based) per the new spec.
 
 ================================================================================
-ACTIVE THREAD — Waypoint redesign spec (2026-07-21)
+COMPLETED THREAD — Waypoint redesign spec (2026-07-21)
 ================================================================================
 
   Brief: formalize claude.ai Design project "Travel tracker design review"
   (projectId 8cc525c1-b678-4976-a207-57f7f489844b — Design System.dc.html,
-  Trips Desktop.dc.html, Trips Mobile.dc.html) into a two-phase briefable spec
-  (Phase 1 = design-system foundation tokens, Phase 2 = Trips screen reskin).
+  Trips Desktop.dc.html, Trips Mobile.dc.html) into a two-phase briefable spec.
 
-  BLOCKED: The `DesignSync` tool named in the brief does not exist in this
-  environment. Verified via ToolSearch (multiple query phrasings), `claude mcp
-  list` (only monday.com/Google Drive/Gmail/Calendar configured — no DesignSync
-  entry at all, not even auth-pending), and a direct WebFetch to the claude.ai
-  project URL (403, as expected, no session). No local copy of the mockup
-  files exists in the repo either (grep/find came back empty).
+  Initially BLOCKED: the `DesignSync` tool named in the brief is specific to the
+  main interactive session and unavailable to a dispatched agent (confirmed via
+  ToolSearch, `claude mcp list`, and a direct WebFetch 403 — see
+  jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md for the full trail). Did NOT
+  fabricate mockup content to paper over this.
 
-  Did NOT fabricate oklch values / type pairings / icon glyphs / badge-hue
-  mapping to paper over the gap — the brief is explicit these must be exact,
-  not approximated, and a plausible-looking guess would be worse than an
-  honest block (Frontend would build the wrong thing with high confidence).
+  UNBLOCKED same thread: coordinator supplied verbatim copies of all three
+  mockup files into this worktree at jobs/ux/tech/waypoint-mockups/*.dc.html.
+  Read all three in full and produced the real spec:
+  jobs/ux/tech/20260721-UX-waypoint-spec.md
 
-  Instead, completed the half of the job that doesn't need the mockups:
-  - Full read of current Trips screen implementation (TripsLayout, TripCard,
-    TripDetail, PlaceSection, StatusBadge, ItemCard, TripItemsSection, App.tsx)
-  - Cross-referenced DP-04/DP-05/DP-06, BUG-31/32/34/36, IT-01 against the
-    actual code (not just tracker notes) — see full detail in
-    jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md
-  - Flagged: DP-06 is tracker-status "pending" (not yet built) — a real gap,
-    not a display nuance; must not get silently papered over in Phase 2.
-  - Flagged: BUG-36's trip-level items section (TripItemsSection.tsx) isn't
-    mentioned in the brief's mockup summary at all — needs an explicit check
-    once the mockup can be read; if absent from the mockup that's a conflict
-    to raise with COO, not a silent removal.
-  - Flagged: FEAT-BD bulk multi-select delete, NTH-01 undo bar, NTH-03 status
-    counts, TR-09 sort control, map filter badge — all real current
-    functionality with no mention in the brief's "what's in it" summary.
-  - Flagged: if Waypoint's icon set implies an actual icon library dependency
-    (vs. hand-authored SVG), that's a new dependency needing a COO tradeoff
-    call — not pre-approved by the stale March Lucide recommendation (which
-    assumed a shadcn/ui migration that never happened).
-
-  Deliverable this thread: jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md
-  (blocker record + full prep-work handoff, NOT the formal spec).
+  Deliverable contents:
+  - Phase 1: full oklch color token table (neutrals, brand, 7 status/category
+    hues), Newsreader/Manrope type scale, 11 SVG icon glyphs (8 item-type/status
+    + 4 nav/chrome) with exact path data — confirmed NO new icon-library
+    dependency needed (mockup icons are hand-authored SVG paths, not from a
+    named library), badge/button/input styling, and where these tokens should
+    live given this repo's Tailwind v4 CSS-first config. Recommended icon
+    replacement (emoji -> SVG) as the one immediate-apply exception; everything
+    else stays defined-but-unused until Phase 2 to avoid a half-migrated,
+    inconsistent state.
+  - Phase 2: full desktop + mobile Trips layout breakdown (nav, left panel,
+    trip cards, detail header, NEW status-stepper component replacing the flat
+    status bar, place sections, item cards, empty states, mobile slide
+    transition + bottom tab bar), cross-referenced line-by-line against
+    DP-01..06, TR-09/11/12/13, BUG-31/32/34/36, IT-01, UX-02, FEAT-BD, NTH-01/03.
+  - 13 flagged conflicts/open questions (C1-C13) requiring explicit COO/Ryan
+    decisions before Frontend dispatch — NOT silently resolved. Highlights:
+    * C1: mockup renames the product to "Waypoint" in the nav — real decision,
+      not styling.
+    * C2: mockup's status stepper has no Unlock affordance at all (current app
+      has a working, tested Unlock flow) — must be preserved, added to the new
+      stepper as chrome the mockup doesn't show.
+    * C3: BUG-36's trip-level items section (shipped 2026-07-20, IT-01) is
+      absent from both mockups entirely — must be preserved, not silently
+      dropped.
+    * C4: place-section Edit-dates/Remove buttons (UX-02, BUG-32) absent from
+      mockup place-header — must be preserved.
+    * C5: item card in mockup drops rating stars, carried-forward tag, and
+      full per-type subtext down to one generic line — must preserve full
+      richness inside the new visual shell.
+    * C6: mockup only shows the filtered-empty state, not the true first-run
+      zero-trips state current app already distinguishes — must preserve both.
+    * C7: FEAT-BD bulk delete, NTH-01 undo, NTH-03 filter counts, TR-09 sort,
+      map-filter badge all absent from mockup — must preserve all.
+    * C8: mockup's own reference implementation uses dangerouslySetInnerHTML
+      to render icons — blocking defect per _shared/frameworks.txt rule 22;
+      Frontend must use literal inline SVG JSX instead (same visual output).
+    * C9: mobile bottom tab bar only appears in list view, not detail view —
+      likely intentional (my read), needs Ryan confirmation since it's a nav
+      model decision.
+    * C10-C13: smaller precision flags (panel width 340 vs 320px, category
+      badge color undocumented in the system file itself, Newsreader weight
+      600 vs system doc's stated 500, button radius 10px vs mockups' applied
+      9px).
 
 ================================================================================
 NEXT ACTIONS
 ================================================================================
 
-  COO must either:
-   (a) get the DesignSync MCP server connected/configured for this
-       environment, or
-   (b) get the three .dc.html files' raw content into a channel UX already
-       has access to (committed into the repo, or shared via the connected
-       Google Drive MCP)
+  COO reviews jobs/ux/tech/20260721-UX-waypoint-spec.md, resolves C1-C13 with
+  Ryan (recording decisions per the document-lifecycle/record-decision rules —
+  BRD entries, ADL, or tracker notes as appropriate), adds any new requirement
+  IDs to the BRD (BRD-gate-before-dispatch rule), then dispatches Frontend:
+  Phase 1 first (verified/UAT'd before any reskin), then Phase 2.
 
-  Then re-dispatch a UX thread to actually write the Phase 1 + Phase 2 spec —
-  the prep work above means that thread should be a single focused pass, not
-  a re-audit from scratch.
-
-  Prior completed work (BRIEF-UX-01, DELTA docs) is historical reference only —
-  superseded in spirit by the incoming Waypoint rebrand, not yet formally
-  stamped as superseded since the new spec doesn't exist yet to point to.
+  Prior completed work (BRIEF-UX-01, DELTA docs) is now formally superseded in
+  intent by this spec for the Trips screen specifically — not yet stamped with
+  a formal supersession banner since that's the record-decision skill's job at
+  BRD-gate time, not mine to do unilaterally in this thread.

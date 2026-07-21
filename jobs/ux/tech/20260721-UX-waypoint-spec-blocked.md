@@ -1,4 +1,12 @@
-# Waypoint Redesign Spec — BLOCKED on mockup access
+# Waypoint Redesign Spec — BLOCKED on mockup access (RESOLVED same day)
+
+> **RESOLVED (2026-07-21) by `20260721-UX-waypoint-spec.md`** — the coordinator confirmed
+> `DesignSync` is specific to the main interactive session and unavailable to dispatched
+> agents, and supplied verbatim copies of the three mockup files directly into this worktree
+> at `jobs/ux/tech/waypoint-mockups/*.dc.html`. The formal Phase 1/Phase 2 spec was then
+> written from those files in the same thread. This document is retained for the history of
+> the blocker and the preparatory groundwork done while blocked (still accurate and useful —
+> the BRD/bug-fix cross-reference below fed directly into the real spec's conflict list).
 
 **Date:** 2026-07-21
 **Author:** UX
@@ -6,10 +14,11 @@
 project `8cc525c1-b678-4976-a207-57f7f489844b`, files `Design System.dc.html`,
 `Trips Desktop.dc.html`, `Trips Mobile.dc.html`) into a two-phase, briefable spec.
 
-**Status: NOT DELIVERED.** The formal Phase 1 / Phase 2 spec described in the brief could
-not be produced this thread. This document records why, what I verified before concluding
-it's a hard blocker, and the preparatory groundwork completed so a follow-up thread can move
-straight to spec-writing once access is restored.
+**Status at time of writing (superseded, see banner above): NOT DELIVERED.** The formal
+Phase 1 / Phase 2 spec described in the brief could not be produced this thread. This
+document records why, what I verified before concluding it's a hard blocker, and the
+preparatory groundwork completed so a follow-up thread can move straight to spec-writing
+once access is restored.
 
 ---
 

@@ -4,59 +4,71 @@ THREAD: Waypoint redesign spec (formalize claude.ai Design project
 8cc525c1-b678-4976-a207-57f7f489844b into a two-phase implementation spec)
 ================================================================================
 
-OUTCOME: BLOCKED, not delivered. See jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md
-for full detail. Summary:
+OUTCOME: DELIVERED. jobs/ux/tech/20260721-UX-waypoint-spec.md is the full Phase 1
+(design-system foundation) + Phase 2 (Trips screen reskin, desktop + mobile) spec.
 
-The brief required reading three mockup files via a `DesignSync` tool. That tool is
-not present in this environment — confirmed three ways (ToolSearch across several
-phrasings, `claude mcp list` showing only 4 unrelated MCP servers configured, and a
-direct WebFetch to the claude.ai project URL returning 403). No local copy of the
-mockups exists in the repo. This is an environment/access gap, not something I can
-resolve from inside the thread.
+The thread started blocked: the `DesignSync` tool named in the brief for reading the
+mockup files is not available to a dispatched agent (confirmed three ways — ToolSearch,
+`claude mcp list`, a direct WebFetch 403 — see jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md
+for that history, now stamped RESOLVED at the top). Rather than fabricate the mockup's
+design tokens to paper over the gap, I did the half of the job that didn't need the
+mockups (full current-Trips-screen audit, BRD/bug-fix cross-reference) and reported the
+blocker to COO.
 
-I did not invent plausible-looking design tokens to fill the gap. The brief is
-explicit that oklch values, type pairings, icon glyphs, and badge-hue mapping must be
-carried over exactly — a guessed spec would look complete while silently diverging
-from what Ryan actually approved, and Frontend would implement the wrong thing with
-full confidence. An honest block is the better failure mode here.
+The coordinator then confirmed DesignSync is main-session-only and supplied verbatim
+copies of all three mockup files directly into this worktree
+(jobs/ux/tech/waypoint-mockups/{design-system,trips-desktop,trips-mobile}.dc.html). I
+read all three in full and completed the real spec in the same thread, building
+directly on the prep work already done.
 
-WHAT WAS DONE INSTEAD (full detail in the blocked-spec doc):
-- Full re-read of the current Trips screen implementation end to end (TripsLayout,
-  TripCard, TripDetail, PlaceSection, StatusBadge, ItemCard, TripItemsSection,
-  App.tsx nav).
-- Verified current stack facts that affect where Phase 1 tokens would live:
-  Tailwind v4 CSS-first config (no tailwind.config file), no shadcn/ui or Radix or
-  icon library adopted despite the March 2026 audit assuming that migration — only
-  the Tailwind half landed.
-- Cross-referenced DP-04/DP-05/DP-06, BUG-31/32/34/36, IT-01 against the actual code
-  (not just tracker notes), including one real functional gap (DP-06 is tracker
-  status "pending" — not yet built) and one section with no obvious mockup
-  counterpart per the brief's summary (BUG-36's trip-level items section).
-- Inventoried existing Trips-screen functionality with no mention in the brief's
-  mockup summary (bulk multi-select delete, undo bar, per-status filter counts,
-  sort control, map filter badge) so the follow-up thread checks for these
-  explicitly instead of assuming the mockup silently drops them.
+WHAT'S IN THE SPEC (full detail in jobs/ux/tech/20260721-UX-waypoint-spec.md, not
+restated here per the completion-report format):
+- Phase 1: exact oklch color tokens (neutrals + brand + 7 status/category hues),
+  Newsreader/Manrope type scale, 11 SVG icon glyphs with exact path data (confirmed:
+  no new icon-library dependency needed — mockup icons are hand-authored inline SVG,
+  not sourced from a named library), badge/button/input styling, and where these
+  belong given this repo's Tailwind v4 CSS-first config (@theme block, not a JS
+  config file). Recommended icon replacement (emoji->SVG) as the one immediate-apply
+  exception to "Phase 1 doesn't reskin anything yet," with reasoning given.
+- Phase 2: full desktop + mobile Trips layout (nav, left panel, trip cards, detail
+  header, a NEW status-stepper component replacing today's flat status bar, place
+  sections, item cards, empty states, mobile slide transition + bottom tab bar),
+  cross-referenced line-by-line against DP-01..06, TR-09/11/12/13, BUG-31/32/34/36,
+  IT-01, UX-02, FEAT-BD, NTH-01/03.
+- 13 flagged conflicts (C1-C13) — NOT silently resolved. The consequential ones: the
+  mockup renames the product to "Waypoint" (C1, a real decision not a skin choice);
+  the new status stepper has no Unlock affordance at all where the current app has a
+  working tested one (C2); BUG-36's trip-level items section is entirely absent from
+  both mockups (C3); place-section Edit-dates/Remove buttons (UX-02/BUG-32) are
+  absent from the mockup's place header (C4); the mockup's item card drops rating
+  stars/carried-forward tag/full per-type subtext to one generic line (C5); the
+  mockup only shows the filtered-empty state, not the first-run zero-trips state the
+  current app already distinguishes (C6); bulk-delete/undo/sort/map-filter-badge have
+  no mockup equivalent (C7); the mockup's own reference implementation uses
+  `dangerouslySetInnerHTML` for icons, which is a blocking defect in this codebase
+  per `_shared/frameworks.txt` rule 22 (C8); the mobile bottom tab bar only appears in
+  list view, not detail view (C9, likely intentional, needs Ryan's confirmation).
+  C10-C13 are smaller precision flags (panel width, an undocumented category-badge
+  color, a font-weight and a button-radius discrepancy between the system doc and its
+  own applied mockups).
 
-BUGS DISCOVERED: None this thread (no implementation work was done — audit/read-only).
+BUGS DISCOVERED: None (spec/audit work only, no implementation).
 
-OPEN ISSUES / BLOCKERS:
-  [CRITICAL — blocks the whole brief] DesignSync tool unavailable in this
-  environment. COO must either get it connected, or get the three .dc.html files'
-  raw content into a channel UX already has access to (committed into the repo
-  under jobs/ux/tech/, or shared via the connected Google Drive MCP). Flagged in
-  completion report to COO inbox.
+OPEN ISSUES / BLOCKERS: None blocking Phase 1. All 13 conflicts (C1-C13) must be
+explicitly resolved — not silently — before Phase 2 is briefed to Frontend, per the
+spec's own success criteria. This is COO/Ryan's decision, not mine to make.
 
-WHAT'S UNBLOCKED FOR OTHER JOBS: Nothing yet — Frontend has no spec to implement
-from. Once mockup access is restored and a follow-up UX thread completes the actual
-Phase 1/Phase 2 spec, Frontend can be dispatched (after COO's BRD-gate step, per
-CLAUDE.md's "BRD gate before dispatching briefs" rule).
+WHAT'S UNBLOCKED FOR OTHER JOBS: Frontend can be dispatched for Phase 1 once COO
+reviews the spec and completes the BRD gate (any new requirement IDs need a BRD home
+before dispatch, per CLAUDE.md). Phase 2 dispatch additionally needs C1-C13 resolved
+first.
 
-GIT: Branch chore/waypoint-redesign-spec. Housekeeping commit only (context, park
-doc, blocked-spec record, completion report) — no source files touched, no code
-spec produced. PR opened documenting the blocker for COO visibility; COO reviews
-and merges as usual, does not need to route anything to Frontend from this PR.
+GIT: Branch chore/waypoint-redesign-spec (same branch as the earlier blocked-doc
+commit — coordinator's instruction was to update this branch, not open a new one).
+PR #194 picks up the new commits automatically. No source code touched — spec/docs
+only. Pre-push checklist re-run and green before this final push.
 
-NEXT ACTIONS: See "Recommended next step" in
-jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md and "NEXT ACTIONS" in
+NEXT ACTIONS: See "CONFLICTS & OPEN QUESTIONS" at the top of
+jobs/ux/tech/20260721-UX-waypoint-spec.md and "NEXT ACTIONS" in
 jobs/ux/context/current.txt.
 ================================================================================
