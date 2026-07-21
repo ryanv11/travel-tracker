@@ -114,6 +114,16 @@ export const cities = sqliteTable(
     // Partial index — only indexes pending cities, making the geocoding queue scan efficient
     index('idx_cities_geocode').on(t.geocodeStatus).where(sql`${t.geocodeStatus} = 'pending'`),
     check('chk_cities_geocode_status', sql`${t.geocodeStatus} IN ('pending', 'resolved')`),
+    // BUG-33 (#157): prevents duplicate city rows for the same (name, country_code) —
+    // find-or-create logic was creating a new row instead of reusing the existing one
+    // (e.g. "Glasgow" appeared twice in the place autocomplete). COLLATE NOCASE is
+    // SQLite's built-in ASCII-only case fold (A-Z/a-z) — it resolves the real-world
+    // "Glasgow"/"glasgow" case but does not fold non-ASCII/diacritic variants; that
+    // is an accepted, documented limitation, not a silent gap (Architect-reviewed
+    // 2026-07-20). Backend's find-or-create lookup must match this collation (its own
+    // WHERE clause needs to be case-insensitive too) or it will fail to find the
+    // canonical row and attempt an insert that now throws instead of reusing it.
+    uniqueIndex('uniq_cities_name_country_ci').on(sql`${t.name} COLLATE NOCASE`, t.countryCode),
   ],
 );
 
