@@ -21,6 +21,7 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { AddPlaceFlow } from './AddPlaceFlow';
 import { PlaceSection } from './PlaceSection';
 import { TripForm } from './TripForm';
+import { TripItemsSection } from './TripItemsSection';
 
 interface TripDetailProps {
   /** Full trip detail data including places and items. */
@@ -225,6 +226,11 @@ export function TripDetail({ trip }: TripDetailProps) {
         )}
 
         {statusError && <ErrorMessage error={statusError} />}
+
+        {/* Trip-level items (BUG-36/IT-01) — flights and car rentals that aren't
+            tied to a specific place. Rendered above Places since transport
+            typically bookends the trip. */}
+        <TripItemsSection tripId={trip.id} isLocked={isLocked} />
 
         {/* Places — sorted by arrived_on ascending, nulls last (UX-02 / ADL-24) */}
         <div className="mb-4">

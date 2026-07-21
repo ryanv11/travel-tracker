@@ -444,6 +444,78 @@ describe('GET /api/trips/:id', () => {
 
     expect(res.body.photo_album_ref).toBeNull();
   });
+
+  // BUG-31: GET /:id previously dropped arrived_on/departed_on when assembling
+  // the places array, even though they were persisted correctly by the PATCH
+  // endpoint — the trip detail view (which PlaceSection renders from) never
+  // saw the explicit dates and always displayed the trip fallback range.
+  async function seedCityForPlace(db: Awaited<ReturnType<typeof createTestDb>>) {
+    await db
+      .insert(schema.countries)
+      .values({ countryCode: 'IT', name: 'Italy' })
+      .onConflictDoNothing();
+    const [city] = await db
+      .insert(schema.cities)
+      .values({ countryCode: 'IT', name: 'Rome' })
+      .returning();
+    return city;
+  }
+
+  it('returns arrived_on / departed_on set on a place via direct DB insert', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+    const city = await seedCityForPlace(db);
+    await db.insert(schema.tripPlaces).values({
+      tripId: trip.id,
+      cityId: city.id,
+      userId: TEST_USER_ID,
+      arrivedOn: '2025-06-01',
+      departedOn: '2025-06-05',
+    });
+
+    const res = await supertest(app).get(`/api/trips/${trip.id}`).expect(200);
+
+    expect(res.body.places).toHaveLength(1);
+    expect(res.body.places[0].arrived_on).toBe('2025-06-01');
+    expect(res.body.places[0].departed_on).toBe('2025-06-05');
+  });
+
+  it('trip detail place has null arrived_on / departed_on when not set', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+    const city = await seedCityForPlace(db);
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
+
+    const res = await supertest(app).get(`/api/trips/${trip.id}`).expect(200);
+
+    expect(res.body.places[0].arrived_on).toBeNull();
+    expect(res.body.places[0].departed_on).toBeNull();
+  });
+
+  // BUG-31 end-to-end: PATCH the place's dates, then re-fetch trip detail and
+  // confirm the new values are what's displayed — this is the exact user flow
+  // that was broken (set dates, save, section still shows trip range).
+  it('reflects PATCHed place dates on next trip detail fetch', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+    const city = await seedCityForPlace(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
+      .returning();
+
+    await supertest(app)
+      .patch(`/api/trips/${trip.id}/places/${place.id}`)
+      .send({ arrived_on: '2025-07-10', departed_on: '2025-07-14' })
+      .expect(200);
+
+    const res = await supertest(app).get(`/api/trips/${trip.id}`).expect(200);
+
+    expect(res.body.places[0].arrived_on).toBe('2025-07-10');
+    expect(res.body.places[0].departed_on).toBe('2025-07-14');
+  });
 });
 
 // ----------------------------------------------------------------

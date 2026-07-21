@@ -1,0 +1,38 @@
+BUG-10 · GitHub #138 (frontend half) · BRD TR-01 · Branch fix/bug10-name-limit-frontend
+
+WHAT WAS BUILT
+TripForm.tsx trip-name field: limit dropped from 200 to 75 chars (NAME_MAX_LENGTH
+constant), and a red inline "75 character limit reached" error now renders under the
+field once the limit is hit, matching the existing field-level error styling used in
+AddPlaceFlow.tsx / PlaceDateForm.tsx (bg-red-50/border-red-200/text-red-800/text-xs).
+Added a submit-time guard too, for trips with pre-existing names >75 chars from before
+this fix (maxLength alone won't retroactively trim a value set via props).
+
+ACCEPTANCE CRITERIA (per tracker.json BUG-10 corrected criteria)
+1. Limit is 75, not 200 — PASS
+2. Input hard-restricts typing/pasting past 75 AND shows a red inline error on hitting
+   the limit — PASS
+3. Backend defense-in-depth (.max(75) + message) — N/A to this brief, parallel backend
+   brief covers it; frontend already renders whatever the API returns via ErrorMessage.tsx
+   so no frontend change needed once backend lands.
+
+CI: gh pr checks pending at file time — will confirm green before treating this done;
+local pre-push checks all pass (biome, type:check:all, test:backend 523/1 skipped,
+status:check) except one PRE-EXISTING flaky frontend test unrelated to this change
+(see below).
+
+OPEN ISSUES / BLOCKERS
+- FLAG-F3 (new, not a blocker for this PR): CarryForwardModal.test.tsx "calls onClose
+  immediately when Skip is clicked" fails intermittently (onClose called 2-3x instead of
+  1x). Reproduced via git stash on a clean branch tip with no BUG-10 changes applied —
+  confirmed unrelated to this fix. Worth a QA/backend look separately.
+- Wording coordination: used "75 character limit reached" per tracker's suggested default.
+  If backend's parallel brief uses different phrasing for its 400 message, no frontend
+  code change is needed to reconcile — the frontend inline error is a distinct proactive
+  surface from the backend error rendered through the existing mutationError/ErrorMessage
+  path.
+
+WHAT IS NOW UNBLOCKED
+BUG-10 can close once the parallel backend brief (server-side .max(75) + boundary test
+updates) lands and QA verifies both halves together. Tracker status update (pending →
+done) left to COO per BUG-10 being COO-maintained.

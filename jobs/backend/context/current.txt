@@ -1,15 +1,20 @@
 BACKEND CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-32 backend half complete. DELETE /api/trips/:tripId/places/:placeId
-  already existed (Phase 1) with correct auth/ownership/lock enforcement — confirmed via
-  code read, not missing as UAT assumed. Fixed a real latent bug found while confirming
-  cascade behavior: deleting a place with items attached threw an unhandled 500 (FK
-  constraint violation) under FK enforcement, and would have left dangling
-  items.trip_place_id references where FK enforcement is off (prod). Fix: items under a
-  deleted place are now reassigned to trip-level (trip_place_id = null) atomically with
-  the place delete via db.batch().
+CURRENT STATUS: Two sessions landed today. Most recent — BUG-32 backend half complete.
+  DELETE /api/trips/:tripId/places/:placeId already existed (Phase 1) with correct
+  auth/ownership/lock enforcement — confirmed via code read, not missing as UAT
+  assumed. Fixed a real latent bug found while confirming cascade behavior: deleting a
+  place with items attached threw an unhandled 500 (FK constraint violation) under FK
+  enforcement, and would have left dangling items.trip_place_id references where FK
+  enforcement is off (prod). Fix: items under a deleted place are now reassigned to
+  trip-level (trip_place_id = null) atomically with the place delete via db.batch().
+  Prior session — BUG-31 fix complete and merged (PR #162): GET /api/trips/:id was
+  missing arrived_on/departed_on on each place (read-path bug, PATCH persistence was
+  already correct).
 ACTIVE TASKS: None
-PENDING MESSAGES TO COO: 20260720_1100-BACKEND-bug32-complete.txt (sent)
+PENDING MESSAGES TO COO:
+  20260720_1100-BACKEND-bug32-complete.txt (sent)
+  20260720_1100-BACKEND-bug31-complete.txt (sent, processed — BUG-31 merged as #162)
 OPEN ISSUES:
   - Production DB connection (src/backend/db/index.ts createLibSQLDb) never runs
     PRAGMA foreign_keys = ON. All ON DELETE CASCADE/RESTRICT declarations in schema.ts
@@ -19,4 +24,6 @@ OPEN ISSUES:
   - security.access-matrix.test.ts / owner-access.test.ts do not cover cross-user 404
     for DELETE places specifically (only DELETE trip is covered there). Pre-existing
     coverage gap, not introduced by this change.
-LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug32-park.txt
+  - BUG-31 session noted it unblocks BUG-28 UAT re-verification — still applies.
+LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug32-park.txt (see also
+  jobs/backend/park-docs/20260720-BACKEND-bug31-park.txt for the prior session)

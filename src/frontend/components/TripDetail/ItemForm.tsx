@@ -26,6 +26,13 @@ interface ItemFormProps {
   tripPlaceId: number | null;
   /** When set, the form is in edit mode and pre-populated. */
   existingItem?: Item;
+  /**
+   * Restricts the Step 1 type picker to a subset of item types (create only).
+   * Defaults to all 6 types. BUG-36: the trip-level entry point passes
+   * ['flight', 'car_rental'] — restaurant/hotel/experience are inherently
+   * tied to a specific city and don't make sense without a place.
+   */
+  allowedTypes?: ItemType[];
   /** Called when the modal should close. */
   onClose: () => void;
 }
@@ -100,10 +107,20 @@ void fieldLabel;
  * @param tripId - Parent trip ID.
  * @param tripPlaceId - Parent place ID (null for trip-level items).
  * @param existingItem - Pre-populates form when editing.
+ * @param allowedTypes - Restricts the Step 1 type picker (create only). Defaults to all types.
  * @param onClose - Called on success or cancel.
  */
-export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFormProps) {
+export function ItemForm({
+  tripId,
+  tripPlaceId,
+  existingItem,
+  allowedTypes,
+  onClose,
+}: ItemFormProps) {
   const isEditing = !!existingItem;
+  const selectableTypes = allowedTypes
+    ? ITEM_TYPES.filter((t) => allowedTypes.includes(t.value))
+    : ITEM_TYPES;
 
   const [itemType, setItemType] = useState<ItemType | null>(existingItem?.item_type ?? null);
   const [status, setStatus] = useState<ItemStatus>(existingItem?.status ?? 'consider');
@@ -265,7 +282,7 @@ export function ItemForm({ tripId, tripPlaceId, existingItem, onClose }: ItemFor
             <div>
               <p className="m-0 mb-3.5 text-sm text-gray-600">Select item type:</p>
               <div className="grid grid-cols-3 gap-2.5">
-                {ITEM_TYPES.map((t) => (
+                {selectableTypes.map((t) => (
                   <button
                     key={t.value}
                     type="button"

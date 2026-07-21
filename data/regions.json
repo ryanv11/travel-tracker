@@ -70,5 +70,9 @@
   { "country_code": "CA", "name": "Prince Edward Island", "iso_3166_2": "CA-PE" },
   { "country_code": "CA", "name": "Northwest Territories", "iso_3166_2": "CA-NT" },
   { "country_code": "CA", "name": "Yukon", "iso_3166_2": "CA-YT" },
-  { "country_code": "CA", "name": "Nunavut", "iso_3166_2": "CA-NU" }
+  { "country_code": "CA", "name": "Nunavut", "iso_3166_2": "CA-NU" },
+  { "country_code": "GB", "name": "England", "iso_3166_2": "GB-ENG" },
+  { "country_code": "GB", "name": "Scotland", "iso_3166_2": "GB-SCT" },
+  { "country_code": "GB", "name": "Wales", "iso_3166_2": "GB-WLS" },
+  { "country_code": "GB", "name": "Northern Ireland", "iso_3166_2": "GB-NIR" }
 ]

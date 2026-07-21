@@ -277,6 +277,8 @@ Get a single trip with full nested data (places, cities, items).
     {
       "id": 1,
       "city_id": 1,
+      "arrived_on": "2026-06-01",
+      "departed_on": "2026-06-05",
       "created_at": "2026-03-07T14:31:00.000Z",
       "city": {
         "id": 1,
@@ -310,6 +312,14 @@ Get a single trip with full nested data (places, cities, items).
   ]
 }
 ```
+
+> **`arrived_on` / `departed_on` on each place (ADL-24 / BUG-31):** `null` when
+> not explicitly set on the place. These drive `resolvePlaceDateRange`'s
+> highest-precedence source on the frontend (explicit > hotel dates > trip
+> dates — ADL-24 §5). Fixed 2026-07-20 (BUG-31, #155): this endpoint's
+> `getPlaces()` query previously omitted both columns entirely, so explicit
+> place dates set via `PATCH /api/trips/:tripId/places/:placeId` never
+> reached the trip detail view even though they were persisted correctly.
 
 **Errors:**
 - `404` — trip not found

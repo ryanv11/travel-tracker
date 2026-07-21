@@ -290,6 +290,13 @@ export const tripRepository = {
       .select({
         id: tripPlaces.id,
         cityId: tripPlaces.cityId,
+        // BUG-31: arrivedOn/departedOn were missing from this select entirely, so
+        // GET /api/trips/:id never surfaced explicit place dates even though the
+        // PATCH endpoint (placeRepository.updateDates) persisted them correctly —
+        // the frontend's resolvePlaceDateRange (ADL-24 §5) always saw them as
+        // undefined and fell through to the hotel/trip fallback.
+        arrivedOn: tripPlaces.arrivedOn,
+        departedOn: tripPlaces.departedOn,
         createdAt: tripPlaces.createdAt,
         cityName: cities.name,
         cityCountryCode: cities.countryCode,
