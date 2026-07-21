@@ -10,6 +10,7 @@ import {
   activities,
   cities,
   getDb,
+  items,
   tripPlaceActivitiesMap,
   tripPlaces,
   trips,
@@ -170,6 +171,16 @@ export const placeRepository = {
   /**
    * Deletes a place. Verifies the parent trip is writable and the place belongs to it.
    * Returns true if deleted, false if not found.
+   *
+   * BUG-32: items logged under this place (items.trip_place_id) are reassigned to
+   * trip-level (trip_place_id = NULL) rather than cascade-deleted. NULL is already a
+   * valid, meaningful state for trip_place_id — schema.ts documents it as "trip-level
+   * items ... not tied to a specific city" — so this preserves logged items (flights,
+   * hotels, ratings, notes) instead of silently destroying user data as a side effect
+   * of removing a place from the itinerary. The reassignment and the place delete are
+   * batched atomically via db.batch() (not db.transaction() — see
+   * tripRepository.replaceAssociations for why transaction() is unsafe with libSQL
+   * :memory: clients used in tests).
    */
   async delete(userId: string, tripId: number, placeId: number): Promise<boolean> {
     await this.assertWritable(userId, tripId);
@@ -182,7 +193,10 @@ export const placeRepository = {
       .limit(1);
     if (!existing.length) return false;
 
-    await db.delete(tripPlaces).where(eq(tripPlaces.id, placeId));
+    await db.batch([
+      db.update(items).set({ tripPlaceId: null }).where(eq(items.tripPlaceId, placeId)),
+      db.delete(tripPlaces).where(eq(tripPlaces.id, placeId)),
+    ]);
     return true;
   },
 

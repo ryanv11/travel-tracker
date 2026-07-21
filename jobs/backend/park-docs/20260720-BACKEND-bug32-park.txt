@@ -1,0 +1,92 @@
+BACKEND PARK DOC — 2026-07-20
+SESSION: BUG-32 — remove a place from a trip (GitHub #156)
+
+WHAT WAS DONE
+
+Brief assumed DELETE /api/trips/:tripId/places/:placeId was missing (UAT found no UI
+affordance). Confirmed via code read that the route has existed since Phase 1
+(src/backend/routes/places.ts, commit 5853b6d) and already satisfies the mandatory
+security checklist:
+  - requireAuth applied globally at app.use('/api/', requireAuth) in server.ts
+  - placeRepository.assertWritable(userId, tripId) scopes by eq(trips.userId, userId)
+    (trip-owner model, matching PATCH/DELETE trip — not app-owner requireOwner)
+  - Ownership checked before lock status (NotFoundError before LockError) — audit
+    invariant 17
+  - Already the 7th of 15 rows in lock-matrix.test.ts's LOCKED_WRITE_MATRIX (added
+    alongside the BUG-27 fix, PR #140) — no 16th route to add, it was already there.
+
+So this was a confirm-not-missing task, not a build-from-scratch task. The real gap was
+item 4 of the brief — cascade behavior for items under a deleted place. Investigated and
+found a genuine bug:
+  - items.trip_place_id has no onDelete set in schema.ts (by design — nullable,
+    documented as "trip-level items ... not tied to a specific city").
+  - Empirically verified (scratch test, since removed): deleting a place with an item
+    attached threw an unhandled 500 (SQLite FK constraint violation).
+
+CORRECTION (post-first-push): this park doc originally claimed production's libSQL
+connection never enables PRAGMA foreign_keys and so the delete would "silently succeed"
+in prod, leaving a dangling reference. That was wrong. Frontend independently hit the
+same defect building the parallel UI brief and, per
+jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt,
+verified with an isolated @libsql/client script that this driver enforces
+`foreign_keys` ON by default even with no explicit PRAGMA call — I reproduced that same
+check myself and confirmed it. So the bug is CRITICAL, not latent: every delete of a
+place with any item attached 500s in production too, not just in FK-enforced tests.
+This doesn't change the fix (it explicitly reassigns before deleting, so it's correct
+regardless of the FK-enforcement default either way) — it changes the severity and
+corrects the "open issue" below. Fixed in the second commit to this branch, after
+reconciling with Frontend's independent report on the second main-merge.
+
+Frontend's report proposed a different fix — onDelete: 'cascade' on items.trip_place_id
+(destroy the items with the place) — flagged for "whoever owns the parallel backend
+brief." I'd already implemented and tested the reassign-to-null approach before reading
+their report (found the same bug independently, same day). Keeping reassignment: it
+preserves logged items (flights, hotels, ratings, notes) instead of destroying them as
+a side effect of removing a place, and NULL trip_place_id is already a first-class
+"trip-level item" state per schema.ts. Recommend COO does not open a separate BUG-37 for
+this — it's resolved in this PR, same feature/route Frontend was flagging against.
+
+FIX: src/backend/repositories/places.ts placeRepository.delete — before deleting the
+place, reassigns any items under it to trip-level (trip_place_id = null) via db.batch()
+(atomic with the place delete). db.batch() chosen over db.transaction() per the existing
+comment in tripRepository.replaceAssociations — transaction() breaks libSQL :memory:
+test clients.
+
+Decision: reassign, not cascade-delete. Cascade-deleting logged items (flights, hotels,
+ratings, notes) as a side effect of removing a place would be a surprising, destructive
+UX — NULL trip_place_id is already a first-class "trip-level item" state per schema.ts,
+so reassignment is the natural, non-destructive choice. No migration needed — the FK's
+onDelete stays unset; the reassignment is owned by application code, now documented in
+both schema.ts and the route/repository comments.
+
+Contract confirmed unchanged for Frontend: DELETE /api/trips/:tripId/places/:placeId,
+204 on success, 403 if locked, 404 if not found/not owned.
+
+Changes made:
+  src/backend/repositories/places.ts — delete() reassigns items.tripPlaceId to null via
+    db.batch(), doc comment added
+  src/backend/routes/places.ts — doc comment added above the DELETE handler
+  src/backend/db/schema.ts — doc comment addendum on items.tripPlaceId re: BUG-32
+  src/backend/routes/__tests__/places.test.ts — new regression test: deleting a place
+    with an item attached returns 204, item survives with trip_place_id null, place gone
+
+TESTS
+  525 backend tests pass (1 new), 1 pre-existing skip unrelated to this change
+  Type check clean (type:check:backend)
+  lock-matrix.test.ts: all 21 tests still pass unchanged (DELETE places already covered)
+
+OPEN ISSUES (flagged to COO, not fixed here — out of scope for BUG-32)
+  1. security.access-matrix.test.ts / owner-access.test.ts don't have a cross-user 404
+     case for DELETE places specifically (only DELETE trip). Pre-existing coverage gap.
+
+(No longer an open issue: PRAGMA foreign_keys enforcement — corrected above. libSQL
+enforces it by default; no Architect ADL needed on that specific point.)
+
+COMMIT: (see PR) — includes a merge-conflict resolution pass (two main-merges during
+this session; second one required this correction)
+CI: pending — see completion report
+
+STATE ON PARK
+  No active tasks. Inbox empty (no unread messages besides this session's brief, which
+  came directly from COO/orchestrator, not via inbox file).
+  Awaiting next COO dispatch.
