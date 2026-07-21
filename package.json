@@ -19,6 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/backend/db/seed.ts",
+    "db:reset-staging": "tsx src/backend/db/reset-staging.ts",
     "db:studio": "drizzle-kit studio",
     "status": "node scripts/status.js",
     "status:check": "node scripts/status.js --check",
