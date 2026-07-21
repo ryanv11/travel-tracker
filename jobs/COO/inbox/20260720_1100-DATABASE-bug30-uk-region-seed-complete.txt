@@ -1,0 +1,63 @@
+TO: COO
+FROM: DATABASE
+DATE: 2026-07-20 11:00
+RE: BUG-30 fix complete
+
+Tracker: BUG-30 · GitHub #154 · BRD §5.2 GE-04/GE-05/GE-06 · Branch: fix/bug30-uk-region-seed
+
+WHAT WAS BUILT: GB was seeded with region_tier_enabled=0 (no region tier), so
+Scotland/England/Wales/Northern Ireland — regions under GB, not ISO 3166-1
+countries — never surfaced. Fixed data/countries.json (GB now
+region_tier_enabled=1, label "Constituent Country") and data/regions.json
+(added the 4 UK regions with real ISO 3166-2 codes GB-SCT/GB-ENG/GB-WLS/
+GB-NIR), plus a data-only custom migration (0008_bug30_uk_region_seed.sql)
+to patch installs that already ran the first-launch seed.
+
+ACCEPTANCE CRITERIA:
+  GB region_tier_enabled=1 + label set — PASS
+  4 UK regions seeded with correct ISO 3166-2 codes — PASS
+  db:generate --custom + db:migrate only, no db:push (ADL-15) — PASS
+  Migration idempotent — PASS
+  Fresh-install path also fixed (JSON seed files) — PASS
+  No regression to existing US/AU/CA regions — PASS (verified both fresh-
+    install and already-seeded paths explicitly, see below)
+  type:check:backend / type:check:all — PASS
+  test:backend (23 files, 523 tests) — PASS, 1 skipped (expected)
+  biome check — PASS
+  test:frontend — 1 pre-existing failure, confirmed unrelated (fails
+    identically with this thread's changes stashed out — CarryForwardModal
+    BUG-03 test, not a DB/seed issue)
+  status:check — FAILS, but pre-existing: this worktree already had
+    uncommitted tracker.json/STATUS.md/BRD.md/drift-ledger/uat-log changes
+    before this thread started (not part of this brief). Left untouched,
+    not committed to this branch.
+
+MIGRATION VERIFIED: db:generate --custom + db:migrate ran; verified against
+dev.db AND a from-scratch fresh-install simulation (migrate on empty db,
+then seedCountries/seedRegions replay: 250 countries, 76 regions incl. all
+4 GB + all 51 US, GB row correct). Never used db:push.
+
+SELF-CAUGHT BUG (fixed pre-commit): first draft's region INSERTs were
+guarded only per-row, which would have inserted into an empty regions table
+on fresh installs and tripped seedRegions()'s "non-empty -> skip" guard,
+silently starving every future fresh install of all 72 non-GB regions. Added
+a `WHERE EXISTS (SELECT 1 FROM regions LIMIT 1)` guard so the migration only
+patches already-seeded installs. Full detail in park doc.
+
+TOOLING FLAG (non-blocking): drizzle-kit CLI's `migrate` command transiently
+dropped the freshly-generated custom migration's journal entry on its first
+run this thread (worked around, not reproduced since). Possible 5th
+drizzle-kit@0.31.9 bug alongside the four in patches/drizzle-kit+0.31.9.patch
+— worth a look if it recurs. Detail in jobs/database/context/current.txt.
+
+CI: PR not yet opened as of this report — will push branch, open PR
+referencing #154 and BRD §5.4/5.2, and confirm gh run list is green before
+considering this closed. (Report filed now per park/report ordering; will
+follow up if CI surfaces anything.)
+
+OPEN ISSUES: none blocking. Frontend test failure and status:check failure
+above are both pre-existing/out of scope, noted for visibility only.
+
+UNBLOCKED: Backend/Frontend can now rely on GB having a working Region tier;
+QA can re-verify BUG-30 once merged. PO can re-run the Scotland dogfood
+trial (BRD-PL0104 trigger) mentioned in the tracker note.
