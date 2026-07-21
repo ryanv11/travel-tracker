@@ -1,0 +1,33 @@
+ADL-35 · Env promotion model (prod vs staging) · PR: pending push · BRD: NF-09 · Branch: chore/adl-35-env-promotion
+
+WHAT WAS DECIDED
+Layer a promotion gate on Railway's existing CI-gated deploy. Staging keeps watching `main`
+(continuous soak); Production is repointed to watch a long-lived `production` branch, promoted
+by explicit `git merge --ff-only origin/main` + push. No tags-as-trigger, no GitHub Action —
+Railway's native branch-watching drives both envs, zero deploy glue (per ADL-32's rationale).
+
+PER-DECISION VERDICT
+- Promotion mechanism = long-lived `production` branch, ff-only from soaked main: ADOPTED (High).
+- Staging = continuous on `main`: ADOPTED (High).
+- CI gate: unchanged, layers underneath — SHA carries main's green checks, so a ff promotion
+  deploys prod with no redundant CI run. Do NOT add a `push:[production]` CI trigger.
+- Branch-per-brief workflow: UNCHANGED — explicitly confirmed (ADL-35 §7). `production` is never
+  a PR target / never branched from; agents never touch it (COO/PO-only, like merge).
+- Tag-per-promotion / promotion-PR / Railway native promote / status-quo: all REJECTED (§Alternatives).
+- D-05 (separate Clerk prod/staging apps): noted OUT OF SCOPE — until decided, staging sign-ins
+  land in the prod Clerk user pool. Not folded in.
+
+CI: no source/workflow change; ADL + supersession stamp only. Will confirm gh pr checks green
+after push before considering the thread closed.
+
+OPEN ITEMS / YOUR ACTIONS (ADL-35 §8 — I did NOT do these; they're COO/PO):
+1. `git branch production main && git push origin production` (must exist before Railway watches it).
+2. Railway dashboard: Production env watched branch main → production; Staging stays main;
+   confirm CI-gate-on-deploy still on for both; confirm prod Turso creds stay on Production,
+   staging Turso creds on Staging (safety rests on that env-var split).
+3. CLAUDE.md git-workflow: add "Environment promotion" subsection — apply AT THE SAME TIME as
+   the Railway repoint, not before (lifecycle rule: don't assert a model that isn't live yet).
+4. Create tracker entry OP-22 (operational, no BRD ID).
+
+UNBLOCKED: once §8 is done, every merge to main soaks on staging before an explicit prod promote —
+closes the "every merge hits prod with zero soak" risk the PO flagged.

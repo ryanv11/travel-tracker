@@ -1,8 +1,12 @@
 ARCHITECT CONTEXT — 2026-07-21
 PROJECT: Travel Tracker
-CURRENT STATUS: ADL-33 decided — read-only agent diagnostic access to the ADL-32 hosted
-stack (Railway/Turso/Clerk). Design only; no code/config committed. Implementation is a
-follow-up COO/Backend brief gated on PO provisioning tokens.
+CURRENT STATUS: ADL-35 decided — environment promotion model. Staging keeps watching `main`
+(continuous soak); Production is repointed to watch a long-lived `production` branch, promoted
+by explicit `git merge --ff-only origin/main` + push. Design only; the only committed change is
+the ADL-35 entry + a supersession stamp on ADL-32 §5. Railway repoint, CLAUDE.md workflow
+addition, and an OP-22 tracker entry are COO/PO follow-ups (ADL-35 §8). Branch-per-brief is
+UNCHANGED (§7). D-05 Clerk app split noted as out of scope. Prior thread: ADL-33 (read-only
+agent diagnostic access) — see 20260721-ARCHITECT-park.txt.
 
 ================================================================================
 WORK COMPLETED THIS THREAD (ADL-33)
@@ -59,7 +63,7 @@ OPEN / HANDOFF
 TECH FILES
 ================================================================================
 
-  jobs/architect/tech/20260307-architecture-decisions-log.md  ADL-01 through ADL-33
+  jobs/architect/tech/20260307-architecture-decisions-log.md  ADL-01 through ADL-35
   jobs/architect/tech/OP-06-hardening-checklist.md            unchanged, 13/13 PASS
 
 ================================================================================
