@@ -1,63 +1,47 @@
-BACKEND CONTEXT — 2026-07-20
+BACKEND CONTEXT — 2026-07-21
 PROJECT: Travel Tracker
-CURRENT STATUS: Four backend threads landed this UAT-triage round.
-  1. BUG-32 (PR #166, merged): DELETE /api/trips/:tripId/places/:placeId already
-     existed (Phase 1) with correct auth/ownership/lock enforcement — confirmed via
-     code read, not missing as UAT assumed. Fixed a real CRITICAL bug (independently
-     also found by Frontend while building the parallel UI brief — see
-     jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt,
-     merged as part of #170) confirming cascade behavior for items under a deleted
-     place: deleting a place with any item attached threw an unhandled 500 (FK
-     constraint violation) — libSQL's @libsql/client enforces `PRAGMA foreign_keys`
-     ON by default even with no explicit pragma call (verified empirically; corrects
-     an earlier wrong assumption in this file's previous revision that production
-     didn't enforce FKs — it does). Fix: items under a deleted place are reassigned to
-     trip-level (trip_place_id = null) atomically with the place delete via
-     db.batch(), rather than Frontend's proposed alternative (onDelete: 'cascade' on
-     the schema FK) — reassignment preserves logged items (flights, hotels, ratings)
-     instead of destroying them as a side effect of removing a place. See this
-     thread's park doc for the full reconciliation.
-  2. BUG-31 (merged to main, PR #162): GET /api/trips/:id was missing arrived_on/
-     departed_on on each place — read-path bug, PATCH persistence was already correct.
-  3. BUG-10 reopened-UAT (merged to main, PR #164): zName max changed 200 -> 75 chars
-     (src/backend/validation/common.ts), error message updated to match. Contract +
-     unit test boundaries moved from 200/201 to 75/76. API reference doc updated.
-  4. BUG-33 application-logic fix (this thread — PR #167): find-or-create in
-     POST /api/cities (src/backend/routes/cities.ts) — looks up an existing city by
-     (name, country_code) before inserting, stopping new duplicate `cities` rows
-     (UAT found "Glasgow" twice in the autocomplete). The companion DB brief
-     (PR #169, merged, migrations 0009/0010) added a `COLLATE NOCASE` unique index
-     + cleanup migration; this thread's lookup was updated to match that collation
-     exactly (COLLATE NOCASE, not a generic lower()) once #169 landed, and its
-     in-memory test schema now mirrors the real unique index too. Rebased onto main
-     twice this session as other PRs in the same UAT-triage round kept merging ahead
-     of it — see park doc for the process notes from that.
+CURRENT STATUS: BRD-NF09 hosted deployment backend implementation (ADL-32), this thread.
+  1. BRD-NF09 (PR pending — feat/nf09-hosted-deployment-backend): implemented 2 of
+     ADL-32's 3 backend scope items, investigated/documented the third.
+     - src/backend/db/index.ts: createLibSQLDb() now prefers TURSO_DATABASE_URL over
+       SQLITE_PATH and passes TURSO_AUTH_TOKEN as authToken when present. Local dev
+       unaffected (no TURSO_DATABASE_URL set locally, falls back to SQLITE_PATH).
+     - src/backend/server.ts: added express.static serving of dist/ + SPA fallback,
+       gated on NODE_ENV=production && dist/ exists. /api/* explicitly excluded from
+       the fallback. Two non-obvious bugs found and fixed along the way: (a) Express 5
+       removed bare `*` wildcard routes — used a path-less app.use() instead of
+       app.get('*', ...); (b) res.sendFile(absolutePath) without a `root` option 404s
+       if any ancestor directory starts with a dot (this repo's worktree paths live
+       under .claude/worktrees/...) — fixed with
+       res.sendFile('index.html', { root: DIST_DIR }), which is also just the more
+       correct pattern regardless of deployment path.
+     - Clerk origin verification (ADL-32 §6): investigated, no code change needed on
+       the backend side — ALLOWED_ORIGINS/azp (HC-02) can be set dynamically per
+       Railway Preview via Railway's ${{RAILWAY_PUBLIC_DOMAIN}} reference-variable
+       templating (Ryan's dashboard action, not code). Clerk's OWN dashboard allowed-
+       origins config is separate and unverified — flagged prominently to COO/PO as
+       the part of this brief needing a follow-up decision, not a code fix. See park
+       doc for full findings and the documented BYPASS_AUTH=true fallback tradeoff if
+       Clerk can't support dynamic preview origins.
 ACTIVE TASKS: None
 PENDING MESSAGES TO COO:
-  20260720_1100-BACKEND-bug32-complete.txt (sent)
-  20260720_1100-BACKEND-bug31-complete.txt (sent, processed — BUG-31 merged as #162)
-  20260720_1100-BACKEND-bug10-name-limit-complete.txt (sent, processed — merged as #164)
-  20260720_BACKEND-bug33-complete.txt (sent; rebase follow-up filed alongside)
+  20260721_1706-BACKEND-nf09-hosted-deployment-complete.txt (sent)
 OPEN ISSUES:
-  - From BUG-32: security.access-matrix.test.ts / owner-access.test.ts do not cover
-    cross-user 404 for DELETE places specifically (only DELETE trip is covered
-    there). Pre-existing coverage gap, not introduced by this change.
-  - From BUG-31: None. Unblocks BUG-28 UAT re-verification.
-  - From BUG-10: zName is a shared primitive (src/backend/validation/common.ts) also
-    used by admin.schemas.ts for category/companion/region names. Changing it to 75
-    for BUG-10 also caps those admin entity names at 75 — this was the explicit
-    brief instruction, but it wasn't scoped to trips-only. No admin-schema tests
-    currently assert a 200-char boundary so nothing broke, but COO/PO may want to
-    confirm admin names are fine at 75 or split zName into a trip-specific variant.
-  - From BUG-33: Pre-existing, unrelated flaky test in
-    src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx
-    ("calls onClose immediately when Skip is clicked") — fails intermittently on
-    full test:frontend runs, passes in isolation. Not touched by this brief.
-  - PROCESS INCIDENT (BUG-33 thread): a bare `git stash`/`pop` used mid-task to
-    test against a clean tree collided with another concurrent agent's stash
-    (refs/stash is shared across all worktrees in this repo, unlike checkout/HEAD).
-    Recovered without data loss; full detail in the BUG-33 park doc. COO has since
-    raised an OP-20 guardrail against bare git stash in concurrent-agent sessions.
-LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug33-park.txt (see also
-  ...-bug32-park.txt, ...-bug31-park.txt and ...-bug10-name-limit-park.txt for the
-  other three threads)
+  - Clerk dashboard verification needed from Ryan (see park doc §3) — determines
+    whether Preview environments get real Clerk auth or fall back to
+    BYPASS_AUTH=true scoped to Preview only (ADL-32 §6 documented fallback,
+    explicitly flagged as a tradeoff not a clean solution).
+  - PROCESS INCIDENT (this thread, contained): a scoping mistake in a cleanup
+    `pkill -9 -f "tsx watch src/backend/server.ts"` matched another session's dev
+    server supervisor processes (running from /workspace, not my worktree) and
+    killed the tsx watch wrapper (hot-reload) for that session, though the actual
+    server process survived and kept serving on port 3001 (confirmed still healthy
+    after the incident). That other session's owner will need to restart
+    `npm run dev:api` to get hot-reload back. Full detail + lesson learned in this
+    thread's park doc. No data lost, no request dropped as far as verifiable.
+  - ADL-32 §10 success criteria (production URL reachable, Clerk sign-in e2e, data
+    persists across deploy, PR preview reachable, preview DB isolation, CI+deploy
+    green on merge) require an actual Railway deploy to verify — out of scope for
+    this code-only brief; someone (COO/PO) needs to verify these post-merge.
+LAST PARK DOC: jobs/backend/park-docs/20260721-BACKEND-nf09-hosted-deployment-park.txt
+  (see also ...-bug33-park.txt and earlier UAT-triage park docs for prior threads)

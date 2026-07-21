@@ -1,0 +1,74 @@
+BACKEND COMPLETION REPORT
+Tracker: BRD-NF09 | PR: (see below, opening now) | BRD §NF-09 | ADL-32
+Branch: feat/nf09-hosted-deployment-backend
+
+WHAT WAS BUILT
+Implemented 2 of ADL-32's 3 backend scope items in src/backend/db/index.ts (Turso
+authToken support) and src/backend/server.ts (static frontend serving + SPA fallback).
+The 3rd item (Clerk origin verification for Railway) was investigation/documentation
+only per the brief — no code change, findings below need a COO/PO follow-up decision.
+
+ACCEPTANCE CRITERIA
+- Turso authToken support, TURSO_DATABASE_URL priority over SQLITE_PATH: PASS
+- DB_TYPE switch structure unchanged: PASS
+- Fatal error preserved when neither URL var set: PASS
+- express.static + SPA fallback added, gated on NODE_ENV=production && dist/ exists: PASS
+- /api/* excluded from SPA fallback (unmatched API routes still get normal 404, not
+  index.html): PASS
+- Local dev unaffected (two-process Vite/Express split, no dist/ present): PASS
+- npm run build + NODE_ENV=production local simulation serves built output correctly: PASS
+- Clerk origin findings documented (not implemented): PASS — see FOLLOW-UP DECISION below
+
+*** CLERK ORIGIN FINDINGS — NEEDS COO/PO FOLLOW-UP DECISION, NOT JUST A CODE CHANGE ***
+Backend side (ALLOWED_ORIGINS/azp, HC-02) is a non-issue: Railway supports reference-
+variable templating (${{RAILWAY_PUBLIC_DOMAIN}}), so setting
+ALLOWED_ORIGINS=https://${{RAILWAY_PUBLIC_DOMAIN}} on the Preview environment resolves
+to each PR's actual generated domain automatically — zero code change, pure Railway
+dashboard config for Ryan.
+UNVERIFIED (I have no Clerk dashboard access): whether Clerk's OWN allowed-origins/
+redirect config — a separate list from ALLOWED_ORIGINS, governs whether ClerkJS can even
+run from a given origin — supports wildcard/dynamic domains on Ryan's plan. This is
+commonly a paid-tier feature elsewhere; do not assume it's available.
+If Clerk can't support dynamic preview origins, ADL-32 §6's documented fallback is
+BYPASS_AUTH=true scoped to the Preview environment only (Production unaffected, the
+existing NODE_ENV=production fatal-error guard stays as backstop). Flagging explicitly:
+this is a tradeoff (previews stop exercising real auth), not a clean solution — needs a
+conscious COO/PO call once Ryan checks Clerk's dashboard, not a silent default.
+
+SECURITY CHECKLIST (mandatory)
+1. Auth middleware — N/A. Static assets/SPA shell are public by design (same as the
+   existing frontend build being publicly downloadable); no user-data route added.
+   /api/* is explicitly excluded from the new fallback so requireAuth's existing
+   coverage on /api/ is untouched.
+2. Repository queries scoped by userId — N/A, no new queries introduced.
+3. FK .notNull() — N/A, no new tables/columns.
+
+CI: PR not yet opened at time of writing this report — will open immediately after and
+confirm gh pr checks green before considering this done (per process, opening now).
+
+OPEN ISSUES / BLOCKERS
+- Clerk dashboard verification (above) — blocks a clean answer on Preview-environment
+  auth, not the PR itself.
+- PROCESS INCIDENT (contained, no data loss): mid-task local testing, I ran
+  `pkill -9 -f "tsx watch src/backend/server.ts"` to clean up a stray test server —
+  this pattern wasn't scoped to my worktree and matched another session's dev server
+  supervisor (running from /workspace, not my worktree). That session's actual server
+  process survived and is still serving on port 3001 (confirmed healthy after), but its
+  hot-reload supervisor is dead — whoever owns that session needs to restart
+  `npm run dev:api`. Full detail and the lesson (always scope pkill patterns to the
+  worktree path, or track PIDs explicitly) in this thread's park doc.
+- ADL-32 §10 success criteria (production URL reachable, Clerk sign-in e2e, data
+  persists across deploy, PR preview reachable + DB-isolated, CI+deploy green on merge)
+  require an actual Railway deploy — outside this code-only brief's scope. Someone needs
+  to verify these once this PR merges and Railway deploys.
+
+WHAT'S NOW UNBLOCKED
+- Railway can deploy main (once merged) with Ryan's already-provisioned Turso env vars
+  plus DB_TYPE=sqlite (his dashboard action per the brief) and should both connect to
+  Turso and serve the built frontend correctly.
+- Database brief (staging Turso seed strategy, ADL-32 §9) is independent, no shared
+  files, can proceed in parallel.
+- COO may want to update ADL-32 §9's Backend implications checklist to reflect this is
+  done, per the document lifecycle rule.
+
+Full detail: jobs/backend/park-docs/20260721-BACKEND-nf09-hosted-deployment-park.txt
