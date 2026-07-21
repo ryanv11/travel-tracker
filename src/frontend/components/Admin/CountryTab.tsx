@@ -59,8 +59,17 @@ export function CountryTab() {
               </span>
             )}
 
-            {/* Toggle */}
-            <label className="flex items-center gap-1.5 flex-shrink-0 text-[13px] text-gray-700 cursor-pointer">
+            {/* Toggle — BUG-35: title attribute explains what the checkbox does,
+                matching the app's existing hover-tooltip convention (native title
+                attribute, see PlaceSection.tsx "Edit arrival / departure dates"). */}
+            <label
+              className="flex items-center gap-1.5 flex-shrink-0 text-[13px] text-gray-700 cursor-pointer"
+              title={
+                country.region_tier_label
+                  ? `Show a ${country.region_tier_label} tier for ${country.name} — Country → ${country.region_tier_label} → City instead of Country → City`
+                  : `Show a state/province/territory tier for ${country.name} — Country → Region → City instead of Country → City`
+              }
+            >
               <input
                 type="checkbox"
                 checked={country.region_tier_enabled}
