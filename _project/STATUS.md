@@ -31,7 +31,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 |---|---|---|---|
 | BRD-PL0104 | Planning core — idea pool → shortlist → booked across all item types (PL-01–04) | fullstack | ⬜ Pending |
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack | ⬜ Pending |
-| BRD-NF09 | Hosted deployment for personal use (NF-09) | backend | ⬜ Pending |
+| BRD-NF09 | Hosted deployment for personal use (NF-09) | backend | 🔄 In progress |
 
 ### P2 — Important (14)
 
@@ -71,7 +71,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
 | feature | `██████████▓▓▓░░░░░░░` 23/44 | 23 | 21 | 1 |
-| requirement | `██████████████████░░` 29/32 | 29 | 3 | 5 |
+| requirement | `██████████████████▓░` 29/32 | 29 | 3 | 5 |
 | bug | `███████████████████░` 37/38 | 37 | 1 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `███████████████░░░░░` 6/8 | 6 | 2 | 0 |

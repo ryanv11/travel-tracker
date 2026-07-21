@@ -67,6 +67,13 @@ two in one dispatch round is too many to treat as one-offs:
    its working directory** (`pwd` / `git rev-parse --show-toplevel` matches the assigned
    worktree path) before running anything else.
 
+**A fresh worktree does not inherit `node_modules`** (2026-07-21) — it is not shared or
+symlinked from the main checkout in this repo's setup. An agent that confirms its
+`pwd` correctly but then runs tests/scripts assuming dependencies are already installed
+will hit confusing missing-module errors that look like a worktree-isolation bug but
+aren't. Run `npm install` inside the worktree before anything else that needs
+`node_modules`, same as a fresh clone would.
+
 ### BRD → tracker rule (mandatory)
 Whenever the BRD is updated (a changelog entry is written), the COO must create tracker
 entries for every new requirement ID introduced before closing the session. No BRD version

@@ -1394,7 +1394,9 @@ not change the disposition.
 ## ADL-32 — Hosted deployment: Railway (compute) + Turso (database), resolves OQ-04
 
 **Date:** 2026-07-20
-**Status:** Decided — pending implementation
+**Status:** Decided — Backend (PR #176) and Database (PR #175) implications both merged
+2026-07-21; pending live Railway deploy verification against §10 success criteria and the
+§6 Clerk-origin follow-up (see BRD-NF09 tracker entry for the current punch list)
 **Tracker:** BRD-NF09 | **BRD ref:** NF-09, NF-03, OQ-04
 
 **Triggered by:** PO request (2026-07-20) to work through a hosted deployment plan.
