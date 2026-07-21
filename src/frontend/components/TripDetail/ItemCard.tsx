@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useDeleteItem } from '../../hooks/useItems';
 import type { Item } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
+import { ITEM_TYPE_ICONS, NoteIcon } from '../icons';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { RatingStars } from '../shared/RatingStars';
 import { StatusBadge } from '../shared/StatusBadge';
@@ -22,16 +23,6 @@ interface ItemCardProps {
   /** Called when the user wants to edit this item. */
   onEdit: (item: Item) => void;
 }
-
-/** Maps item_type to a display emoji icon. */
-const TYPE_ICONS: Record<string, string> = {
-  restaurant: '🍽️',
-  hotel: '🏨',
-  flight: '✈️',
-  car_rental: '🚗',
-  experience: '🎫',
-  note: '📝',
-};
 
 /**
  * Derives a human-readable primary label for the item based on its type.
@@ -79,12 +70,16 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
       item.item_type === 'experience') &&
     rating !== null;
 
+  // WP-02: icon lookup by item_type; falls back to the generic Note glyph for
+  // any (currently impossible) unrecognised type rather than leaving a gap.
+  const TypeIcon = ITEM_TYPE_ICONS[item.item_type] ?? NoteIcon;
+
   return (
     <>
       <div className="p-3 border border-gray-200 rounded-md bg-gray-50 flex justify-between items-start gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-lg">{TYPE_ICONS[item.item_type] ?? '📌'}</span>
+            <TypeIcon size={18} className="text-gray-600 flex-shrink-0" />
             <span className="font-semibold text-sm text-gray-900">{getItemLabel(item)}</span>
             <StatusBadge status={item.status} />
             {item.is_carried_forward && (

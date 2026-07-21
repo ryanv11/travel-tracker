@@ -11,6 +11,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { useCarryForward } from '../../hooks/usePlaces';
 import type { CarryForwardCandidate } from '../../types/api';
+import { ITEM_TYPE_ICONS, NoteIcon } from '../icons';
 import { ErrorMessage } from '../shared/ErrorMessage';
 
 interface CarryForwardModalProps {
@@ -41,15 +42,6 @@ const modalStyle: React.CSSProperties = {
   maxHeight: '85vh',
   overflowY: 'auto',
   boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-};
-
-const TYPE_ICONS: Record<string, string> = {
-  restaurant: '🍽️',
-  hotel: '🏨',
-  flight: '✈️',
-  car_rental: '🚗',
-  experience: '🎫',
-  note: '📝',
 };
 
 /**
@@ -135,50 +127,55 @@ export function CarryForwardModal({
             <div
               style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}
             >
-              {candidates.map((c) => (
-                <label
-                  key={c.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px',
-                    padding: '10px 12px',
-                    border: '1px solid #E5E7EB',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    background: selectedIds.has(c.id) ? '#EFF6FF' : '#fff',
-                    borderColor: selectedIds.has(c.id) ? '#93C5FD' : '#E5E7EB',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(c.id)}
-                    onChange={() => toggleId(c.id)}
-                    style={{ marginTop: '2px', flexShrink: 0 }}
-                  />
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>{TYPE_ICONS[c.item_type] ?? '📌'}</span>
-                      <span style={{ fontWeight: 600, fontSize: '14px' }}>{candidateLabel(c)}</span>
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
-                      From: {c.source_trip_name} ({c.source_trip_end_date.slice(0, 7)})
-                    </div>
-                    {c.notes && (
-                      <div
-                        style={{
-                          fontSize: '12px',
-                          color: '#6B7280',
-                          fontStyle: 'italic',
-                          marginTop: '2px',
-                        }}
-                      >
-                        {c.notes.slice(0, 80)}
+              {candidates.map((c) => {
+                const TypeIcon = ITEM_TYPE_ICONS[c.item_type] ?? NoteIcon;
+                return (
+                  <label
+                    key={c.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      background: selectedIds.has(c.id) ? '#EFF6FF' : '#fff',
+                      borderColor: selectedIds.has(c.id) ? '#93C5FD' : '#E5E7EB',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(c.id)}
+                      onChange={() => toggleId(c.id)}
+                      style={{ marginTop: '2px', flexShrink: 0 }}
+                    />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <TypeIcon size={16} />
+                        <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                          {candidateLabel(c)}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                </label>
-              ))}
+                      <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                        From: {c.source_trip_name} ({c.source_trip_end_date.slice(0, 7)})
+                      </div>
+                      {c.notes && (
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            color: '#6B7280',
+                            fontStyle: 'italic',
+                            marginTop: '2px',
+                          }}
+                        >
+                          {c.notes.slice(0, 80)}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
             </div>
 
             {carryForward.error && <ErrorMessage error={carryForward.error} />}

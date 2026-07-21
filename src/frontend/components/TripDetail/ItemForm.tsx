@@ -16,6 +16,7 @@ import {
   useUpdateItem,
 } from '../../hooks/useItems';
 import type { Item, ItemStatus, ItemType } from '../../types/api';
+import { ITEM_TYPE_ICONS } from '../icons';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { RatingStars } from '../shared/RatingStars';
 
@@ -37,13 +38,13 @@ interface ItemFormProps {
   onClose: () => void;
 }
 
-const ITEM_TYPES: { value: ItemType; label: string; icon: string }[] = [
-  { value: 'restaurant', label: 'Restaurant', icon: '🍽️' },
-  { value: 'hotel', label: 'Hotel', icon: '🏨' },
-  { value: 'flight', label: 'Flight', icon: '✈️' },
-  { value: 'car_rental', label: 'Car Rental', icon: '🚗' },
-  { value: 'experience', label: 'Experience', icon: '🎫' },
-  { value: 'note', label: 'Note', icon: '📝' },
+const ITEM_TYPES: { value: ItemType; label: string }[] = [
+  { value: 'restaurant', label: 'Restaurant' },
+  { value: 'hotel', label: 'Hotel' },
+  { value: 'flight', label: 'Flight' },
+  { value: 'car_rental', label: 'Car Rental' },
+  { value: 'experience', label: 'Experience' },
+  { value: 'note', label: 'Note' },
 ];
 
 const STATUS_OPTIONS: ItemStatus[] = [
@@ -282,17 +283,22 @@ export function ItemForm({
             <div>
               <p className="m-0 mb-3.5 text-sm text-gray-600">Select item type:</p>
               <div className="grid grid-cols-3 gap-2.5">
-                {selectableTypes.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setItemType(t.value)}
-                    className="p-3.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 cursor-pointer text-center"
-                  >
-                    <div className="text-2xl">{t.icon}</div>
-                    <div className="text-xs mt-1 text-gray-700">{t.label}</div>
-                  </button>
-                ))}
+                {selectableTypes.map((t) => {
+                  const TypeIcon = ITEM_TYPE_ICONS[t.value];
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setItemType(t.value)}
+                      className="p-3.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 cursor-pointer text-center"
+                    >
+                      <div className="flex justify-center">
+                        <TypeIcon size={22} className="text-gray-700" />
+                      </div>
+                      <div className="text-xs mt-1 text-gray-700">{t.label}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

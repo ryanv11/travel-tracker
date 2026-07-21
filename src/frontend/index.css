@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* WP-02 Phase 1 — Waypoint design-system tokens (colors, fonts). Defined-but-unused
+   until Phase 2 wires them into existing screens; see theme-waypoint.css header. */
+@import "./theme-waypoint.css";
+
 @layer base {
   *,
   *::before,

@@ -15,6 +15,7 @@ import { useCallback, useState } from 'react';
 import { useLockTrip, useUnlockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
 import type { TripDetail as TripDetailType, TripStatus } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
+import { LockedIcon, PhotosIcon } from '../icons';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { StatusBadge } from '../shared/StatusBadge';
@@ -160,9 +161,10 @@ export function TripDetail({ trip }: TripDetailProps) {
             <button
               type="button"
               onClick={handlePhotos}
-              className="px-3 py-1.5 border border-gray-300 rounded-md bg-white text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              className="px-3 py-1.5 border border-gray-300 rounded-md bg-white text-sm text-gray-600 hover:bg-gray-50 cursor-pointer inline-flex items-center gap-1.5"
             >
-              📷 Photos
+              <PhotosIcon size={14} />
+              Photos
             </button>
           </div>
         </div>
@@ -213,15 +215,17 @@ export function TripDetail({ trip }: TripDetailProps) {
       <div className="flex-1 overflow-y-auto p-6">
         {/* "Coming soon" toast for Photos */}
         {photosToast && (
-          <div className="mb-4 px-4 py-2 bg-gray-100 border border-gray-200 rounded-md text-sm text-gray-600">
-            📷 Photos feature coming soon!
+          <div className="mb-4 px-4 py-2 bg-gray-100 border border-gray-200 rounded-md text-sm text-gray-600 flex items-center gap-1.5">
+            <PhotosIcon size={14} />
+            Photos feature coming soon!
           </div>
         )}
 
         {/* Locked banner */}
         {isLocked && (
-          <div className="mb-4 px-4 py-2.5 bg-gray-100 border border-gray-300 rounded-md text-sm text-gray-700">
-            🔒 Read-only — trip is locked.
+          <div className="mb-4 px-4 py-2.5 bg-gray-100 border border-gray-300 rounded-md text-sm text-gray-700 flex items-center gap-1.5">
+            <LockedIcon size={14} />
+            Read-only — trip is locked.
           </div>
         )}
 

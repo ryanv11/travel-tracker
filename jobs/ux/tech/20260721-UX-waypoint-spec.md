@@ -2,7 +2,9 @@
 
 **Date:** 2026-07-21
 **Author:** UX
-**Status:** Ready for COO review → BRD gate → Frontend dispatch (phased: Phase 1 first, verified, then Phase 2)
+**Status:** BRD-gated (v3.3) and dispatched. Phase 1 (WP-02, GitHub #197) implemented on
+`feat/wp02-waypoint-design-system` (PR TBD by COO on merge), pending PO UAT sign-off per
+CLAUDE.md's mandatory phase-completion gate. Phase 2 (WP-03/WP-04) not yet dispatched.
 **Source:** claude.ai Design project "Travel tracker design review"
 (`8cc525c1-b678-4976-a207-57f7f489844b`), read directly from verbatim copies at
 `jobs/ux/tech/waypoint-mockups/{design-system,trips-desktop,trips-mobile}.dc.html`

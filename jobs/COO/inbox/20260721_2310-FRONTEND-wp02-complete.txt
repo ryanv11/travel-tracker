@@ -1,0 +1,41 @@
+Tracker ID: WP-02 · GitHub issue #197 / PR #198 · BRD §5.16 WP-02 (v3.3) · Branch: feat/wp02-waypoint-design-system
+
+WHAT WAS BUILT
+Waypoint design-system Phase 1 primitives (colors, typography, icons, badge-hue
+logic, button/input variants) as reusable, unused-by-default building blocks per
+jobs/ux/tech/20260721-UX-waypoint-spec.md §1-6. One deliberate exception applied
+immediately: all emoji item/status/photo/map icons replaced with inline SVG
+components everywhere they appear in src/frontend/.
+
+ACCEPTANCE CRITERIA
+1. All §1 color tokens as Tailwind v4 @theme properties, zero raw oklch elsewhere — PASS
+2. Newsreader + Manrope self-hosted, font-display/font-ui utilities, body font unchanged — PASS
+3. 11 icons as inline SVG, zero emoji/dangerouslySetInnerHTML — PASS, WITH A FLAG: brief/BRD/spec all say "11" but spec §3 enumerates 12 icons with real path data (8+4=12, not 11). Implemented all 12 — no principled basis to drop one. Flagged to COO/UX to correct the count.
+4. Badge hue table as reusable logic, not wired into StatusBadge.tsx — PASS
+5. Button/input variants as components, not swapped into existing call sites — PASS
+6. test:frontend / type:check:all / check all pass — PASS
+7. Trips screen pixel-identical except icon swap — SELF-VERIFIED via full diff review (no incidental className/color/spacing changes) + build output; PO UAT (mandatory gate) still required, not run by me.
+
+CI: gh pr checks 198 — all 9 green (Backend/Frontend/Contract/E2E Tests, Type
+Check, Biome, Secret Scanning, Semgrep, Dependency Vulnerability Scan). Confirmed
+via a blocking `gh pr checks 198 --watch`, not a one-shot poll. One follow-up
+commit was required: the first CI run was red because 2 E2E tests
+(trips-status.spec.ts) locator-matched the literal 🔒 emoji, which the icon swap
+correctly removed. Fixed the test locators (not the component); grepped all 9
+replaced emoji across src/e2e/ + src/frontend/ tests to confirm no other test
+needed the same fix.
+
+OPEN ISSUES / BLOCKERS
+- FLAG-WP02-1: "11 vs 12 icons" count error in the brief/BRD/spec (see above) — needs a BRD/spec correction, not app work.
+- FLAG-WP02-2 (process, needs COO action): a `cd /workspace &&`-prefixed npm install briefly ran against the SHARED checkout instead of this worktree early in the thread, before being caught and corrected. Left /workspace/package.json and package-lock.json with stray UNCOMMITTED changes (no commit, nothing pushed) that I cannot revert myself — the sandbox's worktree-isolation guard correctly refuses any further command targeting /workspace, which also blocks cleanup. COO: run `git checkout -- package.json package-lock.json` in /workspace.
+- FLAG-WP02-3 (informational, not blocking): badges.ts's itemStatusToBadgeHue returns null for ItemStatus 'next_time' — spec's hue table doesn't cover it. Phase 2's StatusBadge wiring will need a resolution.
+- npm audit: 5 pre-existing moderate/low vulnerabilities (body-parser, esbuild, drizzle-kit toolchain), unrelated to the two new @fontsource packages, present before this thread's install too.
+
+WHAT'S NOW UNBLOCKED
+WP-03 (Trips desktop reskin) depends on WP-02 shipping first per tracker.json —
+once this PR merges and PO UAT passes, WP-03 can be dispatched.
+
+Full detail: jobs/frontend/tech/20260721-WP02-design-system-primitives.md and
+jobs/frontend/park-docs/20260721-FRONTEND-wp02-park.txt. tracker.json's WP-02
+entry (currently "pending") was left for COO to update per this role's system
+prompt — PR # is #198.

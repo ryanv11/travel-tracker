@@ -13,6 +13,7 @@
 import { UserButton } from '@clerk/react';
 import type { ReactNode } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { LocationPinIcon } from './components/icons';
 import { TripsLayout } from './components/TripList/TripsLayout';
 import { useGeocodeRetryQueue } from './hooks/useGeocodeRetryQueue';
 import { useMe } from './hooks/useMe';
@@ -156,7 +157,7 @@ export function App() {
               element={
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 p-12 text-center">
                   <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center mb-4">
-                    <span className="text-2xl text-gray-300">🗺</span>
+                    <LocationPinIcon size={28} className="text-gray-300" cutoutColor="#E5E7EB" />
                   </div>
                   <p className="text-base font-semibold text-gray-500 mb-1.5">Select a trip</p>
                   <p className="text-sm text-gray-400 max-w-[260px] leading-relaxed">

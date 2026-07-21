@@ -1,0 +1,93 @@
+/**
+ * Waypoint design-system tokens (WP-02, BRD §5.16, jobs/ux/tech/20260721-UX-waypoint-spec.md §1-2).
+ *
+ * PHASE 1 ONLY — these tokens are defined-but-unused. Nothing in the current app
+ * references them yet (except the icon-swap exception, which lives in
+ * src/frontend/components/icons/ and does not depend on this file). Wiring them into
+ * existing screens (StatusBadge, buttons, inputs, global body font) is Phase 2 work —
+ * see the spec's "Scope and non-goals" section for why partial application is worse
+ * than no application.
+ *
+ * Values are copied verbatim from the spec's §1 (color) and §2 (typography) tables —
+ * do not round or approximate. If a value here ever needs to change, change the spec
+ * first, then this file, so they never drift apart silently.
+ */
+
+/* Self-hosted font faces (Newsreader + Manrope) — NOT a Google Fonts CDN link, per
+   explicit PO decision (spec §2 "Font-loading call for Frontend/COO"). Only the
+   weights actually named in the spec's type scale (§2) are loaded, to keep bundle
+   size down: Newsreader 400/500/600, Manrope 400/500/600/700/800. */
+@import "@fontsource/newsreader/400.css";
+@import "@fontsource/newsreader/500.css";
+@import "@fontsource/newsreader/600.css";
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+@import "@fontsource/manrope/800.css";
+
+@theme {
+  /* ---- Radius (spec §5: "10px radius throughout" for buttons/inputs) ---- */
+  --radius-wp: 10px;
+
+  /* ---- Typography ---- */
+  /* Newsreader: serif/display. Manrope: sans/UI. Named so Tailwind v4 generates
+     `font-display` / `font-ui` utilities automatically — opt-in only, the global
+     `body` font-family in index.css's @layer base is untouched by this file. */
+  --font-display: "Newsreader", serif;
+  --font-ui: "Manrope", sans-serif;
+
+  /* ---- Neutrals (warm paper) ---- */
+  --color-wp-bg-page: oklch(97.5% 0.006 80);
+  --color-wp-bg-surface: oklch(99% 0.002 80);
+  --color-wp-border: oklch(89% 0.012 80);
+  --color-wp-ink-muted: oklch(48% 0.015 75);
+  --color-wp-ink: oklch(22% 0.02 75);
+
+  /* Additional neutrals observed in application (spec §1) */
+  --color-wp-bg-subtle: oklch(96% 0.008 80);
+  --color-wp-bg-chip: oklch(93% 0.006 80);
+  --color-wp-ink-faint: oklch(65% 0.01 75);
+  --color-wp-ink-soft: oklch(40% 0.015 75);
+  --color-wp-border-soft: oklch(92% 0.008 80);
+
+  /* ---- Brand ---- */
+  --color-wp-primary: oklch(38% 0.07 195);
+  --color-wp-primary-hover: oklch(33% 0.07 195);
+  --color-wp-primary-subtle: oklch(94% 0.025 195);
+  --color-wp-primary-subtle-text: oklch(30% 0.07 195);
+  --color-wp-accent: oklch(45% 0.1 325);
+
+  /* ---- Status / category hues (spec §1 table + badge shape note) ----
+     Same hue used for trip-status, item-status, and category chips depending on
+     context — see src/frontend/design/badges.ts for the lookup that maps a
+     status/category value to one of these bg/text pairs. */
+  --color-wp-status-planning-bg: oklch(94% 0.025 195);
+  --color-wp-status-planning-text: oklch(30% 0.07 195);
+
+  --color-wp-status-active-bg: oklch(94% 0.03 75);
+  --color-wp-status-active-text: oklch(40% 0.12 75);
+
+  --color-wp-status-review-bg: oklch(94% 0.025 325);
+  --color-wp-status-review-text: oklch(38% 0.1 325);
+
+  --color-wp-status-locked-bg: oklch(93% 0.006 80);
+  --color-wp-status-locked-text: oklch(40% 0.01 80);
+
+  --color-wp-status-confirmed-bg: oklch(94% 0.025 150);
+  --color-wp-status-confirmed-text: oklch(38% 0.1 150);
+
+  --color-wp-status-cancelled-bg: oklch(95% 0.03 25);
+  --color-wp-status-cancelled-text: oklch(42% 0.13 25);
+
+  --color-wp-category-bg: oklch(94% 0.03 255);
+  --color-wp-category-text: oklch(42% 0.1 255);
+
+  /* ---- Button / input tokens (spec §5) ---- */
+  --color-wp-btn-destructive-bg: oklch(97% 0.02 25);
+  --color-wp-btn-destructive-text: oklch(42% 0.13 25);
+  --color-wp-btn-destructive-border: oklch(89% 0.03 25);
+  --color-wp-btn-ghost-border: oklch(85% 0.012 80);
+  --color-wp-btn-ghost-border-hover: oklch(70% 0.012 80);
+  --color-wp-btn-ghost-text-hover: oklch(38% 0.015 75);
+}
