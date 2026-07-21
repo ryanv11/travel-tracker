@@ -68,6 +68,23 @@ citiesRouter.get(
 // ----------------------------------------------------------------
 // POST /api/cities
 // ADL-27 / HC-06: owner-only (city creation pollutes the global seed)
+//
+// BUG-33: find-or-create. GE-14 says the frontend should search before
+// offering "add new city", but that's a UX nicety, not a guarantee — a
+// case-mismatched query, a stale search-results list, or a double-submit
+// can all reach this route for a city that already exists. This handler
+// is the last line of defense against duplicate `cities` rows: it looks
+// up an existing (name, country_code) match case-insensitively before
+// ever inserting, and only inserts when genuinely not found.
+//
+// Migration 0010 (companion DB brief, merged) added
+// uniq_cities_name_country_ci — UNIQUE(name COLLATE NOCASE, country_code).
+// The lookup below matches that collation exactly (COLLATE NOCASE, not a
+// generic lower()) so it always finds the same row the DB constraint would
+// otherwise reject a duplicate of — verified empirically that SQLite/libSQL's
+// COLLATE NOCASE and lower() agree on every case (both are ASCII-only folds;
+// non-ASCII/diacritic variants are an accepted, documented limitation of the
+// index itself, not something this lookup needs to compensate for).
 // ----------------------------------------------------------------
 citiesRouter.post(
   '/',
@@ -101,6 +118,33 @@ citiesRouter.post(
         .where(and(eq(regions.id, region_id), eq(regions.countryCode, country_code)))
         .limit(1);
       if (!regionRows.length) throw new NotFoundError('Region');
+    }
+
+    // BUG-33: find-or-create — look up an existing city by (name, country_code),
+    // matching name COLLATE NOCASE to mirror uniq_cities_name_country_ci exactly.
+    // `name` arrives already whitespace-trimmed by CreateCitySchema (zod .trim()).
+    const existingRows = await db
+      .select()
+      .from(cities)
+      .where(
+        and(eq(cities.countryCode, country_code), sql`${cities.name} = ${name} COLLATE NOCASE`),
+      )
+      .limit(1);
+
+    if (existingRows.length) {
+      // Existing city found — return it as-is (200, not 201: no row was created).
+      // Deliberately does NOT overwrite region_id from the request; that's PATCH's job.
+      const existing = existingRows[0];
+      res.status(200).json({
+        id: existing.id,
+        name: existing.name,
+        country_code: existing.countryCode,
+        region_id: existing.regionId,
+        latitude: existing.latitude,
+        longitude: existing.longitude,
+        geocode_status: existing.geocodeStatus,
+      });
+      return;
     }
 
     const now = new Date().toISOString();

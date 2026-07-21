@@ -1,7 +1,7 @@
 BACKEND CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: Three backend threads landed this UAT-triage round.
-  1. BUG-32 (this thread, PR #166): DELETE /api/trips/:tripId/places/:placeId already
+CURRENT STATUS: Four backend threads landed this UAT-triage round.
+  1. BUG-32 (PR #166, merged): DELETE /api/trips/:tripId/places/:placeId already
      existed (Phase 1) with correct auth/ownership/lock enforcement — confirmed via
      code read, not missing as UAT assumed. Fixed a real CRITICAL bug (independently
      also found by Frontend while building the parallel UI brief — see
@@ -22,11 +22,22 @@ CURRENT STATUS: Three backend threads landed this UAT-triage round.
   3. BUG-10 reopened-UAT (merged to main, PR #164): zName max changed 200 -> 75 chars
      (src/backend/validation/common.ts), error message updated to match. Contract +
      unit test boundaries moved from 200/201 to 75/76. API reference doc updated.
+  4. BUG-33 application-logic fix (this thread — PR #167): find-or-create in
+     POST /api/cities (src/backend/routes/cities.ts) — looks up an existing city by
+     (name, country_code) before inserting, stopping new duplicate `cities` rows
+     (UAT found "Glasgow" twice in the autocomplete). The companion DB brief
+     (PR #169, merged, migrations 0009/0010) added a `COLLATE NOCASE` unique index
+     + cleanup migration; this thread's lookup was updated to match that collation
+     exactly (COLLATE NOCASE, not a generic lower()) once #169 landed, and its
+     in-memory test schema now mirrors the real unique index too. Rebased onto main
+     twice this session as other PRs in the same UAT-triage round kept merging ahead
+     of it — see park doc for the process notes from that.
 ACTIVE TASKS: None
 PENDING MESSAGES TO COO:
   20260720_1100-BACKEND-bug32-complete.txt (sent)
   20260720_1100-BACKEND-bug31-complete.txt (sent, processed — BUG-31 merged as #162)
   20260720_1100-BACKEND-bug10-name-limit-complete.txt (sent, processed — merged as #164)
+  20260720_BACKEND-bug33-complete.txt (sent; rebase follow-up filed alongside)
 OPEN ISSUES:
   - From BUG-32: security.access-matrix.test.ts / owner-access.test.ts do not cover
     cross-user 404 for DELETE places specifically (only DELETE trip is covered
@@ -38,5 +49,15 @@ OPEN ISSUES:
     brief instruction, but it wasn't scoped to trips-only. No admin-schema tests
     currently assert a 200-char boundary so nothing broke, but COO/PO may want to
     confirm admin names are fine at 75 or split zName into a trip-specific variant.
-LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug32-park.txt (see also
-  ...-bug31-park.txt and ...-bug10-name-limit-park.txt for the other two threads)
+  - From BUG-33: Pre-existing, unrelated flaky test in
+    src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx
+    ("calls onClose immediately when Skip is clicked") — fails intermittently on
+    full test:frontend runs, passes in isolation. Not touched by this brief.
+  - PROCESS INCIDENT (BUG-33 thread): a bare `git stash`/`pop` used mid-task to
+    test against a clean tree collided with another concurrent agent's stash
+    (refs/stash is shared across all worktrees in this repo, unlike checkout/HEAD).
+    Recovered without data loss; full detail in the BUG-33 park doc. COO has since
+    raised an OP-20 guardrail against bare git stash in concurrent-agent sessions.
+LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug33-park.txt (see also
+  ...-bug32-park.txt, ...-bug31-park.txt and ...-bug10-name-limit-park.txt for the
+  other three threads)

@@ -982,7 +982,23 @@ GET /api/cities?q=new&country_code=US
 
 ### POST /api/cities
 
-Create a new city. Geocoding is attempted immediately and asynchronously; the response may have `geocode_status: "pending"` if the server is offline.
+Find-or-create a city (BUG-33, GitHub #157 — 2026-07-20). Looks up an existing
+city by `(name, country_code)` case-insensitively (`COLLATE NOCASE`) before inserting;
+only inserts when genuinely not found. This is a defense-in-depth measure against
+duplicate `cities` rows (UAT found "Glasgow" listed twice in the place autocomplete) —
+GE-14 already asks the frontend to search before offering "add new city", but that's a
+UX nicety, not a guarantee against a case-mismatched query, a stale search-results list,
+or a double-submit reaching this route.
+
+The companion database brief (migration `0010_bug33_add_unique_index.sql`, merged) added
+`uniq_cities_name_country_ci` — `UNIQUE(name COLLATE NOCASE, country_code)` — as the
+DB-level backstop. This route's lookup matches that collation exactly (`COLLATE NOCASE`),
+so it always finds the row the constraint would otherwise reject a duplicate of; the two
+are aligned, not independent, though the route's check-then-insert still holds even in a
+deployment that hasn't run that migration yet (defense in depth).
+
+Geocoding is attempted immediately and asynchronously on a genuine insert; the response
+may have `geocode_status: "pending"` if the server is offline.
 
 **Request Body:**
 ```json
@@ -997,9 +1013,9 @@ Create a new city. Geocoding is attempted immediately and asynchronously; the re
 |-------|------|----------|------------|
 | `name` | string | **Yes** | 1–200 chars, trimmed |
 | `country_code` | string | **Yes** | Must exist in countries table |
-| `region_id` | integer \| null | No | If provided, must belong to the given country. **Must be `null`** if country has `region_tier_enabled = false`. Optional even if country has `region_tier_enabled = true`. |
+| `region_id` | integer \| null | No | If provided, must belong to the given country. **Must be `null`** if country has `region_tier_enabled = false`. Optional even if country has `region_tier_enabled = true`. Ignored when an existing city is matched — only used on a genuine insert. |
 
-**Response: `201 Created`**
+**Response: `201 Created`** — a new city was inserted.
 ```json
 {
   "id": 5,
@@ -1011,6 +1027,10 @@ Create a new city. Geocoding is attempted immediately and asynchronously; the re
   "geocode_status": "resolved"
 }
 ```
+
+**Response: `200 OK`** — an existing city matched `(name, country_code)` case-insensitively;
+no row was created. Same body shape, reflecting the existing row (its stored `name`
+casing, `region_id`, and geocode state — not the values from this request).
 
 **Errors:**
 - `400` — validation failure, or `region_id` provided for a non-region-tier country

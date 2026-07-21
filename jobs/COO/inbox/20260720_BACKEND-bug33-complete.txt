@@ -1,0 +1,50 @@
+TO: COO
+FROM: BACKEND
+DATE: 2026-07-20
+RE: BUG-33 application-logic fix — GitHub #157 — BRD GE-11 — Branch fix/bug33-city-dedup-logic
+
+WHAT WAS BUILT
+POST /api/cities (src/backend/routes/cities.ts) now finds-or-creates: looks up
+an existing city by (name, country_code) case-insensitively before inserting;
+only inserts when genuinely not found. Stops new duplicate `cities` rows going
+forward, independent of whether the companion DB brief's unique index has
+landed. API doc (jobs/backend/tech/20260307-api-reference.md) updated in the
+same PR to reflect the new 200-on-match / 201-on-insert behavior.
+
+ACCEPTANCE CRITERIA
+- Repeat POST with same (name, country_code), same case → returns existing row, no new insert: PASS
+- Repeat POST with same (name, country_code), different case → still matches, no new insert: PASS
+- Same name, different country_code → still creates a distinct row (not overly broad matching): PASS
+- Works independent of the DB-level unique index migration: PASS (no dependency either direction)
+- No frontend change required (apiPost() treats any 2xx as success): PASS (verified by reading apiClient.ts)
+
+SECURITY CHECKLIST (no new routes added — POST /api/cities already existed; behavior modified only)
+1. Auth middleware — unchanged: requireOwner still applied (ADL-27/HC-06, city creation is owner-only)
+2. userId scoping — n/a: cities are global seed data, not user-owned (matches existing GET /api/cities pattern)
+3. FK .notNull() — n/a: no new columns added
+
+CI: pending — see follow-up notification once pushed and gh run list confirms green.
+
+OPEN ISSUES
+- Pre-existing, unrelated flaky test: CarryForwardModal.test.tsx "calls onClose
+  immediately when Skip is clicked" — intermittent under full test:frontend
+  run, passes in isolation, not touched by this diff. Flagged, not fixed
+  (out of scope).
+- PROCESS INCIDENT: a bare `git stash`/`pop` I used mid-task to test my diff
+  against a clean tree collided with another concurrent agent's stash (shared
+  `refs/stash` across all worktrees in this repo — not scoped per-worktree,
+  unlike checkout/HEAD). I picked up a foreign uncommitted change to
+  src/frontend/components/TripDetail/TripForm.tsx (looks like BUG-10
+  name-length work, 75-char limit) instead of my own files. Recovered by
+  re-stashing it with a clear message (visible as stash@{0} currently) and
+  reapplying my own edits from scratch — nothing lost, but whoever owns
+  fix/bug10-name-limit-frontend should check their working tree is as
+  expected and recover that stash entry. Full detail in park doc. Recommend
+  a process rule against bare `git stash` for scratch testing in
+  concurrent-agent sessions — `isolation: "worktree"` does not cover this,
+  since stash is shared state.
+
+WHAT IS NOW UNBLOCKED
+- QA can verify BUG-33 application-logic fix once merged.
+- Merge is independent of the parallel database brief (unique index +
+  cleanup migration) — no ordering dependency either direction.
