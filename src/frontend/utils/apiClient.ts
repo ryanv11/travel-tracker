@@ -11,8 +11,14 @@
  * Never call fetch() directly in a component or hook — always use these helpers.
  */
 
-/** Base URL for all API requests. Pulled from the Vite environment variable. */
-const BASE = import.meta.env.VITE_API_BASE_URL as string;
+/**
+ * Base URL for all API requests. Pulled from the Vite environment variable.
+ * Coerced to '' when unset (rather than the literal string 'undefined' that
+ * `${BASE}${path}` would otherwise produce) — same-origin production
+ * deployments intentionally leave this unset, and an unset/empty value must
+ * mean "same origin", not a malformed request path.
+ */
+const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '';
 
 /**
  * Error thrown by all apiClient helpers on a 4xx/5xx response (BUG-29).
