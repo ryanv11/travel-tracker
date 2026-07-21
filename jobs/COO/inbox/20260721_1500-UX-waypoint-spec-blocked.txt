@@ -1,0 +1,78 @@
+FROM: UX
+TO:   COO
+DATE: 2026-07-21 15:00 (updated 15:35 — unblocked, spec delivered)
+RE:   Waypoint redesign spec — DELIVERED
+
+Tracker ID: n/a (spec deliverable — COO adds tracker/BRD entries after review, per
+the BRD-gate-before-dispatch rule)
+GitHub PR: #194 (chore/waypoint-redesign-spec)
+BRD section: n/a — this thread does not touch the BRD; COO does that after review
+Branch: chore/waypoint-redesign-spec
+
+UPDATE: This thread was initially blocked (DesignSync unavailable to a dispatched
+agent — confirmed via ToolSearch, `claude mcp list`, and a 403 WebFetch). You then
+confirmed DesignSync is main-session-only and supplied verbatim copies of the three
+mockup files directly into this worktree (jobs/ux/tech/waypoint-mockups/*.dc.html).
+I read all three in full and completed the spec in the same thread. Original blocker
+record retained and stamped RESOLVED at jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md.
+
+WHAT WAS SPECCED: Full Phase 1 (design-system foundation) + Phase 2 (Trips screen
+reskin, desktop + mobile) implementation spec — jobs/ux/tech/20260721-UX-waypoint-spec.md.
+Phase 1: exact oklch color tokens, Newsreader/Manrope type scale, 11 SVG icon glyphs
+with exact path data, badge/button/input styling, and where these tokens belong given
+this repo's Tailwind v4 CSS-first config. Phase 2: full desktop + mobile Trips layout
+(nav, left panel, trip cards, detail header, a NEW status-stepper component replacing
+today's flat status bar, place sections, item cards, empty states, mobile slide
+transition + bottom tab bar), cross-referenced line-by-line against DP-01..06,
+TR-09/11/12/13, BUG-31/32/34/36, IT-01, UX-02, FEAT-BD, NTH-01/03.
+
+CONFLICTS FOUND: Yes — 13 flagged (C1-C13), listed at the top of the spec doc, NOT
+silently resolved. The consequential ones:
+  C1: Both mockups rename the product to "Waypoint" in the nav — a real product
+      decision, not a styling choice. Needs an explicit yes/no from Ryan.
+  C2: The new status-stepper component (replacing today's flat status bar) has NO
+      Unlock affordance anywhere in either mockup — but the current app has a
+      working, tested Unlock button + confirm flow. Must be preserved as new chrome
+      the mockup doesn't show, not dropped.
+  C3: BUG-36's trip-level items section (flights/cars not tied to a place, shipped
+      2026-07-20, IT-01) is entirely absent from both mockups. Must be preserved.
+  C4: Place-section Edit-dates/Set-dates (UX-02) and Remove (BUG-32) buttons are
+      absent from the mockup's place header — only "+ Add Item" appears. Must be
+      preserved.
+  C5: The mockup's item card drops rating stars, the "carried forward" tag, and full
+      per-type subtext (hotel dates, flight number, cuisine type, notes) down to one
+      generic subtitle line. Must preserve full richness inside the new visual shell.
+  C6: The mockup only demonstrates the filtered-empty state ("no trips match"), not
+      the true first-run zero-trips state the current app already distinguishes
+      ("No trips yet. Create one with '+ New'."). Must preserve both messages.
+  C7: Bulk multi-select delete (FEAT-BD), the undo bar (NTH-01), per-status filter
+      counts (NTH-03), the sort control (TR-09), and the map-filter badge all have no
+      mockup equivalent. Must preserve all — reskinned, not removed.
+  C8: The mockup's own reference implementation renders icons via
+      `dangerouslySetInnerHTML` — a blocking defect in this codebase per
+      `_shared/frameworks.txt` rule 22. Frontend must use literal inline SVG JSX
+      instead (same visual result, compliant technique).
+  C9: The mobile bottom tab bar only appears in the list view, not the detail view
+      (back-button bar takes over there). Likely intentional (my read) but needs
+      Ryan's confirmation since it's a navigation-model decision, not styling.
+  C10-C13: Smaller precision flags — left-panel width (340px mockup vs 320px
+      current, a second change to the same value in under a year), a category-badge
+      color used in both Trips mockups but undocumented in the Design System file's
+      own token swatches, a Newsreader font-weight discrepancy (system doc says 500,
+      every real applied instance uses 600), and a button-radius discrepancy (system
+      doc says 10px, applied buttons measure 9px).
+
+None of C1-C13 block Phase 1 (tokens only, no reskin yet). All must be resolved
+before Phase 2 is briefed to Frontend, per the spec's own success criteria.
+
+CI: gh pr checks 194 — all 9 checks green on the final commit (Backend/Frontend/
+Contract/E2E tests, Biome, Type Check, Dependency Scan, Secret Scanning, Semgrep).
+
+BLOCKING ISSUES: None remaining. (Historical: DesignSync access — resolved this
+thread via your direct file supply.)
+
+WHAT'S UNBLOCKED: Frontend can be dispatched for Phase 1 once you've reviewed the
+spec and completed the BRD gate (new requirement IDs need a BRD home before
+dispatch, per CLAUDE.md). Phase 2 dispatch additionally needs C1-C13 resolved with
+Ryan first — recommend recording those decisions via the record-decision skill
+(BRD entries / ADL / tracker notes as appropriate per each item).
