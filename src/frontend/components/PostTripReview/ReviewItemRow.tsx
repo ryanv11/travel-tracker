@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { useUpdateItem } from '../../hooks/useItems';
 import type { Item, ItemStatus, ItemType } from '../../types/api';
+import { ITEM_TYPE_ICONS } from '../icons';
 import { RatingStars } from '../shared/RatingStars';
 
 interface ReviewItemRowProps {
@@ -28,14 +29,6 @@ const STATUS_LABELS: Record<ItemStatus, string> = {
   completed: 'Completed',
   cancelled: 'Cancelled',
   next_time: 'Next Time',
-};
-const TYPE_ICONS: Record<ItemType, string> = {
-  restaurant: '🍽️',
-  hotel: '🏨',
-  flight: '✈️',
-  car_rental: '🚗',
-  experience: '🎫',
-  note: '📝',
 };
 const RATEABLE_TYPES: ItemType[] = ['restaurant', 'hotel', 'experience'];
 
@@ -60,6 +53,7 @@ export function ReviewItemRow({ item, tripId }: ReviewItemRowProps) {
 
   const isRateable = RATEABLE_TYPES.includes(item.item_type);
   const showRating = isRateable && status === 'completed';
+  const TypeIcon = ITEM_TYPE_ICONS[item.item_type];
 
   const handleStatusChange = async (newStatus: ItemStatus) => {
     setStatus(newStatus);
@@ -79,7 +73,9 @@ export function ReviewItemRow({ item, tripId }: ReviewItemRowProps) {
   return (
     <div style={{ padding: '12px 0', borderBottom: '1px solid #F3F4F6' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '18px', flexShrink: 0 }}>{TYPE_ICONS[item.item_type]}</span>
+        <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center' }}>
+          <TypeIcon size={18} />
+        </span>
         <div style={{ flex: 1, minWidth: '160px' }}>
           <div style={{ fontWeight: 600, fontSize: '14px' }}>{getItemLabel(item)}</div>
           {item.notes && (
