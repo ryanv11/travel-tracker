@@ -33,24 +33,47 @@ node scripts/agent-diagnostics/turso-query.mjs staging "SELECT COUNT(*) FROM tri
   PII (trip data, `users.email`) — see ADL-33 §6.
 - The script warns loudly whenever `prod` is targeted, as a reminder this returns real data.
 
-## Railway — read-only diagnostics (Project token, technically write-capable)
+## Railway — read-only diagnostics (Project tokens, technically write-capable)
 
-Not yet wired up as of this runbook's authoring — blocked on Ryan providing the Railway Project
-token. Once `.env.agent-diagnostics`'s `RAILWAY_PROJECT_TOKEN` is populated:
+**The official `@railway/cli` does not work in this sandbox** — it has no Linux `aarch64` build
+(this container's architecture), and `npm i -g @railway/cli` fails at the postinstall binary
+download step (404 on the GitHub release asset). Use the GraphQL fallback instead:
+`scripts/agent-diagnostics/railway-query.sh`, which talks directly to
+`https://backboard.railway.com/graphql/v2` using the `Project-Access-Token` header (not
+`Authorization: Bearer` — that header is for account/workspace/OAuth tokens only, a distinction
+that matters if you're ever tempted to copy a curl example from Railway's general API docs).
+
+Two tokens exist — one per environment (Railway project tokens are scoped to a specific
+environment within a project, narrower than just "the project"):
 
 ```bash
-npm i -g @railway/cli   # one-time, if not already installed
-export RAILWAY_TOKEN=$(grep RAILWAY_PROJECT_TOKEN .env.agent-diagnostics | cut -d= -f2)
-railway logs --build         # build logs for the most recent deploy
-railway logs --deployment    # runtime logs
-railway status                # current deploy status
-railway variables             # variable NAMES only — do not run any variant that prints values
+scripts/agent-diagnostics/railway-query.sh prod status                        # 5 most recent deployments
+scripts/agent-diagnostics/railway-query.sh staging status
+scripts/agent-diagnostics/railway-query.sh prod deployment <deployment-id>    # full detail on one deployment
 ```
 
-**Per ADL-33 §3: there is no true read-only Railway token.** The Project token can technically
-trigger a deploy or delete resources within that project. Treat it as a privileged, write-capable
-secret — never echo it into logs, commits, PRs, or completion reports — and only ever issue the
-read commands above by convention. This is a discipline, not an enforced wall.
+The script resolves `projectId`/`environmentId` from the token itself at runtime (via the
+`projectToken { projectId environmentId }` query) — nothing is hardcoded, so it keeps working if
+the project is ever recreated. It only ever issues GraphQL *queries*, never mutations — that is
+the actual read-only enforcement here, not the token itself (see below).
+
+**Per ADL-33 §3: there is no true read-only Railway token.** Both tokens can technically trigger
+a deploy or delete resources within their environment. Treat them as privileged, write-capable
+secrets — never echo them into logs, commits, PRs, or completion reports — and only ever issue
+read (query) operations, never mutations. This is a discipline enforced by this script's design
+(query-only), not by the token itself.
+
+### Verified 2026-07-21 — found the root cause of a live stuck deploy
+
+First real use of this script surfaced the actual cause of a Railway deploy stuck "queued due to
+upstream GitHub issues" earlier the same session: `deployment.meta.plan` returned `"trial"`, and
+Railway's own status page / community reports confirmed Railway was actively deprioritizing
+Trial/Hobby tier deploys in favor of Pro/Enterprise during a platform-wide demand spike, ongoing
+as of that date. Not a code, config, or connection problem — Railway's queue prioritization.
+Flagged to Ryan: (a) this should clear on its own as capacity frees up, (b) the project's actual
+plan is `trial`, not the paid Hobby plan ADL-32's cost decision (~$5/mo) assumed — worth
+confirming the upgrade actually went through, and (c) Pro tier is the only tier that bypasses the
+deploy queue entirely per Railway's own guidance, if this recurs.
 
 ## Clerk — not available (declined per ADL-33 §4)
 
