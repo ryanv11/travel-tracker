@@ -1,10 +1,19 @@
-DATABASE CONTEXT — 2026-07-20
+DATABASE CONTEXT — 2026-07-21
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-30 merged to main (#168). BUG-33 schema half (PR #169,
+CURRENT STATUS: BRD-NF09 (ADL-32 hosted deployment) Database implication delivered
+on chore/nf09-staging-seed-strategy — staging Turso seed/reset strategy. See
+"THREAD — BRD-NF09 staging seed/reset strategy" at the end of this file for the
+active/most-recent thread. Everything below this point (2026-07-20 and earlier)
+is prior-thread history, preserved as-is.
+
+================================================================================
+PRIOR STATUS LINE (2026-07-20, preserved for history)
+================================================================================
+BUG-30 merged to main (#168). BUG-33 schema half (PR #169,
 branch fix/bug33-city-dedup-schema) rebased onto main post-BUG-30-merge and
 renumbered to resolve a migration-index collision (both PRs independently
 generated a migration at idx 8 from the same main commit). See "RENUMBERING
-THREAD" section below for the current, active thread.
+THREAD" section below for that thread (since resolved — PR #169 merged).
 
 ================================================================================
 NOTE ON THIS FILE'S GAP (March 2026 -> July 2026)
@@ -147,3 +156,89 @@ NEXT DATABASE THREAD
   whether to keep maintaining the jobs/database/tech/ mirror going forward
   or stamp it HISTORICAL per the Document Lifecycle rule, since
   src/backend/db/schema.ts has been the de facto sole source of truth.
+
+================================================================================
+THREAD — BRD-NF09 staging seed/reset strategy (2026-07-21) — branch
+chore/nf09-staging-seed-strategy
+================================================================================
+
+Scope (ADL-32 §9, Database implications): "Provision the staging Turso database
+and seed strategy (db:seed on creation; document a reset cadence so preview
+environments don't accumulate cruft)." Turso databases themselves already
+provisioned by Ryan (out of scope here) — this thread is the seed/reset
+strategy only. No schema changes.
+
+Delivered:
+  1. Verified `npm run db:seed` needs no changes — it goes through getDb() like
+     everything else, no filesystem-specific assumptions. Confirmed idempotent
+     (ran twice against a fresh migrated DB, row counts unchanged on 2nd run).
+  2. Verified `npm run db:migrate` applies all 11 migrations (0000-0010) clean
+     against a genuinely fresh empty database.
+  3. Found and fixed a real gap NOT covered by ADL-32 §9's Backend bullet:
+     drizzle.config.ts (drizzle-kit's own connection, separate from the app's
+     runtime getDb() in db/index.ts) had no way to authenticate against a
+     remote Turso database at all. Two things were needed: TURSO_AUTH_TOKEN
+     threaded into dbCredentials, AND dialect: 'turso' (not 'sqlite') — TS's
+     own Config type in drizzle-kit only allows an authToken field under the
+     'turso' dialect branch, confirmed by reading node_modules/drizzle-kit/
+     index.d.ts directly, not by guessing. db/index.ts itself was NOT touched
+     (Backend's parallel brief on feat/nf09-hosted-deployment-backend, running
+     concurrently in its own worktree at
+     .claude/worktrees/agent-a5864b7e8e8044c1e).
+  4. New script: src/backend/db/reset-staging.ts (npm run db:reset-staging).
+     Dry-run by default; --yes to actually delete. Clears trip/user data
+     (trips, trip_places, items + item subtypes, all trip join tables, users)
+     in explicit child-before-parent order via Drizzle's query builder (not
+     raw SQL, not relied-on cascade — PRAGMA foreign_keys enforcement is a
+     connection-level libSQL setting this script doesn't want to assume).
+     Leaves countries/regions/cities untouched (reference data, not cruft;
+     self-heals via startup.service.ts / find-or-create anyway). Re-seeds
+     admin lists (trip_categories/activities/companions/map_shading_config)
+     immediately after clearing. Guardrail: refuses to run against a remote
+     libsql:// URL unless it contains "staging" (blunt footgun check, not a
+     security control; --i-know-what-im-doing bypasses it).
+  5. Functional-tested the whole pipeline (migrate -> seed -> insert fixture
+     trip/place/item -> reset --yes -> verify cleared+reseeded state) against
+     a local file: DB standing in for a fresh Turso instance, since no real
+     TURSO_DATABASE_URL/TURSO_AUTH_TOKEN for the staging instance existed in
+     this sandbox (network/credentials not provisioned into this environment
+     — Ryan provisioned the actual Turso databases outside it). This is a
+     valid substitute for what was tested (migration/seed code-path
+     correctness, delete-order correctness) because @libsql/client uses the
+     same driver code regardless of file:/libsql: transport; it is NOT a
+     substitute for a live auth round-trip against the real staging DB, which
+     is flagged as the one remaining unverified step — see the runbook §3/§6.
+  6. Runbook: jobs/database/tech/20260721-staging-reset-runbook.md — full
+     writeup of what accumulates, why it's low-stakes (shared staging DB is
+     a deliberate ADL-32 tradeoff, not a bug), the reset cadence (judgment-
+     based, not a cron schedule — proportionate to a solo low-traffic
+     project), and the drizzle.config.ts finding in full.
+  7. Added a pointer from ADL-32 §9's Database bullet
+     (jobs/architect/tech/20260307-architecture-decisions-log.md) to the
+     runbook, noting delivery, without flipping ADL-32's overall
+     "Status: Decided — pending implementation" line (Backend's parallel
+     piece isn't merged yet — that flip is a COO/Architect call once both
+     Database's and Backend's ADL-32 implications have landed).
+  8. Housekeeping: filed the stale, already-actioned
+     20260321_2300-COO-adl23-trip-countries-migration.md inbox message to
+     inbox/read/ (trip_countries has existed in schema.ts since ADL-23
+     merged; the message was never filed).
+
+Files touched: src/backend/db/reset-staging.ts (new), drizzle.config.ts,
+.env.example, package.json (db:reset-staging script), jobs/database/tech/
+(reset-staging.ts + drizzle.config.ts mirrors, new runbook doc),
+jobs/architect/tech/20260307-architecture-decisions-log.md (pointer only).
+
+Verification: type:check:all, test:backend (532 pass/1 skip), test:frontend
+(119 pass), npm run check, status:check — all clean. Full pre-push suite run
+before push.
+
+NEXT DATABASE THREAD:
+  BRD-NF09 stays "pending" in tracker.json (COO-owned, not touched this
+  thread) until Backend's parallel piece (db/index.ts authToken, static
+  serving, Clerk-origin verification) also lands and someone with real Turso
+  credentials does the one live spot-check flagged in the runbook §3/§6:
+  npm run db:migrate against the actual travel-tracker-staging instance.
+  If that surfaces anything the file:-URL simulation in this thread couldn't
+  catch (should be nothing, given the shared @libsql/client code path, but
+  flagging honestly), it comes back to Database.

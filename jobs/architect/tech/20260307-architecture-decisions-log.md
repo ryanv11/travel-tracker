@@ -1515,6 +1515,15 @@ staging databases fit comfortably within the free tier for personal-use volumes)
     domain, and resolve the Clerk dynamic-preview-origin question in §6
 - **DATABASE:** Provision the staging Turso database and seed strategy (`db:seed` on
   creation; document a reset cadence so preview environments don't accumulate cruft)
+  — **delivered** (chore/nf09-staging-seed-strategy): `db:seed` confirmed to need no
+  changes (already transport-agnostic via `getDb()`); `db:migrate` verified clean
+  against a fresh empty database; new `npm run db:reset-staging` script + reset
+  cadence documented in `jobs/database/tech/20260721-staging-reset-runbook.md`. That
+  thread also found and fixed a gap this bullet didn't cover: `drizzle.config.ts`
+  (drizzle-kit's own connection, separate from `db/index.ts`'s runtime one) had no
+  path to a Turso auth token and needs `dialect: 'turso'` (not `'sqlite'`) to accept
+  one at all — see the runbook §4 for detail. `db/index.ts` itself untouched (Backend's
+  parallel brief, per ADL-32 §9 above).
 - **No FRONTEND changes** beyond the existing `npm run build` output — the build step is
   unchanged, only where it's served from is new
 
