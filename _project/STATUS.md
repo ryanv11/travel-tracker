@@ -59,7 +59,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | OP-15 | Design pass for deferred skills — schema-change + backend-route-change | coo | ⬜ Pending |
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | BUG-37 | Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked' | frontend | ⬜ Pending |
-| OP-21 | Agent read-only diagnostic access to Railway, Turso, Clerk (ADL-33) | coo | ⬜ Pending |
+| OP-21 | Agent read-only diagnostic access to Railway, Turso, Clerk (ADL-33) | coo | 🔄 In progress |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
 | QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
@@ -75,7 +75,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | requirement | `██████████████████▓░` 29/32 | 29 | 3 | 5 |
 | bug | `███████████████████░` 37/38 | 37 | 1 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
-| chore | `█████████████░░░░░░░` 6/9 | 6 | 3 | 0 |
+| chore | `█████████████▓▓░░░░░` 6/9 | 6 | 3 | 0 |
 
 <details>
 <summary>Deferred (8)</summary>
