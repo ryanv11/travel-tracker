@@ -1,6 +1,6 @@
 /**
  * Integration tests for QA backend findings:
- *   BUG-10 — zName max length 200 (covered in common.test.ts)
+ *   BUG-10 — zName max length 75 (covered in common.test.ts)
  *   BUG-A  — PATCH /api/trips/:id end_date bypass (#25)
  *   BUG-B  — Admin list endpoints return snake_case (#26)
  *   SEC-01 — GET /api/cities/:id/items userId filter (#27)

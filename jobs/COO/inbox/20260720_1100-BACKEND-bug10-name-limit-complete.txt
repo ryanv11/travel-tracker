@@ -1,0 +1,39 @@
+BUG-10 (backend half) · GitHub #138 · BRD TR-01 · Branch: fix/bug10-name-limit-backend
+
+Changed zName (src/backend/validation/common.ts) from .max(200) to .max(75) with
+error message updated to match; moved all boundary/over-boundary tests (contract +
+unit, create + update) from 200/201 to 75/76 chars.
+
+Acceptance criteria:
+1. Limit 200 -> 75: PASS
+2. Backend rejects (400) create/update over 75 chars with clear message: PASS
+   (validation already existed from PR #141 — only the number/message changed)
+3. Error message references 75, not 200: PASS
+4. Boundary + over-boundary tests updated (contract + unit): PASS
+
+Security checklist: N/A — no new routes added or modified, this is a validation
+schema constant change only. No auth/scoping/FK surface touched.
+
+CI: pushed and PR open, will confirm `gh run list` green before considering done —
+see PR for link. Local runs before push: test:backend 523 passed/1 skipped (pre-
+existing unrelated skip), type:check:backend clean, full test:contract 109 passed
+(ran backend locally with BYPASS_AUTH=true per the CI workflow's own pattern, since
+this worktree had no .env.local).
+
+Open issues/blockers:
+- zName is a shared Zod primitive also used by admin.schemas.ts (category/companion
+  /region names). The brief said to change zName itself, which I did — but that also
+  caps admin entity names at 75, not just trip names. Nothing broke (no admin test
+  asserts the old 200 boundary) but this wasn't explicitly scoped and is worth a
+  conscious call: fine as-is, or split zName into a shared + trip-specific schema
+  later. Full detail in park doc.
+- jobs/backend/tech/20260307-api-reference.md also has a stale "1-200 chars" line
+  for POST /api/cities `name` — pre-existing and unrelated (cities schema doesn't
+  use zName, has no max at all). Left untouched, flagged only.
+- GitHub issue #138 title still reads "200-character" — not renamed; PR body carries
+  the corrected number and Closes #138.
+
+What's unblocked: Frontend's parallel BUG-10 brief (hard-restrict typing at 75, red
+inline error) can proceed independently of this PR merging. Backend error copy is
+"Name must be 75 characters or fewer" — distinct from the frontend's live-typing
+notice wording, no collision expected but worth a quick cross-check before UAT.

@@ -1,0 +1,87 @@
+BACKEND PARK DOC — 2026-07-20
+TOPIC: BUG-10 (reopened) — trip-name limit corrected 200 -> 75 chars, backend half
+GITHUB ISSUE: #138 (title still says "200-character" — not renamed in this thread;
+  original PR #141 merged 2026-07-19 against the 200 number, which the PO has now
+  corrected)
+BRANCH: fix/bug10-name-limit-backend
+BRD: TR-01 (trip creation fields)
+
+CONTEXT
+-------
+PR #141 (merged) added `.max(200)` to the shared zName Zod primitive
+(src/backend/validation/common.ts) plus contract/unit boundary tests at 200/201.
+UAT reopened BUG-10 2026-07-20: PO says (a) the number itself was wrong — should be
+75, not 200 — and (b) flagged a *frontend* silent-truncation problem (maxLength=200
+input truncating pasted text instead of showing an error). The backend validation
+itself was never the truncation culprit — zName has always rejected with a 400, not
+truncated. This thread's brief was backend-only: change the number and message from
+200 to 75, and move the test boundaries. Frontend hard-restrict + red inline error is
+a separate, parallel brief.
+
+WHAT CHANGED
+------------
+1. src/backend/validation/common.ts — zName: `.max(200, 'Name must be 200 characters
+   or fewer')` -> `.max(75, 'Name must be 75 characters or fewer')`.
+2. src/backend/validation/__tests__/common.test.ts — boundary tests moved from
+   200/201 chars to 75/76 chars; header comment updated.
+3. src/backend/validation/__tests__/trips.schemas.test.ts — CreateTripSchema and
+   UpdateTripSchema boundary tests moved from 200/201 to 75/76.
+4. tests/contract/trips.contract.test.ts — POST and PATCH boundary/over-boundary
+   tests moved from 200/201 to 75/76 chars; comment updated to cite BRD TR-01
+   instead of a stale "BRD §5.1" reference that doesn't exist in the current BRD.
+5. src/backend/routes/__tests__/qa-backend-fixes.test.ts — updated a stale comment
+   line referencing "zName max length 200".
+6. jobs/backend/tech/20260307-api-reference.md — POST /api/trips `name` field
+   validation column updated from "1–200 chars, trimmed" to "1–75 chars, trimmed
+   (BUG-10, corrected 2026-07-20 — was 200)".
+
+NOT CHANGED / OUT OF SCOPE
+--------------------------
+- jobs/backend/tech/20260307-api-reference.md line ~988 (POST /api/cities `name`
+  field) also says "1–200 chars, trimmed" but cities.schemas.ts does NOT use zName
+  (it's `z.string().trim().min(1)` with no max at all) — that doc line was already
+  wrong before this thread and is unrelated to the zName change. Left alone; flagging
+  as a separate, pre-existing doc/behavior mismatch if COO wants a follow-up.
+- Frontend maxLength / red inline error — separate brief, not touched here.
+- GitHub issue #138 title still says "200-character" — did not rename the issue;
+  the PR text explains the corrected number and `Closes #138` will close it
+  regardless of title wording.
+
+OPEN CONCERN — zName IS A SHARED PRIMITIVE
+-------------------------------------------
+zName (src/backend/validation/common.ts) is imported by BOTH
+trips.schemas.ts (trip name) AND admin.schemas.ts (category / companion / region
+names — CreateAdminItemSchema, UpdateAdminItemSchema, UpdateRegionSchema). The brief
+explicitly said "find the zName schema... and change it to .max(75)", which is what
+I did — but that also caps admin category/companion/region names at 75 chars, not
+just trip names. Nothing in the BRD or tracker scoped the 75-char limit to trips
+only, and no admin-schema tests currently assert a 200-char boundary, so nothing is
+broken. But this is worth a conscious COO/PO call: either 75 is fine for admin names
+too, or zName should eventually split into a shared primitive plus a
+trip-name-specific schema. Not blocking — flagged for awareness, not fixed
+unilaterally since it wasn't in the brief's scope.
+
+TESTS RUN
+---------
+- npm run test:backend — 523 passed | 1 skipped (pre-existing skip, unrelated)
+- npm run type:check:backend — clean
+- npm run test:contract (full suite, backend started locally with BYPASS_AUTH=true
+  per the CI workflow's own pattern) — 109 passed, including all 4 renumbered
+  BUG-10 boundary tests in trips.contract.test.ts
+
+CI
+--
+Pushed branch, opened PR, will confirm `gh run list` is green before filing the
+completion report (see completion report for the run details).
+
+WHAT'S NOW UNBLOCKED
+--------------------
+Frontend's parallel BUG-10 brief (hard-restrict input at 75, red inline error) can
+proceed independently — it doesn't depend on this PR merging first, since the
+frontend maxLength/validation is client-side UX and the backend 400 is defense in
+depth regardless of exact wording alignment. Suggested error copy from my side:
+"Name must be 75 characters or fewer" (backend message) vs. the tracker's suggested
+frontend wording "75 character limit reached" — these read as two different but
+compatible messages (one is a submit-time API error, one is a live typing-limit
+notice), so no copy collision expected, but worth a quick sanity check between the
+two threads before UAT.

@@ -83,9 +83,9 @@ describe('POST /api/trips', () => {
     expect(res.body).toHaveProperty('error');
   });
 
-  it('BUG-10 — 201 when name is exactly 200 chars (boundary accepted)', async () => {
-    // BRD §5.1 and API reference specify max 200 chars — 200 is valid.
-    const name = 'x'.repeat(200);
+  it('BUG-10 — 201 when name is exactly 75 chars (boundary accepted)', async () => {
+    // BRD TR-01 and API reference specify max 75 chars (corrected 2026-07-20) — 75 is valid.
+    const name = 'x'.repeat(75);
     const res = await api
       .post('/api/trips')
       .send({ name, start_date: '2026-06-01', end_date: '2026-06-15' })
@@ -94,10 +94,10 @@ describe('POST /api/trips', () => {
     expect(res.body.name).toBe(name);
   });
 
-  it('BUG-10 — 400 when name exceeds 200 chars', async () => {
+  it('BUG-10 — 400 when name exceeds 75 chars', async () => {
     const res = await api
       .post('/api/trips')
-      .send({ name: 'x'.repeat(201), start_date: '2026-06-01', end_date: '2026-06-15' })
+      .send({ name: 'x'.repeat(76), start_date: '2026-06-01', end_date: '2026-06-15' })
       .expect(400);
 
     expect(res.body).toHaveProperty('error');
@@ -198,16 +198,16 @@ describe('PATCH /api/trips/:id', () => {
     expect(res.body.id).toBe(tripId);
   });
 
-  it('BUG-10 — 200 when updated name is exactly 200 chars (boundary accepted)', async () => {
-    const name = 'y'.repeat(200);
+  it('BUG-10 — 200 when updated name is exactly 75 chars (boundary accepted)', async () => {
+    const name = 'y'.repeat(75);
     const res = await api.patch(`/api/trips/${tripId}`).send({ name }).expect(200);
     expect(res.body.name).toBe(name);
   });
 
-  it('BUG-10 — 400 when updated name exceeds 200 chars', async () => {
+  it('BUG-10 — 400 when updated name exceeds 75 chars', async () => {
     const res = await api
       .patch(`/api/trips/${tripId}`)
-      .send({ name: 'y'.repeat(201) })
+      .send({ name: 'y'.repeat(76) })
       .expect(400);
 
     expect(res.body).toHaveProperty('error');

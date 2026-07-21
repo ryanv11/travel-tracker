@@ -1,0 +1,223 @@
+FRONTEND PARK DOCUMENT — 2026-07-20
+Thread: BUG-32 (#156) — Remove-place UI
+Branch: fix/bug32-remove-place-ui
+
+============================================================
+SCOPE OF THIS THREAD
+============================================================
+Brief: add a UI affordance to remove a place from a trip (BUG-32 / GitHub #156). Backend
+brief for the same bug was dispatched in parallel on fix/bug32-remove-place-api.
+
+============================================================
+WHAT I FOUND BEFORE WRITING ANY CODE
+============================================================
+Before touching anything I read jobs/backend/tech/20260307-api-reference.md and the actual
+backend source, because the tracker note for BUG-32 said "unclear if a DELETE route exists
+at all." It does:
+  - src/backend/routes/places.ts: DELETE /:placeId, calling placeRepository.delete
+  - src/backend/repositories/places.ts: delete() calls assertWritable (ownership then lock,
+    matching the BUG-27 ordering fix) then deletes the row. 404 if not found/owned, 403 if
+    locked, 204 on success — matches the documented contract exactly.
+  - src/frontend/hooks/usePlaces.ts: useRemovePlace already existed too, calling apiDelete.
+    It was never imported/called anywhere (grep confirmed zero usages before this thread).
+
+So the actual gap was narrower than the tracker note implied: wire the existing hook into
+the existing UI, nothing more, nothing on the backend needed for the happy path. That
+changed my plan from "build defensively against an uncertain contract" to "the contract is
+solid, implement against it directly" — until the FK-cascade issue below showed the "solid"
+read was incomplete for one specific case.
+
+============================================================
+WHAT I BUILT
+============================================================
+1. src/frontend/components/TripDetail/PlaceSection.tsx
+   - "Remove" button in the place-section header, same row as "Set dates"/"+ Add Item",
+     same `!isLocked &&` gating pattern already used for those two.
+   - Opens a ConfirmDialog. Title: "Remove {city}?". Message conditionally mentions the
+     item count when place.items.length > 0 (the documented contract says removal cascades
+     to items, so the copy tells the user that up front).
+   - handleConfirmRemove uses mutate() (not mutateAsync — no need to await in the caller)
+     with a call-level onSuccess that closes the dialog. Reset the mutation's error state
+     both on open (so a stale error from a previous attempt doesn't reappear) and on cancel.
+
+2. src/frontend/components/shared/ConfirmDialog.tsx
+   - Added three optional props: `error` (string | Error | null, rendered via the existing
+     ErrorMessage component), `isConfirming` (disables both buttons), `confirmingLabel`
+     (defaults to `${confirmLabel}…`). All optional with safe defaults — grep confirmed
+     3 other call sites (ItemCard, ReviewPanel, TripDetail) and none pass these props, so
+     none of their behavior changed. Verified via type:check + full test:frontend run.
+   - Motivation: ItemCard's existing delete-item flow calls mutateAsync with no try/catch
+     and doesn't render deleteItem.error anywhere — a failed delete just does nothing
+     visible (the promise rejection is swallowed). I did not want BUG-32's delete-place flow
+     to have the same silent-failure gap, especially once I found the FK-cascade bug below
+     that makes failure the ACTUAL outcome for the majority case (a place with items).
+     I did not change ItemCard.tsx itself — flagged as FLAG-F4, out of this brief's scope.
+
+3. src/frontend/hooks/usePlaces.ts
+   - useRemovePlace's onSuccess invalidated only ['trips', tripId]. Live verification (see
+     below) showed the trip-list sidebar card kept showing the removed place's city chip
+     after a successful delete — DP-01 says trip cards show place names, so this was a
+     real staleness bug, not cosmetic. useTrips.ts's four mutations already invalidate the
+     bare ['trips'] key (which is a prefix of ['trips', id], so it covers the list query
+     AND every mounted detail query) — I made useRemovePlace match that convention.
+     Classified MINOR (frameworks.txt severity scale — functional gap, not a core-workflow
+     break, no data integrity impact, self-contained to display staleness). Fixed directly
+     since it's the exact hook this PR wires up for the first time.
+
+4. src/frontend/components/TripDetail/__tests__/PlaceSection.test.tsx — new, 7 tests.
+   Mocks useRemovePlace (usePlaces.js) and useDeleteItem (useItems.js, ItemCard's
+   dependency, stubbed only so a place-with-items test doesn't need a real QueryClient).
+   Covers: hidden when locked, visible + opens dialog when unlocked, item-count copy with
+   and without items, cancel doesn't call the mutation, confirm calls it with
+   {tripId, placeId}, and a failed mutation keeps the dialog open with the error shown.
+
+============================================================
+CI CAUGHT A REAL REGRESSION: aria-label collided with two E2E tests
+============================================================
+First push's CI run (PR #170) failed E2E Tests: 2 of 36 specs failed —
+places-items.spec.ts "edit item notes via Edit button" and "delete item with
+confirmation". Both are pre-existing tests I didn't touch. Root cause, found from the
+Playwright report artifact (page snapshot showed MY "Remove EditCity?" dialog open
+instead of the expected Edit/Delete modal):
+
+  My first version gave the Remove button `aria-label={`Remove ${place.city.name} from
+  trip`}` to disambiguate it from the ConfirmDialog's own "Remove" confirm button in my
+  unit tests. Playwright's getByRole name matching is a case-insensitive SUBSTRING match
+  by default (no exact:true) — the two E2E specs' fixture cities are literally named
+  "EditCity" and "DeleteCity" (places-items.spec.ts lines ~86, ~111), so my aria-label
+  became "Remove EditCity from trip" / "Remove DeleteCity from trip", which CONTAINS the
+  substring the tests were searching for ("Edit" / "Delete"). Both tests use
+  `.nth(1)`/`.first()` on that role query expecting to land on the item's own Edit/Delete
+  button — my button, sitting earlier in the DOM (place header, above the item list),
+  won the match instead, opening my dialog rather than theirs.
+
+  Fix: removed the aria-label entirely. The button's accessible name is now just its
+  visible text "Remove" (the `title` attribute is a tooltip only — it doesn't override
+  an element's accessible name when the element already has text content). This is
+  identical to the ConfirmDialog's own confirm-button name, which is fine: the dialog is
+  unmounted until opened, so there's never more than one "Remove"-named button on screen
+  until after the user has already clicked the first one — tests select the trigger by
+  plain name before opening, then scope the confirm click to the dialog container (the
+  same pattern places-items.spec.ts already uses for its own "Delete item?" dialog).
+  Updated PlaceSection.test.tsx to match (dropped the aria-label-based regex query).
+
+  Verification of the fix (couldn't run the official `npm run test:e2e` locally — its
+  playwright.config.ts hardcodes ports 3001/5173 with reuseExistingServer:false, and
+  another concurrent session in this workspace already had 5173 bound; not safe to kill
+  another session's process to free it). Instead: reproduced both scenarios exactly
+  (same fixture city names, same nth(1)/first() selector logic) against the real running
+  app on scratch ports, before and after the fix — confirmed the fix makes both resolve
+  to the correct modal ("Edit Item" heading / "Delete item?" heading), not mine.
+
+  Also caught by this same push: `exact: true` isn't a valid ByRoleOptions field in this
+  project's @testing-library/dom version (10.4.1) — that's a Playwright-locator convention
+  I carried over by mistake into an RTL test file. RTL's getByRole name matching already
+  does exact-string comparison for a plain string (no substring behavior to opt out of,
+  unlike Playwright) — removed `exact: true` from all 7 occurrences; type:check:all caught
+  this immediately, no runtime behavior was ever wrong.
+
+============================================================
+CRITICAL BUG FOUND: DELETE fails when the place has items (FLAG-F3)
+============================================================
+While verifying the documented "This also deletes all items and activity tags associated
+with that place (CASCADE)" claim, I found it's only half true:
+
+  - trip_place_activities.trip_place_id → ON DELETE CASCADE (schema.ts, correct)
+  - items.trip_place_id → no onDelete action at all (schema.ts) → migration SQL emits
+    ON DELETE no action
+
+I confirmed @libsql/client enforces `PRAGMA foreign_keys` ON by default (empirically, via
+an isolated script — I did not assume this from reading SQLite's general docs, which
+default it OFF; libSQL's local-file client does not follow that default). So in the real
+running app, deleting a trip_place that still has any item referencing it throws
+SQLITE_CONSTRAINT_FOREIGNKEY, which src/backend/middleware/error-handler.ts turns into a
+generic 500 "Internal server error". No partial state — the whole operation fails
+atomically — but the feature simply does not work for a place with items, which is the
+normal case (a place usually has logged items).
+
+I verified this two ways:
+  1. Isolated node script against a bare @libsql/client table with the same FK shape.
+  2. End-to-end: ran the real backend + frontend (BYPASS_AUTH=true, scratch ports/DB),
+     created a trip → place → item via the API, then clicked "Remove" in the actual
+     rendered UI and confirmed. Network response: 500. Screenshot shows my ConfirmDialog
+     error-prop change doing its job — the dialog stayed open and displayed "Internal
+     server error" instead of silently failing.
+
+Full bug report (root cause, scope, proposed fix) sent to COO:
+  jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt
+
+This does NOT block this PR — my UI is correct against the documented/intended contract
+and fails gracefully when the backend doesn't yet deliver on it. It DOES mean BUG-32 can't
+be marked fully closed/UAT'd until the schema gets onDelete:'cascade' on items.tripPlaceId
+plus a migration (my proposed fix, COO/backend to action).
+
+============================================================
+VERIFICATION METHOD (for reproducibility)
+============================================================
+Ran the actual app rather than relying on unit tests alone:
+  - .env.local (scratch, not committed): DB_TYPE=sqlite, SQLITE_PATH to a scratch file,
+    BYPASS_AUTH=true / VITE_BYPASS_AUTH=true, OWNER_CLERK_ID=test_clerk_id (must match the
+    hardcoded bypass clerkId in src/backend/middleware/auth.ts or POST /api/cities 403s —
+    tripped over this once, fixed by matching it).
+  - Backend on PORT=3057, frontend Vite on --port 5188 — deliberately NOT the default
+    3001/5173, because another process was already bound to 3001 (this workspace runs
+    other concurrent sessions; ports are host-wide even though git worktrees are isolated).
+    ALLOWED_ORIGINS updated to include the 5188 origin (CORS, separate from the
+    BYPASS_AUTH JWT skip).
+  - Ad-hoc Playwright script (chromium, not the committed test suite) drove: create
+    trip/city/place/item via API, load the real trip detail page, click Remove, click
+    confirm, screenshot. Repeated for a place with no items (success path) and locked
+    trip (button hidden). Scripts and .env.local deleted before committing — not part of
+    the diff.
+
+============================================================
+BUGS DISCOVERED (frameworks.txt §"Bug tracking" format)
+============================================================
+[CRITICAL] DELETE /api/trips/:tripId/places/:placeId 500s when the place has items
+  (items.tripPlaceId missing onDelete:'cascade') — escalated to COO (FLAG-F3), not fixed
+  by me (schema change is Database/Backend + Architect territory per frameworks.txt §13).
+[MINOR] useRemovePlace's onSuccess missed invalidating the bare ['trips'] list query,
+  leaving a stale place chip on the trip-list sidebar card — fixed directly in this PR.
+[MINOR, not fixed — FLAG-F4] ItemCard's delete-item ConfirmDialog usage doesn't surface
+  mutation errors (silent failure on reject). Noted, not actioned — pre-existing, outside
+  BUG-32's scope, but now trivial to fix given ConfirmDialog supports `error` as of this PR.
+[MAJOR — introduced by me, caught by CI, fixed same session] My Remove button's
+  aria-label (built from place.city.name) substring-collided with two pre-existing E2E
+  tests whose fixture cities are named "EditCity"/"DeleteCity", hijacking their
+  nth(1)/first() Edit/Delete clicks into my Remove dialog instead. Initial classification
+  would have been MAJOR had it reached main (breaks two passing E2E specs — a core-workflow
+  regression, not cosmetic) — caught before merge by the PR's own CI run, fixed by dropping
+  the aria-label (visible text "Remove" is sufficient), re-verified live against the exact
+  fixture scenario, and full pre-push suite re-run green. See the CI section above for
+  detail. Also fixed in the same pass: `exact: true` isn't valid on this project's
+  @testing-library/dom ByRoleOptions (Playwright-ism, not RTL) — type:check:all caught it,
+  no runtime impact, removed.
+
+============================================================
+CI / CHECKS
+============================================================
+  npm run check (biome ci)   — pass, 131 files
+  npm run type:check:all     — pass (frontend + backend)
+  npm run test:backend       — 523 passed, 1 skipped
+  npm run test:frontend      — 108/108 pass on the final run; 1 pre-existing flaky test
+    in CarryForwardModal.test.tsx ("calls onClose immediately when Skip is clicked") was
+    seen intermittently — reproduces on main/baseline too (confirmed via git stash),
+    unrelated to this change, not touched.
+  npm run status:check       — pass, STATUS.md in sync
+  PR #170 CI, first push: E2E Tests failed 2/36 (the aria-label regression above);
+    all 8 other jobs passed. Fixed, re-verified locally against the exact failing
+    scenarios (couldn't run the official E2E harness — port collision with another
+    concurrent session, see the CI section above), then re-ran the full pre-push suite
+    green before pushing the fix commit. See completion report for the second push's
+    gh checks output.
+
+============================================================
+NEXT STEPS FOR WHOEVER PICKS THIS UP
+============================================================
+  - Once FLAG-F3 is fixed on the backend (onDelete:'cascade' + migration), re-run the same
+    "place with items" verification step above to confirm it now returns 204 and the items
+    are actually gone — this PR's copy already promises that, it just can't be true yet.
+  - FLAG-F4 (ItemCard error surfacing) is a small, low-risk follow-up now that ConfirmDialog
+    supports it.
+  - jobs/frontend/context/current.txt was 4 months stale before this thread — flagged in
+    the updated file itself so the gap isn't silently absorbed into "current state".

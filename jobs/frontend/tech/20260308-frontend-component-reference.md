@@ -37,7 +37,8 @@ src/frontend/
     ├── shared/
     │   ├── StatusBadge.tsx     ← Coloured pill for trip/item status
     │   ├── RatingStars.tsx     ← 5-star clickable/readonly widget
-    │   ├── ConfirmDialog.tsx   ← Modal confirm overlay
+    │   ├── ConfirmDialog.tsx   ← Modal confirm overlay (BUG-32: optional error/isConfirming
+    │   │                          props — dialog stays open + shows error on a failed mutation)
     │   ├── LoadingSpinner.tsx  ← CSS spin, role="status"
     │   └── ErrorMessage.tsx    ← Red error box, role="alert"
     ├── Map/
@@ -51,7 +52,8 @@ src/frontend/
     ├── TripDetail/
     │   ├── TripDetail.tsx      ← Header, status transitions, PlaceSections
     │   ├── TripForm.tsx        ← Create/edit trip modal
-    │   ├── PlaceSection.tsx    ← Items grouped by city/place
+    │   ├── PlaceSection.tsx    ← Items grouped by city/place (BUG-32: "Remove" button +
+    │   │                          confirm dialog, hidden when trip is locked)
     │   ├── ItemCard.tsx        ← Single item display + edit/delete
     │   ├── ItemForm.tsx        ← Two-step add/edit form (6 item types)
     │   └── AddPlaceFlow.tsx    ← City search → add place → carry-forward check
@@ -81,7 +83,7 @@ src/frontend/
 | useLockTrip() | Mutation | invalidates ['trips', id] | PATCH /api/trips/:id/lock |
 | useUnlockTrip() | Mutation | invalidates ['trips', id] | PATCH /api/trips/:id/unlock |
 | useAddPlace() | Mutation | invalidates ['trips', tripId] | POST /api/trips/:id/places |
-| useRemovePlace() | Mutation | invalidates ['trips', tripId] | DELETE /api/trips/:id/places/:placeId |
+| useRemovePlace() | Mutation | invalidates ['trips'] (BUG-32, PR fix/bug32-remove-place-ui: was ['trips', tripId] only, which missed the trip-list card's stale place chip) | DELETE /api/trips/:id/places/:placeId |
 | useCarryForward() | Mutation | invalidates ['trips', tripId] | POST /api/trips/:id/places/:placeId/carry-forward |
 | useCreateItem() | Mutation | invalidates ['trips', tripId] | POST /api/trips/:id/items |
 | useUpdateItem() | Mutation | invalidates ['trips', tripId] | PATCH /api/trips/:id/items/:itemId |
