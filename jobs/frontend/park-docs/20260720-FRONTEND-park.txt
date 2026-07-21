@@ -1,0 +1,87 @@
+FRONTEND PARK DOC — 2026-07-20
+
+SESSION: fix frontend half of reopened BUG-10 (GitHub #138)
+
+CONTEXT
+Reopened at UAT 2026-07-20: PR #141's earlier BUG-10 fix (frontend maxLength=200) enforced
+a limit but did so by silently truncating on submit rather than rejecting with visible
+feedback, and the PO corrected the limit itself from 200 to 75. Corrected success criteria
+per tracker.json BUG-10 entry:
+  1. Limit is 75 chars, not 200.
+  2. Input hard-restricts typing/pasting past 75 (maxLength is acceptable for this) AND
+     shows a red inline error when the limit is hit — the actual gap being closed, since
+     the old behavior gave no feedback at all.
+  3. Backend (parallel brief) rejects >75 chars server-side as defense-in-depth.
+
+WHAT WAS BUILT
+File: src/frontend/components/TripDetail/TripForm.tsx
+
+  - New module constant: `const NAME_MAX_LENGTH = 75;` (replaces the literal 200 that was
+    inline on the `maxLength` prop).
+  - Input's `maxLength={200}` → `maxLength={NAME_MAX_LENGTH}`.
+  - New inline error block directly under the name input:
+      {name.length >= NAME_MAX_LENGTH && (
+        <div className="mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-md
+                         text-red-800 text-xs" role="alert">
+          {NAME_MAX_LENGTH} character limit reached
+        </div>
+      )}
+    Styling matches the codebase's existing FIELD-LEVEL error convention (not the
+    whole-form ErrorMessage.tsx box used lower in this same file for name-required/
+    date-order errors). The field-level pattern was found in AddPlaceFlow.tsx:316-318 and
+    PlaceDateForm.tsx:149 — same bg-red-50/border-red-200/text-red-800 palette as
+    ErrorMessage.tsx, just compact (text-xs, no padding-heavy full-width box) and placed
+    directly under the offending field rather than at the bottom of the form. I deliberately
+    did NOT reuse ErrorMessage.tsx here since it's form-scoped (one error, bottom of form)
+    and this needs to be field-scoped and appear live as the user types, not just on submit.
+  - Submit-time guard added: `if (name.length > NAME_MAX_LENGTH) { setValidationError(...);
+    return; }` — covers the edge case of a trip whose name was already >75 chars (e.g.
+    saved between 2026-03 and now when the limit was 200) being re-opened for edit without
+    the name field being touched. maxLength only blocks *further* typing; it does not
+    truncate a value already set via the `value` prop from existingTrip.name, so without
+    this guard a user could hit Save on an unedited overlong name and get a raw network
+    round-trip to the backend's 400 instead of immediate frontend feedback.
+
+WHY NOT A SEPARATE COMPONENT
+Considered extracting a `<LimitedTextInput maxLength label>` component since the pattern
+could recur (notes fields, etc. currently have no length limits enforced client-side per
+BRD). Decided against it for this brief — scope is exactly the BUG-10 fix, and only one
+field needs it right now. Worth revisiting if a second bounded-length field shows up (COO
+call, not mine to make unilaterally per BRD-only-implement rule).
+
+TESTING
+  - npm run type:check: clean (frontend + backend both, via type:check:all).
+  - npm run test:frontend: 100/101 pass. The 1 failure
+    (CarryForwardModal.test.tsx "calls onClose immediately when Skip is clicked") is
+    PRE-EXISTING and unrelated — reproduced with `git stash` (my diff removed) on the
+    same branch tip, so it's a flaky assertion on onClose call count (2-3x vs expected 1x),
+    not something this change touched or caused. Flagged to COO as FLAG-F3, not fixed here.
+  - npm run test:backend: 523 pass / 1 skipped — untouched by this change, confirms no
+    accidental backend regression.
+  - npm run check (biome): clean.
+  - npm run status:check: STATUS.md already in sync, no regeneration needed.
+  - Manual behavior check not run against a live dev server in this thread (no `npm run
+    dev` session started) — logic was verified by reading the render path; the field-level
+    error condition (`name.length >= NAME_MAX_LENGTH`) is a direct, unit-testable derivation
+    with no async/effect timing involved, and type:check + existing test suite cover the
+    surrounding form logic. If COO/QA want a screenshot-verified pass, that's a quick
+    /run or QA follow-up before merge.
+
+GIT
+  Branch: fix/bug10-name-limit-frontend
+  Commit: ed2821c ([BUG-10] frontend: hard-restrict trip name to 75 chars with inline error)
+  PR: opened against main, "Closes #138", cites BRD TR-01 and tracker BUG-10.
+  Did not merge — COO merges per /coo-merge-and-close.
+
+OPEN FLAGS FOR COO (see current.txt for full list)
+  FLAG-F3 (new): CarryForwardModal.test.tsx flaky onClose-count assertion, reproducible on
+  main independent of this change — recommend a QA/backend look, not a blocker for this PR.
+
+COORDINATION NOTE FOR BACKEND BRIEF
+Used the exact string "75 character limit reached" per tracker guidance (PO's example
+wording, tracker item 3: "otherwise '75 character limit reached' is a reasonable default").
+If backend's parallel brief lands on different wording, no code change needed on the
+frontend side to match unless COO wants the two surfaces to say byte-for-byte the same
+thing (frontend error is proactive/client-side; backend 400 message is a distinct fallback
+surface, not one displayed by name in this component currently — mutationError already
+renders whatever message the API returns via ErrorMessage.tsx).

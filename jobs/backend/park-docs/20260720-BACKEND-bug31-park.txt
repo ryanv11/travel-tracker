@@ -1,0 +1,65 @@
+BACKEND PARK DOC — 2026-07-20
+SESSION: BUG-31 — place date-range edit doesn't persist/display
+
+WHAT WAS DONE
+
+BUG-31 (GitHub #155, P1, blocking BUG-28 UAT re-verification): setting an
+arrival/departure range on a trip place didn't visibly stick — the place
+section kept showing the trip's overall date range after save.
+
+Root cause traced end-to-end (PATCH route -> repository -> DB -> detail
+route -> frontend resolvePlaceDateRange). Confirmed it is a pure backend
+read-path bug, not a write-path bug and not a frontend bug:
+
+  - PATCH /api/trips/:tripId/places/:placeId (routes/places.ts) and
+    placeRepository.updateDates() were already correct — dates persist to
+    trip_places.arrived_on / departed_on exactly as ADL-24 specifies.
+  - GET /api/trips/:id (routes/trips.ts) is the endpoint TripDetail ->
+    PlaceSection actually renders from (via useTrip(), queryKey ['trips', id]).
+    Its places array never included arrived_on/departed_on at all —
+    tripRepository.getPlaces() didn't select those two columns, and the
+    route handler's places.map() didn't include them in the response object.
+  - Frontend (resolvePlaceDateRange, PlaceSection, PlaceDateForm, usePlaces
+    hooks) was already fully correct per ADL-24 §5 precedence (explicit >
+    hotel > trip) and needed zero changes — it just never received the data
+    to work with. Confirmed no frontend edit was needed.
+
+Changes made:
+  src/backend/repositories/trips.ts
+    - getPlaces(): added arrivedOn / departedOn to the select
+  src/backend/routes/trips.ts
+    - GET /:id handler: added arrived_on / departed_on (null-coalesced) to
+      the assembled places array
+  src/backend/repositories/__tests__/trips.test.ts
+    - 2 new getPlaces tests: dates set / dates null
+  src/backend/routes/__tests__/trips.crud.test.ts
+    - 3 new GET /:id tests: dates set via direct insert, dates null, and an
+      end-to-end PATCH-then-refetch test covering the exact broken user flow
+  jobs/backend/tech/20260307-api-reference.md
+    - Updated GET /api/trips/:id example response + added a note documenting
+      arrived_on/departed_on and the BUG-31 fix (doc predated ADL-24, never
+      showed these fields on this endpoint)
+
+TESTS
+  528 backend tests pass (5 new), 1 skipped (pre-existing, unrelated)
+  Frontend: 100/101 pass — 1 pre-existing flaky failure in
+    CarryForwardModal.test.tsx (different assertion fails on each isolated
+    run; no CarryForward file touched by this branch — confirmed unrelated)
+  Type check (frontend + backend): clean
+  Biome check: clean
+  status:check: STATUS.md in sync, no changes needed
+
+COMMIT: 377a232 (branch fix/bug31-place-date-persist)
+CI: see completion report for run status at time of filing
+
+STATE ON PARK
+  No active tasks. BUG-31 fix complete, PR opened, awaiting COO review.
+  BUG-28 (arrival<=departed validation) can now be re-verified by QA/PO —
+  it was already correctly implemented in the PATCH handler but was
+  unverifiable while dates never displayed.
+  Pre-existing stale inbox items noted but out of scope for this brief:
+  jobs/backend/inbox/20260321_2300-COO-adl21-adl22-infra.md and
+  20260321_2400-COO-adl23-trip-countries-api.md are dated 2026-03-21 and
+  describe work (Node 22 CI migration, trip_countries API) that is clearly
+  already implemented in the current codebase — never moved to inbox/read/.
+  Flagging for COO housekeeping, not actioned here (out of scope).

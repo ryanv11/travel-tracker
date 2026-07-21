@@ -75,9 +75,16 @@ citiesRouter.get(
 // can all reach this route for a city that already exists. This handler
 // is the last line of defense against duplicate `cities` rows: it looks
 // up an existing (name, country_code) match case-insensitively before
-// ever inserting, and only inserts when genuinely not found. This holds
-// regardless of whether the DB-level unique index (separate DB brief,
-// same bug) has landed yet — defense in depth, not a dependency on it.
+// ever inserting, and only inserts when genuinely not found.
+//
+// Migration 0010 (companion DB brief, merged) added
+// uniq_cities_name_country_ci — UNIQUE(name COLLATE NOCASE, country_code).
+// The lookup below matches that collation exactly (COLLATE NOCASE, not a
+// generic lower()) so it always finds the same row the DB constraint would
+// otherwise reject a duplicate of — verified empirically that SQLite/libSQL's
+// COLLATE NOCASE and lower() agree on every case (both are ASCII-only folds;
+// non-ASCII/diacritic variants are an accepted, documented limitation of the
+// index itself, not something this lookup needs to compensate for).
 // ----------------------------------------------------------------
 citiesRouter.post(
   '/',
@@ -114,12 +121,14 @@ citiesRouter.post(
     }
 
     // BUG-33: find-or-create — look up an existing city by (name, country_code),
-    // case-insensitively, before inserting a new row. `name` arrives already
-    // whitespace-trimmed by CreateCitySchema (zod .trim()).
+    // matching name COLLATE NOCASE to mirror uniq_cities_name_country_ci exactly.
+    // `name` arrives already whitespace-trimmed by CreateCitySchema (zod .trim()).
     const existingRows = await db
       .select()
       .from(cities)
-      .where(and(eq(cities.countryCode, country_code), sql`lower(${cities.name}) = lower(${name})`))
+      .where(
+        and(eq(cities.countryCode, country_code), sql`${cities.name} = ${name} COLLATE NOCASE`),
+      )
       .limit(1);
 
     if (existingRows.length) {

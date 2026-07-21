@@ -1,7 +1,44 @@
 BACKEND CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-33 application-logic fix complete (find-or-create in POST /api/cities). Branch fix/bug33-city-dedup-logic pushed, PR opened, CI check pending.
+CURRENT STATUS: Three backend threads landed this UAT-triage round.
+  1. BUG-31 (merged to main): GET /api/trips/:id was missing arrived_on/departed_on
+     on each place — read-path bug, PATCH persistence was already correct. Branch
+     fix/bug31-place-date-persist.
+  2. BUG-10 reopened-UAT (merged to main): zName max changed 200 -> 75 chars
+     (src/backend/validation/common.ts), error message updated to match. Contract +
+     unit test boundaries moved from 200/201 to 75/76. API reference doc updated.
+     Frontend half (hard-restrict input at 75, red inline error) dispatched
+     separately — did not touch frontend files in this thread.
+  3. BUG-33 application-logic fix (this thread — PR #167): find-or-create in
+     POST /api/cities (src/backend/routes/cities.ts) — looks up an existing city by
+     (name, country_code) before inserting, stopping new duplicate `cities` rows
+     (UAT found "Glasgow" twice in the autocomplete). The companion DB brief
+     (PR #169, merged, migrations renumbered to 0009/0010) added the
+     `COLLATE NOCASE` unique index + cleanup migration; this thread rebased onto
+     that merge and re-verified the lookup's collation matches (see park doc).
 ACTIVE TASKS: None
-PENDING MESSAGES TO COO: 20260720_BACKEND-bug33-complete.txt (sent)
-OPEN ISSUES: Pre-existing, unrelated flaky test in src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx ("calls onClose immediately when Skip is clicked") — fails intermittently on full test:frontend runs, passes in isolation. Not touched by this brief; flagged for whoever owns CarryForwardModal next.
+PENDING MESSAGES TO COO: 20260720_1100-BACKEND-bug31-complete.txt (sent),
+  20260720_1100-BACKEND-bug10-name-limit-complete.txt (sent),
+  20260720_BACKEND-bug33-complete.txt (sent; rebase follow-up filed alongside)
+OPEN ISSUES:
+  - From BUG-31: None. Unblocks BUG-28 UAT re-verification.
+  - From BUG-10: zName is a shared primitive (src/backend/validation/common.ts) also
+    used by admin.schemas.ts for category/companion/region names. Changing it to 75
+    for BUG-10 also caps those admin entity names at 75 — this was the explicit
+    brief instruction ("find zName and change it to .max(75)"), but it wasn't scoped
+    to trips-only. Flagging in case that's an unintended side effect; no admin-schema
+    tests currently assert a 200-char boundary so nothing broke, but COO/PO may want
+    to confirm admin names are fine at 75 or split zName into zName (shared) + a
+    trip-specific variant later.
+  - From BUG-33: Pre-existing, unrelated flaky test in
+    src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx
+    ("calls onClose immediately when Skip is clicked") — fails intermittently on
+    full test:frontend runs, passes in isolation. Not touched by this brief.
+  - PROCESS INCIDENT (BUG-33 thread): a bare `git stash`/`pop` used mid-task to
+    test against a clean tree collided with another concurrent agent's stash
+    (refs/stash is shared across all worktrees in this repo, unlike checkout/HEAD).
+    Recovered without data loss; full detail in the BUG-33 park doc. COO has since
+    raised an OP-20 guardrail against bare git stash in concurrent-agent sessions.
 LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug33-park.txt
+  (also: jobs/backend/park-docs/20260720-BACKEND-bug10-name-limit-park.txt,
+   jobs/backend/park-docs/20260720-BACKEND-bug31-park.txt)

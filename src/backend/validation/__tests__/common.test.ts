@@ -5,7 +5,8 @@
  * any backend running.
  *
  * Source:  src/backend/validation/common.ts
- * BUG-10:  zName max length fixed to 200 (was 255) to match BRD spec.
+ * BUG-10:  zName max length corrected to 75 (was 200 per PR #141, itself
+ *          fixed from an earlier 255) per PO clarification 2026-07-20.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -54,21 +55,21 @@ describe('zName', () => {
     fails(zName, '   ');
   });
 
-  it('accepts a name of exactly 200 characters', () => {
-    const name = 'A'.repeat(200);
+  it('accepts a name of exactly 75 characters', () => {
+    const name = 'A'.repeat(75);
     expect(passes(zName, name)).toBe(name);
   });
 
-  it('BUG-10: rejects a name longer than 200 characters', () => {
-    const name = 'A'.repeat(201);
+  it('BUG-10: rejects a name longer than 75 characters', () => {
+    const name = 'A'.repeat(76);
     fails(zName, name);
   });
 
   it('BUG-10: over-limit rejection carries a clear message', () => {
-    const result = zName.safeParse('A'.repeat(201));
+    const result = zName.safeParse('A'.repeat(76));
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe('Name must be 200 characters or fewer');
+      expect(result.error.issues[0]?.message).toBe('Name must be 75 characters or fewer');
     }
   });
 });

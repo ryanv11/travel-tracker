@@ -59,6 +59,10 @@ async function createTestDb() {
       FOREIGN KEY (country_code) REFERENCES countries(country_code),
       FOREIGN KEY (region_id) REFERENCES regions(id)
     )`,
+    // BUG-33 (migration 0010, merged): mirrors uniq_cities_name_country_ci so the
+    // BUG-33 find-or-create tests below exercise the same constraint production has.
+    `CREATE UNIQUE INDEX IF NOT EXISTS uniq_cities_name_country_ci
+      ON cities (name COLLATE NOCASE, country_code)`,
     `CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY NOT NULL,
       clerk_id TEXT NOT NULL UNIQUE,

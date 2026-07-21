@@ -25,6 +25,9 @@ interface TripFormProps {
   onClose: () => void;
 }
 
+/** Hard cap on trip name length (BUG-10) — kept in sync with backend zName.max(75). */
+const NAME_MAX_LENGTH = 75;
+
 /**
  * Renders a modal form for creating or editing a trip.
  *
@@ -81,6 +84,10 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
 
     if (!name.trim()) {
       setValidationError('Name is required.');
+      return;
+    }
+    if (name.length > NAME_MAX_LENGTH) {
+      setValidationError(`${NAME_MAX_LENGTH} character limit reached`);
       return;
     }
     if (!startDate) {
@@ -150,9 +157,17 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
               className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              maxLength={200}
+              maxLength={NAME_MAX_LENGTH}
               required
             />
+            {name.length >= NAME_MAX_LENGTH && (
+              <div
+                className="mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs"
+                role="alert"
+              >
+                {NAME_MAX_LENGTH} character limit reached
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-4">

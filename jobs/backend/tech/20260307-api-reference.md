@@ -216,7 +216,7 @@ Create a new trip.
 
 | Field | Type | Required | Validation |
 |-------|------|----------|------------|
-| `name` | string | **Yes** | 1–200 chars, trimmed |
+| `name` | string | **Yes** | 1–75 chars, trimmed (BUG-10, corrected 2026-07-20 — was 200) |
 | `start_date` | string | **Yes** | YYYY-MM-DD format |
 | `end_date` | string | **Yes** | YYYY-MM-DD format; must be ≥ `start_date` |
 | `photo_album_ref` | string \| null | No | URL or reference string |
@@ -277,6 +277,8 @@ Get a single trip with full nested data (places, cities, items).
     {
       "id": 1,
       "city_id": 1,
+      "arrived_on": "2026-06-01",
+      "departed_on": "2026-06-05",
       "created_at": "2026-03-07T14:31:00.000Z",
       "city": {
         "id": 1,
@@ -310,6 +312,14 @@ Get a single trip with full nested data (places, cities, items).
   ]
 }
 ```
+
+> **`arrived_on` / `departed_on` on each place (ADL-24 / BUG-31):** `null` when
+> not explicitly set on the place. These drive `resolvePlaceDateRange`'s
+> highest-precedence source on the frontend (explicit > hotel dates > trip
+> dates — ADL-24 §5). Fixed 2026-07-20 (BUG-31, #155): this endpoint's
+> `getPlaces()` query previously omitted both columns entirely, so explicit
+> place dates set via `PATCH /api/trips/:tripId/places/:placeId` never
+> reached the trip detail view even though they were persisted correctly.
 
 **Errors:**
 - `404` — trip not found
@@ -973,13 +983,19 @@ GET /api/cities?q=new&country_code=US
 ### POST /api/cities
 
 Find-or-create a city (BUG-33, GitHub #157 — 2026-07-20). Looks up an existing
-city by `(name, country_code)` case-insensitively before inserting; only inserts when
-genuinely not found. This is a defense-in-depth measure against duplicate `cities` rows
-(UAT found "Glasgow" listed twice in the place autocomplete) — GE-14 already asks the
-frontend to search before offering "add new city", but that's a UX nicety, not a
-guarantee against a case-mismatched query, a stale search-results list, or a
-double-submit reaching this route. Holds independently of the DB-level unique index
-added in the companion database brief for the same bug.
+city by `(name, country_code)` case-insensitively (`COLLATE NOCASE`) before inserting;
+only inserts when genuinely not found. This is a defense-in-depth measure against
+duplicate `cities` rows (UAT found "Glasgow" listed twice in the place autocomplete) —
+GE-14 already asks the frontend to search before offering "add new city", but that's a
+UX nicety, not a guarantee against a case-mismatched query, a stale search-results list,
+or a double-submit reaching this route.
+
+The companion database brief (migration `0010_bug33_add_unique_index.sql`, merged) added
+`uniq_cities_name_country_ci` — `UNIQUE(name COLLATE NOCASE, country_code)` — as the
+DB-level backstop. This route's lookup matches that collation exactly (`COLLATE NOCASE`),
+so it always finds the row the constraint would otherwise reject a duplicate of; the two
+are aligned, not independent, though the route's check-then-insert still holds even in a
+deployment that hasn't run that migration yet (defense in depth).
 
 Geocoding is attempted immediately and asynchronously on a genuine insert; the response
 may have `geocode_status: "pending"` if the server is offline.

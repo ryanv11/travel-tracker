@@ -19,11 +19,31 @@ interface CityMarkersProps {
 }
 
 /**
+ * Rounds a coordinate to ~11m precision (4 decimal places) so that two city
+ * rows geocoded to the same real-world location collapse to one dedup key,
+ * even when they carry different city ids.
+ */
+function coordKey(lat: number, lng: number): string {
+  return `${lat.toFixed(4)},${lng.toFixed(4)}`;
+}
+
+/**
  * Builds a deduplicated GeoJSON FeatureCollection of resolved cities
  * from an array of trip summaries. Cities without coordinates are excluded.
+ *
+ * Dedup key is rounded coordinate, not city id (BUG-34): duplicate city rows
+ * for the same real-world place (e.g. two "Glasgow" rows — see BUG-33) share
+ * identical lat/long but different ids. Deduping by id alone rendered one
+ * icon per duplicate row stacked at the same pixel, which reads as a
+ * bolder/"standout" marker next to a normal single pin for any city without
+ * a duplicate — the inconsistency reported in BUG-34 is a rendering symptom
+ * of that upstream duplicate-row data issue, not a distinct icon-treatment
+ * bug. Deduping by coordinate means every resolved city — duplicated in the
+ * DB or not — renders exactly one marker, restoring consistent treatment
+ * across cities regardless of whether BUG-33's root cause has been fixed yet.
  */
-function buildCityGeoJSON(trips: TripSummary[]): GeoJSON.FeatureCollection {
-  const seen = new Set<number>();
+export function buildCityGeoJSON(trips: TripSummary[]): GeoJSON.FeatureCollection {
+  const seen = new Set<string>();
   const features: GeoJSON.Feature[] = [];
 
   for (const trip of trips) {
@@ -31,12 +51,13 @@ function buildCityGeoJSON(trips: TripSummary[]): GeoJSON.FeatureCollection {
       const city = place.city;
       if (
         city &&
-        !seen.has(city.id) &&
         city.geocode_status === 'resolved' &&
         city.latitude !== null &&
         city.longitude !== null
       ) {
-        seen.add(city.id);
+        const key = coordKey(city.latitude, city.longitude);
+        if (seen.has(key)) continue;
+        seen.add(key);
         features.push({
           type: 'Feature',
           geometry: {
