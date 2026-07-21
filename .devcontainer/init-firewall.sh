@@ -88,6 +88,23 @@ echo "Default-deny lockdown applied. Populating allowlist..."
 # Failure here is non-fatal: GitHub simply won't be allowlisted, which will
 # surface as loud, legible connection failures in git/gh commands — not a
 # silently-open firewall.
+#
+# Bootstrap note: the lockdown in step 5 now applies BEFORE this fetch runs,
+# which means the curl below would otherwise be blocked by the very allowlist
+# it exists to populate (api.github.com isn't allowed yet). DNS (UDP/53) stays
+# open through lockdown, so resolve api.github.com's current A record and
+# temporarily allow it — just enough to let this one bootstrap fetch through.
+# The full official ranges added below are a superset and stay in the ipset
+# regardless.
+bootstrap_ips=$(dig +noall +answer A api.github.com | awk '$4 == "A" {print $5}')
+if [ -n "$bootstrap_ips" ]; then
+    while read -r ip; do
+        [[ "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] && ipset add --exist allowed-domains "$ip"
+    done <<< "$bootstrap_ips"
+else
+    echo "WARNING: Failed to resolve api.github.com for bootstrap — meta fetch will likely fail"
+fi
+
 echo "Fetching GitHub IP ranges..."
 gh_ranges=$(curl -s https://api.github.com/meta || true)
 if [ -z "$gh_ranges" ]; then
