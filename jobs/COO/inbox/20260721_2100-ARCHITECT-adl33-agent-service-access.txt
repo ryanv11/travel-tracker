@@ -1,0 +1,45 @@
+ADL-33 · GitHub PR: (see branch) · BRD ref: none (dev-operational tooling) · Branch: chore/adl-agent-service-access
+
+DECISION: Designed read-only agent diagnostic access to the ADL-32 hosted stack (Railway,
+Turso, Clerk). Design only — no code/config committed. Firewall + credential wiring is a
+follow-up brief gated on PO provisioning tokens. The three services answer "read-only"
+very differently; that gap is the substance.
+
+PER-SERVICE VERDICT:
+- Turso: GRANT (clean). `turso db tokens create <db> --read-only` is a genuine DB-scoped
+  read-only token — the one service where the ask is met exactly. Allowlist the two DB
+  connection hosts only (prod + staging libsql://<db>-<org>.turso.io). Do NOT allowlist
+  api.turso.tech or provision a platform token (that's account-level, not read-only).
+- Railway: GRANT WITH CAVEAT. No read-only token scope exists — every token (Account/
+  Workspace/Project) carries full permissions of its scope; a Project token can still
+  deploy/delete. Use a Project-scoped token (narrowest blast radius); "read-only" is
+  behavioural only. Allowlist backboard.railway.com. Treat token as write-capable secret.
+- Clerk: DO NOT GRANT (recommend). No read-only credential exists — the only Backend-API
+  credential is the Secret Key (sk_*), full write to auth config + full user CRUD (all
+  PII). Read-only as scoped is not achievable. Keep manual dashboard/paste for the rare
+  config lookup. Highest-stakes of the three; declining removes the risk class entirely.
+- Storage: separate gitignored .env.agent-diagnostics, NOT .env.local (operator secrets
+  != app runtime secrets; don't load into the app process).
+- Invocation: Turso via @libsql/client script (existing dep, no CLI). Railway via
+  @railway/cli + RAILWAY_TOKEN. Proportionate.
+
+WHAT RYAN MUST PROVISION (before COO can implement):
+1. Turso: `turso db tokens create <prod-db> --read-only` AND `<staging-db> --read-only`;
+   supply both tokens + both libsql:// URLs.
+2. Railway: create a PROJECT token (not Account/Workspace) for the prod project; supply it.
+3. Clerk: nothing — recommended decline. If Ryan wants it anyway, that's a conscious
+   acceptance of a full-write sk_* key in the sandbox and becomes its own tracked decision.
+
+COO ACTIONS:
+- Create an OP-series tracker entry (suggest OP-21) for this work — no BRD ID (rationale in
+  ADL §8: operational tooling, not product; same class as ADL-22/ADL-31).
+- After provisioning: dispatch a Backend/infra brief (firewall hosts + .env.agent-diagnostics
+  + gitignore + runbook). Firewall change only takes effect on NEXT container start
+  (postStartCommand) — not hot-appliable mid-session. Validate reachability after restart;
+  note the CDN A-record pinning caveat (Railway/Turso behind Cloudflare rotate edge IPs).
+
+CI: no code commit (ADL doc + report only) — CI expected trivially green.
+OPEN ISSUES/BLOCKERS: none architecturally. Implementation blocked on PO provisioning above.
+UNBLOCKED: nothing waits on this; it removes the manual log-paste dependency once implemented.
+
+Detail: jobs/architect/tech/20260307-architecture-decisions-log.md ADL-33.

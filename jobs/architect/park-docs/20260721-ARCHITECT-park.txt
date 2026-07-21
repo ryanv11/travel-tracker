@@ -1,0 +1,42 @@
+ARCHITECT PARK DOC — 2026-07-21
+THREAD: ADL-33 — read-only agent diagnostic access to Railway / Turso / Clerk
+BRANCH: chore/adl-agent-service-access (open PR, not merged)
+
+WHAT THIS THREAD DID
+--------------------
+Designed how the COO/Claude Code agent gets direct READ-ONLY diagnostic access to the
+ADL-32 hosted stack, so live-deploy debugging stops depending on Ryan pasting logs by hand.
+Design only — no code/config committed. Deliverable is the ADL-33 entry + this park doc +
+context update + COO completion report.
+
+THE ONE THING TO REMEMBER
+-------------------------
+The three services do NOT support "read-only" equally, and I did not pretend otherwise:
+- Turso  = clean read-only exists (--read-only per-DB token) -> GRANT
+- Railway = NO read-only scope (any token can deploy/delete) -> GRANT WITH CAVEAT
+            (Project token = narrowest reach; read-only is behavioural discipline only)
+- Clerk  = NO read-only credential (sk_* = full write to identity provider + all PII)
+            -> DO NOT GRANT; keep manual dashboard/paste. Highest stakes.
+
+Per the brief's instruction not to quietly widen scope: where read-only wasn't achievable
+(Railway, Clerk) I flagged it as a finding rather than working around it. Clerk is a
+recommend-decline; Railway is grant-with-eyes-open.
+
+KEY TECHNICAL FACTS (verified via WebSearch/WebFetch this session)
+-----------------------------------------------------------------
+- Railway API + CLI log host: backboard.railway.com (/graphql/v2). Confirm exact host the
+  installed CLI dials before allowlisting (older docs say backboard.railway.app).
+- Turso DB host: libsql://<db>-<org>.turso.io (+ regional <db>-<org>.<region>.turso.io);
+  HTTP form https://<db>-<org>.turso.io. Platform API api.turso.tech = account-level, EXCLUDED.
+- Clerk Backend API: api.clerk.com. api.clerk.com is NOT already in the firewall — the
+  existing just-raptor-89.clerk.accounts.dev entry is the app's runtime JWKS host, unrelated.
+- Firewall (init-firewall.sh) pins A-records at container start; only re-applies on next
+  container start (postStartCommand). Not hot-appliable. CDN edge-IP rotation is a caveat.
+- Credential storage: separate gitignored .env.agent-diagnostics, NOT .env.local.
+- Invocation: Turso via @libsql/client (existing dep, no CLI); Railway via @railway/cli.
+
+HANDOFF / BLOCKED ON
+--------------------
+PO provisioning: 2x Turso --read-only tokens + URLs; 1x Railway PROJECT token; Clerk = none.
+COO: create OP-21 tracker entry; dispatch firewall+credential brief after provisioning.
+Full next-steps in ADL-33 §10 and context/current.txt.
