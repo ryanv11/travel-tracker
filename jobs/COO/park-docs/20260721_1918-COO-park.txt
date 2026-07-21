@@ -1,0 +1,120 @@
+COO SESSION PARK — 2026-07-21 (BRD-NF09 merge, ADL-33/34, OP-21 agent diagnostic access)
+================================================================================
+
+## Session summary
+Picked up mid-implementation: Backend (PR #176) and Database (PR #175) had both completed
+their BRD-NF09 hosted-deployment briefs from the prior session's ADL-32 decision. Reviewed
+both diffs in full and caught a real cross-PR bug before merging — Backend's db/index.ts
+now prefers TURSO_DATABASE_URL over SQLITE_PATH, but Database's drizzle.config.ts and
+reset-staging.ts (written concurrently, unaware of that change) only read SQLITE_PATH.
+Fixed forward on Database's branch (verified via a live guardrail test — the staging-name
+safety check now correctly fires against a TURSO_DATABASE_URL value too) before merging
+either PR. Both merged, main CI green.
+
+Walked Ryan through the remaining Railway/Turso provisioning live: DB_TYPE=sqlite missing
+from Railway env vars (diagnosed from his pasted crash log), an env-var-naming question
+(plain names + per-environment Railway scoping vs. suffixed names — went with plain,
+matching ADL-32 §7 and avoiding new environment-detection code), and NODE_ENV=production
+vs a custom "staging" value (flagged that only 'production' is recognized anywhere in the
+codebase and any other value silently defeats the BYPASS_AUTH fatal-guard).
+
+Ryan then asked for the COO to get direct read-only diagnostic access to Railway/Turso/
+Clerk after a live Railway deploy got stuck with no visible logs. Scoped this properly
+before acting (it's a real infra/security-boundary change — new firewall exceptions +
+credentials in the sandbox) and routed it through an Architect ADL per Ryan's own choice.
+Architect delivered ADL-33: Turso grants cleanly (genuinely per-database read-only
+tokens), Railway grants with a caveat (no read-only token scope exists on any Railway
+token type), Clerk is a recommend-decline (no read-only credential exists at all — only
+the full-write sk_* Secret Key). Ryan confirmed both recommendations.
+
+Provisioning had a rocky start: Ryan's first Turso paste turned out to be an account-level
+token (JWT `group_uuid` claim, no per-database scoping) rather than the DB-scoped token
+ADL-33 called for — caught by decoding the JWT claims locally and researching Turso's
+actual token model, flagged, and Ryan corrected it with real `turso db tokens create <db>
+--read-only` tokens (confirmed via distinct `rid` claims per token). The mistaken
+account-level token was flagged for revocation — Ryan confirmed it's been revoked.
+
+While wiring the firewall allowlist for the new Turso/Railway hosts, discovered a
+significant pre-existing bug independent of this work: `.devcontainer/init-firewall.sh`
+was fail-open. A single dead domain in its static allowlist (statsig.anthropic.com,
+confirmed genuine NXDOMAIN) caused the whole script to abort under `set -e` AFTER
+flushing all iptables rules but BEFORE ever applying the default-DROP lockdown — meaning
+this running container's outbound network had been completely unrestricted this entire
+session, contrary to CLAUDE.md's stated firewall posture. Flagged immediately, paused the
+diagnostic-access work, and got Ryan's go-ahead to fix it in the same change (ADL-34).
+Restructured the script so lockdown applies immediately after basic DNS/SSH/localhost
+bootstrap, before any external domain resolution — everything after that point is now
+purely additive to an already-enforced allowlist, so no single domain/CIDR/IP failure can
+ever silently disable the firewall again. Verified via bash syntax check, empirical
+reproduction of the original bug, and a mocked dry-run of the corrected control flow;
+could NOT verify live end-to-end in this container (passwordless sudo is scoped to the
+already-built /usr/local/bin/init-firewall.sh, not the repo copy) — that's the real
+verification step, pending Ryan restarting/rebuilding the container (his stated next
+action after this session).
+
+Finished wiring OP-21: both Turso tokens (verified via JWT inspection) and both Railway
+tokens (one per environment — Ryan provided prod+staging rather than prod-only) landed in
+a new gitignored .env.agent-diagnostics, never committed (confirmed via git status/
+Gitleaks at every step). Built scripts/agent-diagnostics/turso-query.mjs (read-only
+SELECT/PRAGMA/EXPLAIN runner) and railway-query.sh (GraphQL fallback — Railway's official
+CLI has no Linux aarch64 build and can't install in this sandbox). Tested both live
+against the real credentials, made possible only because this container's firewall was
+still in its pre-fix (accidentally open) state — a useful accident that let credential
+validity get verified separately from firewall reachability, something that won't be
+possible again post-restart.
+
+That live test immediately paid off: railway-query.sh's first real query surfaced the
+actual root cause of the Railway deploy that had been stuck "queued due to upstream
+GitHub issues" earlier in the session — the Railway project's plan is `trial`, not the
+paid Hobby plan ADL-32's cost decision assumed, and Railway is platform-wide
+deprioritizing Trial/Hobby deploys during a demand spike as of today (confirmed via
+Railway's own status/community reports). Not a code or config problem. Cross-referenced
+this finding into both OP-21's and BRD-NF09's tracker notes, since it's a live blocker on
+BRD-NF09's own success criteria.
+
+## Completed this session
+- PR #175, #176 — BRD-NF09 Backend/Database hosted-deployment briefs, merged (cross-PR
+  env-var bug caught and fixed before merge)
+- PR #177 — session housekeeping (tracker, ADL-32 status, inbox triage)
+- PR #178 — ADL-33 (Railway/Turso/Clerk read-only access design)
+- PR #179, #180 — OP-21 tracker entry created, then updated with Ryan's confirmed scope
+  decisions (Railway Project token accepted with caveat, Clerk declined)
+- PR #181 — OP-21 implementation (Turso/Railway firewall hosts, .env.agent-diagnostics,
+  turso-query.mjs, runbook) + ADL-34 (firewall fail-open bug fix), bundled per Ryan's
+  explicit instruction to fix it as part of the same update
+- PR #182 — Railway tokens wired, railway-query.sh added, Railway trial-plan root cause
+  documented
+- tracker.json: BRD-NF09 → in_progress (DB_TYPE done, Clerk verification + live deploy
+  criteria + Railway trial-plan blocker remain); OP-21 created and closed out to
+  in_progress (firewall fix not yet live-verified)
+- CLAUDE.md: OP-20 addendum (fresh worktrees don't inherit node_modules)
+- Exposed Turso account-token confirmed revoked by Ryan
+- Main CI green after every merge this session; all branches/worktrees cleaned up
+
+## State of play
+- BRD-NF09 is close but not done. Code is fully merged and correct. What's actually
+  blocking a working deploy right now is external to this repo: Railway's Trial/Hobby
+  queue deprioritization during today's platform demand spike. Ryan needs to confirm
+  whether the project is really still on Trial (vs. the Hobby upgrade ADL-32 assumed) and
+  decide whether to wait it out or move to Pro tier.
+- ADL-34's firewall fix is merged to main but NOT yet live in this running container —
+  it only takes effect on next container start/rebuild, which Ryan said he'll handle
+  after this session closes. That first real run is the outstanding verification step;
+  watch for the startup log's "Firewall configuration complete" line and any
+  FIREWALL WARNING summary.
+- OP-21 diagnostic tooling (Turso + Railway) is fully wired and tested, but will only be
+  reachable from a live Claude Code session after that same container restart applies the
+  new firewall allowlist entries.
+- Standing backlog, untouched this session: OQ-03, OQ-05, PR #126 (open UAT finding),
+  broader P1/P2 tracker backlog.
+
+## Open threads
+None raised this session that aren't already captured in a durable artifact (ADL-33,
+ADL-34, tracker.json, or this park doc). See jobs/COO/open-dialogues.md for anything
+carried over from prior sessions — currently empty.
+
+## Restart-preview check (shown to Ryan before this doc was written)
+Captured: PRs #175-182 merged, ADL-33/34, OP-21 tooling, BRD-NF09 status update, Railway
+trial-plan finding cross-referenced, exposed-token revocation confirmed. Captured-not-
+actioned: OQ-03, OQ-05, PR #126, standing backlog, BRD-NF09's own remaining punch list.
+Not captured: none — Ryan confirmed "all good."
