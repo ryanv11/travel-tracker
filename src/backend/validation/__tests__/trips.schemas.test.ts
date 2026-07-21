@@ -93,14 +93,14 @@ describe('CreateTripSchema', () => {
     expect(result.name).toBe('Japan 2024');
   });
 
-  it('BUG-10: accepts a name of exactly 200 characters', () => {
-    const name = 'A'.repeat(200);
+  it('BUG-10: accepts a name of exactly 75 characters', () => {
+    const name = 'A'.repeat(75);
     const result = passes(CreateTripSchema, { ...valid, name });
     expect(result.name).toBe(name);
   });
 
-  it('BUG-10: rejects a name of 201 characters', () => {
-    fails(CreateTripSchema, { ...valid, name: 'A'.repeat(201) });
+  it('BUG-10: rejects a name of 76 characters', () => {
+    fails(CreateTripSchema, { ...valid, name: 'A'.repeat(76) });
   });
 });
 
@@ -145,14 +145,14 @@ describe('UpdateTripSchema', () => {
     fails(UpdateTripSchema, { name: '' });
   });
 
-  it('BUG-10: accepts a name of exactly 200 characters', () => {
-    const name = 'B'.repeat(200);
+  it('BUG-10: accepts a name of exactly 75 characters', () => {
+    const name = 'B'.repeat(75);
     const result = passes(UpdateTripSchema, { name });
     expect(result.name).toBe(name);
   });
 
-  it('BUG-10: rejects a name of 201 characters', () => {
-    fails(UpdateTripSchema, { name: 'B'.repeat(201) });
+  it('BUG-10: rejects a name of 76 characters', () => {
+    fails(UpdateTripSchema, { name: 'B'.repeat(76) });
   });
 });
 
