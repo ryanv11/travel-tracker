@@ -1,0 +1,62 @@
+TO: COO
+FROM: DATABASE
+DATE: 2026-07-21 10:30
+RE: BRD-NF09 / ADL-32 §9 — staging Turso seed/reset strategy — COMPLETE
+
+Tracker: BRD-NF09 · PR: #175 (chore/nf09-staging-seed-strategy) · BRD: NF-09,
+NF-03 · Branch: chore/nf09-staging-seed-strategy
+
+WHAT WAS BUILT: Verified db:seed/db:migrate need no changes for Turso.
+Fixed a gap ADL-32 §9 didn't scope: drizzle.config.ts (drizzle-kit's own
+connection, separate from db/index.ts) had no way to auth against remote
+Turso — needed TURSO_AUTH_TOKEN + dialect:'turso' (drizzle-kit's own Config
+type only allows authToken under that dialect branch). New npm run
+db:reset-staging script (dry-run default, FK-safe delete order, leaves
+reference data alone, guards against targeting prod). Runbook at
+jobs/database/tech/20260721-staging-reset-runbook.md. No schema changes.
+db/index.ts untouched (Backend's parallel brief, feat/nf09-hosted-deployment-
+backend, ran concurrently in its own worktree — no collision).
+
+ACCEPTANCE CRITERIA:
+  db:seed confirmed transport-agnostic                    PASS
+  db:migrate verified clean vs. fresh empty database       PASS
+  Reset cadence designed + documented                      PASS
+  Reset script built, dry-run + live tested                PASS
+  Runbook written, ADL-32 cross-referenced                 PASS
+  Live round-trip vs. REAL staging Turso instance           NOT DONE — no
+    credentials existed in this sandbox (Ryan provisioned the actual DBs
+    outside it). Substituted a local file: DB standing in for a fresh
+    remote instance (same @libsql/client code path) — valid for
+    migration/seed/delete-order correctness, NOT for a live auth
+    round-trip. Flagged in runbook §3/§6 as the outstanding first-deploy
+    spot-check, not silently skipped.
+
+Migration verified: db:generate not needed (no schema change); db:migrate
+ran clean against a fresh empty database (11/11 migrations). Never db:push.
+
+CI: gh pr checks 175 — all 9 green (Backend/Frontend/Contract/E2E Tests,
+Type Check, Biome, Dependency Scan, Gitleaks, Semgrep).
+
+OPEN ISSUES: One real outstanding item — the live staging-credential
+spot-check noted above. Not a blocker to merging this PR; it's a first-deploy
+verification step for whoever holds the Turso credentials.
+
+PROCESS NOTE (self-caught, no lasting effect): partway through this thread a
+`cd /workspace` briefly put my shell in the shared checkout instead of my
+assigned worktree (OP-20 failure mode). Caught before anything was written or
+committed there — confirmed via `git -C /workspace status --porcelain`
+showing no residue. Also discovered this worktree had no node_modules of its
+own (not shared/symlinked from the main checkout for linked worktrees in this
+repo) — had to `npm install` locally before redoing all verification
+correctly isolated. Full detail in the park doc's "PROCESS NOTE" section if
+this is worth folding into the OP-20 guardrail (e.g. flagging that
+node_modules is NOT automatically available in a fresh worktree).
+
+WHAT'S UNBLOCKED: Railway Preview env var setup now has a documented
+TURSO_AUTH_TOKEN contract covering both the app runtime and drizzle-kit.
+db:reset-staging is ready for first UAT/QA session once Backend's piece
+merges and Railway is live. BRD-NF09 remains blocked on Backend's parallel
+piece (db/index.ts, static serving, ADL-32 §6 Clerk-origin question) — not on
+anything from this thread.
+
+Full detail: jobs/database/park-docs/20260721-DATABASE-park.txt
