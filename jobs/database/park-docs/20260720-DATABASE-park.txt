@@ -1,4 +1,174 @@
 DATABASE PARK DOCUMENT — 2026-07-20
+NOTE: two DATABASE threads landed on 2026-07-20 (BUG-30, BUG-33 schema
+half) plus this renumbering thread; combined here since the park-doc
+filename convention is one-per-day. Sections below, in order:
+  1. BUG-30 (GitHub #154) — merged to main via PR #168
+  2. BUG-33 schema half (GitHub #157) — PR #169, original content
+  3. Renumbering thread — this session's rebase/renumber fix
+
+================================================================================
+SECTION 1 — BUG-30 (GitHub #154), merged PR #168
+================================================================================
+
+PARK DOCUMENT — DATABASE
+Date: 2026-07-20
+Thread: DATABASE Thread — BUG-30 UK region seed fix (GitHub #154)
+
+================================================================================
+THREAD SUMMARY
+================================================================================
+
+Dispatched to fix BUG-30: Scotland/England/Wales/Northern Ireland unavailable
+when adding a place to a trip. Root cause confirmed: GB was present in the
+countries seed data with region_tier_enabled=0. Those four are ISO 3166-2
+regions under GB (same tier as US states / AU states, GE-01/GE-02), not
+countries under ISO 3166-1 — they will never appear as a country to pick
+from, and the Region tier was never enabled to surface them under GB.
+
+================================================================================
+SOURCE DOCUMENTS READ
+================================================================================
+  - _shared/frameworks.txt
+  - _project/travel-tracker-BRD.md — §5.2 Geographic Hierarchy (GE-01..GE-15)
+  - jobs/architect/tech/ (ER schema, ADL log, ADL-24/26/27/28/30, OP-06)
+  - jobs/database/context/current.txt (prior state, 2026-03-07)
+  - jobs/database/inbox/20260321_2300-COO-adl23-trip-countries-migration.md
+    (stale/unrelated — earlier already-actioned thread, left in inbox/ not
+    inbox/read/; did not action it, not in scope for this thread)
+  - jobs/database/park-docs/20260307-DATABASE-park.txt
+  - src/backend/db/schema.ts (countries/regions table definitions)
+  - src/backend/migrations/0001_bug02_iso3166_seam_columns.sql (precedent for
+    ISO 3166-2 backfill pattern — AU/US/CA)
+  - src/backend/services/startup.service.ts (seedCountries/seedRegions —
+    first-launch seed guard logic, GE-04/05)
+  - data/countries.json, data/regions.json (actual seed source files; NOT
+    src/backend/db/seed-data.ts / seed.ts as the brief suggested — those only
+    hold trip_categories/activities/companions/map_shading_config. Countries
+    and regions are seeded from data/*.json via startup.service.ts, loaded at
+    server boot.)
+  - _project/tracker.json BUG-30 entry (confirmed label precedent:
+    "region_tier_label likely 'Constituent Country'")
+
+================================================================================
+DELIVERABLES PRODUCED
+================================================================================
+  1. data/countries.json — GB: region_tier_enabled 0->1, region_tier_label
+     null -> "Constituent Country"
+  2. data/regions.json — 4 new rows: England/GB-ENG, Scotland/GB-SCT,
+     Wales/GB-WLS, Northern Ireland/GB-NIR
+  3. src/backend/migrations/0008_bug30_uk_region_seed.sql — custom data-only
+     migration (via `drizzle-kit generate --custom`, since there is no schema
+     diff — region_tier_enabled/label and regions.iso_3166_2 already exist
+     from migration 0001). Patches already-seeded installs; no-op on fresh
+     installs (guard rationale documented in-file and in context/current.txt).
+  4. src/backend/migrations/meta/_journal.json (+1 entry, idx 8) and
+     meta/0008_snapshot.json (generated, no functional schema delta vs 0007).
+
+  All copied conceptually into jobs/database/context/current.txt (full
+  detail); tech/ folder not updated separately since no schema.ts change.
+
+================================================================================
+DECISIONS MADE THIS THREAD
+================================================================================
+
+  DECISION: region_tier_label = "Constituent Country" for GB.
+  REASON: BRD GE-02 says the tier "represents states, provinces, or
+  territories depending on the country" but has no UK precedent; England/
+  Scotland/Wales/Northern Ireland are officially termed "constituent
+  countries" of the UK. Tracker's BUG-30 note already flagged this as the
+  likely label ("region_tier_label likely 'Constituent Country'") — adopted
+  as-is, no BRD language conflicts with it.
+  ARCHITECT REVIEW NEEDED: No new table/column — region_tier_enabled and
+  region_tier_label already exist and are exactly what GE-04/07 spec for
+  per-country Region tier config. This is data only, not a schema change.
+
+  DECISION: Guard the migration's region INSERTs with
+  `WHERE EXISTS (SELECT 1 FROM regions LIMIT 1)`.
+  REASON: See "IMPORTANT FINDING" in context/current.txt — an unconditional
+  INSERT on a data-only migration would poison the "table empty = not yet
+  seeded" invariant that startup.service.ts's seedRegions() idempotency guard
+  relies on, permanently starving fresh installs of all 72 non-GB regions.
+  Caught via a from-scratch fresh-install simulation before committing.
+
+================================================================================
+ACCEPTANCE CRITERIA
+================================================================================
+  [x] GB seeded with region_tier_enabled=1 and a region_tier_label
+  [x] Scotland/England/Wales/Northern Ireland exist as regions under GB with
+      real ISO 3166-2 codes (GB-SCT, GB-ENG, GB-WLS, GB-NIR)
+  [x] Fix applied via db:generate --custom + db:migrate (never db:push,
+      ADL-15) — verified against a from-scratch fresh install AND the
+      already-seeded dev.db
+  [x] Migration is idempotent (re-run produces no errors, no duplicate rows)
+  [x] Fresh-install seed path (data/countries.json + data/regions.json) also
+      corrected so GE-04/05 holds without needing the migration
+  [x] No regression: existing US/AU/CA regions unaffected on both fresh and
+      already-seeded paths
+  [x] npm run type:check:backend / type:check:all clean
+  [x] npm run test:backend — 523 passed, 1 skipped, no regressions
+  [x] npm run check (biome) clean
+  [ ] npm run test:frontend — 1 pre-existing failure (CarryForwardModal
+      BUG-03 regression test), confirmed unrelated (fails identically with
+      this thread's changes fully stashed out)
+  [ ] npm run status:check — fails, but caused by pre-existing uncommitted
+      tracker.json/STATUS.md/BRD.md changes already in this worktree before
+      the thread started (COO session state, not this brief's scope); left
+      untouched, not committed to this branch
+
+================================================================================
+VERIFICATION LOG
+================================================================================
+  drizzle-kit generate --custom --name bug30_uk_region_seed
+    -> src/backend/migrations/0008_bug30_uk_region_seed.sql created
+  Manual SQL authored (UPDATE + 4x guarded INSERT)
+  npm run db:migrate -> applied against dev.db (after journal entry was
+    restored — see TOOLING NOTE in context/current.txt for one transient
+    drizzle-kit CLI issue this thread hit and worked around)
+  dev.db verification: GB region_tier_enabled=1, region_tier_label=
+    'Constituent Country', 4 GB regions present with correct ISO 3166-2 codes
+  Fresh-install simulation (separate throwaway db file): migrate() -> 0 rows
+    countries/regions -> seedCountries()/seedRegions() replay -> 250
+    countries, 76 regions (51 US + 8 AU + 13 CA + 4 GB), GB row correct
+  Re-run migrate (idempotency check): no duplicate rows, no errors
+
+================================================================================
+BUGS DISCOVERED
+================================================================================
+  [MAJOR, self-caught, fixed before commit] First draft of the migration's
+  region INSERTs used only a per-row `NOT EXISTS (iso_3166_2 = ...)` guard,
+  with no check on whether the table had been seeded at all. On a genuinely
+  fresh install this would have inserted the 4 GB rows into an empty regions
+  table, tripping seedRegions()'s "non-empty -> skip" idempotency guard and
+  silently dropping all other 72 regions (US/AU/CA) from every new install
+  going forward — a data-integrity regression far more severe than the bug
+  being fixed. INITIAL CLASSIFICATION: n/a (caught during my own
+  verification pass, before it reached a commit). ACTUAL CLASSIFICATION:
+  MAJOR (would have affected a core workflow — every fresh install's region
+  data — silently). Disposition: fixed in this same thread via the
+  `WHERE EXISTS (SELECT 1 FROM regions LIMIT 1)` guard, verified against a
+  from-scratch fresh-install simulation before commit. Not escalated to COO
+  since caught and fixed before landing anywhere.
+
+  [MINOR/tooling, deferred] drizzle-kit CLI `migrate` command transiently
+  dropped a freshly-generated custom migration's journal entry on its first
+  run (see TOOLING NOTE, context/current.txt). Not reproduced on subsequent
+  runs; worked around by re-adding the journal entry and applying via
+  drizzle-orm's migrate() directly (same underlying apply path the CLI uses).
+  Flagging to COO/Architect for awareness — may be a 5th drizzle-kit@0.31.9
+  bug alongside the four already tracked in patches/drizzle-kit+0.31.9.patch,
+  worth a closer look if it recurs on a future custom migration.
+
+================================================================================
+RECOMMENDED STARTING POINT FOR NEXT DATABASE THREAD
+================================================================================
+  None expected unless COO returns this PR with defects, or the drizzle-kit
+  CLI migrate-journal issue above recurs and needs root-causing.
+
+================================================================================
+SECTION 2 — BUG-33 schema half (GitHub #157), PR #169 original content
+================================================================================
+
+DATABASE PARK DOCUMENT — 2026-07-20
 Thread: BUG-33 schema half (GitHub #157, BRD GE-11)
 Branch: fix/bug33-city-dedup-schema
 

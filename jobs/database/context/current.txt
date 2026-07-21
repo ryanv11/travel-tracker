@@ -1,7 +1,10 @@
 DATABASE CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-33 schema half complete — cities dedup migration + unique
-index shipped on fix/bug33-city-dedup-schema, PR pending COO review/merge.
+CURRENT STATUS: BUG-30 merged to main (#168). BUG-33 schema half (PR #169,
+branch fix/bug33-city-dedup-schema) rebased onto main post-BUG-30-merge and
+renumbered to resolve a migration-index collision (both PRs independently
+generated a migration at idx 8 from the same main commit). See "RENUMBERING
+THREAD" section below for the current, active thread.
 
 ================================================================================
 NOTE ON THIS FILE'S GAP (March 2026 -> July 2026)
@@ -19,15 +22,58 @@ Flagging this as a housekeeping gap rather than silently back-filling four
 months of unrelated drift in this thread.
 
 ================================================================================
-THIS THREAD — BUG-33 (GitHub #157, BRD GE-11)
+THREAD — BUG-30 (GitHub #154) — MERGED to main via PR #168
+================================================================================
+
+Bug: UK constituent countries (Scotland, England, Wales, Northern Ireland)
+unavailable when adding a place. Root cause: GB was present in the countries
+seed but with region_tier_enabled=0 — those four are ISO 3166-2 regions under
+GB, not ISO 3166-1 countries themselves (GE-01/GE-02), so the Region tier
+never surfaced for GB.
+
+Deliverables (branch fix/bug30-uk-region-seed, merged):
+  1. data/countries.json — GB row: region_tier_enabled 0->1,
+     region_tier_label null -> 'Constituent Country'
+  2. data/regions.json — added England/GB-ENG, Scotland/GB-SCT, Wales/GB-WLS,
+     Northern Ireland/GB-NIR (real ISO 3166-2 codes, same shape as existing
+     US/AU/CA rows)
+  3. src/backend/migrations/0008_bug30_uk_region_seed.sql — data-only custom
+     migration (drizzle-kit generate --custom; no DDL diff since
+     region_tier_enabled/label and iso_3166_2 columns already exist from
+     migration 0001). UPDATEs the GB countries row and INSERTs the 4 regions,
+     guarded with `WHERE EXISTS (SELECT 1 FROM regions LIMIT 1)` so it is a
+     no-op on fresh installs.
+  4. src/backend/migrations/meta/_journal.json + 0008_snapshot.json —
+     generated migration metadata. This is now the canonical idx-8 entry on
+     main; BUG-33's migrations (below) were renumbered to 9/10 to avoid
+     colliding with it.
+
+IMPORTANT FINDING (self-caught, fixed before commit): first draft of the
+region INSERTs used only a per-row NOT EXISTS guard with no check on whether
+the table had been seeded at all — on a genuinely fresh install this would
+have inserted the 4 GB rows into an empty regions table, tripping
+seedRegions()'s "non-empty -> skip" idempotency guard and starving every new
+install of the other 72 US/AU/CA regions. Fixed via
+`WHERE EXISTS (SELECT 1 FROM regions LIMIT 1)`; verified against both a
+from-scratch fresh-install simulation and the already-seeded dev.db path.
+
+TOOLING NOTE (flagged, not blocking): drizzle-kit CLI `migrate` transiently
+dropped a freshly-generated custom migration's journal entry on its first
+run in that thread; not reproduced since. Possibly a 5th drizzle-kit@0.31.9
+bug beyond the four tracked in patches/drizzle-kit+0.31.9.patch — worth a
+closer look if it recurs.
+
+================================================================================
+THREAD — BUG-33 schema half (GitHub #157, BRD GE-11) — PR #169
 ================================================================================
 
 Problem: `cities` had no uniqueness constraint on (name, country_code) — the
 find-or-create lookup path created a duplicate "Glasgow" row instead of
 reusing the existing one (found in UAT 2026-07-20).
 
-Delivered (branch fix/bug33-city-dedup-schema):
-  1. src/backend/migrations/0008_bug33_dedupe_cities_data.sql — merges
+Delivered (branch fix/bug33-city-dedup-schema), originally at idx 8/9,
+renumbered to idx 9/10 in the RENUMBERING THREAD below:
+  1. src/backend/migrations/0009_bug33_dedupe_cities_data.sql — merges
      existing duplicate city rows (canonical = lowest id; geocode fields
      coalesced from the best-resolved duplicate). Re-points trip_places to
      canonical city; handles the case where that collides with
@@ -35,8 +81,8 @@ Delivered (branch fix/bug33-city-dedup-schema):
      targeting the same city) by keeping the earlier trip_place row and
      migrating items/activity-tags off the later one before deleting it —
      no user data lost.
-  2. src/backend/migrations/0009_stiff_meltdown.sql — adds
-     UNIQUE(name COLLATE NOCASE, country_code) on cities (schema.ts:
+  2. src/backend/migrations/0010_stiff_meltdown.sql (or regenerated tag) —
+     adds UNIQUE(name COLLATE NOCASE, country_code) on cities (schema.ts:
      uniq_cities_name_country_ci).
   3. src/backend/db/schema.ts — cities table now has the unique index.
 
@@ -54,23 +100,46 @@ new index's COLLATE NOCASE (ASCII-only case fold) or it will fail to find the
 canonical row.
 
 ================================================================================
-VERIFICATION
+RENUMBERING THREAD (2026-07-20, active) — migration-index collision fix
 ================================================================================
-  npm run db:generate   → clean both times (0008 custom + 0009 schema diff);
-                           re-running after produced "No schema changes"
-  npm run db:migrate    → applied clean, both migrations
-  npm run type:check:all, test:backend (523 pass), test:frontend (101 pass),
-  npm run check, npm run status:check → all clean
+
+PR #168 (BUG-30) and PR #169 (BUG-33) were both dispatched from the same COO
+session, forked from the same main commit, and both independently generated
+a migration at idx 8. #168 merged first (0008_bug30_uk_region_seed.sql is
+now the canonical idx-8 on main). This thread rebases fix/bug33-city-dedup-
+schema onto post-merge main and renumbers BUG-33's two migrations to the
+next free slots: 0008_bug33_dedupe_cities_data.sql -> 0009_..., and
+0009_stiff_meltdown.sql -> 0010_... (exact auto-generated tag may differ;
+filename-to-journal-tag match is what matters, not the exact tag text).
+
+Renumbering was done by regenerating (not hand-editing) the journal entries
+and snapshots: reverted schema.ts's uniqueIndex addition temporarily, ran
+`drizzle-kit generate --custom` for the data migration at the new idx 9
+(matches main's post-bug30 snapshot exactly, no DDL diff — same as the
+original idx 8 draft), pasted in the unchanged 150-line data-cleanup SQL,
+then re-applied the uniqueIndex schema.ts change and ran `drizzle-kit
+generate` (auto) for idx 10 to regenerate the CREATE UNIQUE INDEX migration
+from the real schema diff. This guarantees correct id/prevId snapshot
+chaining rather than hand-crafted UUIDs. Migration SQL content itself is
+byte-identical to the original PR #169 commit — only position in the
+sequence changed.
+
+See VERIFICATION below for the full-sequence (0000-0010) migrate test and
+pre-push suite results for this thread specifically.
 
 ================================================================================
-OUTBOX SENT
+VERIFICATION (BUG-33 schema half, original)
 ================================================================================
-  jobs/COO/inbox/20260720_1100-DATABASE-bug33-schema-complete.md
+  npm run db:generate   -> clean both times (0008 custom + 0009 schema diff);
+                           re-running after produced "No schema changes"
+  npm run db:migrate    -> applied clean, both migrations
+  npm run type:check:all, test:backend (523 pass), test:frontend (101 pass),
+  npm run check, npm run status:check -> all clean
 
 ================================================================================
 NEXT DATABASE THREAD
 ================================================================================
-  Awaiting COO review/merge of PR (Closes #157, BRD GE-11).
+  Awaiting COO review/merge of PR #169 (Closes #157, BRD GE-11) post-rebase.
   Once Backend's fix/bug33-city-dedup-logic lands, QA should re-verify the
   autocomplete no longer offers duplicate Glasgow entries end-to-end.
   Separate housekeeping item (not blocking): jobs/database/tech/ and this

@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX `uniq_cities_name_country_ci` ON `cities` ("name" COLLATE NOCASE,`country_code`);
