@@ -60,6 +60,12 @@ const ALLOWED_ORIGINS = (
   .split(',')
   .map((o) => o.trim());
 
+// Clerk loads its own browser SDK (clerk-js) from its Frontend API origin rather
+// than bundling it — the CSP below must explicitly allow that origin or the script
+// load (and Clerk's own API calls) are blocked. Only set when CLERK_ISSUER is
+// configured; BYPASS_AUTH/CI environments don't set it and never load Clerk's JS.
+const CLERK_ORIGIN = process.env.CLERK_ISSUER;
+
 // ADL-32: Hosted deployment (Railway) serves the built frontend from this same
 // process — express.static on the Vite dist/ build + an SPA fallback for
 // client-side routes. Gated on NODE_ENV=production AND the dist/ directory
@@ -80,10 +86,16 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        // Clerk loads its browser SDK from its own Frontend API origin rather
+        // than bundling it, and that same origin handles Clerk's own XHR/fetch
+        // calls (sign-in, session refresh) — both directives need it or Clerk
+        // fails to load entirely (blank screen, no error boundary can catch it).
+        scriptSrc: CLERK_ORIGIN ? ["'self'", CLERK_ORIGIN] : ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"], // React needs inline styles
         imgSrc: ["'self'", 'data:', 'blob:', '*.maptiler.com'],
-        connectSrc: ["'self'", '*.maptiler.com'], // MapLibre tile fetches
+        connectSrc: CLERK_ORIGIN
+          ? ["'self'", '*.maptiler.com', CLERK_ORIGIN] // MapLibre tiles + Clerk API
+          : ["'self'", '*.maptiler.com'],
         frameSrc: ["'none'"],
       },
     },
