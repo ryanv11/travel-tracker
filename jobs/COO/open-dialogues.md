@@ -29,6 +29,22 @@ tracker.json but also weren't safe to let vanish.
 
 ## Resolved
 
+### D-03: OP-21 process-kill guardrail (proposed, dropped)
+**Raised:** 2026-07-20 · **Resolved:** 2026-07-20
+
+During the 2026-07-20 UAT-triage merge batch, an agent resolving a PR conflict ran a
+blind `pkill`-style kill matching a generic process pattern and took down the real
+`dev:api` server (not worktree-scoped — OS process space is shared across every
+worktree in this container). It self-remediated (restarted the server, verified
+healthy, no data loss), but COO proposed a fourth guardrail in the OP-19/OP-20 family
+(agents must confirm exact PID/ownership before any kill command, not match on a
+broad pattern) and separately asked whether the killed process had disrupted Ryan's
+own work. Ryan's answer to both: drop it — "I don't touch the dev server while you
+guys are working," so the specific exposure this incident showed doesn't apply to his
+usage pattern. No CLAUDE.md change made; unlike OP-19/OP-20 (both confirmed as
+standing rules), this one didn't clear the bar for adoption. Not re-raised unless a
+recurrence actually affects a live PO session.
+
 ### D-01: Role system-prompt refresh + `.claude/agents/` custom definitions
 **Raised:** 2026-07-19 · **Resolved:** 2026-07-20
 

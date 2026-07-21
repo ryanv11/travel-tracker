@@ -1,0 +1,135 @@
+COO SESSION PARK — 2026-07-21 (UAT triage → 9 dispatched briefs → 11-PR merge batch)
+================================================================================
+
+## Session summary
+Ryan ran a live UAT pass (16 findings) against the app; this session triaged every
+finding, dispatched 9 parallel implementation briefs across database/backend/frontend
+roles, then merged all resulting 11 PRs to main one at a time with CI verification
+after every single merge, resolving real conflicts (a migration-numbering collision,
+several shared-status-doc conflicts) along the way. Also corrected a wrong finding
+mid-session (BUG-38) and hardened the agent-dispatch isolation rules a second time
+(OP-20) after two more near-misses surfaced.
+
+## Completed this session
+
+### UAT triage (16 findings → tracker)
+- Logged as a full session in `jobs/PO/uat-log.md` (2026-07-21 entry — verdict PARTIAL,
+  now fully resolved by the merge batch below).
+- Filed as tracker bugs, all now `done`: BUG-30 (UK/Scotland region seeding — GB was
+  seeded but region-tier-disabled), BUG-31 (place date range not persisting — GET
+  /api/trips/:id never selected arrived_on/departed_on), BUG-32 (place removal —
+  backend + frontend, plus a real cascade fix: items reassign to trip-level rather
+  than blocking delete with a 500), BUG-33 (duplicate city entries — schema unique
+  index + cleanup migration, plus application-level find-or-create logic), BUG-34 (map
+  standout-icon inconsistency), BUG-35 (admin tooltip), BUG-36 (trip-level Add Item
+  entry point for flights/cars — turned out to be a pure UI gap, schema already
+  supported it), BUG-37 (flaky CarryForwardModal test, filed not actioned).
+- BUG-10 reopened: original fix silently truncated over-limit trip names instead of
+  rejecting them; PO also corrected the limit to 75 chars (was 200). Both backend and
+  frontend halves fixed and merged.
+- BUG-27 (locked trips) UAT-confirmed PASS, noted on its tracker entry.
+- BRD bumped 3.0 → 3.1: added DP-06 (first place inherits trip dates), IT-10 (optional
+  Google Maps URL per item, schema change pending Architect review), OQ-05 (same-city
+  revisit within a trip — trip_places' one-row-per-city constraint blocks realistic
+  itineraries; Architect to resolve before any brief touches trip-place identity).
+  Each new ID has a tracker entry with stated success criteria.
+- UX-11 (status pill colours matching map shading) backlogged pending a UX spec.
+  Banner-image request folded into the existing UX-05/PH-04 entry (manual upload only,
+  no Google Images auto-fetch — ToS/legal risk, no clean API).
+- GitHub issues #154–160 raised for BUG-30–36; #138 reopened for BUG-10. All
+  cross-referenced in tracker notes per the mandatory rule.
+
+### Dispatch and merge (9 briefs → 11 PRs, all merged)
+All role-agent dispatches used `isolation: "worktree"` per OP-19. PRs: #161 (BUG-10
+frontend), #162 (BUG-31), #163 (BUG-34), #164 (BUG-10 backend), #165 (BUG-35), #166
+(BUG-32 backend), #167 (BUG-33 logic), #168 (BUG-30), #169 (BUG-33 schema), #170
+(BUG-32 frontend), #171 (BUG-36) — merged in that rough order, main CI verified green
+after every single merge, no exceptions.
+
+Real conflicts hit and resolved (sent back to the owning agent each time, not resolved
+directly in the shared tree):
+- **Migration-numbering collision**: BUG-30 and BUG-33-schema both generated a
+  migration at index 8 from the same base commit. Dispatched a dedicated agent to
+  rebase PR #169 onto post-#168 main and renumber to 0009/0010, re-verified end-to-end
+  against a fresh migrate run before it merged.
+- **Shared status-doc conflicts** (`jobs/backend/context/current.txt`,
+  `jobs/backend/tech/20260307-api-reference.md`, `jobs/frontend/context/current.txt`):
+  hit repeatedly as sibling backend/frontend PRs landed in sequence (PR #164 and #166
+  each needed two resolution rounds). Low-risk content, resolved by keeping both
+  sides' updates.
+
+### Process finding corrected mid-session: BUG-38 was wrong
+Originally filed as a P2 (SQLite FK enforcement allegedly off by default, cascades
+decorative). The BUG-32 backend brief independently proved this wrong while fixing a
+real production 500 — FK enforcement is actually ON by default in `@libsql/client`
+regardless of an explicit pragma. COO independently reproduced the same result.
+BUG-38 closed as `not-a-bug`; the real underlying issue (items.trip_place_id had no
+onDelete behaviour specified) was fixed in PR #166 via reassign-to-null rather than
+cascade-delete, preserving logged items.
+
+### OP-20: two more isolation near-misses, both contained
+Same dispatch round, both caught before real harm:
+1. Bare `git stash`/`git stash pop` collided across worktrees (refs/stash is a single
+   ref shared by every linked worktree) — one agent's pop returned a different
+   agent's uncommitted WIP. Verified directly against the merged PR diff: nothing
+   was actually lost.
+2. An agent ran early investigation commands against the shared `/workspace` tree
+   before noticing it hadn't `cd`'d into its assigned worktree.
+CLAUDE.md's Agent dispatch isolation section extended with two new mandatory rules
+(no bare git stash/stash pop; confirm working directory as the first action of any
+worktree dispatch). Tracker entry OP-20 (done), memory file
+`feedback_worktree_stash_cwd_guardrail.md` written.
+
+### Raised, then explicitly dropped: OP-21 process-kill guardrail
+A third incident in the same round — an agent's blind `pkill`-style command (fixing
+PR #164's conflict) killed the real `dev:api` server on port 3001, not worktree-scoped
+since OS process space is shared across the whole container. Self-remediated, verified
+healthy, no data loss. COO proposed a fourth guardrail (confirm PID ownership before
+any kill command) and asked whether this had disrupted Ryan's own work. Ryan's answer:
+drop both — he doesn't touch the dev server while agents are working, so this
+specific exposure doesn't apply to him. Recorded in `jobs/COO/open-dialogues.md` as
+D-03 (resolved, dropped) rather than silently vanishing. No CLAUDE.md change made.
+
+### Inbox + hygiene
+9 completion reports moved to `jobs/COO/inbox/read/`. One process gap noted, not
+blocking: the BUG-34/35/36 frontend agent never filed a completion report to the
+inbox despite finishing all three (verified merged directly via `gh pr checks`/`gh
+run list`, not just trusting the agent's self-report). Branch/worktree hygiene: all
+10 agent worktrees and their branches removed; `git branch` now shows only `main` +
+`chore/uat-note-country-picker-gap` (the one branch with a genuinely open PR).
+
+## State of play
+Main green (verified directly after each of the 11 merges, not just trusted from each
+PR's own checks). Tracker + STATUS.md fully reflect merged reality. BRD at v3.1,
+header/changelog consistent, every new requirement ID has a tracker entry with stated
+success criteria. Zero stale branches or worktrees.
+
+## Open Dialogues
+D-03 (OP-21 process-kill guardrail) raised and resolved same-session — see
+`jobs/COO/open-dialogues.md`. Nothing else open.
+
+## Untouched backlog (carried forward, not touched this session — already tracked
+elsewhere)
+- OP-07: UI/UX expert review (pending, P2, scheduled after Phase 1 sign-off).
+- OP-15: design pass for the two deferred skills (schema-change, backend-route-
+  change) — prerequisites still unmet.
+- Scotland dogfood trial — BUG-30 (this session) directly serves it; still the
+  concrete next input for PHASE-6's planning-core work.
+- OQ-03 (approximate/partial dates), OQ-04 (hosting platform) — still open BRD
+  questions, Architect-owned.
+- New from this session, tracked but not yet dispatched: BRD-DP06 (first place
+  inherits trip dates), BRD-IT10 (Google Maps URL — needs Architect schema review
+  first), OQ-05 (same-city revisit model — needs Architect design first), UX-11
+  (status pill colours — needs a UX spec first), BUG-37 (flaky test).
+
+## Suggested next session
+1. `/coo-startup` — will pick up cleanly. Note: this park doc's own drift-ledger
+   entries and the session-close commit are the last things this session touches.
+2. BUG-38's correction and OP-20's guardrails are exactly the kind of thing worth a
+   quick sanity spot-check next session — confirm no further stash/cwd collisions in
+   subsequent dispatch rounds, now that the CLAUDE.md rule exists.
+3. Straightforward next work: BRD-DP06 (small, well-scoped, no dependencies) could be
+   briefed directly. BRD-IT10 and OQ-05 both need an Architect consult before they're
+   briefable. UX-11 needs a UX spec.
+4. OP-07 or OP-15 if their prerequisites are ready to pick up; Scotland trial or
+   roadmap/bundles work otherwise.

@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (22)
+## Open work (27)
 
 ### P0 — Blockers (1)
 
@@ -33,7 +33,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack | ⬜ Pending |
 | BRD-NF09 | Hosted deployment for personal use (NF-09) | architect | ⬜ Pending |
 
-### P2 — Important (12)
+### P2 — Important (14)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -49,27 +49,32 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-PL06 | Co-planning — companions contribute to idea pool on shared trips (PL-06, Phase 3) | architect | ⬜ Pending |
 | BRD-LB01 | Destination recommendations view — aggregated across trips (LB-01) | fullstack | ⬜ Pending |
 | BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
+| BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
+| OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
 
-### P3 — Minor (6)
+### P3 — Minor (9)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | OP-15 | Design pass for deferred skills — schema-change + backend-route-change | coo | ⬜ Pending |
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
+| BUG-37 | Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked' | frontend | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
 | QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
 | BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
+| BRD-IT10 | Optional Google Maps URL per item — one-click directions (IT-10) | architect | ⬜ Pending |
+| UX-11 | Trip-list status pill colours should match map shading colours (admin-driven) | ux | ⬜ Pending |
 
 ## Coverage by type
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `███████████▓▓▓░░░░░░` 23/41 | 23 | 18 | 1 |
-| requirement | `███████████████████░` 29/31 | 29 | 2 | 5 |
-| bug | `████████████████████` 30/30 | 30 | 0 | 3 |
+| feature | `██████████▓▓▓░░░░░░░` 23/44 | 23 | 21 | 1 |
+| requirement | `██████████████████░░` 29/32 | 29 | 3 | 5 |
+| bug | `███████████████████░` 37/38 | 37 | 1 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
-| chore | `██████████████░░░░░░` 5/7 | 5 | 2 | 0 |
+| chore | `███████████████░░░░░` 6/8 | 6 | 2 | 0 |
 
 <details>
 <summary>Deferred (8)</summary>
@@ -88,14 +93,15 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 </details>
 
 <details>
-<summary>Closed without change (1)</summary>
+<summary>Closed without change (2)</summary>
 
 | ID | Title | Resolution |
 |---|---|---|
+| BUG-38 | SQLite foreign_keys pragma never enabled — declared cascade FKs not actually enforced | not-a-bug |
 | BUG-17 | BUG-A untracked — trips.ts comment references unlogged issue | not-a-bug |
 
 </details>
 
 ---
 
-_95 done · 8 deferred · 1 closed · 22 open — 126 tracked items_
+_103 done · 8 deferred · 2 closed · 27 open — 140 tracked items_

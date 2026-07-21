@@ -967,7 +967,40 @@
       "priority": "P2",
       "brdRefs": ["PH-04"],
       "phase": 4,
-      "notes": "PO noted photos button currently shows 'coming soon'. PH-01/02 only implemented the reference field. Full photo feature (upload, gallery, attachment) deferred to Phase 2+."
+      "notes": "PO noted photos button currently shows 'coming soon'. PH-01/02 only implemented the reference field. Full photo feature (upload, gallery, attachment) deferred to Phase 2+. UAT 2026-07-20: PO requested a trip banner image (above the trip title, on the detail view). Considered auto-populating from Google Images — rejected (ToS/legal risk, no clean API for 'representative photo of a place'). Decision: manual upload only, no auto-fetch. Folds into this entry's scope when PH-04 is picked up, no new BRD ID needed (PH-04 already covers direct photo attachment to trips)."
+    },
+    {
+      "id": "BUG-37",
+      "type": "bug",
+      "title": "Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked'",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-20 by the BUG-10 frontend brief (unrelated to that fix — confirmed pre-existing by reproducing on a clean branch tip with the BUG-10 diff stashed out). src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx — onClose occasionally called 2-3x instead of 1x when Skip is clicked. Not investigated further; flagging so it isn't lost once the reporting agent's worktree is cleaned up."
+    },
+    {
+      "id": "BUG-38",
+      "type": "bug",
+      "title": "SQLite foreign_keys pragma never enabled — declared cascade FKs not actually enforced",
+      "status": "not-a-bug",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-20 by the BUG-33 schema brief. Original claim: src/backend/db/index.ts has no `PRAGMA foreign_keys = ON` anywhere, and plain SQLite disables FK enforcement by default per-connection — concluded that declared cascades were decorative only. CORRECTED 2026-07-20, same session: the BUG-32 backend brief independently hit this exact question (a real production 500 on deleting a place with items still referencing it — only possible if the FK constraint IS being enforced) and empirically verified via an isolated @libsql/client script that FK enforcement is ON by default with this driver, no explicit pragma needed. COO independently reproduced the same test directly (DELETE against a referenced parent row failed with SQLITE_CONSTRAINT_FOREIGNKEY) and confirms this. The original claim was a correct fact about the plain SQLite C library that doesn't hold for @libsql/client specifically — this codebase's actual driver. No orphaned-row risk exists; closing as not-a-bug. The real bug this surfaced (items.trip_place_id has no onDelete behavior specified, so deleting a place with items throws a 500 instead of cascading or reassigning) was fixed independently in PR #166 (BUG-32) via reassign-to-null rather than cascade-delete, to preserve logged items."
+    },
+    {
+      "id": "OP-20",
+      "type": "chore",
+      "title": "isolation:\"worktree\" alone insufficient — shared stash ref + cwd confirmation guardrails",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Two near-misses in the same 2026-07-20 dispatch round (9 parallel worktree-isolated agents from UAT triage), both contained, nothing lost, but two in one round is too many for one-offs. (1) BUG-33 schema-half agent: bare `git stash`/`git stash pop` collided with a concurrent agent's stash — refs/stash is a single ref shared across all linked worktrees, unlike HEAD/branch/index/working-directory which isolation:\"worktree\" does cover. Agent recovered the foreign WIP (BUG-10 frontend's TripForm.tsx) via re-stash with a clear message; verified directly against the merged PR #161 diff that nothing was actually lost. (2) Same BUG-33 schema-half agent separately ran initial investigation commands against /workspace (shared COO tree) before noticing it hadn't cd'd into its assigned worktree — caught before any lasting changes (reads + one throwaway test file, since deleted). Fix: CLAUDE.md's Agent dispatch isolation section extended with two new mandatory rules — no bare git stash/stash pop (use git diff to a scratch file instead), and every worktree dispatch must confirm its working directory matches the assigned worktree path as its first action. No GitHub issue raised — direct COO-session process fix, no code/app impact."
     },
     {
       "id": "UX-06",
@@ -1172,7 +1205,7 @@
       "priority": "P1",
       "brdRefs": ["TR-06", "TR-07"],
       "phase": 4,
-      "notes": "GitHub issue #135, PR #140 (merged 2026-07-19). Audit Q3 (Session B Q2), PO ruling 2026-07-16: locked = read-only, only unlock allowed. Fixed both gaps (trip DELETE, place-activity tag/untag) plus a third found during implementation: items PATCH/DELETE called assertNotLocked before ownership check, leaking lock status of other users' trips (audit invariant 17 violation) — reordered to ownership-then-lock. 21-test lock-matrix contract test added (src/backend/routes/__tests__/lock-matrix.test.ts), asserts 403 across all 15 mutating routes. First CI run caught a real E2E fallout (deleteAllTrips cleanup helper 403'd against its own newly-enforced lock) — fixed in the E2E layer, not by weakening enforcement."
+      "notes": "GitHub issue #135, PR #140 (merged 2026-07-19). Audit Q3 (Session B Q2), PO ruling 2026-07-16: locked = read-only, only unlock allowed. Fixed both gaps (trip DELETE, place-activity tag/untag) plus a third found during implementation: items PATCH/DELETE called assertNotLocked before ownership check, leaking lock status of other users' trips (audit invariant 17 violation) — reordered to ownership-then-lock. 21-test lock-matrix contract test added (src/backend/routes/__tests__/lock-matrix.test.ts), asserts 403 across all 15 mutating routes. First CI run caught a real E2E fallout (deleteAllTrips cleanup helper 403'd against its own newly-enforced lock) — fixed in the E2E layer, not by weakening enforcement. UAT CONFIRMED 2026-07-20: 'Lock trip now works correctly' — PO verified live."
     },
     {
       "id": "BUG-28",
@@ -1199,13 +1232,13 @@
     {
       "id": "BUG-10",
       "type": "bug",
-      "title": "200-character trip-name limit documented but never enforced",
+      "title": "Trip-name length limit silently truncates instead of rejecting; limit corrected to 75 chars",
       "status": "done",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": ["TR-01"],
       "phase": 4,
-      "notes": "GitHub issue #138, PR #141 (merged 2026-07-19). Backfilled 2026-07-18 — the BUG-10 label existed only in trips.contract.test.ts (permanently-green expect([201,400]) assertion since March). Audit Q13 (Session B Q9), PO ruling: enforce. Investigation found zName had actually been .max(200) since 32c9f1a (2026-03-09) — the enduring gap was the hollow test itself, not the validation. Fixed: clear 400 message, real boundary assertions (contract + unit, create + update), frontend maxLength=200, all accept-either-outcome assertions removed from the file."
+      "notes": "REOPENED 2026-07-20 UAT — PR #141's fix (below, kept for history) enforces the limit but by silently truncating the name until it fits, rather than rejecting with an error the user can act on. PO also corrected the limit itself: 75 characters, not 200. Corrected success criteria (amended 2026-07-20 per PO clarification): (1) the trip-name input must hard-restrict entry at 75 characters — the field simply cannot be typed/pasted past the limit, no silent truncation on submit; (2) on hitting the limit, the field shows a red inline error message (e.g. '75 character limit reached'); (3) backend still rejects any request over 75 chars with a 400 as defense-in-depth (create + update), in case the limit is bypassed client-side; (4) boundary + over-boundary contract/unit tests updated to 75. --- Original (2026-07-19): GitHub issue #138, PR #141 (merged 2026-07-19). Backfilled 2026-07-18 — the BUG-10 label existed only in trips.contract.test.ts (permanently-green expect([201,400]) assertion since March). Audit Q13 (Session B Q9), PO ruling: enforce. Investigation found zName had actually been .max(200) since 32c9f1a (2026-03-09) — the enduring gap was the hollow test itself, not the validation. Fixed: clear 400 message, real boundary assertions (contract + unit, create + update), frontend maxLength=200, all accept-either-outcome assertions removed from the file. DISPATCHED 2026-07-20: backend (branch fix/bug10-name-limit-backend) + frontend (branch fix/bug10-name-limit-frontend), parallel. PR opened 2026-07-20: #161 (frontend half — 75-char hard restrict + red inline error), all 9 CI checks green. Awaiting parallel backend PR (fix/bug10-name-limit-backend). Backend PR opened 2026-07-20: #164, Closes #138. zName.max(75) + updated boundary tests across common.test.ts/trips.schemas.test.ts/contract suite. CI running. PO decision 2026-07-20: accept zName's widened scope as-is — 75 chars is fine for admin category/companion/region names too, no schema split needed. Both PRs MERGED to main 2026-07-20 (PR #161 frontend, PR #164 backend, each squash), main CI confirmed green after both. PR #164 hit two rounds of status-doc conflicts (jobs/backend/context/current.txt) resolved by the owning agent each time."
     },
     {
       "id": "BUG-25",
@@ -1497,6 +1530,127 @@
       "brdRefs": ["NF-09"],
       "phase": 6,
       "notes": "BRD v3.0 §6. Hosting before multi-user; supersedes local-only NF-01 and OneDrive NF-04. BLOCKED on OQ-04 (platform + hosted-libSQL vs file DB) — Architect ADL required first, per infrastructure guardrail."
+    },
+    {
+      "id": "BUG-30",
+      "type": "bug",
+      "title": "UK constituent countries (Scotland etc.) unavailable when adding a place",
+      "status": "done",
+      "owner": "database",
+      "priority": "P1",
+      "brdRefs": ["GE-04", "GE-05", "GE-06"],
+      "phase": 4,
+      "notes": "Found 2026-07-20 UAT. Countries are ISO 3166-1 (countryCode is the PK, e.g. 'US','AU') — Scotland/England/Wales/Northern Ireland aren't countries under that standard, they'd be Regions under GB, same tier as US states/AU provinces (GE-01/02/06). GB appears missing from seed data entirely, or seeded without region_tier_enabled — either way this is a gap against GE-04/05 ('every country ships pre-configured, defaults applied automatically on first launch'). Fix: seed GB/'United Kingdom' with region_tier_enabled=1, region_tier_label likely 'Constituent Country', and add Scotland/England/Wales/Northern Ireland as regions. P1 — the Scotland dogfood trial (BRD-PL0104 trigger) needs this working. GitHub issue #154. DISPATCHED 2026-07-20 to database agent, branch fix/bug30-uk-region-seed. PR opened 2026-07-20: #168, Closes #154, all 9 CI checks green. Root cause: GB was present with region_tier_enabled=0. Fix: region_tier_enabled=1 + label 'Constituent Country', added England/Scotland/Wales/NI as regions (GB-ENG/SCT/WLS/NIR) via data-only custom migration, guarded to only patch already-seeded installs (self-caught a fresh-install idempotency bug in first draft — startup.service.ts seedRegions() would have been starved on a truly fresh install). Flagged: possible 5th drizzle-kit@0.31.9 bug (migrate CLI transiently dropped the new migration's journal entry once, not reproduced after) — noted in memory for future watching, not yet confirmed as a real/reproducible bug. MERGED to main 2026-07-20 (PR #168, squash), main CI confirmed green post-merge."
+    },
+    {
+      "id": "BUG-31",
+      "type": "bug",
+      "title": "Place date-range edit doesn't persist/display — still shows trip date range after save",
+      "status": "done",
+      "owner": "fullstack",
+      "priority": "P1",
+      "brdRefs": ["DP-04", "DP-05"],
+      "phase": 4,
+      "notes": "Found 2026-07-20 UAT. Setting an arrival/departure range on a place doesn't visibly stick — place section still shows the trip's date range afterward. Unclear yet whether the PATCH isn't persisting or the detail view isn't re-fetching/re-deriving DP-04's display logic. BLOCKS BUG-28 re-verification — PO can't confirm arrival<=departure validation without dates displaying correctly first. GitHub issue #155. DISPATCHED 2026-07-20 to backend agent, branch fix/bug31-place-date-persist. PR opened 2026-07-20: #162, Closes #155. Root cause: GET /api/trips/:id never selected/returned arrived_on/departed_on on places (backend read-path bug, not write-path or frontend) — tripRepository.getPlaces() omitted the columns entirely. PATCH was already persisting correctly; frontend precedence logic (ADL-24 §5) was already correct too, it just never received the data. Fixed + regression tests added. Unblocks BUG-28 re-verification. CI monitor still running as of this note. MERGED to main 2026-07-20 (PR #162, squash), main CI confirmed green post-merge."
+    },
+    {
+      "id": "BUG-32",
+      "type": "bug",
+      "title": "No way to remove a place from a trip once added",
+      "status": "done",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-20 UAT. No delete affordance exists in the UI for a trip_place once created; unclear if a DELETE route exists at all. Needs a route (if missing) + UI entry point + confirmation given cascade to items under that place. GitHub issue #156. DISPATCHED 2026-07-20: backend (branch fix/bug32-remove-place-api) + frontend (branch fix/bug32-remove-place-ui), parallel. CONFIRMED both PRs fully green 2026-07-20: backend PR #166 ('remove-place cascade fix + confirm existing DELETE route' — DELETE route already existed, agent fixed cascade behavior instead of adding a new route) and frontend PR #170 ('add remove-place affordance to trip detail'), both Closes #156, all CI checks pass on each. Both PRs MERGED to main 2026-07-20 (PR #166 backend, PR #170 frontend, each squash), main CI confirmed green after both. PR #166 hit two rounds of status-doc conflicts resolved by the owning agent each time; during the first resolution the agent also caused a process-management incident (blind pkill killed the real dev:api server on port 3001, not worktree-scoped — restarted and verified healthy, no data loss, flagged to PO for a possible OP-21 guardrail). Actual backend fix: places.ts delete() now reassigns items to trip-level (trip_place_id=null) rather than cascade-deleting them, preserving logged items/bookings — needed because items.trip_place_id had no onDelete behavior specified and FK enforcement turned out to be ON by default (see BUG-38, corrected/closed as not-a-bug from this same discovery). MERGED to main 2026-07-20 (PR #166, squash), main CI confirmed green post-merge."
+    },
+    {
+      "id": "BUG-33",
+      "type": "bug",
+      "title": "Duplicate city entries in place autocomplete (Glasgow appeared twice)",
+      "status": "done",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["GE-11"],
+      "phase": 4,
+      "notes": "Found 2026-07-20 UAT. `cities` table has no uniqueness constraint on (name, country_code) — the geocoding/lookup path is creating a new row instead of finding the existing one. Fix: find-or-create by (name, country_code) case-insensitive, plus a unique index to prevent recurrence; needs a data cleanup pass for existing duplicates. GitHub issue #157. DISPATCHED 2026-07-20: database (branch fix/bug33-city-dedup-schema) + backend (branch fix/bug33-city-dedup-logic), parallel. Backend PR opened 2026-07-20: #167, Closes #157. POST /api/cities now finds-or-creates by (name, country_code) case-insensitive before inserting. 3 new tests + full suite green, CI mostly green (E2E pending as of this note). Independent of the parallel DB-brief unique index. Schema half PR opened 2026-07-20: #169, Closes #157, BRD GE-11, all 9 CI checks green. Adds UNIQUE(name COLLATE NOCASE, country_code) on cities (uniq_cities_name_country_ci) plus a data-cleanup migration merging existing duplicates (canonical = lowest id, geocode fields coalesced from best-resolved dup, trip_places/items/trip_place_activities_map re-pointed, collision with uniq_trip_places_trip_city handled by keeping the earlier trip_place row). Architect consulted before implementation per the schema-change-review rule (COLLATE NOCASE mechanism + trip_places collision-handling ruling). Verified against a throwaway copy of real dev.db duplicate data before writing the real migration. IMPORTANT for the parallel backend brief (fix/bug33-city-dedup-logic): its find-or-create lookup must match COLLATE NOCASE or it'll miss the canonical post-merge row and throw on insert. Schema half MERGED to main 2026-07-20 (PR #169, squash, renumbered to migrations 0009/0010 to resolve the BUG-30 idx collision), main CI confirmed green. Logic half (PR #167) hit a merge conflict, owning agent resolving as of this note. Logic half MERGED to main 2026-07-20 (PR #167, squash), main CI confirmed green post-merge. All 9 UAT-triage briefs from this session now fully merged."
+    },
+    {
+      "id": "BUG-34",
+      "type": "bug",
+      "title": "Map standout icon inconsistent between visited cities in the same trip",
+      "status": "done",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["GE-09"],
+      "phase": 4,
+      "notes": "Found 2026-07-20 UAT. Glasgow shows the visited-city standout icon correctly; Edinburgh (same trip) only shows a plain pin, and only at high zoom. Likely a rendering condition keyed off something Glasgow has and Edinburgh doesn't (possibly related to BUG-33's duplicate-city data). GitHub issue #158. DISPATCHED 2026-07-20 to frontend agent, branch fix/bug34-map-icon-consistency (bundled with BUG-35/36 dispatch, separate branches/PRs each). CONFIRMED green 2026-07-20: PR #163 ('dedupe map city markers by coordinate, not id'), Closes #158, all CI checks pass. MERGED to main 2026-07-20 (PR #163, squash), main CI confirmed green post-merge."
+    },
+    {
+      "id": "BUG-35",
+      "type": "bug",
+      "title": "Admin panel region-tier checkbox has no explanatory hovertext",
+      "status": "done",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": ["GE-03", "AD-05"],
+      "phase": 4,
+      "notes": "Found 2026-07-20 UAT. Polish — add a tooltip/hint explaining what enabling the Region tier does for a country. GitHub issue #159. DISPATCHED 2026-07-20 to frontend agent, branch fix/bug35-admin-tooltip (bundled with BUG-34/36 dispatch, separate branches/PRs each). CONFIRMED green 2026-07-20: PR #165, Closes #159, all CI checks pass. MERGED to main 2026-07-20 (PR #165, squash), main CI confirmed green post-merge."
+    },
+    {
+      "id": "BUG-36",
+      "type": "bug",
+      "title": "No trip-level Add Item entry point — flights/cars forced into a place",
+      "status": "done",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["IT-01"],
+      "phase": 4,
+      "notes": "Found 2026-07-20 UAT. IT-01 already permits items 'against a trip or a specific place', and the schema/ItemForm already support tripPlaceId = null (items.tripPlaceId is nullable by design — see schema.ts comment 'NULL for trip-level items e.g. a flight attached to the trip'). The gap is purely UI: PlaceSection.tsx is the only component that renders an Add Item button, and it always passes place.id. Fix: add a trip-level Add Item entry point (e.g. in the trip detail header/toolbar) that opens ItemForm with tripPlaceId=null. Decision (2026-07-20, PO): car reuses this same trip-level entry point rather than a separate toggle on the car form. GitHub issue #160. DISPATCHED 2026-07-20 to frontend agent, branch fix/bug36-trip-level-additem (bundled with BUG-34/35 dispatch, separate branches/PRs each). PR #171 initially had 2 E2E failures (places-items.spec.ts: 'add note item to place' / 'add restaurant item with type-specific fields') — the new trip-level '+ Add Item' button collided with pre-existing tests' .first() locator for that button text, landing them on the trip-level (Flight/Car-only) item-type screen instead of the place-scoped one. Fixed in commit b31937a; CONFIRMED all 9 CI checks green 2026-07-20, including E2E. MERGED to main 2026-07-20 (PR #171, squash), main CI confirmed green post-merge."
+    },
+    {
+      "id": "BRD-DP06",
+      "type": "feature",
+      "title": "First place added to a trip inherits the trip's date range (DP-06)",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": ["DP-06"],
+      "phase": 4,
+      "notes": "Added to BRD v3.1, 2026-07-20 UAT. Success criteria: adding the first place to a trip with dates set pre-fills place arrival/departure from trip start/end; later per-place edits persist independently of trip dates."
+    },
+    {
+      "id": "BRD-IT10",
+      "type": "feature",
+      "title": "Optional Google Maps URL per item — one-click directions (IT-10)",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": ["IT-10"],
+      "phase": 5,
+      "notes": "Added to BRD v3.1, 2026-07-20 UAT. Small schema addition (nullable URL column) — needs Architect review before a Database brief per the schema-change rule. Success criteria in BRD §5.5. Also covers item-level phone/address access without separate structured fields, per PO rationale."
+    },
+    {
+      "id": "OQ-05",
+      "type": "requirement",
+      "title": "Same-city revisit within a trip — trip_places one-row-per-city constraint",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": ["OQ-05"],
+      "phase": 5,
+      "notes": "Added to BRD v3.1 §10, 2026-07-20 UAT. `uniq_trip_places_trip_city` (trip_id, city_id) currently blocks realistic itineraries like Glasgow → day trip to Edinburgh → back to Glasgow. Open question for Architect: move to one-row-per-visit? Knock-on effects on map shading, DP-05/DP-06 chronological ordering, and items.trip_place_id attachment need resolving before any brief touches trip-place identity."
+    },
+    {
+      "id": "UX-11",
+      "type": "feature",
+      "title": "Trip-list status pill colours should match map shading colours (admin-driven)",
+      "status": "backlog",
+      "owner": "ux",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 5,
+      "notes": "Found 2026-07-20 UAT. Needs a UX spec (which pill maps to which shading state/colour, admin-tab-driven per AD-07) before this becomes a BRD requirement — not yet briefable per the BRD gate."
     }
 
   ]
