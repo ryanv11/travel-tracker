@@ -1,6 +1,7 @@
-UX CONTEXT — 2026-03-19 23:59
+UX CONTEXT — 2026-07-21 (updated)
 PROJECT: Travel Tracker
-CURRENT STATUS: BRIEF-UX-01 complete. Full audit + design system delivered.
+CURRENT STATUS: Waypoint redesign spec BLOCKED — DesignSync tool unavailable in this
+environment. Preparatory groundwork done; formal Phase 1/Phase 2 spec not yet written.
 
 ================================================================================
 ROLE SUMMARY
@@ -11,53 +12,86 @@ implementation specs for Frontend. Reports to COO. Does not send change
 requests to Frontend directly.
 
 ================================================================================
-PROJECT CONTEXT
+PROJECT CONTEXT (verified 2026-07-21)
 ================================================================================
 
   App type:     Travel tracking — map-centric, data entry, workflow management
-  Frontend:     React 18 + TypeScript + Vite
-  Styling:      Plain CSS / inline CSSProperties (NO CSS files — all inline)
+  Frontend:     React 18 + TypeScript + Vite + React Router + TanStack Query
+  Styling:      Tailwind CSS v4, CSS-first config (@import "tailwindcss" in
+                src/frontend/index.css — no tailwind.config.js/.ts exists)
+  Component lib: NONE adopted. No shadcn/ui, no Radix, no icon library
+                (no lucide-react, no clsx/cva) in package.json as of 2026-07-21,
+                despite the March 2026 UX audit assuming a Tailwind+shadcn
+                migration. Only the Tailwind half of that plan landed.
   Mapping:      MapLibre GL JS + react-map-gl + MapTiler tiles
-  Target stack: Tailwind CSS + shadcn/ui (approved by COO/PO)
-  Phase status: Phase 3 (UI) code complete — awaiting Tailwind/shadcn migration
+  Current palette: Teal primary / amber (active/review) / violet (category
+                badges) / emerald (positive CTA) — NOT blue. A full rebrand
+                already happened once (see 20260321-UX-delivered-vs-mockup-delta.md).
+                The incoming "Waypoint" rebrand (warm paper neutrals + pine
+                primary) replaces THIS palette, not the original blue one.
+  Current icons: literal emoji throughout (ItemCard TYPE_ICONS: 🍽️🏨✈️🚗🎫📝,
+                plus 📷 Photos, 🔒 locked banner, 🗺 empty state) — exact match
+                to the icon set named in the Waypoint brief.
 
 ================================================================================
-COMPLETED WORK
+ACTIVE THREAD — Waypoint redesign spec (2026-07-21)
 ================================================================================
 
-  BRIEF-UX-01 — Full UI audit + design system spec
-  Date: 2026-03-19
+  Brief: formalize claude.ai Design project "Travel tracker design review"
+  (projectId 8cc525c1-b678-4976-a207-57f7f489844b — Design System.dc.html,
+  Trips Desktop.dc.html, Trips Mobile.dc.html) into a two-phase briefable spec
+  (Phase 1 = design-system foundation tokens, Phase 2 = Trips screen reskin).
 
-  Deliverables produced:
-    /workspace/jobs/ux/tech/20260319-UX-audit.md
-    /workspace/jobs/ux/tech/20260319-UX-design-system.md
-    /workspace/jobs/ux/tech/20260319-UX-backlog.md
-    /workspace/jobs/ux/tech/20260319-UX-migration-notes.md
+  BLOCKED: The `DesignSync` tool named in the brief does not exist in this
+  environment. Verified via ToolSearch (multiple query phrasings), `claude mcp
+  list` (only monday.com/Google Drive/Gmail/Calendar configured — no DesignSync
+  entry at all, not even auth-pending), and a direct WebFetch to the claude.ai
+  project URL (403, as expected, no session). No local copy of the mockup
+  files exists in the repo either (grep/find came back empty).
 
-  Key findings:
-    - 11 MAJOR issues found (including no focus styles, no toast feedback,
-      destructive colour on positive action, dates as raw ISO strings)
-    - 27 MINOR issues
-    - 3 architectural concerns flagged to COO (see completion report)
-    - Complete design system spec produced: geographic/teal colour language,
-      Inter typography, semantic tokens, full shadcn/ui component inventory
-    - Prioritised backlog: 5 P0, 20 P1, 13 P2 items
+  Did NOT fabricate oklch values / type pairings / icon glyphs / badge-hue
+  mapping to paper over the gap — the brief is explicit these must be exact,
+  not approximated, and a plausible-looking guess would be worse than an
+  honest block (Frontend would build the wrong thing with high confidence).
 
-================================================================================
-ACTIVE CONCERNS / FLAGS
-================================================================================
+  Instead, completed the half of the job that doesn't need the mockups:
+  - Full read of current Trips screen implementation (TripsLayout, TripCard,
+    TripDetail, PlaceSection, StatusBadge, ItemCard, TripItemsSection, App.tsx)
+  - Cross-referenced DP-04/DP-05/DP-06, BUG-31/32/34/36, IT-01 against the
+    actual code (not just tracker notes) — see full detail in
+    jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md
+  - Flagged: DP-06 is tracker-status "pending" (not yet built) — a real gap,
+    not a display nuance; must not get silently papered over in Phase 2.
+  - Flagged: BUG-36's trip-level items section (TripItemsSection.tsx) isn't
+    mentioned in the brief's mockup summary at all — needs an explicit check
+    once the mockup can be read; if absent from the mockup that's a conflict
+    to raise with COO, not a silent removal.
+  - Flagged: FEAT-BD bulk multi-select delete, NTH-01 undo bar, NTH-03 status
+    counts, TR-09 sort control, map filter badge — all real current
+    functionality with no mention in the brief's "what's in it" summary.
+  - Flagged: if Waypoint's icon set implies an actual icon library dependency
+    (vs. hand-authored SVG), that's a new dependency needing a COO tradeoff
+    call — not pre-approved by the stale March Lucide recommendation (which
+    assumed a shadcn/ui migration that never happened).
 
-  ARCH-01: Sequential PATCH calls in bulk review completion (ReviewPanel)
-           — backend needs bulk-update endpoint
-  ARCH-02: City marker sprite relies on MapTiler sprite name — fragility risk
-  ARCH-03: ShadingTab fires mutations on colour picker drag (onChange vs onBlur)
+  Deliverable this thread: jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md
+  (blocker record + full prep-work handoff, NOT the formal spec).
 
 ================================================================================
 NEXT ACTIONS
 ================================================================================
 
-  Awaiting COO to route BRIEF-UX-01 deliverables to Frontend for implementation.
-  Frontend should begin with P0 items, then P1 (Tailwind migration first).
-  See 20260319-UX-migration-notes.md for order of operations.
+  COO must either:
+   (a) get the DesignSync MCP server connected/configured for this
+       environment, or
+   (b) get the three .dc.html files' raw content into a channel UX already
+       has access to (committed into the repo, or shared via the connected
+       Google Drive MCP)
 
-================================================================================
+  Then re-dispatch a UX thread to actually write the Phase 1 + Phase 2 spec —
+  the prep work above means that thread should be a single focused pass, not
+  a re-audit from scratch.
+
+  Prior completed work (BRIEF-UX-01, DELTA docs) is historical reference only —
+  superseded in spirit by the incoming Waypoint rebrand, not yet formally
+  stamped as superseded since the new spec doesn't exist yet to point to.
