@@ -1460,6 +1460,9 @@ over unchanged to the hosted database.
   CORS/domain surface.
 - **Production environment:** tracks `main`; env vars point at the production Turso
   database.
+  > SUPERSEDED (2026-07-21) by ADL-35 — the Production environment now watches a long-lived
+  > `production` branch, promoted by explicit fast-forward from a soaked `main` commit, not
+  > `main` directly. The production Turso env-var binding is unchanged. Retained for history.
 - **Preview environments:** Railway auto-deploys one per open PR; env vars point at a
   **separate, shared staging Turso database**, seeded via the existing `npm run db:seed`.
   Preview environments must never hold production Turso credentials — this is the
@@ -1945,3 +1948,216 @@ rebuild. **That rebuild is the new outstanding verification step.**
 Found and fixed directly by COO (same class of well-contained, mechanical fix as the original
 ADL-34 fix; no new architectural decision — the lockdown-before-resolution ordering itself is
 unchanged and correct, this only fixes step 6's own bootstrap sequencing).
+
+---
+
+## ADL-35 — Environment promotion model: `main`→staging (continuous), `production` branch→prod (explicit fast-forward)
+
+**Date:** 2026-07-21
+**Status:** Decided — design only. **No Railway config or CLAUDE.md change is committed with
+this ADL.** Going live requires two manual actions gated on PO/COO: (a) repointing the Railway
+Production environment's watched branch in the dashboard, and (b) the CLAUDE.md git-workflow
+addition described in §8. Until both are done, prod continues to track `main` (the state this
+ADL replaces). Suggested tracker home: **OP-22** (operational, no BRD requirement ID) — COO to
+create, same pattern as ADL-33/OP-21.
+**Tracker:** BRD-NF09 (context) · OP-22 (suggested, this decision) | **BRD ref:** NF-09 (deployment operations)
+
+**Triggered by:** PO flagged (2026-07-21, D-05 dialogue context) that both the Railway
+production and staging environments currently deploy from `main`, so every merge to `main`
+immediately redeploys production with zero soak time. This was an acceptable bootstrap shortcut
+while the only goal was getting hosting working at all (ADL-32), but with merge frequency and the
+real-user count both about to grow, a merge going straight to prod with no chance to catch a
+deploy-only regression on staging first is a real risk. This ADL defines the promotion gate.
+
+### 1. Problem
+
+Railway's native GitHub integration auto-deploys an environment whenever its **watched branch**
+receives a push (gated on GitHub CI passing — see §3). Today both the Production and the Staging
+environments watch `main`, so there is no promotion step: `main` *is* prod. The whole value of a
+separate staging environment — a live, hosted running instance to soak a change on before real
+users see it — is lost when staging and prod redeploy from the same ref at the same instant.
+
+The class of bug this is meant to catch is exactly the one that dominated the 2026-07-21 deploy
+shakedown (BRD-NF09 tracker, five sequential blockers): defects that only appear when the app runs
+as a real hosted server (CSP against Clerk's real SDK, `VITE_API_BASE_URL` resolution, static-asset
+serving, migrate-on-deploy) — none of which CI's test suites catch, because CI never runs the app
+as a live hosted server. A soak ring is the only place these surface before production.
+
+### 2. Decision — three deploy rings, driven by Railway branch-watching
+
+| Ring | Railway env | Watched ref | Trigger | Database |
+|---|---|---|---|---|
+| **Staging** (soak) | Staging (persistent) | `main` | Continuous — every merge to `main`, CI-gated | Staging Turso (ADL-32 §3) |
+| **Production** | Production (persistent) | **`production`** branch | Explicit — only when `production` is fast-forwarded to a soaked `main` commit and pushed | Production Turso (ADL-32 §3) |
+| **Preview** (pre-merge, optional) | per-PR ephemeral | PR head | Auto per open PR (ADL-32 §5) — orthogonal to this decision, not required by it | Staging Turso |
+
+**The mechanism is a long-lived `production` branch, not tags and not a hand-rolled deploy step.**
+Staging keeps watching `main` (continuous soak). Production is repointed to watch a new,
+long-lived `production` branch. Promotion is a single git operation — fast-forward `production` to
+the soaked `main` commit and push — which Railway then treats as an ordinary branch push and
+deploys (through the same CI gate). The `production` branch ref is, by construction, an exact record
+of what is running in prod.
+
+### 3. Interaction with the existing CI gate (layers on, does not replace)
+
+Railway's dashboard deploy trigger already gates every deploy on GitHub CI passing for the pushed
+commit (`reference_railway_ci_gated_deploy.md`; a deploy appearing after a merge is that gate
+firing, not a race). This model sits **on top of** that, unchanged:
+
+- Merge to `main` → CI runs on `main` → green → Railway deploys **Staging**. (Unchanged from today.)
+- Promote → `production` fast-forwarded to that same commit + pushed → Railway deploys **Production**,
+  gated on CI green for that commit.
+
+Because GitHub check-runs are keyed to the **commit SHA, not the branch**, a fast-forward carries
+the commit's *already-green* checks from when it was on `main`. Railway's gate reads the SHA's
+existing status and is satisfied immediately — **no redundant CI run, gate still fully honoured.**
+Corollary: do **not** add a `push: [production]` trigger to the CI workflows — it would re-run CI
+pointlessly on a SHA that already passed. Rely on the SHA-attached status. (If a future workflow is
+ever made branch-filtered to `main` only, this property still holds — the SHA keeps its `main` run's
+checks.)
+
+### 4. Why a `production` branch, not tags or a GitHub Action
+
+- **Uses Railway's native branch-watching for *both* environments — zero deploy glue.** This is the
+  decisive factor. ADL-32 chose Railway over Fly.io specifically to avoid hand-rolled `flyctl`-style
+  deploy steps; a tag-triggered or API-triggered prod deploy would reintroduce exactly the GitHub
+  Action / `railway up` glue that decision paid ~$2–5/mo to avoid. Railway watches *branches*
+  first-class; tag-pattern triggers are not equivalently first-class and would need a CI job to call
+  Railway's API/CLI on tag push.
+- **Promotion is legible, atomic, and revertable in git.** `git log production..main` is a precise
+  "what is about to ship" diff; the `production` ref itself is the "what is live right now" answer.
+  No dashboard archaeology.
+- **Fast-forward-only forward promotion makes an unsoaked commit in prod structurally impossible.**
+  Every commit on `production` is an ancestor of `main` (it got there from `main`), so it necessarily
+  passed through the staging ring first. You cannot promote something that was never on `main`.
+- **Rollback is trivial** (§6).
+- **Right-sized for scale.** Solo→small-team, one Railway project, one real user growing slowly. A
+  branch fast-forward is the simplest thing that adds a genuine gate without an enterprise
+  release-management apparatus.
+
+**Optional lightweight release marker:** COO *may* annotate each promotion with a tag
+(`git tag -a prod-2026.07.21 -m "…"`) for a human-legible release ledger and easier rollback
+targeting. Recommended but not load-bearing — the `production` branch ref already carries the
+authoritative "what's live" state; tagging is convenience, not mechanism. Do not build tooling
+around tags.
+
+### 5. Promotion workflow (concrete COO/PO steps)
+
+Promotion is a **COO/PO-only** operation — the same authority boundary as merging a PR
+(agents never merge their own PRs; agents likewise never promote). Steps:
+
+```bash
+git fetch origin
+git checkout production
+git merge --ff-only origin/main          # or --ff-only <specific-soaked-SHA> if newer,
+git push origin production               #   unsoaked commits already sit on main
+# optional release marker:
+# git tag -a prod-2026.07.21 -m "promote: <summary>" && git push origin prod-2026.07.21
+```
+
+`--ff-only` is deliberate: it *fails loudly* rather than creating a merge commit if `production`
+has somehow diverged from `main`'s history — which should never happen, and if it does, that's a
+signal to investigate, not to paper over. Promote to a specific soaked SHA (not blindly `main`'s
+tip) whenever `main` has accumulated newer commits that haven't had their own staging soak yet.
+
+Promotion is gated on judgement, not a fixed timer: promote once the change has been observed
+working on the live staging environment (the soak). For a batch of low-risk changes that's minutes;
+for a risky deploy-shape change (CSP, env-var, migration, static-serving) give it a real look on
+staging first — those are precisely the ones CI cannot vouch for.
+
+### 6. Rollback
+
+Two equivalent paths, prefer the first for speed:
+
+1. **Railway "redeploy previous deployment"** on the Production environment — immediate, no git
+   operation, reverts the running prod to the prior good build.
+2. **Git branch reset:** `git checkout production && git reset --hard <previous-prod-SHA> &&
+   git push --force-with-lease origin production` — Railway redeploys prod at the older commit.
+   A force-push to `production` is acceptable **for rollback only**: `production` is a deploy-control
+   ref, not shared development history, and it is COO/PO-owned. (Never force-push `main`.)
+
+The two stay consistent: after a Railway-side rollback, reset the `production` branch to match so
+the ref keeps telling the truth about what's live.
+
+### 7. What this does NOT change — branch-per-brief workflow (explicit)
+
+The CLAUDE.md branch-per-brief workflow is **unchanged**. This decision is only about what happens
+to `main` *after* merge; it does not touch how branches are created or reviewed:
+
+- `feat/` / `fix/` / `chore/` branches still branch off `main`, PR back to `main`, COO squash-merges
+  to `main`. `main` remains the single integration branch and the single PR target.
+- The `production` branch is **never** a PR target, **never** receives direct commits or feature
+  work, and is **never** branched from for briefs. It only ever fast-forwards to a `main` commit.
+- Agents do not interact with `production` at all — it is COO/PO-only, exactly like merge authority.
+  No agent brief should ever check out, target, or push `production`.
+
+Anyone reading this later: if you find a `feat/*` branch based off `production`, that is a mistake,
+not a supported pattern.
+
+### 8. Config / doc changes required to make this live (for COO — not done in this PR)
+
+**Railway dashboard (manual — Ryan/COO, per the infra-change-needs-Architect-ADL guardrail this
+ADL satisfies):**
+1. Create the `production` branch at the current `main` tip so prod's first tracked state equals
+   what is live now: `git branch production main && git push origin production`. (Must exist before
+   Railway can watch it.)
+2. Production environment → change watched/deploy branch from `main` → `production`.
+3. Staging environment → confirm it watches `main` (no change expected).
+4. Confirm the CI-gate-on-deploy setting stays enabled for both environments.
+5. Confirm environment-scoped env vars are correct after the repoint: Production keeps the
+   **production** Turso credentials, Staging keeps the **staging** Turso credentials (ADL-32 §7).
+   The whole model's safety rests on that separation already being in place.
+
+**CLAUDE.md git-workflow section (COO):** add an "Environment promotion (prod vs staging)"
+subsection stating: `main` = staging (continuous, CI-gated); `production` branch = prod (explicit
+fast-forward promotion, CI-gated on the SHA's existing checks); promotion + rollback are COO/PO-only;
+agents never touch `production`; branch-per-brief is unchanged (§7). Point it at this ADL. Apply
+this **at the same time** as the Railway repoint, not before — until Railway is repointed, prod still
+tracks `main`, and CLAUDE.md must not assert a model that isn't live yet (document-lifecycle rule).
+
+### 9. Related but explicitly out of scope
+
+- **D-05 (separate prod/staging Clerk applications)** — deferred by PO (open-dialogues.md). This
+  decision separates deploy *timing* and *database* (DB was already separate per ADL-32 §3); it does
+  **not** separate the Clerk auth *application*. Residual to be aware of: until D-05 is decided,
+  staging and production may share one Clerk app, so **sign-ins on staging land in the same Clerk
+  user pool as production**. That's a hygiene wrinkle, not a blocker to this promotion model, and is
+  D-05's to resolve — not folded in here.
+- **ADL-32 §6 (Clerk dynamic per-PR preview origins)** — still open, orthogonal. Concerns whether
+  Clerk's allowed-origins config supports Railway's generated preview URLs; unrelated to the
+  staging↔prod promotion gate.
+
+### 10. Supersession
+
+Supersedes the "Production environment: tracks `main`" bullet in **ADL-32 §5** (stamped there in
+this PR). ADL-32's platform choice (Railway + Turso), topology (single service serving API + built
+frontend), database split (prod/staging Turso), and env-var model (§7) all stand unchanged — this
+ADL only changes *which branch the Production environment watches* and *what triggers a prod deploy*.
+
+**Alternatives considered:**
+- **Tag-based prod trigger (Railway deploys on `v*` / `release-*` tags):** rejected — not
+  first-class in Railway's branch-oriented GitHub integration; would need a GitHub Action calling
+  Railway's API/CLI on tag push, reintroducing the exact deploy glue ADL-32 chose Railway to avoid.
+  Tags are kept only as an optional human release marker (§4), not as the deploy mechanism.
+- **Promotion via a `main`→`production` pull request each release:** rejected as default — heavier
+  than needed for this scale (a PR + review per release), and the "what's shipping" diff is already
+  available as `git log production..main`. COO *may* opt into a promotion PR when batching many
+  changes and wanting an explicit review/record surface, but it is not the standard path.
+- **Railway's built-in environment "promote" / clone feature:** rejected — couples the record of
+  "what's in prod" to Railway dashboard state instead of a git ref; less legible and less portable
+  than a branch, for no saving over a fast-forward.
+- **Keep both environments on `main` (status quo):** rejected — this is the exact risk the PO
+  flagged; no soak ring, every merge is a prod deploy.
+- **Manual timed soak (fixed N-minute/N-merge delay before auto-promoting):** rejected — automating
+  the promotion defeats the point (the gate exists so a human can *look* at staging); a fixed timer
+  soaks unwatched. Promotion stays a judgement call (§5).
+
+**Implications:**
+- No source or CI-workflow change. `.github/workflows/*` untouched (and must stay untouched per §3 —
+  no `production` push trigger).
+- One-time repo change: create the `production` branch (§8.1). Ongoing: one extra COO git step per
+  release (§5), which is the intended cost of the gate.
+- Rollback posture improves (§6) — prod is now a movable, git-legible ref rather than "whatever
+  `main` was at deploy time".
+- Preview environments (ADL-32 §5) remain compatible and orthogonal; this decision neither requires
+  nor blocks them.

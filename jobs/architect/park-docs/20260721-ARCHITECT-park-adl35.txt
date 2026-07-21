@@ -1,0 +1,70 @@
+ARCHITECT PARK DOC — 2026-07-21 (second thread this day; ADL-33 doc is separate)
+THREAD: ADL-35 — environment promotion model (prod vs staging)
+BRANCH: chore/adl-35-env-promotion (open PR, not merged; COO reviews/merges)
+
+WHAT THIS THREAD DID
+--------------------
+PO flagged that both Railway prod and staging deploy from `main`, so every merge redeploys
+prod with zero soak. Designed the promotion gate. Design only — the only code change is the
+ADL-35 entry + a supersession stamp on ADL-32 §5. No Railway config, no CLAUDE.md, no tracker
+edit committed (those are COO/PO actions, spelled out in ADL-35 §8).
+
+THE DECISION IN ONE LINE
+------------------------
+Staging keeps watching `main` (continuous soak). Production is repointed to watch a long-lived
+`production` branch, promoted by explicit `git merge --ff-only origin/main` + push. Three rings:
+staging (main) / production (production branch) / preview (per-PR, orthogonal, ADL-32 §5).
+
+WHY BRANCH, NOT TAGS / NOT A GH ACTION
+--------------------------------------
+Railway watches BRANCHES first-class → zero deploy glue for both envs. ADL-32 picked Railway
+specifically to avoid hand-rolled deploy steps; a tag/API-triggered prod deploy would put that
+glue right back. Fast-forward-only makes an unsoaked commit in prod structurally impossible
+(every production commit is an ancestor of main). `production` ref = "what's live"; `git log
+production..main` = "what's about to ship". Tags kept only as an OPTIONAL release marker.
+
+CI GATE INTERACTION (the neat property)
+---------------------------------------
+Railway's CI-gated-deploy is unchanged and layers underneath. GitHub check-runs key on the
+commit SHA, not the branch — so a fast-forward carries the commit's already-green checks from
+main. Railway's gate sees green immediately: no redundant CI run, gate still honoured. DO NOT
+add a `push:[production]` trigger to CI workflows (would re-run CI pointlessly).
+
+BRANCH-PER-BRIEF: EXPLICITLY UNCHANGED (§7)
+-------------------------------------------
+feat/fix/chore still branch off main, PR to main, COO squash-merges. `production` is NEVER a
+PR target, never gets direct commits, never branched from. Agents never touch it — COO/PO-only,
+same authority boundary as merge. A feat/* off production would be a mistake, not a pattern.
+
+WHAT COO MUST DO TO MAKE IT LIVE (ADL-35 §8 — not done here)
+------------------------------------------------------------
+1. `git branch production main && git push origin production` (branch must exist before Railway
+   can watch it; initialises prod's tracked state = current live).
+2. Railway dashboard: Production env watched branch main → production. Staging stays main.
+   Confirm CI-gate-on-deploy still on for both. Confirm prod Turso creds stay on Production,
+   staging Turso creds on Staging (ADL-32 §7 — the whole safety model rests on that).
+3. CLAUDE.md git-workflow: add "Environment promotion" subsection (main=staging continuous /
+   production branch=prod explicit ff / promotion+rollback COO-PO-only / agents never touch
+   production / branch-per-brief unchanged). Apply AT THE SAME TIME as the Railway repoint,
+   not before (lifecycle rule — don't assert a model that isn't live).
+4. Suggested tracker: OP-22 (operational, no BRD ID). COO to create.
+
+OUT OF SCOPE (noted, not folded in)
+-----------------------------------
+- D-05 (separate prod/staging Clerk APPS) — deferred by PO. Residual: until D-05, staging &
+  prod may share one Clerk app, so staging sign-ins land in the prod Clerk user pool. D-05's
+  problem, not this one's.
+- ADL-32 §6 (Clerk dynamic per-PR preview origins) — still open, orthogonal.
+
+ROLLBACK (§6)
+-------------
+Prefer Railway "redeploy previous deployment". Git equivalent: reset `production` to prior SHA
++ `push --force-with-lease` (force-push OK on production for rollback ONLY — deploy-control ref,
+COO/PO-owned; never force-push main). Keep the branch consistent with a Railway-side rollback.
+
+NEXT ARCHITECT THREAD — STARTING POINT
+--------------------------------------
+1. Check chore/adl-35-env-promotion merged. If Railway repoint + CLAUDE.md done, ADL-35 status
+   flips Decided → Implemented (same-PR/lifecycle rule — likely a COO doc PR, not architect).
+2. If PO revisits D-05 (Clerk app split), that needs its own Architect pass (infra guardrail).
+3. Still open, unrelated: ADL-32 §6 Clerk preview origins; OQ-03; OQ-05.
