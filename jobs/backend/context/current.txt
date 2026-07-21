@@ -1,17 +1,27 @@
 BACKEND CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-10 reopened-UAT backend fix complete. zName max changed 200 -> 75
-  chars (src/backend/validation/common.ts), error message updated to match. Contract
-  + unit test boundaries moved from 200/201 to 75/76. API reference doc updated.
-  Frontend half (hard-restrict input at 75, red inline error) dispatched separately —
-  did not touch frontend files in this thread.
+CURRENT STATUS: Two backend threads landed this UAT-triage round.
+  1. BUG-31 (merged to main): GET /api/trips/:id was missing arrived_on/departed_on
+     on each place — read-path bug, PATCH persistence was already correct. Branch
+     fix/bug31-place-date-persist.
+  2. BUG-10 reopened-UAT (this thread, PR #164 open — not yet merged): zName max
+     changed 200 -> 75 chars (src/backend/validation/common.ts), error message
+     updated to match. Contract + unit test boundaries moved from 200/201 to 75/76.
+     API reference doc updated. Frontend half (hard-restrict input at 75, red
+     inline error) dispatched separately — did not touch frontend files in this
+     thread.
 ACTIVE TASKS: None
-PENDING MESSAGES TO COO: 20260720_1100-BACKEND-bug10-name-limit-complete.txt (sent)
-OPEN ISSUES: zName is a shared primitive (src/backend/validation/common.ts) also used
-  by admin.schemas.ts for category/companion/region names. Changing it to 75 for BUG-10
-  also caps those admin entity names at 75 — this was the explicit brief instruction
-  ("find zName and change it to .max(75)"), but it wasn't scoped to trips-only. Flagging
-  in case that's an unintended side effect; no admin-schema tests currently assert a
-  200-char boundary so nothing broke, but COO/PO may want to confirm admin names are
-  fine at 75 or split zName into zName (shared) + a trip-specific variant later.
+PENDING MESSAGES TO COO: 20260720_1100-BACKEND-bug31-complete.txt (sent),
+  20260720_1100-BACKEND-bug10-name-limit-complete.txt (sent)
+OPEN ISSUES:
+  - From BUG-31: None. Unblocks BUG-28 UAT re-verification.
+  - From BUG-10: zName is a shared primitive (src/backend/validation/common.ts) also
+    used by admin.schemas.ts for category/companion/region names. Changing it to 75
+    for BUG-10 also caps those admin entity names at 75 — this was the explicit
+    brief instruction ("find zName and change it to .max(75)"), but it wasn't scoped
+    to trips-only. Flagging in case that's an unintended side effect; no admin-schema
+    tests currently assert a 200-char boundary so nothing broke, but COO/PO may want
+    to confirm admin names are fine at 75 or split zName into zName (shared) + a
+    trip-specific variant later.
 LAST PARK DOC: jobs/backend/park-docs/20260720-BACKEND-bug10-name-limit-park.txt
+  (BUG-31's park doc: jobs/backend/park-docs/20260720-BACKEND-bug31-park.txt)
