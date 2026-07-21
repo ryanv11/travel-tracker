@@ -1,52 +1,117 @@
-FRONTEND CONTEXT — as of 2026-07-20
+FRONTEND CONTEXT — as of 2026-07-20 (merge-conflict resolution pass)
 
-STATUS: BUG-10 frontend half fixed (reopened UAT finding). PR open, awaiting COO review/merge.
+STATUS: BUG-32 (#156) frontend done — Remove-place affordance wired up. PR #170 open on
+  fix/bug32-remove-place-ui, being rebased against main to pick up several other
+  2026-07-20 UAT-triage threads that merged in the meantime (BUG-10, BUG-30, BUG-31,
+  BUG-34, BUG-35, BUG-36 — see PRIOR THREAD below for the one that conflicted with this
+  file). A CRITICAL backend bug was found and flagged to COO during verification (see
+  OPEN FLAGS below) — it does not block this PR but blocks BUG-32 being fully closeable.
 
-LAST COMMIT: ed2821c ([BUG-10] frontend: hard-restrict trip name to 75 chars with inline error)
+PRIOR THREAD (merged first, conflicted with this file on merge): BUG-10 frontend fix
+  (fix/bug10-name-limit-frontend, commit ed2821c, merged as 9e5b020 — trip-name field now
+  hard-restricts to 75 chars with an inline "75 character limit reached" error, replacing
+  the old 200-char maxLength + silent-truncation behavior). Fixed in TripForm.tsx. Its own
+  park doc has full detail; not duplicated here. Its "await COO merge" next-step is now
+  moot (merged) — dropped below. Its flaky-CarryForwardModal-test finding is folded into
+  OPEN FLAGS below (renumbered to avoid colliding with this thread's own FLAG-F3/F4).
 
-WHAT WAS DONE (this thread — dispatch: fix frontend half of reopened BUG-10, GitHub #138)
-  Reopened BUG-10 (PR #141's earlier fix silently truncated instead of erroring, and the
-  limit itself was wrong — 200 instead of the PO-corrected 75). Fixed in
-  src/frontend/components/TripDetail/TripForm.tsx:
-    - maxLength dropped from 200 to a named NAME_MAX_LENGTH = 75 constant.
-    - Added a red inline error ("75 character limit reached") shown once
-      name.length >= 75, styled to match the existing field-level error pattern
-      used in AddPlaceFlow.tsx / PlaceDateForm.tsx (bg-red-50/border-red-200/
-      text-red-800/text-xs), not the whole-form ErrorMessage box used elsewhere
-      in this same file for name-required/date validation.
-    - Added a submit-time guard (name.length > 75) as a safety net for any
-      pre-existing trip names >75 chars saved before this fix (maxLength alone
-      doesn't retroactively trim an already-long value set programmatically).
-  Branch: fix/bug10-name-limit-frontend. PR references Closes #138 + BRD TR-01.
+  This resolves the "staleness" note that was in this file before either of these threads
+  ran (it dated from 2026-03-20 and predates BUG-10/26/30/31/34/35/36 — those have since
+  happened and merged; the note is retired rather than carried forward as if still true).
 
-  NOTE: found a pre-existing flaky test unrelated to this change —
-  src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx
-  "calls onClose immediately when Skip is clicked" fails intermittently
-  (onClose called 2-3x instead of 1x) even on a clean checkout with no BUG-10
-  changes applied (verified via git stash). Flagged to COO in completion report;
-  not fixed here (out of scope, and QA/backend own that surface).
+WHAT WAS DONE (this thread — BUG-32 / GitHub #156)
+  - Confirmed the documented DELETE /api/trips/:tripId/places/:placeId route and the
+    useRemovePlace hook (src/frontend/hooks/usePlaces.ts) already existed — the gap was
+    UI-only (tracker note assumed the route might be missing; it wasn't).
+  - src/frontend/components/TripDetail/PlaceSection.tsx: added a "Remove" button next to
+    "+ Add Item" / "Set dates" (hidden when isLocked, same pattern as the others), opening
+    a ConfirmDialog. Confirmation copy mentions the item count when the place has items
+    ("...along with the N items logged under it...") since deletion is meant to cascade.
+    IMPORTANT (learned the hard way): this button intentionally has NO aria-label — an
+    earlier version added `aria-label={`Remove ${place.city.name} from trip`}` and it
+    broke two pre-existing E2E tests (places-items.spec.ts) whose fixture cities are named
+    "EditCity"/"DeleteCity", because Playwright's getByRole name match is substring-based
+    by default and "Remove EditCity from trip" contains "Edit". Caught by PR #170's first
+    CI run, fixed by dropping the aria-label (plain visible text "Remove" is the accessible
+    name, disambiguated from the dialog's own "Remove" button by the dialog being unmounted
+    until opened, not by name). Don't reintroduce a name-based aria-label on this button
+    without checking it against existing E2E fixture names first.
+  - src/frontend/components/shared/ConfirmDialog.tsx: added optional `error` and
+    `isConfirming`/`confirmingLabel` props (all default to no-op, so ItemCard/ReviewPanel/
+    TripDetail's existing usages are unaffected) so a failed mutation keeps the dialog open
+    and shows why, instead of silently closing on a rejected promise (ItemCard's existing
+    delete-item flow has this same silent-failure gap — not fixed here, out of scope, but
+    worth a follow-up since it's the same shared component).
+  - src/frontend/hooks/usePlaces.ts: useRemovePlace's onSuccess invalidated only
+    ['trips', tripId] — found via live verification that the trip-list sidebar card (DP-01
+    shows place names per card) kept a stale place chip after a successful removal.
+    Fixed to invalidate ['trips'] (bare), matching the convention already used in
+    useTrips.ts (['trips'] is a prefix of ['trips', id], so one call covers both the list
+    and the detail query). Classified MINOR per frameworks.txt severity scale, fixed
+    directly (in-scope: same hook this PR newly wires up for the first time).
+  - New test file: src/frontend/components/TripDetail/__tests__/PlaceSection.test.tsx —
+    7 tests (hidden when locked, visible + opens dialog when unlocked, item-count copy
+    with/without items, cancel doesn't call mutation, confirm calls mutation with right
+    args, failed mutation keeps dialog open + shows error).
+
+VERIFICATION (ran the real app, not just tests)
+  Spun up backend + frontend dev servers with BYPASS_AUTH=true / VITE_BYPASS_AUTH=true on
+  scratch ports (3057/5188, to avoid colliding with any other session's 3001/5173) against
+  a scratch SQLite DB, then drove it with a throwaway Playwright script (not committed):
+    1. Place with 0 items: Remove → confirm → DELETE returns 204, place disappears from
+       trip detail AND (after the invalidation fix) the sidebar trip-list card.
+    2. Place with 1 item: Remove → confirm → DELETE returns 500 "Internal server error".
+       This is the CRITICAL bug below, confirmed live end-to-end (screenshots taken).
+       ConfirmDialog stayed open and showed "Internal server error" instead of silently
+       failing — this is exactly the failure mode the ConfirmDialog error-prop change
+       was built to handle gracefully.
+    3. Locked trip: Remove button correctly absent (locked-trip read-only banner shown,
+       same as every other write control).
+  Also reproduced the two E2E fixture-name-collision scenarios (EditCity/DeleteCity)
+  live, before and after the aria-label fix, since the official test:e2e harness's
+  hardcoded ports (3001/5173) collided with another concurrent session in this workspace.
 
 KEY FILE LOCATIONS
   Entry point:        src/frontend/main.tsx
   Router / layout:   src/frontend/App.tsx
   Pages:             src/frontend/pages/{MapPage,TripsPage,TripDetailPage,AdminPage}.tsx
-  Hooks:             src/frontend/hooks/{useTrips,usePlaces,useItems,useCities,useMapShading,useAdmin}.ts
+  Hooks:             src/frontend/hooks/{useTrips,usePlaces,useItems,useCities,useMapShading,useAdmin,useMe,useGeocodeRetryQueue}.ts
   Types:             src/frontend/types/api.ts
   API client:        src/frontend/utils/apiClient.ts
+  URL sanitiser:     src/frontend/utils/urlSanitiser.ts (SEC-12)
+  Date formatter:    src/frontend/utils/formatDate.ts
+  Shared dialogs:    src/frontend/components/shared/{ConfirmDialog,ErrorMessage}.tsx
   Trip form:         src/frontend/components/TripDetail/TripForm.tsx (BUG-10 fix here)
-  Shared error box:  src/frontend/components/shared/ErrorMessage.tsx (whole-form errors)
   Field-level error pattern reference: AddPlaceFlow.tsx:316, PlaceDateForm.tsx:149
+  Config:            vite.config.ts, tsconfig.frontend.json, index.html
 
 OPEN FLAGS FOR COO
-  FLAG-F1: Item status names in API reference doc don't match Zod schema (carried over,
-           unresolved from earlier session — see Phase 1 completion report for details)
-  FLAG-F2: No standalone GET /api/cities list endpoint exists (carried over, not needed
-           currently)
-  FLAG-F3 (new): CarryForwardModal.test.tsx has a flaky assertion (onClose call count)
-           reproducible on main without any BUG-10 changes — worth a QA/backend look,
-           not blocking this PR.
+  FLAG-F1 (carried over, unresolved): Item status names in API reference doc don't match
+    Zod schema (see original Phase 1 completion report for details).
+  FLAG-F2 (carried over, unresolved): No standalone GET /api/cities list endpoint exists
+    (not needed currently).
+  FLAG-F3 (CRITICAL, this thread): DELETE /api/trips/:tripId/places/:placeId fails with a
+    500 when the place has any items attached — items.tripPlaceId has no onDelete cascade
+    in src/backend/db/schema.ts (trip_place_activities.tripPlaceId does). Confirmed both
+    via an isolated @libsql/client script and live through the running app (screenshots).
+    Full bug report: jobs/COO/inbox/20260720_1746-FRONTEND-bug32-blocker-place-delete-fk-cascade.txt
+    Does not block this PR; blocks BUG-32 being fully closed. Recommend routing the schema
+    fix + migration into whichever backend brief is touching this route.
+  FLAG-F4 (MINOR, this thread, informational only — not fixed): ItemCard.tsx's delete-item
+    flow (ConfirmDialog usage) doesn't surface mutation errors — a failed item delete
+    silently closes/does nothing visible. Same class of gap as FLAG-F3's UX side, now that
+    ConfirmDialog supports an error prop it would be a small follow-up to wire it there too.
+  FLAG-F5 (carried over from the BUG-10 frontend thread, unresolved): CarryForwardModal
+    .test.tsx has a flaky assertion ("calls onClose immediately when Skip is clicked" —
+    onClose called 2-3x instead of 1x). Reproducible on a clean main checkout with no
+    BUG-10 or BUG-32 changes applied (verified independently by both threads via git
+    stash). Worth a QA/backend look; not blocking either PR.
 
 NEXT STEPS (when resumed)
-  - Await COO merge of fix/bug10-name-limit-frontend (Closes #138)
-  - Coordinate wording with backend brief if their 400 message text differs from
-    "75 character limit reached" (this PR used that exact string per tracker guidance)
+  - Once FLAG-F3 (backend schema fix) merges, re-verify place removal with items attached
+    actually succeeds and cascades — this PR's UI/copy already assumes that will be true.
+  - Consider FLAG-F4 (ItemCard error surfacing) as a small follow-up.
+  - Consider FLAG-F5 (flaky CarryForwardModal test) as a small follow-up — flagged twice
+    now by independent threads, worth fixing rather than re-flagging a third time.
+  - Coordinate wording with BUG-10's backend half if its 400 message text differs from
+    the frontend's "75 character limit reached" (per tracker guidance).

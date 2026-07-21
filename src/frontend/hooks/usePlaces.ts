@@ -69,7 +69,12 @@ export function useAddPlace() {
 
 /**
  * Removes a place from a trip via DELETE /api/trips/:tripId/places/:placeId.
- * On success, invalidates the trip detail query.
+ * On success, invalidates the trip detail query and the trip list query — a
+ * trip card shows the names of its places (DP-01), so removing one must
+ * refresh both, not just the detail view (BUG-32 verification caught the
+ * trip-list card holding a stale place chip when only ['trips', tripId] was
+ * invalidated; ['trips'] alone already covers both per useTrips.ts's
+ * established convention, since ['trips', tripId] is a suffix of it).
  *
  * @returns useMutation result. Call mutateAsync({ tripId, placeId }) to submit.
  */
@@ -78,8 +83,8 @@ export function useRemovePlace() {
   return useMutation({
     mutationFn: ({ tripId, placeId }: { tripId: number; placeId: number }) =>
       apiDelete(`/api/trips/${tripId}/places/${placeId}`),
-    onSuccess: (_result, vars) => {
-      void qc.invalidateQueries({ queryKey: ['trips', vars.tripId] });
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });
