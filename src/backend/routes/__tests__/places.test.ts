@@ -602,6 +602,48 @@ describe('DELETE /api/trips/:tripId/places/:placeId', () => {
 
     expect(res.body).toHaveProperty('error');
   });
+
+  // BUG-32: items logged under a place must survive the place's deletion —
+  // reassigned to trip-level (trip_place_id = NULL), not cascade-deleted.
+  // Before this fix, deleting a place with items attached threw an unhandled
+  // FK constraint violation (500) under FK enforcement, and would have left
+  // a dangling trip_place_id reference where enforcement is off.
+  it('reassigns items under the deleted place to trip-level (trip_place_id = null)', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Nice');
+    const trip = await seedTrip(db);
+    const [place] = await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
+      .returning();
+    const now = new Date().toISOString();
+    const [item] = await db
+      .insert(schema.items)
+      .values({
+        tripId: trip.id,
+        tripPlaceId: place.id,
+        itemType: 'experience',
+        status: 'consider',
+        isCarriedForward: 0,
+        userId: TEST_USER_ID,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    await supertest(app).delete(`/api/trips/${trip.id}/places/${place.id}`).expect(204);
+
+    const { eq } = await import('drizzle-orm');
+    const itemsAfter = await db.select().from(schema.items).where(eq(schema.items.id, item.id));
+    expect(itemsAfter).toHaveLength(1);
+    expect(itemsAfter[0].tripPlaceId).toBeNull();
+
+    const placesAfter = await db
+      .select()
+      .from(schema.tripPlaces)
+      .where(eq(schema.tripPlaces.id, place.id));
+    expect(placesAfter).toHaveLength(0);
+  });
 });
 
 // ----------------------------------------------------------------

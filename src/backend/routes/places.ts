@@ -103,6 +103,11 @@ placesRouter.post(
 // ----------------------------------------------------------------
 // DELETE /api/trips/:tripId/places/:placeId
 // ----------------------------------------------------------------
+// Removes a place from a trip (BUG-32). 204 on success; 404 if the place
+// doesn't exist or isn't owned by the requesting user (via placeRepository's
+// trip-ownership check); 403 if the parent trip is locked (BUG-27).
+// Items previously logged under this place are reassigned to trip-level
+// (trip_place_id = null), not deleted — see placeRepository.delete.
 // nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 placesRouter.delete(
   '/:placeId',
