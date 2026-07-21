@@ -16,12 +16,15 @@
  * SQLite uses @libsql/client as the driver (no native compilation required).
  * SQLITE_PATH must be a libSQL URL: file:./dev.db or file:/absolute/path.
  *
- * Remote Turso / TURSO_AUTH_TOKEN (ADL-32 §9): when SQLITE_PATH is a remote
- * libsql://... URL (hosted Turso — production or staging), two things differ
- * from local file: dev, both required for `db:migrate`/`db:generate` to work
- * against it — drizzle-kit's own migrate/generate commands open a separate
- * connection from the app's runtime getDb() (src/backend/db/index.ts), so
- * this file needs its own handling, not just that one:
+ * Remote Turso / TURSO_AUTH_TOKEN (ADL-32 §9): the connection URL resolves as
+ * TURSO_DATABASE_URL || SQLITE_PATH — same priority as the app's runtime
+ * getDb() (src/backend/db/index.ts) — since Railway's env vars are
+ * TURSO_DATABASE_URL/TURSO_AUTH_TOKEN, not a repurposed SQLITE_PATH. When
+ * that resolved URL is a remote libsql://... URL (hosted Turso — production
+ * or staging), two things differ from local file: dev, both required for
+ * `db:migrate`/`db:generate` to work against it — drizzle-kit's own
+ * migrate/generate commands open a separate connection from the app's
+ * runtime one, so this file needs its own handling, not just that one:
  *   1. drizzle-kit requires `dialect: 'turso'` (not 'sqlite') to accept an
  *      `authToken` credential at all — verified against drizzle-kit's own
  *      Config type (node_modules/drizzle-kit/index.d.ts): the 'sqlite'
@@ -48,10 +51,14 @@ if (dbType !== 'sqlite' && dbType !== 'postgres') {
   );
 }
 
+// Same resolution priority as getDb() (src/backend/db/index.ts): a remote
+// TURSO_DATABASE_URL wins if set, otherwise fall back to local SQLITE_PATH.
+const sqliteUrl = process.env.TURSO_DATABASE_URL || process.env.SQLITE_PATH;
+
 // A remote Turso database (production or staging) vs. a local SQLite file —
 // see the module docstring for why drizzle-kit needs a different `dialect`
 // value for the two, not just different credentials.
-const isRemoteTurso = dbType === 'sqlite' && (process.env.SQLITE_PATH ?? '').startsWith('libsql://');
+const isRemoteTurso = dbType === 'sqlite' && (sqliteUrl ?? '').startsWith('libsql://');
 
 export default defineConfig({
   // The schema file is the single source of truth for all table definitions
@@ -72,11 +79,11 @@ export default defineConfig({
       : isRemoteTurso
         ? {
             // Remote Turso: libsql://... URL + auth token (required by Turso).
-            url: process.env.SQLITE_PATH!,
+            url: sqliteUrl!,
             authToken: process.env.TURSO_AUTH_TOKEN,
           }
         : {
             // Local SQLite file: e.g. file:./dev.db or file:/abs/path/db.db
-            url: process.env.SQLITE_PATH!,
+            url: sqliteUrl!,
           },
 });

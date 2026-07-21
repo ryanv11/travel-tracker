@@ -94,16 +94,16 @@ const RESET_TABLES = [
 ] as const;
 
 /**
- * Refuses to proceed if the resolved SQLITE_PATH looks like it could be the
- * production Turso database. See module docstring for the exact rule.
+ * Refuses to proceed if the resolved connection URL looks like it could be
+ * the production Turso database. See module docstring for the exact rule.
  */
-function assertSafeTarget(sqlitePath: string, bypass: boolean): void {
-  const isRemote = sqlitePath.startsWith('libsql://') || sqlitePath.startsWith('https://');
+function assertSafeTarget(url: string, bypass: boolean): void {
+  const isRemote = url.startsWith('libsql://') || url.startsWith('https://');
   if (!isRemote) return; // local file: URL — exempt, low stakes
 
-  if (!sqlitePath.toLowerCase().includes('staging') && !bypass) {
+  if (!url.toLowerCase().includes('staging') && !bypass) {
     throw new Error(
-      `[RESET] Refusing to run: SQLITE_PATH ("${sqlitePath}") is a remote URL that does ` +
+      `[RESET] Refusing to run: connection URL ("${url}") is a remote URL that does ` +
         'not contain "staging". This script is only meant to run against the staging ' +
         'Turso database. If this really is the intended target, re-run with ' +
         '--i-know-what-im-doing.',
@@ -116,13 +116,17 @@ async function main(): Promise<void> {
   const confirmed = args.includes('--yes');
   const bypassNameCheck = args.includes('--i-know-what-im-doing');
 
-  const sqlitePath = process.env.SQLITE_PATH;
-  if (!sqlitePath) {
-    throw new Error('[RESET] SQLITE_PATH is not set — nothing to reset against.');
+  // Same resolution priority as getDb() (src/backend/db/index.ts): a remote
+  // TURSO_DATABASE_URL wins if set, otherwise fall back to local SQLITE_PATH.
+  const url = process.env.TURSO_DATABASE_URL || process.env.SQLITE_PATH;
+  if (!url) {
+    throw new Error(
+      '[RESET] Neither TURSO_DATABASE_URL nor SQLITE_PATH is set — nothing to reset against.',
+    );
   }
-  assertSafeTarget(sqlitePath, bypassNameCheck);
+  assertSafeTarget(url, bypassNameCheck);
 
-  console.log(`[RESET] Target: ${sqlitePath}`);
+  console.log(`[RESET] Target: ${url}`);
   console.log(
     `[RESET] Mode: ${confirmed ? 'LIVE (--yes passed)' : 'DRY RUN (pass --yes to delete)'}\n`,
   );
