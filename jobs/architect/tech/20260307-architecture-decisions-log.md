@@ -1905,3 +1905,43 @@ correctly, go check" signal, not a symptom of an open firewall.
 - **Next container start is the real verification point.** Confirm the startup log shows "Firewall
   configuration complete" and both final verification checks pass; if any `FAILED_ITEMS` warnings
   appear, check whether they're expected (e.g. a genuinely offline host) or a new regression.
+
+### 5. Follow-up (2026-07-21, same day): §3's outstanding verification point fired, and found a second bug in this same fix
+
+The container rebuild happened (Dockerfile `COPY` confirmed identical between `/usr/local/bin/
+init-firewall.sh` and the repo copy — the ADL-34 fix above was live). Its first real run produced
+exactly the `FAILED_ITEMS` scenario §4 said to watch for, but the failing item was GitHub itself:
+
+```
+FIREWALL WARNING: 1 item(s) could NOT be allowlisted... - GitHub (meta API fetch failed)
+...
+Firewall verification passed - unable to reach https://example.com as expected
+ERROR: Firewall verification failed - unable to reach https://api.github.com
+```
+
+**Root cause:** this fix's own reordering — lockdown (step 5) now applies *before* GitHub's IP
+ranges are fetched (step 6) — created a bootstrapping deadlock the dry-run mock in §3 couldn't
+catch (it no-op'd `iptables`/`ipset`, so it never actually enforced anything against the fetch).
+Step 6's `curl https://api.github.com/meta` is a real HTTPS connection to `api.github.com` — and
+since that host's IPs aren't in `allowed-domains` yet (populating them is the whole point of this
+curl call), the already-active default-DROP lockdown blocks the fetch itself. Confirmed live:
+`curl https://api.github.com` failed (`Couldn't connect to server`) while `getent hosts
+api.github.com` resolved fine — DNS (UDP/53, allowed pre- and post-lockdown per step 3) worked,
+only the HTTPS connection was blocked. This did not surface under the old fail-open script because
+that curl ran before any lockdown existed at all.
+
+**Fix:** before the meta-API curl, resolve `api.github.com`'s current A record via `dig` (same
+DNS-bootstrap pattern already used for the Turso/Railway/Clerk domains in step 7, which don't hit
+this problem because they use `dig` rather than `curl` to establish reachability) and temporarily
+allow that IP so the bootstrap fetch can succeed. The full official ranges added immediately after
+are a superset and remain in the ipset regardless.
+
+**Verification:** `bash -n` clean; `dig +noall +answer A api.github.com` output format confirmed
+to match the existing `awk '$4 == "A" {print $5}'` parse used elsewhere in the script. Same
+live-verification limitation as §3 applies — passwordless sudo is scoped to the already-built
+`/usr/local/bin/init-firewall.sh`, so full end-to-end confirmation needs another container
+rebuild. **That rebuild is the new outstanding verification step.**
+
+Found and fixed directly by COO (same class of well-contained, mechanical fix as the original
+ADL-34 fix; no new architectural decision — the lockdown-before-resolution ordering itself is
+unchanged and correct, this only fixes step 6's own bootstrap sequencing).
