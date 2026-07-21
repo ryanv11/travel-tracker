@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (34)
+## Open work (33)
 
 ### P0 — Blockers (1)
 
@@ -34,7 +34,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-NF09 | Hosted deployment for personal use (NF-09) | backend | 🔄 In progress |
 | OP-22 | Environment promotion model — main→staging (continuous), production branch→prod (explicit fast-forward) | coo | 🔄 In progress |
 
-### P2 — Important (18)
+### P2 — Important (17)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -53,7 +53,6 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
 | OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
 | WP-01 | Product rename to "Waypoint" (in-app UI only) | frontend | ⬜ Pending |
-| WP-02 | Waypoint design-system foundation — colors, type, icons, badges, buttons (Phase 1) | frontend | done_pending_uat |
 | WP-03 | Trips screen (desktop) reskin using Waypoint tokens (Phase 2) | frontend | ⬜ Pending |
 | WP-04 | Trips screen responsive mobile layout — net-new (Phase 2) | frontend | ⬜ Pending |
 
@@ -77,7 +76,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `██████████▓▓▓░░░░░░░` 23/48 | 23 | 25 | 1 |
+| feature | `██████████▓▓▓░░░░░░░` 24/48 | 24 | 24 | 1 |
 | requirement | `██████████████████▓░` 29/32 | 29 | 3 | 5 |
 | bug | `███████████████████░` 37/38 | 37 | 1 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
@@ -111,4 +110,4 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 ---
 
-_103 done · 8 deferred · 2 closed · 34 open — 147 tracked items_
+_104 done · 8 deferred · 2 closed · 33 open — 147 tracked items_
