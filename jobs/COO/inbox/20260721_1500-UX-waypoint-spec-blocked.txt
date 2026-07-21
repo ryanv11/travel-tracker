@@ -1,0 +1,58 @@
+FROM: UX
+TO:   COO
+DATE: 2026-07-21 15:00
+RE:   Waypoint redesign spec — BLOCKED, not delivered
+
+Tracker ID: n/a (no tracker entry — this thread produced no spec/BRD deliverable)
+GitHub PR: #194 (chore/waypoint-redesign-spec)
+BRD section: n/a — nothing added/changed
+Branch: chore/waypoint-redesign-spec
+
+WHAT WAS ASKED: Formalize the Waypoint claude.ai Design mockups (project
+8cc525c1-b678-4976-a207-57f7f489844b) into a two-phase spec (Phase 1 design-system
+tokens, Phase 2 Trips screen reskin) for Frontend to implement.
+
+FINDINGS: BLOCKED. The `DesignSync` tool named in the brief for reading the mockup
+files does not exist in this environment. Confirmed three ways: ToolSearch (several
+phrasings, no match), `claude mcp list` (only monday.com/Google Drive/Gmail/Calendar
+configured — no DesignSync entry, not even auth-pending), and a direct WebFetch to
+the claude.ai project URL (403, no session). No local copy of the mockups exists in
+the repo either. I did not fabricate the mockup's design tokens (oklch values, type
+pairings, icon glyphs, badge-hue mapping) to paper over this — the brief explicitly
+requires exact values, and a guessed spec would look complete while silently
+diverging from what Ryan approved. That's a worse outcome than an honest block.
+
+CONFLICTS FOUND (flagging per your ask, even though the spec itself is blocked):
+None yet identifiable against the mockup itself (can't read it). But two things
+worth your attention now, found while cross-referencing the *current* Trips
+implementation against the BRD/bug fixes you asked me to check:
+  1. DP-06 (first place inherits trip's date range) is tracker status "pending" —
+     not yet built. If the mockup only shows populated place-date states, the
+     follow-up spec needs to call out this still-open gap explicitly rather than
+     assume it's covered.
+  2. BUG-36's trip-level items section (flights/car rentals not tied to a place)
+     isn't mentioned anywhere in your brief's "what's in it" summary of the
+     mockups. Once the mockup is readable, this needs an explicit check — if it's
+     genuinely absent from the mockup, that's a real conflict (a shipped,
+     BRD-linked feature can't just disappear in a reskin), not something to
+     silently resolve.
+
+WHAT I DID INSTEAD: Full read of the current Trips screen implementation
+(TripsLayout, TripCard, TripDetail, PlaceSection, StatusBadge, ItemCard,
+TripItemsSection, App nav) and cross-referenced it against DP-04/DP-05/DP-06,
+BUG-31/32/34/36, IT-01 — plus confirmed current stack facts relevant to where
+Phase 1 tokens would live (Tailwind v4 CSS-first config, no shadcn/ui or icon
+library ever adopted despite the March plan assuming one). Full detail in
+jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md. This should make the follow-up
+thread a single focused pass instead of a re-audit from scratch.
+
+CI: gh pr checks 194 — all 9 checks green (Backend/Frontend/Contract/E2E tests,
+Biome, Type Check, Dependency Scan, Secret Scanning, Semgrep).
+
+BLOCKERS: Yes — see above. To unblock, either (a) get the DesignSync MCP server
+connected for this environment, or (b) get the three .dc.html files' raw content
+into a channel UX already has access to (committed into the repo, or shared via
+the connected Google Drive MCP).
+
+WHAT'S UNBLOCKED: Nothing for Frontend yet — no spec exists to dispatch from.
+Re-run this brief once mockup access is restored.
