@@ -1,8 +1,10 @@
-UX CONTEXT — 2026-07-21 (updated, unblocked + completed)
+UX CONTEXT — 2026-07-21 (updated — C1-C13 gate closed, Phase 2 ready for dispatch)
 PROJECT: Travel Tracker
-CURRENT STATUS: Waypoint redesign spec DELIVERED. Phase 1 (design-system foundation) +
-Phase 2 (Trips screen reskin, desktop + mobile) spec complete, with 13 flagged
-conflicts/open questions for COO/Ryan to resolve before Frontend dispatch.
+CURRENT STATUS: Waypoint redesign spec fully resolved. Phase 1 (WP-02) shipped, merged,
+UAT PASS. Phase 2 (WP-03/WP-04) spec is stamped with all 13 conflict resolutions plus
+three adjacent flagged items plus one new UX-made call (mobile Edit/Photos) plus one new
+constraint (mobile no-horizontal-scroll) — ready for Frontend dispatch, no open UX-owned
+questions remain on this spec.
 
 ================================================================================
 ROLE SUMMARY
@@ -21,90 +23,74 @@ PROJECT CONTEXT (verified 2026-07-21)
   Styling:      Tailwind CSS v4, CSS-first config (@import "tailwindcss" in
                 src/frontend/index.css — no tailwind.config.js/.ts exists)
   Component lib: NONE adopted. No shadcn/ui, no Radix, no icon library
-                (no lucide-react, no clsx/cva) in package.json as of 2026-07-21,
-                despite the March 2026 UX audit assuming a Tailwind+shadcn
-                migration. Only the Tailwind half of that plan landed.
+                (no lucide-react, no clsx/cva) in package.json as of 2026-07-21.
   Mapping:      MapLibre GL JS + react-map-gl + MapTiler tiles
-  Current palette: Teal primary / amber (active/review) / violet (category
-                badges) / emerald (positive CTA) — being replaced by the
-                Waypoint palette (warm paper neutrals + deep pine primary,
-                oklch-based) per the new spec.
+  Current palette: being replaced by the Waypoint palette (warm paper neutrals +
+                deep pine primary, oklch-based); Phase 1 tokens already shipped.
 
 ================================================================================
-COMPLETED THREAD — Waypoint redesign spec (2026-07-21)
+COMPLETED THREAD — Waypoint Phase 2 conflict-resolution stamp (2026-07-21, PM session)
 ================================================================================
 
-  Brief: formalize claude.ai Design project "Travel tracker design review"
-  (projectId 8cc525c1-b678-4976-a207-57f7f489844b — Design System.dc.html,
-  Trips Desktop.dc.html, Trips Mobile.dc.html) into a two-phase briefable spec.
+  Brief: jobs/ux/tech/20260721-UX-waypoint-spec.md (authored earlier the same day) left
+  13 conflicts (C1-C13) plus several adjacent flagged items explicitly open — "COO
+  adjudicates those; I have not." A COO/PO session the same day (two rounds) resolved all
+  of them, some already landed in BRD v3.3/v3.4 §5.16, others decided fresh in the second
+  round. Task: stamp every resolution into the spec so it stops asserting things are open,
+  and make one remaining judgment call myself.
 
-  Initially BLOCKED: the `DesignSync` tool named in the brief is specific to the
-  main interactive session and unavailable to a dispatched agent (confirmed via
-  ToolSearch, `claude mcp list`, and a direct WebFetch 403 — see
-  jobs/ux/tech/20260721-UX-waypoint-spec-blocked.md for the full trail). Did NOT
-  fabricate mockup content to paper over this.
+  What changed in the spec (same file, no new file):
+  - Status line: no longer "gated on 13 conflicts" — states resolved, ready for dispatch,
+    points to both this doc (design-detail record) and BRD v3.4 §5.16 (requirement-level
+    record).
+  - C1-C13 table: added a Resolution column, every row stamped "Confirmed 2026-07-21
+    (COO/PO)" with the verbatim decision (all matched my original recommendations, no
+    re-litigation needed).
+  - Confirmed/Completed status-badge hue: resolved as TWO distinct hues, not one (mockup's
+    STATUS_META collapsed them — rejected). I picked concrete replacement tokens myself:
+    Confirmed stays hue 150 (green), Completed moves to hue 220 (blue) — same L/C recipe
+    as the rest of the palette, chosen for open hue-space separation from all 7 existing
+    hues and a sensible green="on track"/blue="done" semantic pairing. Flagged that shipped
+    Phase 1 code (src/frontend/design/badges.ts) still collapses both to hue 150 — bug
+    relative to this decision, fix is part of the Phase 2 Frontend brief, not mine to touch.
+  - Font loading: confirmed final as self-hosted @fontsource (already implemented Phase 1).
+  - TR-12/stepper: confirmed by PO as acceptable fulfillment, not scope creep.
+  - MY OWN CALL: mobile trip-detail Edit/Photos entry point. Two conflicting COO/PO answers
+    existed (overflow "⋯" menu per BRD v3.3/v3.4 WP-04 as first recorded, vs. compact icon
+    pair as PO's answer in a later round, who then explicitly punted the final call to UX).
+    I chose the COMPACT ICON PAIR — reasoning: overflow menus earn their keep at 3+ actions,
+    not 2; hiding two frequent primary actions behind an extra tap actively works against
+    affordance/discoverability; icon-only pair keeps mobile behavior-consistent with desktop
+    (Edit/Photos always visible there too) as a density change, not a new interaction
+    pattern; extensibility isn't foreclosed since converting to an overflow menu later, if a
+    3rd action appears, is a small change. Added a new pencil/edit SVG icon spec to §3 (not
+    in either source mockup — authored to match the existing icon set's style) since the
+    mockup had no Edit icon at all. This supersedes the overflow-menu wording currently
+    sitting in BRD WP-04 — flagged explicitly for COO to reconcile in its own BRD pass; not
+    something I touched myself (BRD/tracker updates were COO's parallel work this session).
+  - New constraint added: no horizontal scrolling anywhere on mobile Trips except the
+    status filter chip row (already-documented overflow-x:auto exception) — trip cards,
+    place/category chip rows, item rows must all wrap/truncate. Added to the Mobile layout
+    section and as new Phase 2 success criterion #6 (verified against real/varied data, not
+    just the mockup's fixed example strings, since the mockup can't exercise this itself).
+  - Cross-reference summary table: all "Flag" verdicts converted to "Resolved" with the
+    concrete outcome; two new rows added (mobile Edit/Photos, mobile no-horizontal-scroll).
+  - Phase 2 success criteria: renumbered to 8 items, criterion 2 reworded from "needs
+    resolution" to "resolution must be honored in implementation," new criterion 6 added
+    for the no-horizontal-scroll constraint.
 
-  UNBLOCKED same thread: coordinator supplied verbatim copies of all three
-  mockup files into this worktree at jobs/ux/tech/waypoint-mockups/*.dc.html.
-  Read all three in full and produced the real spec:
-  jobs/ux/tech/20260721-UX-waypoint-spec.md
-
-  Deliverable contents:
-  - Phase 1: full oklch color token table (neutrals, brand, 7 status/category
-    hues), Newsreader/Manrope type scale, 11 SVG icon glyphs (8 item-type/status
-    + 4 nav/chrome) with exact path data — confirmed NO new icon-library
-    dependency needed (mockup icons are hand-authored SVG paths, not from a
-    named library), badge/button/input styling, and where these tokens should
-    live given this repo's Tailwind v4 CSS-first config. Recommended icon
-    replacement (emoji -> SVG) as the one immediate-apply exception; everything
-    else stays defined-but-unused until Phase 2 to avoid a half-migrated,
-    inconsistent state.
-  - Phase 2: full desktop + mobile Trips layout breakdown (nav, left panel,
-    trip cards, detail header, NEW status-stepper component replacing the flat
-    status bar, place sections, item cards, empty states, mobile slide
-    transition + bottom tab bar), cross-referenced line-by-line against
-    DP-01..06, TR-09/11/12/13, BUG-31/32/34/36, IT-01, UX-02, FEAT-BD, NTH-01/03.
-  - 13 flagged conflicts/open questions (C1-C13) requiring explicit COO/Ryan
-    decisions before Frontend dispatch — NOT silently resolved. Highlights:
-    * C1: mockup renames the product to "Waypoint" in the nav — real decision,
-      not styling.
-    * C2: mockup's status stepper has no Unlock affordance at all (current app
-      has a working, tested Unlock flow) — must be preserved, added to the new
-      stepper as chrome the mockup doesn't show.
-    * C3: BUG-36's trip-level items section (shipped 2026-07-20, IT-01) is
-      absent from both mockups entirely — must be preserved, not silently
-      dropped.
-    * C4: place-section Edit-dates/Remove buttons (UX-02, BUG-32) absent from
-      mockup place-header — must be preserved.
-    * C5: item card in mockup drops rating stars, carried-forward tag, and
-      full per-type subtext down to one generic line — must preserve full
-      richness inside the new visual shell.
-    * C6: mockup only shows the filtered-empty state, not the true first-run
-      zero-trips state current app already distinguishes — must preserve both.
-    * C7: FEAT-BD bulk delete, NTH-01 undo, NTH-03 filter counts, TR-09 sort,
-      map-filter badge all absent from mockup — must preserve all.
-    * C8: mockup's own reference implementation uses dangerouslySetInnerHTML
-      to render icons — blocking defect per _shared/frameworks.txt rule 22;
-      Frontend must use literal inline SVG JSX instead (same visual output).
-    * C9: mobile bottom tab bar only appears in list view, not detail view —
-      likely intentional (my read), needs Ryan confirmation since it's a nav
-      model decision.
-    * C10-C13: smaller precision flags (panel width 340 vs 320px, category
-      badge color undocumented in the system file itself, Newsreader weight
-      600 vs system doc's stated 500, button radius 10px vs mockups' applied
-      9px).
+  Did NOT touch: BRD, tracker.json (explicitly COO's parallel work this session, per
+  brief). Did NOT implement any code — spec only.
 
 ================================================================================
 NEXT ACTIONS
 ================================================================================
 
-  COO reviews jobs/ux/tech/20260721-UX-waypoint-spec.md, resolves C1-C13 with
-  Ryan (recording decisions per the document-lifecycle/record-decision rules —
-  BRD entries, ADL, or tracker notes as appropriate), adds any new requirement
-  IDs to the BRD (BRD-gate-before-dispatch rule), then dispatches Frontend:
-  Phase 1 first (verified/UAT'd before any reskin), then Phase 2.
+  Phase 2 (WP-03/WP-04) is unblocked for Frontend dispatch — no outstanding UX-owned
+  question remains on jobs/ux/tech/20260721-UX-waypoint-spec.md. COO's remaining work
+  (separate from this thread): reconcile BRD WP-04's overflow-menu wording against this
+  spec's compact-icon-pair resolution, then dispatch the Frontend brief for Phase 2.
 
-  Prior completed work (BRIEF-UX-01, DELTA docs) is now formally superseded in
-  intent by this spec for the Trips screen specifically — not yet stamped with
-  a formal supersession banner since that's the record-decision skill's job at
-  BRD-gate time, not mine to do unilaterally in this thread.
+  When Frontend's Phase 2 implementation lands, UX's next thread is the standard review-
+  against-spec pass (desktop + mobile, all cross-reference table rows, all 8 success
+  criteria above) before PO UAT.

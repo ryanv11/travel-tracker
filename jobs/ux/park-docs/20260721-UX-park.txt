@@ -68,7 +68,76 @@ commit — coordinator's instruction was to update this branch, not open a new o
 PR #194 picks up the new commits automatically. No source code touched — spec/docs
 only. Pre-push checklist re-run and green before this final push.
 
-NEXT ACTIONS: See "CONFLICTS & OPEN QUESTIONS" at the top of
-jobs/ux/tech/20260721-UX-waypoint-spec.md and "NEXT ACTIONS" in
-jobs/ux/context/current.txt.
+NEXT ACTIONS (superseded — see second thread below): See "CONFLICTS & OPEN QUESTIONS" at
+the top of jobs/ux/tech/20260721-UX-waypoint-spec.md and "NEXT ACTIONS" in
+jobs/ux/context/current.txt as they stood at the end of this first thread.
+================================================================================
+
+UX PARK DOCUMENT — 2026-07-21 (SECOND THREAD, same day, PM session)
+================================================================================
+THREAD: Waypoint Phase 2 conflict-resolution stamp — closing the C1-C13 gate opened above
+================================================================================
+
+OUTCOME: DELIVERED. All 13 conflicts (C1-C13) from the thread above, plus three adjacent
+flagged items (Confirmed/Completed badge hue, font loading, TR-12), plus one new
+constraint (mobile no-horizontal-scroll), were resolved by a COO/PO session earlier the
+same day (two rounds). This thread's job: stamp every resolution into
+jobs/ux/tech/20260721-UX-waypoint-spec.md so it stops asserting them as open, and make one
+remaining judgment call explicitly punted to UX (mobile Edit/Photos entry point). Did NOT
+re-litigate any of the 13 — all matched my original recommendations verbatim, per
+instruction. Did NOT touch the BRD or tracker.json — COO's parallel work this session.
+
+WHAT CHANGED (single file, jobs/ux/tech/20260721-UX-waypoint-spec.md):
+- Status line: no longer "gated," states Phase 2 resolved and ready for Frontend
+  dispatch; points to this doc (design-detail record) + BRD v3.4 §5.16 WP-01/03/04/05
+  (requirement-level record).
+- C1-C13 table: added a Resolution column, every row stamped "Confirmed 2026-07-21
+  (COO/PO)."
+- Confirmed/Completed hue: resolved as two distinct hues (not the mockup's shared one). I
+  picked concrete tokens — Confirmed stays hue 150 (green), Completed moves to hue 220
+  (blue), same L/C recipe as the rest of the palette. Flagged that shipped Phase 1 code
+  (src/frontend/design/badges.ts) still collapses both to 150 — a bug relative to this
+  decision, fix belongs to the Phase 2 Frontend brief.
+- Font loading (self-hosted @fontsource) and TR-12 (stepper accepted as TR-12 fulfillment)
+  stamped confirmed.
+- MY OWN CALL: mobile Edit/Photos entry point. Two conflicting COO/PO answers existed
+  (overflow "⋯" menu, already in BRD WP-04, vs. compact icon pair, PO's later answer with
+  the final call explicitly deferred to UX). I chose the compact icon pair — reasoning:
+  overflow menus earn their keep at 3+ actions not 2; hiding two frequent primary actions
+  behind an extra tap works against affordance for no benefit at today's scope; keeps
+  mobile behavior-consistent with desktop (density change, not a new interaction pattern);
+  extensibility isn't foreclosed (converting to overflow later if a 3rd action appears is
+  a small change). This supersedes BRD WP-04's overflow-menu wording — flagged explicitly
+  for COO to reconcile in its own BRD pass. Added a new pencil/edit SVG icon to §3 (Icons)
+  since neither mockup has an Edit affordance on mobile at all.
+- New constraint: no horizontal scrolling anywhere on mobile Trips except the status
+  filter chip row (already-documented overflow-x:auto exception) — trip cards,
+  place/category chip rows, item rows must wrap/truncate. Added to the Mobile layout
+  section and as new Phase 2 success criterion #6, explicitly requiring verification
+  against real/varied data since the static mockup can't exercise scroll behavior itself.
+- Cross-reference summary table: all "Flag" verdicts converted to "Resolved" with the
+  concrete outcome; two new rows added (mobile Edit/Photos, mobile no-horizontal-scroll).
+- Phase 2 success criteria renumbered 1-8, criterion 2 reworded to reflect the closed
+  gate, new criterion 6 added for no-horizontal-scroll.
+
+BUGS DISCOVERED: None (docs-only thread).
+
+OPEN ISSUES / BLOCKERS: None. No outstanding UX-owned question remains on the Phase 2
+spec. One outstanding cross-team item, not a blocker to my own work: BRD WP-04's
+overflow-menu wording needs reconciling against this spec's compact-icon-pair resolution
+— flagged for COO, not mine to fix (BRD is COO's document this session).
+
+WHAT'S UNBLOCKED FOR OTHER JOBS: Frontend can now be dispatched for Phase 2 (WP-03
+desktop + WP-04 mobile) against a fully-stamped spec — no remaining gate.
+
+GIT: New branch docs/ux-waypoint-phase2-resolutions off main (this thread's own branch,
+per the standard branch-per-thread workflow — separate from the earlier thread's
+chore/waypoint-redesign-spec branch, which is already merged). Docs-only commit + a
+housekeeping commit for jobs/ux/context + this park doc + the completion report. See
+completion report in jobs/COO/inbox/ for the PR number and CI status.
+
+NEXT ACTIONS: COO reconciles BRD WP-04's overflow-menu wording against this spec's
+compact-icon-pair resolution, then dispatches the Frontend brief for Phase 2. My next
+thread (once Frontend's implementation lands): standard review-against-spec pass before
+PO UAT.
 ================================================================================
