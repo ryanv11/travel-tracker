@@ -24,6 +24,7 @@ import { config } from 'dotenv';
 
 config({ path: '.env.local' }); // explicit .env.local load
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cors from 'cors';
@@ -58,6 +59,14 @@ const ALLOWED_ORIGINS = (
 )
   .split(',')
   .map((o) => o.trim());
+
+// ADL-32: Hosted deployment (Railway) serves the built frontend from this same
+// process — express.static on the Vite dist/ build + an SPA fallback for
+// client-side routes. Gated on NODE_ENV=production AND the dist/ directory
+// actually existing, so local dev (two-process Vite/Express split, no dist/
+// build present) is completely unaffected.
+const DIST_DIR = path.join(__dirname, '../../dist');
+const SERVE_STATIC = process.env.NODE_ENV === 'production' && fs.existsSync(DIST_DIR);
 
 // ----------------------------------------------------------------
 // App setup
@@ -160,6 +169,41 @@ app.use('/api/me', meRouter); // BUG-26: identity endpoint for frontend owner ga
 
 // Health check (useful for development)
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+// ----------------------------------------------------------------
+// Static frontend (ADL-32 — hosted deployment only)
+// ----------------------------------------------------------------
+//
+// Registered AFTER all /api/* routers and /health above, so those always take
+// priority. Two-part serving:
+//   1. express.static serves real built assets (JS/CSS/images) directly from
+//      dist/ when the request path matches a file on disk.
+//   2. The SPA fallback below catches everything else so client-side routing
+//      (React Router) works on refresh/deep-link — EXCEPT /api/* paths, which
+//      are explicitly excluded and passed through via next() so an unmatched
+//      API route still falls through to Express's normal 404 behaviour
+//      instead of incorrectly returning index.html.
+if (SERVE_STATIC) {
+  console.info(`[STARTUP] Serving static frontend build from ${DIST_DIR}`);
+  app.use(express.static(DIST_DIR));
+
+  // Path-less middleware (not app.get('*', ...)) — Express 5's path-to-regexp
+  // no longer accepts a bare '*' wildcard pattern, so the exclusion is done
+  // in code instead of route syntax.
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api/')) {
+      next();
+      return;
+    }
+    // Pass `root` + a relative filename rather than a bare absolute path —
+    // send's dotfile check (invoked by res.sendFile) walks every segment of
+    // an absolute path when no `root` is given, which spuriously 404s if any
+    // ancestor directory in the deployment path starts with a dot. Using
+    // `root` also keeps this call inside DIST_DIR, which is simply correct
+    // practice for res.sendFile regardless of deployment path.
+    res.sendFile('index.html', { root: DIST_DIR });
+  });
+}
 
 // 7. Global error handler — MUST be last (SEC-06)
 app.use(errorHandler);

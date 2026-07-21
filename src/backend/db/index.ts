@@ -92,23 +92,32 @@ export function getDb(): LibSQLDb {
 /**
  * Creates a libSQL (SQLite-compatible) Drizzle instance.
  *
- * SQLITE_PATH must use the libSQL URL scheme:
- *   file:./dev.db                          — relative path
- *   file:/absolute/path/to/db.db           — absolute path (use for OneDrive)
+ * Connection URL resolution (ADL-32):
+ *   TURSO_DATABASE_URL, if set, takes priority — a remote libsql:// URL for a
+ *   hosted Turso database (Railway production/preview environments).
+ *   Otherwise falls back to SQLITE_PATH, which must use the libSQL URL scheme:
+ *     file:./dev.db                          — relative path
+ *     file:/absolute/path/to/db.db           — absolute path (use for OneDrive)
  *
- * @throws {Error} If SQLITE_PATH is not set.
+ * TURSO_AUTH_TOKEN, if set, is passed as the client authToken — required by
+ * Turso's remote databases, left undefined for local file-based dev (local
+ * SQLite files don't need/accept an auth token).
+ *
+ * @throws {Error} If neither TURSO_DATABASE_URL nor SQLITE_PATH is set.
  */
 function createLibSQLDb(): LibSQLDb {
-  const sqlitePath = process.env.SQLITE_PATH;
-  if (!sqlitePath) {
+  const url = process.env.TURSO_DATABASE_URL || process.env.SQLITE_PATH;
+  if (!url) {
     throw new Error(
-      '[DB] SQLITE_PATH is required when DB_TYPE=sqlite.\n' +
-        '     Set it to a libSQL URL, e.g. SQLITE_PATH=file:./dev.db',
+      '[DB] TURSO_DATABASE_URL or SQLITE_PATH is required when DB_TYPE=sqlite.\n' +
+        '     Set SQLITE_PATH to a libSQL URL for local dev, e.g. SQLITE_PATH=file:./dev.db\n' +
+        '     or TURSO_DATABASE_URL to a remote libsql:// URL for a hosted Turso database.',
     );
   }
+  const authToken = process.env.TURSO_AUTH_TOKEN || undefined;
 
-  const client = createClient({ url: sqlitePath });
-  console.info(`[DB] SQLite (libSQL) connected: ${sqlitePath}`);
+  const client = createClient({ url, authToken });
+  console.info(`[DB] SQLite (libSQL) connected: ${url}`);
   return drizzleLibSQL(client, { schema });
 }
 
