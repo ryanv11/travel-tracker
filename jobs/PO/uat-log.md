@@ -51,6 +51,23 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-07-21
+
+**Scope:** WP-02 Waypoint design-system foundation (Phase 1) — icon swap visual check per BRD §5.16 WP-02 success criteria
+**Build:** main @ 7bafc11
+**Verdict:** PASS — closes WP-02.
+
+#### Findings
+
+- [x] Icon swap (emoji → SVG) confirmed correct, no other visual regressions
+      Fixed myself: no — PO verification of PR #198. No action needed.
+
+#### Notes / Observations
+WP-02 was gated `done_pending_uat` in the tracker pending this pass, per CLAUDE.md's
+mandatory phase-completion UAT gate. PASS here closes it — status flipped to `done`.
+Unblocks WP-03/WP-04 (Phase 2 Trips reskin) dispatch, still gated on the UX spec's 13
+Phase-2 conflict-resolution decisions.
+
 ### UAT Session — 2026-07-20
 
 **Scope:** General planning-flow pass — places, items, map, admin (post BUG-27/28/29/10 fixes, first UAT touch since 2026-07-16)

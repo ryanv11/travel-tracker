@@ -25,6 +25,30 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-08: Mid-thread `/workspace` leak — does the isolation guardrail need a fourth clause?
+**Raised:** 2026-07-21
+
+During the WP-02 Frontend dispatch (worktree-isolated per the mandatory rule), the agent's
+own report flagged that a later `cd /workspace &&`-prefixed `npm install` briefly ran
+against the shared COO checkout instead of its assigned worktree — not the first action
+(already guarded by the existing "confirm cwd first" rule from OP-20), but a command
+mid-thread that explicitly re-targeted `/workspace`. Left stray uncommitted
+`package.json`/`package-lock.json` changes in the shared tree; the sandbox's own
+worktree-isolation guard caught it and blocked the agent from touching `/workspace`
+further (including its own cleanup), so COO reverted the leak by hand
+(`git checkout -- package.json package-lock.json`) — no data lost, nothing committed or
+pushed from the wrong tree.
+
+This is the same family as OP-20's two 2026-07-20 near-misses, but a new variant: OP-20's
+"working-directory confusion" rule only mandates a cwd check as the dispatched agent's
+*first* action, which doesn't cover a later command that explicitly hardcodes
+`/workspace` in its own invocation. Open question: does this warrant a fourth OP-20-style
+guardrail (e.g. "agents must never issue a command with a literal `/workspace` path
+prefix — always operate relative to the confirmed worktree cwd"), or is one contained
+incident insufficient signal to add another mandatory rule, per D-03's precedent (a
+single-incident proposal Ryan declined to adopt)? Not yet decided — raised for Ryan, not
+actioned.
+
 ### D-04: Clerk API version upgrade practice
 **Raised:** 2026-07-21
 
