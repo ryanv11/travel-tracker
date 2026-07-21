@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (28)
+## Open work (34)
 
 ### P0 — Blockers (1)
 
@@ -25,15 +25,16 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (3)
+### P1 — Critical (4)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BRD-PL0104 | Planning core — idea pool → shortlist → booked across all item types (PL-01–04) | fullstack | ⬜ Pending |
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack | ⬜ Pending |
 | BRD-NF09 | Hosted deployment for personal use (NF-09) | backend | 🔄 In progress |
+| OP-22 | Environment promotion model — main→staging (continuous), production branch→prod (explicit fast-forward) | coo | 🔄 In progress |
 
-### P2 — Important (14)
+### P2 — Important (18)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -51,8 +52,12 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
 | BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
 | OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
+| WP-01 | Product rename to "Waypoint" (in-app UI only) | frontend | ⬜ Pending |
+| WP-02 | Waypoint design-system foundation — colors, type, icons, badges, buttons (Phase 1) | frontend | ⬜ Pending |
+| WP-03 | Trips screen (desktop) reskin using Waypoint tokens (Phase 2) | frontend | ⬜ Pending |
+| WP-04 | Trips screen responsive mobile layout — net-new (Phase 2) | frontend | ⬜ Pending |
 
-### P3 — Minor (10)
+### P3 — Minor (11)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -66,12 +71,13 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
 | BRD-IT10 | Optional Google Maps URL per item — one-click directions (IT-10) | architect | ⬜ Pending |
 | UX-11 | Trip-list status pill colours should match map shading colours (admin-driven) | ux | ⬜ Pending |
+| WP-05 | Waypoint reskin must not be reported as closing unrelated data/behavior gaps it only reskins the display of | coo | ⬜ Pending |
 
 ## Coverage by type
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `██████████▓▓▓░░░░░░░` 23/44 | 23 | 21 | 1 |
+| feature | `██████████▓▓▓░░░░░░░` 23/48 | 23 | 25 | 1 |
 | requirement | `██████████████████▓░` 29/32 | 29 | 3 | 5 |
 | bug | `███████████████████░` 37/38 | 37 | 1 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
@@ -105,4 +111,4 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 ---
 
-_103 done · 8 deferred · 2 closed · 28 open — 141 tracked items_
+_103 done · 8 deferred · 2 closed · 34 open — 147 tracked items_

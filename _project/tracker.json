@@ -1540,7 +1540,7 @@
       "priority": "P1",
       "brdRefs": ["NF-09", "NF-03"],
       "phase": 6,
-      "notes": "BRD v3.0 §6, success criteria added v3.2. Hosting before multi-user; supersedes local-only NF-01 and OneDrive NF-04. Railway (compute) + Turso (database) per ADL-32, resolves OQ-04. Code: PR #175/#176 (Turso auth wiring, express.static + SPA fallback), main CI green. Railway env vars: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, HOST, NODE_ENV, DB_TYPE, VITE_CLERK_PUBLISHABLE_KEY, VITE_MAPTILER_KEY, CLERK_JWKS_URI, CLERK_ISSUER, OWNER_CLERK_ID, ALLOWED_ORIGINS all set on Production (VITE_API_BASE_URL deliberately left unset for same-origin — see fix #5 below on why that has to be a true unset, not a placeholder value).\n\nDeployment shakedown 2026-07-20/21 surfaced five sequential blockers, each masking the next until fixed — full root-cause detail lives in each PR's description, not restated here:\n1. Railway trial-plan deploy queue (external — Railway was platform-wide deprioritizing Trial/Hobby deploys during a demand spike; cleared on its own). Detail: jobs/architect/tech/20260721-agent-diagnostics-runbook.md.\n2. Missing `db:migrate` before server start — ADL-32 §5 specified it, PR #175/#176 never wired it in, so the Turso prod DB was connected to but never schema-migrated. Fixed PR #185.\n3. Frontend/Clerk env vars were never set on Railway at all initially; once added, Helmet's CSP (`scriptSrc: [\"'self'\"]`) blocked Clerk's browser SDK entirely (never exercised before since the frontend previously only ran via Vite's dev server, not this Express app). Fixed PR #187 (added CLERK_ORIGIN to scriptSrc/connectSrc).\n4. Once sign-in worked, CSP still blocked Clerk's background-token Web Worker (blob: URL, no worker-src set) and the user's avatar (img.clerk.com, not in imgSrc). Fixed PR #189.\n5. Map/trips tabs still errored (`Unexpected token '<'... not valid JSON` — a fetch expecting JSON got the SPA's index.html instead). Root cause: `VITE_API_BASE_URL` resolved to a non-empty garbage value (Railway variable set to a literal placeholder string instead of truly empty/absent), so every request became `fetch(\"<value>/api/trips\")` — a path that never matches `/api/*` and falls through to the SPA catch-all. This meant zero authenticated requests had EVER reached the backend, which also explains why the admin tab never appeared (not a separate OWNER_CLERK_ID bug). Fixed PR #190 — apiClient.ts now coerces an unset var to `''` via `??`, so it's safe regardless of exactly what Railway stores.\n\nCONFIRMED WORKING 2026-07-21 (Ryan, live on prod): sign-in, map tab, admin panel, and trips tab all render correctly. Prod `users` table confirmed via turso-query.mjs: 1 row, is_owner=1. Trips list is empty — expected, fresh prod DB with no trips entered yet, not a bug. This closes the 'Clerk sign-in e2e', 'CI+deploy green on merge to main', and 'data persists across a deploy' strands of ADL-32 §10.\n\nREMAINING before this can close: (1) Ryan's own next step — a full shakedown pass across all tabs/features, not yet done; (2) Clerk dashboard verification for dynamic/wildcard preview-domain origins (ADL-32 §6) — determines whether Preview gets real auth or falls back to BYPASS_AUTH=true scoped to Preview only; (3) prod URL reachable over HTTPS from cellular; (4) PR preview auto-deploys + is DB-isolated from prod."
+      "notes": "BRD v3.0 §6, success criteria added v3.2. Hosting before multi-user; supersedes local-only NF-01 and OneDrive NF-04. Railway (compute) + Turso (database) per ADL-32, resolves OQ-04. Code: PR #175/#176 (Turso auth wiring, express.static + SPA fallback), main CI green. Railway env vars: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, HOST, NODE_ENV, DB_TYPE, VITE_CLERK_PUBLISHABLE_KEY, VITE_MAPTILER_KEY, CLERK_JWKS_URI, CLERK_ISSUER, OWNER_CLERK_ID, ALLOWED_ORIGINS all set on Production (VITE_API_BASE_URL deliberately left unset for same-origin — see fix #5 below on why that has to be a true unset, not a placeholder value).\n\nDeployment shakedown 2026-07-20/21 surfaced five sequential blockers, each masking the next until fixed — full root-cause detail lives in each PR's description, not restated here:\n1. Railway trial-plan deploy queue (external — Railway was platform-wide deprioritizing Trial/Hobby deploys during a demand spike; cleared on its own). Detail: jobs/architect/tech/20260721-agent-diagnostics-runbook.md.\n2. Missing `db:migrate` before server start — ADL-32 §5 specified it, PR #175/#176 never wired it in, so the Turso prod DB was connected to but never schema-migrated. Fixed PR #185.\n3. Frontend/Clerk env vars were never set on Railway at all initially; once added, Helmet's CSP (`scriptSrc: [\"'self'\"]`) blocked Clerk's browser SDK entirely (never exercised before since the frontend previously only ran via Vite's dev server, not this Express app). Fixed PR #187 (added CLERK_ORIGIN to scriptSrc/connectSrc).\n4. Once sign-in worked, CSP still blocked Clerk's background-token Web Worker (blob: URL, no worker-src set) and the user's avatar (img.clerk.com, not in imgSrc). Fixed PR #189.\n5. Map/trips tabs still errored (`Unexpected token '<'... not valid JSON` — a fetch expecting JSON got the SPA's index.html instead). Root cause: `VITE_API_BASE_URL` resolved to a non-empty garbage value (Railway variable set to a literal placeholder string instead of truly empty/absent), so every request became `fetch(\"<value>/api/trips\")` — a path that never matches `/api/*` and falls through to the SPA catch-all. This meant zero authenticated requests had EVER reached the backend, which also explains why the admin tab never appeared (not a separate OWNER_CLERK_ID bug). Fixed PR #190 — apiClient.ts now coerces an unset var to `''` via `??`, so it's safe regardless of exactly what Railway stores.\n\nCONFIRMED WORKING 2026-07-21 (Ryan, live on prod): sign-in, map tab, admin panel, and trips tab all render correctly. Prod `users` table confirmed via turso-query.mjs: 1 row, is_owner=1. Trips list is empty — expected, fresh prod DB with no trips entered yet, not a bug. This closes the 'Clerk sign-in e2e', 'CI+deploy green on merge to main', and 'data persists across a deploy' strands of ADL-32 §10.\n\nCONFIRMED WORKING 2026-07-21 (Ryan, cellular): prod URL reachable and functional over HTTPS from phone/cellular network — closes remaining item (3). Ryan also created a second user account with no issues — multi-user signup path confirmed working end-to-end (extends the data-separation confirmation from the 2026-07-16 UAT session to a live prod sign-up, not just an existing test account).\n\nREMAINING before this can close: (1) Ryan's own full shakedown pass across all tabs/features, not yet done; (2) Clerk dashboard verification for dynamic/wildcard preview-domain origins (ADL-32 §6) — determines whether Preview gets real auth or falls back to BYPASS_AUTH=true scoped to Preview only; (3) [DONE 2026-07-21 — cellular HTTPS access confirmed]; (4) PR preview auto-deploys + is DB-isolated from prod."
     },
     {
       "id": "BUG-30",
@@ -1662,6 +1662,72 @@
       "brdRefs": [],
       "phase": 5,
       "notes": "Found 2026-07-20 UAT. Needs a UX spec (which pill maps to which shading state/colour, admin-tab-driven per AD-07) before this becomes a BRD requirement — not yet briefable per the BRD gate."
+    },
+    {
+      "id": "OP-22",
+      "type": "operational",
+      "title": "Environment promotion model — main→staging (continuous), production branch→prod (explicit fast-forward)",
+      "status": "in_progress",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": ["NF-09"],
+      "phase": 6,
+      "notes": "ADL-35 (2026-07-21, merged PR #193). Design decided: Staging keeps watching `main`; Production repoints to a long-lived `production` branch promoted by explicit `git merge --ff-only origin/main` + push. No tags-as-trigger, no GitHub Action — Railway's native branch-watching stays zero-glue per ADL-32's rationale. `production` branch created and pushed by COO 2026-07-21 (currently == main). REMAINING before this is live: (1) Railway dashboard — repoint Production environment's watched branch main→production, confirm CI-gate-on-deploy stays on for both envs, confirm prod/staging Turso env-var separation survives the repoint (Ryan, manual dashboard action); (2) CLAUDE.md git-workflow section gets an 'Environment promotion' subsection — apply only once (1) is actually live, not before, per the document-lifecycle rule. Branch-per-brief workflow (feat/fix/chore off main, PR to main) is explicitly unchanged — production is never a PR target, agents never touch it. D-05 (separate Clerk prod/staging apps) remains open and orthogonal — until resolved, staging and prod share one Clerk user pool even after this promotes correctly."
+    },
+    {
+      "id": "WP-01",
+      "type": "feature",
+      "title": "Product rename to \"Waypoint\" (in-app UI only)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["WP-01"],
+      "phase": 6,
+      "notes": "Added BRD v3.3. From the Claude Design \"Waypoint\" mockup review, formalized by UX (jobs/ux/tech/20260721-UX-waypoint-spec.md, conflict C1). Confirmed as a real rename by Ryan (2026-07-21), scoped to in-app nav brand/page title/user-facing copy only — repo name, README, and other project-identity artifacts explicitly out of scope, a separate decision if pursued later. Part of Phase 2 (Trips reskin) dispatch, not Phase 1."
+    },
+    {
+      "id": "WP-02",
+      "type": "feature",
+      "title": "Waypoint design-system foundation — colors, type, icons, badges, buttons (Phase 1)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["WP-02"],
+      "phase": 6,
+      "notes": "Added BRD v3.3. Full token spec in jobs/ux/tech/20260721-UX-waypoint-spec.md §1-6 (exact oklch values, Newsreader/Manrope scale, 11 SVG icons replacing emoji, badge/button styling). PO decisions: fonts self-hosted (not Google Fonts CDN); Confirmed vs Completed item-status colors stay visually distinct (two hues), not collapsed to the mockup's single shared hue. Icon-replacement (emoji→SVG) is the one exception applied immediately in Phase 1; everything else stays defined-but-unused until Phase 2 (WP-03/WP-04) to avoid a half-migrated visual state. Must not introduce dangerouslySetInnerHTML (the mockup's own reference implementation uses it — blocked per _shared/frameworks.txt rule 22)."
+    },
+    {
+      "id": "WP-03",
+      "type": "feature",
+      "title": "Trips screen (desktop) reskin using Waypoint tokens (Phase 2)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["WP-03"],
+      "phase": 6,
+      "notes": "Added BRD v3.3. Depends on WP-02 shipping first. Full layout/state breakdown in jobs/ux/tech/20260721-UX-waypoint-spec.md Phase 2 desktop section. Must preserve all current functionality with no mockup counterpart: bulk delete+undo (FEAT-BD/NTH-01), sort (TR-09), per-status filter counts (NTH-03), map-filter badge, per-place date editing (UX-02), remove-place (BUG-32), trip-level items (IT-01/BUG-36), ratings + carried-forward tag (ItemCard.tsx), first-run vs filtered-empty states, and the Unlock affordance (TR-07's existing tested flow — the mockup's stepper shows no unlock CTA, must be added back as new chrome). TR-12 annotated in BRD (not superseded) to note it's satisfied via the new stepper widget."
+    },
+    {
+      "id": "WP-04",
+      "type": "feature",
+      "title": "Trips screen responsive mobile layout — net-new (Phase 2)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["WP-04"],
+      "phase": 6,
+      "notes": "Added BRD v3.3. No mobile-specific Trips view exists today — this is genuinely new responsive surface, not a reskin. List↔detail cross-fade/slide per exact transform values in the UX spec; bottom tab bar (Map/Trips/Admin) in list view only, back-button nav in detail view (per UX's read of the mockup, confirmed deliberate). Mobile detail view has no Edit/Photos entry point in the source mockup at all — PO decision (2026-07-21): add an overflow (⋯) menu exposing both rather than dropping the functionality."
+    },
+    {
+      "id": "WP-05",
+      "type": "guardrail",
+      "title": "Waypoint reskin must not be reported as closing unrelated data/behavior gaps it only reskins the display of",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P3",
+      "brdRefs": ["WP-05"],
+      "phase": 6,
+      "notes": "Added BRD v3.3. Specific known case: DP-06 (first place inherits trip dates) is still tracker-status \"pending\" — WP-03/WP-04 reskin the display of place dates that already exist, they do not implement DP-06's inherit-on-create behavior. Flag any other requirement encountered during Phase 2 implementation with the same shape (mockup shows correct-looking data because the demo data was hand-authored, not because the underlying feature is built)."
     }
 
   ]
