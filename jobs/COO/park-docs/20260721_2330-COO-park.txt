@@ -1,0 +1,96 @@
+COO SESSION PARK — 2026-07-21 (WP-02 Waypoint Phase 1: dispatch → CI fix → merge → UAT close)
+================================================================================
+
+## Session summary
+Picked up via /coo-startup: main CI green, hooks canary passing, drift ledger reviewed
+(2 subagent_stops since last sentinel — Architect's ADL-35 and UX's Waypoint spec — both
+traced cleanly to already-merged PRs #193/#194, sentinel written), UAT log clean, BRD
+coverage clean (WP-01–05 + OP-22 all in tracker.json). Ryan then said "kickoff frontend" —
+the WP-02 Phase 1 Waypoint brief that was fully specced and BRD-gated but intentionally
+paused at the end of the prior session.
+
+Opened GitHub issue #197 (WP-02, cross-referenced in tracker.json per the standing rule),
+then dispatched Frontend worktree-isolated with the full token/icon/badge/button spec from
+jobs/ux/tech/20260721-UX-waypoint-spec.md §1-6, the 7-point Phase 1 success criteria, and
+an explicit warning against dangerouslySetInnerHTML.
+
+Frontend delivered PR #198: all §1 color tokens as Tailwind v4 @theme properties, self-
+hosted Newsreader/Manrope, all 12 icons as inline SVG (emoji fully removed from
+src/frontend/), badge-hue logic and Button/Input variants defined-but-unused per the
+Phase-1-only scope. First CI run was red — 2 E2E tests locator-matched the literal 🔒
+emoji, broken by the (correct, in-scope) icon swap. Resumed the agent twice: once to fix
+the test locators, once to make it actually block on `gh pr checks --watch` instead of
+stopping mid-poll. Final state: CI 9/9 green, confirmed by a blocking watch, not a
+one-shot check.
+
+Frontend's completion report flagged two things for COO, both handled this session:
+1. Icon-count arithmetic error — BRD/spec/tracker all said "11-glyph" but the spec's own
+   §3 tables list 8+4=12 icons with real path data. Frontend built all 12 (no principled
+   basis to drop one). Corrected via BRD v3.3 → v3.4 (PR #199) — mechanical fix, not a
+   scope change.
+2. Process incident — a mid-thread `npm install` briefly ran against the shared
+   /workspace checkout instead of the assigned worktree (not the dispatch's first action,
+   which is what the existing OP-20 cwd-confirmation rule guards — this was a later
+   command with a literal `/workspace` path). Left stray uncommitted package.json/
+   package-lock.json changes; the sandbox's own isolation guard caught it and blocked the
+   agent from cleaning up itself. COO reverted by hand (`git checkout -- package.json
+   package-lock.json`) — nothing lost, nothing committed from the wrong tree. Logged as
+   D-08 in open-dialogues.md rather than unilaterally adding a new CLAUDE.md guardrail —
+   open question for Ryan on whether one contained incident is enough signal (D-03
+   precedent: a single-incident guardrail proposal he declined to adopt).
+
+Merged PR #198, then PR #199 (icon-count fix), then PR #200 (inbox triage) — main CI
+confirmed green after each, worktree + branches cleaned up. Ryan then confirmed WP-02's
+UAT passed (icon swap correct, no other visual regressions) — closed via PR #201:
+uat-log.md session entry (PASS), tracker.json WP-02 done_pending_uat → done, UX spec
+status header stamped closed. Main CI green after this merge too.
+
+## Completed this session
+- GitHub issue #197 opened and cross-referenced
+- PR #198 — WP-02 Waypoint Phase 1 design-system foundation (Frontend, worktree-isolated)
+- PR #199 — BRD v3.4: WP-02 icon-count correction (11→12)
+- PR #200 — inbox triage
+- PR #201 — WP-02 UAT PASS close-out (tracker, uat-log.md, UX spec status stamp)
+- Main CI confirmed green after all four merges
+- Frontend's worktree + branch removed; stray auto-created worktree branch deleted;
+  `git branch` now shows only `main` + `chore/uat-note-country-picker-gap` (pre-existing
+  open PR #126)
+- D-08 logged in open-dialogues.md (the /workspace leak incident, not yet decided)
+- Drift ledger reviewed sentinel written at session start; all subagent_stops since
+  traced to committed/merged work
+
+## State of play
+- **WP-02 is CLOSED** — Phase 1 design-system primitives (colors, type, icons, badge/
+  button logic) exist as reusable, mostly-unused building blocks on `main`. Only the
+  icon swap is visually live today; everything else is defined-but-unwired pending
+  Phase 2.
+- **WP-03/WP-04 (Phase 2 — Trips desktop + mobile reskin) are BRD-gated and ready to
+  dispatch**, but gated on 13 conflict-resolution decisions (C1–C13) in the UX spec's
+  Phase 2 section — product-rename confirmation is already resolved, but things like the
+  Unlock-affordance chrome, trip-level-items preservation, category-badge shape, and
+  several token-vs-applied-value drifts (C11–C13) still need explicit COO/PO calls before
+  a brief can go out.
+- One implementation flag for whenever WP-03/WP-04 wires up StatusBadge.tsx: badges.ts's
+  itemStatusToBadgeHue has no mapping for ItemStatus 'next_time' — spec's hue table
+  doesn't cover it.
+- D-08 (new this session): open question on whether the /workspace leak incident needs a
+  new isolation guardrail, or is a one-off not worth codifying. Not decided.
+- OP-22 (env promotion): Railway dashboard repoint + CLAUDE.md doc addition still
+  outstanding manual steps, untouched this session.
+- BRD-NF09: two items still remain — Ryan's full shakedown pass, Clerk dashboard
+  verification for dynamic preview-domain origins.
+- D-04–D-07, OQ-03, OQ-05, PR #126 (country picker UAT finding): all untouched this
+  session, still open.
+- Ryan's separate local UAT findings list: still deferred per his own earlier
+  instruction, to be raised after the UI redesign work concludes.
+
+## Open threads
+See jobs/COO/open-dialogues.md for D-04 through D-08 — D-08 added this session, nothing
+else changed.
+
+## Restart preview (shown to Ryan before this doc was written)
+Captured: PRs #198/#199/#200/#201 merged, WP-02 CLOSED (UAT PASS), BRD v3.4, tracker
+sync, D-08 logged, branch/worktree cleanup, main CI green throughout. Captured-not-
+actioned: WP-03/WP-04 (ready, gated on 13 conflict decisions), OP-22, BRD-NF09's
+remaining 2 items, D-04–D-07, OQ-03/OQ-05/PR #126, Ryan's local UAT list. Not captured:
+none — D-08 was the one loose end and it's now logged.
