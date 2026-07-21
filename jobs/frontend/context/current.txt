@@ -1,14 +1,30 @@
-FRONTEND CONTEXT — as of 2026-03-20 20:11
+FRONTEND CONTEXT — as of 2026-07-20
 
-STATUS: BUG-18 investigated — already resolved. No pending work. Awaiting next COO brief.
+STATUS: BUG-10 frontend half fixed (reopened UAT finding). PR open, awaiting COO review/merge.
 
-LAST COMMIT: 1fe7bc7 (fix(frontend): BUG-11/12/13 — cache invalidation, map click-through, search+sort)
+LAST COMMIT: ed2821c ([BUG-10] frontend: hard-restrict trip name to 75 chars with inline error)
 
-WHAT WAS DONE (this thread — 20260320_0030-COO-bug18-cache-invalidation)
-  BUG-18 (cache invalidation): Investigated useCreateTrip, useUpdateTripStatus, useLockTrip,
-    useUnlockTrip in src/frontend/hooks/useTrips.ts. All four hooks already invalidate
-    ['trips'] on success — this was applied in commit 1fe7bc7 (BUG-11 fix). No code
-    change required. type:check and test:frontend both pass (55/55).
+WHAT WAS DONE (this thread — dispatch: fix frontend half of reopened BUG-10, GitHub #138)
+  Reopened BUG-10 (PR #141's earlier fix silently truncated instead of erroring, and the
+  limit itself was wrong — 200 instead of the PO-corrected 75). Fixed in
+  src/frontend/components/TripDetail/TripForm.tsx:
+    - maxLength dropped from 200 to a named NAME_MAX_LENGTH = 75 constant.
+    - Added a red inline error ("75 character limit reached") shown once
+      name.length >= 75, styled to match the existing field-level error pattern
+      used in AddPlaceFlow.tsx / PlaceDateForm.tsx (bg-red-50/border-red-200/
+      text-red-800/text-xs), not the whole-form ErrorMessage box used elsewhere
+      in this same file for name-required/date validation.
+    - Added a submit-time guard (name.length > 75) as a safety net for any
+      pre-existing trip names >75 chars saved before this fix (maxLength alone
+      doesn't retroactively trim an already-long value set programmatically).
+  Branch: fix/bug10-name-limit-frontend. PR references Closes #138 + BRD TR-01.
+
+  NOTE: found a pre-existing flaky test unrelated to this change —
+  src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx
+  "calls onClose immediately when Skip is clicked" fails intermittently
+  (onClose called 2-3x instead of 1x) even on a clean checkout with no BUG-10
+  changes applied (verified via git stash). Flagged to COO in completion report;
+  not fixed here (out of scope, and QA/backend own that surface).
 
 KEY FILE LOCATIONS
   Entry point:        src/frontend/main.tsx
@@ -17,15 +33,20 @@ KEY FILE LOCATIONS
   Hooks:             src/frontend/hooks/{useTrips,usePlaces,useItems,useCities,useMapShading,useAdmin}.ts
   Types:             src/frontend/types/api.ts
   API client:        src/frontend/utils/apiClient.ts
-  URL sanitiser:     src/frontend/utils/urlSanitiser.ts (SEC-12)
-  Date formatter:    src/frontend/utils/formatDate.ts (FIX 1 from P0 session)
-  Config:            vite.config.ts, tsconfig.frontend.json, index.html
+  Trip form:         src/frontend/components/TripDetail/TripForm.tsx (BUG-10 fix here)
+  Shared error box:  src/frontend/components/shared/ErrorMessage.tsx (whole-form errors)
+  Field-level error pattern reference: AddPlaceFlow.tsx:316, PlaceDateForm.tsx:149
 
 OPEN FLAGS FOR COO
-  FLAG-F1: Item status names in API reference doc don't match Zod schema
-           (see original Phase 1 completion report for details)
-  FLAG-F2: No standalone GET /api/cities list endpoint exists (not needed currently)
+  FLAG-F1: Item status names in API reference doc don't match Zod schema (carried over,
+           unresolved from earlier session — see Phase 1 completion report for details)
+  FLAG-F2: No standalone GET /api/cities list endpoint exists (carried over, not needed
+           currently)
+  FLAG-F3 (new): CarryForwardModal.test.tsx has a flaky assertion (onClose call count)
+           reproducible on main without any BUG-10 changes — worth a QA/backend look,
+           not blocking this PR.
 
 NEXT STEPS (when resumed)
-  - Await Tailwind + shadcn/ui migration brief from COO
-  - No other outstanding frontend bugs
+  - Await COO merge of fix/bug10-name-limit-frontend (Closes #138)
+  - Coordinate wording with backend brief if their 400 message text differs from
+    "75 character limit reached" (this PR used that exact string per tracker guidance)
