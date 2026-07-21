@@ -1,115 +1,99 @@
-ARCHITECT CONTEXT — 2026-03-21
+ARCHITECT CONTEXT — 2026-07-20
 PROJECT: Travel Tracker
-CURRENT STATUS: BRD v2.4 technical review complete (TR-11, TR-10, DP-04). NR-14 auth direction revised — Clerk assessment complete, ADL-20 logged
+CURRENT STATUS: OQ-04 resolved (ADL-32) — hosted deployment platform + database decided.
+BRD-NF09 unblocked, owner reassigned architect -> backend for implementation.
 
 ================================================================================
 WORK COMPLETED THIS THREAD
 ================================================================================
 
-Received query: 20260320_1000-COO-auth-managed-platform-query.txt
-PO direction: Clerk as managed auth platform (consumer, Google/Apple/email OAuth)
+PO request: work through a hosted deployment plan (BRD-NF09 / OQ-04).
 
-Assessed Clerk against four questions from COO:
-  1. Express/req.user compatibility — no blocker, standard JWKS verification
-  2. Electron/iOS Capacitor — no blocker, same patterns as ADL-17 specified
-  3. Lock-in risk — moderate but contained; seam rule defined (no @clerk/* in backend)
-  4. Schema implications — users table kept (clerk_id replaces oauth_provider/subject);
-     refresh_tokens table dropped (Clerk owns token lifecycle)
+Presented options brief covering compute platform (Fly.io, Railway, Render, VPS) and
+database (file-based+volume vs Turso). PO asked for Railway vs Fly.io comparison
+specifically; surfaced Railway's per-PR preview environments as the differentiator
+relevant to a recurring project pain point (changes that work locally/in CI but break
+only once actually deployed as a live server). PO confirmed Railway is worth the
+~$5/mo over Fly's ~$0-3/mo for that reason (plus no cold starts, simpler deploy DX).
 
-ADL-17 superseded by ADL-20:
-  ADL-17: OAuth PKCE + jose roll-your-own → SUPERSEDED 2026-03-20
-  ADL-20: Clerk managed auth — jose JWKS verification, no Clerk SDK in backend
+Raised a design question the PO hadn't considered: PR preview environments must not
+point at the production Turso database. PO confirmed a separate shared staging Turso
+database (seeded via existing db:seed), not local ephemeral SQLite per preview — the
+staging DB tests the real Turso connection path, which is exactly the class of bug
+previews are meant to catch.
 
-Response sent to COO:
-  jobs/COO/inbox/20260320_1100-ARCHITECT-clerk-auth-assessment.txt
+PO flagged Railway's pricing page mid-session ("free tier, kind of") — verified via
+WebFetch: it's a one-time $5 trial credit, not a recurring free tier. Confirmed the
+ADL's $5/mo Hobby-plan cost figure is accurate as the real ongoing cost.
 
-================================================================================
-OPEN QUESTIONS
-================================================================================
+ADL-32 logged in jobs/architect/tech/20260307-architecture-decisions-log.md:
+  Decision: Railway (compute, Hobby plan ~$5/mo) + Turso (database — production
+  instance + separate staging instance for PR previews)
+  Confirms ADL-25 unaffected (still LibSQLDb via @libsql/client, remote URL + authToken
+  only — no dialect union, no schema change)
+  Flagged open implementation risk (§6): whether Clerk's allowed-origin config supports
+  Railway's dynamic per-PR preview URLs — unverified, must be checked during the brief
+  Added success criteria for NF-09 (none existed previously — required by the
+  success-criteria-before-dispatch gate)
 
-  1. COO/PO: Create Clerk account, configure providers (Google, Apple, email),
-     supply CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URI environment variables.
-     → This unblocks both backend middleware and frontend SDK install.
+BRD bumped to v3.2 (_project/travel-tracker-BRD.md):
+  NF-03: RESOLVED, points to ADL-32
+  NF-09: success criteria added (blockquote note under §6 table)
+  OQ-04: RESOLVED, points to ADL-32
+  §13 changelog entry added, header version bumped 3.1 -> 3.2
 
-  2. DATABASE spec update needed from COO:
-     - users table: new shape (clerk_id replaces oauth_provider/oauth_subject)
-     - refresh_tokens: DO NOT CREATE
-     (COO to issue updated DB brief before DATABASE begins NR-14 work)
+Tracker updated (_project/tracker.json): BRD-NF09 unblocked, owner architect -> backend,
+notes reference ADL-32 and the open Clerk-origin risk.
 
-  3. Schema anomaly (ADL-19) — undocumented columns — still pending removal.
-     Decision: remove via migration. Awaiting COO approval and DATABASE action.
-
-  4. trip_places user_id — still awaiting COO/PO confirmation of addition.
-
-  5. BRD v2.4 technical review sent to COO (2026-03-21):
-     TR-11, TR-10, DP-04 — all resolved, no backend schema changes. Response at
-     jobs/COO/inbox/20260321_0900-ARCHITECT-brd-v24-technical-review.md
-
-================================================================================
-PENDING — AWAITING DOWNSTREAM ACTION
-================================================================================
-
-  COO (before DATABASE or BACKEND can proceed):
-  - Create Clerk account + configure OAuth providers
-  - Provide CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URI
-  - Issue updated DATABASE spec reflecting ADL-20 schema changes
-  - Approve removal of undocumented columns (ADL-19)
-
-  DATABASE (after COO spec update):
-  - Create users table: id (UUID PK), clerk_id (UNIQUE), email, display_name, created_at
-  - Do NOT create refresh_tokens table
-  - Add user_id TEXT NOT NULL REFERENCES users(id) to: trips, items, trip_places
-  - Add indexes: idx_trips_user_id, idx_items_user_id, idx_trip_places_user_id
-  - Remove undocumented columns (pending COO approval)
-
-  BACKEND:
-  - Implement authenticate middleware (jose only — no @clerk/* imports)
-  - Implement userRepository.findOrCreateByClerkId(clerkId, email)
-  - Create src/backend/repositories/ (trips, items, tripPlaces) per ADL-18
-  - Refactor all trip/place/item routes through repository layer
-  - No /api/auth/callback, /refresh, or /logout routes required
-
-  FRONTEND:
-  - Install @clerk/react
-  - Use useAuth().getToken() for API Authorization header
-  - Use Clerk hosted sign-in page (redirect flow) rather than embedded components
+Branch: chore/adl-32-hosted-deployment (not yet merged — awaiting PO review/merge).
 
 ================================================================================
-NR-14 GATE SECURITY REVIEW
+OPEN QUESTIONS / PENDING
 ================================================================================
 
-Gate review areas updated for Clerk:
-  - Backend: authenticate middleware imports jose only (not @clerk/* — enforce seam rule)
-  - Backend: findOrCreateByClerkId upsert is idempotent and safe
-  - Frontend: getToken() called per-request, not stored in state/localStorage
-  - Electron Phase 1: custom URL scheme handler does not leak session token to logs
-  - Repository layer completeness (ADL-18 — all user-scoped tables covered)
-  - Postgres RLS readiness (withUserContext design in db/index.ts)
+  1. PO/Ryan: create Railway account + project; create two Turso databases
+     (production, staging); obtain connection URLs and auth tokens. Blocks dispatch of
+     the implementing briefs below.
+
+  2. COO: once provisioning above exists, dispatch:
+     - Backend brief: express.static serving of dist/ + SPA fallback (does not exist
+       today — dev is Vite/Express two-process split only); db/index.ts authToken
+       support for Turso (createClient({ url, authToken }) — currently url only, see
+       src/backend/db/index.ts:110); resolve the Clerk dynamic-preview-origin question
+       (ADL-32 §6) — verify against Railway's actual generated preview URL pattern and
+       Clerk's dashboard options; fallback if unsupported is scoping BYPASS_AUTH=true to
+       preview environments only, which narrows what previews can catch for auth-related
+       changes — flag this tradeoff back to COO/PO if it comes to that.
+     - Database brief: provision the staging Turso database, define a seed/reset
+       cadence so preview environments don't accumulate cruft over time.
+
+  3. Not yet resolved (carried over, unrelated to this thread): OQ-03 (shell trip
+     approximate dates), OQ-05 (trip_places one-row-per-city constraint vs realistic
+     same-city revisits).
 
 ================================================================================
 TECH FILES
 ================================================================================
 
-  jobs/architect/tech/20260307-ER-schema.md           v1.1 (unchanged)
-  jobs/architect/tech/20260307-tech-blueprint.md       v1.0 (unchanged)
-  jobs/architect/tech/20260307-map-shading-spec.md     v1.0 (unchanged)
   jobs/architect/tech/20260307-architecture-decisions-log.md
-                                                       ADL-01 through ADL-20
-                                                       ADL-17 superseded by ADL-20
+                                                       ADL-01 through ADL-32
+  jobs/architect/tech/OP-06-hardening-checklist.md     unchanged, 13/13 PASS (NR-14 closed)
 
 ================================================================================
 LAST PARK DOC
 ================================================================================
 
-  jobs/architect/park-docs/20260320-ARCHITECT-park.txt
+  jobs/COO/park-docs/20260716_0330-COO-park.txt (no architect-specific park doc since
+  20260320; this session's work is captured above instead)
 
 ================================================================================
 NEXT ARCHITECT THREAD — RECOMMENDED STARTING POINT
 ================================================================================
 
-  1. Check jobs/architect/inbox/ for COO response (Clerk account confirmation)
-  2. Review DATABASE's updated users table migration when submitted
-  3. Verify DATABASE did NOT create refresh_tokens table
-  4. Review BACKEND authenticate middleware — confirm no @clerk/* imports (seam rule)
-  5. Conduct NR-14 gate security review when brief arrives from COO
-
+  1. Check whether chore/adl-32-hosted-deployment has been merged; if not, that's
+     still open
+  2. Check whether PO has completed Railway/Turso account provisioning (item 1 above)
+  3. If Backend's implementing brief surfaces a real answer on the Clerk
+     dynamic-preview-origin question (ADL-32 §6), record the resolution as an ADL-32
+     addendum or a new short ADL, whichever the answer's shape warrants
+  4. OQ-03 and OQ-05 remain open and unrelated to hosting — pick up independently
