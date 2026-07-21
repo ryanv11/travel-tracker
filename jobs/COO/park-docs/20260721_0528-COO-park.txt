@@ -1,0 +1,84 @@
+COO SESSION PARK — 2026-07-21 (ADL-32 hosted deployment decision, resolves OQ-04)
+================================================================================
+
+## Session summary
+Ryan asked to work through a hosted deployment plan for BRD-NF09, which was blocked
+on OQ-04 (hosting platform + hosted-libSQL vs file DB — an Architect ADL required
+before the requirement can be briefed). Worked the decision as Architect: presented
+a compute-platform options brief (Fly.io, Railway, Render, VPS) and a database options
+brief (file-based+volume vs Turso), then iterated with Ryan on Railway vs Fly.io
+specifically. Railway's per-PR preview environments turned out to be the deciding
+factor — a direct answer to a recurring project pain point (changes that work locally
+or pass CI but only break once actually running as a live deployed server), which
+Railway supports natively and Fly.io does not. Ryan also caught a stale claim
+mid-session (Railway "has a free tier, kind of") — verified live via WebFetch: it's a
+one-time $5 trial credit, not a recurring free tier, confirming the ADL's ~$5/mo cost
+figure was already correct.
+
+Surfaced a design point Ryan hadn't raised: PR preview environments must not run
+against the production Turso database. Ryan confirmed a separate shared staging Turso
+database (seeded via the existing `db:seed`) over local ephemeral SQLite per preview,
+specifically because the staging DB exercises the real Turso connection path — the
+class of bug a hosted preview is meant to catch that a local-SQLite preview wouldn't.
+
+Logged ADL-32, bumped the BRD, updated the tracker, opened PR #173, caught and fixed
+a CI failure (STATUS.md staleness — pre-push checklist should have been run before
+the first push and wasn't), then switched to COO to review and merge.
+
+## Completed this session
+
+### ADL-32 — Hosted deployment: Railway (compute) + Turso (database), resolves OQ-04
+- Full decision in `jobs/architect/tech/20260307-architecture-decisions-log.md`
+  (ADL-01 through ADL-32). Decision: Railway Hobby plan (~$5/mo, no cold starts,
+  native per-PR preview environments) + Turso hosted libSQL (production instance plus
+  a separate staging instance for previews, never sharing prod credentials).
+- Confirms ADL-25 (Backend db typing, narrowed to `LibSQLDb`) is unaffected — Turso is
+  reached via the same `@libsql/client`, just a remote `libsql://` URL + `authToken`
+  instead of a local file path. No dialect union, no schema change.
+- Flags one open implementation risk for whoever takes the Backend brief: whether
+  Clerk's allowed-origin/redirect config supports Railway's dynamically-generated
+  per-PR preview URLs (ADL-32 §6) — unverified, must be checked during implementation.
+  If Clerk can't be configured for dynamic origins, the documented fallback is scoping
+  `BYPASS_AUTH=true` to preview environments only, which would narrow what previews
+  can catch for auth-touching changes — noted as a tradeoff to flag back if it comes
+  to that, not silently accepted.
+- BRD bumped 3.1 → 3.2: NF-03 marked RESOLVED (points to ADL-32), OQ-04 marked
+  RESOLVED (points to ADL-32), NF-09 success criteria added (none existed
+  previously — required by the success-criteria-before-dispatch gate). Header version
+  matches the changelog entry.
+- `tracker.json`: BRD-NF09 unblocked, owner reassigned architect → backend, notes
+  reference ADL-32 and the open Clerk-origin risk plus the PO-provisioning
+  precondition.
+- `jobs/architect/context/current.txt` refreshed for the next architect thread.
+- PR #173 opened, caught a CI failure (`status:check` — STATUS.md hadn't been
+  regenerated after the tracker edit; the full pre-push checklist should have been run
+  before the first push and wasn't — fixed forward with a follow-up commit, full
+  checklist run clean afterward: lint, both type-checks, both test suites,
+  status:check). Merged via squash, `main` fast-forwarded, branch deleted, main's own
+  CI verified green post-merge.
+
+## State of play
+- BRD-NF09 (P1, phase 6) is unblocked but still `pending` — no implementation brief
+  dispatched yet. Blocked on Ryan provisioning: a Railway account/project, and two
+  Turso databases (production + staging), per ADL-32 §11.
+- Once provisioning exists, next COO action is dispatching a Backend brief (static
+  frontend serving — doesn't exist today, dev is Vite/Express two-process only;
+  `db/index.ts` authToken support for Turso; resolve the Clerk dynamic-preview-origin
+  question) and a Database brief (staging Turso seed/reset strategy).
+- Standing backlog untouched this session: OQ-03 (shell trip approximate dates),
+  OQ-05 (trip_places one-row-per-city constraint), PR #126 (UAT country-picker
+  finding, still open awaiting review), and the rest of the P1/P2 tracker backlog
+  (BRD-PL0104, BRD-CU0103, BRD-AD07/08/09, etc.) — all pre-existing, already tracked,
+  nothing new this session.
+
+## Open threads
+None raised this session that aren't already captured in a durable artifact (ADL-32,
+tracker.json, or this park doc). See `jobs/COO/open-dialogues.md` for anything
+carried over from prior sessions — currently empty (all previously-open items
+resolved as of the 2026-07-20 close).
+
+## Restart-preview check (shown to Ryan before this doc was written)
+Captured: ADL-32, BRD v3.2, tracker BRD-NF09 update, PR #173 merged, main CI green,
+architect context refresh. Captured-not-actioned: BRD-NF09 implementation itself
+(awaiting PO provisioning), OQ-03, OQ-05, PR #126, standing backlog. Not captured:
+none — Ryan confirmed "all good."
