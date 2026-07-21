@@ -1,0 +1,115 @@
+COO SESSION PARK — 2026-07-21 (BRD-NF09 deploy shakedown: firewall bootstrap fix + full prod verification)
+================================================================================
+
+## Session summary
+Picked up mid-thread on a live firewall failure: last session's ADL-34 fix (moving the
+firewall's default-DROP lockdown before external domain resolution, to stop a fail-open
+bug) had introduced its own bootstrapping deadlock — the lockdown now applied before
+step 6's own `curl https://api.github.com/meta` call, so that fetch was blocked by the
+very allowlist it exists to populate. Diagnosed via the exact FIREWALL WARNING /
+verification-failed output Ryan pasted, fixed by DNS-bootstrapping api.github.com's IP via
+`dig` (same pattern already used for the Turso/Railway entries) before the meta curl.
+Documented as ADL-34 §5. Ryan rebuilt the container and confirmed GitHub connectivity
+restored; PR #184 merged once GitHub access came back.
+
+While that fix was building, Railway's deploy (previously stuck behind last session's
+trial-plan queue issue) went through — but crashed on startup: `seedAdminData()` failed
+with `no such table: trip_categories`. Root cause: ADL-32 §5 specified `db:migrate` runs
+before the server starts in production, but PR #175/#176 never wired that into `start` —
+verified locally, fixed, merged as PR #185. Confirmed live via the OP-21 read-only
+diagnostics (railway-query.sh, turso-query.mjs): deployment succeeded, prod Turso DB now
+has all 11 seeded trip_categories rows, Ryan independently confirmed via the Turso
+dashboard (307.2KB, was empty).
+
+Ryan then reported the actual prod URL white-screened. Diagnosed via `.env.example`'s own
+documented failure mode: `main.tsx` throws synchronously if `VITE_CLERK_PUBLISHABLE_KEY` is
+unset, before React ever renders — and cross-checking the tracker, only DB-related env
+vars had ever been set on Railway; all frontend/Clerk vars were missing entirely. Gave
+Ryan the full list to add (VITE_CLERK_PUBLISHABLE_KEY, VITE_API_BASE_URL, VITE_MAPTILER_KEY,
+CLERK_JWKS_URI, CLERK_ISSUER, OWNER_CLERK_ID, ALLOWED_ORIGINS) and flagged the
+build-time-vs-runtime distinction (VITE_* vars need a rebuild, not just a restart).
+
+That triggered a genuine four-round debugging cascade, each fix uncovering the next problem
+once the previous one cleared:
+1. White screen persisted after the vars were added — Helmet's CSP (`scriptSrc: ["'self'"]`)
+   was blocking Clerk's own browser SDK, loaded from its Frontend API origin rather than
+   bundled. This CSP predates the frontend ever being served through this Express app
+   (previously only Vite's dev server did that, a separate process) — never exercised until
+   this deploy. Fixed by deriving a CLERK_ORIGIN constant from the existing CLERK_ISSUER env
+   var and adding it to scriptSrc/connectSrc. PR #187.
+2. Sign-in then worked, but map/trips tabs errored — two more CSP gaps, same root cause
+   class: Clerk's background-token Web Worker (blob: URL, no worker-src set) and the user's
+   avatar (img.clerk.com, not in imgSrc). PR #189.
+3. Ryan then reported the admin tab was missing despite being the configured owner — COO
+   checked the prod Turso `users` table directly and found zero rows, meaning no
+   authenticated request had ever actually reached the backend. Hypothesized this was
+   downstream of the just-fixed worker CSP issue (Clerk's token-refresh mechanism depending
+   on that worker).
+4. Ryan then pasted the real symptom: `Unexpected token '<'... not valid JSON` on trips/map.
+   Root cause: `apiClient.ts`'s `BASE` constant had no fallback for an unset
+   `VITE_API_BASE_URL`, so requests became literal garbage paths that fell through to the
+   SPA catch-all route and got HTML back instead of JSON — explaining both this error and
+   the zero-rows finding simultaneously. Fixed by coercing to `''` via `??`, with a
+   regression test locking in the fix. PR #190.
+5. Ryan clarified the actual bug: he'd set `VITE_API_BASE_URL` to the literal placeholder
+   text `<empty string>` rather than truly leaving it blank — same failure class as the
+   earlier documented OWNER_CLERK_ID `<>`-bracket paste incident. Explained the distinction
+   clearly (zero characters, not literal text or quote characters); the code fix (PR #190)
+   makes this safe regardless of what Railway ends up storing.
+
+Ryan deleted the variable entirely, redeployed, and confirmed: sign-in, map tab, admin
+panel, and trips tab all render correctly — closing the "Clerk sign-in e2e", "CI+deploy
+green on merge to main", and "data persists across a deploy" strands of ADL-32 §10's
+BRD-NF09 success criteria. Verified independently via turso-query.mjs: 1 user row,
+is_owner=1.
+
+Also handled inline: Ryan asked about Clerk API version currency (2025-11-10 vs current
+2026-05-12) and proposed separate prod/staging Clerk apps — both explicitly left as open
+notes rather than scoped work (D-04, D-05). Consolidated BRD-NF09's tracker note, which had
+grown into an unreadable wall of text from live incident narration, into a readable summary
+with full detail left in each PR's own description. Also discovered and worked around (not
+fixed) a `gh` CLI auth gap in this container — bridged via extracting VS Code's own
+git-credential-helper token rather than relying on the (empty) `GH_TOKEN` passthrough.
+
+## Completed this session
+- PR #184 — ADL-34 §5: fixed GitHub meta-fetch bootstrap deadlock in init-firewall.sh
+- PR #185 — BRD-NF09: run db:migrate before server start in production
+- PR #186 — BRD-NF09: recorded live Railway/Turso verification of the migrate fix
+- PR #187 — BRD-NF09: CSP scriptSrc/connectSrc fix for Clerk's browser SDK
+- PR #188 — logged D-04/D-05 open dialogues (Clerk API version practice, prod/staging split)
+- PR #189 — BRD-NF09: CSP workerSrc/imgSrc fix for Clerk's worker and avatar
+- PR #190 — BRD-NF09: coerce VITE_API_BASE_URL to '' when unset + regression test
+- PR #191 — BRD-NF09: confirmed core deployment working; consolidated tracker note
+- ADL-34 §5 addendum recorded in the architecture decisions log
+- open-dialogues.md: D-04, D-05, D-06, D-07 all logged
+- tracker.json: BRD-NF09 substantially updated then consolidated to reflect confirmed state
+- Main CI green after every merge this session (8 merges); all branches cleaned up
+
+## State of play
+- BRD-NF09's core hosted deployment is now fully functional and confirmed live: sign-in,
+  map, admin panel, and trips tab all render correctly. Trips list is empty (fresh prod DB,
+  expected — not a bug).
+- Four items remain open before BRD-NF09 itself can formally close: (1) Ryan's own planned
+  full shakedown pass across all tabs/features; (2) Clerk dashboard verification for
+  dynamic/wildcard preview-domain origins (ADL-32 §6); (3) prod URL reachable over HTTPS
+  from cellular; (4) PR preview auto-deploys + is DB-isolated from prod.
+- D-04 (Clerk API version upgrade practice) and D-05 (prod/staging Clerk instance split)
+  are logged as open notes — Ryan explicitly deferred both, no action taken.
+- D-06 (add prod Railway domain to this container's firewall allowlist) and D-07 (gh CLI
+  has no persistent auth here — GH_TOKEN passthrough arrives empty, bridged via VS Code's
+  credential helper as a session workaround) are newly logged per Ryan's explicit request
+  this session to track both as open items rather than resolve them now.
+- Standing backlog, untouched this session: OQ-03, OQ-05, PR #126 (open UAT finding on the
+  country picker), broader P1/P2 tracker backlog.
+
+## Open threads
+See jobs/COO/open-dialogues.md for the full detail on D-04 through D-07 — nothing raised
+this session lives only in this prose; all four have durable entries there.
+
+## Restart-preview check (shown to Ryan before this doc was written)
+Captured: PRs #184-191 merged, ADL-34 §5, full prod deployment confirmed working end-to-end,
+BRD-NF09 tracker consolidated, D-04/D-05 logged. Captured-not-actioned: BRD-NF09's remaining
+four success-criteria items, D-04/D-05 themselves, standing backlog (OQ-03, OQ-05, PR #126).
+Not captured (both resolved by Ryan's request to log them): D-06 (firewall allowlist for
+direct debugging access) and D-07 (gh CLI auth gap) — both now added to open-dialogues.md
+per this session's close-out, not left dangling.

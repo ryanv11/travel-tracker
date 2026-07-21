@@ -48,6 +48,37 @@ which app backs it. This is an auth-topology change, so per the standing infra/r
 guardrail (Architect review before COO acts) it should get a brief Architect pass before
 implementation. Ryan said to leave it as an open note for now, not act on it.
 
+### D-06: Add prod Railway domain to this container's firewall allowlist
+**Raised:** 2026-07-21
+
+During the BRD-NF09 deploy shakedown (white screen → CSP fixes → API base URL bug), COO
+repeatedly couldn't verify the live site directly — `curl https://travel-tracker-
+production-241f.up.railway.app` is blocked by this container's own outbound firewall
+(`.devcontainer/init-firewall.sh`'s static domain allowlist doesn't include the app's own
+public Railway domain, only the diagnostic hosts from ADL-33/OP-21). Every round of
+debugging this session depended on Ryan pasting browser console output back and forth.
+Adding the domain would let COO fetch the actual served HTML/JS directly next time
+(read-only GET requests to a public page — much lower-stakes than the Turso/Railway
+credentialed access ADL-33 already granted). Not yet decided — raised, not confirmed
+either way by Ryan.
+
+### D-07: `gh` CLI has no persistent auth in this container
+**Raised:** 2026-07-21
+
+`gh` was unauthenticated all session — `devcontainer.json` forwards `${localEnv:GH_TOKEN}`
+from the host, but it arrived empty (`GH_TOKEN=` with no value), so `gh pr create`/`gh pr
+merge` all failed with "not logged into any GitHub hosts" until COO bridged it: extracted
+the token VS Code's own git-credential-helper already uses for `git push`/`git pull`
+(`git credential fill` for `https://github.com`) and fed it directly to `gh auth login
+--hostname github.com --with-token`. That worked for the rest of this session, but it's a
+workaround, not a fix — the underlying gap (why `GH_TOKEN` isn't reaching the container
+from Ryan's host) is unresolved, and the bridged `gh` auth state may not survive a
+container rebuild (untested). Two possible real fixes, neither actioned: (a) Ryan sets
+`GH_TOKEN` in his host shell environment before the container starts, so the existing
+devcontainer.json passthrough actually has something to forward; (b) bake the
+credential-helper-bridge trick into container startup so it's automatic rather than an
+ad-hoc COO workaround each session. Not yet decided which, if either, Ryan wants.
+
 ## Resolved
 
 ### D-03: OP-21 process-kill guardrail (proposed, dropped)
