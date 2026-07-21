@@ -1525,11 +1525,11 @@
       "type": "requirement",
       "title": "Hosted deployment for personal use (NF-09)",
       "status": "pending",
-      "owner": "architect",
+      "owner": "backend",
       "priority": "P1",
-      "brdRefs": ["NF-09"],
+      "brdRefs": ["NF-09", "NF-03"],
       "phase": 6,
-      "notes": "BRD v3.0 §6. Hosting before multi-user; supersedes local-only NF-01 and OneDrive NF-04. BLOCKED on OQ-04 (platform + hosted-libSQL vs file DB) — Architect ADL required first, per infrastructure guardrail."
+      "notes": "BRD v3.0 §6, success criteria added v3.2. Hosting before multi-user; supersedes local-only NF-01 and OneDrive NF-04. UNBLOCKED 2026-07-20: OQ-04 resolved by ADL-32 (Railway + Turso, staging DB for PR preview environments). Owner reassigned architect->backend for implementation; open risk noted in ADL-32 §6 (Clerk origin config for dynamic Railway preview URLs) must be verified during the brief. Awaiting PO provisioning (Railway account/project, two Turso databases) before COO dispatches the Backend/Database briefs."
     },
     {
       "id": "BUG-30",

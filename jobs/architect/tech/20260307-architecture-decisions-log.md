@@ -1389,6 +1389,161 @@ further action is warranted. The one honest residual is the *specific* attributi
 night's Actions incident — a strong confirmed correlation, not proof of causation — which does
 not change the disposition.
 
+---
+
+## ADL-32 — Hosted deployment: Railway (compute) + Turso (database), resolves OQ-04
+
+**Date:** 2026-07-20
+**Status:** Decided — pending implementation
+**Tracker:** BRD-NF09 | **BRD ref:** NF-09, NF-03, OQ-04
+
+**Triggered by:** PO request (2026-07-20) to work through a hosted deployment plan.
+BRD v3.0 promoted hosting (NF-09) to the near-term roadmap and opened OQ-04 (hosting
+platform + hosted-libSQL vs. file DB) as a precondition — per the BRD gate rule, BRD-NF09
+cannot be briefed until OQ-04 is resolved by an Architect ADL.
+
+### 1. Problem
+
+The app currently runs as two local dev processes (Vite on 5173, Express on 3001) against
+a local SQLite file (`SQLITE_PATH=file:./dev.db`). NF-09 requires this to become a hosted
+web app reachable from the PO's devices over the internet with real Clerk authentication,
+while keeping local development fully supported. Two decisions were open: (a) which
+compute platform hosts the Express service, and (b) whether the database stays file-based
+on that host or moves to a hosted libSQL provider (Turso), per NF-03.
+
+### 2. Compute platform — options considered
+
+| Option | Cost (personal, low-traffic) | Assessment |
+|---|---|---|
+| Fly.io | ~$0–3/mo, usage-based | Cheapest; autostop/autostart has a short (~1–2s) cold-start on wake; GH Actions deploy is hand-rolled (`flyctl deploy` step) |
+| **Railway** | ~$5/mo flat (Hobby plan) | No cold starts on Hobby; native GitHub integration (auto-deploy `main`, **automatic PR preview environments**); less deploy glue to hand-write |
+| Render | $0 free / $7/mo always-on | Free tier sleeps after 15min idle with ~30–60s cold start — conflicts with MB-01/MB-02 (phone lookup while travelling); ruled out |
+| VPS (Hetzner/DO) | ~$4–6/mo | Full control, but owner carries OS patching, TLS, process supervision — pure ops burden with no benefit for a single-user app |
+
+**Decision: Railway (Hobby plan).** Render is ruled out by its own cold-start behaviour
+against MB-01/MB-02. A VPS adds ops burden with no compensating benefit for a one-user
+app. Fly.io is marginally cheaper, but Railway's native per-PR preview environments are a
+direct answer to a recurring project pain point (changes that work locally but break only
+once actually deployed/running as a live server — CORS against a real origin, static-asset
+serving, migration behaviour against a real remote DB) that CI's test suites do not catch
+because they never run the app as a live hosted server. That capability, plus zero cold
+starts and less deploy glue to maintain, is judged worth the ~$5/mo over Fly.io's ~$0–3/mo.
+PO confirmed 2026-07-20.
+
+### 3. Database — options considered
+
+| Option | Assessment |
+|---|---|
+| Stay file-based (Railway volume) | Zero code change, but ties DB lifecycle to one compute instance/region and the owner must build their own backup/snapshot discipline for what becomes irreplaceable real trip data |
+| **Turso (hosted libSQL)** | Free tier is ample for personal use; managed backups/point-in-time recovery without building it; decouples DB from compute. Migration cost is trivial — `@libsql/client`'s `createClient()` already accepts a remote `libsql://` URL + `authToken` natively (`src/backend/db/index.ts:110`), so this is a one-line change to the existing SQLite branch, not a schema or ORM rewrite |
+
+**Decision: Turso**, for both the production database and a second, separate **staging**
+database used only by PR preview environments (see §6). This directly satisfies NF-03
+("hosting may move this to a hosted libSQL service (e.g. Turso)").
+
+### 4. Confirms ADL-25 is unaffected
+
+ADL-25 narrowed `getDb()` to return `LibSQLDb` (not the `AppDatabase` union) because there
+was no near-term Postgres deployment. Turso does not change this: it is still libSQL,
+still the same `@libsql/client` / `BaseSQLiteDatabase` type, reached via a remote URL
+instead of a local file path. No dialect union, no repository-layer changes, no schema
+changes. ADL-25's reasoning and `db:generate`/`db:migrate` workflow (ADL-15) both carry
+over unchanged to the hosted database.
+
+### 5. Deployment topology
+
+- **Single Railway service** serves both the API and the built frontend
+  (`express.static` on the Vite `dist/` build + SPA fallback for client-side routes) —
+  simplest topology for a single user; avoids a second static host with its own
+  CORS/domain surface.
+- **Production environment:** tracks `main`; env vars point at the production Turso
+  database.
+- **Preview environments:** Railway auto-deploys one per open PR; env vars point at a
+  **separate, shared staging Turso database**, seeded via the existing `npm run db:seed`.
+  Preview environments must never hold production Turso credentials — this is the
+  guardrail that keeps a broken preview build (or QA poking around in one) from touching
+  real trip history.
+- `HOST` is set to `0.0.0.0` in both hosted environments (the code comment in
+  `.env.example` already anticipated this: "Set 0.0.0.0 in Phase 2 behind proxy"). Local
+  dev is unaffected and stays `127.0.0.1`.
+- Migrations: `npm run db:migrate` runs before the server starts, in both production and
+  preview, against whichever Turso instance that environment's env vars target —
+  preserving the migrate-only rule (ADL-15, no `db:push`) in hosted environments too.
+
+### 6. Open implementation risk — Clerk origins for dynamic preview URLs
+
+Each Railway PR preview gets a unique generated URL. The backend's own CORS/`azp`
+allowlist (`ALLOWED_ORIGINS`, HC-02) can likely reference Railway's per-environment domain
+variable and be set dynamically per preview. **Unverified:** whether Clerk's own allowed
+origins/redirect configuration (a separate list, not `ALLOWED_ORIGINS`) supports dynamic
+or wildcard preview domains on the current Clerk plan. Whoever implements this brief must
+verify against Railway's actual generated URL pattern and Clerk's dashboard options. If
+Clerk cannot be configured for dynamic preview origins, the fallback is scoping
+`BYPASS_AUTH=true` to preview environments only (the same mechanism already used for
+contract tests/CI) — but that would mean preview environments don't exercise real auth,
+which narrows what they're useful for catching. This is flagged as an open risk, not a
+blocker to the platform decision.
+
+### 7. Env vars — new / changed
+
+- New: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (production); a second pair of the same
+  for the staging instance, scoped to the preview environment only
+- Changed: `SQLITE_PATH` becomes the Turso `libsql://` URL in hosted environments
+  (`DB_TYPE` stays `sqlite` — no change to the `DB_TYPE` switch in `db/index.ts`)
+- Changed: `HOST=0.0.0.0`, `NODE_ENV=production` in hosted environments
+- Changed: `ALLOWED_ORIGINS` includes the Railway-assigned domain per environment
+- Unchanged/carried over: `CLERK_JWKS_URI`, `CLERK_ISSUER`, `OWNER_CLERK_ID` — set per
+  environment via Railway's variable store, never in a committed file
+- `BYPASS_AUTH` remains unset in production (existing fatal-error guard on
+  `NODE_ENV === 'production'` stays as-is)
+
+### 8. Cost
+
+Railway Hobby: ~$5/mo flat (includes usage credit). Turso: $0 (both production and
+staging databases fit comfortably within the free tier for personal-use volumes).
+**Total: ~$5/month.**
+
+### 9. Implications
+
+- **BACKEND:**
+  - Add `express.static` serving of the Vite `dist/` build with SPA fallback routing (no
+    static serving exists today — dev only runs the two-process Vite/Express split)
+  - `src/backend/db/index.ts`: add `authToken` to the `createClient({ url, authToken })`
+    call in the SQLite branch, reading `TURSO_AUTH_TOKEN` from the environment (optional,
+    undefined for local file-based dev)
+  - Confirm `ALLOWED_ORIGINS` / `azp` validation (HC-02) works against a Railway-assigned
+    domain, and resolve the Clerk dynamic-preview-origin question in §6
+- **DATABASE:** Provision the staging Turso database and seed strategy (`db:seed` on
+  creation; document a reset cadence so preview environments don't accumulate cruft)
+- **No FRONTEND changes** beyond the existing `npm run build` output — the build step is
+  unchanged, only where it's served from is new
+
+### 10. Success criteria (BRD-NF09 / NF-09)
+
+Required before BRD-NF09 can be marked done — added per the "success criteria before
+dispatch" gate, since none existed for NF-09 previously:
+
+- [ ] Production URL reachable over HTTPS from a phone browser on cellular data (not
+      same-network/VPN)
+- [ ] Clerk sign-in works end-to-end against the production instance (owner account)
+- [ ] Data persists across a deploy — a trip created before a deploy is still present
+      after it
+- [ ] A PR preview environment deploys automatically for an open PR and is reachable at
+      its generated URL
+- [ ] Preview environment's database is confirmed isolated from production (writes made
+      in a preview never appear in the production Turso database)
+- [ ] CI green + Railway deploy succeeds on merge to `main`
+
+### 11. Next steps
+
+- **PO/Ryan:** create Railway account + project; create two Turso databases (production,
+  staging); obtain connection URLs and auth tokens
+- **COO:** dispatch a Backend brief (static serving, `db/index.ts` authToken support,
+  migrate-on-deploy, §6 Clerk-origin verification) and a Database brief (staging DB seed
+  strategy) once the above provisioning exists
+- **COO:** BRD version bump and tracker update for this decision (this session,
+  `chore/adl-32-hosted-deployment`)
+
 **Alternatives considered:**
 - Longer observation window (e.g. 10–15 more merges) before closing — rejected: the marginal
   evidence is low-value once the repo-config hypothesis is eliminated and the external correlate

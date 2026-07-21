@@ -1,6 +1,6 @@
 # Business Requirements Document
 ## Travel Tracker Application
-**Version:** 3.1
+**Version:** 3.2
 **Date:** July 2026
 **Author:** Claude (BSA/COO) / Ryan V (Product Owner)
 **Status:** Approved
@@ -311,13 +311,19 @@ booking details and gets directions. The laptop travels on every trip for everyt
 |----|-------------|
 | NF-01 | ~~Local Mac desktop app — no internet connection required for core features~~ **SUPERSEDED (2026-07-18) by NF-09** — retained for history |
 | NF-02 | Map view requires internet connection to render |
-| NF-03 | Data is stored as a file-based database (SQLite/libSQL); hosting may move this to a hosted libSQL service (e.g. Turso) — Architect decision, see OQ-04 |
+| NF-03 | Data is stored via libSQL (Drizzle). **RESOLVED (2026-07-20) by ADL-32** — hosted deployment uses Turso (hosted libSQL) for the production database and a separate staging Turso database for PR preview environments; local development stays file-based (`SQLITE_PATH=file:...`) |
 | NF-04 | ~~Database file can be stored in OneDrive for single-user sync across personal devices~~ **SUPERSEDED (2026-07-18) by NF-09** — hosting replaces file-sync |
 | NF-05 | Architecture must support migration to a hosted web app without a data model rebuild — **promoted from future-proofing to near-term requirement in v3.0** |
 | NF-06 | Architecture must support future migration to an iOS mobile app without a data model rebuild (iOS remains aspirational — mobile browser reference mode §5.15 is the near-term answer) |
 | NF-07 | Architecture must support trip companion access (read-only and edit) — target ~6 months for co-planning (PL-06) |
 | NF-08 | Architecture must support future notification engine without structural changes |
 | NF-09 | The app is deployed as a hosted web app for personal use, reachable from the user's devices over the internet with real authentication (Clerk). Local development remains fully supported *(added v3.0)* |
+
+> **NF-09 success criteria (added 2026-07-20 per ADL-32):** production URL reachable over
+> HTTPS from a phone browser on cellular data; Clerk sign-in works end-to-end against
+> production; data persists across a deploy; a PR preview environment deploys
+> automatically and is confirmed isolated from the production database; CI green + deploy
+> succeeds on merge to `main`. Full hosting architecture (Railway + Turso) in ADL-32.
 
 ---
 
@@ -372,7 +378,7 @@ The following are explicitly out of scope for MVP but must not be architecturall
 | OQ-01 | ~~Mapping library — Google Maps API vs open-source alternative~~ | **RESOLVED** — MapLibre GL + MapTiler tiles shipped in Phase 3 (see ADL record); bundled boundary polygons per GE-10 |
 | OQ-02 | ~~Desktop app framework — Electron, Tauri, or local web server in browser~~ | **RESOLVED (2026-07-18)** — v3.0 direction is a hosted web app accessed via browser (NF-09); packaged .app dropped. Supersedes the earlier packaged-.app direction |
 | OQ-03 | Shell trips (§5.14): historic trips may lack exact dates. Do we need approximate/partial dates (year-only, month-only), and how do they interact with map shading and chronological ordering? | PO + Architect — resolve before CU-01 is briefed |
-| OQ-04 | Hosting platform and database: where is the app hosted for personal use (NF-09), and does SQLite move to hosted libSQL (Turso) or stay file-based on the host? | Architect — ADL required before hosting work is briefed |
+| OQ-04 | ~~Hosting platform and database: where is the app hosted for personal use (NF-09), and does SQLite move to hosted libSQL (Turso) or stay file-based on the host?~~ | **RESOLVED (2026-07-20)** — Railway (compute) + Turso (database), production and a separate staging instance for PR preview environments. See ADL-32 |
 | OQ-05 | `trip_places` enforces one row per (trip, city) (`uniq_trip_places_trip_city`). Realistic itineraries revisit the same city more than once within a trip (e.g. Glasgow → day trip to Edinburgh → back to Glasgow), which this constraint currently disallows. Does the model move to one-row-per-visit, and what are the knock-on effects on map shading, chronological ordering (DP-05/DP-06), and item attachment (`trip_place_id`)? | Architect — resolve before any brief touching trip-place identity |
 
 ---
@@ -418,5 +424,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 2.7 | March 2026 | COO | Added §5.11 Security and Access Control (SE-01–SE-07) — formalises the NR-14/OP-06 hardening gate requirements: three-role access model, user data scoping, owner-only admin, JWT issuer validation, opaque error responses, BYPASS_AUTH production block, NOT NULL ownership constraints |
 | 3.0 | July 2026 | COO / Ryan V (PO) | **Planning-first identity rewrite** from PO requirements interview 2026-07-18. §1–§3 rewritten around three pillars: Plan (primary), Look back (major), Catch up (supporting). New sections with success criteria: §5.12 Planning PL-01–06 (idea pool → shortlist → booked across all item types; day-itinerary Phase 2; co-planning Phase 3), §5.13 Looking Back LB-01–03 (destination recommendations, stats, shareable highlights), §5.14 Historic Catch-up CU-01–03 (shell trips), §5.15 Mobile Reference MB-01–02 (phone as reference device). New item status Shortlisted (IT-03 amended). NF-09 hosting for personal use added; NF-01/NF-04 superseded (local-only + OneDrive sync dropped). §9 promotions stamped. OQ-01/OQ-02 closed; OQ-03 (approximate dates) and OQ-04 (hosting platform) opened. Trigger for the planning sections: Scotland trip dogfood trial (planned 2026-07 week) |
 | 3.1 | July 2026 | COO / Ryan V (PO) | UAT session 2026-07-20 findings. Added DP-06 (first place added to a trip inherits the trip's date range). Added IT-10 (optional Google Maps URL per item — one-click map/directions link; schema change pending Architect review). Added OQ-05 (`trip_places` one-row-per-city constraint vs. realistic same-city revisits within a trip — Architect to resolve). BUG-10 reopened separately in the tracker: prior fix truncated over-limit trip names instead of rejecting them, and the limit itself is corrected to 75 characters (was 200) |
+| 3.2 | July 2026 | Architect / Ryan V (PO) | Resolved OQ-04 (ADL-32): hosted deployment is Railway (compute) + Turso (hosted libSQL, production and a separate staging instance for PR preview environments). Updated NF-03 (RESOLVED, points to ADL-32); added success criteria to NF-09 (none existed previously — required before BRD-NF09 can be briefed/closed per the success-criteria gate) |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*
