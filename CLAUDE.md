@@ -50,6 +50,23 @@ true in name only, since two concurrent processes fight over the same `HEAD`, in
 and working directory. Read-only dispatches (research, review, investigation with no
 commits) don't need it.
 
+**Two further near-misses (2026-07-20, same day, tracked as OP-20) showed
+`isolation: "worktree"` alone is not sufficient** — both contained, nothing lost, but
+two in one dispatch round is too many to treat as one-offs:
+1. **Shared stash ref.** `refs/stash` is a single ref shared across every linked
+   worktree in this repo — worktree isolation covers branch, `HEAD`, index, and working
+   directory, but not the stash stack. Two concurrent agents both running bare
+   `git stash`/`git stash pop` raced on it; one agent's `pop` returned a *different*
+   agent's uncommitted WIP instead of its own. **Agents must not use bare `git stash` /
+   `git stash pop`.** To compare a diff against a clean tree, use `git diff` (redirected
+   to a scratch file) instead — never the shared stash stack.
+2. **Working-directory confusion.** A dispatched agent ran its initial investigation
+   commands against `/workspace` (the shared COO tree) before noticing it hadn't `cd`'d
+   into its assigned worktree path. Isolation only protects an agent that is actually
+   inside its worktree. **Every worktree-isolated dispatch's first action must confirm
+   its working directory** (`pwd` / `git rev-parse --show-toplevel` matches the assigned
+   worktree path) before running anything else.
+
 ### BRD → tracker rule (mandatory)
 Whenever the BRD is updated (a changelog entry is written), the COO must create tracker
 entries for every new requirement ID introduced before closing the session. No BRD version

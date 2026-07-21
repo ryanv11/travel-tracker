@@ -1,6 +1,6 @@
 # Business Requirements Document
 ## Travel Tracker Application
-**Version:** 3.0
+**Version:** 3.1
 **Date:** July 2026
 **Author:** Claude (BSA/COO) / Ryan V (Product Owner)
 **Status:** Approved
@@ -155,6 +155,7 @@ and stats. They exist so travel history can be backfilled quickly *(added in v3.
 | IT-07 | When creating a new trip to a city where prior Next time items exist, the app automatically prompts the user with those items as carry-forward suggestions. The user can accept or reject each suggestion individually. Accepted items are created as Consider items on the new trip and are permanently flagged as carried forward, with a reference to the source item preserved in the data model |
 | IT-08 | Completed restaurants, hotels, and experiences can be sorted and filtered by rating in all item list views |
 | IT-09 | Rating sort and filter applies across all trips to the same city, enabling the user to surface best-rated items across multiple visits to a place |
+| IT-10 | Each item can optionally store a Google Maps URL. When present, the trip detail view shows a one-click map/directions link using this URL; no separate address or phone fields are required when a URL is set. Success criteria: item create/edit form has an optional URL field; a populated URL surfaces a map-link affordance on the item card; an empty field shows no affordance. Schema change — requires Architect review before Database implementation |
 
 ### 5.6 Structured Confirmation Fields
 
@@ -224,6 +225,7 @@ and stats. They exist so travel history can be backfilled quickly *(added in v3.
 | DP-03 | The trip detail header shows the trip name, date range, status badge, assigned categories as chips, and the names of companions on the trip |
 | DP-04 | Each place section within the trip detail shows the city name, full country name, and the date range for that place. Date range is derived from hotel check-in/check-out dates if a hotel item exists; otherwise falls back to the trip date range |
 | DP-05 | Places within a trip can have optional arrival and departure dates set at create or edit time. When set, place sections in the trip detail are ordered chronologically by arrival date. When not set, the existing insertion order is preserved |
+| DP-06 | When the first place is added to a trip, its arrival and departure dates default-populate from the trip's own date range. The user can edit these per-place dates afterward at any time; doing so does not alter the trip's dates. Success criteria: adding the first place to a trip with dates set pre-fills place arrival/departure from trip start/end; subsequent per-place edits persist independently of the trip date range |
 
 ### 5.10 Admin and Settings Panel
 
@@ -371,6 +373,7 @@ The following are explicitly out of scope for MVP but must not be architecturall
 | OQ-02 | ~~Desktop app framework — Electron, Tauri, or local web server in browser~~ | **RESOLVED (2026-07-18)** — v3.0 direction is a hosted web app accessed via browser (NF-09); packaged .app dropped. Supersedes the earlier packaged-.app direction |
 | OQ-03 | Shell trips (§5.14): historic trips may lack exact dates. Do we need approximate/partial dates (year-only, month-only), and how do they interact with map shading and chronological ordering? | PO + Architect — resolve before CU-01 is briefed |
 | OQ-04 | Hosting platform and database: where is the app hosted for personal use (NF-09), and does SQLite move to hosted libSQL (Turso) or stay file-based on the host? | Architect — ADL required before hosting work is briefed |
+| OQ-05 | `trip_places` enforces one row per (trip, city) (`uniq_trip_places_trip_city`). Realistic itineraries revisit the same city more than once within a trip (e.g. Glasgow → day trip to Edinburgh → back to Glasgow), which this constraint currently disallows. Does the model move to one-row-per-visit, and what are the knock-on effects on map shading, chronological ordering (DP-05/DP-06), and item attachment (`trip_place_id`)? | Architect — resolve before any brief touching trip-place identity |
 
 ---
 
@@ -414,5 +417,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 2.6 | March 2026 | COO / Ryan V (PO) | Removed F-02 (in-panel tab navigation) and F-03 (per-trip scoped map tab) from §9 Future Features — PO direction: not worth implementing without the map tab; scrapped entirely |
 | 2.7 | March 2026 | COO | Added §5.11 Security and Access Control (SE-01–SE-07) — formalises the NR-14/OP-06 hardening gate requirements: three-role access model, user data scoping, owner-only admin, JWT issuer validation, opaque error responses, BYPASS_AUTH production block, NOT NULL ownership constraints |
 | 3.0 | July 2026 | COO / Ryan V (PO) | **Planning-first identity rewrite** from PO requirements interview 2026-07-18. §1–§3 rewritten around three pillars: Plan (primary), Look back (major), Catch up (supporting). New sections with success criteria: §5.12 Planning PL-01–06 (idea pool → shortlist → booked across all item types; day-itinerary Phase 2; co-planning Phase 3), §5.13 Looking Back LB-01–03 (destination recommendations, stats, shareable highlights), §5.14 Historic Catch-up CU-01–03 (shell trips), §5.15 Mobile Reference MB-01–02 (phone as reference device). New item status Shortlisted (IT-03 amended). NF-09 hosting for personal use added; NF-01/NF-04 superseded (local-only + OneDrive sync dropped). §9 promotions stamped. OQ-01/OQ-02 closed; OQ-03 (approximate dates) and OQ-04 (hosting platform) opened. Trigger for the planning sections: Scotland trip dogfood trial (planned 2026-07 week) |
+| 3.1 | July 2026 | COO / Ryan V (PO) | UAT session 2026-07-20 findings. Added DP-06 (first place added to a trip inherits the trip's date range). Added IT-10 (optional Google Maps URL per item — one-click map/directions link; schema change pending Architect review). Added OQ-05 (`trip_places` one-row-per-city constraint vs. realistic same-city revisits within a trip — Architect to resolve). BUG-10 reopened separately in the tracker: prior fix truncated over-limit trip names instead of rejecting them, and the limit itself is corrected to 75 characters (was 200) |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*

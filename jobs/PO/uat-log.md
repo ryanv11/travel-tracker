@@ -51,6 +51,85 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-07-20
+
+**Scope:** General planning-flow pass — places, items, map, admin (post BUG-27/28/29/10 fixes, first UAT touch since 2026-07-16)
+**Build:** main @ c4340ef
+**Verdict:** PARTIAL — one confirmed fix (BUG-27), one incorrect fix reopened (BUG-10), one verification blocked (BUG-28), several new findings triaged below.
+
+#### Findings
+
+- [x] Locked trips now fully read-only
+      Fixed myself: no — confirms BUG-27 (PR #140). No action needed.
+
+- [ ] Scotland (and UK generally) not selectable when adding a place
+      Steps: 1. Add a place 2. Search country list for Scotland/UK
+      Expected: UK constituent countries available per GE-04/05/06 (every country ships pre-configured)
+      Actual: Not present — GB appears to be missing or mis-seeded (countries are ISO 3166-1; Scotland/England/Wales/NI should be Regions under GB per GE-01/02/06, same tier as US states)
+      Bug: BUG-30 (P1 — blocks Scotland dogfood trial scoping)
+
+- [ ] First place added to a trip doesn't inherit the trip's date range
+      Expected: place arrival/departure default-populate from trip dates, editable after
+      Actual: blank / requires manual entry
+      Bug: tracked under new BRD requirement DP-06
+
+- [ ] Flights (and, per discussion, cars) forced to live inside a place
+      Expected: IT-01 already permits trip-level items ("against a trip or a specific place") — flight should be addable without a parent place. Cars similarly, case-by-case
+      Actual: no trip-level "Add Item" entry point exists in the UI — schema/ItemForm already support tripPlaceId = null, PlaceSection just never renders that path
+      Decision (this session): car reuses the same trip-level Add Item mechanism as flights — no separate toggle UI
+      Bug: BUG-36
+
+- [ ] Place date range edit doesn't visibly save
+      Steps: 1. Open a place 2. Set an arrival/departure date range 3. Observe display
+      Expected: place section reflects the new range (DP-04/DP-05)
+      Actual: still shows the trip's date range after save
+      Bug: BUG-31 (P1) — **blocks BUG-28 re-verification** (can't confirm arrival<=departure validation without dates visibly persisting first)
+
+- [ ] No way to remove a place from a trip once added
+      Bug: BUG-32
+
+- [ ] Same place can't be added twice to one trip (e.g. Glasgow → day trip to Edinburgh → back to Glasgow)
+      Actual: `trip_places` enforces one row per (trip, city) — a real itinerary-model constraint, not a simple bug
+      Raised as: BRD Open Question OQ-05 — Architect to resolve before any brief touching trip-place identity
+
+- [ ] Entering "Glasgow" offered two duplicate entries in the autocomplete dropdown
+      Expected: one canonical Glasgow record
+      Actual: `cities` table has no uniqueness constraint on (name, country) — find-or-create logic isn't deduping
+      Bug: BUG-33
+
+- [ ] Map standout icon inconsistent between cities in the same trip
+      Steps: view map for a trip with Glasgow + Edinburgh
+      Expected: both show the "visited" standout treatment consistently
+      Actual: Glasgow shows correctly; Edinburgh only shows a pin at high zoom, no standout icon
+      Bug: BUG-34
+
+- [ ] Admin panel region-tier checkbox has no explanatory hovertext
+      Bug: BUG-35 (P3, polish)
+
+- [ ] Status pills on trips page don't match map shading colours (admin-tab-driven)
+      Note: needs a UX spec before this becomes a BRD requirement — tracked, not yet briefable
+
+- [ ] Item-level field for a Google Maps URL requested (one-click directions, avoids surfacing phone/address separately)
+      Tracked as new BRD requirement IT-10 — small schema addition, needs Architect sign-off before Database brief
+
+- [ ] Trip banner image, nice-to-have — decided this session: manual upload only, no auto-fetch from Google Images (ToS/legal risk, no clean API for "representative photo of a place")
+      Folds into existing UX-05 / PH-04 (already deferred, Phase 2) — added banner-placement detail to that entry, no new BRD ID
+
+- [ ] BUG-10 fix (200-char trip-name limit) does the wrong thing
+      Expected: input field hard-restricts typing past the limit and shows a red inline
+      error message when reached; user can never submit an over-limit name
+      Actual: silently truncates the name until it fits, no error shown
+      Additional: PO now wants the limit itself lowered to 75 characters (not 200)
+      Action: **BUG-10 reopened** with corrected success criteria (see tracker)
+
+- [ ] BUG-28 (place-date PATCH validation) not yet re-verifiable
+      Reason: blocked on BUG-31 (place dates not visibly persisting) — can't confirm arrival<=departure enforcement until dates display correctly first
+
+#### Notes / Observations
+Car-vs-place placement (item raised as "want to discuss") resolved in-session: reuse the
+trip-level Add Item entry point rather than inventing a separate toggle. Banner-image scope
+resolved in-session: manual upload only, dropped the Google Images auto-fetch idea entirely.
+
 ### UAT Session — 2026-07-16
 
 **Scope:** Q5 real-auth end-to-end (OP-06 HC-01 verification, 6-step sequence)
