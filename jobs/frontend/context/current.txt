@@ -1,9 +1,11 @@
 FRONTEND CONTEXT — as of 2026-07-21 (WP-02 Waypoint design-system foundation, Phase 1)
 
-STATUS: WP-02 (#197) implemented on branch feat/wp02-waypoint-design-system, PR opened
-  and CI checked before filing completion report (see completion report / park doc for
-  exact PR # and CI status). Awaiting COO review + PO UAT sign-off (mandatory
-  phase-completion gate per CLAUDE.md) — do not treat as closed until PO PASS lands.
+STATUS: WP-02 (#197) implemented on branch feat/wp02-waypoint-design-system, PR #198
+  open, all 9 CI checks green (confirmed via `gh pr checks 198 --watch`, not just a
+  poll). Awaiting COO review + PO UAT sign-off (mandatory phase-completion gate per
+  CLAUDE.md) — do not treat as closed until PO PASS lands. One follow-up commit was
+  needed after the first CI run: the icon swap broke two E2E locators that matched on
+  the literal 🔒 emoji — see park doc's "CI FIX" section.
 
   This supersedes the prior (2026-07-20, BUG-32/#156) entry in this file as the "current"
   thread; that thread's own detail lives in jobs/frontend/park-docs/20260720-FRONTEND-

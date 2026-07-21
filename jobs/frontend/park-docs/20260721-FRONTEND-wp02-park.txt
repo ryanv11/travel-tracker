@@ -134,6 +134,24 @@ BUGS DISCOVERED (frameworks.txt rule 30 format)
     dispatch-isolation guardrail history (OP-19/OP-20), which is the closer
     precedent.
 
+CI FIX (post-PR-open)
+  First CI run on PR #198 was red: 2 E2E failures in src/e2e/trips-status.spec.ts
+  ("review → locked via PostTripReview panel" and "locked trip hides write
+  controls"), both timing out on `page.getByText('🔒 Read-only — trip is
+  locked.')` — the literal emoji locator no longer matched once TripDetail.tsx
+  started rendering LockedIcon (an <svg>) instead of the 🔒 character. This is
+  the icon swap working as intended, not a regression to undo. Grepped
+  src/e2e/ and src/frontend/ for all 9 replaced emoji individually
+  (🍽️🏨✈️🚗🎫📝🔒📷🗺) to check for other stale locators before assuming this was
+  the only instance — it was the only one. Fixed by dropping the emoji from the
+  three locator strings (getByText('Read-only — trip is locked.')), matching
+  this repo's existing e2e convention of plain getByText text matching (not
+  data-testid, which is used sparingly here — only on TripDetail's own root
+  container). Pushed as a follow-up commit; re-ran `gh pr checks 198 --watch`
+  to observe the full run directly rather than poll-and-hope — all 9 checks
+  (Backend/Frontend/Contract/E2E Tests, Type Check, Biome, Secret Scanning,
+  Semgrep, Dependency Vulnerability Scan) passed.
+
 NEXT STEPS
   - COO: revert /workspace/package.json + package-lock.json (see PROCESS INCIDENT).
   - COO/UX: resolve the icon count discrepancy in the BRD/spec.
