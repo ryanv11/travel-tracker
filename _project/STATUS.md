@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (31)
+## Open work (30)
 
 ### P0 — Blockers (1)
 
@@ -54,14 +54,13 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | WP-03 | Trips screen (desktop) reskin using Waypoint tokens (Phase 2) | frontend | done_pending_uat |
 | WP-04 | Trips screen responsive mobile layout — net-new (Phase 2) | frontend | done_pending_uat |
 
-### P3 — Minor (11)
+### P3 — Minor (10)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | OP-15 | Design pass for deferred skills — schema-change + backend-route-change | coo | ⬜ Pending |
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | BUG-37 | Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked' | frontend | ⬜ Pending |
-| OP-21 | Agent read-only diagnostic access to Railway, Turso, Clerk (ADL-33) | coo | 🔄 In progress |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
 | QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
@@ -78,7 +77,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | requirement | `███████████████████▓` 30/32 | 30 | 2 | 5 |
 | bug | `███████████████████░` 38/39 | 38 | 1 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
-| chore | `█████████████▓▓░░░░░` 6/9 | 6 | 3 | 0 |
+| chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
 
 <details>
 <summary>Deferred (8)</summary>
@@ -108,4 +107,4 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 ---
 
-_107 done · 8 deferred · 2 closed · 31 open — 148 tracked items_
+_108 done · 8 deferred · 2 closed · 30 open — 148 tracked items_
