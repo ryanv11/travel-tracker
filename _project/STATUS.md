@@ -31,7 +31,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 |---|---|---|---|
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
-| BUG-59 | Staging Railway environment ALLOWED_ORIGINS missing its own public URL — CORS blocks all asset requests, white screen | coo | ⬜ Pending |
+| BUG-59 | Staging Railway environment ALLOWED_ORIGINS missing https:// scheme — CORS blocks all asset requests, white screen | coo | ⬜ Pending |
 
 ### P2 — Important (25)
 
