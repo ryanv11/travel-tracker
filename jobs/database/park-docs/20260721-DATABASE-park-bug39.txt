@@ -199,13 +199,22 @@ frontend file, .env.local / dev.db (gitignored, worktree-local only,
 recreated here for local verification but never committed).
 
 ================================================================================
+CI
+================================================================================
+PR #214 (https://github.com/ryanv11/travel-tracker/pull/214). All 9 checks
+green via `gh pr checks 214`: Backend Tests, Frontend Tests, Contract Tests,
+E2E Tests, Type Check, Biome (lint + format), Dependency Vulnerability Scan,
+Secret Scanning (Gitleaks), Static Analysis (Semgrep). Confirmed across both
+commits (implementation + park/context housekeeping).
+
+================================================================================
 WHAT'S NOW UNBLOCKED
 ================================================================================
-  - BUG-39 / GitHub #209 is implementation-complete pending PR review/merge
-    and CI. QA can independently verify against the merged PR once it
-    lands (a 500 on DELETE /api/trips/:id for a trip with a carried-forward-
-    sourced item is directly reproducible pre-fix and should no longer
-    occur post-fix).
+  - BUG-39 / GitHub #209 is implementation-complete, PR #214 open with CI
+    green, pending COO review/merge. QA can independently verify against
+    the merged PR once it lands (a 500 on DELETE /api/trips/:id for a trip
+    with a carried-forward-sourced item is directly reproducible pre-fix
+    and should no longer occur post-fix).
   - COO can flip tracker.json BUG-39 to resolved and close the WP-03/WP-04
     discovery loop (BUG-39 was raised out of that Frontend brief, PR #208)
     once this PR merges and main's CI is green.
