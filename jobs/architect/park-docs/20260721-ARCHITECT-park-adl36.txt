@@ -1,0 +1,58 @@
+PARK DOCUMENT — ARCHITECT — ADL-36 (BUG-39 FK onDelete review)
+Date: 2026-07-21
+Tracker: BUG-39 · ADL-36 · GitHub #209 · Branch chore/bug39-adl-fk-ondelete
+
+SCOPE
+Review-only dispatch (no code). BUG-39: items.carriedFromItemId (self-referencing FK,
+schema.ts ~L432) has no .onDelete clause; @libsql enforces FKs by default (BUG-38), so the
+omission defaults to RESTRICT and DELETE /api/trips/:id 500s whenever one of the trip's items
+was ever a carry-forward source for an item in another trip. Ruling + ADL only; Database
+implements the migration separately.
+
+RULING (ADL-36)
+onDelete: 'set null' CONFIRMED (High confidence), exactly as Frontend proposed.
+- cascade rejected: would delete an independent item on another trip (its own status/notes/
+  rating), destroying user data.
+- restrict rejected: that is the current behavior and the bug.
+- app-level pre-clear (BUG-32 style) rejected as primary: BUG-32 reassigns to a meaningful
+  target (trip level); here the target is just NULL, best expressed declaratively.
+
+KEY ANALYSIS — the "silent null-out" question COO asked
+set null produces is_carried_forward=1 / carried_from_item_id=NULL rows post-source-deletion.
+This is INTENTIONAL and safe, NOT a new inconsistency:
+- is_carried_forward = permanent historical fact; carried_from_item_id = nullable provenance
+  pointer. The redundant boolean (schema.ts L428) exists precisely so the fact survives loss
+  of the pointer.
+- ADL-13's "set together" coupling is a CREATE-TIME invariant only. Proven un-violable after
+  the fact: UpdateItemSchema (items.schemas.ts L67) does NOT expose is_carried_forward or
+  carried_from_item_id, so PATCH can't touch/re-validate them; frontend tag reads the boolean
+  (ItemCard.tsx L98) not the FK; no read path assumes the FK non-null; idx_items_carried is
+  already WHERE ... IS NOT NULL. => NO backend/frontend change needed, schema+migration only.
+
+FK-CLASS AUDIT — BUG-39 is ISOLATED
+Only no-onDelete FK whose parent is routinely hard-deleted through a normal path (items:
+trip-cascade + direct item delete; self-ref then RESTRICTs). Others are all safe:
+- items.tripPlaceId -> tripPlaces.id: intentional, BUG-32/PR#166 reassigns to NULL in
+  places.ts delete() BEFORE deleting the place. RESTRICT is the backstop. Confirmed by reading.
+- tripCategoriesMap/tripCompanionsMap/tripActivitiesMap/tripPlaceActivitiesMap -> admin lists:
+  admin.ts DELETE is soft-delete (is_active=0), never hard-delete (AD-06). Parent never
+  removed; RESTRICT never fires.
+- cities.regionId -> regions.id, tripPlaces.cityId -> cities.id: seed/persistent, no delete
+  route exists anywhere. RESTRICT never fires.
+No follow-up bug entry. Recorded a general rule in ADL-36: every FK's delete behavior must be
+an explicit documented decision; omission = RESTRICT, safe only where the parent is never
+hard-deleted — revisit if a hard-delete route is ever added for cities/regions/admin lists.
+
+DELIVERABLES THIS THREAD
+- ADL-36 appended to jobs/architect/tech/20260307-architecture-decisions-log.md (full spec for
+  Database in the "Implications for Database" section).
+- _project/tracker.json BUG-39 notes updated with the ruling (same-PR document-lifecycle rule);
+  status stays "pending" (migration not yet implemented).
+- Completion report: jobs/COO/inbox/20260721_2230-ARCHITECT-adl36-bug39-fk-ondelete.txt
+
+NEXT / UNBLOCKED
+Database dispatch: add { onDelete: 'set null' }, db:generate + db:migrate, eyeball the SQLite
+table-recreation SQL (self-FK ON DELETE SET NULL + idx_items_carried partial index + chk_items_*
+CHECKs must survive — the drizzle-kit patch territory), add the schema.ts doc note, add the
+regression test (DELETE trip -> 204 with a live carry-forward reference; derived item survives).
+That test = BUG-39 success criterion.

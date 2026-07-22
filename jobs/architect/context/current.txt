@@ -1,6 +1,16 @@
 ARCHITECT CONTEXT — 2026-07-21
 PROJECT: Travel Tracker
-CURRENT STATUS: ADL-35 decided — environment promotion model. Staging keeps watching `main`
+CURRENT STATUS: ADL-36 decided — BUG-39 (#209) FK review. items.carriedFromItemId gets
+onDelete: 'set null' (confirmed Frontend's proposal; cascade/restrict rejected). Verified NO
+backend/frontend change needed — UpdateItemSchema doesn't expose the carry-forward fields, the
+frontend tag reads the is_carried_forward boolean not the FK, so the resulting
+is_carried_forward=1 / carried_from_item_id=NULL post-deletion state is intentional (ADL-13
+coupling is create-time only). FK audit: BUG-39 is ISOLATED — other no-onDelete FKs reference
+soft-delete-only admin lists or non-deletable seed/geo tables. Database owns the migration next
+(ADL-36 "Implications for Database"). Review-only thread; committed change is the ADL-36 entry +
+BUG-39 tracker note. Branch chore/bug39-adl-fk-ondelete. See 20260721-ARCHITECT-park-adl36.txt.
+
+PRIOR STATUS: ADL-35 decided — environment promotion model. Staging keeps watching `main`
 (continuous soak); Production is repointed to watch a long-lived `production` branch, promoted
 by explicit `git merge --ff-only origin/main` + push. Design only; the only committed change is
 the ADL-35 entry + a supersession stamp on ADL-32 §5. Railway repoint, CLAUDE.md workflow
