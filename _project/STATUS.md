@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-21 (session close-out: BRD-NF09/OP-22/WP-03/WP-04 closed per PO direction; BRD-PL0104/BRD-CU0103 deprioritized; BUG-40–58 + OQ-06 remain pending)_
+_Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGINS gap found and diagnosed post-OP-22-split, root cause confirmed via deployment logs, fix is a Railway dashboard env var)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-21 (session close-out: BRD-NF09/OP-22/WP-03/WP-04
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (44)
+## Open work (45)
 
 ### P0 — Blockers (1)
 
@@ -25,12 +25,13 @@ _Tracker last updated: 2026-07-21 (session close-out: BRD-NF09/OP-22/WP-03/WP-04
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (2)
+### P1 — Critical (3)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
+| BUG-59 | Staging Railway environment ALLOWED_ORIGINS missing its own public URL — CORS blocks all asset requests, white screen | coo | ⬜ Pending |
 
 ### P2 — Important (25)
 
@@ -89,7 +90,7 @@ _Tracker last updated: 2026-07-21 (session close-out: BRD-NF09/OP-22/WP-03/WP-04
 |---|---|---|---|---|
 | feature | `██████████▓▓░░░░░░░░` 27/54 | 27 | 27 | 3 |
 | requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
-| bug | `███████████████░░░░░` 38/50 | 38 | 12 | 4 |
+| bug | `███████████████░░░░░` 38/51 | 38 | 13 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
 
@@ -123,4 +124,4 @@ _Tracker last updated: 2026-07-21 (session close-out: BRD-NF09/OP-22/WP-03/WP-04
 
 ---
 
-_112 done · 10 deferred · 2 closed · 44 open — 168 tracked items_
+_112 done · 10 deferred · 2 closed · 45 open — 169 tracked items_
