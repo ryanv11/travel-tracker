@@ -12,21 +12,24 @@
  * column names and relationships are identical; only the table builder
  * and column type imports change.
  *
- * @see jobs/architect/tech/20260307-ER-schema.md (v1.1 — authoritative)
+ * @see jobs/architect/tech/20260307-ER-schema.md (v1.1 — original design, historical).
+ *      Schema evolution since v1.1 (users, trip_countries, is_owner, place dates,
+ *      user_id FKs) is recorded in the architecture-decisions-log (ADL-16/19/20/23/24/27).
+ *      This file — not the ER doc — is the authoritative current schema.
  */
 
+import { sql } from 'drizzle-orm';
 import {
+  type AnySQLiteColumn,
+  check,
+  index,
+  integer,
+  primaryKey,
+  real,
   sqliteTable,
   text,
-  integer,
-  real,
-  index,
   uniqueIndex,
-  primaryKey,
-  check,
-  AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core';
-import { sql } from 'drizzle-orm';
 
 // ============================================================
 // 1. GEOGRAPHIC HIERARCHY
@@ -50,19 +53,12 @@ export const countries = sqliteTable(
     regionTierEnabled: integer('region_tier_enabled').notNull().default(0),
     // Human-readable label for the region tier: 'State' | 'Province' | 'Territory' | NULL
     regionTierLabel: text('region_tier_label'),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     // region_tier_label must be NULL when region_tier_enabled = 0 — enforced by BACKEND
-    check(
-      'chk_countries_region_tier_enabled',
-      sql`${t.regionTierEnabled} IN (0, 1)`,
-    ),
+    check('chk_countries_region_tier_enabled', sql`${t.regionTierEnabled} IN (0, 1)`),
   ],
 );
 
@@ -78,14 +74,14 @@ export const regions = sqliteTable(
       .notNull()
       .references(() => countries.countryCode),
     name: text('name').notNull(), // e.g. 'California', 'New South Wales'
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    iso3166_2: text('iso_3166_2').notNull(),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
-  (t) => [index('idx_regions_country').on(t.countryCode)],
+  (t) => [
+    index('idx_regions_country').on(t.countryCode),
+    uniqueIndex('uniq_regions_iso_3166_2').on(t.iso3166_2),
+  ],
 );
 
 /**
@@ -104,29 +100,30 @@ export const cities = sqliteTable(
     // NULL for cities in countries where region_tier_enabled = 0
     regionId: integer('region_id').references(() => regions.id),
     name: text('name').notNull(),
-    latitude: real('latitude'),  // NULL while geocode_status = 'pending'
+    latitude: real('latitude'), // NULL while geocode_status = 'pending'
     longitude: real('longitude'), // NULL while geocode_status = 'pending'
     // 'pending' = awaiting Nominatim resolution; 'resolved' = coordinates confirmed
     geocodeStatus: text('geocode_status').notNull().default('pending'),
     geocodeAttemptedAt: text('geocode_attempted_at'), // ISO 8601 timestamp of last attempt
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     index('idx_cities_country').on(t.countryCode),
     index('idx_cities_region').on(t.regionId),
     // Partial index — only indexes pending cities, making the geocoding queue scan efficient
-    index('idx_cities_geocode')
-      .on(t.geocodeStatus)
-      .where(sql`${t.geocodeStatus} = 'pending'`),
-    check(
-      'chk_cities_geocode_status',
-      sql`${t.geocodeStatus} IN ('pending', 'resolved')`,
-    ),
+    index('idx_cities_geocode').on(t.geocodeStatus).where(sql`${t.geocodeStatus} = 'pending'`),
+    check('chk_cities_geocode_status', sql`${t.geocodeStatus} IN ('pending', 'resolved')`),
+    // BUG-33 (#157): prevents duplicate city rows for the same (name, country_code) —
+    // find-or-create logic was creating a new row instead of reusing the existing one
+    // (e.g. "Glasgow" appeared twice in the place autocomplete). COLLATE NOCASE is
+    // SQLite's built-in ASCII-only case fold (A-Z/a-z) — it resolves the real-world
+    // "Glasgow"/"glasgow" case but does not fold non-ASCII/diacritic variants; that
+    // is an accepted, documented limitation, not a silent gap (Architect-reviewed
+    // 2026-07-20). Backend's find-or-create lookup must match this collation (its own
+    // WHERE clause needs to be case-insensitive too) or it will fail to find the
+    // canonical row and attempt an insert that now throws instead of reusing it.
+    uniqueIndex('uniq_cities_name_country_ci').on(sql`${t.name} COLLATE NOCASE`, t.countryCode),
   ],
 );
 
@@ -147,16 +144,10 @@ export const tripCategories = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull().unique(),
     isActive: integer('is_active').notNull().default(1),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
-  (t) => [
-    check('chk_trip_categories_is_active', sql`${t.isActive} IN (0, 1)`),
-  ],
+  (t) => [check('chk_trip_categories_is_active', sql`${t.isActive} IN (0, 1)`)],
 );
 
 /**
@@ -169,12 +160,8 @@ export const activities = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull().unique(),
     isActive: integer('is_active').notNull().default(1),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [check('chk_activities_is_active', sql`${t.isActive} IN (0, 1)`)],
 );
@@ -188,12 +175,8 @@ export const companions = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull().unique(),
     isActive: integer('is_active').notNull().default(1),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [check('chk_companions_is_active', sql`${t.isActive} IN (0, 1)`)],
 );
@@ -212,9 +195,7 @@ export const mapShadingConfig = sqliteTable(
     stateKey: text('state_key').primaryKey(),
     displayName: text('display_name').notNull(),
     colorHex: text('color_hex').notNull(), // e.g. '#2196F3' — validated by FRONTEND
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     check(
@@ -241,21 +222,21 @@ export const trips = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
     startDate: text('start_date').notNull(), // ISO 8601 date: 'YYYY-MM-DD'
-    endDate: text('end_date').notNull(),     // ISO 8601 date: 'YYYY-MM-DD'
+    endDate: text('end_date').notNull(), // ISO 8601 date: 'YYYY-MM-DD'
     // Status progression: planning → active → review_pending → locked
     status: text('status').notNull().default('planning'),
     photoAlbumRef: text('photo_album_ref'), // URL or folder path — no file stored (PH-01)
-    createdAt: text('created_at')
+    userId: text('user_id')
       .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+      .references(() => users.id), // HC-07c: NOT NULL enforced at DB level
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     index('idx_trips_status').on(t.status),
     index('idx_trips_start_date').on(t.startDate),
     index('idx_trips_end_date').on(t.endDate),
+    index('trips_user_id_idx').on(t.userId),
     check(
       'chk_trips_status',
       sql`${t.status} IN ('planning', 'active', 'review_pending', 'locked')`,
@@ -346,12 +327,13 @@ export const tripPlaces = sqliteTable(
     cityId: integer('city_id')
       .notNull()
       .references(() => cities.id),
-    createdAt: text('created_at')
+    userId: text('user_id')
       .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+      .references(() => users.id), // HC-07c: NOT NULL enforced at DB level
+    arrivedOn: text('arrived_on'), // nullable, no default (ADL-24)
+    departedOn: text('departed_on'), // nullable, no default (ADL-24)
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     // A trip visits each city at most once
@@ -359,6 +341,7 @@ export const tripPlaces = sqliteTable(
     index('idx_trip_places_trip').on(t.tripId),
     // Critical for cross-trip queries joining on city_id (IT-07, IT-09)
     index('idx_trip_places_city').on(t.cityId),
+    index('trip_places_user_id_idx').on(t.userId),
   ],
 );
 
@@ -381,6 +364,30 @@ export const tripPlaceActivitiesMap = sqliteTable(
   (t) => [primaryKey({ columns: [t.tripPlaceId, t.activityId] })],
 );
 
+/**
+ * Trip ↔ Country junction — tracks which countries a trip visits (ADL-23).
+ * Derived from trip_places via city → country_code, but stored explicitly for
+ * efficient map shading queries without repeated aggregation joins.
+ * Cascade delete: removing a trip removes its country associations.
+ * RESTRICT on country: a country record must exist before it can be linked.
+ */
+export const tripCountries = sqliteTable(
+  'trip_countries',
+  {
+    tripId: integer('trip_id')
+      .notNull()
+      .references(() => trips.id, { onDelete: 'cascade' }),
+    countryCode: text('country_code')
+      .notNull()
+      .references(() => countries.countryCode, { onDelete: 'restrict' }),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.tripId, t.countryCode] }),
+    countryIdx: index('idx_trip_countries_country').on(t.countryCode),
+  }),
+);
+
 // ============================================================
 // 5. ITEMS (BASE TABLE + EXTENSION TABLES)
 // ============================================================
@@ -397,11 +404,29 @@ export const tripPlaceActivitiesMap = sqliteTable(
  *
  * item_type determines which extension table (if any) holds additional fields.
  * trip_place_id is NULL for trip-level items (e.g. a flight attached to the trip,
- * not a specific city).
+ * not a specific city). This is also the target state when a place is deleted —
+ * BUG-32: placeRepository.delete reassigns trip_place_id to NULL for any items
+ * under the deleted place rather than cascade-deleting them (no onDelete is set
+ * on this FK deliberately — application code owns this reassignment).
  *
  * Carry-forward pattern (ADL-13, IT-07):
  *   is_carried_forward = 1 AND carried_from_item_id IS NOT NULL → carried item
- *   BACKEND must enforce these two fields are always set together.
+ *   BACKEND must enforce these two fields are always set together AT CREATE TIME.
+ *
+ *   This coupling is a CREATE-TIME invariant only, not a permanent one (ADL-36,
+ *   BUG-39). carried_from_item_id is a nullable-after-source-deletion provenance
+ *   pointer ("...from this specific source, while it still exists") — its FK has
+ *   onDelete: 'set null', so deleting the source item clears the pointer without
+ *   cascade-deleting the derived item (which is a first-class item on another
+ *   trip with its own user-edited status/notes/rating). is_carried_forward is a
+ *   permanent historical fact ("this item originated as a carry-forward") and is
+ *   NOT cleared when the source is deleted. Therefore
+ *   is_carried_forward = 1 AND carried_from_item_id IS NULL is a LEGITIMATE,
+ *   INTENTIONAL post-deletion state — it means "this item was carried forward,
+ *   but its source has since been deleted" — NOT data corruption. Do not add a
+ *   runtime consistency check or backfill that treats it as a bug; the redundant
+ *   boolean flag exists precisely so the historical fact survives loss of the
+ *   pointer.
  */
 export const items = sqliteTable(
   'items',
@@ -419,15 +444,19 @@ export const items = sqliteTable(
     isCarriedForward: integer('is_carried_forward').notNull().default(0),
     // Self-referential FK — preserves lineage to the source item (ADL-13)
     // Uses a lazy reference function to avoid circular dependency at module load time
-    carriedFromItemId: integer('carried_from_item_id').references(
-      (): AnySQLiteColumn => items.id,
-    ),
-    createdAt: text('created_at')
+    // onDelete: 'set null' (ADL-36, BUG-39) — deleting the source item must not
+    // RESTRICT-block a normal trip/item delete; it clears this pointer only, and
+    // never cascade-deletes the derived item on the other trip. See the table
+    // doc comment above for why is_carried_forward can legitimately survive as 1
+    // with this column NULL afterward.
+    carriedFromItemId: integer('carried_from_item_id').references((): AnySQLiteColumn => items.id, {
+      onDelete: 'set null',
+    }),
+    userId: text('user_id')
       .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+      .references(() => users.id), // HC-07c: NOT NULL enforced at DB level
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     index('idx_items_trip').on(t.tripId),
@@ -438,6 +467,7 @@ export const items = sqliteTable(
     index('idx_items_carried')
       .on(t.carriedFromItemId)
       .where(sql`${t.carriedFromItemId} IS NOT NULL`),
+    index('items_user_id_idx').on(t.userId),
     check(
       'chk_items_item_type',
       sql`${t.itemType} IN ('restaurant', 'hotel', 'flight', 'car_rental', 'experience', 'note')`,
@@ -446,10 +476,7 @@ export const items = sqliteTable(
       'chk_items_status',
       sql`${t.status} IN ('consider', 'confirmed', 'completed', 'cancelled', 'next_time')`,
     ),
-    check(
-      'chk_items_is_carried_forward',
-      sql`${t.isCarriedForward} IN (0, 1)`,
-    ),
+    check('chk_items_is_carried_forward', sql`${t.isCarriedForward} IN (0, 1)`),
   ],
 );
 
@@ -466,9 +493,9 @@ export const itemFlights = sqliteTable('item_flights', {
   airline: text('airline'),
   flightNumber: text('flight_number'),
   departureAirport: text('departure_airport'), // IATA code preferred but not enforced
-  arrivalAirport: text('arrival_airport'),     // IATA code preferred but not enforced
+  arrivalAirport: text('arrival_airport'), // IATA code preferred but not enforced
   departureDatetime: text('departure_datetime'), // ISO 8601 datetime
-  arrivalDatetime: text('arrival_datetime'),     // ISO 8601 datetime
+  arrivalDatetime: text('arrival_datetime'), // ISO 8601 datetime
   bookingReference: text('booking_reference'),
   seat: text('seat'),
 });
@@ -487,20 +514,17 @@ export const itemHotels = sqliteTable(
       .references(() => items.id, { onDelete: 'cascade' }),
     propertyName: text('property_name'),
     address: text('address'),
-    checkInDate: text('check_in_date'),   // ISO 8601 date
+    checkInDate: text('check_in_date'), // ISO 8601 date
     checkOutDate: text('check_out_date'), // ISO 8601 date
     bookingReference: text('booking_reference'),
     confirmationNumber: text('confirmation_number'),
-    rating: integer('rating'),            // NULL = unrated (HT-04)
+    rating: integer('rating'), // NULL = unrated (HT-04)
     postVisitNotes: text('post_visit_notes'), // NULL until reviewed (HT-04)
   },
   (t) => [
     // Index on rating for sort/filter queries (IT-08, IT-09)
     index('idx_item_hotels_rating').on(t.rating),
-    check(
-      'chk_item_hotels_rating',
-      sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`,
-    ),
+    check('chk_item_hotels_rating', sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`),
   ],
 );
 
@@ -515,7 +539,7 @@ export const itemCarRentals = sqliteTable('item_car_rentals', {
   provider: text('provider'),
   pickupLocation: text('pickup_location'),
   dropoffLocation: text('dropoff_location'),
-  pickupDatetime: text('pickup_datetime'),   // ISO 8601 datetime
+  pickupDatetime: text('pickup_datetime'), // ISO 8601 datetime
   dropoffDatetime: text('dropoff_datetime'), // ISO 8601 datetime
   bookingReference: text('booking_reference'),
   vehicleClass: text('vehicle_class'),
@@ -536,16 +560,13 @@ export const itemRestaurants = sqliteTable(
     name: text('name'),
     neighbourhoodArea: text('neighbourhood_area'),
     cuisineType: text('cuisine_type'),
-    source: text('source'),                  // How the user heard about it (RS-01)
-    rating: integer('rating'),               // NULL = unrated (RS-03)
+    source: text('source'), // How the user heard about it (RS-01)
+    rating: integer('rating'), // NULL = unrated (RS-03)
     postVisitNotes: text('post_visit_notes'), // NULL until reviewed (RS-03)
   },
   (t) => [
     index('idx_item_restaurants_rating').on(t.rating),
-    check(
-      'chk_item_restaurants_rating',
-      sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`,
-    ),
+    check('chk_item_restaurants_rating', sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`),
   ],
 );
 
@@ -565,17 +586,35 @@ export const itemExperiences = sqliteTable(
     itemId: integer('item_id')
       .primaryKey()
       .references(() => items.id, { onDelete: 'cascade' }),
-    rating: integer('rating'),               // NULL = unrated (EX-01)
+    rating: integer('rating'), // NULL = unrated (EX-01)
     postVisitNotes: text('post_visit_notes'), // NULL until reviewed (EX-01)
   },
   (t) => [
     index('idx_item_experiences_rating').on(t.rating),
-    check(
-      'chk_item_experiences_rating',
-      sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`,
-    ),
+    check('chk_item_experiences_rating', sql`${t.rating} IS NULL OR (${t.rating} BETWEEN 1 AND 5)`),
   ],
 );
+
+// ============================================================
+// 6. AUTH / USERS
+// ============================================================
+
+/**
+ * Users — one record per authenticated user (ADL-20).
+ * Internal `id` is a UUID v4 string (ADL-16, prevents enumeration).
+ * `clerk_id` is the external Clerk identifier; all FK relationships use `id`.
+ * No password_hash, oauth_provider, or refresh_token — Clerk handles auth.
+ * `email` is stored for display/admin purposes; Clerk is authoritative for identity.
+ */
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(), // UUID v4 — generated by backend on first sign-in
+  clerkId: text('clerk_id').notNull().unique(), // Clerk user ID (e.g. user_2abc...)
+  email: text('email').notNull(),
+  // ADL-27: 1 = owner (has access to admin routes), 0 = non-owner. Set from OWNER_CLERK_ID env var.
+  isOwner: integer('is_owner').notNull().default(0),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+});
 
 // ============================================================
 // TYPE EXPORTS
@@ -623,6 +662,9 @@ export type NewTripPlace = typeof tripPlaces.$inferInsert;
 export type TripPlaceActivitiesMap = typeof tripPlaceActivitiesMap.$inferSelect;
 export type NewTripPlaceActivitiesMap = typeof tripPlaceActivitiesMap.$inferInsert;
 
+export type TripCountry = typeof tripCountries.$inferSelect;
+export type NewTripCountry = typeof tripCountries.$inferInsert;
+
 export type Item = typeof items.$inferSelect;
 export type NewItem = typeof items.$inferInsert;
 
@@ -640,3 +682,6 @@ export type NewItemRestaurant = typeof itemRestaurants.$inferInsert;
 
 export type ItemExperience = typeof itemExperiences.$inferSelect;
 export type NewItemExperience = typeof itemExperiences.$inferInsert;
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
