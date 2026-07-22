@@ -2161,3 +2161,114 @@ ADL only changes *which branch the Production environment watches* and *what tri
   `main` was at deploy time".
 - Preview environments (ADL-32 §5) remain compatible and orthogonal; this decision neither requires
   nor blocks them.
+
+---
+
+## ADL-36 — `items.carriedFromItemId` FK gets `onDelete: 'set null'` (BUG-39)
+
+**Date:** 2026-07-21
+**Status:** Decided — implementation PENDING (Database owns the migration; this ADL is the spec)
+
+**Trigger:** BUG-39 / GitHub #209, discovered 2026-07-21 by the WP-03/WP-04 Frontend brief
+(PR #208) while writing E2E coverage for the carried-forward tag. `items.carriedFromItemId`
+is a self-referencing FK (`.references((): AnySQLiteColumn => items.id)`, schema.ts ~L432) with
+**no `.onDelete(...)` clause**. `@libsql/client` enforces foreign keys by default (empirically
+confirmed, BUG-38), so the omitted clause defaults to **RESTRICT**: `DELETE /api/trips/:id` 500s
+whenever any of the trip's items was ever used as a carry-forward source for an item in *any other*
+trip, independent of that trip's status. Same 500 also blocks a direct `DELETE .../items/:itemId`
+of a source item. Dispatched to Architect for review + ADL before Database implements, per the
+CLAUDE.md schema-change-review rule.
+
+**Decision:** Adopt Frontend's proposed fix — set the clause to **`onDelete: 'set null'`**:
+```ts
+carriedFromItemId: integer('carried_from_item_id')
+  .references((): AnySQLiteColumn => items.id, { onDelete: 'set null' })
+```
+Deleting a source item clears the derived item's provenance pointer; it does **not** cascade-delete
+the derived item, which is a first-class item living on another trip with its own
+user-edited status/notes/rating.
+
+**Options considered:**
+- **`set null` — selected.** Preserves the derived item; drops only the now-unresolvable provenance
+  link. Column is already nullable (no NOT NULL to fight).
+- **`cascade` — rejected.** Would silently delete a real item on a *different* trip (potentially
+  locked/reviewed, with post-visit edits) when its unrelated source is deleted. Destroys user data;
+  violates the principle that a carried-forward item is independent once created.
+- **`restrict` / `no action` (explicit) — rejected.** This is the current de-facto behavior and *is*
+  the bug — an unrecoverable 500 on a normal user operation (deleting an old trip).
+- **App-level pre-clear in the delete path (mirroring BUG-32's reassign-to-null for `tripPlaceId`)
+  — rejected as the primary fix.** BUG-32 needed app logic because it reassigns to a *meaningful*
+  target (trip level) as a product behavior; here the target is simply NULL and the DB expresses it
+  declaratively with no query to maintain, no ordering hazard, and correct behavior for the direct
+  item-delete path too. Declarative FK semantics beat imperative cleanup when the semantics are exactly
+  "null it out."
+
+**Interaction with the ADL-13 carry-forward invariant (important — do not "fix" the result later):**
+schema.ts (~L413) and the create-path validation (`items.schemas.ts` refine; `routes/items.ts`
+L78–83) enforce that `is_carried_forward = 1` and `carried_from_item_id IS NOT NULL` are set
+**together**. `set null` will produce rows where `is_carried_forward = 1` **and**
+`carried_from_item_id IS NULL` after a source deletion. **This is intended and correct**, not a new
+inconsistency to chase:
+- `is_carried_forward` is a **permanent historical fact** ("this item originated as a carry-forward").
+- `carried_from_item_id` is a **nullable provenance pointer** ("…from this specific source, while it
+  still exists"). The redundant boolean flag (schema.ts L428) exists precisely so the historical fact
+  survives loss of the pointer — `set null` makes that flag *more* justified, not less.
+- The coupling is therefore a **create-time invariant only**. Verified it cannot be violated after the
+  fact by application code: `UpdateItemSchema` (`items.schemas.ts` L67) does not expose
+  `is_carried_forward` or `carried_from_item_id`, so PATCH can never touch or re-validate them; the
+  frontend "carried forward" tag reads the `is_carried_forward` boolean, not the FK
+  (`ItemCard.tsx` L98); no read path dereferences `carried_from_item_id` assuming non-null; the
+  partial index `idx_items_carried` is already `WHERE carried_from_item_id IS NOT NULL`. **No backend
+  or frontend code change is required** — `set null` is safe against every current consumer.
+
+**FK-audit finding — BUG-39 is ISOLATED, not a pattern:** audited every `.references(...)` in
+schema.ts for the same "deletable parent + no `onDelete` + no app-level handling" shape.
+- `items.carriedFromItemId` → `items.id` (self) — **the bug.** `items` is routinely hard-deleted
+  through a normal user path (trip delete cascades to items; direct item delete). RESTRICT fires in
+  normal operation. Fixed here.
+- `items.tripPlaceId` → `tripPlaces.id` (no `onDelete`) — **intentional, confirmed.** BUG-32 / PR #166
+  reassigns items to trip level (`tripPlaceId = NULL`) in `places.ts` `delete()` (L185–198) *before*
+  deleting the place, deliberately to preserve logged items rather than cascade them. RESTRICT is the
+  backstop if that app-level step is ever skipped. Reading independently verified — not the same gap.
+- `tripCategoriesMap.categoryId`, `tripCompanionsMap.companionId`, `tripActivitiesMap.activityId`,
+  `tripPlaceActivitiesMap.activityId` → admin-list tables (no `onDelete`) — **not the same shape.**
+  Admin lists are **soft-deleted only** (`admin.ts` DELETE sets `is_active = 0`, L124–141; "never
+  hard-delete", AD-06). The parent row is never removed, so RESTRICT never fires. Correct as-is.
+- `cities.regionId` → `regions.id`, `tripPlaces.cityId` → `cities.id` (no `onDelete`) — **not the same
+  shape.** Regions are seed/static; cities are find-or-created and persistent. Neither has any delete
+  route (none in routes/ or repositories/). No reachable hard-delete path, so RESTRICT never fires.
+- Cascades already correct: `trips`→junctions/`tripPlaces`/`items`, `tripPlaces`→
+  `tripPlaceActivitiesMap`, `items`→all extension tables — all `onDelete: 'cascade'`, unaffected.
+- `tripCountries.countryCode` → `countries.countryCode` is explicit `onDelete: 'restrict'` (ADL-23),
+  deliberate.
+
+**Conclusion:** no follow-up bug tracker entry is warranted — BUG-39 is the sole live instance.
+**General rule recorded for future schema work:** every FK's delete behavior must be an *explicit,
+documented* decision; an omitted `onDelete` silently means RESTRICT, which is safe **only** where the
+parent is never hard-deleted (soft-delete-only or seed/static tables). The moment a future feature
+adds a hard-delete route for cities, regions, or an admin list, that table's referencing FKs must be
+revisited under this same rule. This is guidance, not a defect — no tracker entry.
+
+**Implications for Database (implementation spec):**
+- Change is the FK clause on `items.carriedFromItemId` only — add `{ onDelete: 'set null' }`.
+- Generate via `npm run db:generate` + apply via `npm run db:migrate` (never `db:push`, ADL-15).
+  SQLite cannot alter a constraint in place, so drizzle-kit will emit a **12-step `items` table
+  recreation** (new table + copy + drop + rename + index rebuild). This is exactly the
+  table-recreation path the committed `drizzle-kit@0.31.9` patch guards (duplicate CREATE INDEX,
+  CHECK-constraint truncation, partial-index WHERE) — after generating, **eyeball the SQL**: confirm
+  the self-referencing FK is re-declared with `ON DELETE SET NULL`, the partial index
+  `idx_items_carried (… WHERE carried_from_item_id IS NOT NULL)` and all three `chk_items_*` CHECK
+  constraints survive intact, and existing `is_carried_forward = 1` rows keep their data through the
+  copy.
+- Update the schema.ts doc comment (~L412–415, ~L428–432) to record that `carried_from_item_id` is a
+  nullable-after-source-deletion provenance pointer and that `is_carried_forward = 1` /
+  `carried_from_item_id IS NULL` is a legitimate post-deletion state (per the invariant note above),
+  so a future reader does not flag it as corruption.
+- No backend or frontend code change required (see invariant analysis). A regression test asserting
+  `DELETE /api/trips/:id` succeeds (204) when one of its items is a carry-forward source elsewhere,
+  and that the derived item survives with `carried_from_item_id = NULL` / `is_carried_forward = 1`,
+  is the success criterion for closing BUG-39.
+
+**Supersession:** none. Refines ADL-13's carry-forward model (clarifies the two-field coupling is a
+create-time invariant, not a permanent one) without overturning it — no stamp required; ADL-13's
+create-time enforcement stands unchanged.
