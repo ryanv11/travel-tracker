@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 raised, restart-preview mechanism installed)"
+    "updated": "2026-07-21 (session close-out: BRD-NF09/OP-22/WP-03/WP-04 closed per PO direction; BRD-PL0104/BRD-CU0103 deprioritized; BUG-40–58 + OQ-06 remain pending)"
   },
   "items": [
 
@@ -1449,21 +1449,21 @@
       "title": "v3 Planning-First Delivery",
       "status": "pending",
       "owner": "coo",
-      "priority": "P1",
+      "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "GitHub issue #129. BRD v3.0 identity rewrite (PO interview 2026-07-18): Plan / Look back / Catch up. Sequencing to be defined in roadmap.md (bundles/critical path — part 2 of the prioritisation mechanic). First input: Scotland dogfood trial findings."
+      "notes": "GitHub issue #129. BRD v3.0 identity rewrite (PO interview 2026-07-18): Plan / Look back / Catch up. Sequencing to be defined in roadmap.md (bundles/critical path — part 2 of the prioritisation mechanic). First input: Scotland dogfood trial findings. Dogfood trial findings landed 2026-07-21 (this session's UAT batch, BUG-40–58/OQ-06) — but PO deprioritized both flagship features under this phase (BRD-PL0104, BRD-CU0103) the same session pending those fixes, so phase priority dropped P1→P2 to reflect no active near-term work. Re-raise once the UAT batch is worked through and PO wants to resume."
     },
     {
       "id": "BRD-PL0104",
       "type": "feature",
       "title": "Planning core — idea pool → shortlist → booked across all item types (PL-01–04)",
-      "status": "pending",
+      "status": "deferred",
       "owner": "fullstack",
-      "priority": "P1",
+      "priority": "P2",
       "brdRefs": ["PL-01", "PL-02", "PL-03", "PL-04"],
       "phase": 6,
-      "notes": "BRD v3.0 §5.12. New Shortlisted item status (IT-03 amended), quick-capture ideas for every item type, planning view grouped by stage, rapid brainstorm entry. Hold briefs until Scotland dogfood findings land — the trial is the requirements input for this UX."
+      "notes": "BRD v3.0 §5.12. New Shortlisted item status (IT-03 amended), quick-capture ideas for every item type, planning view grouped by stage, rapid brainstorm entry. Was held for Scotland dogfood findings — those landed 2026-07-21 (this session's general UAT feedback, BUG-40–58/OQ-06). DEPRIORITIZED 2026-07-21 (PO): PO wants the UAT-driven fixes/changes made before doing more dogfood-style testing that would inform this feature's design, so this stays deferred (priority P1→P2) until that batch is worked through. Not blocked on anything technical — resume when PO says the dogfood findings are ready to build from."
     },
     {
       "id": "BRD-PL05",
@@ -1524,12 +1524,12 @@
       "id": "BRD-CU0103",
       "type": "feature",
       "title": "Shell trips — fast historic catch-up entry (CU-01–03)",
-      "status": "pending",
+      "status": "deferred",
       "owner": "fullstack",
-      "priority": "P1",
+      "priority": "P2",
       "brdRefs": ["CU-01", "CU-02", "CU-03"],
       "phase": 6,
-      "notes": "BRD v3.0 §5.14. Minimal-detail trips counting toward map/stats, fast single-form entry, badge + enrichable later. BLOCKED on OQ-03 (approximate dates) — resolve with PO before briefing."
+      "notes": "BRD v3.0 §5.14. Minimal-detail trips counting toward map/stats, fast single-form entry, badge + enrichable later. Still blocked on OQ-03 (approximate dates, unresolved). DEPRIORITIZED 2026-07-21 (PO), alongside BRD-PL0104: PO wants the 2026-07-21 UAT batch (BUG-40–58/OQ-06) worked through first, priority P1→P2. Resolve OQ-03 with PO whenever this is picked back up — that's the specific unblock, separate from the general deprioritization."
     },
     {
       "id": "BRD-MB0102",
@@ -1546,12 +1546,12 @@
       "id": "BRD-NF09",
       "type": "requirement",
       "title": "Hosted deployment for personal use (NF-09)",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend",
       "priority": "P1",
       "brdRefs": ["NF-09", "NF-03"],
       "phase": 6,
-      "notes": "BRD v3.0 §6, success criteria added v3.2. Hosting before multi-user; supersedes local-only NF-01 and OneDrive NF-04. Railway (compute) + Turso (database) per ADL-32, resolves OQ-04. Code: PR #175/#176 (Turso auth wiring, express.static + SPA fallback), main CI green. Railway env vars: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, HOST, NODE_ENV, DB_TYPE, VITE_CLERK_PUBLISHABLE_KEY, VITE_MAPTILER_KEY, CLERK_JWKS_URI, CLERK_ISSUER, OWNER_CLERK_ID, ALLOWED_ORIGINS all set on Production (VITE_API_BASE_URL deliberately left unset for same-origin — see fix #5 below on why that has to be a true unset, not a placeholder value).\n\nDeployment shakedown 2026-07-20/21 surfaced five sequential blockers, each masking the next until fixed — full root-cause detail lives in each PR's description, not restated here:\n1. Railway trial-plan deploy queue (external — Railway was platform-wide deprioritizing Trial/Hobby deploys during a demand spike; cleared on its own). Detail: jobs/architect/tech/20260721-agent-diagnostics-runbook.md.\n2. Missing `db:migrate` before server start — ADL-32 §5 specified it, PR #175/#176 never wired it in, so the Turso prod DB was connected to but never schema-migrated. Fixed PR #185.\n3. Frontend/Clerk env vars were never set on Railway at all initially; once added, Helmet's CSP (`scriptSrc: [\"'self'\"]`) blocked Clerk's browser SDK entirely (never exercised before since the frontend previously only ran via Vite's dev server, not this Express app). Fixed PR #187 (added CLERK_ORIGIN to scriptSrc/connectSrc).\n4. Once sign-in worked, CSP still blocked Clerk's background-token Web Worker (blob: URL, no worker-src set) and the user's avatar (img.clerk.com, not in imgSrc). Fixed PR #189.\n5. Map/trips tabs still errored (`Unexpected token '<'... not valid JSON` — a fetch expecting JSON got the SPA's index.html instead). Root cause: `VITE_API_BASE_URL` resolved to a non-empty garbage value (Railway variable set to a literal placeholder string instead of truly empty/absent), so every request became `fetch(\"<value>/api/trips\")` — a path that never matches `/api/*` and falls through to the SPA catch-all. This meant zero authenticated requests had EVER reached the backend, which also explains why the admin tab never appeared (not a separate OWNER_CLERK_ID bug). Fixed PR #190 — apiClient.ts now coerces an unset var to `''` via `??`, so it's safe regardless of exactly what Railway stores.\n\nCONFIRMED WORKING 2026-07-21 (Ryan, live on prod): sign-in, map tab, admin panel, and trips tab all render correctly. Prod `users` table confirmed via turso-query.mjs: 1 row, is_owner=1. Trips list is empty — expected, fresh prod DB with no trips entered yet, not a bug. This closes the 'Clerk sign-in e2e', 'CI+deploy green on merge to main', and 'data persists across a deploy' strands of ADL-32 §10.\n\nCONFIRMED WORKING 2026-07-21 (Ryan, cellular): prod URL reachable and functional over HTTPS from phone/cellular network — closes remaining item (3). Ryan also created a second user account with no issues — multi-user signup path confirmed working end-to-end (extends the data-separation confirmation from the 2026-07-16 UAT session to a live prod sign-up, not just an existing test account).\n\nREMAINING before this can close: (1) Ryan's own full shakedown pass across all tabs/features, not yet done; (2) Clerk dashboard verification for dynamic/wildcard preview-domain origins (ADL-32 §6) — determines whether Preview gets real auth or falls back to BYPASS_AUTH=true scoped to Preview only; (3) [DONE 2026-07-21 — cellular HTTPS access confirmed]; (4) PR preview auto-deploys + is DB-isolated from prod."
+      "notes": "BRD v3.0 §6, success criteria added v3.2. Hosting before multi-user; supersedes local-only NF-01 and OneDrive NF-04. Railway (compute) + Turso (database) per ADL-32, resolves OQ-04. Code: PR #175/#176 (Turso auth wiring, express.static + SPA fallback), main CI green. Railway env vars: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, HOST, NODE_ENV, DB_TYPE, VITE_CLERK_PUBLISHABLE_KEY, VITE_MAPTILER_KEY, CLERK_JWKS_URI, CLERK_ISSUER, OWNER_CLERK_ID, ALLOWED_ORIGINS all set on Production (VITE_API_BASE_URL deliberately left unset for same-origin — see fix #5 below on why that has to be a true unset, not a placeholder value).\n\nDeployment shakedown 2026-07-20/21 surfaced five sequential blockers, each masking the next until fixed — full root-cause detail lives in each PR's description, not restated here:\n1. Railway trial-plan deploy queue (external — Railway was platform-wide deprioritizing Trial/Hobby deploys during a demand spike; cleared on its own). Detail: jobs/architect/tech/20260721-agent-diagnostics-runbook.md.\n2. Missing `db:migrate` before server start — ADL-32 §5 specified it, PR #175/#176 never wired it in, so the Turso prod DB was connected to but never schema-migrated. Fixed PR #185.\n3. Frontend/Clerk env vars were never set on Railway at all initially; once added, Helmet's CSP (`scriptSrc: [\"'self'\"]`) blocked Clerk's browser SDK entirely (never exercised before since the frontend previously only ran via Vite's dev server, not this Express app). Fixed PR #187 (added CLERK_ORIGIN to scriptSrc/connectSrc).\n4. Once sign-in worked, CSP still blocked Clerk's background-token Web Worker (blob: URL, no worker-src set) and the user's avatar (img.clerk.com, not in imgSrc). Fixed PR #189.\n5. Map/trips tabs still errored (`Unexpected token '<'... not valid JSON` — a fetch expecting JSON got the SPA's index.html instead). Root cause: `VITE_API_BASE_URL` resolved to a non-empty garbage value (Railway variable set to a literal placeholder string instead of truly empty/absent), so every request became `fetch(\"<value>/api/trips\")` — a path that never matches `/api/*` and falls through to the SPA catch-all. This meant zero authenticated requests had EVER reached the backend, which also explains why the admin tab never appeared (not a separate OWNER_CLERK_ID bug). Fixed PR #190 — apiClient.ts now coerces an unset var to `''` via `??`, so it's safe regardless of exactly what Railway stores.\n\nCONFIRMED WORKING 2026-07-21 (Ryan, live on prod): sign-in, map tab, admin panel, and trips tab all render correctly. Prod `users` table confirmed via turso-query.mjs: 1 row, is_owner=1. Trips list is empty — expected, fresh prod DB with no trips entered yet, not a bug. This closes the 'Clerk sign-in e2e', 'CI+deploy green on merge to main', and 'data persists across a deploy' strands of ADL-32 §10.\n\nCONFIRMED WORKING 2026-07-21 (Ryan, cellular): prod URL reachable and functional over HTTPS from phone/cellular network — closes remaining item (3). Ryan also created a second user account with no issues — multi-user signup path confirmed working end-to-end (extends the data-separation confirmation from the 2026-07-16 UAT session to a live prod sign-up, not just an existing test account).\n\nCLOSED 2026-07-21 per PO direction — hosted deployment confirmed usable for personal use, the requirement's actual success criteria. Two narrower verification items from the prior 'remaining' list were NOT independently re-confirmed before closing: (2) Clerk dashboard wildcard preview-domain support (ADL-32 §6) — already tracked separately in jobs/COO/open-dialogues.md D-05, not lost; (4) PR-preview auto-deploy DB isolation from prod — not separately tracked elsewhere, noted here only, low risk (Turso staging instance is already architecturally separate per ADL-32, this was about the auto-deploy wiring specifically). Neither blocks personal-use hosting; revisit only if PR-preview or multi-user work resumes."
     },
     {
       "id": "BUG-30",
@@ -1678,12 +1678,12 @@
       "id": "OP-22",
       "type": "operational",
       "title": "Environment promotion model — main→staging (continuous), production branch→prod (explicit fast-forward)",
-      "status": "in_progress",
+      "status": "done",
       "owner": "coo",
       "priority": "P1",
       "brdRefs": ["NF-09"],
       "phase": 6,
-      "notes": "ADL-35 (2026-07-21, merged PR #193). Design decided: Staging keeps watching `main`; Production repoints to a long-lived `production` branch promoted by explicit `git merge --ff-only origin/main` + push. No tags-as-trigger, no GitHub Action — Railway's native branch-watching stays zero-glue per ADL-32's rationale. `production` branch created and pushed by COO 2026-07-21 (currently == main). REMAINING before this is live: (1) Railway dashboard — repoint Production environment's watched branch main→production, confirm CI-gate-on-deploy stays on for both envs, confirm prod/staging Turso env-var separation survives the repoint (Ryan, manual dashboard action); (2) CLAUDE.md git-workflow section gets an 'Environment promotion' subsection — apply only once (1) is actually live, not before, per the document-lifecycle rule. Branch-per-brief workflow (feat/fix/chore off main, PR to main) is explicitly unchanged — production is never a PR target, agents never touch it. D-05 (separate Clerk prod/staging apps) remains open and orthogonal — until resolved, staging and prod share one Clerk user pool even after this promotes correctly."
+      "notes": "ADL-35 (2026-07-21, merged PR #193). Design decided: Staging keeps watching `main`; Production repoints to a long-lived `production` branch promoted by explicit `git merge --ff-only origin/main` + push. No tags-as-trigger, no GitHub Action — Railway's native branch-watching stays zero-glue per ADL-32's rationale. `production` branch created and pushed by COO 2026-07-21 (currently == main). CLOSED 2026-07-21: (1) Ryan repointed Railway's Production environment to watch `production` instead of `main`, staging left watching `main` — confirmed live; (2) CLAUDE.md git-workflow section now has an 'Environment promotion' subsection documenting this model, added same session per the document-lifecycle rule (only added once (1) was actually live). Branch-per-brief workflow (feat/fix/chore off main, PR to main) is unchanged — production is never a PR target, agents never touch it. D-05 (separate Clerk prod/staging apps) remains open and orthogonal — until resolved, staging and prod share one Clerk user pool even after this promotion model."
     },
     {
       "id": "WP-01",
@@ -1711,23 +1711,23 @@
       "id": "WP-03",
       "type": "feature",
       "title": "Trips screen (desktop) reskin using Waypoint tokens (Phase 2)",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["WP-03"],
       "phase": 6,
-      "notes": "Added BRD v3.3. Depends on WP-02 shipping first. Full layout/state breakdown in jobs/ux/tech/20260721-UX-waypoint-spec.md Phase 2 desktop section. Must preserve all current functionality with no mockup counterpart: bulk delete+undo (FEAT-BD/NTH-01), sort (TR-09), per-status filter counts (NTH-03), map-filter badge, per-place date editing (UX-02), remove-place (BUG-32), trip-level items (IT-01/BUG-36), ratings + carried-forward tag (ItemCard.tsx), first-run vs filtered-empty states, and the Unlock affordance (TR-07's existing tested flow — the mockup's stepper shows no unlock CTA, must be added back as new chrome). TR-12 annotated in BRD (not superseded) to note it's satisfied via the new stepper widget. UNBLOCKED 2026-07-21: all 13 conflicts (C1-C13) plus adjacent flags resolved and stamped into the spec (PR #203) — ready for Frontend dispatch. Left panel width corrected to 340px (was 320px, C10). GitHub issue #205, PR #208 (9/9 CI checks green, merged 2026-07-21). IMPLEMENTED: DesktopTripsLayout.tsx, StatusStepper.tsx (replaces flat status bar, Unlock preserved as new chrome), all preservation-list items confirmed present (bulk delete/undo, sort, filter counts, map-filter badge, trip-level items, per-place dates, remove-place, ratings, carried-forward tag, two-message empty states). badges.ts/StatusBadge.tsx Confirmed/Completed hue fix applied (150 green / 220 blue) and wired in. No dangerouslySetInnerHTML (verified). Product renamed to 'Waypoint' in nav + <title> (C1). E2E: full suite 52/52 passing. Discovered (not fixed, out of Frontend's remit): BUG-39 — items.carriedFromItemId has no onDelete FK behavior, pre-existing, needs Architect/Database schema review. Also noted: badges.ts's 'next_time' ItemStatus still has no defined hue in the spec (falls back to neutral treatment, not a regression — spec gap carried over from WP-02, not blocking). PO UAT PASS required before this closes (CLAUDE.md mandatory phase-completion gate)."
+      "notes": "Added BRD v3.3. Depends on WP-02 shipping first. Full layout/state breakdown in jobs/ux/tech/20260721-UX-waypoint-spec.md Phase 2 desktop section. Must preserve all current functionality with no mockup counterpart: bulk delete+undo (FEAT-BD/NTH-01), sort (TR-09), per-status filter counts (NTH-03), map-filter badge, per-place date editing (UX-02), remove-place (BUG-32), trip-level items (IT-01/BUG-36), ratings + carried-forward tag (ItemCard.tsx), first-run vs filtered-empty states, and the Unlock affordance (TR-07's existing tested flow — the mockup's stepper shows no unlock CTA, must be added back as new chrome). TR-12 annotated in BRD (not superseded) to note it's satisfied via the new stepper widget. UNBLOCKED 2026-07-21: all 13 conflicts (C1-C13) plus adjacent flags resolved and stamped into the spec (PR #203) — ready for Frontend dispatch. Left panel width corrected to 340px (was 320px, C10). GitHub issue #205, PR #208 (9/9 CI checks green, merged 2026-07-21). IMPLEMENTED: DesktopTripsLayout.tsx, StatusStepper.tsx (replaces flat status bar, Unlock preserved as new chrome), all preservation-list items confirmed present (bulk delete/undo, sort, filter counts, map-filter badge, trip-level items, per-place dates, remove-place, ratings, carried-forward tag, two-message empty states). badges.ts/StatusBadge.tsx Confirmed/Completed hue fix applied (150 green / 220 blue) and wired in. No dangerouslySetInnerHTML (verified). Product renamed to 'Waypoint' in nav + <title> (C1). E2E: full suite 52/52 passing. Discovered (not fixed, out of Frontend's remit): BUG-39 — items.carriedFromItemId has no onDelete FK behavior, pre-existing, needs Architect/Database schema review — this was tracked and closed separately (PR #214). Also noted: badges.ts's 'next_time' ItemStatus still has no defined hue in the spec (falls back to neutral treatment, not a regression — spec gap carried over from WP-02, not blocking). PO UAT PASS 2026-07-21 (uat-log.md) — CLOSED. PO: \"I'm happy with the reskin.\""
     },
     {
       "id": "WP-04",
       "type": "feature",
       "title": "Trips screen responsive mobile layout — net-new (Phase 2)",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["WP-04"],
       "phase": 6,
-      "notes": "Added BRD v3.3. No mobile-specific Trips view exists today — this is genuinely new responsive surface, not a reskin. List↔detail cross-fade/slide per exact transform values in the UX spec; bottom tab bar (Map/Trips/Admin) in list view only, back-button nav in detail view (per UX's read of the mockup, confirmed deliberate). Mobile detail view has no Edit/Photos entry point in the source mockup at all. SUPERSEDED 2026-07-21 (BRD v3.5): two conflicting PO answers were given the same day (overflow menu, then compact icons) — final call explicitly delegated to UX, who chose a compact icon-only Edit/Photos pair in the header bar (affordance/discoverability reasoning, recorded in the spec, PR #203). New constraint added same round: no horizontal scrolling anywhere on the mobile Trips screen except the status filter chip row — trip cards, place/category chips, item rows must wrap/truncate. GitHub issue #205, PR #208 (9/9 CI checks green, merged 2026-07-21). IMPLEMENTED: useIsMobile.ts hook, MobileTripsLayout.tsx + MobileTripDetailView.tsx, list/detail cross-fade/slide transition, bottom tab bar (list-view only), compact icon-only Edit/Photos pair. No-horizontal-scroll constraint verified at 390px/360px with long/varied real data (only the status filter chip row uses overflow-x). E2E: new src/e2e/trips-mobile.spec.ts (18 tests), scoped via data-testid=\"trip-detail-panel\" to fix the pre-existing two-panel Playwright scoping debt (project_playwright_panel_scoping.md) rather than repeating the old .nth()/.first() workaround. Full suite 52/52 passing. PO UAT PASS required before this closes (CLAUDE.md mandatory phase-completion gate) — desktop + mobile both need coverage per the spec's cross-reference table."
+      "notes": "Added BRD v3.3. No mobile-specific Trips view exists today — this is genuinely new responsive surface, not a reskin. List↔detail cross-fade/slide per exact transform values in the UX spec; bottom tab bar (Map/Trips/Admin) in list view only, back-button nav in detail view (per UX's read of the mockup, confirmed deliberate). Mobile detail view has no Edit/Photos entry point in the source mockup at all. SUPERSEDED 2026-07-21 (BRD v3.5): two conflicting PO answers were given the same day (overflow menu, then compact icons) — final call explicitly delegated to UX, who chose a compact icon-only Edit/Photos pair in the header bar (affordance/discoverability reasoning, recorded in the spec, PR #203). New constraint added same round: no horizontal scrolling anywhere on the mobile Trips screen except the status filter chip row — trip cards, place/category chips, item rows must wrap/truncate. GitHub issue #205, PR #208 (9/9 CI checks green, merged 2026-07-21). IMPLEMENTED: useIsMobile.ts hook, MobileTripsLayout.tsx + MobileTripDetailView.tsx, list/detail cross-fade/slide transition, bottom tab bar (list-view only), compact icon-only Edit/Photos pair. No-horizontal-scroll constraint verified at 390px/360px with long/varied real data (only the status filter chip row uses overflow-x). E2E: new src/e2e/trips-mobile.spec.ts (18 tests), scoped via data-testid=\"trip-detail-panel\" to fix the pre-existing two-panel Playwright scoping debt (project_playwright_panel_scoping.md) rather than repeating the old .nth()/.first() workaround. Full suite 52/52 passing. PO UAT PASS 2026-07-21 (uat-log.md) — CLOSED, desktop + mobile both covered. PO: \"I'm happy with the reskin.\""
     },
     {
       "id": "WP-05",
@@ -1739,6 +1739,228 @@
       "brdRefs": ["WP-05"],
       "phase": 6,
       "notes": "Added BRD v3.3. Specific known case: DP-06 (first place inherits trip dates) is still tracker-status \"pending\" — WP-03/WP-04 reskin the display of place dates that already exist, they do not implement DP-06's inherit-on-create behavior. Flag any other requirement encountered during Phase 2 implementation with the same shape (mockup shows correct-looking data because the demo data was hand-authored, not because the underlying feature is built)."
+    },
+
+    // ─── UAT 2026-07-21 GENERAL FEEDBACK — LOGGED ONLY, NOT YET BRIEFED ────
+    {
+      "id": "BUG-40",
+      "type": "bug",
+      "title": "Place deletion should prompt (delete all / move to trip-level / cancel) when the place has items",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. BUG-32 implemented place deletion by silently reassigning items to trip-level (trip_place_id=null). PO wants an explicit confirmation step instead: warn that the place has items and let the user choose delete-all / move-to-trip-level / cancel, rather than always auto-reassigning."
+    },
+    {
+      "id": "BUG-41",
+      "type": "feature",
+      "title": "Multi-leg / connecting flights within a single booking",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Example: Seattle→London (layover)→Glasgow, all one booking. Current flight item model is single-leg. Needs Architect schema design before this is briefable — likely a flight-legs sub-entity under one booking item, not a simple field addition."
+    },
+    {
+      "id": "BUG-42",
+      "type": "feature",
+      "title": "Multiple companions/seats per booking item",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Should be able to assign multiple companions/seats to one booking item (flight, car, etc.) instead of one implicit traveller. Needs schema/UX scoping — how seat assignment interacts with the existing companion model."
+    },
+    {
+      "id": "BUG-43",
+      "type": "feature",
+      "title": "Apple Wallet (.pkpass) import to pre-populate booking details",
+      "status": "pending",
+      "owner": "integrations",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, PO-flagged as longer-term/aspirational, logged only. Idea: parse Apple Wallet boarding-pass/booking passes to pre-fill flight/car booking fields instead of manual multi-seat entry (see BUG-42). Backlog — needs a research spike on .pkpass format access before any real scoping."
+    },
+    {
+      "id": "BUG-44",
+      "type": "bug",
+      "title": "Car rental pickup location should show as subtext under provider",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Mirror the existing flight pattern (airline + flight number render as subtext under the flight item) — car rental should show pickup location as subtext under the provider name the same way. Small, self-contained UI fix."
+    },
+    {
+      "id": "BUG-45",
+      "type": "feature",
+      "title": "Convert free-text airline/car-rental-provider fields to a sourced dropdown with Other fallback",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, PO-flagged as longer-term, logged only. Replace free-text entry for airline / car-rental-provider with a dropdown sourced from a comprehensive external list, falling back to an 'Other' + free-text option when not found. Needs a data-source decision (licensing/comprehensiveness) before scoping — same theme as OQ-06 (systematic reference data vs. hand-seeded lists)."
+    },
+    {
+      "id": "OQ-06",
+      "type": "requirement",
+      "title": "Adopt a systematic subdivision reference list (ISO 3166-2) instead of ad hoc per-country region seeding",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Raised 2026-07-21 UAT. PO initially suspected account data leakage (saw a Northern Ireland trip under their own account) — self-diagnosed in-session as the known BUG-30 gap (GB region seeding), not a leak; BUG-30 is already done and closed. Real open question: BUG-30 hand-seeded England/Scotland/Wales/NI under GB as a one-off fix — is there a more systematic ISO 3166-2 subdivision dataset that should back region seeding generally, rather than patching countries one at a time as gaps are found? Same theme as BUG-45's comprehensive-list ask. For Architect to weigh before the next region-data gap surfaces."
+    },
+    {
+      "id": "BUG-46",
+      "type": "bug",
+      "title": "Activities selector missing from trip create flow (only present on edit)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Admin-defined activities are selectable when editing a trip but the field doesn't appear on trip create at all. NOTE: check against BUG-47 before briefing as a simple add-to-create-form fix — PO's proposed activity redesign may supersede this."
+    },
+    {
+      "id": "BUG-47",
+      "type": "feature",
+      "title": "Auto-populate activities from trip/place content instead of manual pre-selection",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. PO's proposed redesign: instead of manually pre-selecting activities on a trip, derive/auto-populate them from the trip's actual place/item content. Trip categories stay manual — PO confirmed they serve a distinct purpose and are fine as-is, this is activities only. Needs product/UX scoping — what content drives auto-population is undefined."
+    },
+    {
+      "id": "BUG-48",
+      "type": "bug",
+      "title": "Country→state map shading zoom threshold too high / laggy",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Example: US requires zooming in until the whole country fills the screen before state shading appears at all, and rendering latency means the practical zoom needed is even further in than that. State shading should trigger at a meaningfully lower zoom level."
+    },
+    {
+      "id": "BUG-49",
+      "type": "bug",
+      "title": "City markers render behind state shading layer",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. When state shading activates it visually covers city tag markers — layer/z-order issue, city markers should stay on top."
+    },
+    {
+      "id": "BUG-50",
+      "type": "bug",
+      "title": "No way to delete an entire trip",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. No delete affordance exists for a trip itself (BUG-32 only covers removing a place from within a trip). Needs a route (if missing) + UI entry point + confirmation, same shape as BUG-32's brief."
+    },
+    {
+      "id": "BUG-51",
+      "type": "bug",
+      "title": "Companion name edits in admin panel don't consistently propagate to trips",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Renaming a companion in the admin panel updated correctly on one trip automatically, but a second trip (companion role 'partner', renamed to Aisling) kept showing the old value until that trip was opened, edited, and saved. Suggests inconsistent propagation/derivation of companion name depending on how the trip stores/displays the reference — data-integrity concern, needs investigation."
+    },
+    {
+      "id": "BUG-52",
+      "type": "bug",
+      "title": "Trip search doesn't match on country name",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Searching 'United States' or 'USA' returns no results even when a trip has a US place, unless the country string literally appears in the trip title. Search should match against place/country data, not just the trip title."
+    },
+    {
+      "id": "BUG-53",
+      "type": "feature",
+      "title": "Trip list place display: show state (not country) under city, surface country separately",
+      "status": "pending",
+      "owner": "ux",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed (combines two related findings). Current: each place in the trips panel shows city (bold) with country underneath in lighter text. PO wants: city (bold) with state on the second line instead of country, and country surfaced elsewhere — either as a pill next to the category, or its own row just beneath it. Also affects trip scannability alongside BUG-52 (search), since country isn't otherwise visible on the trip card unless it happens to be in the title. Needs a UX spec before this is briefable — specific layout choice (pill vs row) isn't decided."
+    },
+    {
+      "id": "BUG-54",
+      "type": "feature",
+      "title": "Category/activity color customization",
+      "status": "pending",
+      "owner": "ux",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT. PO explicitly flagged this as a future-phase requirement, not near-term — categories and activities currently have no user-controllable color. Logged for backlog only, no near-term action expected."
+    },
+    {
+      "id": "BUG-55",
+      "type": "bug",
+      "title": "City entry doesn't auto-populate country/state",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Entering a city name doesn't auto-fill its country/state fields — likely the geocode/lookup path isn't wired to populate those fields on selection."
+    },
+    {
+      "id": "BUG-56",
+      "type": "bug",
+      "title": "City name not auto-capitalized on entry",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Small polish — city name input should auto-capitalize the first letter."
+    },
+    {
+      "id": "BUG-57",
+      "type": "feature",
+      "title": "Intelligent date defaults across item entry, keyed off the trip's date range",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. PO wants consistent date-picker defaulting across all item entry: (1) if the trip's date range is set, adding any item should default its date(s) to the start of the trip's range rather than today; (2) flights specifically should default arrival to the same day as departure once departure is entered, editable after. Explicit PO goal: avoid manually moving both to/from date pickers away from 'today' when entering a trip outside the current month — defaulting should land the picker in the right neighborhood automatically. Subsumes the narrower 'flight arrival defaults to departure date' finding from the same session."
+    },
+    {
+      "id": "BUG-58",
+      "type": "bug",
+      "title": "Moving a trip backward in the status workflow deselects it from the left panel",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 4,
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Moving a trip to an earlier status (backward through the workflow) clears the trip selection entirely, forcing the user to re-find and re-select it in the left panel. Expected: trip stays selected, detail panel just updates to reflect the new status. Meaningful friction at high trip volume."
     }
 
   ]

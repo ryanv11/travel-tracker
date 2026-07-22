@@ -36,6 +36,19 @@ Run `/pre-push` before every `git push` and iterate until all checks pass.
 - PR title and description must reference the GitHub issue number (`Closes #N`) and BRD section if applicable
 - **COO reviews and merges PRs** — agents do not merge their own PRs
 
+### Environment promotion (adopted 2026-07-21)
+Two Railway environments, two different promotion models (ADL-35, OP-22):
+- **Staging** watches `main` continuously — every merge to `main` deploys to staging automatically, same as before.
+- **Production** watches a long-lived `production` branch instead of `main`. Promotion is an explicit,
+  separate step: `git merge --ff-only origin/main` into `production`, then push. No tags-as-trigger, no
+  GitHub Action — this stays a manual, zero-glue fast-forward (Railway's own branch-watching does the rest).
+- **`production` is never a PR target and agents never touch it.** The branch-per-brief workflow above
+  (`feat/`/`fix`/`chore` off `main`, PR back to `main`) is completely unchanged — this section only adds a
+  second, COO-driven promotion step from `main` to `production` after a merge, when a change is ready for
+  prod rather than just staging.
+- Staging and prod currently share one Clerk user pool (topology change tracked separately, not yet decided
+  — see `jobs/COO/open-dialogues.md`).
+
 ### Agent dispatch isolation (mandatory)
 Adopted 2026-07-20 after a live collision: an Architect agent dispatched without
 `isolation: "worktree"` shared the COO session's own working tree, and the COO's
