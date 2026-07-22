@@ -1,10 +1,12 @@
 DATABASE CONTEXT — 2026-07-21
 PROJECT: Travel Tracker
-CURRENT STATUS: BRD-NF09 (ADL-32 hosted deployment) Database implication delivered
-on chore/nf09-staging-seed-strategy — staging Turso seed/reset strategy. See
-"THREAD — BRD-NF09 staging seed/reset strategy" at the end of this file for the
-active/most-recent thread. Everything below this point (2026-07-20 and earlier)
-is prior-thread history, preserved as-is.
+CURRENT STATUS: BUG-39 (ADL-36) fix implemented on
+fix/bug39-carry-forward-fk-ondelete — items.carriedFromItemId FK now
+onDelete: 'set null', migration 0011 applied, regression test added. See
+"THREAD — BUG-39 / ADL-36 carry-forward FK onDelete fix" at the end of this
+file for the active/most-recent thread. Everything above that section
+(including the BRD-NF09 thread, 2026-07-20 and earlier) is prior-thread
+history, preserved as-is.
 
 ================================================================================
 PRIOR STATUS LINE (2026-07-20, preserved for history)
@@ -242,3 +244,97 @@ NEXT DATABASE THREAD:
   If that surfaces anything the file:-URL simulation in this thread couldn't
   catch (should be nothing, given the shared @libsql/client code path, but
   flagging honestly), it comes back to Database.
+
+================================================================================
+THREAD — BUG-39 / ADL-36 carry-forward FK onDelete fix (2026-07-21) — branch
+fix/bug39-carry-forward-fk-ondelete
+================================================================================
+
+Bug (GitHub #209): items.carriedFromItemId, a self-referencing FK
+(`.references((): AnySQLiteColumn => items.id)`), had no onDelete clause.
+@libsql/client enforces FKs by default (BUG-38), so the omission defaulted
+to RESTRICT: DELETE /api/trips/:id (and direct item delete) 500'd whenever
+one of the trip's items had ever been used as a carry-forward source for an
+item on ANY other trip. Found by the WP-03/WP-04 Frontend brief (PR #208)
+writing E2E coverage for the carried-forward tag; dispatched to Architect
+for review before implementation per the schema-change-review rule.
+
+Architect ruling: ADL-36 (jobs/architect/tech/20260307-architecture-
+decisions-log.md) — onDelete: 'set null', not cascade (would destroy an
+independent item on a different trip) or explicit restrict (the bug
+itself). Full FK audit in the ADL confirmed BUG-39 is an isolated instance,
+not a pattern — no other schema FK has the same "hard-deletable parent +
+no onDelete + no app-level handling" shape.
+
+Delivered (this thread, implementation only — Architect already decided):
+  1. src/backend/db/schema.ts (~L432) — carriedFromItemId FK:
+     .references((): AnySQLiteColumn => items.id, { onDelete: 'set null' }).
+  2. src/backend/migrations/0011_majestic_nehzno.sql — generated via
+     db:generate (never db:push, ADL-15). SQLite can't alter a constraint
+     in place, so drizzle-kit emitted the items table-recreation path
+     (new table + copy + drop + rename + index rebuild) — exactly the path
+     the committed drizzle-kit@0.31.9 patch guards. Eyeballed the SQL
+     before applying:
+       - self-referencing FK re-declared `ON DELETE set null`     PASS
+       - partial index idx_items_carried (WHERE carried_from_item_id
+         IS NOT NULL) present as a single, untruncated statement    PASS
+       - all three chk_items_* CHECK constraints present, full
+         IN (...) lists intact (no bug-2-style truncation)          PASS
+       - INSERT...SELECT carries all 11 columns incl. is_carried_forward
+         and carried_from_item_id through the copy                  PASS
+     Applied via db:migrate against a fresh local file: DB (this worktree
+     had no dev.db or .env.local of its own — both are gitignored and not
+     worktree-shared; recreated .env.local locally from the values in the
+     main checkout's, pointing at file:./dev.db). Re-ran db:generate
+     afterward — "No schema changes, nothing to migrate" confirms no drift
+     between schema.ts and the applied DB state. Journal/snapshot chain
+     confirmed correct (idx 11, prevId chains from idx 10).
+  3. schema.ts doc comments (~L412-415 table-level, ~L430-432 column-level)
+     updated to record that carried_from_item_id is a
+     nullable-after-source-deletion provenance pointer, and that
+     is_carried_forward = 1 AND carried_from_item_id IS NULL is a
+     LEGITIMATE, INTENTIONAL post-deletion state (ADL-13's coupling is a
+     create-time invariant only) — explicit warning against a future
+     runtime consistency check or backfill "fixing" this.
+  4. Regression test added to
+     src/backend/routes/__tests__/trips.delete.test.ts (new describe
+     block 2f): seeds a source trip+item and an unrelated destination
+     trip+derived-item (carried_from_item_id -> source item,
+     is_carried_forward=1), deletes the source trip via the route,
+     asserts 204 (not 500), and asserts the derived item survives with
+     carried_from_item_id NULL and is_carried_forward still 1. This test
+     file's in-memory DDL is hand-rolled (not generated from schema.ts) —
+     had no onDelete on its own copy of the items FK, so it was updated
+     to match (`ON DELETE SET NULL`) as part of this change; otherwise the
+     new test wouldn't exercise the fix at all. Verified the test fails
+     with a 500 (matching the original bug) when temporarily reverted to
+     no onDelete clause, then restored — confirms the test is a genuine
+     regression guard, not a tautology.
+  5. No backend/frontend code change — confirmed per ADL-36's analysis
+     (UpdateItemSchema doesn't expose these fields, frontend tag reads
+     the boolean not the FK, no read path assumes non-null). Full
+     pre-push suite run clean: check, type:check:all, test:backend (533
+     pass/1 skip, +1 vs prior thread), test:frontend (154 pass),
+     status:check.
+  6. jobs/architect/tech/20260307-architecture-decisions-log.md — ADL-36's
+     status line flipped from "implementation PENDING" to "Implemented"
+     (branch, migration, verification pointer), per the Document Lifecycle
+     same-PR-update rule; decision/rationale text untouched.
+  7. jobs/database/tech/ mirror updated: schema.ts (full copy, current)
+     and 0011_majestic_nehzno.sql added. Did NOT backfill the rest of the
+     mirror's pre-existing 4-month drift (0001-0008 missing) — out of this
+     thread's scope, same judgment call as prior threads.
+
+NOT touched: tracker.json (BUG-39 status is COO's call — flagged for COO
+in the completion report), any backend route or frontend component.
+
+VERIFICATION: db:generate + db:migrate clean (fresh DB, all 12 migrations
+0000-0011), re-generate confirms no drift, type:check:all clean, test:backend
+533 pass/1 skip, test:frontend 154 pass, npm run check clean, status:check
+clean. Full pre-push suite green before push.
+
+NEXT DATABASE THREAD:
+  None pending from this thread. COO to flip BUG-39 to resolved/closed in
+  tracker.json once PR merges and CI on main is green (tracker.json is
+  COO-maintained, not touched here). No follow-up bug tracker entry per
+  ADL-36's FK audit conclusion (BUG-39 confirmed isolated).

@@ -1,0 +1,62 @@
+BUG-39 · ADL-36 · GitHub #209 · PR #214 · Branch fix/bug39-carry-forward-fk-ondelete
+https://github.com/ryanv11/travel-tracker/pull/214
+
+Implemented ADL-36's ruling: items.carriedFromItemId FK changed to
+onDelete: 'set null' (schema.ts), migration 0011_majestic_nehzno.sql
+generated/applied, schema.ts doc comment updated, regression test added.
+Implementation only — Architect already reviewed and decided (ADL-36).
+
+Acceptance criteria (per ADL-36's "Implications for Database"):
+  FK clause changed to onDelete: 'set null'                          PASS
+  Generated via db:generate + applied via db:migrate (never db:push)  PASS
+  Generated SQL eyeballed — self-FK re-declared ON DELETE SET NULL    PASS
+  Generated SQL eyeballed — partial index idx_items_carried intact    PASS
+  Generated SQL eyeballed — all 3 chk_items_* CHECK constraints
+    intact, untruncated (no bug-2-style paren truncation)             PASS
+  Generated SQL eyeballed — INSERT...SELECT preserves all columns,
+    existing carry-forward row data survives the table recreation     PASS
+  schema.ts doc comment: is_carried_forward=1 + carried_from_item_id
+    IS NULL documented as legitimate post-deletion state, not
+    corruption to "fix" later                                         PASS
+  Regression test (BUG-39 close criterion): DELETE /api/trips/:id
+    returns 204 (was 500) when a trip's item is a carry-forward
+    source elsewhere; derived item survives with carried_from_item_id
+    NULL and is_carried_forward unchanged (1)                         PASS
+    (self-verified: test fails with the pre-fix 500 when the FK
+    clause is temporarily reverted — confirmed it's a real regression
+    guard, not a tautology)
+  No backend/frontend code change required                            PASS
+    (confirmed per ADL-36's analysis; none made)
+
+Migration verified: db:generate + db:migrate ran clean against a fresh
+local DB (all 12 migrations 0000-0011); re-run of db:generate afterward
+reports "No schema changes" — no drift. Never used db:push (ADL-15).
+
+CI: PR #214 — `gh pr checks 214` confirmed all 9 checks green (Backend Tests,
+Frontend Tests, Contract Tests, E2E Tests, Type Check, Biome, Dependency
+Vulnerability Scan, Secret Scanning, Static Analysis) across both commits
+(implementation + park/context). Full local pre-push suite also green before
+push: check, type:check:all, test:backend (533 pass/1 skip), test:frontend
+(154 pass), status:check.
+
+Housekeeping done in this thread (flagging for your awareness, not asking
+for action beyond tracker.json):
+  - ADL-36's status line flipped PENDING -> Implemented in
+    jobs/architect/tech/20260307-architecture-decisions-log.md (Document
+    Lifecycle same-PR-update rule) — decision/rationale text untouched.
+  - Found the trips.delete.test.ts in-memory test DDL had its own
+    hand-rolled items table with no onDelete on carried_from_item_id
+    (separate from schema.ts/migrations) — updated to match, otherwise
+    the new regression test wouldn't have exercised the real fix.
+    Flagging as a general risk in that file's approach (hand-rolled DDL
+    can silently drift from schema.ts) for whoever next touches it.
+
+Open issues or blockers: none.
+
+What is now unblocked: PR #214 ready for your review/merge (not merged by
+me). Once merged and main's CI is green, tracker.json BUG-39 can flip to
+resolved (left untouched here — COO-maintained). QA can independently
+verify post-merge. No follow-up Database thread anticipated — ADL-36's FK
+audit already confirmed BUG-39 is an isolated instance, not a pattern.
+
+Full detail: jobs/database/park-docs/20260721-DATABASE-park-bug39.txt

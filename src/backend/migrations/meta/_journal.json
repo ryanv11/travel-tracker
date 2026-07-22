@@ -78,6 +78,13 @@
       "when": 1784593112729,
       "tag": "0010_bug33_add_unique_index",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784694605260,
+      "tag": "0011_majestic_nehzno",
+      "breakpoints": true
     }
   ]
 }

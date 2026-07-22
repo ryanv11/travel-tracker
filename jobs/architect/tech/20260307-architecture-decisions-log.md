@@ -2167,7 +2167,14 @@ ADL only changes *which branch the Production environment watches* and *what tri
 ## ADL-36 — `items.carriedFromItemId` FK gets `onDelete: 'set null'` (BUG-39)
 
 **Date:** 2026-07-21
-**Status:** Decided — implementation PENDING (Database owns the migration; this ADL is the spec)
+**Status:** Decided — **Implemented** (Database, 2026-07-21, branch
+`fix/bug39-carry-forward-fk-ondelete`, refs #209). `items.carriedFromItemId` FK now
+`onDelete: 'set null'`; migration `0011_majestic_nehzno.sql` applied (items table
+recreation — self-FK, partial index `idx_items_carried`, and all three
+`chk_items_*` CHECK constraints verified intact through the generated SQL).
+Regression test added to `trips.delete.test.ts` per this ADL's success criterion.
+No backend/frontend change required, confirmed. See
+`jobs/database/park-docs/20260721-DATABASE-park-bug39.txt` for full detail.
 
 **Trigger:** BUG-39 / GitHub #209, discovered 2026-07-21 by the WP-03/WP-04 Frontend brief
 (PR #208) while writing E2E coverage for the carried-forward tag. `items.carriedFromItemId`

@@ -169,6 +169,7 @@ async function createTestDb() {
       updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
       FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
       FOREIGN KEY (trip_place_id) REFERENCES trip_places(id),
+      FOREIGN KEY (carried_from_item_id) REFERENCES items(id) ON DELETE SET NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)
     )`,
     `CREATE TABLE IF NOT EXISTS item_flights (
@@ -492,5 +493,94 @@ describe('DELETE /api/trips/:id', () => {
     const response = await supertest(app).delete(`/api/trips/${trip.id}`).expect(404);
 
     expect(response.body).toEqual({ error: 'Trip not found' });
+  });
+
+  // ----------------------------------------------------------------
+  // 2f. BUG-39 / ADL-36 regression — deleting a carry-forward SOURCE trip
+  //
+  // items.carried_from_item_id is a self-referencing FK with
+  // onDelete: 'set null' (ADL-36). Before the fix it had no onDelete
+  // clause, which @libsql/client defaults to RESTRICT — deleting a trip
+  // 500'd whenever one of its items had ever been used as a carry-forward
+  // source for an item on ANY OTHER trip. This asserts the delete now
+  // succeeds (204) and that the derived item survives on its own trip
+  // with carried_from_item_id cleared to NULL while is_carried_forward
+  // stays 1 — the legitimate post-deletion state documented in schema.ts.
+  // ----------------------------------------------------------------
+
+  it('returns 204 deleting a trip whose item is a carry-forward source for an item on another trip, and the derived item survives with carried_from_item_id nulled', async () => {
+    const db = testDb!;
+    const { eq } = await import('drizzle-orm');
+
+    // Source trip — will be deleted
+    const [sourceTrip] = await db
+      .insert(schema.trips)
+      .values({
+        name: 'Source Trip (to be deleted)',
+        startDate: '2025-01-01',
+        endDate: '2025-01-07',
+        status: 'completed',
+        userId: TEST_USER_ID,
+      })
+      .returning();
+
+    // Destination trip — unrelated, must NOT be affected
+    const [destTrip] = await db
+      .insert(schema.trips)
+      .values({
+        name: 'Destination Trip',
+        startDate: '2026-01-01',
+        endDate: '2026-01-07',
+        status: 'planning',
+        userId: TEST_USER_ID,
+      })
+      .returning();
+
+    // Source item on the source trip
+    const [sourceItem] = await db
+      .insert(schema.items)
+      .values({
+        tripId: sourceTrip.id,
+        itemType: 'note',
+        status: 'completed',
+        userId: TEST_USER_ID,
+      })
+      .returning();
+
+    // Derived item on the destination trip, carried forward from the source item
+    const [derivedItem] = await db
+      .insert(schema.items)
+      .values({
+        tripId: destTrip.id,
+        itemType: 'note',
+        status: 'consider',
+        isCarriedForward: 1,
+        carriedFromItemId: sourceItem.id,
+        userId: TEST_USER_ID,
+      })
+      .returning();
+
+    // Deleting the source trip must succeed, not 500 with FK RESTRICT
+    const response = await supertest(app).delete(`/api/trips/${sourceTrip.id}`).expect(204);
+    expect(response.body).toEqual({});
+
+    // Source item is gone (cascade-deleted with its trip)
+    const sourceItemsAfter = await db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, sourceItem.id));
+    expect(sourceItemsAfter).toHaveLength(0);
+
+    // Derived item survives on the destination trip — not deleted, not reverted
+    const derivedAfter = await db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, derivedItem.id));
+    expect(derivedAfter).toHaveLength(1);
+    expect(derivedAfter[0].tripId).toBe(destTrip.id);
+    // Provenance pointer cleared by ON DELETE SET NULL...
+    expect(derivedAfter[0].carriedFromItemId).toBeNull();
+    // ...but the permanent historical fact is untouched (ADL-36).
+    expect(derivedAfter[0].isCarriedForward).toBe(1);
   });
 });
