@@ -77,6 +77,14 @@
   --color-wp-status-confirmed-bg: oklch(94% 0.025 150);
   --color-wp-status-confirmed-text: oklch(38% 0.1 150);
 
+  /* Item status: Completed — hue 220 (blue), deliberately distinct from Confirmed's
+     hue 150 (green). Resolved 2026-07-21 (COO/PO) — see spec §1 "Resolution —
+     Confirmed vs Completed" note. The mockup's own STATUS_META collapsed both to
+     hue 150 because it predates "completed" as a distinct state; this codebase's
+     status model treats them separately (WP-04 brief, badges.ts fix). */
+  --color-wp-status-completed-bg: oklch(94% 0.025 220);
+  --color-wp-status-completed-text: oklch(36% 0.1 220);
+
   --color-wp-status-cancelled-bg: oklch(95% 0.03 25);
   --color-wp-status-cancelled-text: oklch(42% 0.13 25);
 

@@ -9,7 +9,10 @@ test('create trip via form — appears in list', async ({ page }) => {
   await page.goto('http://localhost:5173/trips');
   await page.getByRole('button', { name: '+ New' }).click();
 
-  await expect(page.getByText('New Trip')).toBeVisible();
+  // WP-03: the desktop button label is now "+ New Trip" (was "+ New"), so a
+  // plain substring getByText('New Trip') now also matches that button —
+  // scope to the modal's heading role instead.
+  await expect(page.getByRole('heading', { name: 'New Trip' })).toBeVisible();
 
   // TripForm labels are not linked via for/id — locate inputs by position in the form
   await page.locator('form input').first().fill('Barcelona 2026');
@@ -48,8 +51,8 @@ test('form rejects end date before start date', async ({ page }) => {
   await page.getByRole('button', { name: 'Create Trip' }).click();
 
   await expect(page.getByText(/End date must be on or after start date/)).toBeVisible();
-  // Form stays open — invalid trip not created
-  await expect(page.getByText('New Trip')).toBeVisible();
+  // Form stays open — invalid trip not created (scoped to heading, see note above)
+  await expect(page.getByRole('heading', { name: 'New Trip' })).toBeVisible();
 });
 
 test('edit trip name via detail panel', async ({ page, request }) => {

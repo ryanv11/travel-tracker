@@ -10,6 +10,7 @@ import {
   AdminIcon,
   BackChevronIcon,
   CarRentalIcon,
+  EditIcon,
   ExperienceIcon,
   FlightIcon,
   HotelIcon,
@@ -35,19 +36,18 @@ const ALL_ICONS = [
   SuitcaseIcon,
   AdminIcon,
   BackChevronIcon,
+  EditIcon,
 ];
 
 describe('Waypoint icon set', () => {
-  // NOTE (spec/brief count discrepancy, flagged to COO): both the WP-02 brief
-  // and the spec's own Phase 1 success criteria say "11 icons total (8
+  // NOTE (spec/brief count discrepancy, flagged to COO in WP-02): the WP-02 brief
+  // and the spec's own Phase 1 success criteria said "11 icons total (8
   // item/status + 4 nav/chrome)" — but 8 + 4 = 12, and spec §3's two tables
-  // enumerate 12 icons with real path data: hotel/flight/dining/car/experience/
-  // note/locked/photos (8) + location pin/suitcase/admin/back chevron (4).
-  // Implemented all 12 documented icons rather than dropping one arbitrarily to
-  // match the stated "11" — every one of them has exact path data in the spec,
-  // so there's no principled way to pick which one to omit.
-  it('has all 12 icon components documented in spec §3 (see count-discrepancy note above)', () => {
-    expect(ALL_ICONS).toHaveLength(12);
+  // enumerated 12 icons with real path data. WP-03 adds a 13th (EditIcon, the
+  // mobile detail-view pencil glyph, a new addition documented in spec §3's
+  // "Two additional icons used only in the Trips mockups" table).
+  it('has all 13 icon components documented in spec §3 (WP-02: 12, WP-03 adds EditIcon)', () => {
+    expect(ALL_ICONS).toHaveLength(13);
   });
 
   it.each(ALL_ICONS)('renders a literal <svg> element, sized via props', (Icon) => {

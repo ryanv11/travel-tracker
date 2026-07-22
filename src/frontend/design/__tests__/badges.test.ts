@@ -14,13 +14,14 @@ import {
 } from '../badges';
 
 describe('BADGE_HUE_CLASSES', () => {
-  it('defines all 7 hues from spec §1 with a bg + text class pair', () => {
+  it('defines all 8 hues from spec §1 with a bg + text class pair', () => {
     const hues = [
       'planning',
       'active',
       'review',
       'locked',
       'confirmed',
+      'completed',
       'cancelled',
       'category',
     ] as const;
@@ -46,9 +47,10 @@ describe('itemStatusToBadgeHue', () => {
     expect(itemStatusToBadgeHue('consider')).toBe('locked');
   });
 
-  it('maps confirmed and completed to the same hue (hue 150), per spec note', () => {
-    expect(itemStatusToBadgeHue('confirmed')).toBe('confirmed');
-    expect(itemStatusToBadgeHue('completed')).toBe('confirmed');
+  it('maps confirmed and completed to two DISTINCT hues, per the 2026-07-21 fix', () => {
+    expect(itemStatusToBadgeHue('confirmed')).toBe('confirmed'); // hue 150 (green)
+    expect(itemStatusToBadgeHue('completed')).toBe('completed'); // hue 220 (blue)
+    expect(itemStatusToBadgeHue('confirmed')).not.toBe(itemStatusToBadgeHue('completed'));
   });
 
   it('maps cancelled to its own hue (hue 25)', () => {

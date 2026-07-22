@@ -1,6 +1,11 @@
 /**
  * PlaceSection — displays one city/place within a TripDetail.
  *
+ * WP-03/WP-04: reskinned with Waypoint tokens (card 14px radius desktop / 16px
+ * mobile, `bg-subtle` header band). Structure and every write control below are
+ * unchanged from the pre-reskin implementation — the mockup omits Set/Edit
+ * dates and Remove entirely (C4), so both are preserved here exactly.
+ *
  * BRD v2.4 enhancements:
  *   D-03: Per-place date range derived from hotel items (check_in_date/check_out_date),
  *         falling back to trip start/end dates.
@@ -104,20 +109,22 @@ export function PlaceSection({
     (place.arrived_on ?? null) !== null || (place.departed_on ?? null) !== null;
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden mb-4 shadow-sm">
+    <div className="border border-wp-border rounded-[14px] max-md:rounded-[16px] overflow-hidden mb-4 bg-wp-bg-surface">
       {/* Section header */}
-      <div className="bg-gray-100 px-4 py-3 flex justify-between items-start border-b border-gray-200">
+      <div className="bg-wp-bg-subtle px-[18px] py-4 flex justify-between items-start gap-2 flex-wrap">
         <div className="min-w-0">
           {/* D-04: City name + full country name from API (issue #5) */}
-          <span className="font-semibold text-sm text-gray-900">{place.city.name}</span>
+          <span className="font-display font-semibold text-[17px] max-md:text-[16px] text-wp-ink">
+            {place.city.name}
+          </span>
 
           {/* D-03/UX-02: Country name · date range on single subtitle line */}
-          <p className="mt-0.5 text-xs text-gray-500">
+          <p className="mt-0.5 font-ui text-[12px] text-wp-ink-muted">
             {place.city.country_name ?? place.city.country_code}
             {dateRangeDisplay && (
               <>
                 {' · '}
-                <span className={hasExplicitDates ? 'text-teal-700 font-medium' : ''}>
+                <span className={hasExplicitDates ? 'text-wp-primary font-medium' : ''}>
                   {dateRangeDisplay}
                 </span>
               </>
@@ -130,7 +137,7 @@ export function PlaceSection({
               {place.activities.map((a) => (
                 <span
                   key={a.id}
-                  className="inline-block px-2 py-0.5 rounded text-xs bg-violet-100 text-violet-800"
+                  className="inline-block rounded-[7px] px-2.5 py-1 text-[11px] font-ui font-medium bg-wp-category-bg text-wp-category-text"
                 >
                   {a.name}
                 </span>
@@ -139,13 +146,13 @@ export function PlaceSection({
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-          {/* UX-02: Edit dates button (hidden when locked) */}
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+          {/* UX-02: Edit dates button (hidden when locked) — must preserve (C4) */}
           {!isLocked && (
             <button
               type="button"
               onClick={() => setShowEditDates(true)}
-              className="px-2.5 py-1.5 border border-gray-300 rounded-md bg-white text-xs text-gray-600 hover:bg-gray-50 cursor-pointer"
+              className="font-ui text-xs rounded-wp px-2.5 py-1.5 bg-wp-bg-surface text-wp-ink border border-wp-border hover:bg-wp-bg-subtle cursor-pointer"
               title="Edit arrival / departure dates"
             >
               {hasExplicitDates ? 'Edit dates' : 'Set dates'}
@@ -156,14 +163,13 @@ export function PlaceSection({
             <button
               type="button"
               onClick={() => setShowAddItem(true)}
-              className="px-3.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 cursor-pointer"
+              className="font-ui font-medium text-[11.5px] rounded-wp px-3.5 py-1.5 bg-wp-primary text-white hover:bg-wp-primary-hover cursor-pointer"
             >
               + Add Item
             </button>
           )}
 
-          {/* BUG-32: Remove place button (hidden when locked, consistent with the
-              other write controls above).
+          {/* BUG-32: Remove place button (hidden when locked) — must preserve (C4).
               Deliberately NOT using an aria-label built from place.city.name here:
               an earlier version used aria-label={`Remove ${place.city.name} from trip`},
               which broke two pre-existing E2E tests (places-items.spec.ts) whose fixture
@@ -181,7 +187,7 @@ export function PlaceSection({
             <button
               type="button"
               onClick={handleOpenRemoveConfirm}
-              className="px-2.5 py-1.5 border border-red-200 rounded-md bg-red-50 text-xs text-red-600 hover:bg-red-100 cursor-pointer"
+              className="font-ui text-xs rounded-wp px-2.5 py-1.5 bg-wp-btn-destructive-bg text-wp-btn-destructive-text border border-wp-btn-destructive-border hover:brightness-95 cursor-pointer"
               title="Remove this place from the trip"
             >
               Remove
@@ -191,9 +197,9 @@ export function PlaceSection({
       </div>
 
       {/* Items list */}
-      <div className="px-4 py-3 flex flex-col gap-2">
+      <div className="px-[18px] py-3.5 flex flex-col gap-2.5">
         {place.items.length === 0 && (
-          <p className="text-gray-400 text-xs m-0">
+          <p className="font-ui text-wp-ink-faint text-xs m-0">
             No items yet. {!isLocked && 'Add one with "+ Add Item".'}
           </p>
         )}

@@ -61,18 +61,20 @@ export function TripItemsSection({ tripId, isLocked }: TripItemsSectionProps) {
 
   return (
     <div
-      className="border border-gray-200 rounded-lg overflow-hidden mb-4 shadow-sm"
+      className="border border-wp-border rounded-[14px] max-md:rounded-[16px] overflow-hidden mb-4 bg-wp-bg-surface"
       data-testid="trip-items-section"
     >
-      {/* Section header */}
-      <div className="bg-gray-100 px-4 py-3 flex justify-between items-center border-b border-gray-200">
-        <span className="font-semibold text-sm text-gray-900">Trip Items</span>
+      {/* Section header — reskinned to match PlaceSection's header band */}
+      <div className="bg-wp-bg-subtle px-[18px] py-4 flex justify-between items-center gap-2 flex-wrap">
+        <span className="font-display font-semibold text-[17px] max-md:text-[16px] text-wp-ink">
+          Trip Items
+        </span>
 
         {!isLocked && (
           <button
             type="button"
             onClick={() => setShowAddItem(true)}
-            className="px-3.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 cursor-pointer"
+            className="font-ui font-medium text-[11.5px] rounded-wp px-3.5 py-1.5 bg-wp-primary text-white hover:bg-wp-primary-hover cursor-pointer"
           >
             + Add Trip Item
           </button>
@@ -80,11 +82,11 @@ export function TripItemsSection({ tripId, isLocked }: TripItemsSectionProps) {
       </div>
 
       {/* Items list */}
-      <div className="px-4 py-3 flex flex-col gap-2">
-        {isLoading && <p className="text-gray-400 text-xs m-0">Loading trip items…</p>}
+      <div className="px-[18px] py-3.5 flex flex-col gap-2.5">
+        {isLoading && <p className="font-ui text-wp-ink-faint text-xs m-0">Loading trip items…</p>}
         {error && <ErrorMessage error={error} />}
         {!isLoading && !error && items.length === 0 && (
-          <p className="text-gray-400 text-xs m-0">
+          <p className="font-ui text-wp-ink-faint text-xs m-0">
             No trip-level items yet. Use "+ Add Trip Item" for a flight or car rental that isn't
             tied to a specific city.
           </p>
