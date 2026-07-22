@@ -51,6 +51,95 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-07-21 (WP-03/WP-04 Waypoint Trips reskin, Phase 2)
+
+**Scope:** Trips screen desktop reskin (WP-03) + net-new mobile Trips layout (WP-04), per BRD §5.16 / `jobs/ux/tech/20260721-UX-waypoint-spec.md` Phase 2. Cross-reference table in the UX spec's Phase 2 section (item 8) defined the intended UAT scope.
+**Build:** main @ f5fa666 (PR #208)
+**Verdict:** PASS — closes WP-03 and WP-04. PO: "I'm happy with the reskin. good work to you and the team."
+
+#### Findings
+
+- [x] Reskin approved as delivered — no blocking issues raised against the WP-03/WP-04 implementation itself.
+      Fixed myself: no — PO verification of PR #208. No action needed.
+
+#### Notes / Observations
+Several items raised in the same-day general feedback session below (BUG-53 trip-list place display, BUG-58 status-workflow deselect) touch the reskinned Trips screen but were logged as new backlog bugs against current behavior, not as WP-03/WP-04 regressions or blockers — PO's PASS verdict here is unconditional. WP-03/WP-04 tracker entries flipped `done_pending_uat` → `done`.
+
+---
+
+### UAT Session — 2026-07-21 (general feedback pass — logged/prioritised only, not actioned)
+
+**Scope:** General product feedback across booking items, map, search, trip management, admin — not tied to a specific gate. PO explicitly requested log + prioritise only, no dispatch this session.
+**Build:** main @ f5fa666
+**Verdict:** N/A (feedback log, not a pass/fail test pass)
+
+#### Findings
+
+- [ ] Place deletion should prompt (delete all / move to trip-level / cancel) when the place has items, instead of always silently reassigning
+      Bug: BUG-40 (P2)
+
+- [ ] Multi-leg/connecting flights on one booking (e.g. Seattle→London layover→Glasgow)
+      Bug: BUG-41 (P2, needs Architect schema design)
+
+- [ ] Multiple companions/seats per booking item
+      Bug: BUG-42 (P2, needs schema/UX scoping)
+
+- [ ] Apple Wallet import to pre-populate booking details (longer-term idea, tied to BUG-42's entry burden)
+      Bug: BUG-43 (P3/backlog, needs research spike)
+
+- [ ] Car rental pickup location should render as subtext under provider, mirroring the flight airline/flight-number pattern
+      Bug: BUG-44 (P2)
+
+- [ ] Longer term: convert free-text airline/car-rental-provider fields to dropdown + Other, sourced from a comprehensive list
+      Bug: BUG-45 (P3/backlog, needs data-source decision)
+
+- [ ] Northern Ireland trip appeared to "leak" from another account — PO self-diagnosed in-session as the known BUG-30 gap (GB region seeding), not a leak. BUG-30 already done/closed. Raised a real follow-on question: is there a better systematic subdivision list (ISO 3166-2) than hand-seeding regions per country as gaps are found?
+      Tracked as: OQ-06 (P3, for Architect)
+
+- [ ] Activities selector present on trip edit but missing from trip create
+      Bug: BUG-46 (P2)
+
+- [ ] Longer term: activities should auto-populate from trip/place content instead of manual pre-selection; trip categories confirmed fine as manual (distinct purpose)
+      Bug: BUG-47 (P3, needs product/UX scoping — check against BUG-46 before briefing that as a simple fix)
+
+- [ ] Country→state map shading requires zooming in too far (e.g. US needs near-full-screen zoom before state shading appears), compounded by rendering latency
+      Bug: BUG-48 (P2)
+
+- [ ] City markers render behind the state shading layer once it activates
+      Bug: BUG-49 (P2)
+
+- [ ] No way to delete an entire trip (only place-level removal exists, via BUG-32)
+      Bug: BUG-50 (P1)
+
+- [ ] Companion name change in admin panel propagated correctly to one trip automatically, but a second trip (role 'partner' → renamed Aisling) required manually opening/editing/saving that trip before the new name showed
+      Bug: BUG-51 (P1 — data integrity)
+
+- [ ] Trip search doesn't match on country name (e.g. "United States"/"USA") unless the country string is literally in the trip title
+      Bug: BUG-52 (P2)
+
+- [ ] Trip list place display should show city (bold) + state on the second line instead of country; country should surface elsewhere (pill next to category, or its own row) — also feeds into why country search (BUG-52) feels broken, since country isn't visible on the card today
+      Bug: BUG-53 (P2, needs UX spec)
+
+- [ ] No way to control category/activity colour — PO explicitly flagged as future-phase, not near-term
+      Bug: BUG-54 (P3/backlog)
+
+- [ ] Entering a city doesn't auto-populate its country/state fields
+      Bug: BUG-55 (P2)
+
+- [ ] City name entry isn't auto-capitalized
+      Bug: BUG-56 (P3)
+
+- [ ] Date pickers aren't "intelligent": adding an item should default to the trip's date range (not today); flights should default arrival to the same day as departure. Goal: avoid manually walking both date pickers away from today when working on a trip outside the current month
+      Bug: BUG-57 (P2, subsumes the narrower flight-arrival-defaults-to-departure finding)
+
+- [ ] Moving a trip backward through the status workflow deselects it entirely from the left panel, forcing re-selection
+      Bug: BUG-58 (P2)
+
+#### Notes / Observations
+PO requested this session go no further than logging + prioritising — no GitHub issues opened, no BRD requirement IDs assigned, no dispatch. All 19 items logged to tracker.json (BUG-40 through BUG-58) plus OQ-06 (Architect open question), all status `pending`. Several flagged as needing Architect or UX scoping before they're briefable (BUG-41, BUG-42, BUG-45, BUG-47, BUG-53, OQ-06) rather than being direct-to-brief bugs. P1: BUG-50 (trip delete), BUG-51 (companion name sync). Everything else P2 except explicit backlog items (BUG-43, BUG-45, BUG-54, BUG-56 at P3).
+
+---
+
 ### UAT Session — 2026-07-21
 
 **Scope:** WP-02 Waypoint design-system foundation (Phase 1) — icon swap visual check per BRD §5.16 WP-02 success criteria

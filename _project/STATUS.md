@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 raised, restart-preview mechanism installed)_
+_Tracker last updated: 2026-07-21 (session close-out: BRD-NF09/OP-22/WP-03/WP-04 closed per PO direction; BRD-PL0104/BRD-CU0103 deprioritized; BUG-40–58 + OQ-06 remain pending)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (30)
+## Open work (44)
 
 ### P0 — Blockers (1)
 
@@ -25,16 +25,14 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (4)
+### P1 — Critical (2)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
-| BRD-PL0104 | Planning core — idea pool → shortlist → booked across all item types (PL-01–04) | fullstack | ⬜ Pending |
-| BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack | ⬜ Pending |
-| BRD-NF09 | Hosted deployment for personal use (NF-09) | backend | 🔄 In progress |
-| OP-22 | Environment promotion model — main→staging (continuous), production branch→prod (explicit fast-forward) | coo | 🔄 In progress |
+| BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
+| BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (15)
+### P2 — Important (25)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -51,10 +49,20 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
 | BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
 | OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
-| WP-03 | Trips screen (desktop) reskin using Waypoint tokens (Phase 2) | frontend | done_pending_uat |
-| WP-04 | Trips screen responsive mobile layout — net-new (Phase 2) | frontend | done_pending_uat |
+| BUG-40 | Place deletion should prompt (delete all / move to trip-level / cancel) when the place has items | fullstack | ⬜ Pending |
+| BUG-41 | Multi-leg / connecting flights within a single booking | architect | ⬜ Pending |
+| BUG-42 | Multiple companions/seats per booking item | architect | ⬜ Pending |
+| BUG-44 | Car rental pickup location should show as subtext under provider | frontend | ⬜ Pending |
+| BUG-46 | Activities selector missing from trip create flow (only present on edit) | frontend | ⬜ Pending |
+| BUG-48 | Country→state map shading zoom threshold too high / laggy | frontend | ⬜ Pending |
+| BUG-49 | City markers render behind state shading layer | frontend | ⬜ Pending |
+| BUG-52 | Trip search doesn't match on country name | backend | ⬜ Pending |
+| BUG-53 | Trip list place display: show state (not country) under city, surface country separately | ux | ⬜ Pending |
+| BUG-55 | City entry doesn't auto-populate country/state | backend | ⬜ Pending |
+| BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | ⬜ Pending |
+| BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
 
-### P3 — Minor (10)
+### P3 — Minor (16)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -68,19 +76,25 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-IT10 | Optional Google Maps URL per item — one-click directions (IT-10) | architect | ⬜ Pending |
 | UX-11 | Trip-list status pill colours should match map shading colours (admin-driven) | ux | ⬜ Pending |
 | WP-05 | Waypoint reskin must not be reported as closing unrelated data/behavior gaps it only reskins the display of | coo | ⬜ Pending |
+| BUG-43 | Apple Wallet (.pkpass) import to pre-populate booking details | integrations | ⬜ Pending |
+| BUG-45 | Convert free-text airline/car-rental-provider fields to a sourced dropdown with Other fallback | architect | ⬜ Pending |
+| OQ-06 | Adopt a systematic subdivision reference list (ISO 3166-2) instead of ad hoc per-country region seeding | architect | ⬜ Pending |
+| BUG-47 | Auto-populate activities from trip/place content instead of manual pre-selection | architect | ⬜ Pending |
+| BUG-54 | Category/activity color customization | ux | ⬜ Pending |
+| BUG-56 | City name not auto-capitalized on entry | frontend | ⬜ Pending |
 
 ## Coverage by type
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `██████████▓▓▓░░░░░░░` 25/48 | 25 | 23 | 1 |
-| requirement | `███████████████████▓` 30/32 | 30 | 2 | 5 |
-| bug | `███████████████████░` 38/39 | 38 | 1 | 4 |
+| feature | `██████████▓▓░░░░░░░░` 27/54 | 27 | 27 | 3 |
+| requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
+| bug | `███████████████░░░░░` 38/50 | 38 | 12 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
 
 <details>
-<summary>Deferred (8)</summary>
+<summary>Deferred (10)</summary>
 
 | ID | Title | Owner |
 |---|---|---|
@@ -92,6 +106,8 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | NR-13 | Global settings risk control — owner/admin only for destructive changes | architect |
 | UX-05 | Photos — full implementation | frontend |
 | ENV-01 | Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall | coo |
+| BRD-PL0104 | Planning core — idea pool → shortlist → booked across all item types (PL-01–04) | fullstack |
+| BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack |
 
 </details>
 
@@ -107,4 +123,4 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 ---
 
-_108 done · 8 deferred · 2 closed · 30 open — 148 tracked items_
+_112 done · 10 deferred · 2 closed · 44 open — 168 tracked items_
