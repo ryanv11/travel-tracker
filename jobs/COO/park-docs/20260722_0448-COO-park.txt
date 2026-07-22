@@ -1,0 +1,104 @@
+COO SESSION PARK — 2026-07-22 (WP-03/WP-04 shipped, BUG-39 fully resolved, PO UAT deferred to next session)
+================================================================================
+
+## Session summary
+Picked up via /coo-startup: hooks OK, main CI green, drift ledger clean (one prior
+subagent_stop verified complete via PR #203), BRD coverage clean, doc lifecycle clean.
+One loose end from the prior session's park doc: tracker.json's WP-03/WP-04 notes never
+got GitHub issue #205 written back in (the cross-referencing rule's second half) — fixed
+first (PR #207) before dispatching anything.
+
+Dispatched Frontend (worktree-isolated) with a single combined brief covering both WP-03
+(desktop Trips reskin) and WP-04 (net-new mobile responsive Trips layout), per the fully
+resolved UX spec and BRD v3.5. Chose one combined dispatch over a desktop/mobile split
+for token efficiency (shared context, one PR, one review cycle) — user's explicit call
+when asked. Reviewed the resulting PR #208 independently (not just the agent's
+self-report): confirmed via direct grep that no dangerouslySetInnerHTML was introduced,
+read the badges.ts Confirmed/Completed hue fix in full, verified the mobile
+no-horizontal-scroll implementation only uses overflow-x on the filter chip row, and
+independently checked all 6 CI jobs (including the new mobile E2E suite) via `gh run
+view --jobs`, not just the aggregate check list. Merged PR #208 (all 6 CI jobs green).
+Flipped tracker WP-03/WP-04 to done_pending_uat (PR #210) — implementation done,
+PO UAT still required per CLAUDE.md's mandatory phase-completion gate.
+
+Frontend's E2E work surfaced a real pre-existing bug: BUG-39 — items.carriedFromItemId
+has no onDelete FK behavior, so DELETE /api/trips/:id 500s if one of the trip's items was
+ever used as a carry-forward source elsewhere. Correctly left unfixed by Frontend (schema
+changes need Architect + Database review, not a unilateral patch). Ran the full pipeline
+this session at the user's request ("brief BUG39 while i work on uat"):
+1. Dispatched Architect (worktree-isolated) to rule on the fix and audit the schema for
+   the same FK-cascade gap elsewhere. Result: ADL-36 — onDelete: 'set null' confirmed,
+   full invariant analysis against ADL-13's carry-forward coupling, FK audit concluded
+   BUG-39 is isolated (not a pattern). PR #212, reviewed and merged.
+2. Dispatched Database (worktree-isolated) to implement per ADL-36's spec. Result: PR
+   #214 — migration 0011 generated/applied (never db:push), the SQLite table-recreation
+   SQL eyeballed against all four survival criteria (FK clause, partial index, 3 CHECK
+   constraints, row-data preservation) by both the agent and me independently, regression
+   test added and self-verified against a reverted fix. Reviewed and merged.
+3. Closed BUG-39 in tracker (done), closed GitHub issue #209, triaged all 3 completion
+   reports to inbox/read/, cleaned up all 3 agent worktrees/branches.
+
+Process note: two agents (Architect, then Database) each stopped mid-task waiting on a
+CI check they had no live mechanism to be woken up by — I checked CI directly via `gh run
+list` both times and resumed them properly via SendMessage (not a fresh Agent call, which
+I mistakenly did once for the Architect resume before correcting course) to have them
+confirm and finalize rather than re-deriving from scratch.
+
+## Completed this session
+- PR #207 — tracker.json WP-03/WP-04 cross-referenced to GitHub issue #205 (closing the
+  prior session's loose end). Merged, main CI green.
+- PR #208 — WP-03/WP-04 Waypoint Trips reskin (desktop) + net-new mobile Trips layout.
+  All preservation-list functionality confirmed present and tested (bulk delete/undo,
+  sort, filter counts, map-filter badge, per-place dates, remove-place, trip-level items,
+  ratings, carried-forward tag, two-message empty states, Unlock). badges.ts
+  Confirmed/Completed hue bug fixed. No dangerouslySetInnerHTML. Mobile no-horizontal-
+  scroll verified at 390px/360px. E2E: 52/52 passing including new
+  src/e2e/trips-mobile.spec.ts (18 tests), scoped via data-testid="trip-detail-panel"
+  (also fixes the pre-existing two-panel Playwright scoping debt,
+  project_playwright_panel_scoping.md). Merged, main CI green.
+- PR #210 — tracker WP-03/WP-04 → done_pending_uat, BUG-39 logged.
+- GitHub issue #209 opened for BUG-39.
+- PR #212 — ADL-36 (Architect ruling + FK-class audit). Merged, main CI green.
+- PR #214 — BUG-39 implementation (migration 0011, regression test). Merged, main CI green.
+- PR #215 — BUG-39 tracker close-out, GitHub issue #209 closed.
+- PR #211, #213 — inbox triage (2 small housekeeping PRs).
+- All 3 agent worktrees (Frontend, Architect, Database) and their branches cleaned up
+  after each merge. `git branch` → only main + pre-existing chore/uat-note-country-
+  picker-gap (untouched, PR #126 still open from a prior session).
+
+## State of play
+- **WP-03/WP-04 are implemented and merged, status done_pending_uat.** PO UAT is the one
+  remaining gate — explicitly deferred by Ryan to next session ("I'll give you UAT
+  feedback next session"). Cross-reference table for what to check is in
+  jobs/ux/tech/20260721-UX-waypoint-spec.md, end of Phase 2 section (item 1: side-by-side
+  against both .dc.html mockups for every enumerated state; item 8 lists the full UAT
+  scope). Desktop AND mobile both need coverage.
+- **BUG-39 is fully closed** — tracker done, GitHub #209 closed, PR #214 merged, main CI
+  green. No follow-up expected (ADL-36's FK audit confirmed it was an isolated instance).
+- All other open threads unchanged from the prior park doc (D-04–D-08 in
+  jobs/COO/open-dialogues.md, OP-22, BRD-NF09's remaining 2 items, OQ-03/OQ-05, PR #126,
+  Ryan's deferred local UAT list from 2026-07-20 — all already tracked, none touched this
+  session).
+- Minor untracked observation (not a bug, no tracker entry): Database's completion report
+  flagged that src/backend/routes/__tests__/trips.delete.test.ts has hand-rolled in-memory
+  DDL that can silently drift from schema.ts (already fixed for this PR's own test, but
+  the pattern risk itself isn't tracked anywhere). Preserved in the merged
+  jobs/database/park-docs/20260721-DATABASE-park-bug39.txt if anyone wants to revisit it.
+
+## Open threads
+See jobs/COO/open-dialogues.md — unchanged this session (D-04 through D-08, all still
+open, none touched).
+
+## Restart preview
+**Captured:** PRs #207, #208, #210, #211, #212, #213, #214, #215 all merged, main CI
+green after each. BUG-39 fully closed (tracker + GitHub issue). WP-03/WP-04 at
+done_pending_uat. All 3 agent worktrees/branches cleaned up. Drift ledger reviewed
+sentinel written at session start.
+**Captured, not actioned:** WP-03/WP-04 PO UAT (the single most important pending item —
+explicitly deferred to next session by Ryan). D-04–D-08, OP-22, BRD-NF09 remainder,
+OQ-03/OQ-05, PR #126, Ryan's local UAT list — all pre-existing, untouched this session.
+The trips.delete.test.ts hand-rolled-DDL risk note (see above) — already durably recorded
+in a merged park doc, just not promoted to a tracker item.
+**Not captured:** none — this session's own output is fully in tracker.json, ADL-36,
+GitHub issues #205/#209, and the 8 merged PRs; nothing discussed this session is only in
+conversation memory. Shown to Ryan before writing this doc; no changes requested.
