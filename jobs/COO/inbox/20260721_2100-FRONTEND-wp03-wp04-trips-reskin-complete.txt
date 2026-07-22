@@ -1,0 +1,57 @@
+Tracker IDs: WP-03, WP-04 · GitHub #205 · PR #208 · BRD §5.16 WP-03, WP-04
+Branch: feat/wp03-wp04-trips-reskin
+
+WHAT WAS BUILT
+Desktop Trips screen reskinned to the Waypoint token system (340px left panel
+per C10, Waypoint nav brand, StatusStepper replacing the flat status bar per
+TR-12, Unlock preserved as new stepper-card chrome per C2). Net-new responsive
+mobile Trips layout (<768px): list/detail cross-fade/slide, bottom tab bar
+(list-view only, C9), compact icon-only Edit/Photos pair in mobile detail
+header. Fixed badges.ts's Confirmed/Completed hue collapse (now hue 150/220,
+two distinct hues) and wired StatusBadge.tsx to the Waypoint hue system.
+
+ACCEPTANCE CRITERIA
+- Desktop reskin matches spec tokens/layout/stepper states: PASS
+- Every preservation-list item present + reskinned (not dropped): PASS
+- badges.ts hue fix (Confirmed/Completed distinct): PASS
+- StatusBadge wired to Waypoint system: PASS
+- No dangerouslySetInnerHTML anywhere: PASS (grep -rn, zero project-wide)
+- Mobile list/detail layout + slide transition: PASS
+- Bottom tab bar list-view-only, compact Edit/Photos pair: PASS
+- No horizontal scroll except status chip row, verified 390px/360px w/ long/varied data: PASS
+- data-testid="trip-detail-panel" on desktop + mobile detail roots: PASS
+- E2E coverage of preservation-list flows, desktop + mobile: PASS (52/52 E2E, 18 new mobile tests)
+- DP-06 date-inheritance NOT implemented (WP-05 guardrail respected): PASS (not touched)
+- No new/modified backend routes (security checklist N/A): PASS
+
+CI: `gh pr checks 208` — all 9 checks green (Backend/Frontend/E2E/Contract
+Tests, Type Check, Biome, Semgrep, Gitleaks, Dependency Scan).
+
+OPEN ISSUES / BLOCKERS
+1. [MAJOR bug, discovered not fixed] `items.carriedFromItemId`
+   (src/backend/db/schema.ts) has no `onDelete` FK behavior — deleting a trip
+   whose item is still referenced as another trip's carry-forward source
+   fails with a 500 (SQLite FK RESTRICT default). Pre-existing, not introduced
+   by this PR. Requires a schema migration — out of Frontend's remit per
+   CLAUDE.md (Architect + Database review needed). Proposed fix: add
+   `{ onDelete: 'set null' }` to that FK. Full writeup incl. INITIAL/ACTUAL
+   classification, root cause, scope, proposed fix in
+   jobs/frontend/park-docs/20260721-FRONTEND-wp03wp04-park.txt. Not blocking
+   this PR's merge (pre-existing; my new E2E test cleans up after itself so
+   it doesn't destabilize the suite) — recommend a tracker entry + a short
+   Database/Architect brief soon.
+2. [Process note, not a defect] A fresh worktree has no `.env.local` (same
+   category as the documented node_modules gap) — `npm run test:e2e`'s
+   webServer failed with `DB_TYPE: undefined` until one was created locally
+   (gitignored, not committed). Recommend adding to CLAUDE.md's worktree-
+   isolation guardrails.
+3. Carried spec gap (informational, not new): ItemStatus 'next_time' still
+   has no hue defined in the spec — StatusBadge falls back to the neutral
+   'locked' hue rather than guessing. Not this brief's scope.
+
+WHAT'S NOW UNBLOCKED
+- PO UAT for WP-03/WP-04 (mandatory phase-completion gate) — both desktop and
+  mobile Trips screens ready for review.
+- COO decision on the MAJOR carry-forward-delete bug (item 1 above).
+- This was the last Phase 2 Waypoint tracker item per the spec — no other
+  frontend work is gated on it shipping first.
