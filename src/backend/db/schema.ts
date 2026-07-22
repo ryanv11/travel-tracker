@@ -411,7 +411,22 @@ export const tripCountries = sqliteTable(
  *
  * Carry-forward pattern (ADL-13, IT-07):
  *   is_carried_forward = 1 AND carried_from_item_id IS NOT NULL → carried item
- *   BACKEND must enforce these two fields are always set together.
+ *   BACKEND must enforce these two fields are always set together AT CREATE TIME.
+ *
+ *   This coupling is a CREATE-TIME invariant only, not a permanent one (ADL-36,
+ *   BUG-39). carried_from_item_id is a nullable-after-source-deletion provenance
+ *   pointer ("...from this specific source, while it still exists") — its FK has
+ *   onDelete: 'set null', so deleting the source item clears the pointer without
+ *   cascade-deleting the derived item (which is a first-class item on another
+ *   trip with its own user-edited status/notes/rating). is_carried_forward is a
+ *   permanent historical fact ("this item originated as a carry-forward") and is
+ *   NOT cleared when the source is deleted. Therefore
+ *   is_carried_forward = 1 AND carried_from_item_id IS NULL is a LEGITIMATE,
+ *   INTENTIONAL post-deletion state — it means "this item was carried forward,
+ *   but its source has since been deleted" — NOT data corruption. Do not add a
+ *   runtime consistency check or backfill that treats it as a bug; the redundant
+ *   boolean flag exists precisely so the historical fact survives loss of the
+ *   pointer.
  */
 export const items = sqliteTable(
   'items',
@@ -429,7 +444,14 @@ export const items = sqliteTable(
     isCarriedForward: integer('is_carried_forward').notNull().default(0),
     // Self-referential FK — preserves lineage to the source item (ADL-13)
     // Uses a lazy reference function to avoid circular dependency at module load time
-    carriedFromItemId: integer('carried_from_item_id').references((): AnySQLiteColumn => items.id),
+    // onDelete: 'set null' (ADL-36, BUG-39) — deleting the source item must not
+    // RESTRICT-block a normal trip/item delete; it clears this pointer only, and
+    // never cascade-deletes the derived item on the other trip. See the table
+    // doc comment above for why is_carried_forward can legitimately survive as 1
+    // with this column NULL afterward.
+    carriedFromItemId: integer('carried_from_item_id').references((): AnySQLiteColumn => items.id, {
+      onDelete: 'set null',
+    }),
     userId: text('user_id')
       .notNull()
       .references(() => users.id), // HC-07c: NOT NULL enforced at DB level
