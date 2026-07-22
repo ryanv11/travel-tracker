@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (33)
+## Open work (34)
 
 ### P0 — Blockers (1)
 
@@ -34,11 +34,12 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-NF09 | Hosted deployment for personal use (NF-09) | backend | 🔄 In progress |
 | OP-22 | Environment promotion model — main→staging (continuous), production branch→prod (explicit fast-forward) | coo | 🔄 In progress |
 
-### P2 — Important (17)
+### P2 — Important (18)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | OP-07 | UI/UX expert review of frontend | coo | ⬜ Pending |
+| BUG-39 | items.carriedFromItemId has no onDelete FK behavior — trip deletion 500s if a carried-forward item still references it | database | ⬜ Pending |
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
 | BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | 🔄 In progress |
 | BRD-AD07 | Map shading configuration is per-user (AD-07) | backend | 🔄 In progress |
@@ -53,8 +54,8 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 | BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
 | OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
 | WP-01 | Product rename to "Waypoint" (in-app UI only) | frontend | ⬜ Pending |
-| WP-03 | Trips screen (desktop) reskin using Waypoint tokens (Phase 2) | frontend | ⬜ Pending |
-| WP-04 | Trips screen responsive mobile layout — net-new (Phase 2) | frontend | ⬜ Pending |
+| WP-03 | Trips screen (desktop) reskin using Waypoint tokens (Phase 2) | frontend | done_pending_uat |
+| WP-04 | Trips screen responsive mobile layout — net-new (Phase 2) | frontend | done_pending_uat |
 
 ### P3 — Minor (11)
 
@@ -78,7 +79,7 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 |---|---|---|---|---|
 | feature | `██████████▓▓▓░░░░░░░` 24/48 | 24 | 24 | 1 |
 | requirement | `██████████████████▓░` 29/32 | 29 | 3 | 5 |
-| bug | `███████████████████░` 37/38 | 37 | 1 | 4 |
+| bug | `███████████████████░` 37/39 | 37 | 2 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `█████████████▓▓░░░░░` 6/9 | 6 | 3 | 0 |
 
@@ -110,4 +111,4 @@ _Tracker last updated: 2026-07-19 (session close: BUG-27/28/29/10 done, OP-16 ra
 
 ---
 
-_104 done · 8 deferred · 2 closed · 33 open — 147 tracked items_
+_104 done · 8 deferred · 2 closed · 34 open — 148 tracked items_
