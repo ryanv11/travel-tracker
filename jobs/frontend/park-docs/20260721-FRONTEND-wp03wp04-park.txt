@@ -1,0 +1,208 @@
+PARK DOCUMENT — FRONTEND — WP-03/WP-04 Waypoint Trips Reskin
+Date: 2026-07-21
+Tracker IDs: WP-03, WP-04 · GitHub #205 · BRD §5.16 · Branch feat/wp03-wp04-trips-reskin
+
+SCOPE OF THIS THREAD
+  Combined brief covering both tracker IDs: WP-03 (desktop Trips screen reskin
+  to the Waypoint token system established in WP-02) and WP-04 (net-new
+  responsive mobile Trips layout). Full spec: jobs/ux/tech/20260721-UX-waypoint-
+  spec.md, Phase 2 section (~line 343 onward), all C1-C13 conflict resolutions
+  pre-stamped by COO/PO before dispatch.
+
+WHAT WAS BUILT — DESKTOP (WP-03)
+  - App.tsx nav bar: Waypoint brand (pin icon + "Waypoint" wordmark, Newsreader
+    600/17px), pine token colors, active-link pill. Hides at <768px on /trips
+    only (mobile supplies its own header + tab bar there) — every other route
+    keeps the top nav at every width (Map/Admin have no mobile treatment in
+    this phase, out of scope per brief).
+  - DesktopTripsLayout.tsx (renamed from the old TripsLayout.tsx): 340px left
+    panel (C10 — a real value change from 320px, not drift), reskinned search/
+    filter-chip/sort/map-filter-badge/bulk-select-bar, all preserved 1:1
+    functionally.
+  - TripCard.tsx: reskinned, `density` prop added for the WP-04 mobile size
+    bump (shared component, see below).
+  - TripDetail.tsx: reskinned header (Newsreader 34px title, `·`-separated meta
+    row punctuation replacing `|` pipes per spec), new StatusStepper.tsx
+    replacing the flat status bar (TR-12, PO-confirmed acceptable richer
+    fulfillment), Unlock preserved as new stepper-card chrome (C2 — mockup has
+    no unlock affordance at all).
+  - PlaceSection.tsx / ItemCard.tsx / TripItemsSection.tsx: reskinned shells,
+    zero logic changes. Set/Edit dates, Remove (+ cascade confirm message),
+    ratings, carried-forward tag, full per-type subtext all preserved exactly
+    (C4/C5) — none of this exists in the source mockup, all flagged there as
+    "must preserve."
+  - Extracted useTripDetailController.ts: all of TripDetail's status-
+    transition/lock/unlock/Photos-toast/modal state, so MobileTripDetailView
+    can reuse the exact same business logic rather than duplicating it.
+
+WHAT WAS BUILT — MOBILE (WP-04, entirely net-new)
+  - useIsMobile.ts: matchMedia-based hook, 767px cutoff (matches Tailwind's
+    `md`). TripsLayout.tsx is now just `isMobile ? <MobileTripsLayout/> :
+    <DesktopTripsLayout/>` — a real conditional MOUNT, not a CSS-hide-both
+    approach, because:
+      (a) the slide/cross-fade transition needs both list+detail panels
+          mounted simultaneously (can't rely on route-based unmount), and
+      (b) CSS-hiding both trees would double up accessible-name matches for
+          every pre-existing Playwright spec that assumes exactly one instance
+          of shared text/roles (several already use `.first()`/`.nth()` for
+          the SAME reason on desktop's two-panel layout — doubling the DOM
+          would make that worse, not better).
+  - MobileTripsLayout.tsx: owns both the list view and the detail view as two
+    always-mounted, absolutely-positioned panels sliding via the spec's EXACT
+    transform/opacity values (translateX ±30%, opacity 0/1, 250ms ease). Does
+    NOT render <Outlet/> — reads `:id` via useParams() (works fine without
+    Outlet since merged route params are available anywhere in the matched
+    tree) and fetches/branches the detail content itself, mirroring
+    TripDetailPage.tsx's own loading/error/review_pending logic so mobile
+    behavior matches desktop's exactly (including review_pending routing to
+    ReviewPanel instead of the detail view — pre-existing, unaltered).
+  - MobileTripDetailView.tsx: back bar ("‹ Trips"), title+badge on one row,
+    compact icon-only Edit/Photos pair (UX's resolved call — see spec's
+    "Mobile Edit/Photos entry point" section; supersedes BRD's earlier
+    overflow-menu wording), smaller StatusStepper, next-step CTA in its own
+    highlighted callout box (not inline in the stepper card, a deliberate
+    per-breakpoint difference per spec). Reuses PlaceSection/TripItemsSection/
+    ItemCard/useTripDetailController — no duplicated logic.
+  - Bottom tab bar (Map/Trips/Admin): list-view only (C9), owner-gated Admin
+    tab (BUG-26 parity with desktop).
+  - No-horizontal-scroll: verified structurally (status-chip row is the sole
+    `overflow-x: auto`) and empirically at 390px/360px with deliberately long/
+    varied seeded data (long trip/city names, long item notes) — not just the
+    mockup's short fixed strings.
+
+FIXES MADE (explicitly commissioned by the brief)
+  - badges.ts / theme-waypoint.css: Confirmed (hue 150, green) and Completed
+    (hue 220, blue) are now two distinct hues — Phase 1 had collapsed them to
+    one per the mockup's literal (and out-of-date) STATUS_META table. Unit
+    tests (badges.test.ts) updated.
+  - StatusBadge.tsx: wired to badges.ts's hue/label/shape lookup (was Phase-1-
+    only, defined-but-unused). New optional `shape?: 'pill' | 'chip'` prop
+    (defaults 'pill') — chip shape isn't consumed by StatusBadge anywhere yet
+    (category chips are still hand-rolled inline) but the token now lives in
+    one place per spec's shape recipe.
+  - dangerouslySetInnerHTML: confirmed zero usages project-wide (grep -rn),
+    none introduced.
+  - EditIcon.tsx added (13th icon; was 12 after WP-02) — spec §3's pencil
+    glyph for the mobile compact icon pair, not present in either source
+    mockup (a new glyph authored to match the existing icon set's convention).
+
+E2E COVERAGE
+  All pre-existing desktop specs still pass, proving no functional regression:
+  admin.spec.ts, map.spec.ts, navigation.spec.ts, places-items.spec.ts,
+  trips-crud.spec.ts, trips-filters.spec.ts, trips-status.spec.ts, trips.spec.ts.
+  Two needed selector updates for INTENTIONAL spec-mandated copy changes (not
+  reskin drift — see "Playwright gotchas" below).
+
+  New src/e2e/trips-mobile.spec.ts, 18 tests at a 390×844 viewport:
+  - List view: renders + FAB + search + status chips; FAB opens New Trip form;
+    status-chip filter + counts (NTH-03); sort (TR-09); bulk multi-select
+    delete + 5s undo bar (FEAT-BD/NTH-01); status-chip-row horizontal-scroll
+    exception (structural check).
+  - List↔detail: slide transition + back button + tab-bar visibility toggle
+    (C9); deep link to /trips/:id opens directly in detail view.
+  - Detail view preservation list: compact Edit/Photos icon pair (+ Edit
+    hidden when locked, Photos always visible); status stepper transition +
+    Unlock (C2); Set/Edit dates + Remove place (UX-02/BUG-32); trip-level
+    items (BUG-36/IT-01); rating stars (C5); carried-forward tag (C5, via the
+    REAL carry-forward endpoint, not a faked flag).
+  - No-horizontal-scroll at 390px/360px with long/varied real data (2 tests).
+
+  Full suite: `npx playwright test` → 52/52 passed (34 pre-existing + 18 new).
+
+PLAYWRIGHT GOTCHAS HIT AND FIXED (worth remembering for future spec authors)
+  1. Strict-mode violations ABORT IMMEDIATELY — they do not retry through
+     ambiguity the way a simple "not yet visible" does. A substring
+     `getByText()` failed a `not.toBeVisible()` assertion in <100ms (not at
+     the 5s timeout) because a ConfirmDialog's title/message repeated the
+     target city name as a superset string. Fix: `{ exact: true }` or a
+     testid-scoped locator whenever a superset-text sibling could exist even
+     transiently.
+  2. `getByLabel` only associates `<label>`-linked FORM controls — RatingStars
+     renders a plain `<span aria-label="...">`, which needs a CSS attribute
+     selector (`locator('[aria-label="..."]')`), not `getByLabel`.
+  3. ADL-14 "lazy creation on first rating": `POST .../items` silently drops a
+     `rating` field at create time (by design) — must PATCH it in afterward.
+     Cost me one failed test before finding the repository comment explaining
+     this.
+  4. Carry-forward's wire format is snake_case (`source_item_ids`) — the
+     frontend hook (`useCarryForward`) takes camelCase params but translates
+     them; a raw API call for E2E seeding must use the wire name directly.
+  5. Two pre-existing specs needed intentional updates, not drift-chasing:
+     - trips-crud.spec.ts: `getByText('New Trip')` → `getByRole('heading', {
+       name: 'New Trip' })`, since the desktop button is now labelled
+       "+ New Trip" (was "+ New") per spec, and the old substring locator
+       became ambiguous against the new button text.
+     - trips-filters.spec.ts: placeholder locator text updated to "Search
+       trips or places…" per spec's explicit copy fix (search already matched
+       place names; the shorter placeholder undersold existing behavior).
+
+BUGS DISCOVERED
+
+  [MAJOR] items.carriedFromItemId has no onDelete FK behavior — disposition: FLAGGED TO COO, NOT FIXED (out of Frontend's remit)
+    INITIAL CLASSIFICATION: MAJOR (discovered directly at this severity, not
+      via reclassification).
+    ACTUAL CLASSIFICATION:  MAJOR.
+    DISCOVERY CONTEXT: Writing the new "carried-forward tag survives the
+      reskin" E2E test — creating a source trip with a next_time item,
+      executing the real POST .../carry-forward endpoint against a second
+      (target) trip, then letting the next spec file's blanket
+      `deleteAllTrips()` cleanup run.
+    SYMPTOM: DELETE /api/trips/:id on the SOURCE trip returns 500 Internal
+      Server Error if any item created via carry-forward (in ANY other trip)
+      still has `carried_from_item_id` pointing at one of the source trip's
+      items.
+    ROOT CAUSE: `src/backend/db/schema.ts`'s `items.carriedFromItemId` column
+      declares a self-referencing FK (`.references(() => items.id)`) with no
+      `.onDelete(...)` clause — SQLite's default FK behavior (effectively
+      RESTRICT under enforced foreign_keys) blocks deleting a still-referenced
+      row.
+    SCOPE: Any trip deletion where one of its items was ever used as a
+      carry-forward source for an item in ANY other trip (including trips
+      that have themselves since been otherwise modified/locked/unlocked —
+      the reference persists independent of trip status). Likely also blocks
+      deleting the individual SOURCE ITEM directly (not just whole-trip
+      deletion) if that's ever exposed as an operation without deleting the
+      whole trip.
+    PROPOSED FIX: `carriedFromItemId: integer('carried_from_item_id')
+      .references((): AnySQLiteColumn => items.id, { onDelete: 'set null' })`
+      — semantically correct: deleting the source item shouldn't cascade-
+      delete the derived item, just clear its provenance link. Requires a
+      migration (db:generate + db:migrate) and Architect + Database review
+      per CLAUDE.md's schema-change rule — NOT something Frontend can or
+      should apply unilaterally.
+    BLOCKING: Not blocking this PR — pre-existing defect (not introduced by
+      this reskin), and my new E2E test cleans up after itself in the correct
+      order (delete the referencing/target trip before the referenced/source
+      trip) so it doesn't leave the suite in a broken state. Real users hitting
+      this in production (delete a trip after one of its items was carried
+      forward elsewhere) would see an unrecoverable 500 on trip deletion,
+      though — recommend a tracker entry + Database/Architect brief soon,
+      not indefinitely deferred.
+
+  [TRIVIAL] Environment gap — fresh worktree missing .env.local — disposition: worked around, flagged
+    Not a code bug. A fresh git worktree does not inherit `.env.local`
+    (unshared/unsymlinked, same category as the already-documented
+    node_modules gap in CLAUDE.md). `npm run test:e2e`'s webServer failed with
+    `DB_TYPE: "undefined"` fatal startup error until I created one (copied
+    from `.env.example`, `DB_TYPE=sqlite`; correctly gitignored, never staged/
+    committed). Re-evaluated per rule 26: does this touch shared state/a query
+    used elsewhere? No — purely a local dev-environment bootstrap gap, same
+    root cause and same fix pattern as the node_modules note. Kept at TRIVIAL.
+    Recommend COO add this to CLAUDE.md's worktree-isolation guardrails
+    alongside the node_modules note (not actioned in this brief — that's a
+    CLAUDE.md edit, outside Frontend's remit and outside this brief's scope).
+
+GIT / CI
+  Branch: feat/wp03-wp04-trips-reskin. Code commit made (25 files changed).
+  This park doc + context update + completion report are committed in the
+  housekeeping commit that follows. PR to be opened next, referencing
+  Closes #205 and BRD §5.16 WP-03, WP-04. CI to be verified green before the
+  completion report is filed (see completion report for final PR number/CI
+  status — this park doc predates that step).
+
+WHAT'S NOW UNBLOCKED
+  - PO UAT for WP-03/WP-04 (mandatory phase-completion gate).
+  - COO decision on FLAG-WP0304-1 (MAJOR carry-forward-delete bug) — likely a
+    new tracker entry + a short Database/Architect brief for the FK fix.
+  - Nothing else in the Waypoint redesign roadmap depends on this shipping
+    first (WP-03/WP-04 were the last two Phase 2 tracker items per the spec).
