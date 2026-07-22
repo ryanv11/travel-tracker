@@ -738,12 +738,12 @@
       "id": "OP-07",
       "type": "requirement",
       "title": "UI/UX expert review of frontend",
-      "status": "pending",
+      "status": "done",
       "owner": "coo",
       "priority": "P2",
       "brdRefs": [],
       "phase": 4,
-      "notes": "PO direction 2026-03-09. Schedule after Phase 1 sign-off. Beta provides working baseline for UX review."
+      "notes": "PO direction 2026-03-09. Schedule after Phase 1 sign-off. Beta provides working baseline for UX review. CLOSED 2026-07-22 — Ryan confirmed the since-created UX role's ongoing work satisfies this: the Waypoint design-system review (jobs/ux/tech/20260721-UX-waypoint-spec.md) audited the existing app against a design mockup end-to-end (color/type/icon/component review, Trips screen desktop+mobile layout audit, 13 conflict-resolution decisions against real shipped functionality) — this is the expert UI/UX review OP-07 was asking for, not a separate one-off engagement. No further action."
     },
     {
       "id": "OP-13",
@@ -1689,12 +1689,12 @@
       "id": "WP-01",
       "type": "feature",
       "title": "Product rename to \"Waypoint\" (in-app UI only)",
-      "status": "pending",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["WP-01"],
       "phase": 6,
-      "notes": "Added BRD v3.3. From the Claude Design \"Waypoint\" mockup review, formalized by UX (jobs/ux/tech/20260721-UX-waypoint-spec.md, conflict C1). Confirmed as a real rename by Ryan (2026-07-21), scoped to in-app nav brand/page title/user-facing copy only — repo name, README, and other project-identity artifacts explicitly out of scope, a separate decision if pursued later. Part of Phase 2 (Trips reskin) dispatch, not Phase 1."
+      "notes": "Added BRD v3.3. From the Claude Design \"Waypoint\" mockup review, formalized by UX (jobs/ux/tech/20260721-UX-waypoint-spec.md, conflict C1). Confirmed as a real rename by Ryan (2026-07-21), scoped to in-app nav brand/page title/user-facing copy only — repo name, README, and other project-identity artifacts explicitly out of scope, a separate decision if pursued later. Part of Phase 2 (Trips reskin) dispatch, not Phase 1. IMPLEMENTED 2026-07-21 (PR #208, part of the WP-03/WP-04 brief): nav brand and index.html <title> both changed to \"Waypoint\" (App.tsx L76-82). Verified 2026-07-22 via direct grep — the only remaining \"Travel Tracker\" strings are in code comments (types/api.ts, apiClient.ts) and README.md, both explicitly out of scope per this entry's own notes. CLOSED — no separate UAT needed, this is a verifiable fact not a subjective judgment call, distinct from WP-03/WP-04's own done_pending_uat gate."
     },
     {
       "id": "WP-02",
