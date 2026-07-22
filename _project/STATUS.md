@@ -25,15 +25,14 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (3)
+### P1 — Critical (2)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
-| BUG-59 | Staging Railway environment ALLOWED_ORIGINS missing https:// scheme — CORS blocks all asset requests, white screen | coo | ⬜ Pending |
 
-### P2 — Important (25)
+### P2 — Important (26)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -62,6 +61,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-55 | City entry doesn't auto-populate country/state | backend | ⬜ Pending |
 | BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | ⬜ Pending |
 | BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
+| BUG-60 | Express 'trust proxy' not configured — express-rate-limit can't safely resolve client IPs behind Railway's proxy | architect | ⬜ Pending |
 
 ### P3 — Minor (16)
 
@@ -90,7 +90,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 |---|---|---|---|---|
 | feature | `██████████▓▓░░░░░░░░` 27/54 | 27 | 27 | 3 |
 | requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
-| bug | `███████████████░░░░░` 38/51 | 38 | 13 | 4 |
+| bug | `███████████████░░░░░` 39/52 | 39 | 13 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
 
@@ -124,4 +124,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_112 done · 10 deferred · 2 closed · 45 open — 169 tracked items_
+_113 done · 10 deferred · 2 closed · 45 open — 170 tracked items_
