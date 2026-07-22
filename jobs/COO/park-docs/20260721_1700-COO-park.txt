@@ -1,0 +1,95 @@
+COO SESSION PARK — 2026-07-21 (WP-03/WP-04 conflict-resolution gate closed, session ended before Frontend dispatch — token budget)
+================================================================================
+
+## Session summary
+Picked up via /coo-startup: hooks OK, main CI green, drift ledger reviewed (all
+subagent_stops from the prior WP-02 close-out session traced to merged work, sentinel
+written), UAT log clean, BRD coverage clean.
+
+Ryan asked to pick up WP-03/WP-04 (Phase 2 Trips reskin) — BRD-gated and ready, but
+blocked on 13 conflict-resolution decisions (C1-C13) in the UX spec
+(jobs/ux/tech/20260721-UX-waypoint-spec.md) before Frontend could be briefed.
+
+Walked through all 13 decisions plus 3 adjacent flagged items with Ryan via two rounds of
+questions. Discovered mid-session that most had actually already been decided and
+recorded in BRD v3.3 earlier the same day (a prior session) — the UX spec document itself
+was just never stamped with the resolutions (a document-lifecycle gap). Re-deciding fresh
+surfaced two real conflicts against what was already in the BRD:
+1. Mobile Edit/Photos entry point — BRD said "overflow menu," Ryan's fresh answer said
+   "compact icons." Ryan explicitly punted the final call to UX given the conflict.
+2. Confirmed/Completed badge hue — BRD said "kept distinct," but shipped Phase 1 code
+   (badges.ts) still collapsed both to one hue per the mockup's literal content. Ryan
+   confirmed: fix the code now (flagged for the Phase 2 Frontend brief, not fixed this
+   session — no code changes were made this session).
+
+Ryan also added a new constraint mid-session: no horizontal scrolling anywhere on mobile
+Trips except the status filter chip row.
+
+Dispatched UX (worktree-isolated) to: make the Edit/Photos call, stamp all resolutions
+into the spec, add the no-horizontal-scroll constraint. UX chose the compact icon pair
+(affordance/discoverability reasoning) and picked concrete replacement hue tokens for
+Confirmed/Completed (150/green stays, Completed moves to 220/blue). PR #203 merged, main
+CI green.
+
+Reconciled the resulting BRD/WP-04 wording conflict myself: BRD → v3.5, WP-04 updated to
+the icon-pair wording (superseding v3.3/v3.4's overflow-menu text), no-horizontal-scroll
+constraint added, tracker.json WP-03/WP-04 notes updated (panel width 340px, badges.ts
+bug flagged for the Frontend brief). PR #204 merged, main CI green.
+
+Opened GitHub issue #205 for the WP-03/WP-04 Frontend brief (covers both tracker IDs,
+per the standard cross-referencing rule) — but ran low on token budget before dispatching
+Frontend, and before writing the issue number back into tracker.json's WP-03/WP-04 notes
+(the cross-referencing rule's second half). Stopped here rather than dispatch a large
+Frontend brief with no budget left to review its output properly.
+
+## Completed this session
+- PR #203 — UX spec fully stamped with all C1-C13 resolutions + adjacent items + new
+  mobile no-scroll constraint + UX's own Edit/Photos call. Merged, main CI green.
+- PR #204 — BRD v3.5 (WP-04 wording reconciled) + tracker.json sync (WP-03/WP-04 notes).
+  Merged, main CI green.
+- GitHub issue #205 opened for the Frontend brief (not yet dispatched, not yet cross-
+  referenced back into tracker.json).
+- Drift ledger reviewed sentinel written at session start.
+- Worktree + branches cleaned up after both merges (`git branch` → only `main` +
+  pre-existing `chore/uat-note-country-picker-gap`).
+
+## State of play
+- **WP-03/WP-04 are fully unblocked** — BRD v3.5, UX spec fully resolved, no outstanding
+  conflicts. GitHub issue #205 exists. **Not yet dispatched to Frontend.**
+- **Immediate next action:** two small items before dispatch, then dispatch:
+  1. Add "#205" to tracker.json WP-03 and WP-04 notes (cross-referencing rule — currently
+     missing, small direct edit, no need for a subagent).
+  2. Dispatch Frontend (worktree-isolated) for the combined WP-03 (desktop) + WP-04
+     (mobile) reskin, referencing jobs/ux/tech/20260721-UX-waypoint-spec.md Phase 2 in
+     full (now fully resolved/stamped) and BRD §5.16 v3.5. Brief must explicitly call out:
+     preserve all current functionality with no mockup counterpart (bulk delete+undo,
+     sort, filter counts, map-filter badge, per-place date editing, remove-place,
+     trip-level items, ratings, carried-forward tag, empty states, Unlock); fix the
+     badges.ts Confirmed/Completed hue bug (150/220 per the spec's concrete tokens); no
+     `dangerouslySetInnerHTML`; no horizontal scroll on mobile except filter chips; E2E
+     coverage per Phase 2 success criteria (8 items, end of spec). This is a large brief
+     (net-new mobile responsive surface) — consider whether it should stay one dispatch
+     or split desktop/mobile into two, not yet decided.
+- No backend/route changes anticipated for this brief (Frontend-only, existing API) — the
+  mandatory backend security checklist doesn't apply here, but confirm during dispatch
+  drafting that no new endpoints turn out to be needed.
+- All other open threads unchanged from the prior park doc
+  (20260721_2330-COO-park.txt): D-04–D-08 in jobs/COO/open-dialogues.md, OP-22 (Railway
+  dashboard repoint), BRD-NF09's remaining 2 items, OQ-03/OQ-05, PR #126 (country picker
+  UAT finding), Ryan's deferred local UAT list.
+
+## Open threads
+See jobs/COO/open-dialogues.md — unchanged this session (D-04 through D-08, all still
+open, none touched).
+
+## Restart preview
+**Captured:** PR #203 (UX spec resolutions) + PR #204 (BRD v3.5 + tracker sync) merged,
+main CI green after both, GitHub issue #205 opened, branch/worktree cleanup done, drift
+ledger reviewed sentinel written.
+**Captured, not actioned:** everything listed under "Immediate next action" above (tracker
+cross-ref edit + Frontend dispatch) — these are clear next steps, not at-risk information;
+nothing about them will be lost, they just haven't happened yet. Also unchanged: D-04–D-08,
+OP-22, BRD-NF09 remainder, OQ-03/OQ-05, PR #126, Ryan's local UAT list.
+**Not captured:** none — this session's own output is fully in BRD v3.5, tracker.json,
+GitHub issue #205, and this park doc; nothing discussed this session is only in
+conversation memory.
