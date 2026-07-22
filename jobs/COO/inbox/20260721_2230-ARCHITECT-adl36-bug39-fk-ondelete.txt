@@ -1,0 +1,48 @@
+ARCHITECT COMPLETION REPORT — BUG-39 FK onDelete review
+
+Header: BUG-39 · ADL-36 · GitHub #209 · BRD n/a (data-integrity defect, no requirement ID)
+        · Branch chore/bug39-adl-fk-ondelete
+
+WHAT WAS DECIDED
+Ruled on the missing onDelete clause for items.carriedFromItemId. Frontend's proposed
+fix is CONFIRMED as-is: onDelete: 'set null' (High confidence). Recorded as ADL-36.
+
+PER-DECISION VERDICT
+- onDelete: 'set null' — ADOPTED (High). Cascade rejected (would delete an independent
+  item on another trip, destroying user data); restrict is the current behavior and IS the
+  bug. set null clears the provenance pointer without touching the derived item.
+- Silent null-out risk (COO's specific question) — CLEARED. No consumer breaks:
+  UpdateItemSchema does not expose the carry-forward fields, so PATCH can never re-validate
+  the ADL-13 coupling against a nulled row; the frontend "carried forward" tag reads the
+  is_carried_forward boolean (ItemCard.tsx L98), not the FK; no read path assumes the FK is
+  non-null; the partial index is already WHERE ... IS NOT NULL. NO backend/frontend code
+  change is required — schema + migration only.
+- FK-class audit — BUG-39 is ISOLATED, not a pattern. It is the only no-onDelete FK whose
+  parent is routinely hard-deleted by a normal user path (items are deleted via trip cascade
+  and direct item delete; the self-reference then RESTRICTs). Every other no-onDelete FK is
+  safe: admin-list FKs (categoryId/companionId/activityId) reference soft-delete-only tables
+  (admin.ts DELETE sets is_active=0, never hard-deletes); cities.regionId and tripPlaces.cityId
+  reference seed/persistent tables with NO delete route at all. items.tripPlaceId's omission is
+  BUG-32's deliberate app-level reassign-to-null (confirmed, still correct). NO follow-up bug
+  entry warranted — recorded a general FK-hygiene rule in ADL-36 instead.
+
+ONE THING DATABASE MUST NOT MISS
+set null intentionally produces is_carried_forward=1 / carried_from_item_id=NULL rows after a
+source deletion. That is correct (ADL-13's two-field coupling is a CREATE-time invariant only;
+is_carried_forward is the permanent fact, the FK is a nullable provenance pointer). Database
+must add a schema.ts doc note saying so, so nobody "corrects" it as data corruption later.
+
+CI: no code commit (ADL + tracker note only) — no PR CI to gate beyond the standard checks.
+PR opened citing ADL-36 / BUG-39 / #209; will confirm green before considering done.
+
+OPEN ISSUES / BLOCKERS: none.
+
+NOW UNBLOCKED
+- Database dispatch to implement the migration. Spec is ADL-36 "Implications for Database":
+  add { onDelete: 'set null' } to items.carriedFromItemId, db:generate + db:migrate, EYEBALL
+  the generated SQL (SQLite recreates the items table — verify the self-FK ON DELETE SET NULL,
+  the idx_items_carried partial index, and the chk_items_* CHECKs all survive; this is exactly
+  the table-recreation path the drizzle-kit patch guards), update the schema.ts doc comment,
+  and add a regression test (DELETE /api/trips/:id -> 204 when an item is a carry-forward
+  source elsewhere; derived item survives with the FK nulled). That test is BUG-39's success
+  criterion for closing.
