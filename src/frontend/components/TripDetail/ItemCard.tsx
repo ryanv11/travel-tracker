@@ -1,6 +1,13 @@
 /**
  * ItemCard — compact display card for a single item within a PlaceSection.
  *
+ * WP-03/WP-04: reskinned with the Waypoint item-row shell (32px icon tile,
+ * `primary-subtle` background, pill status badge) per spec §"Place sections".
+ * The mockup collapses ratings, the carried-forward tag, and per-type subtext
+ * richness down to one generic `sub` line — C5 requires all of it preserved
+ * inside the new shell, which this implementation does; nothing here is a
+ * simplification relative to the pre-reskin version.
+ *
  * Shows: type icon, status badge, key fields for the item type.
  * Actions: click to open ItemForm (edit), delete button with confirmation.
  */
@@ -76,30 +83,38 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
 
   return (
     <>
-      <div className="p-3 border border-gray-200 rounded-md bg-gray-50 flex justify-between items-start gap-2">
+      <div className="p-3.5 border border-wp-border-soft rounded-[11px] bg-wp-bg-page flex justify-between items-start gap-2 min-w-0">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <TypeIcon size={18} className="text-gray-600 flex-shrink-0" />
-            <span className="font-semibold text-sm text-gray-900">{getItemLabel(item)}</span>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {/* 32px icon tile per spec's item-row shell */}
+            <span className="w-8 h-8 rounded-lg bg-wp-primary-subtle flex items-center justify-center flex-shrink-0">
+              <TypeIcon size={16} className="text-wp-primary" />
+            </span>
+            <span className="font-ui font-bold text-[13.5px] text-wp-ink break-words">
+              {getItemLabel(item)}
+            </span>
             <StatusBadge status={item.status} />
+            {/* C5: "carried forward" tag — must preserve, mockup drops it entirely */}
             {item.is_carried_forward && (
-              <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">
+              <span className="text-[11px] font-ui text-wp-ink-muted bg-wp-bg-chip px-1.5 py-0.5 rounded">
                 carried forward
               </span>
             )}
           </div>
 
-          {/* Subtext for relevant types */}
+          {/* C5: full per-type subtext — must preserve, mockup collapses this to one generic `sub` line */}
           {item.item_type === 'restaurant' && item.cuisine_type && (
-            <div className="mt-1 text-xs text-gray-500">{item.cuisine_type}</div>
+            <div className="mt-1 font-ui text-xs text-wp-ink-muted break-words">
+              {item.cuisine_type}
+            </div>
           )}
           {item.item_type === 'hotel' && item.check_in_date && item.check_out_date && (
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 font-ui text-xs text-wp-ink-muted break-words">
               {formatDate(item.check_in_date)} – {formatDate(item.check_out_date)}
             </div>
           )}
           {item.item_type === 'flight' && (item.departure_datetime || item.airline) && (
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 font-ui text-xs text-wp-ink-muted break-words">
               {item.airline}
               {item.airline && item.flight_number ? ' ' : ''}
               {item.flight_number}
@@ -107,7 +122,7 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
             </div>
           )}
 
-          {/* Rating (read-only) */}
+          {/* C5: rating stars (read-only) — must preserve */}
           {hasRating && (
             <div className="mt-1">
               <RatingStars value={rating} onChange={() => {}} readOnly />
@@ -115,7 +130,7 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
           )}
 
           {item.notes && (
-            <div className="mt-1 text-xs text-gray-500 italic">
+            <div className="mt-1 font-ui text-xs text-wp-ink-muted italic break-words">
               {item.notes.slice(0, 100)}
               {item.notes.length > 100 ? '…' : ''}
             </div>
@@ -128,14 +143,14 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
             <button
               type="button"
               onClick={() => onEdit(item)}
-              className="px-2.5 py-1 border border-gray-300 rounded text-xs bg-white hover:bg-gray-50 cursor-pointer"
+              className="font-ui px-2.5 py-1 border border-wp-border rounded text-xs bg-wp-bg-surface hover:bg-wp-bg-subtle cursor-pointer"
             >
               Edit
             </button>
             <button
               type="button"
               onClick={() => setShowConfirm(true)}
-              className="px-2.5 py-1 border border-red-200 rounded text-xs bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer"
+              className="font-ui px-2.5 py-1 border border-wp-btn-destructive-border rounded text-xs bg-wp-btn-destructive-bg text-wp-btn-destructive-text hover:brightness-95 cursor-pointer"
             >
               Delete
             </button>

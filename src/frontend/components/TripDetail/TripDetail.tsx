@@ -1,48 +1,42 @@
 /**
- * TripDetail — full trip view with places, items, status controls.
+ * TripDetail — full desktop trip view with places, items, status controls.
  *
- * BRD v2.4 enhancements:
+ * WP-03 (BRD §5.16): reskinned to the Waypoint token system — status stepper
+ * replaces the old flat status bar (TR-12, PO-confirmed acceptable fulfillment),
+ * new typography/color tokens, `·`-separated meta row punctuation. Structure
+ * (title → meta → StatusBadge/Edit/Photos, places, trip items) is unchanged
+ * from the pre-reskin implementation — this is a skin + stepper pass, not a
+ * layout rebuild, per the spec's desktop "Right panel" cross-reference notes.
+ *
+ * BRD v2.4 lineage preserved:
  *   D-01: Companion names in meta row below title
  *   D-02: Category + activity badges in meta row
  *   D-03: Per-place date range derived from hotel check-in/check-out
- *   D-04: Country code shown in PlaceSection subtitle (full name not yet in API — flagged)
- *   F-04/TR-12: Persistent status transition bar at bottom of right panel
+ *   D-04: Country code shown in PlaceSection subtitle
+ *   F-04/TR-12: Persistent status transition control (now the stepper)
  *   PH-03/F-08: Photos button placeholder (non-functional, shows "Coming soon")
+ *   C2: Unlock button/flow preserved as new stepper-card chrome (mockup has no
+ *       unlock affordance at all — see StatusStepper's doc comment).
  *
  * Locked trips show a read-only banner and hide all write controls.
  */
-import { useCallback, useState } from 'react';
-import { useLockTrip, useUnlockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
-import type { TripDetail as TripDetailType, TripStatus } from '../../types/api';
+import type { TripDetail as TripDetailType } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
-import { LockedIcon, PhotosIcon } from '../icons';
+import { EditIcon, LockedIcon, PhotosIcon } from '../icons';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { StatusBadge } from '../shared/StatusBadge';
 import { AddPlaceFlow } from './AddPlaceFlow';
 import { PlaceSection } from './PlaceSection';
+import { StatusStepper } from './StatusStepper';
 import { TripForm } from './TripForm';
 import { TripItemsSection } from './TripItemsSection';
+import { useTripDetailController } from './useTripDetailController';
 
 interface TripDetailProps {
   /** Full trip detail data including places and items. */
   trip: TripDetailType;
 }
-
-/** The linear next-step for the persistent status bar (F-04/TR-12). */
-const NEXT_STATUS: Partial<Record<TripStatus, { to: TripStatus; label: string; hint: string }>> = {
-  planning: { to: 'active', label: 'Mark as Active', hint: 'Next: active → review → lock' },
-  active: { to: 'review_pending', label: 'Move to Review', hint: 'Next: post-trip review → lock' },
-  review_pending: { to: 'locked', label: 'Lock Trip', hint: 'Next: lock trip' },
-};
-
-/** Status labels for display in the bar. */
-const STATUS_LABELS: Record<TripStatus, string> = {
-  planning: 'Planning',
-  active: 'Active',
-  review_pending: 'Review Pending',
-  locked: 'Locked',
-};
 
 /**
  * Renders the detailed trip view. Called by TripDetailPage after data loads.
@@ -50,251 +44,210 @@ const STATUS_LABELS: Record<TripStatus, string> = {
  * @param trip - Full trip detail including nested places and items.
  */
 export function TripDetail({ trip }: TripDetailProps) {
-  const [showEdit, setShowEdit] = useState(false);
-  const [showAddPlace, setShowAddPlace] = useState(false);
-  const [confirmUnlock, setConfirmUnlock] = useState(false);
-  const [confirmLock, setConfirmLock] = useState(false);
-  const [photosToast, setPhotosToast] = useState(false);
-
-  const updateStatus = useUpdateTripStatus();
-  const lockTrip = useLockTrip();
-  const unlockTrip = useUnlockTrip();
-
-  const isLocked = trip.status === 'locked';
-  const statusError = updateStatus.error ?? lockTrip.error ?? unlockTrip.error;
-  const isPending = updateStatus.isPending || lockTrip.isPending || unlockTrip.isPending;
-
-  // BUG-18: memoised so AddPlaceFlow's useEffect dep on onClose is stable
-  const handleAddPlaceClose = useCallback(() => setShowAddPlace(false), []);
-
-  const nextStep = NEXT_STATUS[trip.status];
-
-  const handleNextStep = async () => {
-    if (!nextStep) return;
-    if (nextStep.to === 'locked') {
-      setConfirmLock(true);
-      return;
-    }
-    await updateStatus.mutateAsync({ id: trip.id, status: nextStep.to });
-  };
-
-  const handleUnlockBar = () => {
-    setConfirmUnlock(true);
-  };
-
-  const handleLockConfirm = async () => {
-    await lockTrip.mutateAsync(trip.id);
-    setConfirmLock(false);
-  };
-
-  const handleUnlockConfirm = async () => {
-    await unlockTrip.mutateAsync(trip.id);
-    setConfirmUnlock(false);
-  };
-
-  const handlePhotos = () => {
-    setPhotosToast(true);
-    setTimeout(() => setPhotosToast(false), 2500);
-  };
+  const c = useTripDetailController(trip);
 
   return (
-    <div className="flex flex-col h-full" data-testid="trip-detail">
-      {/* Header zone */}
-      <div className="flex-shrink-0 p-6 pb-3">
-        {/* DELTA-04: Title left, actions [StatusBadge | Edit | Photos] right */}
-        <div className="flex justify-between items-start gap-3 mb-2">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 m-0">{trip.name}</h1>
+    <div className="flex flex-col h-full bg-wp-bg-page" data-testid="trip-detail">
+      {/* Header + content are centered, max-width 820px, per spec */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-[820px] mx-auto px-10 pt-9 pb-[60px]">
+          {/* Header zone */}
+          <div className="flex justify-between items-start gap-3 mb-3">
+            <div className="min-w-0">
+              <h1 className="font-display font-semibold text-[34px] leading-[1.15] tracking-[-0.3px] text-wp-ink m-0">
+                {trip.name}
+              </h1>
 
-            {/* DELTA-05: Single inline meta row — date | companions | categories/activities */}
-            <div className="flex items-center flex-wrap gap-2 mt-1">
-              <span className="text-xs text-slate-500">
-                {formatDate(trip.start_date)} – {formatDate(trip.end_date)}
-              </span>
+              {/* Meta row — `·`-separated dates | companions | tags (spec punctuation) */}
+              <div className="flex items-center flex-wrap gap-2 mt-2">
+                <span className="font-ui text-[13px] text-wp-ink-muted">
+                  {formatDate(trip.start_date)} – {formatDate(trip.end_date)}
+                </span>
 
-              {trip.companions.length > 0 && (
+                {trip.companions.length > 0 && (
+                  <>
+                    <span className="text-wp-ink-faint text-[13px]">·</span>
+                    <span className="font-ui text-[13px] text-wp-ink-muted">
+                      {trip.companions.map((comp) => comp.name).join(', ')}
+                    </span>
+                  </>
+                )}
+
+                {(trip.categories.length > 0 || trip.activities.length > 0) && (
+                  <>
+                    {trip.categories.map((cat) => (
+                      <span
+                        key={cat.id}
+                        className="inline-block rounded-full px-3 py-[5px] bg-wp-category-bg text-wp-category-text font-ui font-bold text-[11.5px] uppercase tracking-[0.25px]"
+                      >
+                        {cat.name}
+                      </span>
+                    ))}
+                    {trip.activities.map((act) => (
+                      <span
+                        key={act.id}
+                        className="inline-block rounded-full px-3 py-[5px] bg-wp-category-bg text-wp-category-text font-ui font-bold text-[11.5px] uppercase tracking-[0.25px]"
+                      >
+                        {act.name}
+                      </span>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Right actions: StatusBadge → Edit → Photos (preserves isLocked hiding Edit) */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <StatusBadge status={trip.status} />
+              {!c.isLocked && (
+                <button
+                  type="button"
+                  onClick={() => c.setShowEdit(true)}
+                  className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-bg-surface text-wp-ink border border-wp-border hover:bg-wp-bg-subtle cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <EditIcon size={14} />
+                  Edit
+                </button>
+              )}
+              {/* PH-03/F-08: Photos button placeholder */}
+              <button
+                type="button"
+                onClick={c.handlePhotos}
+                className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-bg-surface text-wp-ink border border-wp-border hover:bg-wp-bg-subtle cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <PhotosIcon size={14} />
+                Photos
+              </button>
+            </div>
+          </div>
+
+          {/* Status stepper card — replaces the old flat status bar (TR-12) */}
+          <div className="rounded-[14px] border border-wp-border bg-wp-bg-surface px-[22px] py-[18px] mb-6 flex items-center justify-between gap-4 flex-wrap">
+            <StatusStepper status={trip.status} size="desktop" />
+
+            <div className="flex items-center gap-3">
+              {/* C2: Unlock — new stepper-card chrome, mockup has no unlock affordance */}
+              {c.isLocked && (
+                <button
+                  type="button"
+                  onClick={c.handleUnlockBar}
+                  disabled={c.isPending}
+                  className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-bg-surface text-wp-ink border border-wp-border hover:bg-wp-bg-subtle disabled:opacity-50 cursor-pointer"
+                >
+                  Unlock
+                </button>
+              )}
+              {c.nextStep && (
                 <>
-                  <span className="text-slate-300 text-xs">|</span>
-                  <span className="text-xs text-slate-500">
-                    {trip.companions.map((c) => c.name).join(', ')}
+                  <span className="font-ui text-[11.5px] text-wp-ink-muted text-right max-w-[150px]">
+                    {c.nextStep.hint}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void c.handleNextStep();
+                    }}
+                    disabled={c.isPending}
+                    className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-primary text-white hover:bg-wp-primary-hover disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {c.isPending ? 'Updating…' : c.nextStep.label}
+                  </button>
                 </>
               )}
-
-              {(trip.categories.length > 0 || trip.activities.length > 0) && (
-                <>
-                  <span className="text-slate-300 text-xs">|</span>
-                  {trip.categories.map((c) => (
-                    <span
-                      key={c.id}
-                      className="bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full text-xs font-medium"
-                    >
-                      {c.name}
-                    </span>
-                  ))}
-                  {trip.activities.map((a) => (
-                    <span
-                      key={a.id}
-                      className="bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full text-xs font-medium"
-                    >
-                      {a.name}
-                    </span>
-                  ))}
-                </>
+              {/* Preserved from pre-reskin bar: locked trips show both Unlock and a
+                  plain "Locked" label side by side (existing behavior, not a mockup
+                  concept — not removing shipped UI on a reskin pass). */}
+              {trip.status === 'locked' && !c.nextStep && (
+                <span className="font-ui text-sm px-3.5 py-2 rounded-wp bg-wp-bg-chip text-wp-ink-muted">
+                  Locked
+                </span>
               )}
             </div>
           </div>
 
-          {/* DELTA-04: Right actions: StatusBadge → Edit → Photos */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <StatusBadge status={trip.status} />
-            {!isLocked && (
-              <button
-                type="button"
-                onClick={() => setShowEdit(true)}
-                className="px-4 py-1.5 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer flex-shrink-0"
-              >
-                Edit
-              </button>
-            )}
-            {/* PH-03/F-08: Photos button placeholder */}
-            <button
-              type="button"
-              onClick={handlePhotos}
-              className="px-3 py-1.5 border border-gray-300 rounded-md bg-white text-sm text-gray-600 hover:bg-gray-50 cursor-pointer inline-flex items-center gap-1.5"
-            >
+          {/* "Coming soon" toast for Photos */}
+          {c.photosToast && (
+            <div className="mb-4 px-4 py-2 bg-wp-bg-subtle border border-wp-border rounded-wp text-sm text-wp-ink-muted flex items-center gap-1.5">
               <PhotosIcon size={14} />
-              Photos
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* F-04/TR-12 DELTA-06: Status bar — between header and scrollable content */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-gray-100 border-b border-gray-200">
-        <span className="text-sm text-gray-600">
-          Status: <span className="font-semibold text-gray-800">{STATUS_LABELS[trip.status]}</span>
-        </span>
-        <div className="flex items-center gap-2">
-          {nextStep && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleNextStep();
-                }}
-                disabled={isPending}
-                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
-                  nextStep.to === 'locked'
-                    ? 'bg-yellow-100 border border-amber-400 text-amber-800 hover:bg-yellow-200'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
-              >
-                {isPending ? 'Updating…' : nextStep.label}
-              </button>
-              <span className="text-xs text-gray-500 ml-2">{nextStep.hint}</span>
-            </>
+              Photos feature coming soon!
+            </div>
           )}
-          {isLocked && (
+
+          {/* Locked banner */}
+          {c.isLocked && (
+            <div className="mb-4 px-4 py-2.5 bg-wp-bg-subtle border border-wp-border rounded-wp text-sm text-wp-ink flex items-center gap-1.5">
+              <LockedIcon size={14} />
+              Read-only — trip is locked.
+            </div>
+          )}
+
+          {c.statusError && <ErrorMessage error={c.statusError} />}
+
+          {/* Trip-level items (BUG-36/IT-01/C3) — flights and car rentals that
+              aren't tied to a specific place. Rendered above Places since
+              transport typically bookends the trip. */}
+          <TripItemsSection tripId={trip.id} isLocked={c.isLocked} />
+
+          {/* Places — sorted by arrived_on ascending, nulls last (UX-02 / ADL-24) */}
+          <div className="mb-4">
+            {[...trip.places]
+              .sort((a, b) => {
+                const aDate = a.arrived_on ?? null;
+                const bDate = b.arrived_on ?? null;
+                if (aDate === null && bDate === null) return 0;
+                if (aDate === null) return 1; // nulls last
+                if (bDate === null) return -1;
+                return aDate.localeCompare(bDate); // lexicographic = chronological for YYYY-MM-DD
+              })
+              .map((place) => (
+                <PlaceSection
+                  key={place.id}
+                  place={place}
+                  tripId={trip.id}
+                  isLocked={c.isLocked}
+                  tripStartDate={trip.start_date}
+                  tripEndDate={trip.end_date}
+                />
+              ))}
+          </div>
+
+          {/* Add place button — dashed ghost variant per spec §5 */}
+          {!c.isLocked && (
             <button
               type="button"
-              onClick={handleUnlockBar}
-              disabled={isPending}
-              className="px-4 py-1.5 rounded-md text-sm border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+              onClick={() => c.setShowAddPlace(true)}
+              className="w-full py-4 px-4 bg-transparent border-2 border-dashed border-wp-btn-ghost-border rounded-[14px] text-sm font-ui text-wp-ink-muted hover:border-wp-btn-ghost-border-hover hover:text-wp-btn-ghost-text-hover cursor-pointer"
             >
-              Unlock
+              + Add Place (City)
             </button>
           )}
-          {trip.status === 'locked' && !nextStep && (
-            <span className="px-4 py-1.5 rounded-md text-sm bg-gray-100 text-gray-500">Locked</span>
-          )}
         </div>
-      </div>
-
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {/* "Coming soon" toast for Photos */}
-        {photosToast && (
-          <div className="mb-4 px-4 py-2 bg-gray-100 border border-gray-200 rounded-md text-sm text-gray-600 flex items-center gap-1.5">
-            <PhotosIcon size={14} />
-            Photos feature coming soon!
-          </div>
-        )}
-
-        {/* Locked banner */}
-        {isLocked && (
-          <div className="mb-4 px-4 py-2.5 bg-gray-100 border border-gray-300 rounded-md text-sm text-gray-700 flex items-center gap-1.5">
-            <LockedIcon size={14} />
-            Read-only — trip is locked.
-          </div>
-        )}
-
-        {statusError && <ErrorMessage error={statusError} />}
-
-        {/* Trip-level items (BUG-36/IT-01) — flights and car rentals that aren't
-            tied to a specific place. Rendered above Places since transport
-            typically bookends the trip. */}
-        <TripItemsSection tripId={trip.id} isLocked={isLocked} />
-
-        {/* Places — sorted by arrived_on ascending, nulls last (UX-02 / ADL-24) */}
-        <div className="mb-4">
-          {[...trip.places]
-            .sort((a, b) => {
-              const aDate = a.arrived_on ?? null;
-              const bDate = b.arrived_on ?? null;
-              if (aDate === null && bDate === null) return 0;
-              if (aDate === null) return 1; // nulls last
-              if (bDate === null) return -1;
-              return aDate.localeCompare(bDate); // lexicographic = chronological for YYYY-MM-DD
-            })
-            .map((place) => (
-              <PlaceSection
-                key={place.id}
-                place={place}
-                tripId={trip.id}
-                isLocked={isLocked}
-                tripStartDate={trip.start_date}
-                tripEndDate={trip.end_date}
-              />
-            ))}
-        </div>
-
-        {/* Add place button */}
-        {!isLocked && (
-          <button
-            type="button"
-            onClick={() => setShowAddPlace(true)}
-            className="w-full py-2.5 bg-white border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600 cursor-pointer"
-          >
-            + Add Place (City)
-          </button>
-        )}
       </div>
 
       {/* Modals */}
-      {showEdit && <TripForm existingTrip={trip} onClose={() => setShowEdit(false)} />}
-      {showAddPlace && <AddPlaceFlow tripId={trip.id} onClose={handleAddPlaceClose} />}
+      {c.showEdit && <TripForm existingTrip={trip} onClose={() => c.setShowEdit(false)} />}
+      {c.showAddPlace && <AddPlaceFlow tripId={trip.id} onClose={c.handleAddPlaceClose} />}
 
       <ConfirmDialog
-        isOpen={confirmLock}
+        isOpen={c.confirmLock}
         title="Lock this trip?"
         message="This will lock the trip. No further edits will be possible without unlocking. Continue?"
         confirmLabel="Lock Trip"
         onConfirm={() => {
-          void handleLockConfirm();
+          void c.handleLockConfirm();
         }}
-        onCancel={() => setConfirmLock(false)}
+        onCancel={() => c.setConfirmLock(false)}
       />
 
       <ConfirmDialog
-        isOpen={confirmUnlock}
+        isOpen={c.confirmUnlock}
         title="Unlock this trip?"
         message="Unlock this trip? It will return to Review Pending status."
         confirmLabel="Unlock"
         onConfirm={() => {
-          void handleUnlockConfirm();
+          void c.handleUnlockConfirm();
         }}
-        onCancel={() => setConfirmUnlock(false)}
+        onCancel={() => c.setConfirmUnlock(false)}
       />
     </div>
   );

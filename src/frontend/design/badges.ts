@@ -1,27 +1,30 @@
 /**
- * Waypoint badge hue lookup (WP-02 spec §4, BRD §5.16).
+ * Waypoint badge hue lookup (WP-02/WP-03 spec §4, BRD §5.16).
  *
- * PHASE 1 ONLY — this is reusable badge-variant logic, defined but not yet wired
- * into `StatusBadge.tsx`'s actual `COLOR_CLASSES`/rendering. Wiring it in is Phase 2
- * (spec "Scope and non-goals" — applying the new hue system to only some badges
- * while StatusBadge keeps its old teal/amber/violet classes would be a worse,
- * half-migrated state than either system alone).
+ * WIRED (WP-03/WP-04, GitHub #205) — this is now consumed by `StatusBadge.tsx`.
  *
  * Source: spec §1 "Status / category hues" table + §4 "Status & category badges —
- * component spec". Seven hues total, keyed here by a semantic variant name (not by
+ * component spec". Eight hues total, keyed here by a semantic variant name (not by
  * the raw TripStatus/ItemStatus string) because two different status enums share a
- * hue in the spec (Trip "Locked" and item "Consider" both use hue 80; item
- * "Confirmed" and "Completed" both use hue 150, differing only in label text).
+ * hue in the spec (Trip "Locked" and item "Consider" both use hue 80).
+ *
+ * Confirmed vs Completed (2026-07-21, COO/PO resolution): the mockup's own
+ * `STATUS_META` gave both the identical hue-150 pair, differing only in label text —
+ * that under-specified the real status model (the mockup predates "completed" as a
+ * distinct state). This module now keeps them as two separate hues: Confirmed stays
+ * hue 150 (green), Completed moves to hue 220 (blue). See the spec's "Resolution —
+ * Confirmed vs Completed" note for the full rationale.
  */
 import type { ItemStatus, TripStatus } from '../types/api';
 
-/** One of the 7 hue families defined in spec §1. */
+/** One of the 8 hue families defined in spec §1 (Confirmed and Completed are now distinct). */
 export type BadgeHue =
   | 'planning'
   | 'active'
   | 'review'
   | 'locked'
   | 'confirmed'
+  | 'completed'
   | 'cancelled'
   | 'category';
 
@@ -42,6 +45,7 @@ export const BADGE_HUE_CLASSES: Record<BadgeHue, BadgeHueClasses> = {
   review: { bg: 'bg-wp-status-review-bg', text: 'text-wp-status-review-text' },
   locked: { bg: 'bg-wp-status-locked-bg', text: 'text-wp-status-locked-text' },
   confirmed: { bg: 'bg-wp-status-confirmed-bg', text: 'text-wp-status-confirmed-text' },
+  completed: { bg: 'bg-wp-status-completed-bg', text: 'text-wp-status-completed-text' },
   cancelled: { bg: 'bg-wp-status-cancelled-bg', text: 'text-wp-status-cancelled-text' },
   category: { bg: 'bg-wp-category-bg', text: 'text-wp-category-text' },
 };
@@ -83,13 +87,17 @@ export function tripStatusToBadgeHue(status: TripStatus): BadgeHue {
 /**
  * Maps an `ItemStatus` to its badge hue per spec §1.
  *
- * SPEC GAP: the spec's hue table (§1) does not define a hue for `'next_time'` —
- * only consider/confirmed/completed/cancelled are covered (consider shares
- * trip-status Locked's neutral hue 80; confirmed and completed share hue 150).
- * Returns `null` for `'next_time'` until COO/UX resolves this gap; callers must
- * handle the null case (e.g. by falling back to the current, pre-Waypoint
- * class in `StatusBadge.tsx` — not this module's concern in Phase 1, since this
- * module isn't wired into StatusBadge yet).
+ * Confirmed vs Completed (fixed WP-03/WP-04, 2026-07-21): these are now two
+ * distinct hues — Confirmed stays hue 150 (green), Completed moves to hue 220
+ * (blue) — per the spec's explicit "Resolution — Confirmed vs Completed" note.
+ * This module previously (Phase 1) collapsed both to hue 150 per the mockup's
+ * literal `STATUS_META` table; that was the documented bug this brief fixes.
+ *
+ * CARRIED SPEC GAP (unresolved, not introduced or fixed by this brief): the
+ * spec's hue table (§1) still does not define a hue for `'next_time'` — only
+ * consider/confirmed/completed/cancelled are covered. Returns `null` for
+ * `'next_time'` until COO/UX resolves this gap; `StatusBadge.tsx` falls back to
+ * a neutral treatment when this returns null rather than silently picking a hue.
  *
  * @param status - Item status value.
  * @returns The badge hue for this status, or `null` if the spec doesn't define one.
@@ -99,12 +107,13 @@ export function itemStatusToBadgeHue(status: ItemStatus): BadgeHue | null {
     case 'consider':
       return 'locked'; // hue 80, shared with trip status "Locked" per spec §1
     case 'confirmed':
+      return 'confirmed'; // hue 150 (green)
     case 'completed':
-      return 'confirmed'; // hue 150, shared per spec §1's explicit note
+      return 'completed'; // hue 220 (blue) — fixed, was incorrectly 'confirmed' in Phase 1
     case 'cancelled':
       return 'cancelled';
     case 'next_time':
-      return null; // SPEC GAP — see doc comment above
+      return null; // CARRIED SPEC GAP — see doc comment above
   }
 }
 

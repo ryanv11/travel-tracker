@@ -1,18 +1,21 @@
 /**
- * Waypoint icon set (WP-02, spec §3) — barrel export.
+ * Waypoint icon set (WP-02/WP-03, spec §3) — barrel export.
  *
- * 8 item/status icons + 4 nav/chrome icons = 12 total, all literal inline `<svg>`
- * JSX components (never `dangerouslySetInnerHTML` — frameworks.txt rule 22 / C8).
+ * 8 item/status icons + 5 nav/chrome icons (the WP-03 addition is EditIcon, the
+ * mobile detail-view compact Edit/Photos icon pair's Edit glyph) = 13 total, all
+ * literal inline `<svg>` JSX components (never `dangerouslySetInnerHTML` —
+ * frameworks.txt rule 22 / C8).
  *
- * NOTE: the WP-02 brief and the spec's own Phase 1 success criteria say "11
- * icons total" but enumerate 8 + 4 = 12 — a count error in the spec text itself,
- * not in this implementation. All 12 icons documented with real path data in
- * spec §3 are implemented here; flagged to COO (see icons/__tests__/icons.test.tsx).
+ * NOTE (carried from WP-02): the WP-02 brief and the spec's own Phase 1 success
+ * criteria said "11 icons total" but enumerated 8 + 4 = 12 — a count error in the
+ * spec text itself, not in this implementation; flagged to COO then, still
+ * unresolved as a doc nit, not re-flagged here. WP-03 adds one more (EditIcon).
  */
 
 export { AdminIcon } from './AdminIcon';
 export { BackChevronIcon } from './BackChevronIcon';
 export { CarRentalIcon } from './CarRentalIcon';
+export { EditIcon } from './EditIcon';
 export { ExperienceIcon } from './ExperienceIcon';
 export { FlightIcon } from './FlightIcon';
 // Item-type icons

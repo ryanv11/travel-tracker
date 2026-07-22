@@ -65,7 +65,7 @@ test('search with no match shows filtered empty state', async ({ page, request }
   await createTrip(request, { name: 'Paris Trip' });
   await page.goto('http://localhost:5173/trips');
 
-  await page.getByPlaceholder('Search trips…').fill('ZZZNOMATCH');
+  await page.getByPlaceholder('Search trips or places…').fill('ZZZNOMATCH');
 
   await expect(page.getByText(/No trips match/)).toBeVisible();
   await expect(page.getByText('Paris Trip')).not.toBeVisible();
@@ -76,10 +76,10 @@ test('clearing search restores full list', async ({ page, request }) => {
   await createTrip(request, { name: 'Trip Two' });
   await page.goto('http://localhost:5173/trips');
 
-  await page.getByPlaceholder('Search trips…').fill('One');
+  await page.getByPlaceholder('Search trips or places…').fill('One');
   await expect(page.getByText('Trip Two')).not.toBeVisible();
 
-  await page.getByPlaceholder('Search trips…').fill('');
+  await page.getByPlaceholder('Search trips or places…').fill('');
   await expect(page.getByText('Trip One')).toBeVisible();
   await expect(page.getByText('Trip Two')).toBeVisible();
 });
