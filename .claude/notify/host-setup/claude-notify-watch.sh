@@ -7,7 +7,7 @@
 # Installed as a LaunchAgent — see com.ryanv.claude-notify.plist in this same
 # folder for the install commands.
 
-WATCH_DIR="/Users/ryanv/Library/CloudStorage/OneDrive-Personal/Work/ClaudeCode/my-project/.claude/notify/queue"
+WATCH_DIR="/Users/ryanv/Projects/travel-tracker/.claude/notify/queue"
 TERMINAL_NOTIFIER="/opt/homebrew/bin/terminal-notifier"
 ICON="/Applications/Visual Studio Code.app/Contents/Resources/Code.icns"
 
