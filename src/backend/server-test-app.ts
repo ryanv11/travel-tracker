@@ -42,6 +42,12 @@ const ALLOWED_ORIGINS = (
 
 const app = express();
 
+// Trust proxy — mirrors server.ts (BUG-60 / ADL-37). Kept in sync so tests exercise
+// the same request pipeline as production. Railway is a single trusted edge hop, hence
+// the integer `1` (not `true`, which would be spoofable — see ADL-37). Harmless under
+// supertest's loopback transport (no X-Forwarded-For present).
+app.set('trust proxy', 1);
+
 // Helmet — HTTP security headers (SEC-01)
 app.use(
   helmet({
