@@ -1,0 +1,102 @@
+ARCHITECT PARK DOCUMENT — 2026-07-22 (ADL-38 / BUG-61)
+================================================================================
+
+THREAD: BUG-61 — non-owner accounts cannot create a trip (country picker empty).
+GitHub issue #225. Branch fix/bug61-country-picker-auth. ADL-38.
+
+--------------------------------------------------------------------------------
+WHAT THE BUG WAS
+--------------------------------------------------------------------------------
+Ryan signed into staging as a non-owner test account and could not create a trip.
+TripForm.tsx's country picker (useCountries in src/frontend/hooks/useAdmin.ts ->
+GET /api/admin/countries) rendered empty because the route 403'd.
+
+Root cause in src/backend/routes/admin.ts: GET /countries and
+GET /countries/:countryCode/regions were registered directly on adminRouter, and
+adminRouter.use(requireOwner) gated the ENTIRE router — reads included. Countries had
+no read/write split, so global reference data every user needs to create a trip was
+visible only to the owner. This was the practical ceiling on "share the app with a
+friend to test": a non-owner could not get past country selection at all.
+
+--------------------------------------------------------------------------------
+THE DECISION (ADL-38)
+--------------------------------------------------------------------------------
+Read/write split for the countries/regions resources:
+  READS  (GET /countries, GET /countries/:code/regions) -> requireAuth only.
+  WRITES (PATCH /countries/:code, POST /countries/:code/regions,
+          PATCH /countries/:code/regions/:regionId)     -> requireOwner (unchanged).
+
+Justification: GE-04/GE-05 — every country ships as a global, pre-seeded default with
+region-tier config applied automatically on first launch (seedCountries/seedRegions at
+startup), same tier as AD-09 categories/activities. It is NOT owner-configured per-user
+data, so gating its READ behind owner status was simply wrong. The write operations are
+a genuine owner-admin function (editing the shared region-tier config / region set), so
+they stay owner-gated.
+
+--------------------------------------------------------------------------------
+IMPLEMENTATION SHAPE — WHY IT MATTERS (the load-bearing design call)
+--------------------------------------------------------------------------------
+Two ways to carve the reads out:
+  (a) register the two GET routes ABOVE the blanket requireOwner guard; guard still
+      covers everything else. -> FAIL-CLOSED default.
+  (b) remove the blanket guard, apply requireOwner per write route. -> FAIL-OPEN:
+      a future author who forgets requireOwner on a new write route leaves it open.
+
+Chose (a). The reads are the small, enumerable exception; writes are protected by
+default. A newly added admin route is owner-gated unless a future author DELIBERATELY
+moves it into the labelled reads block above the guard. This avoids the exact
+BUG-22 failure class (requireOwner missing on PATCH /api/cities/:id). The guard block in
+admin.ts carries an explicit FAIL-CLOSED comment stating only global-reference-data
+reads may live above it.
+
+Change is confined to admin.ts (route ordering + comments). No schema, no migration, no
+server.ts change (requireAuth is already applied globally to /api/* before /api/admin is
+mounted, so all six routes still 401 unauthenticated).
+
+--------------------------------------------------------------------------------
+NOT ADL-28 — kept the scopes separate (per the brief's explicit instruction)
+--------------------------------------------------------------------------------
+ADL-28 (BRD-AD07/AD08) = make genuinely owner-only data (map-shading config, companions)
+work PER-USER via a userId FK; still "awaiting Backend implementation brief."
+BUG-61/ADL-38 = the opposite shape — global, already-shared data wrongly gated as
+owner-only. No userId scoping is involved; countries/regions have no per-user dimension.
+Did not touch ADL-28's territory.
+
+--------------------------------------------------------------------------------
+VERIFICATION
+--------------------------------------------------------------------------------
+- security.access-matrix.test.ts: added Part E (non-owner GET countries/regions -> 200;
+  non-owner writes -> 403). Removed the two now-invalid GET-403 cases from Part B;
+  updated the file + Part B header comments to list the two GET routes as requireAuth-only
+  (like /api/map/shading/{countries,regions}/:code and /api/me). Suite: 67 passed, 1 skip.
+- Full backend suite: 538 passed / 1 skip. type:check:backend: clean.
+- Manual live check (this is what confirms the reported symptom is gone): started the
+  backend with a scratch sqlite DB, BYPASS_AUTH=true and OWNER_CLERK_ID set to a value that
+  does NOT match the bypass user's clerkId, so the bypass user resolves to isOwner:0.
+  GET /api/me -> {"isOwner":0}. Then:
+    GET  /api/admin/countries            -> 200 (250-country list)
+    GET  /api/admin/countries/US/regions -> 200
+    PATCH /api/admin/countries/US        -> 403
+    POST  /api/admin/countries/US/regions-> 403
+    GET  /api/admin/categories           -> 403  (fail-closed default intact)
+
+--------------------------------------------------------------------------------
+DOC LIFECYCLE
+--------------------------------------------------------------------------------
+- ADL-38 added to the main log (jobs/architect/tech/20260307-architecture-decisions-log.md)
+  with a full access matrix + implemented status.
+- ADL-27 standalone file (jobs/architect/tech/ADL-27-admin-role-model.md) stamped
+  "SUPERSEDED IN PART (2026-07-22) by ADL-38" on the "Routes to protect" section for the two
+  GET routes only. ADL-27 itself had anticipated this: it said opening a read route to
+  non-owners requires an explicit security assessment — ADL-38 is that assessment.
+- admin.ts header docstring + guard-block comment document the auth model and fail-closed
+  invariant inline.
+
+--------------------------------------------------------------------------------
+HANDOFF
+--------------------------------------------------------------------------------
+1. COO: merge PR #225 after CI green (do not self-merge); flip BUG-61 tracker status.
+2. No BRD bump — bug fix against existing GE-04/GE-05.
+3. Frontend: no change needed; symptom resolves on merge.
+4. Carried-over open items unchanged (ADL-28 backend brief; Clerk preview origins;
+   D-05 user-pool split; OQ-03; OQ-05).

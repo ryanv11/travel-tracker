@@ -1,59 +1,62 @@
 ARCHITECT CONTEXT — 2026-07-22
 PROJECT: Travel Tracker
-CURRENT STATUS: ADL-37 decided AND implemented — BUG-60 (#221) trust-proxy fix.
-`app.set('trust proxy', 1)` added to src/backend/server.ts (before the SEC-07 rate limiter)
-and mirrored into src/backend/server-test-app.ts to keep the two app builders' pipelines in
-sync. Railway sits a single TLS-terminating edge hop in front of the container and sets
-X-Forwarded-For; Express defaulted to `false` (untrusted), so express-rate-limit threw
-ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on boot in BOTH prod (f60d623b) and staging (12e1e764).
-Value is the integer hop count `1`, NOT `true`: `true` trusts the whole XFF chain and is
-client-spoofable (express-rate-limit rejects it with ERR_ERL_PERMISSIVE_TRUST_PROXY) — a
-rate-limit-bypass hole. `1` strips exactly Railway's one edge hop and takes the last-appended
-address as req.ip; a forged prefix is ignored. Identical prod/staging (same topology);
-hardcoded (property of the platform, not env config); inert in local dev/CI (no XFF present).
-Regression test: src/backend/__tests__/trust-proxy.test.ts (asserts setting==1 and the
-compiled trust predicate trusts hop 0 but not hop 1). This was an implement-directly thread
-(single-file infra config), not a hand-off. Branch fix/bug60-trust-proxy, PR pending CI.
-See 20260722-ARCHITECT-park-adl37.txt.
+CURRENT STATUS: ADL-38 decided AND implemented — BUG-61 (#225) non-owner country-picker fix.
+Root cause: src/backend/routes/admin.ts registered GET /countries and
+GET /countries/:countryCode/regions directly on adminRouter, and adminRouter.use(requireOwner)
+(admin.ts) gated the WHOLE router — reads included. So a non-owner account (Ryan's staging test
+sign-in) got 403 on GET /api/admin/countries; TripForm's country picker (useCountries) rendered
+empty and no non-owner could create a trip at all. Per GE-04/GE-05 every country ships as a
+global, pre-seeded default available to all users out of the box (same tier as AD-09
+categories/activities), so gating the READ behind owner status was wrong.
+
+DECISION (read/write split): the two country/region GET routes now require only requireAuth
+(already applied globally to /api/* in server.ts); the three WRITE routes (PATCH country config,
+POST region, PATCH region) stay owner-gated exactly as before. Implementation kept the router
+FAIL-CLOSED by default: I moved the two GET handlers ABOVE the router-level requireOwner guard
+rather than removing the blanket guard + adding per-route requireOwner. That means a future
+admin route is owner-gated unless deliberately moved into the small, labelled reads block —
+avoids the fail-open BUG-22 class (requireOwner forgotten on a write route). The guard block in
+admin.ts carries an explicit FAIL-CLOSED comment; only global-reference-data reads may sit above it.
+
+DISTINCT FROM ADL-28 (BRD-AD07/AD08): ADL-28 = make genuinely owner-only data (map shading,
+companions) work PER-USER via a userId FK (still awaiting Backend brief). BUG-61 = global,
+already-shared data wrongly gated as owner-only. No userId scoping here; countries/regions have
+no per-user dimension. Did NOT expand into ADL-28's scope.
+
+Change confined to admin.ts. Regression: security.access-matrix.test.ts Part E added (non-owner
+GET countries/regions -> 200; non-owner writes -> 403); the two old GET-403 cases removed from
+Part B. Full backend suite 538 passed / 1 skip; type:check:backend clean. Manual live check with
+a non-owner bypass user (BYPASS_AUTH=true, OWNER_CLERK_ID mismatch -> isOwner:0): GET countries
+200 (250 rows), GET regions 200, PATCH/POST writes 403, GET /api/admin/categories still 403
+(fail-closed intact). ADL-27 standalone file stamped SUPERSEDED IN PART for the two GET routes.
+Branch fix/bug61-country-picker-auth, PR pending CI. See 20260722-ARCHITECT-park-adl38.txt.
+
+PRIOR STATUS: ADL-37 decided AND implemented — BUG-60 (#221) trust-proxy fix.
+app.set('trust proxy', 1) in server.ts + server-test-app.ts. Integer hop count 1 (NOT true,
+which is client-spoofable). Regression test src/backend/__tests__/trust-proxy.test.ts.
+Branch fix/bug60-trust-proxy. See 20260722-ARCHITECT-park-adl37.txt.
 
 PRIOR STATUS: ADL-36 decided — BUG-39 (#209) FK review. items.carriedFromItemId gets
-onDelete: 'set null' (confirmed Frontend's proposal; cascade/restrict rejected). Verified NO
-backend/frontend change needed. Database owned the migration (implemented 2026-07-21,
-migration 0011_majestic_nehzno.sql). Branch chore/bug39-adl-fk-ondelete.
+onDelete: 'set null'. Database owned the migration (0011_majestic_nehzno.sql).
 
-PRIOR STATUS: ADL-35 decided — environment promotion model. Staging keeps watching `main`
-(continuous soak); Production is repointed to watch a long-lived `production` branch, promoted
-by explicit `git merge --ff-only origin/main` + push. Branch-per-brief is UNCHANGED.
+PRIOR STATUS: ADL-35 decided — environment promotion model. Staging watches `main`
+(continuous soak); Production watches a long-lived `production` branch, promoted by explicit
+`git merge --ff-only origin/main` + push. Branch-per-brief UNCHANGED.
 
 ================================================================================
 OPEN / HANDOFF
 ================================================================================
 
-  1. COO: cross-reference rule — write GitHub issue #221 into the BUG-60 tracker `notes`
-     field (tracker is COO-maintained; I did not edit it). Issue title already carries the
-     BUG-60 ID. Flip BUG-60 status when PR merges.
-  2. No new BRD requirement IDs — BUG-60 is a bug fix / infra config, brdRefs empty, no BRD
-     bump needed.
-  3. Carried over, still open, unrelated to this thread:
+  1. COO: merge PR #225 (fix/bug61-country-picker-auth) after CI green — do not self-merge.
+     Then flip BUG-61 tracker status (tracker is COO-maintained; I did not edit it). Issue
+     title / tracker notes already carry BUG-61 <-> #225 cross-reference.
+  2. No new BRD requirement IDs — BUG-61 is a bug fix against existing GE-04/GE-05, brdRefs
+     already set; no BRD bump needed.
+  3. Frontend: no change required — the reported symptom (empty country picker for non-owners)
+     resolves end-to-end once this merges. Non-owner "share the app with a friend" path is
+     unblocked through trip creation.
+  4. Carried over, still open, unrelated to this thread:
+     - ADL-28 (BRD-AD07/AD08) per-user map-shading + companions still awaiting Backend brief.
      - Clerk preview-origin question (ADL-32 §6) + §10 success criteria pending a real deploy.
      - D-05 Clerk staging/prod user-pool split (shared pool today — jobs/COO/open-dialogues.md).
      - OQ-03 (shell trip approximate dates), OQ-05 (trip_places one-row-per-city constraint).
-     - ADL-33 agent read-only diagnostic access — provisioning/firewall brief (PO/COO).
-
-================================================================================
-TECH FILES
-================================================================================
-
-  jobs/architect/tech/20260307-architecture-decisions-log.md  ADL-01 through ADL-37
-  jobs/architect/tech/OP-06-hardening-checklist.md            unchanged, 13/13 PASS
-
-================================================================================
-NEXT ARCHITECT THREAD — RECOMMENDED STARTING POINT
-================================================================================
-
-  1. Confirm fix/bug60-trust-proxy (ADL-37 / #221) merged and BUG-60 closed; verify main CI
-     green post-merge and that the ERR_ERL_UNEXPECTED_X_FORWARDED_FOR boot error is gone from
-     the next Railway deployment logs of BOTH environments (that is the real-world close-out).
-  2. If Railway ever shows the error return, the hop count no longer matches topology (Railway
-     added a hop) — revisit the count per ADL-37's fail-loud note.
-  3. OQ-03 and OQ-05 remain open — pick up independently.

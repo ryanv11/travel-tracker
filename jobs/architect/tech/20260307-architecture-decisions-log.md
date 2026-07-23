@@ -2376,3 +2376,88 @@ first removes any ordering ambiguity.
 **Supersession:** none. Additive server configuration; no prior ADL addressed `trust proxy`.
 Complements SEC-07 (rate limiting) by making its client-IP resolution correct and non-spoofable
 behind the ADL-32 Railway deployment.
+
+---
+
+## ADL-38 — Countries/regions are global reference data: READ = requireAuth, WRITE = requireOwner (BUG-61)
+
+**Date:** 2026-07-22
+**Status:** Decided — **Implemented** (Architect, 2026-07-22, branch `fix/bug61-country-picker-auth`,
+refs #225). Change confined to `src/backend/routes/admin.ts`: the two country/region GET routes
+are moved above the router-level `requireOwner` guard; all writes stay below it. Regression
+coverage added to `src/backend/routes/__tests__/security.access-matrix.test.ts` (Part E). No
+schema, migration, or backend hand-off.
+
+**Trigger:** BUG-61 (GitHub #225), found 2026-07-22 live in staging — Ryan signed in as a
+non-owner test account and could not create a trip: the TripForm country picker
+(`src/frontend/components/TripDetail/TripForm.tsx` → `useCountries` in
+`src/frontend/hooks/useAdmin.ts`, `GET /api/admin/countries`) rendered empty because the route
+403'd. Root cause: `admin.ts` registered `GET /countries` and `GET /countries/:countryCode/regions`
+directly on `adminRouter`, and `adminRouter.use(requireOwner)` gated the **whole router** — reads
+included. A non-owner therefore hit the practical ceiling on "share the app with a friend to test":
+they could not get past country selection at all.
+
+**Decision:** Split read from write for the countries/regions resources.
+- **Reads** (`GET /api/admin/countries`, `GET /api/admin/countries/:countryCode/regions`) require
+  only authentication — `requireAuth`, already applied globally to all of `/api/*` in `server.ts`.
+- **Writes** (`PATCH /countries/:countryCode`, `POST /countries/:countryCode/regions`,
+  `PATCH /countries/:countryCode/regions/:regionId`) stay owner-only, unchanged.
+
+**Why this is correct (GE-04 / GE-05):** every country ships as a global, pre-seeded default with
+its region-tier config applied automatically on first launch — the same data tier as AD-09's
+categories/activities, seeded by `seedCountries()`/`seedRegions()` at startup, not owner-configured
+per-user data. Gating the *read* of global defaults behind owner status was simply wrong: it made a
+resource every user needs to create a trip visible only to the owner. The write operations are
+genuinely an owner-admin function (editing the shared region-tier config, adding regions), so they
+correctly stay owner-gated.
+
+**Distinct from ADL-28 (BRD-AD07 / BRD-AD08) — do not conflate.** ADL-28 is about making
+genuinely owner-only data (map-shading config, companions) work *per-user* via a `userId` FK — that
+work is still "awaiting Backend implementation brief." BUG-61 is the opposite shape: global,
+already-shared data that was *incorrectly* gated as owner-only. No `userId` scoping is involved
+here; countries/regions have no per-user dimension. This brief touched countries/regions
+read-access only and did not enter ADL-28's territory.
+
+**Implementation shape — why carve-out-above-the-guard, not per-route `requireOwner`:** I kept the
+router **fail-closed by default**. The two options were (a) register the read routes above the
+blanket `requireOwner` guard and leave the guard covering everything else, or (b) remove the blanket
+guard and apply `requireOwner` per write route. Option (b) is fail-*open*: a future author who adds a
+new write route and forgets `requireOwner` leaves it unprotected — exactly the class of mistake this
+project's security checklist and OP-06/ADL-27 exist to prevent (cf. BUG-22, where `requireOwner` was
+missing on `PATCH /api/cities/:id`). Option (a) keeps the invariant "a newly added admin route is
+owner-gated unless deliberately moved into the small, clearly-labelled reads block above the guard,"
+so the reads are the enumerable exception and writes are protected by default. Chosen (a). The guard
+block carries an explicit FAIL-CLOSED comment stating only global-reference-data reads may live
+above it.
+
+**Access matrix after this change (audit record):**
+
+| Route | Middleware | Rationale |
+| --- | --- | --- |
+| `GET /api/admin/countries` | `requireAuth` | global reference data (GE-04/05) — every user reads it to create a trip |
+| `GET /api/admin/countries/:countryCode/regions` | `requireAuth` | same — region list for the picker |
+| `PATCH /api/admin/countries/:countryCode` | `requireAuth` + `requireOwner` | edits shared region-tier config — owner admin |
+| `POST /api/admin/countries/:countryCode/regions` | `requireAuth` + `requireOwner` | adds to shared region set — owner admin |
+| `PATCH /api/admin/countries/:countryCode/regions/:regionId` | `requireAuth` + `requireOwner` | edits shared region — owner admin |
+| `GET/POST/PATCH/DELETE /api/admin/{categories,activities,companions}` | `requireAuth` + `requireOwner` | unchanged — owner-only list admin |
+
+`requireAuth` remains globally applied in `server.ts` before `/api/admin` is mounted, so all six
+routes still return 401 when unauthenticated (Part A of the access-matrix suite is unchanged).
+
+**Verification:** access-matrix suite green (67 passed, 1 pre-existing skip); Part E added asserting
+non-owner `GET` → 200 and non-owner writes → 403. Manual live check with a non-owner bypass user
+(`BYPASS_AUTH=true`, `OWNER_CLERK_ID` set to a non-matching value → `isOwner:0`) against a seeded DB:
+`GET /api/admin/countries` → 200 with the 250-country list, `GET .../US/regions` → 200,
+`PATCH .../US` → 403, `POST .../US/regions` → 403, and `GET /api/admin/categories` → 403 (fail-closed
+default intact).
+
+**Supersession:** partially supersedes ADL-27's "all admin routes require owner status" for the two
+country/region GET routes only — the ADL-27 standalone file's blanket statement is stamped in this
+PR. The router-level guard and the owner-only status of every write route are unchanged.
+
+**Implications for other jobs:**
+- **Frontend:** the trip-create country picker now populates for any authenticated user — the
+  reported BUG-61 symptom is resolved end to end. No frontend change was required.
+- **Backend:** the fail-closed invariant is now load-bearing and documented in `admin.ts`. Any new
+  admin route must stay below the `requireOwner` guard unless it is a read of global reference data;
+  writes never move above the guard.
