@@ -155,9 +155,13 @@ gh pr create --title "feat: description (#N)" --body "Closes #N\nBRD §X.X TR-XX
 
 ### After opening a PR
 ```bash
-gh run list --repo ryanv11/travel-tracker --limit=5
-gh run view <run-id> --log-failed   # if any job failed
+scripts/ci-wait.sh pr <PR_NUMBER>
+gh run view <run-id> --log-failed   # if ci-wait.sh reports a failure
 ```
+`scripts/ci-wait.sh` blocks until every check finishes and exits non-zero if any
+failed, instead of a hand-rolled polling loop — don't write your own (see the
+script's header comment for why: a past ad-hoc script broke outright from naming a
+variable `status`, a read-only special variable in this environment's zsh shell).
 - Do not consider a task complete until CI passes (all jobs green)
 - Fix any CI failures before filing your completion report
 
@@ -166,8 +170,8 @@ The COO merges via the `/coo-merge-and-close` skill — squash merge, branch hyg
 and the full session-close checklist live there. Two rules bind regardless:
 - Squash merge is standard; no stale local branches after a merge session
 - **Post-merge verification is mandatory**: main's own CI must go green after every
-  merge (`gh run list --branch main`) — a green PR does not guarantee a green main
-  (BUG-24). Red main is fixed immediately, never left unowned.
+  merge (`scripts/ci-wait.sh branch main`) — a green PR does not guarantee a green
+  main (BUG-24). Red main is fixed immediately, never left unowned.
 
 ### Recording decisions (ADL entries, BRD bumps)
 Load the `/record-decision` skill before editing the ADL log, a standalone ADL file,

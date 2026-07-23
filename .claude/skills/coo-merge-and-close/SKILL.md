@@ -13,9 +13,12 @@ Installed 2026-07-18 from the Session C draft (audits/session-c-workflow-extract
    review moment is the enforcement point for the document-lifecycle rule (CLAUDE.md);
    missed here, verdicts rot silently (the OP-06 failure class).
 2. Confirm the PR's CI is green — **by reading the actual job results, not an agent's
-   self-report.** If the PR adds a NEW CI job, open that job's own log: all pre-existing
-   jobs can be green while the new one fails (OP-11 first-round PR: 30/36 E2E specs
-   failing behind a green-looking check list; caught only by reading the raw log).
+   self-report.** Use `scripts/ci-wait.sh pr <n>` to block until every check finishes
+   rather than polling by hand — it does a final authoritative `--json` rollup check
+   itself, not just an agent's word for it. If the PR adds a NEW CI job, open that
+   job's own log: all pre-existing jobs can be green while the new one fails (OP-11
+   first-round PR: 30/36 E2E specs failing behind a green-looking check list; caught
+   only by reading the raw log).
 3. Merge:
    ```bash
    gh pr merge <n> --repo ryanv11/travel-tracker --squash --delete-branch
@@ -24,7 +27,7 @@ Installed 2026-07-18 from the Session C draft (audits/session-c-workflow-extract
    ```
 4. Post-merge verification (mandatory, before the next merge or session end):
    ```bash
-   gh run list --repo ryanv11/travel-tracker --branch main --limit 4
+   scripts/ci-wait.sh branch main
    ```
    A green PR does not guarantee a green main — two individually-green PRs can compose
    to a red main via squash-merge races (BUG-24). If main goes red, fixing it is the
@@ -104,7 +107,7 @@ Installed 2026-07-18 from the Session C draft (audits/session-c-workflow-extract
 
 ## Definition of done
 
-- [ ] Main's own CI green after the final merge (`gh run list --branch main`)
+- [ ] Main's own CI green after the final merge (`scripts/ci-wait.sh branch main`)
 - [ ] `git branch` shows only `main` + branches with open PRs awaiting review
 - [ ] `jobs/COO/inbox/` triaged; handled reports in `read/`
 - [ ] tracker.json statuses match merged reality; STATUS.md regenerated in same commit
