@@ -25,6 +25,29 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-09: COO worktree cleanup can race an agent's own lingering post-report process
+**Raised:** 2026-07-22
+
+During the BUG-61 Architect dispatch, the agent's task-notification fired "completed" with
+a full self-report (CI still pending at that point, flagged as an open item for COO to
+verify). COO acted on that notification independently — checked `gh pr checks 227` directly,
+reviewed the diff, merged, then ran routine `git worktree remove` on the agent's worktree as
+part of normal close-out. A second, delayed notification then arrived from the *same* agent
+reporting that its "execution environment was removed out from under it" mid-poll — i.e. the
+agent's own shell was still alive (apparently still trying to poll CI status in the
+background) after its first "completed" notification had already fired and been acted on.
+
+No harm resulted — all commits were already pushed before the removal, and COO's own
+independent CI check (not the agent's) was what actually gated the merge. But this is a new
+variant in the same family as D-08/OP-20: a task-notification marked "completed" does not
+guarantee zero live subprocesses remain in that agent's worktree, so cleaning up immediately
+after acting on that notification can still collide with something. Open question: does
+routine worktree cleanup need a beat of delay after a completion notification (e.g. confirm
+no second notification arrives within some window before removing), or is "no harm, agent's
+own commits were already safely on origin" sufficient evidence this doesn't need a process
+change — per D-03's precedent (single contained incident, not automatically a new rule)? Not
+yet decided — raised for Ryan, not actioned.
+
 ### D-08: Mid-thread `/workspace` leak — does the isolation guardrail need a fourth clause?
 **Raised:** 2026-07-21
 

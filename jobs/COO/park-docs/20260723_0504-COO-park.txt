@@ -1,0 +1,133 @@
+COO SESSION PARK — 2026-07-23 (BUG-60 + BUG-61 fixed, prod promoted, AD07/AD08 handed off)
+================================================================================
+
+## Session summary
+Picked up via /coo-startup: hooks OK, main CI green, drift ledger clean since last
+review, BRD coverage clean, doc lifecycle clean. One loose end from the prior
+session's park doc: PR #220 (railway-query.sh `logs` subcommand + D-06 follow-up
+note) was open, green, and never merged — merged first before dispatching anything.
+
+Dispatched Architect (worktree-isolated) for BUG-60 (Express `trust proxy` unset
+behind Railway's edge proxy, causing express-rate-limit to throw
+ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on boot in both envs). Result: ADL-37 —
+`app.set('trust proxy', 1)` (hop-count integer, not `true`, which would let a client
+forge/spoof `req.ip` to bypass SEC-07's rate limit). New regression test asserts the
+compiled trust predicate, not just the literal setting. PR #222 merged, tracker
+closed via PR #223.
+
+User then asked what's on the list for multi-user / sharing the app with friends.
+Answered in two parts: separate-account isolation already works (verified live);
+actual trip *collaboration* (three-role access model, companion invites, PL-06
+co-planning) is real unbuilt Phase 3 work per the BRD. User then live-tested a
+non-owner account in staging and found the Map tab had no shading/legend and the
+trip-create country picker was empty, blocking trip creation entirely. Investigated
+and found two distinct issues: (1) map shading is BRD-AD07/AD08 (ADL-28, decided
+March 2026, never implemented — already tracked, "awaiting Backend implementation
+brief", left for user to pick up next session as they requested); (2) a new, more
+severe bug — `GET /api/admin/countries` inherited `adminRouter`'s blanket
+`requireOwner`, so ANY non-owner 403's trying to read the global, GE-04/05
+pre-seeded country list, blocking non-owner trip creation entirely. Logged as
+BUG-61 (P1, GitHub #225), then dispatched Architect again.
+
+Result: ADL-38 — split read (requireAuth) from write (requireOwner) for
+countries/regions, implemented as a fail-closed carve-out (GET routes moved above
+the router-level guard, comment-documented invariant that only global-reference-data
+reads may live there) rather than removing the blanket guard and relying on
+per-route discipline — explicitly reasoned against the fail-open alternative citing
+BUG-22 precedent. Correctly stamped ADL-27's file `SUPERSEDED IN PART` per the
+document lifecycle rule rather than silently deviating from it. New regression
+tests (security.access-matrix.test.ts Part E) assert the exact previously-broken
+symptom is fixed (non-owner GET → 200) and writes stay locked (403). Reviewed the
+diff directly (not just the agent's report) — route registration order confirmed
+correct, all three writes still below the guard. PR #227 merged (auto-closed issue
+#225), tracker closed via PR #228.
+
+Promoted `main` → `production` (Ryan's explicit go-ahead) via the standard ADL-35
+fast-forward — 24 commits including the full Waypoint reskin, BUG-59, and BUG-60.
+Verified live via read-only Railway diagnostics (`railway-query.sh logs`) that both
+prod and staging booted clean post-deploy — no CORS errors, no trust-proxy error.
+Recorded in tracker via PR #224.
+
+Process note (added to open-dialogues.md as D-09, not actioned): the BUG-61
+Architect dispatch's task-notification fired "completed" once, was acted on
+independently (COO verified CI directly, reviewed diff, merged), then a second
+delayed notification arrived reporting the agent's own worktree had been removed
+out from under it mid-poll — COO's routine `git worktree remove` cleanup raced a
+lingering agent subprocess. No harm (commits were already on origin), but it's a
+new variant in the D-08/OP-20 collision family; raised for Ryan, not resolved.
+
+Separately, Ryan flagged that CI-status polling this session looked inconsistent —
+correct observation. Root cause found and fixed: two Monitor-based polls failed
+identically (`(eval): read-only variable: status`) because `status` is zsh's
+read-only special variable (this environment's shell), not a Monitor reliability
+issue. The failure was misdiagnosed in the moment as a tool problem and led to
+reactively switching to ad-hoc `Bash run_in_background` scripts rather than reading
+the stderr, which had the answer the whole time. Saved to memory
+(`feedback_zsh_status_var_and_polling_pattern.md`): never name a script variable
+`status` in this environment; diagnose a poll failure before switching tools.
+
+## Completed this session
+- PR #220 — railway-query.sh `logs` subcommand + runbook doc (prior session's loose
+  end). Merged, main CI green.
+- PR #222 — BUG-60 fix (ADL-37, trust proxy). Merged, main CI green.
+- PR #223 — BUG-60 tracker close-out, GitHub issue #221 closed.
+- PR #224 — production promotion recorded + verified live (prod 8ca4c7fc, staging
+  4ff379e4, both clean boot logs).
+- PR #226 — BUG-61 logged (GitHub issue #225 opened, correctly NOT auto-closed by
+  this logging-only PR).
+- PR #227 — BUG-61 fix (ADL-38, countries/regions read/write split). Merged, main
+  CI green, issue #225 auto-closed.
+- PR #228 — BUG-61 tracker close-out.
+- `main` → `production` promoted (24 commits), both environments verified healthy.
+- All agent worktrees/branches (2x Architect dispatches) cleaned up after each
+  merge. `git branch` → only main + pre-existing chore/uat-note-country-picker-gap
+  (PR #126, untouched).
+- open-dialogues.md D-09 added (worktree-cleanup timing vs. lingering agent
+  process).
+- Memory: `feedback_zsh_status_var_and_polling_pattern.md` (zsh `status` var +
+  polling tool-switching root cause).
+
+## State of play
+- **BUG-60 and BUG-61 are fully closed** — fixed, merged, tracker done, GitHub
+  issues closed, both verified live in production (BUG-60) or via CI + manual
+  bypass-user verification (BUG-61). No follow-up expected on either.
+- **Production is now current with main** (was 24 commits behind; promoted this
+  session). Next promotion whenever the next batch of prod-ready work accumulates —
+  no standing cadence, COO-driven per CLAUDE.md's promotion model.
+- **BRD-AD07/BRD-AD08 (ADL-28 — per-user map shading + companions) is the explicit
+  next-session item** — Ryan asked to reopen fresh specifically for this. Spec
+  already exists (`jobs/architect/tech/ADL-28-per-user-shading-companions.md`,
+  written March 2026, never implemented): `userId` FK on `map_shading_config`
+  (composite PK with `state_key`) and on `companions` (UNIQUE with `name`),
+  companions route moves from `/api/admin/companions` (`requireOwner`) to a new
+  `/api/companions` router (`requireAuth`), lazy per-user seeding for shading
+  config. Tracker entries `BRD-AD07`/`BRD-AD08` already exist, status
+  `in-progress`, owner `backend`, "awaiting Backend implementation brief" — ready to
+  brief directly next session, though worth a quick Architect re-confirm that the
+  March spec still matches current schema/routes before handing to Backend (schema
+  has evolved since March — e.g. BUG-39's FK work, the WP-03/04 reskin touched
+  ItemCard/badges but not these tables directly, so likely still accurate, just
+  worth a glance).
+- All other open threads unchanged: BUG-50/BUG-51 (P1, deliberately unbriefed per
+  Ryan's earlier instruction), D-04–D-07 (Clerk version drift, prod/staging Clerk
+  split, firewall allowlist, `gh` auth), OQ-03/OQ-05, PR #126 — none touched this
+  session.
+
+## Open threads
+See jobs/COO/open-dialogues.md — D-09 added this session (worktree-cleanup timing).
+D-04 through D-08 unchanged.
+
+## Restart preview
+**Captured:** PRs #220, #222, #223, #224, #226, #227, #228 all merged, main CI green
+after each. BUG-60 and BUG-61 fully closed (tracker + GitHub issues + live
+verification). Production promoted to match main. All agent worktrees/branches
+cleaned up. D-09 added to open-dialogues.md. Zsh `status`-variable feedback saved to
+memory. Drift ledger reviewed sentinel current.
+**Captured, not actioned:** BRD-AD07/BRD-AD08 (the explicit next-session item,
+spec already exists) — Ryan is reopening fresh specifically for this. BUG-50,
+BUG-51, D-04–D-08, OQ-03/OQ-05, PR #126 — all pre-existing, untouched this session.
+**Not captured:** none — everything from this session is in tracker.json, ADL-37,
+ADL-38, GitHub issues, the 7 merged PRs, open-dialogues.md D-09, and the new memory
+file. Shown to Ryan before writing this doc; no changes requested beyond the D-09
+addition (already made) and the polling-reliability root-cause writeup (already
+saved to memory).
