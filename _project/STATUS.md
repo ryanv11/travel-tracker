@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (45)
+## Open work (44)
 
 ### P0 — Blockers (1)
 
@@ -25,13 +25,12 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (3)
+### P1 — Critical (2)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
-| BUG-61 | GET /api/admin/countries (and regions) require owner status — non-owner accounts can't populate the country picker on trip create | architect | ⬜ Pending |
 
 ### P2 — Important (25)
 
@@ -90,7 +89,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 |---|---|---|---|---|
 | feature | `██████████▓▓░░░░░░░░` 27/54 | 27 | 27 | 3 |
 | requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
-| bug | `███████████████░░░░░` 40/53 | 40 | 13 | 4 |
+| bug | `███████████████░░░░░` 41/53 | 41 | 12 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
 
@@ -124,4 +123,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_114 done · 10 deferred · 2 closed · 45 open — 171 tracked items_
+_115 done · 10 deferred · 2 closed · 44 open — 171 tracked items_
