@@ -1,88 +1,59 @@
-ARCHITECT CONTEXT — 2026-07-21
+ARCHITECT CONTEXT — 2026-07-22
 PROJECT: Travel Tracker
-CURRENT STATUS: ADL-36 decided — BUG-39 (#209) FK review. items.carriedFromItemId gets
+CURRENT STATUS: ADL-37 decided AND implemented — BUG-60 (#221) trust-proxy fix.
+`app.set('trust proxy', 1)` added to src/backend/server.ts (before the SEC-07 rate limiter)
+and mirrored into src/backend/server-test-app.ts to keep the two app builders' pipelines in
+sync. Railway sits a single TLS-terminating edge hop in front of the container and sets
+X-Forwarded-For; Express defaulted to `false` (untrusted), so express-rate-limit threw
+ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on boot in BOTH prod (f60d623b) and staging (12e1e764).
+Value is the integer hop count `1`, NOT `true`: `true` trusts the whole XFF chain and is
+client-spoofable (express-rate-limit rejects it with ERR_ERL_PERMISSIVE_TRUST_PROXY) — a
+rate-limit-bypass hole. `1` strips exactly Railway's one edge hop and takes the last-appended
+address as req.ip; a forged prefix is ignored. Identical prod/staging (same topology);
+hardcoded (property of the platform, not env config); inert in local dev/CI (no XFF present).
+Regression test: src/backend/__tests__/trust-proxy.test.ts (asserts setting==1 and the
+compiled trust predicate trusts hop 0 but not hop 1). This was an implement-directly thread
+(single-file infra config), not a hand-off. Branch fix/bug60-trust-proxy, PR pending CI.
+See 20260722-ARCHITECT-park-adl37.txt.
+
+PRIOR STATUS: ADL-36 decided — BUG-39 (#209) FK review. items.carriedFromItemId gets
 onDelete: 'set null' (confirmed Frontend's proposal; cascade/restrict rejected). Verified NO
-backend/frontend change needed — UpdateItemSchema doesn't expose the carry-forward fields, the
-frontend tag reads the is_carried_forward boolean not the FK, so the resulting
-is_carried_forward=1 / carried_from_item_id=NULL post-deletion state is intentional (ADL-13
-coupling is create-time only). FK audit: BUG-39 is ISOLATED — other no-onDelete FKs reference
-soft-delete-only admin lists or non-deletable seed/geo tables. Database owns the migration next
-(ADL-36 "Implications for Database"). Review-only thread; committed change is the ADL-36 entry +
-BUG-39 tracker note. Branch chore/bug39-adl-fk-ondelete. See 20260721-ARCHITECT-park-adl36.txt.
+backend/frontend change needed. Database owned the migration (implemented 2026-07-21,
+migration 0011_majestic_nehzno.sql). Branch chore/bug39-adl-fk-ondelete.
 
 PRIOR STATUS: ADL-35 decided — environment promotion model. Staging keeps watching `main`
 (continuous soak); Production is repointed to watch a long-lived `production` branch, promoted
-by explicit `git merge --ff-only origin/main` + push. Design only; the only committed change is
-the ADL-35 entry + a supersession stamp on ADL-32 §5. Railway repoint, CLAUDE.md workflow
-addition, and an OP-22 tracker entry are COO/PO follow-ups (ADL-35 §8). Branch-per-brief is
-UNCHANGED (§7). D-05 Clerk app split noted as out of scope. Prior thread: ADL-33 (read-only
-agent diagnostic access) — see 20260721-ARCHITECT-park.txt.
-
-================================================================================
-WORK COMPLETED THIS THREAD (ADL-33)
-================================================================================
-
-PO ask (2026-07-21): give the COO/Claude Code agent direct READ-ONLY diagnostic access to
-Railway, Turso, Clerk so live-deploy debugging stops depending on Ryan pasting logs by hand.
-Scope pre-negotiated + binding: Railway read-only (logs/status/var names), Turso read-only
-SELECT, Clerk read-only config.
-
-Research (WebSearch/WebFetch — current API surfaces, not assumed):
-- Turso: `turso db tokens create <db> --read-only` is a GENUINE DB-scoped read-only token.
-  DB hosts: libsql://<db>-<org>.turso.io (+ regional <db>-<org>.<region>.turso.io).
-  Platform API api.turso.tech is account-level, NOT read-only — deliberately excluded.
-  => GRANT (clean). Allowlist DB hosts only; invoke via @libsql/client (existing dep).
-- Railway: API + CLI log host = backboard.railway.com (/graphql/v2). NO read-only token
-  scope — Account/Workspace/Project tokens all carry full perms of scope; Project token can
-  still deploy/delete. => GRANT WITH CAVEAT. Project-scoped token = narrowest blast radius;
-  read-only is behavioural only; treat as write-capable secret.
-- Clerk: Backend API api.clerk.com; only credential is Secret Key sk_* = full write to auth
-  config + full user CRUD (PII). NO read-only credential. => DO NOT GRANT (recommend). Keep
-  manual dashboard/paste for rare config lookups. Highest stakes (identity provider).
-- Storage: separate gitignored .env.agent-diagnostics, NOT .env.local (operator vs app
-  secrets; don't load into app process).
-- No BRD ID (operational tooling; ADL-33 §8). Suggested OP-21 tracker entry (COO to create).
-
-ADL-33 logged in jobs/architect/tech/20260307-architecture-decisions-log.md. Completion
-report: jobs/COO/inbox/20260721_2100-ARCHITECT-adl33-agent-service-access.txt.
-Branch: chore/adl-agent-service-access (not yet merged — awaiting PO review/merge).
+by explicit `git merge --ff-only origin/main` + push. Branch-per-brief is UNCHANGED.
 
 ================================================================================
 OPEN / HANDOFF
 ================================================================================
 
-  1. PO/Ryan to provision (blocks implementation):
-     - Turso: `turso db tokens create <prod-db> --read-only` AND `<staging-db> --read-only`;
-       supply both tokens + both libsql:// URLs.
-     - Railway: create a PROJECT token (not Account/Workspace); supply it.
-     - Clerk: nothing — recommended decline. Overriding = conscious sk_* acceptance, own decision.
-  2. COO: create OP-21 tracker entry; after provisioning, dispatch firewall+credential brief
-     (add backboard.railway.com + two Turso DB hosts to init-firewall.sh; create
-     .env.agent-diagnostics + .gitignore entry; short invocation runbook). Firewall change
-     only takes effect on NEXT container start (postStartCommand) — not hot-appliable.
-     Validate reachability after restart; CDN A-record pinning caveat (Cloudflare edge IPs).
-     Do NOT allowlist api.turso.tech or api.clerk.com.
-
-  3. Carried over from ADL-32 (unrelated to this thread, still live):
-     - Clerk preview-origin question (ADL-32 §6) + §10 success criteria pending an actual
-       Railway deploy — see BRD-NF09 tracker.
-  4. Still open, unrelated: OQ-03 (shell trip approximate dates), OQ-05 (trip_places
-     one-row-per-city constraint vs realistic same-city revisits).
+  1. COO: cross-reference rule — write GitHub issue #221 into the BUG-60 tracker `notes`
+     field (tracker is COO-maintained; I did not edit it). Issue title already carries the
+     BUG-60 ID. Flip BUG-60 status when PR merges.
+  2. No new BRD requirement IDs — BUG-60 is a bug fix / infra config, brdRefs empty, no BRD
+     bump needed.
+  3. Carried over, still open, unrelated to this thread:
+     - Clerk preview-origin question (ADL-32 §6) + §10 success criteria pending a real deploy.
+     - D-05 Clerk staging/prod user-pool split (shared pool today — jobs/COO/open-dialogues.md).
+     - OQ-03 (shell trip approximate dates), OQ-05 (trip_places one-row-per-city constraint).
+     - ADL-33 agent read-only diagnostic access — provisioning/firewall brief (PO/COO).
 
 ================================================================================
 TECH FILES
 ================================================================================
 
-  jobs/architect/tech/20260307-architecture-decisions-log.md  ADL-01 through ADL-35
+  jobs/architect/tech/20260307-architecture-decisions-log.md  ADL-01 through ADL-37
   jobs/architect/tech/OP-06-hardening-checklist.md            unchanged, 13/13 PASS
 
 ================================================================================
 NEXT ARCHITECT THREAD — RECOMMENDED STARTING POINT
 ================================================================================
 
-  1. Check whether chore/adl-agent-service-access (ADL-33) and chore/adl-32-hosted-deployment
-     have merged.
-  2. If Ryan chose to override the Clerk decline, capture that as its own tracked decision.
-  3. If Backend's ADL-32 implementing brief resolves the Clerk dynamic-preview-origin
-     question, record it as an ADL-32 addendum or a short new ADL.
-  4. OQ-03 and OQ-05 remain open — pick up independently.
+  1. Confirm fix/bug60-trust-proxy (ADL-37 / #221) merged and BUG-60 closed; verify main CI
+     green post-merge and that the ERR_ERL_UNEXPECTED_X_FORWARDED_FOR boot error is gone from
+     the next Railway deployment logs of BOTH environments (that is the real-world close-out).
+  2. If Railway ever shows the error return, the hop count no longer matches topology (Railway
+     added a hop) — revisit the count per ADL-37's fail-loud note.
+  3. OQ-03 and OQ-05 remain open — pick up independently.
