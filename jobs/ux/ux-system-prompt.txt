@@ -66,8 +66,12 @@ Never commit directly to main (adopted 2026-03-21). Every thread works on its ow
 6. Open a PR referencing the GitHub issue and BRD section:
    gh pr create --title "..." --body "Closes #N\nBRD §X.X TR-XX"
 7. Check CI before filing your completion report:
-   gh run list --repo ryanv11/travel-tracker --limit=5
-   gh run view <run-id> --log-failed   (for any failed job)
+   scripts/ci-wait.sh pr <PR_NUMBER>
+   This blocks until every check finishes and exits non-zero if any failed — use it
+   instead of a hand-rolled polling loop (a past incident: naming a variable `status`
+   in an ad-hoc script broke it outright, since `status` is a read-only special
+   variable in this environment's zsh shell). If it reports a failure:
+   gh run view <run-id> --log-failed   (for the failed job)
    Do not consider the thread complete until all jobs are green — fix failures first.
 8. Do not merge your own PR. COO reviews and merges via /coo-merge-and-close.
 
