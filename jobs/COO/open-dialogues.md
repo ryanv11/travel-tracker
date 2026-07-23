@@ -25,6 +25,43 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-11: `.claude/settings.local.json` disappeared from disk mid-session — root cause unknown, and it's gitignored so a `git clone` migration won't carry it
+**Raised:** 2026-07-23
+
+Mid-session, Ryan reported desktop notifications had stopped firing. Investigation found
+`.claude/settings.local.json` — the untracked, gitignored, personal-only file that wires
+`.claude/hooks/notify.sh` to `PreToolUse(AskUserQuestion)`, `PreToolUse(ExitPlanMode)`,
+`Notification`, and `Stop` (see `project_macos_notification_bridge.md`) — was completely
+absent from `/workspace/.claude/`. `notify.sh` itself was intact and worked correctly
+when invoked directly; the queue directory was simply empty because Claude Code had
+nothing telling it to call the hook at all.
+
+**Root cause not found.** Checked and ruled out: no `git clean` in recent shell history;
+the file was never actually committed with hook content (its last *tracked* version,
+visible in `git show f79dba7`, only ever held a permissions allowlist, predating the
+hooks — the hooks were added to the working copy in the same PR that untracked the
+file, so they never touched git history at all and aren't recoverable that way).
+`/workspace` is a genuine host bind mount, so an ordinary container restart shouldn't
+touch it. COO recreated the file from the architecture documented in
+`project_macos_notification_bridge.md` and confirmed `notify.sh` fires correctly again;
+whether Claude Code needs a session/window reload to pick up a hooks file rewritten
+mid-session (vs. re-reading it live) is also untested — Ryan confirmed "working again"
+afterward, but the mechanism wasn't isolated.
+
+**Direct implication for D-10 (OneDrive migration, in progress):** because this file is
+gitignored by design, the recommended `git clone` migration method will **not** bring it
+along automatically — same category as `.env.local`, which the runbook already handles
+via manual copy. **The runbook needs this same manual-copy step added for
+`.claude/settings.local.json`**, or the new clone will have the identical
+notifications-silently-stop symptom on first use, indistinguishable from a recurrence of
+this same mystery. Not yet added to the runbook as of this entry — do before Ryan
+executes step 4 (the `.env.local` copy step).
+
+Not actioned beyond the immediate recreate-and-verify — raised for awareness given it
+happened once already with no clear cause, and the migration is about to change the
+exact filesystem layer (OneDrive bind mount → plain local disk) that's the prime
+remaining suspect if it recurs.
+
 ### D-10: Move the project off OneDrive — Ryan flagged this a priority (recurrence)
 **Raised:** 2026-07-23
 
