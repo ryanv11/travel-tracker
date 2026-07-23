@@ -15,6 +15,7 @@
 # Usage:
 #   scripts/agent-diagnostics/railway-query.sh <prod|staging> status
 #   scripts/agent-diagnostics/railway-query.sh <prod|staging> deployment <deployment-id>
+#   scripts/agent-diagnostics/railway-query.sh <prod|staging> logs <deployment-id> [limit]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -80,10 +81,21 @@ case "$COMMAND" in
         gql "$(printf '{"query":"query { deployment(id: \\"%s\\") { id status statusUpdatedAt canRedeploy meta } }"}' "$DEPLOYMENT_ID")" \
             | jq '.data.deployment'
         ;;
+    logs)
+        DEPLOYMENT_ID="${3:-}"
+        LIMIT="${4:-150}"
+        if [ -z "$DEPLOYMENT_ID" ]; then
+            echo "Usage: $0 <prod|staging> logs <deployment-id> [limit]" >&2
+            exit 1
+        fi
+        gql "$(printf '{"query":"query { deploymentLogs(deploymentId: \\"%s\\", limit: %s) { message timestamp severity } }"}' "$DEPLOYMENT_ID" "$LIMIT")" \
+            | jq '.data.deploymentLogs[]'
+        ;;
     *)
-        echo "Usage: $0 <prod|staging> <status|deployment> [deployment-id]" >&2
+        echo "Usage: $0 <prod|staging> <status|deployment|logs> [deployment-id] [limit]" >&2
         echo "  status                    -- 5 most recent deployments for this environment" >&2
         echo "  deployment <id>           -- full detail (status, meta, commit) for one deployment" >&2
+        echo "  logs <id> [limit]         -- runtime log lines for one deployment (default limit 150)" >&2
         exit 1
         ;;
 esac

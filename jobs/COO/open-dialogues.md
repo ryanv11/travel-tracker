@@ -86,6 +86,14 @@ Adding the domain would let COO fetch the actual served HTML/JS directly next ti
 credentialed access ADL-33 already granted). Not yet decided — raised, not confirmed
 either way by Ryan.
 
+**Update 2026-07-21 (later same day):** hit the same limitation again diagnosing BUG-59
+(staging white screen) — worked around it via `railway-query.sh`'s new `logs` subcommand
+(deployment console output) plus `turso-query.mjs` instead of hitting the site directly,
+and it was sufficient to find the exact root cause without needing the domain allowlisted.
+Doesn't resolve the open question, but is a second data point: the Turso/Railway-metadata
+diagnostic path has now twice been enough on its own, which may be relevant to how much
+this is actually worth adding.
+
 ### D-07: `gh` CLI has no persistent auth in this container
 **Raised:** 2026-07-21
 

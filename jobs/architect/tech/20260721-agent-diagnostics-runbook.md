@@ -50,7 +50,15 @@ environment within a project, narrower than just "the project"):
 scripts/agent-diagnostics/railway-query.sh prod status                        # 5 most recent deployments
 scripts/agent-diagnostics/railway-query.sh staging status
 scripts/agent-diagnostics/railway-query.sh prod deployment <deployment-id>    # full detail on one deployment
+scripts/agent-diagnostics/railway-query.sh staging logs <deployment-id> [limit]  # runtime log lines (default 150)
 ```
+
+`logs` is the one that actually shows the application's own console output (startup sequence,
+thrown errors with stack traces) — `status`/`deployment` only give Railway's own metadata
+(build info, commit, deploy status), not what the running process printed. Added 2026-07-21
+after diagnosing BUG-59 (staging CORS misconfiguration) required reading the actual server
+error, not just confirming the deploy succeeded — the query existed as an ad-hoc curl call
+during that session and is now a proper subcommand instead of something to be rediscovered.
 
 The script resolves `projectId`/`environmentId` from the token itself at runtime (via the
 `projectToken { projectId environmentId }` query) — nothing is hardcoded, so it keeps working if
