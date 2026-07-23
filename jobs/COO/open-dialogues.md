@@ -40,12 +40,23 @@ at the top level) after the first occurrence, and it recurred anyway — so that
 durable, just a stopgap.
 
 Ryan's direct instruction this session: "let's make that a priority to move off onedrive."
-Not yet actioned — this needs a real planning pass (target path outside OneDrive sync
-scope, e.g. `~/dev/travel-tracker`; whether `devcontainer.json`'s host bind-mount path
-needs updating to match; a clean before/after verification that no work is lost in the
-move) rather than something to improvise at the tail of a session. Next session should
-open with this, not treat it as background debt — Ryan's phrasing was a clear escalation
-from the first occurrence's "not yet done, someday" framing.
+
+**Update 2026-07-23 (later, new session):** Planning pass done, execution pending on
+Ryan's host. Target path confirmed: `~/Projects/travel-tracker`. Architect-reviewed via
+**ADL-39** (`jobs/architect/tech/20260307-architecture-decisions-log.md`, PR #234,
+merged) — confirms `devcontainer.json` needs no edit (`workspaceMount` uses
+`${localWorkspaceFolder}`), recommends a fresh `git clone` over a physical `mv` (avoids
+dragging along the ref-corruption class and 1.7 GB / 33 dirs of orphaned worktrees under
+`.claude/worktrees/` — checked this session, none hold unpushed commits), and flagged
+two follow-ups: F1 (the notify bridge's hardcoded `WATCH_DIR` — fixed this session, PR
+#235, merged) and F2 (the devcontainer's config Docker volume is keyed by
+`devcontainerId`, which can re-key on a path move and orphan `/home/node/.claude`
+including auto-memory — needs a backup-before/verify-after step, not yet done since
+that's host-side). Full step-by-step runbook (backup config volume → clone → copy
+`.env.local` → reopen VS Code → verify → reinstall notify bridge → decommission old
+folder) handed to Ryan. **Blocking on host-side execution** — everything actionable
+from inside the container is done; the physical move, config-volume backup, and VS
+Code reopen are all steps only Ryan can run. Not yet closed.
 
 ### D-09: COO worktree cleanup can race an agent's own lingering post-report process
 **Raised:** 2026-07-22
