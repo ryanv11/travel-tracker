@@ -1,0 +1,42 @@
+COMPLETION REPORT — ARCHITECT
+Tracker: BUG-60 · ADL-37 · GitHub issue #221 · PR #<pending> · BRD: none (bug/infra) · Branch fix/bug60-trust-proxy
+
+DECIDED + IMPLEMENTED
+Express `trust proxy` was unset, so behind Railway's edge proxy express-rate-limit (SEC-07)
+threw ERR_ERL_UNEXPECTED_X_FORWARDED_FOR at boot in BOTH prod and staging. Fixed with
+`app.set('trust proxy', 1)` — trust exactly Railway's single edge hop.
+
+PER-DECISION VERDICT
+- trust proxy value = integer `1` — ADOPTED (High confidence). `1` strips exactly Railway's
+  one edge hop and takes the real (last-appended) client IP as req.ip.
+- trust proxy = `true` — REJECTED. Trusts the whole X-Forwarded-For chain => client-forgeable
+  req.ip => rate-limit bypass. express-rate-limit rejects it (ERR_ERL_PERMISSIVE_TRUST_PROXY).
+  This is the "trust too much" security hole the brief flagged.
+- CIDR/IP allowlist — REJECTED. Railway publishes no committed edge CIDR; pinned IPs rotate and
+  silently break. Hop-count fails LOUD instead (error resurfaces if Railway ever adds a hop).
+- Prod vs staging — IDENTICAL topology, one hardcoded value, no env gating; inert in dev/CI.
+
+FILES
+- src/backend/server.ts (setting added before the rate-limiter)
+- src/backend/server-test-app.ts (mirrored — two app builders kept in sync by design)
+- src/backend/__tests__/trust-proxy.test.ts (NEW regression test — see below)
+- jobs/architect/tech/20260307-architecture-decisions-log.md (ADL-37, full reasoning)
+
+TEST (brief step 4 — judgment call): YES, added. Asserts the setting is `1` AND that Express's
+compiled trust predicate trusts hop 0 but not hop 1 — the security property (a forged deeper-hop
+entry is not trusted) encoded directly, without an intrusive req.ip-echoing probe route.
+
+VERIFICATION
+- type:check:backend clean; test:backend 535 passed | 1 skipped (incl. new test).
+- CI: <fill after gh pr checks green — report not final until then>.
+
+OPEN / ACTION FOR COO
+1. Cross-reference rule: add GitHub issue #221 to the BUG-60 tracker `notes` field. I did NOT
+   edit tracker.json (COO-maintained). Issue title already carries the BUG-60 ID.
+2. Flip BUG-60 status on merge.
+3. Real close-out (next Architect thread, noted in park doc): after merge + Railway redeploy of
+   BOTH envs, confirm the boot error is gone from both deployment logs — that's the true DoD.
+
+UNBLOCKED: nothing was blocked on this; it removes a startup error and makes SEC-07 rate-limiting
+correct and non-spoofable behind Railway. Detail in park doc 20260722-ARCHITECT-park-adl37.txt
+and ADL-37.

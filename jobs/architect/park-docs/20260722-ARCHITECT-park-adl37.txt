@@ -1,0 +1,84 @@
+PARK DOCUMENT — ARCHITECT — ADL-37 (BUG-60 trust-proxy config)
+Date: 2026-07-22
+Tracker: BUG-60 · ADL-37 · GitHub #221 · Branch fix/bug60-trust-proxy
+
+SCOPE
+Implement-directly dispatch (decision + single-file infra config, no hand-off). BUG-60:
+the app runs on Railway, whose TLS-terminating edge proxy sets X-Forwarded-For on every
+request. src/backend/server.ts never called app.set('trust proxy', ...), so Express
+defaulted to `false` (do not trust the header). express-rate-limit (SEC-07, server.ts
+L147-153 + the secondary cities limiter L158-163) detects the mismatch and throws
+ERR_ERL_UNEXPECTED_X_FORWARDED_FOR at boot in BOTH prod (deployment f60d623b) and staging
+(12e1e764) — confirmed from deployment logs, pre-dates the session that found it.
+
+RULING (ADL-37) — High confidence
+app.set('trust proxy', 1) — trust exactly Railway's ONE edge hop. The value is the crux;
+the two failure modes are the two errors express-rate-limit guards:
+  - false (current default): X-Forwarded-For present but untrusted => req.ip = socket peer
+    (Railway edge) for EVERY request => all clients share one bucket. Throws
+    ERR_ERL_UNEXPECTED_X_FORWARDED_FOR. This is the bug.
+  - true: trusts the WHOLE chain => Express returns the leftmost (forgeable) XFF entry as
+    req.ip => client spoofs its IP and rotates it to bypass rate limits. express-rate-limit
+    rejects it with ERR_ERL_PERMISSIVE_TRUST_PROXY. This is the "trust too much" hole.
+  - 1 (selected): strips exactly one hop (Railway edge = immediate socket peer), takes the
+    last-appended address (the real client IP Railway itself wrote) as req.ip. A forged
+    prefix sits deeper in the chain and is ignored. Correct + not spoofable, given Railway's
+    edge APPENDS the connecting IP (standard XFF reverse-proxy behaviour — same assumption
+    every "trust proxy: 1 behind one reverse proxy" deployment relies on).
+
+WHY NOT A HIGHER COUNT OR A CIDR ALLOWLIST
+  - Railway is a single edge tier from the app's XFF perspective — count must match topology
+    exactly; 2+ would hand an attacker back a spoofable position.
+  - CIDR allowlist (pin Railway edge IPs) is theoretically tightest but Railway publishes no
+    committed edge CIDR; pinned IPs rotate and would silently start throwing again. Hop-count
+    needs no list and FAILS LOUD: if Railway ever added a hop, the boot error resurfaces
+    (visible) rather than opening a silent trust gap. That fail-loud property is the reason
+    Medium-confidence residual risk ("could Railway be >1 hop") is acceptable.
+  - Firewall blocked fetching Railway's own edge docs from the devcontainer (allowlist is
+    GitHub/npm/Anthropic only). Hop count reasoned from the standard single-reverse-proxy
+    model Railway's TLS-terminating edge fits + the observed error signature (UNEXPECTED =
+    header-present-but-untrusted, consistent with exactly one untrusted hop).
+
+PROD vs STAGING: identical. Same image, same platform, same single-edge topology; error
+present in both deployments' logs. One hardcoded value covers both — no env-var gating
+(the value is a property of the Railway platform, not of an environment's config, so it must
+not be something an env var can silently get wrong). Inert in local dev/CI (no XFF present =>
+req.ip = socket peer, limiter never trips).
+
+FILES CHANGED
+  - src/backend/server.ts        — app.set('trust proxy', 1) added immediately after
+                                    express(), BEFORE the rate-limiter middleware (limiter
+                                    reads resolved req.ip; ordering must be settled first).
+  - src/backend/server-test-app.ts — same setting mirrored. The two app builders duplicate
+                                    the middleware chain BY DESIGN (test export documents
+                                    "same request pipeline as production"); both must move
+                                    together or the test pipeline silently diverges. Mirroring
+                                    is also what makes the setting assertable under supertest.
+  - src/backend/__tests__/trust-proxy.test.ts — NEW. Asserts (1) app.get('trust proxy') === 1
+                                    (not true = spoofable, not false = default bug), and (2)
+                                    the compiled trust predicate (app.get('trust proxy fn'))
+                                    trusts hop 0 but NOT hop 1 — i.e. exactly one hop. That
+                                    second assertion is the security property in code: a
+                                    forged deeper-hop entry is not trusted.
+  - jobs/architect/tech/20260307-architecture-decisions-log.md — ADL-37 entry.
+
+TEST NOTE (judgment call, per brief step 4)
+There IS a clean way to assert this and I took it — but note WHAT is asserted. Express does
+not expose a live-request hook to prove "a forged X-Forwarded-For was rejected" without
+adding a req.ip-echoing probe route (intrusive, auth-gated). The compiled-trust-fn assertion
+(trust hop 0, reject hop 1) is the precise, non-intrusive encoding of the same property and
+is what Express itself uses at request time, so it is a faithful guard, not a proxy for one.
+
+VERIFICATION
+  - npm run type:check:backend — clean.
+  - npm run test:backend — 535 passed | 1 skipped (24 files), includes the new test.
+  - /pre-push — run before push (see completion report for result).
+  - CI — see completion report; do not close until gh pr checks green.
+
+HAND-OFFS / OPEN
+  - COO: write issue #221 into BUG-60 tracker `notes` (COO-maintained; I did not touch
+    tracker.json). Flip BUG-60 status on merge.
+  - Real-world close-out (next thread): after merge + Railway redeploy of BOTH environments,
+    confirm the ERR_ERL_UNEXPECTED_X_FORWARDED_FOR boot error is GONE from both deployment
+    logs. That is the actual definition-of-done, beyond CI green.
+  - No BRD change (bug fix, brdRefs empty).

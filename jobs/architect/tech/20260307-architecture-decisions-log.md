@@ -2279,3 +2279,100 @@ revisited under this same rule. This is guidance, not a defect — no tracker en
 **Supersession:** none. Refines ADL-13's carry-forward model (clarifies the two-field coupling is a
 create-time invariant, not a permanent one) without overturning it — no stamp required; ADL-13's
 create-time enforcement stands unchanged.
+
+---
+
+## ADL-37 — Express `trust proxy` = `1` (single Railway edge hop) (BUG-60)
+
+**Date:** 2026-07-22
+**Status:** Decided — **Implemented** (Architect, 2026-07-22, branch `fix/bug60-trust-proxy`,
+refs #221). `app.set('trust proxy', 1)` added to `src/backend/server.ts` (before the
+SEC-07 rate-limiter middleware) and mirrored into `src/backend/server-test-app.ts` to keep the
+two app builders' pipelines identical. Regression test:
+`src/backend/__tests__/trust-proxy.test.ts` (asserts the setting is the integer `1` and that the
+compiled trust predicate trusts exactly hop 0, not hop 1). Single-file infra config change, no
+backend hand-off.
+
+**Trigger:** BUG-60, found 2026-07-21 while verifying BUG-59's fix by reviewing Railway
+deployment logs. Both environments' logs show `express-rate-limit` throwing
+`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` once shortly after boot — staging deployment `12e1e764`
+and prod `f60d623b` (i.e. already present in prod before that session's changes). Railway sits a
+TLS-terminating edge proxy in front of the container and sets `X-Forwarded-For` on every request;
+`server.ts` never called `app.set('trust proxy', ...)`, so Express defaulted to `false` (do not
+trust the header). Not a hard block on traffic (fires at startup, not per-request; both
+environments otherwise functional), but SEC-07's IP attribution is unreliable in that state — the
+reason this was routed to Architect for an ADL rather than fixed unilaterally, per the standing
+"runtime/infra config needs an Architect decision first" rule.
+
+**Decision:** Set `trust proxy` to the **integer hop count `1`** — trust exactly one proxy hop
+(Railway's edge), no more. Not `true`, not `false`, not a CIDR allowlist.
+
+**Why the value matters in both directions (this is the whole reason it's an ADL, not a
+one-liner):** the two ways to get this wrong are the two errors `express-rate-limit` guards, and
+they map exactly onto the two directions of misconfiguration:
+- **`false` (the current default) — the bug.** With a proxy present but untrusted, `req.ip`
+  resolves to the *socket peer* (Railway's edge) for **every** request, so all clients look like
+  one IP. `express-rate-limit` detects the mismatch (X-Forwarded-For present + `trust proxy`
+  off) and throws `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`. Effect if it didn't throw: the whole
+  internet shares one rate-limit bucket — the limiter is simultaneously useless (one attacker
+  exhausts everyone's quota) and hostile (legitimate users collide).
+- **`true` — the security hole in the other direction.** `true` trusts the *entire*
+  X-Forwarded-For chain, so Express walks it fully left and returns the **leftmost** value as
+  `req.ip`. A client can forge `X-Forwarded-For: <anything>`; Railway's edge appends the real
+  peer to the right, but with `true` Express still honours the forged leftmost entry — so the
+  client picks its own apparent IP and rotates it to **bypass rate limiting entirely**.
+  `express-rate-limit` rejects this configuration outright with
+  `ERR_ERL_PERMISSIVE_TRUST_PROXY` precisely because it is spoofable.
+- **`1` — correct.** Express strips exactly one trusted hop from the right (Railway's edge, the
+  immediate socket peer) and takes the *last-appended* address as `req.ip` — that is the real
+  client IP that Railway's edge itself wrote. A forged prefix from the client sits deeper in the
+  chain (to the left of Railway's appended value) and is **ignored**, because Express only trusts
+  one hop. This satisfies the limiter, attributes IPs correctly, and is not spoofable — assuming
+  Railway's edge *appends* the connecting IP (standard, XFF-conformant reverse-proxy behaviour),
+  which is the same assumption every "`trust proxy: 1` behind one reverse proxy" deployment
+  (Heroku, nginx, Cloudflare-to-single-origin) relies on.
+
+**Why `1` and not a higher count or a CIDR allowlist:**
+- Railway's public networking is a **single** edge tier in front of the app container from the
+  app's `X-Forwarded-For` perspective — one hop to trust. A hop count of `2+` would strip a hop
+  Railway doesn't add, handing the attacker back a spoofable position; the count must match the
+  real topology exactly, and that count is `1`.
+- A CIDR/IP allowlist (trusting Railway's edge subnet) is the theoretically tightest option but
+  requires a **stable, documented** set of Railway edge IPs to pin; Railway does not publish a
+  committed egress/edge CIDR, and pinning to observed IPs would silently break (start throwing
+  again) whenever they rotate. The hop-count form needs no such list and degrades safely: if
+  Railway ever inserted a second hop, the symptom would resurface as a *visible* boot error, not
+  a *silent* trust gap — the fail-loud direction. `1` is the correct, maintainable choice.
+- Firewall note: Railway's own edge-topology docs were not fetchable from inside the devcontainer
+  (allowlist is GitHub/npm/Anthropic only), so the hop count is reasoned from the standard
+  single-reverse-proxy model that Railway's TLS-terminating edge fits, plus the observed error
+  signature (`UNEXPECTED`, i.e. header-present-but-untrusted — consistent with exactly one
+  untrusted hop). Confidence: **High** on the direction and the `1`-vs-`true` security argument;
+  **Medium** only on the residual "could Railway ever be >1 hop" — mitigated by the fail-loud
+  property above.
+
+**Prod vs staging:** identical. Both run the same image on the same Railway platform with the
+same single-edge topology (confirmed: the error appears in both deployments' logs with the same
+signature). One value, hardcoded, covers both — no env-var gating. It is also safe in **local dev
+and CI**: with no `X-Forwarded-For` present, `req.ip` simply falls back to the socket peer and the
+limiter never trips, so the setting is inert outside a proxied deployment. Hardcoding (not
+env-driven) is deliberate — the value is a property of the Railway platform, not of a particular
+environment's config, so it should not be something an env var can silently get wrong.
+
+**Placement:** `app.set('trust proxy', 1)` is registered immediately after `express()` and
+before the rate-limiter (and all other) middleware in `server.ts`. `express-rate-limit` reads the
+resolved `req.ip`, so the app-level setting must be in effect before the limiter runs; setting it
+first removes any ordering ambiguity.
+
+**Implications for other jobs:**
+- **Backend:** none — no route or repository change. Any *future* code that reads `req.ip` (audit
+  logging, per-IP throttles, geo) now gets the real client IP behind Railway, correctly; code
+  should continue to use `req.ip` rather than parsing `X-Forwarded-For` by hand.
+- **The two app builders must stay in sync.** `server.ts` and `server-test-app.ts` duplicate the
+  middleware chain by design (the test export documents this). Any future change to proxy/trust
+  handling must touch both, or the test pipeline silently diverges from production. The added test
+  guards the test-app side of that.
+
+**Supersession:** none. Additive server configuration; no prior ADL addressed `trust proxy`.
+Complements SEC-07 (rate limiting) by making its client-IP resolution correct and non-spoofable
+behind the ADL-32 Railway deployment.

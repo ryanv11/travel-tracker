@@ -80,6 +80,23 @@ const SERVE_STATIC = process.env.NODE_ENV === 'production' && fs.existsSync(DIST
 
 const app = express();
 
+// 0. Trust proxy — Railway edge proxy (BUG-60 / ADL-37)
+//
+// Railway terminates TLS at its edge and forwards to this container, appending the
+// real client IP to X-Forwarded-For (exactly one trusted hop). Express defaults to
+// NOT trusting that header, so express-rate-limit (SEC-07, below) can't resolve the
+// client IP and throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on boot.
+//
+// The value is the integer hop count `1`, NOT `true`. `true` would trust the entire
+// X-Forwarded-For chain, so a client could forge a leftmost entry and spoof its IP to
+// evade rate limits (express-rate-limit rejects that with ERR_ERL_PERMISSIVE_TRUST_PROXY).
+// `1` strips exactly one hop (Railway's edge) and takes the last-appended address as
+// req.ip — a forged prefix is ignored because Railway appends the real peer to the right.
+// Identical topology in prod and staging; safe in local dev/CI too (no X-Forwarded-For
+// present → req.ip falls back to the socket peer, and the limiter never trips).
+// MUST be set before the rate-limiter middleware registers. See ADL-37.
+app.set('trust proxy', 1);
+
 // 1. Helmet — HTTP security headers (SEC-01)
 app.use(
   helmet({
