@@ -47,3 +47,10 @@ claude-code/
 e2e.db
 playwright-report/
 test-results/
+
+# Personal Claude Code overrides — machine-specific permissions, notification hooks
+.claude/settings.local.json
+
+# macOS notification bridge — runtime trigger files only; .claude/notify/host-setup/
+# (the watcher script + LaunchAgent plist) is checked in, see .claude/hooks/notify.sh
+.claude/notify/queue/
