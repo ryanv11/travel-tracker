@@ -1,0 +1,102 @@
+COO SESSION PARK — 2026-07-23 (addendum: ci-wait.sh shipped, git ref corruption found+fixed, OneDrive migration now priority)
+================================================================================
+
+## Session summary
+Continuation of the 0504 park doc from earlier today (BUG-60/BUG-61 closed, prod
+promoted). After that close-out, Ryan asked why CI-status polling had looked
+inconsistent this session — root cause diagnosed as a shell scripting bug, not a
+tool problem: two Monitor-based polling scripts failed identically with
+`(eval): read-only variable: status` because `status` is zsh's read-only special
+variable (this environment's shell), which had been misdiagnosed in the moment as
+Monitor unreliability and led to reactively switching approaches instead of fixing
+a one-line bug. Ryan then asked whether this belonged in a skill rather than just
+memory, and — when told a reusable script would be the stronger fix — asked for it
+to be built as part of this close-out.
+
+Built `scripts/ci-wait.sh`: wraps `gh pr checks --watch` / `gh run watch
+--exit-status` plus a final authoritative `--json` rollup check, replacing the
+ad-hoc per-check polling loops every role (COO included) had been writing inline.
+Wired into all 8 role system-prompts' CI-check step, `coo-merge-and-close`'s two
+CI-verification steps, and CLAUDE.md's PR workflow section. Tested standalone
+(branch mode against main's already-completed runs, usage-error paths, no-runs-found
+path) and dogfooded live against its own PR (#230) before merging — confirmed
+correct PASS/exit-0 behavior end to end. PR #230 merged.
+
+Immediately after merging #230, `git pull` failed outright:
+`fatal: bad object refs/heads/chore/adl-30-dep01-drizzle` / `did not send all
+necessary objects` — local `main` had NOT actually updated despite the merge
+succeeding on GitHub. Diagnosed via `git fsck --full`: 213 local branch refs (118
+`refs/heads/*`, 95 stale `refs/remotes/origin/*`) had been silently rewritten to
+the literal null SHA. Reading the corrupted files threw the exact `EDEADLK`/
+"Resource deadlock avoided" signature already documented in memory
+(`project_onedrive_dehydration.md`) from a first occurrence on 2026-07-02 — this is
+the same OneDrive Files-On-Demand dehydration issue, but this time it corrupted
+git's own ref files instead of regular tracked files, and it blocks `git fetch`/
+`git pull` entirely (unlike `git branch`/`git rev-parse`, which gracefully skip a
+broken ref with a warning, `git fetch`'s ref-enumeration has no such fallback and
+aborts hard on the first bad ref it hits).
+
+Fixed in-session: `git update-ref -d` itself hit the same deadlock (it needs to
+read-then-delete); a raw filesystem `rm -f` (batched via `xargs`, since a bash
+`while read` loop mysteriously threw `command not found: rm` inside this
+specific multi-line-script execution context — worked fine as single commands or
+via `xargs`) bypassed it reliably, since unlink() doesn't need to read the file's
+content first. Cleared all 213, `git fetch`/`git pull` immediately worked again.
+Also found and cleaned up ~24 legitimate (non-corrupted) stale local branches from
+past sessions where the post-merge `git branch -D` step had simply never been run
+historically — verified each was already deleted on origin
+(`git ls-remote --heads origin <branch>` empty) before force-deleting locally,
+excluding `chore/uat-note-country-picker-gap` (PR #126, still genuinely open).
+
+Ryan confirmed this is OneDrive recurring despite having already applied the
+documented Finder-level "Always Keep on This Device" fix after the first
+occurrence — meaning that fix is a stopgap, not durable — and set an explicit
+priority: move the project off OneDrive entirely. Logged as D-10 in
+open-dialogues.md (not actioned — needs a real planning session: target path,
+whether `devcontainer.json`'s host bind-mount needs updating, verified
+before/after migration) and the OneDrive memory file updated with the full
+second-occurrence writeup.
+
+## Completed this session (this addendum's portion)
+- PR #230 — `scripts/ci-wait.sh` added and wired into all 8 role system-prompts,
+  `coo-merge-and-close`, and CLAUDE.md. Merged, dogfooded successfully against its
+  own CI before merge.
+- Git repository health restored: 213 corrupted zero-SHA refs removed (both local
+  branches and stale remote-tracking refs), ~24 legitimate stale local branches
+  cleaned up, `git fetch`/`git pull` confirmed working again, local `main` now
+  correctly at `b254aca` (matches origin).
+- `jobs/COO/open-dialogues.md` D-10 added (OneDrive migration, Ryan's explicit
+  priority).
+- Memory `project_onedrive_dehydration.md` updated with the second-occurrence
+  writeup and the priority decision.
+
+## State of play
+- **Repo is healthy.** `git branch` → only `main` + `chore/uat-note-country-picker-gap`
+  (PR #126, untouched, genuinely open). `git fsck` shows only expected dangling
+  objects (harmless, from the branches just deleted — will be reclaimed by a future
+  routine `git gc`, no action needed). `git worktree list` → only `/workspace`.
+- **scripts/ci-wait.sh is live and documented** — next session's CI-waits (COO's
+  own and every dispatched agent's) should use it instead of ad-hoc scripts.
+- **D-10 (OneDrive migration) is the explicit top priority for next session**,
+  per Ryan's own framing — not backlog debt, an escalated ask. See open-dialogues.md
+  for the planning considerations already identified.
+- Everything from the 0504 park doc (BUG-60/BUG-61 closed, prod promoted, BRD-AD07/
+  AD08 handed off as the other next-session item) is unchanged and still accurate.
+
+## Open threads
+See jobs/COO/open-dialogues.md — D-10 added this session (OneDrive migration
+priority). D-04 through D-09 unchanged from the 0504 park doc.
+
+## Restart preview
+**Captured:** PR #230 merged (ci-wait.sh + doc wiring), git repo health restored
+(213 corrupted refs + ~24 legitimate stale branches cleaned up, fetch/pull
+confirmed working, verified main == origin/main), D-10 added to open-dialogues.md,
+OneDrive memory file updated with the second-occurrence writeup.
+**Captured, not actioned:** D-10 itself (OneDrive migration — logged as the
+explicit next-session priority, not yet planned or executed). Everything else
+unchanged from the 0504 park doc (BRD-AD07/AD08 handoff, BUG-50/BUG-51, D-04–D-09,
+OQ-03/OQ-05, PR #126).
+**Not captured:** none — the git corruption incident, its fix, and the OneDrive
+priority decision are all in this park doc, the open-dialogues.md D-10 entry, and
+the updated memory file; nothing from this addendum exists only in conversation.
+Shown to Ryan before writing this doc as part of confirming readiness to close.

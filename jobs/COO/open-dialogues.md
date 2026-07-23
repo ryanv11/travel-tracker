@@ -25,6 +25,28 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-10: Move the project off OneDrive — Ryan flagged this a priority (recurrence)
+**Raised:** 2026-07-23
+
+Second occurrence of the OneDrive Files-On-Demand dehydration issue first documented
+2026-07-02 (see memory `project_onedrive_dehydration.md`) — this time it corrupted git's
+own internals rather than just regular project files: 213 local branch refs got silently
+rewritten to the null SHA, which blocked `git fetch`/`git pull` outright
+(`fatal: bad object refs/heads/<branch>`) until COO diagnosed and fixed it in-session
+(raw `rm -f`/`xargs` on the corrupted ref files, since even `git update-ref -d` hit the
+same underlying `EDEADLK` the corrupted files themselves throw on read). Notably, Ryan
+had already applied the documented Finder-level workaround ("Always Keep on This Device"
+at the top level) after the first occurrence, and it recurred anyway — so that fix is not
+durable, just a stopgap.
+
+Ryan's direct instruction this session: "let's make that a priority to move off onedrive."
+Not yet actioned — this needs a real planning pass (target path outside OneDrive sync
+scope, e.g. `~/dev/travel-tracker`; whether `devcontainer.json`'s host bind-mount path
+needs updating to match; a clean before/after verification that no work is lost in the
+move) rather than something to improvise at the tail of a session. Next session should
+open with this, not treat it as background debt — Ryan's phrasing was a clear escalation
+from the first occurrence's "not yet done, someday" framing.
+
 ### D-09: COO worktree cleanup can race an agent's own lingering post-report process
 **Raised:** 2026-07-22
 
