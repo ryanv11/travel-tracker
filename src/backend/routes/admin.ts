@@ -3,6 +3,11 @@
  *
  * Manages admin list tables (categories, activities, companions) and country/region config.
  * All admin list items use soft-delete (is_active = 0) — never hard-delete (AD-06).
+ *
+ * Auth model (BUG-61 / ADL-38): the router is owner-gated by default via a router-level
+ * requireOwner guard, EXCEPT the two global reference-data GET routes (countries + regions),
+ * which are registered above the guard and require only authentication. See the guard block
+ * below for the fail-closed invariant.
  */
 
 import { and, eq } from 'drizzle-orm';
@@ -22,8 +27,77 @@ import {
 
 export const adminRouter = Router();
 
-// ADL-27 / HC-04: All admin routes require owner status.
-// Applied at the router level — covers all current and future routes automatically.
+// ================================================================
+// Global reference-data READS — any authenticated user (BUG-61 / ADL-38)
+//
+// GE-04 / GE-05: countries and their region-tier config ship as global,
+// pre-seeded defaults available to every user out of the box (same tier as
+// AD-09 categories/activities) — NOT owner-configured, per-user data. The
+// trip-create country picker (TripForm.tsx → useCountries) must therefore be
+// readable by any authenticated account, or a non-owner cannot create a trip
+// at all (the picker renders empty and 403s).
+//
+// These GET routes are registered BEFORE the router-level requireOwner guard
+// below, so requireAuth (applied globally to /api/* in server.ts) is their
+// only gate. The matching WRITE operations (PATCH country config, POST/PATCH
+// regions) stay owner-only — they are registered AFTER the guard.
+//
+// FAIL-CLOSED INVARIANT: only reads of global reference data belong above the
+// guard. Every write, and everything else, MUST stay below it so the router
+// remains owner-gated by default — a newly added route is owner-only unless a
+// future author deliberately moves it into this block. Do not add write routes
+// or per-user data reads here.
+//
+// This is distinct from ADL-28 (BRD-AD07/AD08 per-user map-shading + companions):
+// that work makes genuinely owner-only data work per-user via a userId FK; this
+// is global, already-shared data that was wrongly gated as owner-only.
+// ================================================================
+
+// GET /api/admin/countries — global country list (read: any authenticated user)
+adminRouter.get(
+  '/countries',
+  asyncHandler(async (_req, res) => {
+    const db = getDb();
+    const rows = await db.select().from(countries).orderBy(countries.name);
+    res.json(
+      rows.map((r) => ({
+        country_code: r.countryCode,
+        name: r.name,
+        region_tier_enabled: r.regionTierEnabled === 1,
+        region_tier_label: r.regionTierLabel,
+      })),
+    );
+  }),
+);
+
+// GET /api/admin/countries/:countryCode/regions — global region list (read: any authenticated user)
+adminRouter.get(
+  '/countries/:countryCode/regions',
+  asyncHandler(async (req, res) => {
+    const countryCode = String(req.params.countryCode).toUpperCase();
+    const db = getDb();
+
+    const rows = await db
+      .select()
+      .from(regions)
+      .where(eq(regions.countryCode, countryCode))
+      .orderBy(regions.name);
+
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        country_code: r.countryCode,
+        name: r.name,
+        iso_3166_2: r.iso3166_2,
+        created_at: r.createdAt,
+        updated_at: r.updatedAt,
+      })),
+    );
+  }),
+);
+
+// ADL-27 / HC-04: everything registered BELOW this line requires owner status.
+// The read/write split above (BUG-61 / ADL-38) is the sole, deliberate exception.
 adminRouter.use(requireOwner);
 
 // ----------------------------------------------------------------
@@ -154,25 +228,9 @@ adminRouter.use('/activities', createAdminListRouter(activities, 'Activity'));
 adminRouter.use('/companions', createAdminListRouter(companions, 'Companion'));
 
 // ----------------------------------------------------------------
-// Country admin
+// Country admin — WRITES (owner-only; below the requireOwner guard).
+// The GET reads for countries/regions live above the guard (BUG-61 / ADL-38).
 // ----------------------------------------------------------------
-
-// GET /api/admin/countries
-adminRouter.get(
-  '/countries',
-  asyncHandler(async (_req, res) => {
-    const db = getDb();
-    const rows = await db.select().from(countries).orderBy(countries.name);
-    res.json(
-      rows.map((r) => ({
-        country_code: r.countryCode,
-        name: r.name,
-        region_tier_enabled: r.regionTierEnabled === 1,
-        region_tier_label: r.regionTierLabel,
-      })),
-    );
-  }),
-);
 
 // PATCH /api/admin/countries/:countryCode
 adminRouter.patch(
@@ -213,32 +271,6 @@ adminRouter.patch(
       region_tier_enabled: r.regionTierEnabled === 1,
       region_tier_label: r.regionTierLabel,
     });
-  }),
-);
-
-// GET /api/admin/countries/:countryCode/regions
-adminRouter.get(
-  '/countries/:countryCode/regions',
-  asyncHandler(async (req, res) => {
-    const countryCode = String(req.params.countryCode).toUpperCase();
-    const db = getDb();
-
-    const rows = await db
-      .select()
-      .from(regions)
-      .where(eq(regions.countryCode, countryCode))
-      .orderBy(regions.name);
-
-    res.json(
-      rows.map((r) => ({
-        id: r.id,
-        country_code: r.countryCode,
-        name: r.name,
-        iso_3166_2: r.iso3166_2,
-        created_at: r.createdAt,
-        updated_at: r.updatedAt,
-      })),
-    );
   }),
 );
 
