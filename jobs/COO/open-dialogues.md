@@ -62,6 +62,17 @@ happened once already with no clear cause, and the migration is about to change 
 exact filesystem layer (OneDrive bind mount → plain local disk) that's the prime
 remaining suspect if it recurs.
 
+**Update 2026-07-23 (D-10 executed):** the runbook gap this entry flagged was closed
+before Ryan ran the migration — the manual-copy step for `.claude/settings.local.json`
+was added, Ryan copied it alongside `.env.local`, and it verified byte-identical
+(same size and mtime) at the new path. Notifications worked immediately post-migration
+with no recurrence of the disappearance. This is one clean data point *against* the
+filesystem-layer theory (OneDrive bind mount → plain local disk is now the active
+layer, and the file has stayed put since) but one clean session isn't enough to close
+the root-cause question outright — leaving this open for continued observation rather
+than marking resolved. The immediate practical risk (migration losing the file) is
+gone either way.
+
 ### D-10: Move the project off OneDrive — Ryan flagged this a priority (recurrence)
 **Raised:** 2026-07-23
 
@@ -94,6 +105,50 @@ that's host-side). Full step-by-step runbook (backup config volume → clone →
 folder) handed to Ryan. **Blocking on host-side execution** — everything actionable
 from inside the container is done; the physical move, config-volume backup, and VS
 Code reopen are all steps only Ryan can run. Not yet closed.
+
+**CLOSED 2026-07-23.** Ryan executed the migration on the host: fresh clone to
+`~/Projects/travel-tracker` (confirmed at `a671268`, current main tip at the time),
+all four gitignored files manually copied and verified byte-identical to the
+OneDrive source (`.env.local`, `.env.agent-diagnostics`, `dev.db`,
+`.claude/settings.local.json` — the last one closing D-11's runbook gap, see below),
+notify bridge reinstalled and confirmed firing from the new `WATCH_DIR`. Reopened VS
+Code at the new path and rebuilt the devcontainer.
+
+**F2 materialized exactly as predicted** — the config Docker volume re-keyed on the
+path change: the fresh volume mounted at `/home/node/.claude` had a working
+`.credentials.json`/`.claude.json` (re-authenticated this session) but a default-only
+`settings.json` (52 bytes) and a completely empty `projects/-workspace/memory/`
+directory (`MEMORY.md` and all accumulated user/feedback/project/reference memory
+gone). No pre-move backup tarball existed, so recovery went through the orphaned
+volume directly: `docker volume ls` surfaced *three* `claude-code-config-*` volumes,
+not the expected two (a third, older, unrelated stale orphan with no memory dir at
+all — separate cleanup debt, not investigated further). Identified the correct
+volumes deterministically via `docker inspect <container_id> --format
+'{{range .Mounts}}...'` on both the current and the old (pre-migration,
+OneDrive-bind-mounted) containers, rather than trusting ambiguous IDs surfaced via
+the Docker Desktop GUI (container ID vs. volume ID vs. image digest all look similar
+and were each offered in turn before the deterministic mount-inspection settled it —
+see memory `feedback_docker_identity_via_inspect`). Recovered `MEMORY.md` + all 20
+memory files via a throwaway `alpine` container bind-mounting both the old (`:ro`)
+and new volumes and `cp -a`'ing the memory directory across; diffed the old
+`settings.json` against the new default and found them identical, so no loss there
+beyond the transient scare.
+
+Post-recovery verification from inside the new container: `git status` clean (bar
+one pre-existing benign `drift-ledger.jsonl` line), `npm run type:check:all` clean,
+backend tests 538 passed/1 skipped, frontend tests 154 passed. Ryan renamed the old
+OneDrive folder with an `OLD-` prefix rather than deleting it immediately — kept, along
+with the recovered-from docker volume, as a safety net for a few days before final
+decommission (ADL-39's own runbook step). The unrelated third stale docker volume is
+noted but not cleaned up as part of this closure.
+
+**Net outcome:** migration complete and verified; F2's risk was real, not
+theoretical, and the ADL's own mitigation path (find the old volume, recover
+memory/settings) worked as designed once a deterministic identification method was
+used instead of the GUI. Worth remembering for any *future* devcontainer/host
+migration on this or another project: back up the config volume tarball **before**
+the move next time, per ADL-39 F2, rather than relying on post-hoc orphan recovery —
+it worked here but only because the old volume happened not to have been pruned yet.
 
 ### D-09: COO worktree cleanup can race an agent's own lingering post-report process
 **Raised:** 2026-07-22
