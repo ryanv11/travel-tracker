@@ -2461,3 +2461,115 @@ PR. The router-level guard and the owner-only status of every write route are un
 - **Backend:** the fail-closed invariant is now load-bearing and documented in `admin.ts`. Any new
   admin route must stay below the `requireOwner` guard unless it is a read of global reference data;
   writes never move above the guard.
+
+---
+
+## ADL-39 — Move the dev environment's host location off OneDrive to `~/Projects/travel-tracker`
+
+**Date:** 2026-07-23
+**Status:** Decided — **execution pending** on the Mac host (Ryan). This is an infrastructure
+decision reviewed by the Architect per the standing guardrail (`feedback_architect_involvement.md`
+— Node/runtime/infrastructure changes need an Architect ADL before the COO acts). No code change
+ships in the PR that carries this entry; the physical move happens on the host, outside any tool's
+reach. Tracked as D-10 in `jobs/COO/open-dialogues.md`.
+
+**Trigger:** Two documented incidents of OneDrive Files-On-Demand damaging the repo, which lives
+inside OneDrive sync (`~/Library/CloudStorage/OneDrive-Personal/Work/ClaudeCode/my-project`,
+bind-mounted into the devcontainer at `/workspace`):
+1. **2026-07-02** — OneDrive dehydrated idle files to cloud-only placeholders; any read from inside
+   the container hit `EDEADLK` / "Resource deadlock avoided" (memory `project_onedrive_dehydration.md`).
+2. **2026-07-23** — recurred *despite* the Finder "Always Keep on This Device" workaround applied
+   after incident 1: OneDrive silently rewrote 213 `.git/refs/*` files to the null SHA, blocking
+   `git fetch`/`git pull` outright until the COO manually `rm -f`'d the corrupted refs (git's own
+   `update-ref -d` also deadlocked — it must read before delete). The first incident hit regular
+   project files; the second corrupted git's own internals. The stopgap Finder workaround is not
+   durable — this is now a priority move, not "someday" debt.
+
+**Decision:** Relocate the working copy off any cloud-sync scope to a plain local folder,
+**`~/Projects/travel-tracker`**. `devcontainer.json` needs **no edit**: `workspaceMount` uses
+`source=${localWorkspaceFolder}` (VS Code's dynamic "wherever this window is opened" variable), not a
+hardcoded OneDrive path — verified this session. The migration is therefore host-side (relocate the
+folder, reopen VS Code at the new path, let the devcontainer rebuild against the new mount source)
+followed by in-container verification. No repo config, CI file, or committed script depends on the
+absolute OneDrive path **except one** (see follow-up F1 below).
+
+**Recommended migration method — fresh `git clone`, not a physical `mv`.** `main` is confirmed clean
+and fully pushed (`cea9ad1` at time of decision). Given that, the lowest-risk migration is a fresh
+`git clone` of origin into `~/Projects/travel-tracker`, then hand-copy the untracked-but-needed files
+(`.env.local`; the local `dev.db` only if the dev DB state is wanted), then reopen VS Code there and
+let `postCreateCommand: npm ci` repopulate `node_modules`. This sidesteps three hazards that an
+in-place `mv` from OneDrive would drag along:
+- **The null-ref corruption class itself** — a fresh clone pulls clean refs from origin, rather than
+  copying the possibly-still-corrupt `.git` that OneDrive already damaged once.
+- **1.7 GB of orphaned worktrees** under `.claude/worktrees/` — 29 physical checkout directories
+  (gitignored, so untracked) of which `git worktree list` actively tracks only 2; the rest are
+  orphaned checkouts with stale gitdir links (cleanup debt, cf. D-09). A physical `mv` copies all
+  1.7 GB and, worse, forces OneDrive to *hydrate* any dehydrated placeholders among them during the
+  copy — the exact operation that has twice triggered `EDEADLK`. A clone brings none of it.
+- **Stale `.git/worktrees` admin state.**
+
+Trade-off, stated honestly: a clone does **not** carry untracked files, so `.env.local` (and any
+wanted `dev.db`) must be copied by hand, and before discarding the OneDrive tree one should confirm
+no orphan worktree holds un-pushed commits worth keeping (low risk — known cleanup debt — but
+non-zero). A physical `mv` is the fallback *only* if some un-pushed local state must be preserved
+wholesale; it is slower and re-exposes the corruption risk. Either way, the "backup before the move"
+insurance the COO already planned is best realized as the clone-from-origin itself (origin is the
+real backup, everything is pushed) rather than a Finder copy of a `.git` that may already be corrupt;
+if a physical snapshot is still wanted, use `git bundle create <path> --all` (which fails loudly on
+corrupt refs) plus a clean `git fsck`, not a plain file copy.
+
+**Going-forward rule (this is the durable outcome, not just the one-time move):**
+> **No committed file may hardcode a host filesystem path.** Host locations belong in dynamic
+> variables (`${localWorkspaceFolder}`), env vars, or relative paths — never a literal absolute path
+> baked into a tracked file. A hardcoded host path is a latent break the next time the working copy
+> moves, and it silently ties the repo to one machine's layout.
+
+**Alternatives considered:**
+- *Keep the repo on OneDrive, exclude it from sync via OneDrive settings.* Rejected — the "Always
+  Keep on This Device" exclusion is exactly the workaround that already failed (incident 2 recurred
+  with it applied). Relying on OneDrive's own controls to not touch a folder it is syncing is not a
+  durable guarantee; moving fully outside sync scope is.
+- *Physical `mv` in place (preserve everything).* Available as a fallback but not recommended — see
+  the three hazards above.
+- *Edit `devcontainer.json` to a hardcoded new path.* Unnecessary and itself a violation of the
+  going-forward rule; `${localWorkspaceFolder}` already does the right thing.
+
+**Implementation implications / follow-ups (for the COO to sequence — none block the move itself):**
+- **F1 (HIGH — do with the move):** `.claude/notify/host-setup/claude-notify-watch.sh` line 10
+  hardcodes `WATCH_DIR="/Users/ryanv/Library/CloudStorage/OneDrive-Personal/Work/ClaudeCode/my-project/.claude/notify/queue"`.
+  This is the **only** committed file whose hardcoded OneDrive path is load-bearing (the macOS
+  notification bridge, memory `project_macos_notification_bridge.md`). After the move: (a) the
+  committed template is stale, and (b) the *installed* host copy running as the LaunchAgent
+  `com.ryanv.claude-notify.plist` keeps watching the old, now-nonexistent queue dir → notifications
+  silently stop. Both the committed file and the installed LaunchAgent copy must be updated to the
+  new path — or, better and in line with the going-forward rule, the script should derive its path
+  rather than hardcode it. (`com.ryanv.claude-notify.plist` itself points only at `~/claude-notify-watch.sh`,
+  so the plist needs no change — only the watch script's internal `WATCH_DIR`.)
+- **F2 (MEDIUM/HIGH — verify after rebuild, back up before):** the devcontainer's two named volumes
+  are keyed by `${devcontainerId}` (`claude-code-config-${devcontainerId}` → `/home/node/.claude`,
+  and `claude-code-bashhistory-${devcontainerId}`). `devcontainerId` is derived from the workspace
+  identity, so relocating the host folder can produce a **new** id → the rebuilt container mounts
+  fresh empty volumes and Claude's auth, permission `settings.json`, and the auto-memory
+  `MEMORY.md` (which lives at `/home/node/.claude/projects/-workspace/memory/MEMORY.md`, inside that
+  config volume) appear *reset*. The data is not destroyed — the old volume persists, just unmounted —
+  but it will not be visible. Mitigation: **before** the move, back up the config volume
+  (`docker run --rm -v <config-vol>:/data -v "$PWD":/backup alpine tar czf /backup/claude-config.tgz -C /data .`);
+  **after** the rebuild, verify `MEMORY.md` and `settings.json` are present, and if not, restore from
+  that backup or copy from the old volume. The Clerk/Claude auth token is not reconstructable from
+  git, so this backup is the real insurance, distinct from the repo backup.
+- **F3 (MEDIUM):** the 1.7 GB / 29-dir orphan-worktree backlog under `.claude/worktrees/` is the same
+  cleanup debt noted in memory `project_worktree_cleanup_debt.md` and D-09 — still live. The fresh-clone
+  method retires it for free; if a physical `mv` is chosen instead, prune it first
+  (`git worktree prune`, then `rm -rf` the leftover checkout dirs after confirming no un-pushed work).
+- **F4 (LOW — separate doc-cleanup pass, not a migration blocker):** committed docs still advise
+  putting the SQLite DB *on OneDrive for sync* — `.env.example` lines 10–13 and the header comments in
+  `src/backend/db/index.ts` (lines ~10, 23–24, 100). Given the corruption history and the Turso
+  migration (ADL-32), that advice is now actively harmful and should be scrubbed. The live
+  `.env.local` `SQLITE_PATH` is relative, so the local dev DB survives the move regardless; this is a
+  documentation hygiene item, and a candidate for the same `/pre-push` hardcoded-host-path check the
+  going-forward rule implies.
+
+**Supersession:** none. This is new infrastructure guidance; no prior ADL addressed the repo's host
+location or OneDrive. It complements ADL-32 (Railway + Turso hosting) — that decision moved the
+*deployed* data off local/OneDrive; this one moves the *developer working copy* off OneDrive too,
+closing the last place OneDrive sync can still corrupt the project.
