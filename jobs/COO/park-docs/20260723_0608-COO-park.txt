@@ -1,0 +1,96 @@
+COO SESSION PARK — 2026-07-23 0608 (macOS notification bridge)
+================================================================================
+
+## Session summary
+Session opened with the mandatory /coo-startup audit: hook canaries passed, main CI
+green, UAT log clean, drift ledger had no subagent_stop entries since the last
+`reviewed` sentinel (re-stamped). Found and removed one stray artifact — an untracked
+inbox file (`jobs/database/inbox/20260321_2300-COO-adl23-trip-countries-migration.md`,
+dated March 2026) that surfaced in git status at session start, almost certainly a
+resurfaced remnant of last session's raw ref-file cleanup during the OneDrive
+git-corruption recovery. Verified it was fully stale before deleting: `tripCountries`
+is already in `schema.ts`, ADL-23 is already recorded, GitHub #31 is already closed.
+
+Ryan then redirected the session to set up macOS desktop notifications (via
+`terminal-notifier`, already installed via Homebrew) so he knows when Claude needs his
+input, working through the VS Code Claude extension inside this Docker devcontainer.
+
+Built a two-sided bridge, since Claude Code hooks execute *inside* the Linux
+devcontainer and cannot call host-only macOS binaries directly:
+- **Container side:** `.claude/hooks/notify.sh`, wired in `.claude/settings.local.json`
+  on `PreToolUse` (matchers `AskUserQuestion`, `ExitPlanMode`), `Notification`, and
+  `Stop`. Writes a one-line trigger file into `/workspace/.claude/notify/queue/` —
+  `/workspace` is a genuine bind mount straight to Ryan's Mac (confirmed via `mount`/
+  `findmnt`), so the file appears on the host filesystem instantly.
+- **Host side:** `~/claude-notify-watch.sh`, installed as a LaunchAgent
+  (`~/Library/LaunchAgents/com.ryanv.claude-notify.plist`, `RunAtLoad`+`KeepAlive`).
+  Polls the queue, skips (but still consumes) the file if VS Code is already
+  frontmost, otherwise fires `terminal-notifier` with `-activate com.microsoft.VSCode`
+  (click focuses VS Code) and the VS Code icon. Both artifacts are also checked into
+  the repo at `.claude/notify/host-setup/` for reproducibility.
+
+Along the way, fixed `.claude/settings.local.json` being tracked in git (it's meant to
+be personal/local per the file's own convention) — added to `.gitignore`, `git rm
+--cached`'d it.
+
+Hit and diagnosed three genuinely separate, all-silent macOS failure modes before it
+worked end-to-end — none produced a visible error anywhere (`ps`, `launchctl print`,
+and the script's own logs all looked completely normal throughout each one):
+1. LaunchAgent-spawned `/bin/bash` couldn't read the OneDrive-synced queue directory
+   (Full Disk Access is per-app in TCC and doesn't extend from Terminal.app's own
+   grant to a bare `/bin/bash` process) — fixed by granting `/bin/bash` Full Disk
+   Access in System Settings.
+2. The macOS Notification Center daemon itself was stuck, silently swallowing every
+   notification request (from `terminal-notifier` AND the OS-native `osascript
+   display notification`, with zero errors, zero app registration in Notification
+   settings) — fixed via `killall NotificationCenter usernoted`.
+3. The frontmost-app focus-check (`osascript ... tell application "System Events"`)
+   needed its own separate Automation TCC grant, causing a one-time ~5-8s delay on
+   first invocation while it silently registered.
+
+Full end-to-end verified live: all 4 hook events produce correct trigger files with
+correct messages, the watcher fires real notifications, VS Code-focus suppression
+works, click-to-focus-VS Code works.
+
+Wrote a project memory (`project_macos_notification_bridge.md`) documenting the
+architecture and all three silent host-side failure modes, since none of them are
+rediscoverable by reading code and would otherwise have to be re-diagnosed from
+scratch if this bridge ever breaks again (new Mac, LaunchAgent stops firing, etc.).
+
+## Completed this session
+- Removed stale inbox artifact (pre-completed ADL-23/BUG-31 work, dated March 2026)
+- PR #232 — macOS notification bridge (`.claude/hooks/notify.sh`,
+  `.claude/notify/host-setup/`, `.gitignore` fix, `settings.local.json` untracked).
+  All 9 CI checks green, squash-merged, branch deleted, main verified green post-merge
+  (`f79dba7`).
+- Host-side LaunchAgent installed and confirmed running (survives reboot/login)
+- Memory: `project_macos_notification_bridge.md` written, `MEMORY.md` index updated
+
+## State of play
+- **Repo:** clean, `main` @ `f79dba7`, CI green, only `main` +
+  `chore/uat-note-country-picker-gap` (PR #126, still open) as local/remote branches.
+- **Notification bridge is live** — Ryan now gets a macOS notification (suppressed
+  while VS Code is frontmost) on `AskUserQuestion`, `ExitPlanMode`, `Notification`,
+  and `Stop` events, with click-to-focus-VS Code.
+- Everything from the 0521 park doc's "state of play" is otherwise unchanged and still
+  accurate — this session did not touch D-10, BRD-AD07/AD08, BUG-50/BUG-51, or any of
+  the other open dialogues.
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — unchanged this session. **D-10 (OneDrive migration)
+was flagged as the explicit top priority at this session's own startup** and was then
+deferred again in favor of the notification-setup request — still the most-escalated
+open item, now carried into a third session.
+
+## Restart preview
+**Captured:** stale inbox artifact removed; PR #232 merged (notification bridge, all
+CI green, main verified green post-merge); host LaunchAgent installed and confirmed
+running; memory entry written for the notification bridge architecture and its 3
+silent host-side failure modes.
+**Captured, not actioned:** D-10 (OneDrive migration — still the top flagged priority,
+now deferred a third time), BRD-AD07/AD08 handoff, BUG-50/BUG-51 (P1), D-04–D-09,
+PR #126 — all unchanged from the 0521 park doc.
+**Not captured:** none — this session's work (bridge code, host setup, diagnosis
+writeup) is fully committed/merged and memorialized in the project memory file; nothing
+exists only in conversation. Shown to Ryan (three-tier restart preview) before writing
+this doc, per the mandatory close checklist.
