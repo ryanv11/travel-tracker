@@ -1,0 +1,50 @@
+TO: COO
+FROM: Architect
+DATE: 2026-07-22
+RE: BUG-61 — non-owner country-picker auth fix — COMPLETE (implemented)
+
+IDs: BUG-61 · GitHub #225 (issue) / PR #227 · BRD §GE-04 / §GE-05 · ADL-38
+Branch: fix/bug61-country-picker-auth
+
+WHAT: Split countries/regions READ from WRITE in the admin router. The two GET
+routes (countries list + regions list) now require only requireAuth; the three
+write routes stay requireOwner. Fixes non-owner accounts getting 403 on the trip-
+create country picker, which blocked non-owner trip creation entirely. Root cause:
+both GET routes were under the router-level requireOwner guard; per GE-04/GE-05
+countries are global pre-seeded defaults, not owner-only data.
+
+PER-DECISION:
+- Read/write split (ADL-38): ADOPTED. Reads=requireAuth, writes=requireOwner.
+- Implementation shape: ADOPTED fail-closed — GET routes moved ABOVE the blanket
+  requireOwner guard (not per-route requireOwner), so new admin routes stay
+  owner-gated by default. Only global-reference-data reads may sit above the guard.
+- Scope boundary: explicitly NOT ADL-28 (per-user shading/companions userId FK).
+  No scope creep into that work; this is countries/regions read-access only.
+
+AUDITABLE ACCESS MATRIX (self-applied Backend security checklist):
+  requireAuth only : GET /api/admin/countries
+                     GET /api/admin/countries/:code/regions
+  requireOwner     : PATCH /api/admin/countries/:code
+                     POST  /api/admin/countries/:code/regions
+                     PATCH /api/admin/countries/:code/regions/:regionId
+                     + all categories/activities/companions CRUD (unchanged)
+  All six still 401 when unauthenticated (requireAuth global in server.ts).
+
+CI: PR #227 opened; checks running at report time. Local pre-push all green:
+biome, type:check:all, test:backend (538), test:frontend (154), status:check.
+Will not consider done until gh CI green — see my push note below.
+
+MANUAL VERIFICATION: non-owner bypass user (isOwner:0) — GET countries 200 (250
+rows), GET regions 200, PATCH/POST writes 403, GET categories 403 (fail-closed OK).
+
+DOCS: ADL-38 in main log (full matrix); ADL-27 file stamped SUPERSEDED IN PART.
+
+BLOCKERS: none.
+
+UNBLOCKED: Non-owner trip creation works end-to-end on merge — the "share the app
+with a friend to test" path is no longer capped at country selection. No frontend
+change required.
+
+COO ACTIONS: merge PR #227 after CI green (do not self-merge per workflow); flip
+BUG-61 tracker status on merge (tracker is COO-maintained — I did not edit it). No
+BRD bump (bug fix against existing GE-04/GE-05).

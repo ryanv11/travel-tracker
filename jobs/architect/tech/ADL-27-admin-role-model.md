@@ -157,6 +157,14 @@ the user DB row).
 
 ### Routes to protect with requireOwner
 
+> SUPERSEDED IN PART (2026-07-22) by ADL-38 — the two country/region READ routes
+> (`GET /api/admin/countries` and `GET /api/admin/countries/:code/regions`) are no longer
+> owner-gated; they require only `requireAuth` because countries/regions are global,
+> pre-seeded reference data (GE-04/GE-05), not owner-configured per-user data. This is the
+> "explicit security assessment" the last paragraph of this section required for opening a
+> read route. All WRITE routes below (and every other admin route) remain owner-only, and
+> the router stays fail-closed by default. Original text retained for history.
+
 `requireOwner` must be applied at the **`adminRouter` level** — one `router.use(requireOwner)`
 call at the top of the admin router, not per-handler. This ensures every current and future
 route on that router is automatically protected without requiring per-handler discipline.

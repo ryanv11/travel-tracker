@@ -12,6 +12,10 @@
  *   are requireAuth only (not owner-restricted) — intentional per OP-06 §2 access matrix.
  *   GET /api/me is also requireAuth only (BUG-26) — every authenticated user may ask
  *   who they are; see Part D for its shape/isOwner coverage.
+ *   GET /api/admin/countries and GET /api/admin/countries/:code/regions are requireAuth
+ *   only too (BUG-61 / ADL-38) — global pre-seeded reference data (GE-04/GE-05) that every
+ *   user reads to create a trip; only the country/region WRITES stay owner-only. Positive
+ *   read coverage is in Part E; the writes remain in Part B.
  */
 
 import { createClient } from '@libsql/client';
@@ -512,7 +516,7 @@ describe('Part A — Unauthenticated rejection: all API routes return 401', () =
 });
 
 // ================================================================
-// Part B — Owner-only routes: non-owner gets 403 (27 cases)
+// Part B — Owner-only routes: non-owner gets 403 (25 cases)
 //
 // Authenticated as USER_B (isOwner=0). All owner-gated routes must
 // return 403 { error: 'Forbidden' }.
@@ -520,6 +524,8 @@ describe('Part A — Unauthenticated rejection: all API routes return 401', () =
 // NOT included here (requireAuth only, not requireOwner):
 //   GET /api/map/shading/countries/:code
 //   GET /api/map/shading/regions/:code
+//   GET /api/admin/countries                   (BUG-61 / ADL-38 — see Part E)
+//   GET /api/admin/countries/:code/regions     (BUG-61 / ADL-38 — see Part E)
 // ================================================================
 
 describe('Part B — Non-owner authenticated user receives 403 on owner-only routes', () => {
@@ -623,21 +629,9 @@ describe('Part B — Non-owner authenticated user receives 403 on owner-only rou
     expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
 
-  // Admin — countries
-  it('GET /api/admin/countries → 403', async () => {
-    const res = await supertest(app).get('/api/admin/countries');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
+  // Admin — countries (WRITES only; the GET reads moved to Part E per BUG-61)
   it('PATCH /api/admin/countries/US → 403', async () => {
     const res = await supertest(app).patch('/api/admin/countries/US').send({});
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('GET /api/admin/countries/US/regions → 403', async () => {
-    const res = await supertest(app).get('/api/admin/countries/US/regions');
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
@@ -810,5 +804,70 @@ describe('Part D — GET /api/me returns the caller identity with isOwner flag',
     const res = await supertest(app).get('/api/me');
     expect(res.status).toBe(200);
     expect(Object.keys(res.body).sort()).toEqual(['email', 'id', 'isOwner']);
+  });
+});
+
+// ================================================================
+// Part E — Global reference-data READS: countries/regions readable by
+//          any authenticated user (BUG-61 / ADL-38 / GE-04 / GE-05)
+//
+// Regression for BUG-61: GET /api/admin/countries (and .../regions) were
+// wrongly gated by the router-level requireOwner, so a non-owner's trip-create
+// country picker 403'd and rendered empty — no non-owner could create a trip.
+// These are global, pre-seeded defaults (GE-04/GE-05), so their READS require
+// only auth. The matching WRITES stay owner-only (asserted here + in Part B).
+//
+// Run as USER_B (isOwner=0).
+// ================================================================
+
+describe('Part E — Non-owner can READ global countries/regions; WRITES stay owner-only', () => {
+  beforeEach(async () => {
+    mockAuthEnabled = true;
+    mockIsOwner = 0;
+    mockUserId = USER_B_ID;
+    await seedUser(testDb!, USER_B_ID, 'clerk_user_b', 'userb@example.com', 0);
+    await seedCountry(testDb!, 'US', 'United States');
+  });
+
+  it('GET /api/admin/countries → 200 with the country list (was 403 pre-BUG-61)', async () => {
+    const res = await supertest(app).get('/api/admin/countries');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ country_code: 'US', name: 'United States' }),
+      ]),
+    );
+  });
+
+  it('GET /api/admin/countries/US/regions → 200 (empty list ok, was 403 pre-BUG-61)', async () => {
+    const res = await supertest(app).get('/api/admin/countries/US/regions');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  // Read/write split — the same resources' WRITES remain owner-gated.
+  it('PATCH /api/admin/countries/US → 403 (write still owner-only)', async () => {
+    const res = await supertest(app)
+      .patch('/api/admin/countries/US')
+      .send({ region_tier_enabled: true });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
+  });
+
+  it('POST /api/admin/countries/US/regions → 403 (write still owner-only)', async () => {
+    const res = await supertest(app)
+      .post('/api/admin/countries/US/regions')
+      .send({ name: 'California', iso3166_2: 'US-CA' });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
+  });
+
+  it('PATCH /api/admin/countries/US/regions/1 → 403 (write still owner-only)', async () => {
+    const res = await supertest(app)
+      .patch('/api/admin/countries/US/regions/1')
+      .send({ name: 'Updated' });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
 });
