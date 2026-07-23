@@ -1,0 +1,118 @@
+COO SESSION PARK — 2026-07-23 1829 UTC (D-10 OneDrive migration validated and closed)
+================================================================================
+
+## Session summary
+Session picked up directly from the prior session's handoff (park doc
+20260723_2345): D-10's planning was done (ADL-39, PR #234/#235 merged) and a
+full migration runbook had been handed to Ryan for host-side execution. This
+session's job was to validate that execution and close D-10 out.
+
+Walked Ryan through verification in stages as he ran the runbook on his Mac:
+- Caught a shell gotcha early — zsh doesn't treat `#` as an inline comment by
+  default (`interactive_comments` isn't set), so his first `rmdir`/`git log`
+  commands with trailing `# comment` text passed the comment as literal
+  arguments. The `rmdir` failure was harmless (expected — nothing to clear
+  before a first clone); the `git log` one masked the real verification, so had
+  him rerun it clean. Confirmed clone landed at `a671268`, main tip at the time.
+- Verified all four gitignored files Ryan hand-copied (`.env.local`,
+  `.env.agent-diagnostics`, `dev.db`, `.claude/settings.local.json`) were
+  byte-identical (same size + mtime) to the old OneDrive-mounted copy, by
+  comparing against `/workspace` from inside the still-running old-location
+  container.
+- Confirmed the notify bridge's installed host copy (`~/claude-notify-watch.sh`
+  + LaunchAgent) needed a manual reinstall from the already-fixed committed
+  template (F1, PR #235) — separate from the repo fix, since a git pull alone
+  doesn't touch installed host copies. Ryan did this and confirmed notifications
+  working.
+- Once Ryan reopened VS Code at the new path and the devcontainer rebuilt,
+  verification from inside the new container found **F2 (ADL-39) had actually
+  happened, not just a theoretical risk**: the config Docker volume re-keyed on
+  the path change. Auth carried over (fresh re-login), but `/home/node/.claude`'s
+  `settings.json` was a bare default and `projects/-workspace/memory/` was
+  completely empty — `MEMORY.md` and all accumulated memory files gone from this
+  container's view.
+- No pre-move backup tarball existed, so recovery went through the orphaned
+  volume directly. `docker volume ls` surfaced three `claude-code-config-*`
+  volumes, not the expected two — an extra, older, unrelated stale orphan (no
+  memory dir at all) that added noise. Ryan initially tried to speed up
+  identification via the Docker Desktop GUI, pasting three different
+  GUI-sourced identifiers in a row (a volume-browser sha256, a container name,
+  a container ID) — none of which were the actual volume name needed. Settled
+  it deterministically instead via `docker inspect <container-id> --format
+  '{{range .Mounts}}...'` on both the current and the old (pre-migration,
+  OneDrive-bind-mounted) containers, cross-checked against actual `MEMORY.md`
+  byte counts inside each candidate volume. Recovered the full memory directory
+  (`MEMORY.md` + 20 files) via a throwaway `alpine` container bind-mounting both
+  volumes; diffed the old `settings.json` against the new default and found
+  them identical, so nothing was actually lost there.
+- Post-recovery verification: `git status` clean, `type:check:all` clean,
+  backend tests 538 passed/1 skipped, frontend tests 154 passed.
+- Wrote up the full recovery mechanics as a new project-memory addendum (so the
+  next migration, on this project or elsewhere, has the actual playbook rather
+  than just ADL-39's prediction) plus a new feedback memory on not trusting
+  Docker Desktop GUI-surfaced identifiers over `docker inspect`.
+- Closed D-10 in `open-dialogues.md` with the full verification writeup; updated
+  D-11 to record its runbook-gap fix (the `settings.local.json` manual-copy
+  step) verified clean, no recurrence of the earlier mid-session disappearance —
+  left D-11 itself open since one clean data point doesn't resolve the root
+  cause, just removes the immediate migration risk.
+- Also fixed a stray, unrelated artifact noticed while in `MEMORY.md`: a
+  leftover `# currentDate / Today's date is 2026-03-11` block embedded mid-file
+  from some earlier session — removed, no functional content lost.
+- All doc/memory changes went through branch + PR (`chore/close-d10-onedrive-
+  migration`, PR #237) per the standing no-direct-main-commits rule, not
+  committed ad-hoc. CI green, merged, main re-verified green after merge
+  (`a26ca48`).
+
+## Completed this session
+- D-10 (OneDrive migration) — CLOSED. Verified end-to-end: clone, gitignored
+  file parity, notify bridge, devcontainer rebuild, full test/type-check pass.
+- F2 (ADL-39) recovery — executed for real (not hypothetical), documented for
+  reuse. Memory: `MEMORY.md` + all 20 memory files recovered into the new
+  devcontainer config volume.
+- D-11 — runbook gap verified fixed; root cause still open, left open.
+- New memory: `feedback_docker_identity_via_inspect.md`.
+- Updated memory: `project_onedrive_dehydration.md` (renamed/retitled properly,
+  was missing a `name` field) with the full migration-complete + recovery
+  writeup.
+- `MEMORY.md` index updated; stray stale artifact cleaned up.
+- PR #237 merged (squash), branch deleted, main CI green post-merge.
+
+## State of play
+- **Repo:** now lives at `~/Projects/travel-tracker` on Ryan's host, off
+  OneDrive entirely. Main green at `a26ca48`. `git branch` clean — only `main`
+  locally; remote has `production` and the still-open `chore/uat-note-country-
+  picker-gap` (PR #126, untouched this session).
+- **D-10:** CLOSED.
+- **D-11:** open — symptom fixed twice now (original recreate + this session's
+  clean copy-and-verify), root cause of the original disappearance still
+  unknown. Worth continued observation, not urgent.
+- **Host cleanup deferred, on purpose:** the `OLD`-prefixed former OneDrive
+  folder, and the docker volume recovered from
+  (`claude-code-config-...06ams7o...`), are both being kept for a few days as a
+  safety net before Ryan deletes/prunes them — not yet actioned, intentionally.
+  A third, unrelated, older stale docker volume
+  (`claude-code-config-...170ir...`, no memory dir, predates this migration)
+  surfaced during identification — flagged as minor cleanup debt, not
+  investigated further, not urgent.
+- Everything else unchanged from the prior park doc: BRD-AD07/AD08 (per-user
+  map shading + companions, ADL-28, awaiting Backend brief), BUG-50/BUG-51 (P1,
+  UAT-found, not yet briefed), D-04–D-09, PR #126, ADL-39's F4 (stale OneDrive
+  DB-sync doc advice in README/.env.example/db/index.ts — doc cleanup only, not
+  yet actioned).
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — D-10 closed and D-11 updated this session;
+D-04 through D-09 unchanged.
+
+## Restart preview
+Shown to Ryan before this doc was written; confirmed accurate ("okay all good
+to close out"), with one clarifying question resolved first (which backlog
+items are doc-cleanup vs. real outstanding work — answered inline, not a repo
+change).
+**Captured:** D-10 closed, D-11 updated, F2 recovery executed + documented,
+new Docker-identity feedback memory, PR #237 merged, main green.
+**Captured, not actioned:** OLD-prefixed OneDrive folder + recovered-from
+docker volume (deliberate safety-net hold); the unrelated third stale docker
+volume; BRD-AD07/AD08; BUG-50/BUG-51; D-04–D-09; PR #126; ADL-39's F4.
+**Not captured:** none — everything discussed this session has a durable home.
