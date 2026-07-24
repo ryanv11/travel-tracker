@@ -378,7 +378,7 @@ describe('tripRepository.getAssociations', () => {
     const trip = await seedTrip(db);
     const [comp] = await db
       .insert(schema.companions)
-      .values({ name: 'Alice', isActive: 1 })
+      .values({ userId: TEST_USER_ID, name: 'Alice', isActive: 1 })
       .returning();
     await db.insert(schema.tripCompanionsMap).values({ tripId: trip.id, companionId: comp.id });
 

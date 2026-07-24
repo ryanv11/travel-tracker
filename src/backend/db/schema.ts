@@ -167,37 +167,59 @@ export const activities = sqliteTable(
 );
 
 /**
- * Companions — user-managed list (e.g. 'Partner', 'Family').
+ * Companions — per-user managed list (e.g. 'Partner', 'Family').
+ * ADL-28 (AD-08): companions moved from a single global list to per-user lists.
+ * Uniqueness is scoped to (user_id, name) — two different users may each have
+ * a companion named 'Partner' without conflict. Cascade delete: removing a
+ * user removes their companions (config is meaningless without the user).
  */
 export const companions = sqliteTable(
   'companions',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    name: text('name').notNull().unique(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
     isActive: integer('is_active').notNull().default(1),
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
-  (t) => [check('chk_companions_is_active', sql`${t.isActive} IN (0, 1)`)],
+  (t) => [
+    uniqueIndex('uniq_companions_user_name').on(t.userId, t.name),
+    index('idx_companions_user').on(t.userId),
+    check('chk_companions_is_active', sql`${t.isActive} IN (0, 1)`),
+  ],
 );
 
 /**
- * Map shading configuration — the six shading states and their colours.
+ * Map shading configuration — per-user copy of the six shading states and
+ * their colours. ADL-28 (AD-07): shading config moved from a single global
+ * table to per-user rows so each user's colours and state settings reflect
+ * only their own travel history. PK is composite (state_key, user_id) — each
+ * user has at most one row per state key. Lazily seeded with defaults on a
+ * user's first access to the shading config endpoint (see shadingConfig
+ * repository, Backend brief) rather than on user creation.
  * state_key values are fixed application constants, never user-editable.
  * Users configure display_name and color_hex via the admin panel (MP-04).
  * 'never_visited' is NOT a row here — it has no shading by definition (MP-05).
- * Seeded with defaults on first launch (_project/seed-data.txt).
+ * Cascade delete: removing a user removes their shading config.
  */
 export const mapShadingConfig = sqliteTable(
   'map_shading_config',
   {
     // Fixed constant — one of six known state keys
-    stateKey: text('state_key').primaryKey(),
+    stateKey: text('state_key').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     displayName: text('display_name').notNull(),
     colorHex: text('color_hex').notNull(), // e.g. '#2196F3' — validated by FRONTEND
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
+    primaryKey({ columns: [t.stateKey, t.userId] }),
+    index('idx_map_shading_user').on(t.userId),
     check(
       'chk_map_shading_state_key',
       sql`${t.stateKey} IN ('active', 'planned', 'visited_once', 'visited_once_planning', 'visited_multiple', 'visited_multiple_planning')`,
