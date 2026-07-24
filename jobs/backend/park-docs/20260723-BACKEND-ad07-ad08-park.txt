@@ -1,0 +1,202 @@
+PARK DOC — BACKEND — 2026-07-23
+BRIEF: ADL-28 (AD-07/AD-08) routes, repositories, and shading service — companions and
+map shading become per-user
+TRACKER: BRD-AD07, BRD-AD08
+BRANCH: feat/ad07-ad08-routes-repos
+ISSUE: #242
+PR: #243
+
+===============================================================================
+1. SCOPE — what this thread did
+===============================================================================
+
+Implemented ADL-28's "Migration sequence for Backend agent" steps 5-14
+(jobs/architect/tech/ADL-28-per-user-shading-companions.md). Steps 1-4 (the schema half —
+userId FK on companions and map_shading_config, composite PK, migration) had already
+landed via PR #240 (Database brief) before this thread started; confirmed live on
+src/backend/db/schema.ts before writing any code, per the brief's instruction.
+
+New files:
+  - src/backend/repositories/companions.ts — companionRepository
+  - src/backend/repositories/shadingConfig.ts — shadingConfigRepository
+  - src/backend/routes/companions.ts — new router, requireAuth only
+  - src/backend/validation/companions.schemas.ts — Create/UpdateCompanionSchema
+  - src/backend/repositories/__tests__/companions.test.ts
+  - src/backend/repositories/__tests__/shadingConfig.test.ts
+  - src/backend/routes/__tests__/companions.test.ts
+  - src/backend/routes/__tests__/map.test.ts
+
+Modified files (source):
+  - src/backend/routes/admin.ts — companions registration removed
+  - src/backend/routes/map.ts — requireOwner removed from all 5 shading routes; wired
+    to shadingConfigRepository
+  - src/backend/routes/trips.ts — both replaceAssociations call sites pass userId
+  - src/backend/repositories/trips.ts — replaceAssociations(userId, ...) + companion
+    ownership validation before insert (ValidationError 400)
+  - src/backend/services/shading.service.ts — per-userId config cache (Map<userId,
+    ShadingConfigMap>), getCityShading gained userId param + scoping
+  - src/backend/server.ts, src/backend/server-test-app.ts — companionsRouter mounted
+    at /api/companions (both files register routes identically by design — missed
+    updating server-test-app.ts on the first pass, caught it before running tests)
+  - src/backend/db/seed-data.ts — doc comment only (MAP_SHADING_CONFIG is now the
+    source for shadingConfigRepository.seedDefaults, not startup seeding)
+
+Modified files (tests — existing suites that needed updating for the new auth model):
+  - src/backend/routes/__tests__/owner-access.test.ts — removed the 4 companion admin
+    tests (2 non-owner-403, 1 owner-200, 1 skipped owner-201) and the HC-05 "map
+    shading routes require owner" describe block (2 tests) — all superseded by
+    ADL-28. Header comment updated to point at the new coverage locations.
+  - src/backend/routes/__tests__/security.access-matrix.test.ts — this file's own
+    in-memory DDL for companions/map_shading_config was pre-ADL-28 (no user_id
+    column) — updated to match schema.ts. Part A: replaced /api/admin/companions
+    401 rows with /api/companions (GET/POST/PATCH/DELETE). Part B: removed 5
+    companion rows + 3 map-shading rows (neither is owner-gated anymore). Part C:
+    changed the map-shading 403 assertion to 200 (non-owner can now access it,
+    scoped to their own empty trip data) and added a companion cross-user
+    isolation row. Header comment's exemption list updated.
+  - src/backend/routes/__tests__/qa-backend-fixes.test.ts — one test's URL moved
+    from /api/admin/companions/:id to /api/companions/:id.
+  - src/backend/repositories/__tests__/trips.test.ts — 3 existing replaceAssociations
+    calls updated to pass TEST_USER_ID as the new first param; added 3 new tests for
+    the R4 cross-user companion guard (accepts own companion, rejects another user's
+    companion with ValidationError/400, rejects a nonexistent companion ID).
+  - src/backend/repositories/__tests__/test-db.ts — added a seedCompanion() helper
+    (existing file, shared by trips.test.ts, companions.test.ts, shadingConfig.test.ts).
+  - src/e2e/admin.spec.ts — see §3 below, this one stayed skipped (deliberately).
+
+Modified files (docs — document lifecycle, CLAUDE.md mandatory):
+  - jobs/architect/tech/20260307-map-shading-spec.md — HC-03 correction note updated
+    from "service/route layer has NOT yet been updated... treat as still effectively
+    global-scoped" to an accurate description of the now-completed per-user state,
+    and clarified that the trip-aggregate queries were actually already userId-scoped
+    since HC-03 (2026-07-15) — this brief's real contribution there was the config
+    cache (R2) and getCityShading (R1).
+  - jobs/architect/tech/ADL-28-per-user-shading-companions.md — "Migration status"
+    note at the top updated to record steps 5-14 done, citing PR #243.
+  - jobs/backend/tech/20260307-api-reference.md — bumped to v1.5. New "Companions"
+    section (full CRUD contract). Map Shading section gained a per-user callout.
+    Admin section: companions removed from the shared CRUD pattern description,
+    with a pointer to the new section.
+  - _project/tracker.json — BRD-AD07 and BRD-AD08 notes fields updated with issue
+    #242, PR #243, and a summary of what shipped in this brief. Status left as
+    "in-progress" (not flipped to done) — that's a COO call after merge, matching
+    the pattern used elsewhere in the tracker (e.g. BRD-IT0809).
+
+===============================================================================
+2. ADL-28 RISKS — how each was addressed
+===============================================================================
+
+R1 (shading query isolation was silently absent): getAllCountryShading,
+getCountryShading, and getRegionShading were ALREADY userId-scoped before this brief —
+that was HC-03 (2026-07-15, commit cf7ea36), discovered by reading the actual service
+file rather than assuming the ADL's risk description was still 100% current as of
+today. What THIS brief fixed under the R1 umbrella: getCityShading (previously
+unscoped, joining ALL users' trips with no filter — a real, confirmed isolation gap)
+and the config layer (see R2). Verified via services/__tests__/shading.user-scope.test.ts
+(pre-existing, still green) plus the new coverage in routes/__tests__/map.test.ts.
+
+R2 (cache invalidation scope): the config cache was a single global
+`Map<stateKey, {colorHex, displayName}>`. Changed to `Map<userId, ShadingConfigMap>`.
+invalidateConfigCache(userId) now clears only that user's entry;
+invalidateConfigCache() with no arg clears everything (kept for test resets — several
+existing tests called it bare and I didn't want to force unrelated test files to learn
+a new required param). Verified with a dedicated test in routes/__tests__/map.test.ts:
+PATCH by user A does not affect user B's already-cached config.
+
+R3 (migration data loss on no-owner state): not this brief's concern — that was steps
+1-4 (Database brief, PR #240), already closed.
+
+R4 (trip_companions_map cross-user enforcement is application-only): implemented in
+tripRepository.replaceAssociations — calls companionRepository.validateOwnership(userId,
+companionIds) before the batch insert, throws ValidationError (400, not 404 per the
+ADL's explicit instruction) if any ID is invalid. Explicitly tested in
+repositories/__tests__/trips.test.ts (3 new cases: valid own companion accepted, another
+user's companion rejected 400, nonexistent companion ID rejected 400) — this was the
+single most safety-critical piece of this brief per the ADL's own framing ("this must
+be tested explicitly").
+
+===============================================================================
+3. DEVIATION FROM BRIEF — e2e admin.spec.ts companion test
+===============================================================================
+
+The brief said both of the schema-migration brief's `.skip`'d tests should be
+"un-skipped and rewritten... do not leave them skipped." I did this fully for the
+backend contract test (owner-access.test.ts) — deleted it, replaced with non-skipped
+coverage in the new routes/__tests__/companions.test.ts.
+
+For src/e2e/admin.spec.ts's Playwright test ("create companion appears in list"), I
+could NOT genuinely un-skip it within this brief's scope. That test drives the real
+browser UI (the Admin panel's CompanionTab), which calls
+src/frontend/hooks/useAdmin.ts — and that hook still POSTs to /api/admin/companions,
+the exact route this brief removed. No backend-only change can make that e2e test pass;
+fixing it requires editing frontend code, which is out of a Backend brief's role scope
+(and I don't know what else might be in flight on the frontend right now, so making an
+opportunistic one-line fix there felt like the wrong call without a brief for it).
+
+What I did instead: left the test `.skip`'d but rewrote its comment to accurately
+describe the CURRENT blocker (frontend, not backend) rather than leaving the old
+comment that pointed at a Backend brief that has now shipped — an inaccurate skip
+comment is worse than an honest one. Flagging this explicitly here and in the
+completion report: a small Frontend follow-up brief is needed (repoint
+useAdmin.ts's companion calls at /api/companions), after which this e2e test should
+pass unmodified.
+
+I considered deleting the skipped test outright instead of just updating its comment,
+on the theory that a stale-but-updated skip is still clutter. Kept it because it's the
+clearest signal to whoever picks up the Frontend follow-up brief that there's a
+specific e2e test waiting to be un-skipped — deleting it would lose that thread.
+
+===============================================================================
+4. VERIFICATION
+===============================================================================
+
+  - npm run type:check:all — clean (frontend + backend)
+  - npm run test:backend — 28 files, 580 passed, 1 skipped (pre-existing, unrelated —
+    BUG-22 skip in security.access-matrix.test.ts), 0 failed
+  - npm run test:frontend — 18 files, 154 passed (untouched by this brief, ran as a
+    sanity check per /pre-push)
+  - npm run check (Biome) — clean after `biome check --write` auto-fixed 3 formatting
+    issues + one manual optional-chain fix in trips.ts
+  - npm run status:check — STATUS.md in sync
+  - npm run test:contract — NOT run. Requires a live backend; grepped the contract
+    test files first and confirmed none touch /api/admin/companions or
+    /api/map/shading directly (only the generic `trip.companions` array shape via
+    trips.contract.test.ts, which is unaffected by this brief). Documented as a
+    known gap in the completion report rather than silently skipped.
+
+===============================================================================
+5. SECURITY CHECKLIST (mandatory, CLAUDE.md)
+===============================================================================
+
+Every new/modified route in this brief:
+
+  1. Auth middleware — requireAuth applied globally to all /api/* (server.ts /
+     server-test-app.ts), confirmed as the sole gate on:
+       /api/companions (GET, GET /active, POST, PATCH /:id, DELETE /:id)
+       /api/map/shading (GET)
+       /api/map/shading/config (GET, PATCH /:stateKey)
+       /api/map/shading/countries/:code (GET)
+       /api/map/shading/regions/:code (GET)
+     requireOwner deliberately NOT re-added to any of these — that is the entire
+     point of AD-07/AD-08. Categories/activities/countries/regions/city-creation
+     (out of scope, untouched) remain requireOwner as before.
+  2. Repository scoping — every companionRepository and shadingConfigRepository
+     function takes userId and scopes its WHERE clause to it
+     (eq(companions.userId, userId) / eq(mapShadingConfig.userId, userId)). Shading
+     service trip-aggregate queries scope via the trips join
+     (eq(trips.userId, userId)). tripRepository.replaceAssociations validates
+     companion ownership by userId before any insert (R4).
+  3. New FK columns — none added by this brief; companions.userId and
+     mapShadingConfig.userId already carry .notNull() from the schema-migration
+     brief (PR #240), confirmed live on schema.ts before starting.
+
+===============================================================================
+6. WHAT'S UNBLOCKED
+===============================================================================
+
+  - Frontend can now build against /api/companions (documented in
+    jobs/backend/tech/20260307-api-reference.md v1.5) and the no-longer-owner-gated
+    /api/map/shading* routes for any authenticated user's map/companion UI.
+  - A Frontend follow-up brief can retarget useAdmin.ts's companion calls at
+    /api/companions, un-skipping src/e2e/admin.spec.ts's companion test in the
+    same change.
