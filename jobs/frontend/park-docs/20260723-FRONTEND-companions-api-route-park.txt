@@ -1,0 +1,120 @@
+FRONTEND PARK DOCUMENT — 2026-07-23
+Thread: BRD-AD08 companions API repoint (fix/companions-api-route, GitHub #244)
+
+SUMMARY
+Small, scoped fix closing out the last piece of the ADL-28/AD-08 rollout:
+useAdmin.ts's five companion hooks were still pointed at /api/admin/companions,
+a route the Backend brief (PR #243) removed when it stood up /api/companions
+(requireAuth, userId-scoped, same response shape). This left the Admin panel's
+Companions tab 404ing and src/e2e/admin.spec.ts's companion test permanently
+skipped, per that test's own comment.
+
+WHAT CHANGED
+1. src/frontend/hooks/useAdmin.ts — five URL string changes only, inside the
+   COMPANIONS section (lines ~130-178):
+     useCompanions:        GET  /api/admin/companions        -> /api/companions
+     useActiveCompanions:  GET  /api/admin/companions/active  -> /api/companions/active
+     useCreateCompanion:   POST /api/admin/companions         -> /api/companions
+     useUpdateCompanion:   PATCH /api/admin/companions/:id    -> /api/companions/:id
+     useDeleteCompanion:   DELETE /api/admin/companions/:id   -> /api/companions/:id
+   Query keys (['admin', 'companions'], etc.) deliberately left unchanged per
+   the brief — they're cache keys, not URLs, and changing them isn't needed to
+   fix the bug.
+2. src/e2e/admin.spec.ts — un-skipped 'create companion appears in list',
+   replaced the long "STILL SKIPPED" blocker comment with a short resolution
+   note. Verified passing locally (not just left to CI).
+3. jobs/architect/tech/ADL-28-per-user-shading-companions.md — closed the
+   "known follow-up gap" note (the e2e-test blocker this brief fixes) and
+   recorded a new, deliberately-not-fixed finding (see BUGS DISCOVERED below).
+4. _project/tracker.json — BRD-AD08 notes field updated with the #244
+   cross-reference and the frontend-half completion, per the mandatory
+   GitHub-issue-to-tracker cross-referencing rule.
+
+WHAT WAS EXPLICITLY NOT CHANGED
+- CompanionTab.tsx — read in full, has no owner-only gating of its own.
+  No change needed there (confirmed against the brief's own contingency
+  clause: "If it doesn't have any such gating, no change needed there beyond
+  the hook fix above").
+- No backend code touched (route already existed, already tested by the
+  Backend brief).
+- No other admin tab (map/shading, categories, activities, countries).
+- App.tsx / AdminPanel.tsx access-control architecture — see BUGS DISCOVERED.
+
+BUGS DISCOVERED
+[MAJOR] Non-owner authenticated users cannot reach the Companions tab at all —
+  disposition: escalated to COO (FLAG-AD08-1 in context/current.txt), not
+  fixed in this thread.
+  Initial expectation (per brief): CompanionTab.tsx might contain an isOwner
+  check gating the tab's own visibility/content. It does not.
+  Actual finding: the gate is one layer up — App.tsx wraps the entire /admin
+  route in <RequireOwner> (renders "Not authorised" for non-owners, nothing
+  while loading) and the "Admin" NavLink itself only renders when
+  `!!me?.isOwner`. Both are BUG-26's deliberate, tested contract
+  (src/frontend/__tests__/App.test.tsx, 6 tests spanning nav-link visibility
+  and the /admin route guard, all currently passing and asserting exactly
+  this owner-only behaviour).
+  Why not fixed here: AD-08's design (ADL-28) says companions move to "any
+  authenticated user", which the backend now enforces correctly. But making
+  that true end-to-end on the frontend requires replacing the page-level
+  RequireOwner gate with per-tab gating inside AdminPanel.tsx — since the
+  other four tabs (categories, activities, shading, countries) correctly
+  remain owner-only per SE-03's narrowed scope (ADL-28 Q4). That's a real
+  architecture change to shared nav/route code, not a two-line hook fix, and
+  it directly reverses part of a different, separately-tracked bug's (BUG-26)
+  tested behaviour. The brief's own contingency language ("If it does, that's
+  an AD-08 access-control fix in scope for this brief") anticipated a
+  component-local gate, not a page-level one shared with four still-owner-
+  only tabs — so I judged this materially different from what was
+  pre-approved and stopped short of implementing it, flagging instead.
+  Precedent for routing this to COO/Architect rather than patching directly:
+  tracker.json's BRD-AD07 entry documents exactly this pattern for a
+  different auth-scoping gap (GitHub #225, resolved via ADL-38) — "Routed to
+  Architect first per this project's established pattern for auth-scoping
+  changes... rather than a unilateral Backend patch."
+  Scope of impact: presentation-layer only (backend already correctly scopes
+  companions to req.user.id regardless of who can reach the tab) — no data
+  leakage, no security regression. It's a usability/completeness gap: AD-08
+  is not yet actually usable by non-owner users, even though its backend and
+  hook layers are both now correct.
+  Blocking: does not block this PR. Companions were equally unreachable for
+  non-owners before this fix (the route 404'd), so this fix is a net
+  improvement (owners can now use companions correctly) even though it
+  doesn't close the non-owner reachability gap.
+  Proposed fix (for the follow-up brief): move RequireOwner off the /admin
+  route entirely; gate individual tabs inside AdminPanel.tsx (companions
+  visible/usable by any authenticated user; categories/activities/shading/
+  countries stay owner-only, hidden + content-gated exactly as RequireOwner
+  did at the page level); change the Admin NavLink to render for any
+  authenticated user (matching Map/Trips); update App.test.tsx's BUG-26
+  assertions to match the new per-tab contract.
+
+[MODERATE, not a bug — informational] `npm audit` reports 7 vulnerabilities
+  (1 low, 6 moderate) in a fresh `npm install` in this worktree: esbuild
+  (dev-server-only, transitive via drizzle-kit) and react-router
+  (open-redirect / SSR-hydration CVEs — this app has no SSR, so the second
+  doesn't apply). Both fixes require breaking major-version bumps. Not
+  introduced by this thread — no package.json/package-lock.json changes were
+  made. Reported per frameworks.txt rule 20 (MODERATE → report to COO, COO
+  decides whether to block). Disposition: deferred, flagged.
+
+VERIFICATION RUN (all local, this worktree)
+  npm run check                clean
+  npm run type:check:all       clean
+  npm run test:backend         580 passed, 1 skipped (pre-existing, unaffected)
+  npm run test:frontend        154 passed
+  npm run status:check         STATUS.md in sync
+  npx playwright test          52/52 passed (admin.spec.ts 5/5, including the
+                                newly un-skipped companion test)
+  Manual browser/Clerk sign-in check: NOT performed — no real Clerk
+  publishable key configured in this sandbox and the firewall only allows
+  GitHub/npm/Anthropic, so Clerk's hosted sign-in flow is unreachable here.
+  The full BYPASS_AUTH Playwright run against the real backend + real
+  frontend is the closest available substitute and was completed in full.
+
+WHAT'S NOW UNBLOCKED
+- BRD-AD07/BRD-AD08 (ADL-28/AD-08) frontend rollout is functionally complete
+  for owner users; the companion CRUD round-trip works end-to-end against the
+  real per-user backend.
+- src/e2e/admin.spec.ts no longer has any skipped tests.
+- FLAG-AD08-1 gives COO a scoped, well-defined follow-up brief to dispatch if/
+  when non-owner companion access is prioritized.
