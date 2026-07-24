@@ -59,16 +59,17 @@ DOCUMENT LIFECYCLE (same PR)
   and summary; status left "in-progress" pending your merge (matches project
   convention, e.g. BRD-IT0809).
 
-CI: PR #243 pushed, ci-wait.sh running — will confirm green before considering this
-closed. (See note below if this message predates that confirmation.)
+CI: gh pr checks 243 — all 9 jobs green (Backend/Frontend/Contract/E2E Tests, Type
+Check, Biome, Semgrep, Gitleaks, Dependency Scan). Confirmed via ci-wait.sh.
 
 OPEN ISSUES / BLOCKERS
 - The Frontend follow-up noted above (not a blocker to merging this PR — the old
   /api/admin/companions callers just 404 until Frontend repoints them, no data
   loss/security regression).
-- test:contract not run (needs a live backend); grepped contract test files first —
-  none touch /api/admin/companions or /api/map/shading directly, only trip.companions
-  array shape (unaffected). Low risk, not verified live — noted for the record.
+- None locally-run test:contract was needed — CI's own Contract Tests job (against
+  a live backend) is green. I'd grepped the contract test files beforehand too and
+  confirmed none touch /api/admin/companions or /api/map/shading directly, only the
+  generic trip.companions array shape (unaffected).
 
 WHAT'S NOW UNBLOCKED
 - Frontend can build against /api/companions and the no-longer-owner-gated

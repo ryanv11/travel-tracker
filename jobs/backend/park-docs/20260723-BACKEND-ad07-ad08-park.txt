@@ -158,11 +158,15 @@ specific e2e test waiting to be un-skipped — deleting it would lose that threa
   - npm run check (Biome) — clean after `biome check --write` auto-fixed 3 formatting
     issues + one manual optional-chain fix in trips.ts
   - npm run status:check — STATUS.md in sync
-  - npm run test:contract — NOT run. Requires a live backend; grepped the contract
-    test files first and confirmed none touch /api/admin/companions or
-    /api/map/shading directly (only the generic `trip.companions` array shape via
-    trips.contract.test.ts, which is unaffected by this brief). Documented as a
-    known gap in the completion report rather than silently skipped.
+  - npm run test:contract — not run locally (requires a live backend not started
+    this thread); grepped the contract test files first and confirmed none touch
+    /api/admin/companions or /api/map/shading directly (only the generic
+    `trip.companions` array shape via trips.contract.test.ts, unaffected by this
+    brief). CI's own Contract Tests job (against a live backend) came back green
+    on PR #243 — see §4 CI confirmation below.
+  - PR #243 CI — all 9 jobs green: Backend Tests, Frontend Tests, Contract Tests,
+    E2E Tests, Type Check, Biome, Static Analysis (Semgrep), Secret Scanning
+    (Gitleaks), Dependency Vulnerability Scan. Confirmed via scripts/ci-wait.sh.
 
 ===============================================================================
 5. SECURITY CHECKLIST (mandatory, CLAUDE.md)
