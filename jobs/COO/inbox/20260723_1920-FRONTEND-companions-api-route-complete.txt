@@ -1,0 +1,56 @@
+Tracker: BRD-AD07 / BRD-AD08 · GitHub issue #244 · PR #245 · BRD §5.10 AD-08
+Branch: fix/companions-api-route
+
+WHAT WAS BUILT
+Repointed useAdmin.ts's five companion hooks from the removed /api/admin/companions
+to the new /api/companions (PR #243, ADL-28/AD-08) — URL-only change, same response
+shape. Un-skipped src/e2e/admin.spec.ts's companion test, which was blocked on
+exactly this. Closes out the frontend half of the ADL-28/AD-08 rollout.
+
+ACCEPTANCE CRITERIA
+- 5 companion hooks repointed to /api/companions, logic/query keys unchanged: PASS
+- CompanionTab.tsx checked for owner-only gating: PASS (none found, no change needed)
+- e2e companion test un-skipped and passing: PASS (verified locally, not just CI)
+- owner-access.test.ts and other backend tests checked for stray /api/admin/companions
+  references: PASS (only historical comments remain, nothing live)
+- No backend code touched: PASS
+- No other admin tab touched: PASS
+- type:check:all clean: PASS
+- test:frontend green (154 passed): PASS
+- /pre-push clean (biome, type-check, backend/frontend tests, status:check): PASS
+- Manual live sanity check (sign in, Admin -> Companions, CRUD round-trip): NOT
+  POSSIBLE in this sandbox — no real Clerk key configured, firewall blocks Clerk's
+  hosted sign-in. Substituted with the full local Playwright suite (BYPASS_AUTH,
+  real backend + real frontend, real browser automation) — 52/52 passed.
+
+CI: gh pr checks 245 — 9/9 green (Backend/Frontend/Contract/E2E Tests, Type Check,
+Biome, Semgrep, Gitleaks, Dependency Scan).
+
+OPEN ISSUES / BLOCKERS
+FLAG-AD08-1 (MAJOR, flagged not fixed): non-owner authenticated users still cannot
+reach the Companions tab at all. CompanionTab.tsx itself has no owner gating, but
+App.tsx's <RequireOwner> wraps the entire /admin route and the Admin nav link is
+`!!me?.isOwner`-only — both are BUG-26's deliberate, tested contract
+(App.test.tsx, 6 tests). AD-08 says companions should be usable by any authenticated
+user; fixing that means moving from page-level to per-tab gating in AdminPanel.tsx,
+which also touches the four tabs that correctly remain owner-only (categories,
+activities, shading, countries) and reverses part of BUG-26's tested behaviour —
+judged too architecturally significant for this brief. Not a regression (companions
+were equally unreachable for non-owners before this fix, since the route 404'd).
+Recommend a small scoped Frontend follow-up brief, mirroring the precedent already
+in tracker.json for BRD-AD07 (GitHub #225, routed through Architect via ADL-38
+rather than a unilateral patch). Full detail in the park doc and updated ADL-28.
+
+FLAG-AD08-2 (informational): npm audit shows 7 pre-existing vulnerabilities
+(1 low, 6 moderate — esbuild/react-router) in a fresh npm install this worktree,
+unrelated to this change (no lockfile edits). Flagged per frameworks.txt rule 20;
+fixes are breaking major-version bumps, COO to decide.
+
+WHAT IS NOW UNBLOCKED
+- BRD-AD07/BRD-AD08 (ADL-28) is functionally complete end-to-end for owner users.
+- src/e2e/admin.spec.ts has no remaining skipped tests.
+- FLAG-AD08-1 gives a ready-scoped follow-up brief if/when non-owner companion
+  access is prioritized.
+
+Full detail: jobs/frontend/park-docs/20260723-FRONTEND-companions-api-route-park.txt
+Context updated: jobs/frontend/context/current.txt
