@@ -1,18 +1,22 @@
 /**
  * Travel Tracker — Admin Router
  *
- * Manages admin list tables (categories, activities, companions) and country/region config.
+ * Manages admin list tables (categories, activities) and country/region config.
  * All admin list items use soft-delete (is_active = 0) — never hard-delete (AD-06).
  *
  * Auth model (BUG-61 / ADL-38): the router is owner-gated by default via a router-level
  * requireOwner guard, EXCEPT the two global reference-data GET routes (countries + regions),
  * which are registered above the guard and require only authentication. See the guard block
  * below for the fail-closed invariant.
+ *
+ * ADL-28 (AD-08): companions used to be registered here (`/api/admin/companions`) but are
+ * no longer an admin/owner-only resource — they moved to their own router at
+ * `/api/companions` (requireAuth only, userId-scoped). See routes/companions.ts.
  */
 
 import { and, eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { activities, companions, countries, getDb, regions, tripCategories } from '../db/index.js';
+import { activities, countries, getDb, regions, tripCategories } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { requireOwner } from '../middleware/requireOwner.js';
@@ -102,10 +106,12 @@ adminRouter.use(requireOwner);
 
 // ----------------------------------------------------------------
 // Admin list CRUD factory
-// Generates identical CRUD for categories, activities, companions.
+// Generates identical CRUD for categories and activities.
+// (Companions used this same factory pre-ADL-28 — see routes/companions.ts
+// for its non-owner-gated, userId-scoped replacement.)
 // ----------------------------------------------------------------
 
-type AdminTable = typeof tripCategories | typeof activities | typeof companions;
+type AdminTable = typeof tripCategories | typeof activities;
 
 /** Serialize a raw Drizzle admin list row to snake_case API shape. */
 function serializeAdminItem(row: {
@@ -225,7 +231,8 @@ function createAdminListRouter(table: AdminTable, resourceName: string): Router 
 // Register admin list routers
 adminRouter.use('/categories', createAdminListRouter(tripCategories, 'Category'));
 adminRouter.use('/activities', createAdminListRouter(activities, 'Activity'));
-adminRouter.use('/companions', createAdminListRouter(companions, 'Companion'));
+// Companions intentionally NOT registered here — ADL-28 (AD-08) moved them to
+// their own router at /api/companions (requireAuth only, userId-scoped).
 
 // ----------------------------------------------------------------
 // Country admin — WRITES (owner-only; below the requireOwner guard).

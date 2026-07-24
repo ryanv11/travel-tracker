@@ -6,13 +6,31 @@
 **Depends on:** ADL-27 (is_owner column, requireOwner middleware)
 **Prerequisite for:** Backend implementation of AD-07, AD-08
 
-**Migration status (2026-07-23):** Steps 1-4 of the "Migration sequence for Backend agent"
-below (schema.ts changes, db:generate, migration review/fix, db:migrate) are implemented —
-`feat/ad07-ad08-schema-migration`, PR #240, Database brief. Both tables now carry the userId
-FK, composite PK / unique index, and CHECK constraints exactly as specified below; the
-CROSS JOIN owner-backfill was hand-verified against a seeded pre-migration dataset (see PR
-#240 for detail). Steps 5-14 (repositories, routes, service-layer scoping, cache
-invalidation, R1/R2 fixes) remain open — Backend implementation brief.
+**Migration status (2026-07-23, updated):** All 14 steps of the "Migration sequence for
+Backend agent" below are now implemented.
+
+- Steps 1-4 (schema.ts changes, db:generate, migration review/fix, db:migrate) —
+  `feat/ad07-ad08-schema-migration`, PR #240, Database brief. Both tables carry the userId
+  FK, composite PK / unique index, and CHECK constraints exactly as specified below; the
+  CROSS JOIN owner-backfill was hand-verified against a seeded pre-migration dataset (see
+  PR #240 for detail).
+- Steps 5-14 (repositories, routes, service-layer scoping, cache invalidation, R1/R2/R4
+  fixes) — `feat/ad07-ad08-routes-repos`, PR #243, Backend brief. `companionRepository` and
+  `shadingConfigRepository` created per the signatures below; `/api/companions` router
+  registered (requireAuth only); `admin.ts` companions registration removed;
+  `map.ts` shading routes dropped `requireOwner`; `shading.service.ts` config cache is now
+  `Map<userId, ShadingConfigMap>` (R2) and `getCityShading` also takes `userId` (R1 — the
+  trip-aggregate functions `getAllCountryShading`/`getCountryShading`/`getRegionShading`
+  were already userId-scoped pre-ADL-28, via the earlier HC-03 fix, not this brief);
+  `tripRepository.replaceAssociations` gained a `userId` param and validates companion
+  ownership via `companionRepository.validateOwnership` before insert, throwing
+  `ValidationError` (400) for cross-user companion IDs (R4). Test coverage: new
+  `repositories/__tests__/companions.test.ts`, `repositories/__tests__/shadingConfig.test.ts`,
+  `routes/__tests__/companions.test.ts`, `routes/__tests__/map.test.ts`, plus cross-user
+  companion-assignment-rejection cases added to `repositories/__tests__/trips.test.ts`. One
+  known follow-up gap: `src/e2e/admin.spec.ts`'s companion e2e test remains `.skip`'d — the
+  frontend (`useAdmin.ts`) still calls the old `/api/admin/companions` path and needs its own
+  Frontend brief to repoint at `/api/companions` before that e2e test can pass.
 
 ---
 

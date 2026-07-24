@@ -405,7 +405,7 @@ describe('tripRepository.replaceAssociations', () => {
       .values({ name: 'Mountains', isActive: 1 })
       .returning();
 
-    await tripRepository.replaceAssociations(trip.id, [cat.id]);
+    await tripRepository.replaceAssociations(TEST_USER_ID, trip.id, [cat.id]);
 
     const result = await tripRepository.getAssociations(trip.id);
     expect(result.categories).toHaveLength(1);
@@ -421,7 +421,7 @@ describe('tripRepository.replaceAssociations', () => {
       .returning();
     await db.insert(schema.tripCategoriesMap).values({ tripId: trip.id, categoryId: cat.id });
 
-    await tripRepository.replaceAssociations(trip.id, []);
+    await tripRepository.replaceAssociations(TEST_USER_ID, trip.id, []);
 
     const result = await tripRepository.getAssociations(trip.id);
     expect(result.categories).toHaveLength(0);
@@ -437,10 +437,55 @@ describe('tripRepository.replaceAssociations', () => {
     await db.insert(schema.tripCategoriesMap).values({ tripId: trip.id, categoryId: cat.id });
 
     // Pass undefined for categories — should leave them intact
-    await tripRepository.replaceAssociations(trip.id, undefined, []);
+    await tripRepository.replaceAssociations(TEST_USER_ID, trip.id, undefined, []);
 
     const result = await tripRepository.getAssociations(trip.id);
     expect(result.categories).toHaveLength(1);
+  });
+
+  // ----------------------------------------------------------------
+  // ADL-28 R4 — cross-user companion assignment enforcement
+  // ----------------------------------------------------------------
+
+  it('sets companions when they belong to userId', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+    const [comp] = await db
+      .insert(schema.companions)
+      .values({ userId: TEST_USER_ID, name: 'Partner', isActive: 1 })
+      .returning();
+
+    await tripRepository.replaceAssociations(TEST_USER_ID, trip.id, undefined, [comp.id]);
+
+    const result = await tripRepository.getAssociations(trip.id);
+    expect(result.companions).toHaveLength(1);
+    expect(result.companions[0].id).toBe(comp.id);
+  });
+
+  it('rejects a companion ID belonging to a different user with a ValidationError (400, not 404)', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+    const [otherUsersComp] = await db
+      .insert(schema.companions)
+      .values({ userId: OTHER_USER_ID, name: 'Not Yours', isActive: 1 })
+      .returning();
+
+    await expect(
+      tripRepository.replaceAssociations(TEST_USER_ID, trip.id, undefined, [otherUsersComp.id]),
+    ).rejects.toMatchObject({ name: 'ValidationError', statusCode: 400 });
+
+    // Verify nothing was inserted — the batch never ran
+    const result = await tripRepository.getAssociations(trip.id);
+    expect(result.companions).toHaveLength(0);
+  });
+
+  it('rejects a companion ID that does not exist at all', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+
+    await expect(
+      tripRepository.replaceAssociations(TEST_USER_ID, trip.id, undefined, [999999]),
+    ).rejects.toMatchObject({ name: 'ValidationError', statusCode: 400 });
   });
 });
 

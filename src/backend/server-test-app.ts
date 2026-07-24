@@ -27,6 +27,7 @@ import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { adminRouter } from './routes/admin.js';
 import { citiesRouter } from './routes/cities.js';
+import { companionsRouter } from './routes/companions.js';
 import { mapRouter } from './routes/map.js';
 import { meRouter } from './routes/me.js';
 import { tripsRouter } from './routes/trips.js';
@@ -115,6 +116,7 @@ app.use('/api/trips', tripsRouter);
 app.use('/api/cities', citiesRouter);
 app.use('/api/map', mapRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/companions', companionsRouter); // ADL-28 (AD-08): requireAuth only, userId-scoped
 app.use('/api/me', meRouter); // BUG-26: identity endpoint for frontend owner gating
 
 // Health check

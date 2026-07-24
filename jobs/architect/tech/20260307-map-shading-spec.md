@@ -11,14 +11,18 @@
 > (`JOIN trips t … AND t.user_id = :user_id`). OP-06 found that the unscoped form leaks other
 > users' travel into a user's map. Do not copy the SQL below verbatim — add the user_id join.
 >
-> Per-user *shading configuration* (colours/labels per user) is decided (ADL-28) and its schema
-> half landed 2026-07-23 (PR #240): `map_shading_config` now carries a `user_id` FK and a
-> composite `(state_key, user_id)` PK — it is no longer a single global table. The service/route
-> layer (`shading.service.ts`, `map.ts`) has **not yet** been updated to pass or scope by
-> `userId` — that is ADL-28 steps 5-14, a separate Backend brief, still pending as of this note.
-> Until that brief merges, treat the shading *computation* described in this spec as still
-> effectively global-scoped in practice (R1 in ADL-28: query isolation was already missing
-> pre-migration), even though the config table itself is now per-user at rest.
+> Per-user *shading configuration* (colours/labels per user) is decided (ADL-28) and now fully
+> implemented (2026-07-23, PR #243 — ADL-28 steps 5-14, `feat/ad07-ad08-routes-repos`):
+> `map_shading_config` carries a `user_id` FK and a composite `(state_key, user_id)` PK (schema
+> half, PR #240), and the service/route layer now passes/scopes by `userId` throughout
+> (`shading.service.ts`, `map.ts`, `repositories/shadingConfig.ts`). Specifically:
+> `getConfigMap()` and its in-memory cache are keyed per userId (`Map<userId, ShadingConfigMap>`,
+> invalidated per-user on PATCH — ADL-28 R2), `getCityShading()` now also takes a `userId` and
+> scopes its trips join, and `GET/PATCH /api/map/shading/config*` and the shading read routes
+> dropped `requireOwner` for `requireAuth` + userId scoping. The trip-aggregate queries
+> (`getAllCountryShading` / `getCountryShading` / `getRegionShading`) were already userId-scoped
+> before ADL-28 — that was HC-03 (2026-07-15), not this brief. Shading computation as a whole is
+> therefore now fully per-user end to end: query results, config colours, and cache.
 
 **Amendment (v1.2 — 2026-03-21):** Country shading extended to include
 `trip_countries` direct associations (ADL-23). §4 replaced in full. §3 and §5

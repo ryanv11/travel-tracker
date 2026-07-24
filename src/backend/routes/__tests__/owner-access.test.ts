@@ -1,10 +1,21 @@
 /**
  * Contract tests for ADL-27 requireOwner middleware.
  *
- * Verifies HC-04 / HC-05 / HC-06 from OP-06 hardening checklist:
- *   HC-04: Admin routes (categories, activities, companions, countries, regions) require owner
- *   HC-05: Map shading config routes require owner
+ * Verifies HC-04 / HC-06 from OP-06 hardening checklist:
+ *   HC-04: Admin routes (categories, activities, countries, regions) require owner
  *   HC-06: POST /api/cities requires owner
+ *
+ * HC-05 (map shading config routes require owner) is SUPERSEDED (2026-07-23) by
+ * ADL-28 (AD-07) — shading config and shading reads are now per-user (requireAuth
+ * only, userId-scoped), not owner-only. Coverage for the new behaviour lives in
+ * services/__tests__/shading.user-scope.test.ts (per-user query isolation) and
+ * routes/__tests__/map.test.ts (requireAuth-only route behaviour, lazy seeding,
+ * per-user cache invalidation).
+ *
+ * Companion admin routes (GET/POST/PATCH/DELETE /api/admin/companions) are also
+ * SUPERSEDED by ADL-28 (AD-08) — companions moved to /api/companions (requireAuth
+ * only, userId-scoped, not an admin/owner resource). Coverage lives in
+ * routes/__tests__/companions.test.ts.
  *
  * Test structure:
  *   - Non-owner tests: req.user.isOwner = 0 → expect 403 Forbidden
@@ -335,22 +346,6 @@ describe('HC-04: Non-owner authenticated user receives 403 on admin routes', () 
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
-
-  it('GET /api/admin/companions → 403 for non-owner', async () => {
-    mockIsOwner = 0;
-    await seedTestUser(testDb!, 0);
-    const res = await supertest(app).get('/api/admin/companions');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('POST /api/admin/companions → 403 for non-owner', async () => {
-    mockIsOwner = 0;
-    await seedTestUser(testDb!, 0);
-    const res = await supertest(app).post('/api/admin/companions').send({ name: 'New Companion' });
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
 });
 
 describe('HC-04: Owner user receives 200/201 on admin routes', () => {
@@ -368,56 +363,6 @@ describe('HC-04: Owner user receives 200/201 on admin routes', () => {
     const res = await supertest(app).post('/api/admin/categories').send({ name: 'Owner Category' });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ name: 'Owner Category' });
-  });
-
-  it('GET /api/admin/companions → 200 for owner', async () => {
-    mockIsOwner = 1;
-    await seedTestUser(testDb!, 1);
-    const res = await supertest(app).get('/api/admin/companions');
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-  });
-
-  // Skipped by ADL-28 (AD-08) schema migration (BRD-AD07/BRD-AD08): companions
-  // now require a NOT NULL user_id, but the /api/admin/companions POST handler
-  // (createAdminListRouter in admin.ts) is unmodified in this brief — it does
-  // not supply a userId on insert, so this call now 500s on the NOT NULL
-  // constraint. This is a route-logic gap, not a schema-shape-only break, so
-  // it is out of scope for the schema/migration brief (Database) per the
-  // brief's own instruction. ADL-28 step 8 removes this exact route
-  // registration entirely (companions move to a new /api/companions router,
-  // requireAuth + userId-scoped) in the Backend follow-up brief, which will
-  // delete or rewrite this test along with it.
-  it.skip('POST /api/admin/companions → 201 for owner', async () => {
-    mockIsOwner = 1;
-    await seedTestUser(testDb!, 1);
-    const res = await supertest(app)
-      .post('/api/admin/companions')
-      .send({ name: 'Owner Companion' });
-    expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ name: 'Owner Companion' });
-  });
-});
-
-// ================================================================
-// HC-05: Map shading routes require owner
-// ================================================================
-
-describe('HC-05: Map shading routes require owner', () => {
-  it('GET /api/map/shading → 403 for non-owner', async () => {
-    mockIsOwner = 0;
-    await seedTestUser(testDb!, 0);
-    const res = await supertest(app).get('/api/map/shading');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('GET /api/map/shading → 200 for owner', async () => {
-    mockIsOwner = 1;
-    await seedTestUser(testDb!, 1);
-    const res = await supertest(app).get('/api/map/shading');
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
   });
 });
 

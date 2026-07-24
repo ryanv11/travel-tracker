@@ -262,3 +262,22 @@ export async function seedCity(
     .returning();
   return city;
 }
+
+export async function seedCompanion(
+  db: TestDb,
+  overrides: Partial<typeof schema.companions.$inferInsert> = {},
+) {
+  const now = new Date().toISOString();
+  const [companion] = await db
+    .insert(schema.companions)
+    .values({
+      userId: TEST_USER_ID,
+      name: 'Test Companion',
+      isActive: 1,
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    })
+    .returning();
+  return companion;
+}

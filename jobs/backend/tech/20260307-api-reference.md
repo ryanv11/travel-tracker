@@ -1,8 +1,8 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.4
-**Date:** 2026-07-15 (updated: auth conventions (NR-14); trip-countries, place-date PATCH,
-item rating sort/filter — audit doc-fix pass)
+**Version:** 1.5
+**Date:** 2026-07-23 (updated: ADL-28 AD-07/AD-08 — companions moved to /api/companions
+requireAuth-only; map shading routes dropped requireOwner for requireAuth + per-user scoping)
 **Base URL:** `http://localhost:3001`
 **Author:** BACKEND
 
@@ -19,9 +19,10 @@ This document is the authoritative contract between BACKEND and FRONTEND. FRONTE
 5. [Items (nested under Trips)](#items)
 5. [Cities](#cities)
 6. [Map Shading](#map-shading)
-7. [Admin](#admin)
-8. [Static Assets](#static-assets)
-9. [Error Reference](#error-reference)
+7. [Companions](#companions)
+8. [Admin](#admin)
+9. [Static Assets](#static-assets)
+10. [Error Reference](#error-reference)
 
 ---
 
@@ -41,8 +42,12 @@ Authorization: Bearer <clerk_jwt>
 - The token is verified server-side against Clerk's JWKS (jose); the `iss` claim must match `CLERK_ISSUER`.
 - Exempt (no token): `GET /health` and the `/geo/*` static assets — these sit outside `/api/`.
 - **Owner-only routes** additionally require the caller to be the app owner (ADL-27); a non-owner
-  gets **403 Forbidden** (`{ "error": "Forbidden" }`). These are: all `/api/admin/*` routes,
-  `POST /api/cities`, and the shading-config writes under `/api/map/shading/config`.
+  gets **403 Forbidden** (`{ "error": "Forbidden" }`). These are: `/api/admin/categories`,
+  `/api/admin/activities`, `/api/admin/countries` and `/api/admin/countries/:code/regions`
+  **writes** (the two matching GET reads are requireAuth-only, ADL-38), and `POST /api/cities`.
+  As of ADL-28 (2026-07-23), `/api/companions/*` and all of `/api/map/shading/*` (including
+  `/config`) are **requireAuth only, not owner-gated** — see the Companions and Map Shading
+  sections below.
 - Cross-user access to another user's resource returns **404** (opaque, per SE-05), not 403.
 - **Local/CI bypass:** with `BYPASS_AUTH=true` (backend) the server injects a fixed test user and
   skips verification. Contract tests run this way. Never set it in production (the server refuses
@@ -1162,6 +1167,12 @@ Only items with `status = "completed"` and `item_type` in (`restaurant`, `hotel`
 
 Map shading states represent how much a user has visited each country or region.
 
+> **Per-user (ADL-28 / AD-07, 2026-07-23):** every route in this section is `requireAuth`
+> only — **not** owner-gated. Shading is computed only from the caller's own trips
+> (`req.user.id`), and `/api/map/shading/config` is the caller's own 6 colour/label rows,
+> lazily created (via defaults) on first access if they don't exist yet. Two different users
+> never see each other's trip-derived shading or config colours.
+
 ### Shading State Keys
 | `state_key` | Meaning |
 |------------|---------|
@@ -1346,17 +1357,64 @@ Update the color or display name for a shading state.
 
 **Errors:**
 - `400` — validation failure (invalid hex format)
-- `404` — state key not found
+- `404` — state key not found for the caller. Note: this repository does not auto-seed on
+  PATCH — call `GET /api/map/shading/config` at least once first (it lazily seeds the
+  caller's 6 default rows) before PATCHing a fresh account's config.
+
+---
+
+## Companions
+
+Per-user list of trip companion types (e.g. "Partner", "Solo", "Family"). Moved off
+`/api/admin/companions` to its own router as of ADL-28 (AD-08, 2026-07-23) — **requireAuth
+only, not owner-gated.** Every route is scoped to the caller (`req.user.id`); two users may
+each have a companion of the same name without conflict (`UNIQUE(user_id, name)`), and
+neither can see or modify the other's companions. Soft-delete only (`is_active = 0`, AD-06)
+— matches the Admin List Pattern below in shape, just without the owner gate.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/companions` | List all (active + inactive) owned by the caller |
+| `GET` | `/api/companions/active` | List active only, owned by the caller |
+| `POST` | `/api/companions` | Create, owned by the caller |
+| `PATCH` | `/api/companions/:id` | Update name or active status — 404 if owned by another user |
+| `DELETE` | `/api/companions/:id` | Soft-delete — 404 if owned by another user |
+
+**Response shape (all routes):**
+```json
+{
+  "id": 2,
+  "name": "Partner",
+  "is_active": true,
+  "created_at": "2026-03-07T14:00:00.000Z",
+  "updated_at": "2026-03-07T14:00:00.000Z"
+}
+```
+
+**POST body:** `{ "name": "Partner" }` — `name` required, 1–75 chars.
+**PATCH body:** `{ "name"?: string, "is_active"?: boolean }` — at least one field, both optional.
+
+**Errors:**
+- `400` — validation failure, or DELETE on an already-inactive companion
+- `404` — companion not found, or owned by a different user (opaque, per SE-05)
+- `409` — duplicate `name` for the caller (a different user with the same name is fine)
+
+**Cross-user assignment guard:** when a trip's `companion_ids` are set (`POST`/`PATCH
+/api/trips/:id`), the backend validates every ID belongs to the caller before inserting —
+any companion ID belonging to another user is rejected with **400** (not 404 — the
+companion may genuinely exist, just under a different account). See ADL-28 R4.
 
 ---
 
 ## Admin
 
-Admin endpoints manage the reference lists used throughout the app: trip categories, activities, companions, countries, and regions.
+Admin endpoints manage the reference lists used throughout the app: trip categories, activities, countries, and regions — all owner-only (SE-03). **Companions moved out of this
+group** as of ADL-28 (AD-08, 2026-07-23) — see the [Companions](#companions) section above;
+they are no longer an admin/owner-only resource.
 
 ### Admin List Pattern
 
-Categories, activities, and companions share the same CRUD pattern:
+Categories and activities share the same CRUD pattern:
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -1366,7 +1424,7 @@ Categories, activities, and companions share the same CRUD pattern:
 | `PATCH` | `/api/admin/{resource}/:id` | Update name or active status |
 | `DELETE` | `/api/admin/{resource}/:id` | Soft-delete (set `is_active = 0`) |
 
-**Resources:** `categories`, `activities`, `companions`
+**Resources:** `categories`, `activities`
 
 ---
 
@@ -1437,7 +1495,9 @@ Soft-delete a category (sets `is_active = 0`). Cannot hard-delete.
 
 The same pattern applies identically to:
 - **`/api/admin/activities`** — activities (e.g. Skiing, Dining, Hiking)
-- **`/api/admin/companions`** — companion types (e.g. Solo, Partner, Family)
+
+(Companion types, e.g. Solo/Partner/Family, use the same shape but live at
+`/api/companions` — requireAuth only, not owner-gated. See [Companions](#companions).)
 
 ---
 

@@ -5,7 +5,8 @@
  * Implements computeState() exactly per map-shading-spec.md §2.
  *
  * Country and region shading use bulk aggregate SQL queries for efficiency.
- * The shading config (6 rows) is cached in memory and invalidated on PATCH.
+ * The shading config (6 rows per user) is cached in memory per userId and
+ * invalidated on PATCH — see ADL-28 (AD-07) R2.
  */
 
 import { and, eq, sql } from 'drizzle-orm';
@@ -13,12 +14,12 @@ import {
   cities,
   countries,
   getDb,
-  mapShadingConfig,
   regions,
   tripCountries,
   tripPlaces,
   trips,
 } from '../db/index.js';
+import { shadingConfigRepository } from '../repositories/shadingConfig.js';
 
 // ----------------------------------------------------------------
 // Country shading — region coverage helper
@@ -79,29 +80,41 @@ export interface RegionShadingResult extends ShadingResult {
 type ShadingConfigMap = Map<string, { colorHex: string; displayName: string }>;
 
 // ----------------------------------------------------------------
-// In-memory config cache
+// In-memory config cache — per userId (ADL-28 R2)
 // ----------------------------------------------------------------
+//
+// Pre-ADL-28 this was a single global Map keyed by stateKey alone, which
+// meant one user's config PATCH invalidated (or worse, could have leaked
+// into) every other user's cached view. It is now a Map of userId →
+// ShadingConfigMap, invalidated per-user on PATCH.
 
-let _configCache: ShadingConfigMap | null = null;
+const _configCache: Map<string, ShadingConfigMap> = new Map();
 
-/** Load shading config from DB and cache it in memory. */
-async function getConfigMap(): Promise<ShadingConfigMap> {
-  if (_configCache) return _configCache;
+/** Load shading config from DB for userId and cache it in memory. Lazily seeds defaults on first access (see shadingConfigRepository). */
+async function getConfigMap(userId: string): Promise<ShadingConfigMap> {
+  const cached = _configCache.get(userId);
+  if (cached) return cached;
 
-  const db = getDb();
-  const rows = await db.select().from(mapShadingConfig);
-  _configCache = new Map(
+  const rows = await shadingConfigRepository.findAll(userId);
+  const configMap: ShadingConfigMap = new Map(
     rows.map((r) => [r.stateKey, { colorHex: r.colorHex, displayName: r.displayName }]),
   );
-  return _configCache;
+  _configCache.set(userId, configMap);
+  return configMap;
 }
 
 /**
  * Invalidates the in-memory shading config cache.
- * Call this after any PATCH to /api/map/shading/config.
+ * Call this after any PATCH to /api/map/shading/config/:stateKey, passing
+ * the userId whose config changed. Omit userId to clear every user's cache
+ * (used by tests that need a full reset).
  */
-export function invalidateConfigCache(): void {
-  _configCache = null;
+export function invalidateConfigCache(userId?: string): void {
+  if (userId) {
+    _configCache.delete(userId);
+  } else {
+    _configCache.clear();
+  }
 }
 
 // ----------------------------------------------------------------
@@ -234,7 +247,7 @@ const countrySelectShape = (co: typeof countries, c: typeof cities, t: typeof tr
 export async function getAllCountryShading(userId: string): Promise<CountryShadingResult[]> {
   const db = getDb();
   const [config, coverage, tcStats] = await Promise.all([
-    getConfigMap(),
+    getConfigMap(userId),
     getRegionCoverageMap(),
     getTripCountriesStats(userId),
   ]);
@@ -273,7 +286,7 @@ export async function getCountryShading(
 ): Promise<CountryShadingResult | null> {
   const db = getDb();
   const [config, coverage, tcStats] = await Promise.all([
-    getConfigMap(),
+    getConfigMap(userId),
     getRegionCoverageMap(),
     getTripCountriesStats(userId),
   ]);
@@ -312,7 +325,7 @@ export async function getRegionShading(
   userId: string,
 ): Promise<RegionShadingResult[]> {
   const db = getDb();
-  const config = await getConfigMap();
+  const config = await getConfigMap(userId);
 
   // Shading spec §5.1
   const rows = await db
@@ -349,10 +362,12 @@ export async function getRegionShading(
 /**
  * Returns shading state for a single city.
  * Uses the single-city query from shading spec §3.1.
+ * Scoped to the given userId so each user sees only their own trip data
+ * (ADL-28 R1 — previously unscoped, aggregating every user's trips).
  */
-export async function getCityShading(cityId: number): Promise<ShadingResult> {
+export async function getCityShading(cityId: number, userId: string): Promise<ShadingResult> {
   const db = getDb();
-  const config = await getConfigMap();
+  const config = await getConfigMap(userId);
 
   // Shading spec §3.1
   const rows = await db
@@ -362,7 +377,7 @@ export async function getCityShading(cityId: number): Promise<ShadingResult> {
       planningCount: sql<number>`COUNT(DISTINCT CASE WHEN ${trips.status} = 'planning' THEN ${trips.id} END)`,
     })
     .from(tripPlaces)
-    .leftJoin(trips, eq(trips.id, tripPlaces.tripId))
+    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
     .where(eq(tripPlaces.cityId, cityId));
 
   const r = rows[0] ?? { hasActive: 0, completedCount: 0, planningCount: 0 };

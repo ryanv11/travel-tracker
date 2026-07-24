@@ -159,6 +159,7 @@ tripsRouter.post(
     });
 
     await tripRepository.replaceAssociations(
+      userId,
       trip.id,
       category_ids ?? [],
       companion_ids ?? [],
@@ -303,7 +304,13 @@ tripsRouter.patch(
       photoAlbumRef: photo_album_ref,
     });
 
-    await tripRepository.replaceAssociations(tripId, category_ids, companion_ids, activity_ids);
+    await tripRepository.replaceAssociations(
+      userId,
+      tripId,
+      category_ids,
+      companion_ids,
+      activity_ids,
+    );
 
     if (country_codes !== undefined) {
       await tripRepository.setCountries(tripId, country_codes);

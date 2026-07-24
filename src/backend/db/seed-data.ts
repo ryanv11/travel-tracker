@@ -59,6 +59,11 @@ export const COMPANIONS = [
 /**
  * Default map shading configuration (6 rows).
  * 'never_visited' is intentionally absent — no shading (MP-05).
+ *
+ * ADL-28 (AD-07): no longer seeded globally at startup — map_shading_config is
+ * per-user now. This constant is the source of truth for
+ * shadingConfigRepository.seedDefaults(), which lazily seeds a copy of these
+ * 6 rows for each user on their first access to the shading config endpoint.
  */
 export const MAP_SHADING_CONFIG = [
   { stateKey: 'active', displayName: 'Active', colorHex: '#2196F3' },
