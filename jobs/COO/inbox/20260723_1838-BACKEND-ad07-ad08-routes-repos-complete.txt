@@ -1,0 +1,79 @@
+TO: COO
+FROM: BACKEND
+DATE: 2026-07-23 18:38
+RE: ADL-28 (AD-07/AD-08) routes/repos/service — companions and map shading now per-user
+
+Tracker: BRD-AD07, BRD-AD08 · Issue: #242 · PR: #243 · BRD §5.10 AD-07/AD-08
+Branch: feat/ad07-ad08-routes-repos
+
+WHAT WAS BUILT
+Implemented ADL-28's Migration sequence steps 5-14 (repositories, /api/companions
+router, map.ts/admin.ts route changes, per-user shading config cache + query scoping,
+cross-user companion-assignment guard). Schema half (steps 1-4) already merged via
+PR #240 before this thread.
+
+ACCEPTANCE CRITERIA
+- type:check:all clean — PASS
+- test:backend full suite green (incl. previously-skipped tests) — PASS (28 files,
+  580 passed, 1 skipped — pre-existing/unrelated BUG-22 skip)
+- Per-user companion isolation (two users, distinct lists, no cross-visibility) — PASS
+  (routes/__tests__/companions.test.ts, repositories/__tests__/companions.test.ts)
+- Duplicate companion name allowed across users, rejected within one user — PASS
+- Shading query isolation (two users' trips don't affect each other) — PASS
+  (services/__tests__/shading.user-scope.test.ts, pre-existing + still green;
+  routes/__tests__/map.test.ts new)
+- Cross-user companion assignment rejected 400 in replaceAssociations — PASS
+  (repositories/__tests__/trips.test.ts, 3 new cases — R4)
+- /pre-push (Biome, type-check, backend+frontend tests, status:check) — PASS
+
+SECURITY CHECKLIST (every new/modified route)
+1. requireAuth is the sole gate on /api/companions/* and all /api/map/shading*
+   routes — requireOwner deliberately removed/not re-added (that is AD-07/AD-08's
+   whole point). Confirmed via routes/__tests__/companions.test.ts and
+   routes/__tests__/map.test.ts (non-owner mock user gets 200, not 403).
+2. companionRepository and shadingConfigRepository scope every query to
+   eq(*.userId, userId). shading.service.ts trip-aggregate queries scope via the
+   trips join. replaceAssociations validates companion ownership before insert.
+3. No new user-data FK columns added this brief — companions.userId and
+   mapShadingConfig.userId already .notNull() from the schema brief (PR #240),
+   confirmed live before starting.
+Reference: OP-06 §2, ADL-27.
+
+DEVIATION — FLAGGING FOR A FOLLOW-UP BRIEF
+src/e2e/admin.spec.ts's companion test could not be genuinely un-skipped in this
+brief. It drives the real Admin panel UI, which calls
+src/frontend/hooks/useAdmin.ts — that hook still POSTs to /api/admin/companions
+(the route this brief removed). Fixing it is a frontend change, out of a Backend
+brief's scope. I rewrote its skip comment to describe the real current blocker
+(was stale, pointed at this now-shipped Backend brief) rather than leave it
+misleading. Recommend a small Frontend brief: repoint useAdmin.ts's companion
+calls at /api/companions, then un-skip that e2e test.
+
+DOCUMENT LIFECYCLE (same PR)
+- jobs/architect/tech/20260307-map-shading-spec.md HC-03 note — updated from "not
+  yet userId-scoped" to accurate current state.
+- ADL-28's own Migration status note — all 14 steps now recorded done, citing PR #243.
+- jobs/backend/tech/20260307-api-reference.md bumped to v1.5 — new Companions
+  section, Map Shading per-user callout, Admin section companions removed.
+- _project/tracker.json — BRD-AD07/BRD-AD08 notes updated with issue/PR numbers
+  and summary; status left "in-progress" pending your merge (matches project
+  convention, e.g. BRD-IT0809).
+
+CI: gh pr checks 243 — all 9 jobs green (Backend/Frontend/Contract/E2E Tests, Type
+Check, Biome, Semgrep, Gitleaks, Dependency Scan). Confirmed via ci-wait.sh.
+
+OPEN ISSUES / BLOCKERS
+- The Frontend follow-up noted above (not a blocker to merging this PR — the old
+  /api/admin/companions callers just 404 until Frontend repoints them, no data
+  loss/security regression).
+- None locally-run test:contract was needed — CI's own Contract Tests job (against
+  a live backend) is green. I'd grepped the contract test files beforehand too and
+  confirmed none touch /api/admin/companions or /api/map/shading directly, only the
+  generic trip.companions array shape (unaffected).
+
+WHAT'S NOW UNBLOCKED
+- Frontend can build against /api/companions and the no-longer-owner-gated
+  /api/map/shading* routes for any authenticated user.
+- A Frontend brief can retarget useAdmin.ts and un-skip the e2e test in one change.
+
+Full detail: jobs/backend/park-docs/20260723-BACKEND-ad07-ad08-park.txt

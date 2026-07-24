@@ -24,7 +24,8 @@ import {
   trips,
 } from '../db/index.js';
 import type { Trip } from '../db/schema.js';
-import { NotFoundError } from '../errors.js';
+import { NotFoundError, ValidationError } from '../errors.js';
+import { companionRepository } from './companions.js';
 
 // ----------------------------------------------------------------
 // Types
@@ -230,14 +231,30 @@ export const tripRepository = {
   /**
    * Replaces all M2M associations for a trip (delete + reinsert).
    * Pass undefined for a collection to leave it unchanged.
+   *
+   * ADL-28 R4: companionIds are validated against userId before insert —
+   * companions.user_id must match the trip's user_id, and SQLite cannot
+   * enforce that cross-table invariant at the schema level. Any companionId
+   * that does not belong to userId throws ValidationError (400, not 404 —
+   * the companion may genuinely exist, just under a different user).
    */
   async replaceAssociations(
+    userId: string,
     tripId: number,
     categoryIds?: number[],
     companionIds?: number[],
     activityIds?: number[],
   ): Promise<void> {
     const db = getDb();
+
+    if (companionIds?.length) {
+      const invalidIds = await companionRepository.validateOwnership(userId, companionIds);
+      if (invalidIds.length) {
+        throw new ValidationError(
+          `Companion ID(s) not found or not owned by user: ${invalidIds.join(', ')}`,
+        );
+      }
+    }
 
     // Build batch atomically. db.batch() is safe with libSQL :memory: clients;
     // db.transaction() nulls out the client's internal #db reference, causing

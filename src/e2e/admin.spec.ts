@@ -85,17 +85,22 @@ test('create activity appears in list', async ({ page }) => {
 
 // ─── Companions ───────────────────────────────────────────────────────────────
 
-// Skipped by ADL-28 (AD-08) schema migration (BRD-AD07/BRD-AD08): companions
-// now require a NOT NULL user_id, but the /api/admin/companions POST handler
-// (createAdminListRouter in admin.ts) is unmodified in this brief — it does
-// not supply a userId on insert, so this now 500s on the NOT NULL constraint
-// (same root cause as the equivalent skip in
-// routes/__tests__/owner-access.test.ts). This is a route-logic gap, not a
-// schema-shape-only break, so it is out of scope for the schema/migration
-// brief (Database) per that brief's own instruction. ADL-28 step 8 removes
-// this exact route registration entirely (companions move to a new
-// /api/companions router, requireAuth + userId-scoped) in the Backend
-// follow-up brief, which will delete or rewrite this test along with it.
+// STILL SKIPPED (2026-07-23) — updated blocker, tracked for a Frontend follow-up brief.
+//
+// The Backend half of ADL-28 (AD-08, BRD-AD07/BRD-AD08) is done: companions moved
+// off /api/admin/companions (requireOwner) onto /api/companions (requireAuth only,
+// userId-scoped) — see routes/companions.ts. Backend-level coverage for this now
+// lives in routes/__tests__/companions.test.ts (CRUD, cross-user isolation,
+// duplicate-name-across-users) and is NOT skipped.
+//
+// This e2e test still cannot pass as written: it drives the real Admin panel UI
+// (CompanionTab), which calls src/frontend/hooks/useAdmin.ts — that hook still
+// points at /api/admin/companions, a route this brief removed. Fixing the hook is
+// a frontend change outside a Backend brief's scope (and could collide with other
+// in-flight frontend work), so it is intentionally left undone here. Flagged to
+// COO in this brief's completion report: a small Frontend follow-up brief is
+// needed to repoint useAdmin.ts's companion calls at /api/companions, after which
+// this test should be un-skipped and should pass unmodified.
 test.skip('create companion appears in list', async ({ page }) => {
   await page.goto('http://localhost:5173/admin');
   await page.getByRole('button', { name: 'Companions' }).click();

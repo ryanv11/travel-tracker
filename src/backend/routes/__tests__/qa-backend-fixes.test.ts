@@ -459,7 +459,9 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
     expect(res.body).toHaveProperty('updated_at');
   });
 
-  it('PATCH /api/admin/companions/:id returns snake_case', async () => {
+  // ADL-28 (AD-08): companions moved from /api/admin/companions to
+  // /api/companions (requireAuth only, userId-scoped) — see routes/companions.ts.
+  it('PATCH /api/companions/:id returns snake_case', async () => {
     const db = testDb!;
     await seedTestUser(db);
     const now = new Date().toISOString();
@@ -475,7 +477,7 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
       .returning();
 
     const res = await supertest(app)
-      .patch(`/api/admin/companions/${inserted.id}`)
+      .patch(`/api/companions/${inserted.id}`)
       .send({ name: 'Alicia' })
       .expect(200);
 

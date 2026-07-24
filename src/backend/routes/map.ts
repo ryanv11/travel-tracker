@@ -3,16 +3,20 @@
  *
  * Returns computed shading states for world map rendering.
  * All state computation is done by shading.service.ts at query time.
- * Config updates invalidate the in-memory config cache.
+ * Config updates invalidate that user's in-memory config cache entry.
+ *
+ * ADL-28 (AD-07): shading config and shading reads are per-user, not
+ * owner-only. requireAuth (applied globally via app.use('/api/', requireAuth)
+ * in server.ts) is the only gate — every handler scopes to req.user!.id.
  */
 
 import { eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { countries, getDb, mapShadingConfig } from '../db/index.js';
+import { countries, getDb } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
-import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody } from '../middleware/validate.js';
+import { shadingConfigRepository } from '../repositories/shadingConfig.js';
 import {
   getAllCountryShading,
   getCountryShading,
@@ -25,11 +29,11 @@ export const mapRouter = Router();
 
 // ----------------------------------------------------------------
 // GET /api/map/shading  — all countries
-// ADL-27 / HC-04: owner-only (shading config is personally identifiable per AD-07)
+// ADL-28 (AD-07): requireAuth only, scoped to req.user!.id
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 mapRouter.get(
   '/shading',
-  requireOwner,
   asyncHandler(async (req, res) => {
     const result = await getAllCountryShading(req.user!.id);
     res.json(
@@ -44,15 +48,15 @@ mapRouter.get(
 );
 
 // ----------------------------------------------------------------
-// GET /api/map/shading/config  — all shading config rows
-// ADL-27 / HC-04: owner-only (shading config is personally identifiable per AD-07)
+// GET /api/map/shading/config  — all shading config rows for the caller
+// ADL-28 (AD-07): requireAuth only, scoped to req.user!.id. Lazily seeds
+// the caller's 6 default rows on first access (shadingConfigRepository).
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 mapRouter.get(
   '/shading/config',
-  requireOwner,
-  asyncHandler(async (_req, res) => {
-    const db = getDb();
-    const rows = await db.select().from(mapShadingConfig);
+  asyncHandler(async (req, res) => {
+    const rows = await shadingConfigRepository.findAll(req.user!.id);
     res.json(
       rows.map((r) => ({
         state_key: r.stateKey,
@@ -66,56 +70,43 @@ mapRouter.get(
 
 // ----------------------------------------------------------------
 // PATCH /api/map/shading/config/:stateKey
-// ADL-27 / HC-05: owner-only (shading config update)
+// ADL-28 (AD-07): requireAuth only, scoped to req.user!.id
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 mapRouter.patch(
   '/shading/config/:stateKey',
-  requireOwner,
   validateBody(UpdateShadingConfigSchema),
   asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
     const stateKey = String(req.params.stateKey);
-    const db = getDb();
-
-    const existing = await db
-      .select()
-      .from(mapShadingConfig)
-      .where(eq(mapShadingConfig.stateKey, stateKey))
-      .limit(1);
-    if (!existing.length) throw new NotFoundError('Shading config');
-
     const { display_name, color_hex } = req.body;
-    const updates: Partial<typeof mapShadingConfig.$inferInsert> = {
-      updatedAt: new Date().toISOString(),
-    };
-    if (display_name !== undefined) updates.displayName = display_name;
-    if (color_hex !== undefined) updates.colorHex = color_hex;
 
-    const updated = await db
-      .update(mapShadingConfig)
-      .set(updates)
-      .where(eq(mapShadingConfig.stateKey, stateKey))
-      .returning();
+    const updated = await shadingConfigRepository.update(userId, stateKey, {
+      displayName: display_name,
+      colorHex: color_hex,
+    });
+    if (!updated) throw new NotFoundError('Shading config');
 
-    // Invalidate cache so next shading query picks up the new colours
-    invalidateConfigCache();
+    // Invalidate only this user's cache entry so next shading query picks up
+    // the new colours — does not affect any other user's cached config.
+    invalidateConfigCache(userId);
 
-    const r = updated[0];
     res.json({
-      state_key: r.stateKey,
-      display_name: r.displayName,
-      color_hex: r.colorHex,
-      updated_at: r.updatedAt,
+      state_key: updated.stateKey,
+      display_name: updated.displayName,
+      color_hex: updated.colorHex,
+      updated_at: updated.updatedAt,
     });
   }),
 );
 
 // ----------------------------------------------------------------
 // GET /api/map/shading/countries/:countryCode  — single country + regions
-// ADL-27 / HC-03: owner-only (shading data is personally identifiable per AD-07)
+// ADL-28 (AD-07): requireAuth only, scoped to req.user!.id
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 mapRouter.get(
   '/shading/countries/:countryCode',
-  requireOwner,
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
     const userId = req.user!.id;
@@ -153,11 +144,11 @@ mapRouter.get(
 
 // ----------------------------------------------------------------
 // GET /api/map/shading/regions/:countryCode  — all regions for country
-// ADL-27 / HC-03: owner-only (shading data is personally identifiable per AD-07)
+// ADL-28 (AD-07): requireAuth only, scoped to req.user!.id
 // ----------------------------------------------------------------
+// nosemgrep: travel-tracker.express-route-no-auth -- reason: requireAuth applied globally via app.use('/api/', requireAuth) in server.ts
 mapRouter.get(
   '/shading/regions/:countryCode',
-  requireOwner,
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
     const db = getDb();

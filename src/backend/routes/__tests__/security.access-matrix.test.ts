@@ -16,6 +16,12 @@
  *   only too (BUG-61 / ADL-38) — global pre-seeded reference data (GE-04/GE-05) that every
  *   user reads to create a trip; only the country/region WRITES stay owner-only. Positive
  *   read coverage is in Part E; the writes remain in Part B.
+ *   ALL of /api/companions/* and /api/map/shading/* (including /config) are requireAuth
+ *   only too as of ADL-28 (AD-07/AD-08, 2026-07-23) — companions and map shading config
+ *   moved from owner-only admin resources to per-user, userId-scoped resources. They are
+ *   NOT in Part B for the same reason. Cross-user isolation coverage for these two
+ *   resources lives in routes/__tests__/companions.test.ts and
+ *   services/__tests__/shading.user-scope.test.ts (plus the Part C rows below).
  */
 
 import { createClient } from '@libsql/client';
@@ -99,10 +105,13 @@ async function createTestDb() {
     )`,
     `CREATE TABLE IF NOT EXISTS companions (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      name TEXT NOT NULL UNIQUE,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
       is_active INTEGER DEFAULT 1 NOT NULL,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
+      UNIQUE (user_id, name),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS trip_companions_map (
       trip_id INTEGER NOT NULL,
@@ -201,10 +210,13 @@ async function createTestDb() {
       FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS map_shading_config (
-      state_key TEXT PRIMARY KEY NOT NULL,
+      state_key TEXT NOT NULL,
+      user_id TEXT NOT NULL,
       display_name TEXT NOT NULL,
       color_hex TEXT NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
+      PRIMARY KEY (state_key, user_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
   ];
 
@@ -479,13 +491,24 @@ describe('Part A — Unauthenticated rejection: all API routes return 401', () =
     expect(res.status).toBe(401);
   });
 
-  it('GET /api/admin/companions → 401', async () => {
-    const res = await supertest(app).get('/api/admin/companions');
+  // Companions — ADL-28 (AD-08): moved from /api/admin/companions to /api/companions
+  it('GET /api/companions → 401', async () => {
+    const res = await supertest(app).get('/api/companions');
     expect(res.status).toBe(401);
   });
 
-  it('POST /api/admin/companions → 401', async () => {
-    const res = await supertest(app).post('/api/admin/companions').send({});
+  it('POST /api/companions → 401', async () => {
+    const res = await supertest(app).post('/api/companions').send({});
+    expect(res.status).toBe(401);
+  });
+
+  it('PATCH /api/companions/1 → 401', async () => {
+    const res = await supertest(app).patch('/api/companions/1').send({});
+    expect(res.status).toBe(401);
+  });
+
+  it('DELETE /api/companions/1 → 401', async () => {
+    const res = await supertest(app).delete('/api/companions/1');
     expect(res.status).toBe(401);
   });
 
@@ -526,6 +549,8 @@ describe('Part A — Unauthenticated rejection: all API routes return 401', () =
 //   GET /api/map/shading/regions/:code
 //   GET /api/admin/countries                   (BUG-61 / ADL-38 — see Part E)
 //   GET /api/admin/countries/:code/regions     (BUG-61 / ADL-38 — see Part E)
+//   /api/companions/*                          (ADL-28 AD-08 — see Part C)
+//   /api/map/shading, /api/map/shading/config  (ADL-28 AD-07 — see Part C)
 // ================================================================
 
 describe('Part B — Non-owner authenticated user receives 403 on owner-only routes', () => {
@@ -598,37 +623,6 @@ describe('Part B — Non-owner authenticated user receives 403 on owner-only rou
     expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
 
-  // Admin — companions
-  it('GET /api/admin/companions → 403', async () => {
-    const res = await supertest(app).get('/api/admin/companions');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('POST /api/admin/companions → 403', async () => {
-    const res = await supertest(app).post('/api/admin/companions').send({ name: 'Test' });
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('PATCH /api/admin/companions/1 → 403', async () => {
-    const res = await supertest(app).patch('/api/admin/companions/1').send({ name: 'Updated' });
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('DELETE /api/admin/companions/1 → 403', async () => {
-    const res = await supertest(app).delete('/api/admin/companions/1');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('GET /api/admin/companions/active → 403', async () => {
-    const res = await supertest(app).get('/api/admin/companions/active');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
   // Admin — countries (WRITES only; the GET reads moved to Part E per BUG-61)
   it('PATCH /api/admin/countries/US → 403', async () => {
     const res = await supertest(app).patch('/api/admin/countries/US').send({});
@@ -648,25 +642,6 @@ describe('Part B — Non-owner authenticated user receives 403 on owner-only rou
     const res = await supertest(app)
       .patch('/api/admin/countries/US/regions/1')
       .send({ name: 'Updated' });
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  // Map shading — owner-only routes
-  it('GET /api/map/shading → 403', async () => {
-    const res = await supertest(app).get('/api/map/shading');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('GET /api/map/shading/config → 403', async () => {
-    const res = await supertest(app).get('/api/map/shading/config');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('PATCH /api/map/shading/config/visited → 403', async () => {
-    const res = await supertest(app).patch('/api/map/shading/config/visited').send({});
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
@@ -738,10 +713,30 @@ describe('Part C — Cross-user data isolation', () => {
     expect(res.status).toBe(404);
   });
 
-  it('GET /api/map/shading → 403 (non-owner gate — USER_B cannot access shading)', async () => {
+  // ADL-28 (AD-07): shading is requireAuth only now, not owner-gated — USER_B
+  // (non-owner) can access it (200), scoped to their own (empty) trip data.
+  // Query-level cross-user isolation (USER_B's response not containing USER_A's
+  // trips) is covered in services/__tests__/shading.user-scope.test.ts; this row
+  // just confirms the route itself is no longer 403ing a non-owner.
+  it('GET /api/map/shading → 200 for non-owner (ADL-28: no longer owner-gated)', async () => {
     const res = await supertest(app).get('/api/map/shading');
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  // ADL-28 (AD-08): companions are per-user, not owner-gated — USER_B sees an
+  // empty list because only USER_A has companions (cross-user isolation).
+  it('GET /api/companions → 200 with empty list (USER_B cannot see USER_A companions)', async () => {
+    await testDb!.insert(schema.companions).values({
+      userId: USER_A_ID,
+      name: 'Owner Companion',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const res = await supertest(app).get('/api/companions');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
   });
 
   // Cross-user WRITE isolation on nested resources — a create must not attach

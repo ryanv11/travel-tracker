@@ -1,47 +1,71 @@
-BACKEND CONTEXT — 2026-07-21
+BACKEND CONTEXT — 2026-07-23
 PROJECT: Travel Tracker
-CURRENT STATUS: BRD-NF09 hosted deployment backend implementation (ADL-32), this thread.
-  1. BRD-NF09 (PR pending — feat/nf09-hosted-deployment-backend): implemented 2 of
-     ADL-32's 3 backend scope items, investigated/documented the third.
-     - src/backend/db/index.ts: createLibSQLDb() now prefers TURSO_DATABASE_URL over
-       SQLITE_PATH and passes TURSO_AUTH_TOKEN as authToken when present. Local dev
-       unaffected (no TURSO_DATABASE_URL set locally, falls back to SQLITE_PATH).
-     - src/backend/server.ts: added express.static serving of dist/ + SPA fallback,
-       gated on NODE_ENV=production && dist/ exists. /api/* explicitly excluded from
-       the fallback. Two non-obvious bugs found and fixed along the way: (a) Express 5
-       removed bare `*` wildcard routes — used a path-less app.use() instead of
-       app.get('*', ...); (b) res.sendFile(absolutePath) without a `root` option 404s
-       if any ancestor directory starts with a dot (this repo's worktree paths live
-       under .claude/worktrees/...) — fixed with
-       res.sendFile('index.html', { root: DIST_DIR }), which is also just the more
-       correct pattern regardless of deployment path.
-     - Clerk origin verification (ADL-32 §6): investigated, no code change needed on
-       the backend side — ALLOWED_ORIGINS/azp (HC-02) can be set dynamically per
-       Railway Preview via Railway's ${{RAILWAY_PUBLIC_DOMAIN}} reference-variable
-       templating (Ryan's dashboard action, not code). Clerk's OWN dashboard allowed-
-       origins config is separate and unverified — flagged prominently to COO/PO as
-       the part of this brief needing a follow-up decision, not a code fix. See park
-       doc for full findings and the documented BYPASS_AUTH=true fallback tradeoff if
-       Clerk can't support dynamic preview origins.
-ACTIVE TASKS: None
+CURRENT STATUS: ADL-28 (AD-07/AD-08) routes/repositories/service brief, this thread.
+  1. BRD-AD07/BRD-AD08 (PR #243 — feat/ad07-ad08-routes-repos, issue #242): implemented
+     ADL-28's "Migration sequence for Backend agent" steps 5-14. Schema half (steps 1-4)
+     had already landed via PR #240 (Database brief).
+     - New repositories: src/backend/repositories/companions.ts (companionRepository —
+       findAll/findActive/findById/create/update/deactivate/validateOwnership) and
+       src/backend/repositories/shadingConfig.ts (shadingConfigRepository —
+       findAll/findByStateKey/update/seedDefaults, lazy-seeding from the
+       MAP_SHADING_CONFIG constant in db/seed-data.ts).
+     - New router src/backend/routes/companions.ts mounted at /api/companions
+       (requireAuth only, no requireOwner) — registered in server.ts AND
+       server-test-app.ts (both needed updating).
+     - src/backend/routes/admin.ts: removed the companions registration entirely
+       (companions are no longer an admin/owner resource).
+     - src/backend/routes/map.ts: dropped requireOwner from all 5 shading routes
+       (GET /shading, GET/PATCH /shading/config, GET /shading/countries/:code,
+       GET /shading/regions/:code) — requireAuth (global) is now the only gate.
+     - src/backend/services/shading.service.ts: getConfigMap is now per-userId
+       (Map<userId, ShadingConfigMap> cache, was a single global Map keyed by
+       stateKey — R2 fix); invalidateConfigCache(userId?) invalidates one user's
+       entry (or all, if called with no arg, for test resets). getCityShading also
+       gained a userId param and scopes its trips join (R1 fix — it was
+       unscoped, aggregating every user's trips). Note: getAllCountryShading/
+       getCountryShading/getRegionShading were ALREADY userId-scoped before this
+       brief (HC-03, 2026-07-15) — that part of R1 was not a gap this brief closed,
+       only getCityShading and the config layer were.
+     - src/backend/repositories/trips.ts: replaceAssociations gained a userId
+       param (all callers updated in routes/trips.ts) and now calls
+       companionRepository.validateOwnership before inserting
+       trip_companions_map rows, throwing ValidationError (400) for any
+       companionId not owned by the caller (R4 — the sole enforcement point,
+       SQLite can't do this at the schema level).
+     - Test coverage added: repositories/__tests__/companions.test.ts,
+       repositories/__tests__/shadingConfig.test.ts, routes/__tests__/
+       companions.test.ts, routes/__tests__/map.test.ts, plus cross-user
+       companion-assignment-rejection cases in repositories/__tests__/trips.test.ts.
+     - Existing tests updated: owner-access.test.ts (removed companion admin
+       tests + HC-05 map-shading-owner-gate describe, both superseded),
+       security.access-matrix.test.ts (DDL fix for map_shading_config/companions
+       userId columns, Part A/B/C rows updated for the new auth model),
+       qa-backend-fixes.test.ts (PATCH url moved to /api/companions). Both tests
+       the schema-migration brief had left `.skip`'d
+       (owner-access.test.ts's "POST /api/admin/companions → 201 for owner" and
+       e2e admin.spec.ts's "create companion appears in list") are resolved:
+       the backend one is deleted/replaced by non-skipped coverage in the new
+       companions.test.ts; the e2e one remains skipped (see Open Issues below).
+     - Document lifecycle: updated jobs/architect/tech/20260307-map-shading-spec.md's
+       HC-03 correction note (was "not yet userId-scoped", now accurate) and
+       ADL-28's own Migration status note (all 14 steps now recorded done).
+       Also updated jobs/backend/tech/20260307-api-reference.md (v1.5) — new
+       Companions section, Map Shading section per-user note, Admin section
+       companions removed — and _project/tracker.json notes for BRD-AD07/BRD-AD08.
+ACTIVE TASKS: None — PR #243 open, awaiting CI + COO review/merge.
 PENDING MESSAGES TO COO:
-  20260721_1706-BACKEND-nf09-hosted-deployment-complete.txt (sent)
+  20260723_[time]-BACKEND-ad07-ad08-routes-repos-complete.txt (sent)
 OPEN ISSUES:
-  - Clerk dashboard verification needed from Ryan (see park doc §3) — determines
-    whether Preview environments get real Clerk auth or fall back to
-    BYPASS_AUTH=true scoped to Preview only (ADL-32 §6 documented fallback,
-    explicitly flagged as a tradeoff not a clean solution).
-  - PROCESS INCIDENT (this thread, contained): a scoping mistake in a cleanup
-    `pkill -9 -f "tsx watch src/backend/server.ts"` matched another session's dev
-    server supervisor processes (running from /workspace, not my worktree) and
-    killed the tsx watch wrapper (hot-reload) for that session, though the actual
-    server process survived and kept serving on port 3001 (confirmed still healthy
-    after the incident). That other session's owner will need to restart
-    `npm run dev:api` to get hot-reload back. Full detail + lesson learned in this
-    thread's park doc. No data lost, no request dropped as far as verifiable.
-  - ADL-32 §10 success criteria (production URL reachable, Clerk sign-in e2e, data
-    persists across deploy, PR preview reachable, preview DB isolation, CI+deploy
-    green on merge) require an actual Railway deploy to verify — out of scope for
-    this code-only brief; someone (COO/PO) needs to verify these post-merge.
-LAST PARK DOC: jobs/backend/park-docs/20260721-BACKEND-nf09-hosted-deployment-park.txt
-  (see also ...-bug33-park.txt and earlier UAT-triage park docs for prior threads)
+  - src/e2e/admin.spec.ts's companion e2e test remains `.skip`'d. Root cause: the
+    frontend (src/frontend/hooks/useAdmin.ts) still calls the old
+    /api/admin/companions path, which this brief removed. Fixing that hook is a
+    frontend change outside a Backend brief's scope. Needs a small Frontend
+    follow-up brief to repoint useAdmin.ts's companion calls at /api/companions,
+    after which this e2e test should be un-skipped and pass unmodified.
+  - Contract tests (npm run test:contract) were not run this thread — they
+    require a live backend and grep confirmed no contract test touches
+    /api/admin/companions or /api/map/shading directly (only the generic
+    trip.companions array shape, unaffected). Flagged as low-risk, not verified
+    live.
+LAST PARK DOC: jobs/backend/park-docs/20260723-BACKEND-ad07-ad08-park.txt
+  (see also 20260721-BACKEND-nf09-hosted-deployment-park.txt for prior thread)
