@@ -27,10 +27,25 @@ Backend agent" below are now implemented.
   `ValidationError` (400) for cross-user companion IDs (R4). Test coverage: new
   `repositories/__tests__/companions.test.ts`, `repositories/__tests__/shadingConfig.test.ts`,
   `routes/__tests__/companions.test.ts`, `routes/__tests__/map.test.ts`, plus cross-user
-  companion-assignment-rejection cases added to `repositories/__tests__/trips.test.ts`. One
-  known follow-up gap: `src/e2e/admin.spec.ts`'s companion e2e test remains `.skip`'d — the
-  frontend (`useAdmin.ts`) still calls the old `/api/admin/companions` path and needs its own
-  Frontend brief to repoint at `/api/companions` before that e2e test can pass.
+  companion-assignment-rejection cases added to `repositories/__tests__/trips.test.ts`.
+
+  **Frontend follow-up gap CLOSED (2026-07-23, PR TBD, `fix/companions-api-route`, issue
+  #244):** `useAdmin.ts`'s five companion hooks now call `/api/companions` instead of the
+  removed `/api/admin/companions`; `src/e2e/admin.spec.ts`'s companion test is un-skipped
+  and passing (verified locally via the full Playwright suite, not just CI).
+
+  **New gap found while closing the above, NOT fixed by this brief (deliberately out of
+  scope — flagged to COO):** `CompanionTab.tsx` itself has no owner-only gating, but it is
+  unreachable by a non-owner in practice — the entire `/admin` route is wrapped in
+  `RequireOwner` (`App.tsx`) and the "Admin" nav link is hidden unless `me.isOwner` (BUG-26,
+  its own dedicated tested behaviour in `App.test.tsx`). So a non-owner authenticated user
+  still cannot reach the Companions tab at all, even though AD-08's access model says any
+  authenticated user should manage their own companions. Fixing this correctly means
+  touching shared nav/route infrastructure that also gates the four still-owner-only tabs
+  (categories, activities, shading, countries) and reversing part of BUG-26's tested
+  contract — judged too architecturally significant to fold into a same-brief hook-URL fix.
+  Needs its own scoped follow-up brief (likely: per-tab gating inside `AdminPanel.tsx`
+  instead of a page-level `RequireOwner`, plus updating `App.test.tsx`'s BUG-26 assertions).
 
 ---
 
