@@ -1,101 +1,102 @@
-FRONTEND CONTEXT — as of 2026-07-21 (WP-03/WP-04 Waypoint Trips reskin, Phase 2)
+FRONTEND CONTEXT — as of 2026-07-23 (BRD-AD08 companions API repoint, Phase 3)
 
-STATUS: WP-03 (desktop reskin) + WP-04 (new mobile layout) implemented on branch
-  feat/wp03-wp04-trips-reskin, GitHub issue #205. PR to be opened and CI verified
-  as the final step of this thread — see completion report for the PR number and
-  CI status. All local checks green (npm run check, type:check:all, test:backend,
-  test:frontend, status:check, full Playwright E2E suite — 52/52 passing).
-  Awaiting COO review + PO UAT sign-off (mandatory phase-completion gate per
-  CLAUDE.md) — do not treat as closed until PO PASS lands.
+STATUS: fix/companions-api-route branch, GitHub issue #244, closes out the last
+  piece of the ADL-28/AD-08 rollout. useAdmin.ts's five companion hooks
+  repointed from /api/admin/companions to /api/companions (PR #243 already
+  merged the backend half). src/e2e/admin.spec.ts's companion test un-skipped
+  and passing. All local checks green (npm run check, type:check:all,
+  test:backend 580/1 skipped unaffected, test:frontend 154 passed, status:check,
+  full Playwright suite 52/52 including the newly un-skipped companion test).
+  PR to be opened as the final step of this thread — see completion report for
+  the PR number and CI status. Awaiting COO review; no PO UAT gate applies here
+  (same-shape route rename, not a new user-facing feature).
 
-  This supersedes the prior (2026-07-21, WP-02/#197) entry in this file as the
-  "current" thread; that thread's detail lives in
-  jobs/frontend/park-docs/20260721-FRONTEND-wp02-park.txt and is not repeated here.
+  This supersedes the prior (2026-07-21, WP-03/WP-04/#205) entry in this file
+  as the "current" thread; that thread's detail lives in
+  jobs/frontend/park-docs/20260721-FRONTEND-wp03wp04-park.txt and is not
+  repeated here.
 
-WHAT WAS DONE (this thread — WP-03/WP-04 / GitHub #205)
-  Full detail in jobs/frontend/tech/20260721-WP03-WP04-trips-reskin.md and the
-  park doc (jobs/frontend/park-docs/20260721-FRONTEND-wp03wp04-park.txt). Summary:
-  - Desktop Trips screen (DesktopTripsLayout.tsx, TripCard.tsx, TripDetail.tsx,
-    PlaceSection.tsx, ItemCard.tsx, TripItemsSection.tsx) reskinned to Waypoint
-    tokens: 340px left panel (C10), Waypoint nav brand in App.tsx, new
-    StatusStepper.tsx replacing the flat status bar (TR-12), Unlock preserved as
-    new stepper-card chrome (C2). Every non-mockup feature (bulk delete/undo,
-    sort, per-status counts, map-filter badge, trip-level items, per-place dates,
-    remove-place, ratings, carried-forward tag, two-message empty states)
-    preserved, reskinned only.
-  - Net-new MobileTripsLayout.tsx + MobileTripDetailView.tsx (<768px, via new
-    useIsMobile.ts hook): list/detail cross-fade/slide per spec's exact
-    transform values, bottom tab bar (list-view only, C9), compact icon-only
-    Edit/Photos pair (UX's resolved call, supersedes BRD's earlier overflow-menu
-    wording). No horizontal scroll anywhere except the status filter chip row —
-    verified at 390px/360px with long/varied real data, not just short mockup
-    strings.
-  - Fixed badges.ts/theme-waypoint.css: item-status Confirmed (hue 150) and
-    Completed (hue 220) are now two distinct hues, fixing the Phase 1 bug that
-    collapsed them to one. StatusBadge.tsx wired to the Waypoint hue system
-    (Phase 1 left it defined-but-unused).
-  - New EditIcon.tsx (13th icon in the set, was 12 after WP-02).
-  - No dangerouslySetInnerHTML introduced (verified via grep, zero project-wide).
-  - data-testid="trip-detail-panel" on both desktop's right panel (pre-existing)
-    and mobile's detail-view root (new), per brief's E2E-scoping instruction.
-  - New src/e2e/trips-mobile.spec.ts (18 tests). Two pre-existing desktop specs
-    updated for INTENTIONAL spec-mandated copy changes (button label "+ New" →
-    "+ New Trip", search placeholder "Search trips…" → "Search trips or
-    places…") — not reskin drift, both explicitly required by spec.
+WHAT WAS DONE (this thread — BRD-AD08 / GitHub #244)
+  - src/frontend/hooks/useAdmin.ts: useCompanions, useActiveCompanions,
+    useCreateCompanion, useUpdateCompanion, useDeleteCompanion now call
+    /api/companions instead of /api/admin/companions. Query keys and hook
+    signatures unchanged (they're cache keys, not URLs — no bug from leaving
+    them as ['admin', 'companions']).
+  - src/e2e/admin.spec.ts: un-skipped 'create companion appears in list',
+    confirmed passing locally via the full Playwright suite (not just relying
+    on CI) — 5/5 admin.spec.ts tests, 52/52 full suite.
+  - Verified no other live /api/admin/companions references remain anywhere
+    in src/ (backend routes/tests only carry historical comments documenting
+    the ADL-28 move — nothing to change, per brief's "do not touch backend"
+    instruction).
+  - Read CompanionTab.tsx: no owner-only gating inside the component itself —
+    no change needed there, per the brief's own contingency clause.
+  - Updated jobs/architect/tech/ADL-28-per-user-shading-companions.md and
+    _project/tracker.json (BRD-AD08 notes) to close the "known follow-up gap"
+    note and record a new, deliberately out-of-scope finding (see OPEN FLAGS).
+
+WHAT WAS DELIBERATELY NOT DONE
+  CompanionTab.tsx has no owner gating, but the brief's premise (a component-
+  level gate to check/fix) didn't match what's actually in the codebase: the
+  gate sits one layer up, in App.tsx's <RequireOwner> wrapping the entire
+  /admin route, plus the Admin nav link's `!!me?.isOwner` condition. Both are
+  BUG-26's tested, deliberate contract (src/frontend/__tests__/App.test.tsx —
+  6 tests asserting non-owners get "Not authorised", never the panel). Fixing
+  this for real (AD-08 says any authenticated user should manage their own
+  companions) means moving from page-level to per-tab gating inside
+  AdminPanel.tsx, touching the same nav/route code that legitimately still
+  owner-gates four other tabs (categories, activities, shading, countries),
+  and reversing part of BUG-26's tested behaviour. Judged too architecturally
+  significant to fold into this hook-URL-repoint brief — flagged to COO
+  instead of fixed unilaterally (mirrors the precedent in tracker.json's
+  BRD-AD07 GitHub #225/ADL-38 history: auth-scoping changes route through
+  Architect first, not a unilateral patch). See OPEN FLAGS below.
 
 VERIFICATION
-  npm run check (biome, clean), type:check:all (clean), test:backend (532
-  passed/1 skipped, unaffected — sanity check), test:frontend (154 passed),
-  status:check (STATUS.md in sync), full Playwright suite via `npx playwright
-  test` (52/52 passed, includes all pre-existing desktop specs + new mobile
-  spec). npm run build succeeds; spot-checked the built CSS contains the new
-  arbitrary-value Tailwind utilities (max-md:, translate-x-[30%], etc.) —
-  Tailwind v4 JIT picked them all up correctly.
+  npm run check (biome, clean), type:check:all (clean), test:backend (580
+  passed/1 skipped, unaffected), test:frontend (154 passed), status:check
+  (STATUS.md in sync), full Playwright suite via `npx playwright test`
+  (52/52 passed, including the un-skipped companion test) — run live locally
+  in this worktree, not just left to CI. Manual browser sign-in sanity check
+  (start dev:api + dev, sign in via real Clerk, click through Admin →
+  Companions) was NOT possible in this sandbox — no real Clerk publishable
+  key is configured and the firewall only allows GitHub/npm/Anthropic, so
+  Clerk's hosted sign-in is unreachable. The full Playwright suite (BYPASS_AUTH
+  simulating a real authenticated owner user through real HTTP requests
+  against the real Express backend and real built/dev-served React frontend,
+  clicking the actual Admin UI) is the closest available equivalent and was
+  run to completion.
 
-KEY FILE LOCATIONS (new/changed this thread)
-  Desktop:    src/frontend/components/TripList/DesktopTripsLayout.tsx (new,
-              renamed+reskinned from old TripsLayout.tsx), TripCard.tsx,
-              TripDetail.tsx, PlaceSection.tsx, ItemCard.tsx,
-              TripItemsSection.tsx, StatusStepper.tsx (new),
-              useTripDetailController.ts (new, shared with mobile)
-  Mobile:     src/frontend/components/TripList/MobileTripsLayout.tsx (new),
-              src/frontend/components/TripDetail/MobileTripDetailView.tsx (new),
-              src/frontend/hooks/useIsMobile.ts (new)
-  Router:     src/frontend/components/TripList/TripsLayout.tsx (now a thin
-              desktop/mobile switch)
-  Badges:     src/frontend/design/badges.ts, src/frontend/theme-waypoint.css,
-              src/frontend/components/shared/StatusBadge.tsx (now wired)
-  Icons:      src/frontend/components/icons/EditIcon.tsx (new)
-  Nav/rename: src/frontend/App.tsx (Waypoint brand, mobile nav hide on /trips),
-              index.html (<title>Waypoint</title>)
-  E2E:        src/e2e/trips-mobile.spec.ts (new), trips-crud.spec.ts,
-              trips-filters.spec.ts (selector updates for spec-mandated copy)
+KEY FILE LOCATIONS (changed this thread)
+  src/frontend/hooks/useAdmin.ts (companion hooks' URLs only)
+  src/e2e/admin.spec.ts (un-skip)
+  jobs/architect/tech/ADL-28-per-user-shading-companions.md (doc lifecycle)
+  _project/tracker.json (BRD-AD08 notes — issue #244 cross-ref)
 
 OPEN FLAGS FOR COO
-  FLAG-WP0304-1 (MAJOR bug, discovered not fixed — out of Frontend's remit):
-    items.carriedFromItemId has no onDelete behavior (src/backend/db/schema.ts)
-    — deleting a trip whose item is still referenced as another trip's
-    carry-forward source fails with a 500 (SQLite FK RESTRICT default). Schema
-    fix requires Architect + Database review per CLAUDE.md; not actioned here.
-    Full bug-report writeup in the completion report and tech doc.
-  FLAG-WP0304-2 (process, not app defect): a fresh worktree has no .env.local
-    (not shared/symlinked, same category as the documented node_modules gap) —
-    npm run test:e2e's webServer failed with "DB_TYPE: undefined" until one was
-    created (copied from .env.example, DB_TYPE=sqlite, correctly gitignored/
-    uncommitted). Recommend adding this to CLAUDE.md's worktree-isolation
-    guardrails alongside the node_modules note.
-  FLAG-WP0304-3 (informational, carried from WP-02): itemStatusToBadgeHue still
-    returns null for ItemStatus 'next_time' — spec's hue table still doesn't
-    define one. Not this brief's scope to resolve; StatusBadge falls back to
-    the neutral 'locked' hue rather than guessing.
+  FLAG-AD08-1 (MAJOR, functional gap, not fixed — flagged not actioned):
+    Non-owner authenticated users still cannot reach the Companions tab at
+    all — App.tsx's <RequireOwner> gates the whole /admin route and the Admin
+    nav link is `!!me?.isOwner`-only (BUG-26). AD-08's access model requires
+    companions to be usable by any authenticated user. Recommend a scoped
+    Frontend follow-up brief: move gating from page-level (RequireOwner
+    wrapping AdminPage) to per-tab inside AdminPanel.tsx (companions open to
+    all; categories/activities/shading/countries stay owner-only), update
+    App.tsx's nav-link condition to show Admin for any authenticated user,
+    and update App.test.tsx's BUG-26 assertions accordingly. Not blocking
+    this PR — it's a pre-existing gap this brief's hook fix does not worsen
+    (companions were just as unreachable for non-owners before this fix,
+    since the route was 404ing anyway).
+  FLAG-AD08-2 (MODERATE, pre-existing, unrelated to this change): `npm audit`
+    reports 7 vulnerabilities (1 low, 6 moderate) in this worktree's fresh
+    `npm install` — esbuild (dev-server-only, via drizzle-kit's transitive
+    dependency) and react-router (open-redirect / SSR-hydration CVEs, neither
+    applicable — this app doesn't use SSR). Both fixes are breaking-change
+    major-version bumps (`npm audit fix --force`). Not introduced by this
+    thread (no package.json/lockfile changes here) — flagged per frameworks.txt
+    rule 20, COO to decide whether to schedule the bump.
 
 NEXT STEPS (when resumed)
-  - COO: review PR, decide on FLAG-WP0304-1 (MAJOR bug) — likely a new tracker
-    entry + Database/Architect brief, not blocking this PR's merge since it's
-    pre-existing and not introduced by this reskin.
-  - PO: UAT pass confirming desktop + mobile Trips screens match the spec,
-    per BRD v3.4 §5.16 WP-03/WP-04 success criteria (mandatory phase-completion
-    gate).
-  - Once WP-03/WP-04 UAT-passes, WP-05's guardrail (this reskin does not close
-    DP-06's first-place-inherits-trip-dates gap) should be reconfirmed still
-    tracked correctly in tracker.json (COO-maintained, not touched here).
+  - COO: review PR #TBD, decide on FLAG-AD08-1 (likely a new tracker entry +
+    small Frontend brief, same pattern as BRD-AD07's GitHub #225/ADL-38).
+  - COO: decide on FLAG-AD08-2 (npm audit, moderate, pre-existing).
