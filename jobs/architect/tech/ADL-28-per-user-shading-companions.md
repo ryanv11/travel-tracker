@@ -8,11 +8,11 @@
 
 **Migration status (2026-07-23):** Steps 1-4 of the "Migration sequence for Backend agent"
 below (schema.ts changes, db:generate, migration review/fix, db:migrate) are implemented —
-`feat/ad07-ad08-schema-migration`, Database brief. Both tables now carry the userId FK,
-composite PK / unique index, and CHECK constraints exactly as specified below; the
+`feat/ad07-ad08-schema-migration`, PR #240, Database brief. Both tables now carry the userId
+FK, composite PK / unique index, and CHECK constraints exactly as specified below; the
 CROSS JOIN owner-backfill was hand-verified against a seeded pre-migration dataset (see PR
-for detail). Steps 5-14 (repositories, routes, service-layer scoping, cache invalidation,
-R1/R2 fixes) remain open — Backend implementation brief.
+#240 for detail). Steps 5-14 (repositories, routes, service-layer scoping, cache
+invalidation, R1/R2 fixes) remain open — Backend implementation brief.
 
 ---
 

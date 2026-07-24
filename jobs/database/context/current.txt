@@ -469,7 +469,8 @@ clean, status:check clean. Full pre-push suite green before push.
 
 DOCUMENT LIFECYCLE: jobs/architect/tech/ADL-28-per-user-shading-companions.md
 — added a "Migration status (2026-07-23)" line under the header noting
-steps 1-4 are implemented (branch/PR), steps 5-14 remain open for Backend.
+steps 1-4 are implemented (feat/ad07-ad08-schema-migration, PR #240),
+steps 5-14 remain open for Backend.
 Decision/rationale text untouched.
 
 jobs/database/tech/ mirror updated: schema.ts (full copy, current), seed.ts,
