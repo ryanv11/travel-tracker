@@ -1,0 +1,110 @@
+COO SESSION PARK — 2026-07-24 0213 UTC (BRD-AD07/BRD-AD08 shipped end-to-end)
+================================================================================
+
+## Session summary
+Picked up post-/clear with no live thread — Ryan asked to dispatch the AD-07/
+AD-08 implementation brief (per-user map shading config + companions,
+ADL-28, decided back on 2026-03-24 and sitting as "awaiting Backend
+implementation brief" since). Ran /coo-startup first (all clean: hooks OK,
+main green, UAT stable/no new findings, drift ledger had one unreviewed
+subagent_stop already correctly closed out, BRD/lifecycle clean).
+
+Before dispatching anything, found neither AD-07 nor AD-08 had stated
+success criteria in the BRD — a hard gate per CLAUDE.md's success-criteria
+rule. Wrote success criteria for both (drawn directly from ADL-28's already-
+decided design, not new scope), bumped BRD to v3.6, PR #239, merged.
+
+Dispatched the build in three sequential stages, each reviewed and merged
+before the next was kicked off (Ryan's instruction: "once that's all done
+and you're happy kick off the build"):
+
+1. **Database** (worktree-isolated agent) — ADL-28 steps 1-4: schema.ts
+   changes (userId FK + cascade on both tables, composite PK on
+   map_shading_config, (userId,name) unique index on companions),
+   migration 0012, owner-backfill. PR #240. Reviewed the actual generated
+   SQL myself before merging — drizzle-kit's autogen was wrong on both
+   tables (missing cascade + backfill), agent caught and hand-corrected it,
+   I independently re-verified the corrected SQL matched ADL-28's reference.
+   Caught one document-lifecycle gap in review that the agent missed:
+   `map-shading-spec.md`'s HC-03 note still asserted the table was single-
+   global — fixed forward on the same branch before merging (own commit,
+   pushed to the agent's branch, re-ran CI).
+
+2. **Backend** (worktree-isolated agent) — ADL-28 steps 5-14: companions +
+   shadingConfig repositories, new `/api/companions` router (requireAuth,
+   no requireOwner), map.ts de-owner-gated, shading.service.ts scoped to
+   userId end-to-end. PR #243. This fixed a **real** pre-existing cross-user
+   data-isolation bug (ADL-28's R1) — the shading queries had no user filter
+   at all before this, aggregating every user's trips together. Independently
+   verified the security-critical paths myself (grepped requireAuth mount
+   order in server.ts, read every repository query for userId scoping, read
+   the cross-user companion-assignment guard in trips.ts) rather than trusting
+   the agent's self-reported checklist. Caught that merging this would 404 the
+   live Admin Companions tab (frontend still called the route this PR removes)
+   — merged anyway since the backend change was correct and blocking it fixes
+   nothing, then immediately dispatched stage 3 to close the window same-day.
+
+3. **Frontend** (worktree-isolated agent) — repointed useAdmin.ts's five
+   companion hooks at `/api/companions`, un-skipped the e2e test that was
+   blocked on it. PR #245. Verified the diff and the escalation it raised
+   myself (grepped App.tsx directly) rather than taking the report at face
+   value — confirmed accurate: `/admin` is still fully page-gated by
+   `RequireOwner` (BUG-26), so a non-owner still can't reach the Companions
+   tab even though the backend now correctly serves them. Not a security
+   hole, just unreachable UI. Logged as new tracker entry **BUG-62** (P2)
+   rather than left buried in a park-doc footnote, since it's real, scoped,
+   trackable follow-up work.
+
+Closed out: BRD-AD07 and BRD-AD08 marked `done` in tracker.json (PR #246),
+all BRD v3.6 success criteria met by the merged code.
+
+## Completed this session
+- BRD v3.6 — success criteria for AD-07/AD-08 (PR #239)
+- PR #240 — schema migration (companions + map_shading_config → per-user)
+- PR #241 — tracker note (schema migration shipped)
+- PR #243 — backend routes/repositories/service scoping (closes ADL-28 R1,
+  a real data-isolation bug, and R2/R4)
+- PR #245 — frontend hook fix, closes the PR #243 regression window
+- PR #246 — BRD-AD07/BRD-AD08 → done, BUG-62 opened
+- Document-lifecycle fix: `map-shading-spec.md`'s stale HC-03 note (part of
+  PR #240)
+- Main verified green after every one of the 6 merges this session
+- Inbox triaged: 3 completion reports (Database, Backend, Frontend) → read/
+- 6 stale local branch refs cleaned up (squash-merge leftovers, no worktrees
+  remained)
+
+## State of play
+- **BRD-AD07 / BRD-AD08:** DONE. Per-user map shading config and companions
+  are live end-to-end for owner users — schema, backend, frontend all merged,
+  main green.
+- **BUG-62 (new, P2):** Admin panel `/admin` route + nav link are still fully
+  owner-gated at the page level (BUG-26's `RequireOwner`), so a non-owner
+  authenticated user can't actually reach the Companions tab yet, despite the
+  backend now correctly serving per-user data to any authenticated user. Not
+  a security hole. Needs a scoped follow-up brief: move from page-level to
+  per-tab gating in AdminPanel.tsx (touches BUG-26's tested contract and the
+  four still-legitimately-owner-only tabs — categories, activities, shading
+  config, countries/regions). Also noted: no dedicated shading-config UI tab
+  exists yet, so AD-07 doesn't have this same reachability problem in
+  practice today, but would need the same per-tab treatment if/when one is
+  built.
+- Everything else unchanged from the prior close: BUG-50/BUG-51 (P1, UAT-
+  found, not yet briefed), D-04–D-09 open dialogues, PR #126 (open,
+  untouched), DEP-01 npm audit backlog, D-11 (settings.local.json root cause
+  still open), ADL-39 F4 (stale OneDrive doc references, doc cleanup only).
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — unchanged this session (D-04 through
+D-09; D-10/D-11 already closed/updated in the prior session).
+
+## Restart preview
+Shown to Ryan before this doc was written; confirmed accurate ("looks good,
+close out").
+**Captured:** BRD v3.6, PRs #239/#240/#241/#243/#245/#246 all merged, main
+green throughout, BRD-AD07/BRD-AD08 → done, BUG-62 opened, inbox triaged,
+stale branches cleaned up.
+**Captured, not actioned:** BUG-50, BUG-51, D-04–D-09, PR #126, DEP-01,
+D-11, ADL-39 F4 — all pre-existing, untouched this session.
+**Not captured:** none — every gap found this session (stale shading-spec
+doc, the frontend regression window, the BUG-62 discovery) was fixed forward
+or turned into a tracked item before close.
