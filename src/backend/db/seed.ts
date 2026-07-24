@@ -20,12 +20,21 @@ import { config } from 'dotenv';
 config({ path: '.env.local' });
 
 import { getDb } from './index.js';
-import { activities, companions, mapShadingConfig, tripCategories } from './schema.js';
-import { ACTIVITIES, COMPANIONS, MAP_SHADING_CONFIG, TRIP_CATEGORIES } from './seed-data.js';
+import { activities, tripCategories } from './schema.js';
+import { ACTIVITIES, TRIP_CATEGORIES } from './seed-data.js';
 
 /**
  * Seeds all default admin list tables.
  * Each insert uses onConflictDoNothing() — safe to repeat without side effects.
+ *
+ * ADL-28 (AD-07/AD-08): companions and map_shading_config are no longer
+ * global-seeded here. Both tables are now per-user (userId NOT NULL FK).
+ * companions has no default list post-migration (users build their own from
+ * an empty list); map_shading_config is lazily seeded per-user on first
+ * access to the shading config endpoint (shadingConfigRepository.seedDefaults,
+ * ADL-28 repository section — Backend brief, not yet implemented). Only
+ * trip_categories and activities remain global seeded defaults (AD-09,
+ * unaffected by this ADL).
  */
 async function seed(): Promise<void> {
   console.log('[SEED] Starting seed...\n');
@@ -42,18 +51,6 @@ async function seed(): Promise<void> {
     .values([...ACTIVITIES])
     .onConflictDoNothing();
   console.log(`✓ activities seeded (${ACTIVITIES.length} rows attempted)`);
-
-  await db
-    .insert(companions)
-    .values([...COMPANIONS])
-    .onConflictDoNothing();
-  console.log(`✓ companions seeded (${COMPANIONS.length} rows attempted)`);
-
-  await db
-    .insert(mapShadingConfig)
-    .values([...MAP_SHADING_CONFIG])
-    .onConflictDoNothing();
-  console.log(`✓ map_shading_config seeded (${MAP_SHADING_CONFIG.length} rows attempted)`);
 
   console.log('\n[SEED] Complete.');
 }

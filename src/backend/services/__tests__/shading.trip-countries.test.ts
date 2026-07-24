@@ -94,10 +94,13 @@ async function createTestDb() {
     )`,
     `CREATE TABLE IF NOT EXISTS companions (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      name TEXT NOT NULL UNIQUE,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
       is_active INTEGER DEFAULT 1 NOT NULL,
       created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
+      UNIQUE (user_id, name),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS trip_companions_map (
       trip_id INTEGER NOT NULL,
@@ -193,10 +196,13 @@ async function createTestDb() {
       FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS map_shading_config (
-      state_key TEXT PRIMARY KEY NOT NULL,
+      state_key TEXT NOT NULL,
+      user_id TEXT NOT NULL,
       display_name TEXT NOT NULL,
       color_hex TEXT NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
+      PRIMARY KEY (state_key, user_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
   ];
 

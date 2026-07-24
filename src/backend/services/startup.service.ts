@@ -14,18 +14,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { count } from 'drizzle-orm';
-import {
-  activities,
-  companions,
-  countries,
-  getDb,
-  mapShadingConfig,
-  regions,
-  tripCategories,
-} from '../db/index.js';
+import { activities, countries, getDb, regions, tripCategories } from '../db/index.js';
 
 // Re-import seed data from the DATABASE seed script to avoid duplication
-import { ACTIVITIES, COMPANIONS, MAP_SHADING_CONFIG, TRIP_CATEGORIES } from '../db/seed-data.js';
+import { ACTIVITIES, TRIP_CATEGORIES } from '../db/seed-data.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -34,9 +26,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // ----------------------------------------------------------------
 
 /**
- * Seeds trip_categories, activities, companions, and map_shading_config
- * with default values if any are missing.
- * Uses onConflictDoNothing() — idempotent, safe on every startup.
+ * Seeds trip_categories and activities with default values if any are
+ * missing. Uses onConflictDoNothing() — idempotent, safe on every startup.
+ *
+ * ADL-28 (AD-07/AD-08): companions and map_shading_config used to be seeded
+ * here too, but both are now per-user (userId NOT NULL FK) — there is no
+ * single global row set to seed at server startup any more. companions has
+ * no default list post-migration; map_shading_config is lazily seeded
+ * per-user on first access to the shading config endpoint
+ * (shadingConfigRepository.seedDefaults, ADL-28 repository section —
+ * Backend brief, not yet implemented). trip_categories and activities
+ * remain global seeded defaults (AD-09, unaffected by this ADL).
  */
 export async function seedAdminData(): Promise<void> {
   const db = getDb();
@@ -54,20 +54,6 @@ export async function seedAdminData(): Promise<void> {
     .values([...ACTIVITIES])
     .onConflictDoNothing();
   console.info('[STARTUP] Admin data: activities seeded');
-
-  // -- companions --
-  await db
-    .insert(companions)
-    .values([...COMPANIONS])
-    .onConflictDoNothing();
-  console.info('[STARTUP] Admin data: companions seeded');
-
-  // -- map_shading_config --
-  await db
-    .insert(mapShadingConfig)
-    .values([...MAP_SHADING_CONFIG])
-    .onConflictDoNothing();
-  console.info('[STARTUP] Admin data: map_shading_config seeded');
 }
 
 // ----------------------------------------------------------------
