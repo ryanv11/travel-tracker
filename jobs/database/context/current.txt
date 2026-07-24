@@ -1,12 +1,13 @@
-DATABASE CONTEXT — 2026-07-21
+DATABASE CONTEXT — 2026-07-23
 PROJECT: Travel Tracker
-CURRENT STATUS: BUG-39 (ADL-36) fix implemented on
-fix/bug39-carry-forward-fk-ondelete — items.carriedFromItemId FK now
-onDelete: 'set null', migration 0011 applied, regression test added. See
-"THREAD — BUG-39 / ADL-36 carry-forward FK onDelete fix" at the end of this
-file for the active/most-recent thread. Everything above that section
-(including the BRD-NF09 thread, 2026-07-20 and earlier) is prior-thread
-history, preserved as-is.
+CURRENT STATUS: BRD-AD07/BRD-AD08 (ADL-28) schema/migration half implemented
+on feat/ad07-ad08-schema-migration — companions and map_shading_config both
+now userId-scoped (FK cascade, unique index / composite PK), migration 0012
+applied, owner-backfill verified against seeded pre-migration data. See
+"THREAD — BRD-AD07/AD08 / ADL-28 per-user shading + companions schema
+migration" at the end of this file for the active/most-recent thread.
+Everything above that section (including the BUG-39/ADL-36 thread,
+2026-07-21 and earlier) is prior-thread history, preserved as-is.
 
 ================================================================================
 PRIOR STATUS LINE (2026-07-20, preserved for history)
@@ -338,3 +339,150 @@ NEXT DATABASE THREAD:
   tracker.json once PR merges and CI on main is green (tracker.json is
   COO-maintained, not touched here). No follow-up bug tracker entry per
   ADL-36's FK audit conclusion (BUG-39 confirmed isolated).
+
+================================================================================
+THREAD — BRD-AD07/AD08 / ADL-28 per-user shading + companions schema migration
+================================================================================
+BRANCH: feat/ad07-ad08-schema-migration
+BRIEF: Schema/migration half (ADL-28 "Migration sequence for Backend agent"
+steps 1-4) of AD-07/AD-08 — companions and map_shading_config move from
+global tables to per-user tables. Full spec: jobs/architect/tech/
+ADL-28-per-user-shading-companions.md. Repositories/routes/services (steps
+5-14) are explicitly out of scope — separate Backend brief.
+
+WHAT WAS BUILT
+  1. src/backend/db/schema.ts — companions: added userId (NOT NULL, FK ->
+     users.id, onDelete cascade), UNIQUE changed from name alone to
+     (userId, name) via uniqueIndex, added idx_companions_user. Exact match
+     to ADL-28's reference Drizzle definitions.
+  2. src/backend/db/schema.ts — mapShadingConfig: added userId (NOT NULL,
+     FK -> users.id, onDelete cascade), PK changed from stateKey alone to
+     composite (stateKey, userId), added idx_map_shading_user, kept the
+     existing chk_map_shading_state_key CHECK intact.
+  3. Migration 0012_grey_ultimates.sql — db:generate's first pass was
+     WRONG for both tables and had to be hand-corrected:
+       - companions: drizzle emitted a bare `ALTER TABLE ... ADD user_id
+         NOT NULL REFERENCES users(id)` with no ON DELETE CASCADE and no
+         data-migration step — would fail outright on any existing rows
+         (SQLite rejects a NOT NULL ADD COLUMN with no DEFAULT on a
+         non-empty table) and silently drop the cascade behavior even if
+         it didn't.
+       - map_shading_config: drizzle DID recreate the table (composite PK
+         forces it) but its own generated INSERT...SELECT read a
+         "user_id" column FROM THE OLD map_shading_config TABLE, which
+         doesn't have one — would fail with "no such column: user_id".
+     Rewrote the migration by hand: both tables now go through explicit
+     __new_ table recreation (PRAGMA foreign_keys=OFF/ON around each),
+     with the INSERT...SELECT...CROSS JOIN (SELECT id FROM users WHERE
+     is_owner = 1 LIMIT 1) owner-backfill pattern from ADL-28's reference
+     SQL, adapted to Drizzle's actual DDL/quoting conventions (matched
+     against migration 0011's style for consistency). Comments in the
+     migration file document the R3 no-owner-at-migration-time caveat
+     (0 rows migrated on a fresh/dev DB, silently dropped, accepted).
+  4. db:generate re-run after the hand-fix confirms "No schema changes,
+     nothing to migrate" — snapshot/journal already matched the corrected
+     SQL (they're generated from schema.ts's target state, not the literal
+     SQL text, so the hand-edit didn't desync them).
+  5. db:migrate applied clean against a fresh local dev.db (13 migrations,
+     0000-0012). Read back the applied table SQL directly — FK cascade,
+     composite PK, unique index, CHECK constraint all present as specified.
+  6. Functional-tested the corrected migration against a SEEDED (not
+     fresh) pre-migration dataset built by hand to the old pre-userId
+     shape: 2 users (one is_owner=1, one not), 2 companions, 2 shading
+     rows, all originally ownerless. After applying 0012's actual SQL:
+     both companions and both shading rows landed on the owner's userId,
+     not the non-owner's — confirms the CROSS JOIN backfill picks the
+     correct (and only ever the correct) owner, not just "some user".
+     Also verified 6 constraint behaviors directly against the migrated
+     DB: cross-user same-name companion allowed, same-user duplicate name
+     rejected (unique index), duplicate (state_key,user_id) rejected
+     (composite PK), same state_key for a different user allowed, FK
+     violation on a bogus user_id rejected, and cascade delete on user
+     removal actually clears both companions and shading rows for that
+     user. All 6 passed. Scratch test files deleted after use — none of
+     this touched jobs/ or committed anywhere.
+
+CONSEQUENTIAL FIXES (schema-shape breaks, not new feature work)
+  7. src/backend/db/seed.ts and src/backend/services/startup.service.ts —
+     both used to globally seed companions and map_shading_config at
+     server startup / db:seed. Post-ADL-28 there is no single global row
+     set to seed any more (companions has no default list; shading is
+     lazily seeded per-user by the Backend brief's repository layer) —
+     left as-is, these would either fail to compile (missing required
+     userId in the insert shape) or crash at runtime with a NOT NULL
+     violation the moment the server started. Removed the companions/
+     map_shading_config seed calls from both files; trip_categories and
+     activities (AD-09, unaffected) still seed as before. Documented why
+     in both files' doc comments, citing ADL-28.
+  8. src/backend/db/reset-staging.ts — this script's whole framing
+     (docstring + RESET_TABLES list) treated companions/map_shading_config
+     as global reference data left untouched by a reset, and reseeded them
+     globally after clearing user data. Both are now user-owned data
+     (cascade on user delete) — left unfixed, deleting `users` while their
+     companion/shading rows still exist would leave orphaned rows (or a
+     dangling FK violation, depending on remote FK enforcement) exactly
+     the scenario this script's own docstring says it doesn't want to rely
+     on cascade for. Added both tables to RESET_TABLES in correct
+     child-before-parent order (after trip_companions_map, before users;
+     map_shading_config anywhere before users), removed the now-invalid
+     global reseed calls for both, updated the docstring's "what is/isn't
+     reset" framing to match. This is the one file where the fix goes
+     beyond a one-line schema-shape patch — flagging clearly here since
+     it's an ops-script correctness fix, not pure schema/migration.
+  9. Backend test suite — 5 files' hand-rolled in-memory DDL (companions/
+     map_shading_config CREATE TABLE, copy-pasted per test file rather
+     than generated from schema.ts) hardcoded the old no-userId shape:
+     repositories/__tests__/test-db.ts (shared factory, used by
+     trips.test.ts), routes/__tests__/owner-access.test.ts,
+     routes/__tests__/qa-backend-fixes.test.ts,
+     services/__tests__/shading.trip-countries.test.ts,
+     services/__tests__/shading.user-scope.test.ts. Added userId column +
+     FK + updated unique/PK to each, matching the new schema. Added
+     userId to 2 insert fixtures (trips.test.ts, qa-backend-fixes.test.ts)
+     that inserted companion rows directly.
+  10. One test left genuinely broken and marked it.skip with a comment
+      rather than faking a fix: owner-access.test.ts's
+      "POST /api/admin/companions -> 201 for owner". Its failure is NOT a
+      schema-shape issue — admin.ts's createAdminListRouter POST handler
+      (unmodified, out of scope) doesn't supply a userId on insert, so it
+      now 500s on the NOT NULL constraint. Fixing this for real means
+      either building route code (explicitly out of scope for this brief)
+      or the ADL-28 step 8 outcome (this exact route registration gets
+      REMOVED entirely in the Backend brief, companions move to
+      /api/companions). Skipped with a comment explaining exactly why and
+      pointing at ADL-28 step 8, rather than silently patching around it
+      or leaving a red suite.
+
+DID NOT TOUCH: src/backend/repositories/companions.ts, shadingConfig.ts
+(don't exist yet — Backend brief), src/backend/routes/companions.ts (new
+router, Backend brief), src/backend/routes/admin.ts, src/backend/routes/
+map.ts, src/backend/services/shading.service.ts — all explicitly out of
+scope per the brief (steps 5-14). tracker.json (BRD-AD07/BRD-AD08 status is
+COO's call — flagged in completion report).
+
+VERIFICATION: db:generate + hand-corrected db:migrate clean (fresh DB, all
+13 migrations 0000-0012), re-generate confirms no drift, functional
+owner-backfill + 6 constraint checks verified against a seeded pre-migration
+dataset (see above), type:check:all clean, test:backend 537 pass/2 skipped
+(+1 skip vs prior thread, documented), test:frontend 154 pass, npm run check
+clean, status:check clean. Full pre-push suite green before push.
+
+DOCUMENT LIFECYCLE: jobs/architect/tech/ADL-28-per-user-shading-companions.md
+— added a "Migration status (2026-07-23)" line under the header noting
+steps 1-4 are implemented (branch/PR), steps 5-14 remain open for Backend.
+Decision/rationale text untouched.
+
+jobs/database/tech/ mirror updated: schema.ts (full copy, current), seed.ts,
+reset-staging.ts, and 0012_grey_ultimates.sql added. Did NOT backfill the
+mirror's pre-existing gap (migrations 0001-0008 still missing there) — out
+of this thread's scope, same judgment call as prior threads. startup.service.ts
+is not part of this mirror (services/, not db/) — left out per existing
+convention.
+
+NEXT DATABASE THREAD:
+  None pending from this thread. Unblocks the Backend implementation brief
+  for ADL-28 steps 5-14 (companionRepository, shadingConfigRepository, new
+  /api/companions router, admin.ts/map.ts route updates, shading.service.ts
+  userId scoping + per-user cache, trips.ts replaceAssociations ownership
+  validation). COO to update BRD-AD07/BRD-AD08 tracker notes once this PR
+  merges (still "in-progress" — schema half only, not full feature).

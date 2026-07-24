@@ -2,11 +2,20 @@
  * Travel Tracker — Staging Database Reset (CLI script)
  *
  * Wipes all user-owned / trip data from a Turso database (users, trips, and
- * everything that cascades from a trip) so that PR preview environments do
- * not accumulate test-data cruft across sessions. Reference/admin data
- * (trip_categories, activities, companions, map_shading_config, countries,
- * regions, cities) is intentionally left untouched — see the "what is NOT
- * reset" note below.
+ * everything that cascades from a trip or a user) so that PR preview
+ * environments do not accumulate test-data cruft across sessions.
+ * Reference/admin data (trip_categories, activities, countries, regions,
+ * cities) is intentionally left untouched — see the "what is NOT reset"
+ * note below.
+ *
+ * ADL-28 (AD-07/AD-08, schema migration): companions and map_shading_config
+ * moved from global reference/admin tables to per-user tables (userId NOT
+ * NULL FK, ON DELETE CASCADE). They are now user-owned data, not reference
+ * data, so this script resets them alongside users/trips instead of leaving
+ * them untouched — and no longer reseeds them, since there is no longer a
+ * single global default list to reseed (companions has no default list
+ * post-migration; map_shading_config is lazily seeded per-user on first API
+ * access, see ADL-28's repository section).
  *
  * SAFETY MODEL (this deletes real rows, so it defaults to inert):
  *   1. Dry run by default. Pass --yes to actually delete anything.
@@ -25,17 +34,18 @@
  *      connection-level setting this script does not control or want to
  *      assume — see the reset runbook for detail.
  *
- * WHAT IS NOT RESET: countries, regions, cities, trip_categories, activities,
- * companions, map_shading_config. These are reference/admin data, not test
- * cruft — cities in particular grows from real place names entered during
- * testing, but it is deduplicated (BUG-33 unique index) and naturally
- * bounded by real-world geography, not worth truncating. Admin/reference
- * tables also self-heal on every server boot (seedAdminData/seedCountries/
- * seedRegions in startup.service.ts are idempotent, insert-if-missing) and
- * `users` self-heals on next sign-in (findOrCreateByClerkId) — so this
- * script does not strictly need to re-seed anything after deleting; it does
- * so anyway for immediacy rather than waiting on the next Railway restart or
- * sign-in.
+ * WHAT IS NOT RESET: countries, regions, cities, trip_categories, activities.
+ * These are global reference/admin data, not test cruft — cities in
+ * particular grows from real place names entered during testing, but it is
+ * deduplicated (BUG-33 unique index) and naturally bounded by real-world
+ * geography, not worth truncating. Admin/reference tables also self-heal on
+ * every server boot (seedAdminData/seedCountries/seedRegions in
+ * startup.service.ts are idempotent, insert-if-missing) and `users`
+ * self-heals on next sign-in (findOrCreateByClerkId) — so this script does
+ * not strictly need to re-seed trip_categories/activities after deleting; it
+ * does so anyway for immediacy rather than waiting on the next Railway
+ * restart. companions and map_shading_config are NOT reseeded (see ADL-28
+ * note above) — they self-heal per-user on next access instead.
  *
  * Usage:
  *   npm run db:reset-staging                        # dry run — prints counts only
@@ -71,11 +81,15 @@ import {
   trips,
   users,
 } from './schema.js';
-import { ACTIVITIES, COMPANIONS, MAP_SHADING_CONFIG, TRIP_CATEGORIES } from './seed-data.js';
+import { ACTIVITIES, TRIP_CATEGORIES } from './seed-data.js';
 
 // Ordered child-before-parent. Every entry here must appear before anything
 // it references via a FK. Update this list if the schema grows new tables
 // that hang off trips/items/users.
+//
+// ADL-28: companions and map_shading_config now carry a NOT NULL user_id FK
+// (ON DELETE CASCADE), so they must be cleared before `users` — placed here
+// after trip_companions_map (which references companions) and before users.
 const RESET_TABLES = [
   { name: 'item_flights', table: itemFlights },
   { name: 'item_hotels', table: itemHotels },
@@ -89,6 +103,8 @@ const RESET_TABLES = [
   { name: 'trip_activities_map', table: tripActivitiesMap },
   { name: 'trip_companions_map', table: tripCompanionsMap },
   { name: 'trip_categories_map', table: tripCategoriesMap },
+  { name: 'companions', table: companions },
+  { name: 'map_shading_config', table: mapShadingConfig },
   { name: 'trips', table: trips },
   { name: 'users', table: users },
 ] as const;
@@ -149,8 +165,10 @@ async function main(): Promise<void> {
     console.log(`  ✓ cleared ${name}`);
   }
 
-  // Reseed admin/reference lists immediately rather than waiting on the next
-  // Railway restart's idempotent startup seed. Safe to repeat — onConflictDoNothing.
+  // Reseed global admin/reference lists immediately rather than waiting on
+  // the next Railway restart's idempotent startup seed. Safe to repeat —
+  // onConflictDoNothing. companions and map_shading_config are NOT reseeded
+  // here (ADL-28) — they are per-user now and self-heal on next access.
   await db
     .insert(tripCategories)
     .values([...TRIP_CATEGORIES])
@@ -159,16 +177,9 @@ async function main(): Promise<void> {
     .insert(activities)
     .values([...ACTIVITIES])
     .onConflictDoNothing();
-  await db
-    .insert(companions)
-    .values([...COMPANIONS])
-    .onConflictDoNothing();
-  await db
-    .insert(mapShadingConfig)
-    .values([...MAP_SHADING_CONFIG])
-    .onConflictDoNothing();
 
-  console.log('\n[RESET] Complete. Trip/user data cleared; admin lists re-seeded.');
+  console.log('\n[RESET] Complete. Trip/user data (incl. per-user companions and');
+  console.log('[RESET] map_shading_config) cleared; global admin lists re-seeded.');
   console.log('[RESET] countries/regions/cities were left untouched (see module docstring).');
 }
 
