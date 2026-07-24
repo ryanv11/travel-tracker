@@ -440,18 +440,23 @@ CONSEQUENTIAL FIXES (schema-shape breaks, not new feature work)
      FK + updated unique/PK to each, matching the new schema. Added
      userId to 2 insert fixtures (trips.test.ts, qa-backend-fixes.test.ts)
      that inserted companion rows directly.
-  10. One test left genuinely broken and marked it.skip with a comment
-      rather than faking a fix: owner-access.test.ts's
-      "POST /api/admin/companions -> 201 for owner". Its failure is NOT a
-      schema-shape issue — admin.ts's createAdminListRouter POST handler
-      (unmodified, out of scope) doesn't supply a userId on insert, so it
-      now 500s on the NOT NULL constraint. Fixing this for real means
-      either building route code (explicitly out of scope for this brief)
-      or the ADL-28 step 8 outcome (this exact route registration gets
-      REMOVED entirely in the Backend brief, companions move to
-      /api/companions). Skipped with a comment explaining exactly why and
-      pointing at ADL-28 step 8, rather than silently patching around it
-      or leaving a red suite.
+  10. Two tests left genuinely broken by the same root cause, both
+      marked it.skip with a comment rather than faking a fix:
+      owner-access.test.ts's "POST /api/admin/companions -> 201 for
+      owner" (caught locally), and src/e2e/admin.spec.ts's "create
+      companion appears in list" (only caught by CI on PR #240's first
+      push — E2E requires a live backend + browser not run in this
+      sandbox, so this one wasn't visible before pushing). Neither
+      failure is a schema-shape issue — admin.ts's createAdminListRouter
+      POST handler (unmodified, out of scope) doesn't supply a userId on
+      insert, so both now 500 on the NOT NULL constraint. Fixing this for
+      real means either building route code (explicitly out of scope for
+      this brief) or the ADL-28 step 8 outcome (this exact route
+      registration gets REMOVED entirely in the Backend brief, companions
+      move to /api/companions). Both skipped with a comment explaining
+      exactly why and pointing at ADL-28 step 8. Fixed via a follow-up
+      commit once CI surfaced the E2E instance; scripts/ci-wait.sh pr 240
+      re-confirmed all 9 checks green afterward.
 
 DID NOT TOUCH: src/backend/repositories/companions.ts, shadingConfig.ts
 (don't exist yet — Backend brief), src/backend/routes/companions.ts (new
@@ -465,7 +470,11 @@ VERIFICATION: db:generate + hand-corrected db:migrate clean (fresh DB, all
 owner-backfill + 6 constraint checks verified against a seeded pre-migration
 dataset (see above), type:check:all clean, test:backend 537 pass/2 skipped
 (+1 skip vs prior thread, documented), test:frontend 154 pass, npm run check
-clean, status:check clean. Full pre-push suite green before push.
+clean, status:check clean. Full pre-push suite green before push. CI on PR
+#240: 9/9 checks green (scripts/ci-wait.sh pr 240) — E2E Tests failed on the
+first push (same admin.ts root cause as the skipped unit test, not visible
+locally); fixed with a follow-up commit skipping the equivalent E2E test,
+re-ran ci-wait.sh, all green.
 
 DOCUMENT LIFECYCLE: jobs/architect/tech/ADL-28-per-user-shading-companions.md
 — added a "Migration status (2026-07-23)" line under the header noting
