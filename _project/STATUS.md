@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (44)
+## Open work (43)
 
 ### P0 — Blockers (1)
 
@@ -32,14 +32,12 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (25)
+### P2 — Important (24)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
 | BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | 🔄 In progress |
-| BRD-AD07 | Map shading configuration is per-user (AD-07) | backend | 🔄 In progress |
-| BRD-AD08 | Companions list is per-user (AD-08) | backend | 🔄 In progress |
 | BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
 | BRD-FL04 | Flight number lookup — auto-populate fields from flight number + date (FL-04) | backend | ⬜ Pending |
@@ -61,6 +59,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-55 | City entry doesn't auto-populate country/state | backend | ⬜ Pending |
 | BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | ⬜ Pending |
 | BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
+| BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 
 ### P3 — Minor (16)
 
@@ -87,9 +86,9 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `██████████▓▓░░░░░░░░` 27/54 | 27 | 27 | 3 |
+| feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
-| bug | `███████████████░░░░░` 41/53 | 41 | 12 | 4 |
+| bug | `███████████████░░░░░` 41/54 | 41 | 13 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
 
@@ -123,4 +122,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_115 done · 10 deferred · 2 closed · 44 open — 171 tracked items_
+_117 done · 10 deferred · 2 closed · 43 open — 172 tracked items_
