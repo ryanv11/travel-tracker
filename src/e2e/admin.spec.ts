@@ -85,23 +85,10 @@ test('create activity appears in list', async ({ page }) => {
 
 // ─── Companions ───────────────────────────────────────────────────────────────
 
-// STILL SKIPPED (2026-07-23) — updated blocker, tracked for a Frontend follow-up brief.
-//
-// The Backend half of ADL-28 (AD-08, BRD-AD07/BRD-AD08) is done: companions moved
-// off /api/admin/companions (requireOwner) onto /api/companions (requireAuth only,
-// userId-scoped) — see routes/companions.ts. Backend-level coverage for this now
-// lives in routes/__tests__/companions.test.ts (CRUD, cross-user isolation,
-// duplicate-name-across-users) and is NOT skipped.
-//
-// This e2e test still cannot pass as written: it drives the real Admin panel UI
-// (CompanionTab), which calls src/frontend/hooks/useAdmin.ts — that hook still
-// points at /api/admin/companions, a route this brief removed. Fixing the hook is
-// a frontend change outside a Backend brief's scope (and could collide with other
-// in-flight frontend work), so it is intentionally left undone here. Flagged to
-// COO in this brief's completion report: a small Frontend follow-up brief is
-// needed to repoint useAdmin.ts's companion calls at /api/companions, after which
-// this test should be un-skipped and should pass unmodified.
-test.skip('create companion appears in list', async ({ page }) => {
+// Un-skipped 2026-07-23 (BRD-AD08 frontend follow-up, fix/companions-api-route):
+// useAdmin.ts's companion hooks now call /api/companions instead of the removed
+// /api/admin/companions, matching routes/companions.ts (ADL-28/AD-08, PR #243).
+test('create companion appears in list', async ({ page }) => {
   await page.goto('http://localhost:5173/admin');
   await page.getByRole('button', { name: 'Companions' }).click();
 

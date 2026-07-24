@@ -127,50 +127,54 @@ export function useDeleteActivity() {
 // COMPANIONS
 // ============================================================
 
-/** Fetches all companions (active + inactive). */
+/**
+ * Fetches all companions (active + inactive) owned by the caller.
+ * BRD-AD08 / ADL-28: companions moved off /api/admin/companions (owner-only) to
+ * /api/companions (requireAuth, userId-scoped) — same response shape, per-user data.
+ */
 export function useCompanions() {
   return useQuery({
     queryKey: ['admin', 'companions'],
-    queryFn: () => apiGet<Companion[]>('/api/admin/companions'),
+    queryFn: () => apiGet<Companion[]>('/api/companions'),
   });
 }
 
-/** Fetches only active companions (for dropdowns). */
+/** Fetches only active companions (for dropdowns), owned by the caller. */
 export function useActiveCompanions() {
   return useQuery({
     queryKey: ['admin', 'companions', 'active'],
-    queryFn: () => apiGet<Companion[]>('/api/admin/companions/active'),
+    queryFn: () => apiGet<Companion[]>('/api/companions/active'),
   });
 }
 
-/** Creates a companion. */
+/** Creates a companion, owned by the caller. */
 export function useCreateCompanion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => apiPost<Companion>('/api/admin/companions', { name }),
+    mutationFn: (name: string) => apiPost<Companion>('/api/companions', { name }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
     },
   });
 }
 
-/** Updates a companion name or active status. */
+/** Updates a companion name or active status. 404 if owned by a different user. */
 export function useUpdateCompanion() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
-      apiPatch<Companion>(`/api/admin/companions/${id}`, data),
+      apiPatch<Companion>(`/api/companions/${id}`, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
     },
   });
 }
 
-/** Soft-deletes a companion. */
+/** Soft-deletes a companion. 404 if owned by a different user. */
 export function useDeleteCompanion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => apiDelete(`/api/admin/companions/${id}`),
+    mutationFn: (id: number) => apiDelete(`/api/companions/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
     },
