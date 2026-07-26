@@ -1697,6 +1697,17 @@
       "notes": "ADL-35 (2026-07-21, merged PR #193). Design decided: Staging keeps watching `main`; Production repoints to a long-lived `production` branch promoted by explicit `git merge --ff-only origin/main` + push. No tags-as-trigger, no GitHub Action — Railway's native branch-watching stays zero-glue per ADL-32's rationale. `production` branch created and pushed by COO 2026-07-21 (currently == main). CLOSED 2026-07-21: (1) Ryan repointed Railway's Production environment to watch `production` instead of `main`, staging left watching `main` — confirmed live; (2) CLAUDE.md git-workflow section now has an 'Environment promotion' subsection documenting this model, added same session per the document-lifecycle rule (only added once (1) was actually live). Branch-per-brief workflow (feat/fix/chore off main, PR to main) is unchanged — production is never a PR target, agents never touch it. D-05 (separate Clerk prod/staging apps) remains open and orthogonal — until resolved, staging and prod share one Clerk user pool even after this promotion model."
     },
     {
+      "id": "OP-23",
+      "type": "operational",
+      "title": "Time-varying CI checks must not gate deploys — Dependency Vulnerability Scan excluded from the production branch",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "ADL-40 (2026-07-26). Trigger: production deploys blocked outright — `Security Checks` failed on production@299ab5c (run 30210259329) on GHSA-v422-hmwv-36x6 (body-parser, HIGH), and Railway gates prod deploys on CI green. Root cause is NOT the promotion: `npm audit` queries the advisory DB at run time, so the identical tree passed on main 2026-07-24 and failed on production 2026-07-26 (verified — `git diff 299ab5c 3889436 -- package-lock.json package.json` is empty; only drift-ledger/STATUS.md/tracker.json/park-doc changed between them). Deployability had become a function of the calendar. Fix: security.yml push trigger `branches: [\"**\"]` → `branches-ignore: [\"production\"]`; ci.yml deliberately unchanged and still gates prod. Does not weaken security — check runs attach to a commit SHA not a branch, and production is only ever fast-forwarded from main, so every promoted SHA already carries this workflow's green statuses; the re-run is skipped, the verdict is frozen at the point it was earned. Detection unchanged on PRs and main (how DEP-01/DEP-02 were both found). Residual accepted gap: a direct push to production bypassing main would be unscanned — contained by process (CLAUDE.md: production is ff-only, agents never touch it). Alternative of removing Railway's CI gate entirely rejected by PO. Deferred idea, not adopted: a scheduled nightly audit on main that opens an issue, which would also catch advisories landing against an unchanged main between PRs. Production promoted to ce5dbd5 same session, CI + Security Checks both green, deploy gate reopened. security-backlog.md bumped to v1.3 with a pointer section, same PR."
+    },
+    {
       "id": "WP-01",
       "type": "feature",
       "title": "Product rename to \"Waypoint\" (in-app UI only)",

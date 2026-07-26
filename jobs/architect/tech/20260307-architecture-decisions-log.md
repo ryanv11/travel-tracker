@@ -2573,3 +2573,93 @@ corrupt refs) plus a clean `git fsck`, not a plain file copy.
 location or OneDrive. It complements ADL-32 (Railway + Turso hosting) — that decision moved the
 *deployed* data off local/OneDrive; this one moves the *developer working copy* off OneDrive too,
 closing the last place OneDrive sync can still corrupt the project.
+
+---
+
+## ADL-40 — Time-varying checks must not gate deploys: `production` excluded from the Security Checks push trigger
+
+**Date:** 2026-07-26
+**Status:** Decided **and implemented** in the PR carrying this entry
+(`.github/workflows/security.yml`). Infrastructure/CI decision made by the PO directly
+rather than via an Architect dispatch — the standing guardrail
+(`feedback_architect_involvement.md`) exists to ensure infra changes get a reasoned,
+recorded decision before the COO acts, and the PO is the deciding authority here; this
+entry is that record.
+
+**Trigger:** Production deploys were blocked and the PO could not ship. `Security Checks`
+failed on `production` at `299ab5c` (run 30210259329, 2026-07-26T16:22Z) on
+GHSA-v422-hmwv-36x6 (`body-parser`, HIGH — DoS via an invalid `limit` silently disabling
+size enforcement). Railway gates production deploys on GitHub CI green
+(`reference_railway_ci_gated_deploy.md`), so the red check stopped all prod deploys.
+
+The decisive evidence is that **the identical tree produced opposite verdicts**:
+
+| Commit | Branch | Date | Security Checks |
+|---|---|---|---|
+| `299ab5c` | main | 2026-07-24 | success |
+| `299ab5c` | production | 2026-07-26 | **failure** |
+
+`git diff 299ab5c 3889436 -- package-lock.json package.json` is empty; the only files
+changed between those commits were `.planning/drift-ledger.jsonl`, `_project/STATUS.md`,
+`_project/tracker.json` and a COO park doc. Nothing about the code, the dependency tree,
+or the promotion caused the failure — `npm audit` queries the GitHub Advisory Database at
+run time, so the advisory's publication date changed the answer.
+
+**Decision:** `security.yml`'s push trigger changes from `branches: ["**"]` to
+`branches-ignore: ["production"]`. Every other branch, and the `pull_request` trigger, are
+unchanged. `ci.yml` is **not** modified — it keeps `branches: ["**"]` and continues to gate
+production.
+
+**Rationale — deterministic vs. time-varying checks.** A deploy gate is only sound if it is
+a pure function of the commit. Three of the four checks are: `CI` (tests, typecheck, build,
+E2E), `Secret Scanning (Gitleaks)` (scans the commit's history) and `Static Analysis
+(Semgrep)` (scans the commit's code) all return the same verdict for a given SHA forever.
+`npm audit` alone is a function of commit **and date**, which makes *deployability a
+function of the calendar* — it breaks the property the promotion model depends on, that a
+commit verified green on `main` stays promotable.
+
+The failure mode is worse than a nuisance: the gate blocks new deploys but does **not**
+remove the vulnerable code already running in production. During the window between an
+advisory landing and remediation, prod stays exposed *and* loses the ability to ship —
+including the ability to ship an unrelated urgent rollback or hotfix.
+
+**Why this does not weaken security.** GitHub check runs attach to a **commit SHA, not a
+branch**, and per CLAUDE.md `production` is only ever fast-forwarded from `main` and is
+never a PR target. Every promoted SHA has therefore already run this workflow on `main` and
+carries its green statuses. Skipping the re-run does not remove the security verdict from
+the promoted commit — it **freezes that verdict at the point it was earned**, converting a
+time-varying gate into a point-in-time one. Detection is fully retained: the scan still runs
+on every PR and every push to `main`, which is how DEP-01 and DEP-02 were both found. The
+gate contributed the block, not the detection.
+
+**Alternatives considered:**
+1. *Split `dependency-scan` into its own workflow and gate production on the other two
+   security jobs.* Rejected — Railway's CI gate is all-or-nothing about which checks count,
+   so it cannot be told to ignore one workflow. It also buys nothing: Gitleaks and Semgrep
+   are deterministic, so a fast-forwarded SHA already carries their green statuses from
+   `main`; re-running them on `production` is pure redundancy.
+2. *Remove the Railway CI gate entirely.* Rejected by the PO — it would let production
+   deploy code that never passed tests, a far larger exposure than the one being solved.
+3. *Promote more frequently so the drift window stays small.* Good practice and still
+   worth doing, but not a fix: it shrinks the window rather than removing the failure mode,
+   and an advisory can publish inside any window.
+4. *Move the audit to a scheduled nightly job on `main` that opens an issue.* Not adopted
+   now, but compatible with this decision and worth revisiting — it would catch advisories
+   against an unchanged `main` between PRs, which neither the current nor the new
+   configuration does.
+
+**Implementation implications:**
+- `.github/workflows/security.yml` — push trigger scoped via `branches-ignore`; the
+  rationale is duplicated as a comment at the trigger so the next reader does not "fix" it
+  back to `["**"]`.
+- `.github/workflows/ci.yml` — unchanged, deliberately. It remains production's deploy gate.
+- **Known residual gap:** a commit pushed *directly* to `production` without passing through
+  `main` would never be security-scanned. This is contained by process, not by the workflow
+  — CLAUDE.md's promotion rule makes `production` fast-forward-only and off-limits to agents.
+  If direct pushes to `production` ever become possible, this exclusion must be revisited.
+- Operationally unchanged: promotion is still the manual
+  `git push origin origin/main:refs/heads/production` fast-forward (ADL-35/OP-22).
+
+**Supersession:** none. ADL-35/OP-22 established the two-environment promotion model and is
+unaffected — this refines which checks evaluate on the `production` branch, not how
+promotion works.
