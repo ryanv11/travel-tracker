@@ -54,3 +54,10 @@ test-results/
 # macOS notification bridge — runtime trigger files only; .claude/notify/host-setup/
 # (the watcher script + LaunchAgent plist) is checked in, see .claude/hooks/notify.sh
 .claude/notify/queue/
+
+# Agent worktrees (isolation: "worktree" dispatches, OP-19). Each is a full checkout of
+# this repo — currently ~492 MB across all of them. ADL-39 assumed these were already
+# ignored; they were not, so any `git add -A` from the main checkout would stage entire
+# duplicate copies of the repo. Nothing was ever committed (verified 2026-07-26), so this
+# is a guard against a future mistake, not a cleanup.
+.claude/worktrees/

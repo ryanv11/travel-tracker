@@ -38,6 +38,12 @@ happened — sources noted inline.
 1. Edit the body sections AND add the §13 changelog entry AND bump the **header** version
    field — three places, and the header is the one that has been forgotten (stuck at 2.5
    through v2.7).
+   **Three places, and only three.** CLAUDE.md's "Key files" list used to name the BRD
+   version too, and silently went stale by nine versions (said v2.7 while the BRD was at
+   v3.6 — found 2026-07-26). It was a fourth place nobody counted, so the version was
+   removed from it rather than added to this checklist. Do not reintroduce a BRD version
+   number anywhere outside the BRD itself; point at the file and let its header be the
+   single source.
 2. Changelog author/approval: every accepted entry lists the PO as approver. Do not treat
    COO-only sign-off as an accepted pattern (v2.7 is the outlier — its retroactive PO
    approval is still an open item, audit Q7). Identity-level rewrites get their own PO
