@@ -1,0 +1,86 @@
+PARK DOCUMENT — Docs
+Date: 2026-07-26
+Branch: chore/docs-state-language-sweep
+Dispatch: COO brief, QUAL-05 / GitHub issue #258 — state-language sweep across durable documents
+PR: #259 (CI 9/9 green)
+
+WHAT WAS DONE
+
+Fixed the three known instances plus everything else the same read-through surfaced, per
+the brief's state-vs-intent test ("would this need editing because work progressed, or
+only because a decision changed?"). Progress-only breakage was removed at the source
+(pointer to tracker/requirement); decision-superseded prose was stamped strikethrough +
+pointer, matching the existing NF-01/NF-04 convention (CLAUDE.md Document lifecycle §2)
+rather than inventing a new rule.
+
+CODEBASE.md:
+- "The App" section: dropped the localhost-beta/Electron-Tauri delivery target
+  (contradicted by NF-09 shipped hosting and OQ-02 RESOLVED 2026-07-18); added the
+  Waypoint in-app-name note (WP-01) so a future reader isn't confused by the doc's own
+  "Travel Tracker" title vs. what actually renders in the UI.
+- Tech stack table + data-flow diagram: Database row and the request-lifecycle block
+  corrected to distinguish local file (dev only) from Turso (staging/production, ADL-32).
+- Configuration files table: added a second table for staging/production Railway env
+  vars (TURSO_*, ALLOWED_ORIGINS, VITE_API_BASE_URL, BYPASS_AUTH guard, etc.) — this table
+  previously had zero mention of any non-local environment, which is exactly where BUG-59
+  (missing ALLOWED_ORIGINS scheme) would have been looked up and not found.
+- New "Environments" section (local/staging/production/preview table, the ADL-35/OP-22
+  fast-forward promotion model, ADL-40's production security-checks exclusion rationale,
+  reset-staging.ts's role). TOC updated to include it.
+- CI/CD section: added the push-trigger column, explained ADL-40, and a short paragraph
+  connecting the staging deploy trigger back to this section.
+- Footer timestamp corrected (was 2026-07-07, unmoved through 4+ subsequent doc-touching
+  PRs including #256 same-day) — same-PR-update lifecycle miss the brief itself called out.
+
+BRD (v3.6 → v3.7, header + §13 changelog + body, all three consistent, status stays
+Approved):
+- §3 Users: removed "hosted for own use on the near-term roadmap" (shipped); the
+  laptop-always-available/phone-reference-device clause stamped SUPERSEDED (2026-07-26)
+  by WP-04.
+- §5.15 preamble ("phone is a reference device, not an editing surface"): stamped
+  SUPERSEDED by WP-04 as a blockquote, matching the brief's instruction. MB-01's own
+  requirement row is untouched — its scope relative to shipped mobile editing is a PO
+  call, flagged not resolved.
+- §11 Assumptions: same phone-reference clause stamped superseded; "hosted-vs-file
+  deployment is OQ-04" corrected to RESOLVED (ADL-32) — this was a stale duplicate of an
+  already-resolved §10 row, not a live open question.
+- §13 changelog: single v3.7 row covering the whole sweep, listing every edit and
+  explicitly noting the §5.3 items were reported, not resolved.
+
+Tracker: added QUAL-05 (the one permitted edit), #258 and #259 both in notes.
+_project/STATUS.md regenerated (npm run status) after the tracker edit — pre-push's
+status:check caught it stale on the first pass, as designed.
+
+COVERAGE / SCOPE DISCIPLINE
+- Did not touch anything in §5.3 (SE-01/03 three-role drift, PH-02 vs IM-06, import vs.
+  manual entry) — reported only, per brief §6 constraint.
+- Did not create any new tracked artefact, status file, or rule — brief §2/§3 constraint.
+- Did not renumber/merge/delete any requirement ID.
+
+OTHER DURABLE DOCS CARRYING THE SAME CLASS OF STATE CLAIM (report only, zero edits made)
+See the completion report in jobs/COO/inbox/ for the full list with file:line detail —
+headline finding is _project/project-plan.txt (v1.0, dated 2026-03-07, still describing
+Phase 2-4 as ACTIVE/BLOCKED and the launch target as a packaged Electron .app) and two
+specific stale OPEN items in _project/security-backlog.md (H2 "no HTTPS," M3 "trust proxy
+not configured") both actually resolved (Railway TLS termination; ADL-37/BUG-60). These
+support the brief's §9 suggestion of a standing docs-vs-code audit — recommended in the
+report, not implemented here.
+
+NOT FIXED — NOT MY SCOPE, NOT RE-FLAGGED
+The three hygiene items from the prior CODEBASE.md refresh session (dead TripsPage.tsx,
+unused COMPANIONS constant, stale theme-waypoint.css comment) are already tracked as
+QUAL-04 from that session — did not duplicate them here.
+
+CI / VERIFICATION
+- npm run check — pass
+- npm run type:check:all — pass
+- npm run test:backend — 580 passed, 1 skipped
+- npm run test:frontend — 154 passed
+- npm run status:check — pass (after regenerating STATUS.md)
+- PR #259, CI 9/9 green (scripts/ci-wait.sh pr 259)
+
+NEXT SESSION
+Nothing queued for Docs. Recommend COO consider the §9 follow-on (a recurring docs-vs-code
+audit) as its own tracker item, and route the security-backlog.md H2/M3 stale-status
+correction and project-plan.txt disposition (fix in place vs. HISTORICAL banner vs.
+retire) to whichever role/COO slot handles doc hygiene next.

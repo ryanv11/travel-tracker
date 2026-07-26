@@ -1,9 +1,11 @@
-DOCS CONTEXT — 2026-07-26
+DOCS CONTEXT — 2026-07-26 (updated)
 PROJECT: Travel Tracker
-CURRENT STATUS: CODEBASE.md refresh complete, PR open, awaiting COO merge
+CURRENT STATUS: QUAL-05 state-language sweep complete, PR #259 open (CI 9/9 green),
+  awaiting COO merge
 ACTIVE TASKS: None (thread closed pending merge)
 PENDING MESSAGES TO COO: Completion report filed in jobs/COO/inbox/
-OPEN ISSUES: See park doc for hygiene findings not fixed in-scope (dead TripsPage.tsx,
-  unused COMPANIONS constant in seed-data.ts, theme-waypoint.css's stale internal
-  "defined-but-unused" comment — none blocking, all noted for COO/Backend/Frontend triage)
-LAST PARK DOC: jobs/docs/park-docs/20260726-DOCS-park.txt
+OPEN ISSUES: See park doc — §4 report-only findings not fixed in-scope (project-plan.txt
+  whole-document staleness; security-backlog.md H2/M3 stale OPEN statuses actually
+  resolved; README.md's Data storage section has no hosted-deployment mention). Recommend
+  a standing docs-vs-code audit as a follow-on brief (not started).
+LAST PARK DOC: jobs/docs/park-docs/20260726-DOCS-state-language-sweep-park.txt
