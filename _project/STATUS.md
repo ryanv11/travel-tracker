@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (43)
+## Open work (44)
 
 ### P0 — Blockers (1)
 
@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (24)
+### P2 — Important (25)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -60,6 +60,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | ⬜ Pending |
 | BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
+| BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 
 ### P3 — Minor (16)
 
@@ -88,7 +89,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
-| bug | `███████████████░░░░░` 41/54 | 41 | 13 | 4 |
+| bug | `███████████████░░░░░` 41/55 | 41 | 14 | 4 |
 | task | `████████████████████` 8/8 | 8 | 0 | 0 |
 | chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
 
@@ -122,4 +123,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_117 done · 10 deferred · 2 closed · 43 open — 172 tracked items_
+_117 done · 10 deferred · 2 closed · 44 open — 173 tracked items_
