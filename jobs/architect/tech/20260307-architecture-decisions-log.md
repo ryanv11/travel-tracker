@@ -2502,11 +2502,23 @@ in-place `mv` from OneDrive would drag along:
 - **The null-ref corruption class itself** — a fresh clone pulls clean refs from origin, rather than
   copying the possibly-still-corrupt `.git` that OneDrive already damaged once.
 - **1.7 GB of orphaned worktrees** under `.claude/worktrees/` — 29 physical checkout directories
-  (gitignored, so untracked) of which `git worktree list` actively tracks only 2; the rest are
+  (untracked — see correction below) of which `git worktree list` actively tracks only 2; the rest are
   orphaned checkouts with stale gitdir links (cleanup debt, cf. D-09). A physical `mv` copies all
   1.7 GB and, worse, forces OneDrive to *hydrate* any dehydrated placeholders among them during the
   copy — the exact operation that has twice triggered `EDEADLK`. A clone brings none of it.
 - **Stale `.git/worktrees` admin state.**
+
+> **CORRECTION (2026-07-26)** — this entry said the worktrees under `.claude/worktrees/` were
+> "gitignored". They were **not**; they were merely *untracked*, which looks identical in
+> `git status` right up until someone runs `git add -A` from the main checkout and stages
+> entire duplicate copies of the repo (~492 MB at the time of discovery). Nothing had ever
+> been committed — verified via an empty `git ls-files .claude/worktrees/` — so no history
+> cleanup was needed. A real `.gitignore` rule was added in PR #255, making the original
+> claim true after the fact. The migration reasoning above is unaffected: a fresh clone
+> still brings none of this along, which was the point being argued. Noted because this is
+> the **second** ADL-39 assumption to be contradicted in practice (F2, the config-volume
+> re-keying, was the first — and it materialized exactly as predicted, so the entry's
+> track record is mixed rather than poor).
 
 Trade-off, stated honestly: a clone does **not** carry untracked files, so `.env.local` (and any
 wanted `dev.db`) must be copied by hand, and before discarding the OneDrive tree one should confirm

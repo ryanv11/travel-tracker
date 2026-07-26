@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (46)
+## Open work (47)
 
 ### P0 — Blockers (1)
 
@@ -64,7 +64,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 
-### P3 — Minor (16)
+### P3 — Minor (17)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -73,6 +73,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-37 | Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked' | frontend | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
 | QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
+| QUAL-04 | Dead code and one stale source comment left by the WP reskin and the ADL-28 companions migration | frontend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
 | BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
 | BRD-IT10 | Optional Google Maps URL per item — one-click directions (IT-10) | architect | ⬜ Pending |
@@ -93,7 +94,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | requirement | `██████████████████░░` 31/34 | 31 | 3 | 5 |
 | bug | `███████████████░░░░░` 41/55 | 41 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `██████████████░░░░░░` 7/10 | 7 | 3 | 0 |
+| chore | `█████████████░░░░░░░` 7/11 | 7 | 4 | 0 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -125,4 +126,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_119 done · 10 deferred · 2 closed · 46 open — 177 tracked items_
+_119 done · 10 deferred · 2 closed · 47 open — 178 tracked items_

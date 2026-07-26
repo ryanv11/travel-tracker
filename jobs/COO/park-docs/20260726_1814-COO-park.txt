@@ -1,0 +1,145 @@
+COO SESSION PARK — 2026-07-26 1814 UTC (prod deploy unblocked, PHASE-4 closed, doc sync)
+================================================================================
+
+## Session summary
+Picked up post-/clear with no live thread. Ran /coo-startup — all clean (hooks OK,
+main CI green, UAT stable, ledger clean, BRD coverage clean, lifecycle clean). Notable
+change found at pickup: main's Security Checks was green for the first time in a while —
+a short prior session had fixed fresh npm-audit drift as DEP-02 (PR #250/#251) without
+writing a park doc, so that work was only visible in the tracker.
+
+Five PRs merged this session, main verified green after each.
+
+### 1. Production deploys were blocked (OP-23 / ADL-40) — the session's real find
+Ryan reported he could not deploy production. Diagnosed: `Security Checks` failed on
+production@299ab5c on GHSA-v422-hmwv-36x6 (body-parser, HIGH), and Railway gates prod
+deploys on GitHub CI green.
+
+The promotion did not cause it. `npm audit` queries the GitHub Advisory Database at RUN
+TIME, so its verdict is a function of commit AND date. Proven, not assumed: the identical
+commit 299ab5c passed on main 2026-07-24 and failed on production 2026-07-26, and
+`git diff 299ab5c 3889436 -- package-lock.json package.json` is empty (only drift-ledger,
+STATUS.md, tracker.json and a park doc changed between them).
+
+Railway's own deployment history confirmed the blocker was real and not cosmetic: two
+SKIPPED deploys on 299ab5c (its CI gate declining), then SUCCESS once promoted forward.
+
+Fix (Ryan's call, and the better one — Railway is all-or-nothing about which checks gate,
+so splitting the audit into its own workflow would not have helped): security.yml's push
+trigger `branches: ["**"]` -> `branches-ignore: ["production"]`. ci.yml deliberately
+unchanged and still gates prod.
+
+Why this does not weaken security, and the insight worth keeping: GitHub check runs attach
+to a COMMIT SHA, not a branch, and production is only ever fast-forwarded from main. Every
+promoted SHA therefore already carries this workflow's green statuses earned on main.
+Skipping the re-run does not remove the verdict — it FREEZES it at the point it was earned,
+converting a time-varying gate into a point-in-time one. Detection is unchanged on PRs and
+main, which is how DEP-01 and DEP-02 were both found.
+
+Verified live rather than assumed: promoting 1a4f84f fired ONLY `CI` on the production
+branch, no Security Checks run. It self-applied on the first promotion because GitHub
+evaluates the workflow file at the pushed SHA.
+
+Residual accepted gap (recorded in ADL-40 and security-backlog v1.3): a commit pushed
+DIRECTLY to production, bypassing main, would never be scanned. Contained by process only.
+
+### 2. PHASE-4 closed on PO UAT PASS
+Ryan: "phase 4 can already close, the dogfooding was the UAT." Before flipping it, found
+PHASE-4's own note was stale — it listed "Remaining before formal close: OP-07 + PO phase
+UAT", but OP-07 was already `done` and nobody flipped the note (Document lifecycle miss).
+PO UAT was therefore the ONLY outstanding gate, making this a clean gate satisfaction
+rather than a waiver.
+
+Re-phased 21 items 4 -> 6 (BUG-40..58, BRD-DP06, OQ-06): found DURING Phase 4 but they are
+feature/UX defects, not Phase 4 deliverables. PHASE-6's flagship features (BRD-PL0104,
+BRD-CU0103) are already explicitly gated on that same batch, so phase 6 is their accurate
+home. Phase 4 now closes with NO child in a non-terminal status — deliberately avoiding
+the shape that previously produced a mis-audit (FEAT-IT, "incorrectly marked done").
+
+### 3. OP-15 un-deferred after Ryan pushed back
+Ryan asked why (a) and (c) couldn't just be fixed now. He was right; deferring on
+prerequisites that are themselves actionable is just deferring.
+- (b) MET — BUG-27/BUG-28 done.
+- (c) RESOLVED this session (PR #254). A brief template was REJECTED as having the same
+  weakness it was meant to fix — it only works if the COO remembers to use it, which IS
+  the stated failure mode. Enforcement moved agent-side into all 8
+  jobs/<role>/<role>-system-prompt.txt files, read on every dispatch via the thin
+  .claude/agents/*.md wrappers (D-01). Written to read the .claude/skills/ directory
+  rather than naming today's skills, so installing the deferred schema-change /
+  backend-route-change skills is later a one-line change, not another 8-file edit.
+- (a) NOT met and WORSE — test-db.ts hand-mirrors 21 CREATE TABLE statements, not the 13
+  recorded. Logged as QUAL-03; it was previously untracked, existing only as a sub-bullet
+  inside OP-15's notes, so deferring OP-15 would have buried a real schema-drift risk.
+OP-15 therefore stays `pending`, not `deferred`, and follows QUAL-03 to phase 6.
+
+### 4. Doc-sync audit (Ryan flagged tracker/BRD/CODEBASE.md out of sync)
+Audit found the drift was NOT where it looked — BRD<->tracker was largely healthy.
+- CLAUDE.md named the BRD as v2.7 while it is v3.6 — nine versions stale, in the file
+  every session and every agent reads. Root cause structural: /record-decision mandates a
+  "three places" bump and CLAUDE.md was a FOURTH place nobody counted. Fixed structurally
+  by REMOVING the version from CLAUDE.md rather than adding a fourth checklist item; the
+  skill now says so explicitly so it is not reintroduced.
+- All 126 BRD IDs audited: OQ-03 backfilled (only uncovered ID; it is the specific unblock
+  for BRD-CU0103), BUG-04's phantom NR-05 brdRef removed (a tracker ID, not a BRD ID),
+  PHASE-5 gained N-05. Every BRD ID now covered except OQ-01/02/04 — all resolved
+  questions, correctly untracked.
+- CODEBASE.md was 33 src/ commits stale; dispatched to the Docs agent worktree-isolated
+  (PR #256). It went beyond the seed list and caught a statement that was actively WRONG:
+  TripsLayout.tsx was still described as the "two-panel shell", which WP-04 made false.
+- Incidental find: .claude/worktrees/ was NOT gitignored — ADL-39 claims it was. It was
+  merely untracked, so any `git add -A` from the main checkout would have staged ~492 MB
+  of duplicate repo copies. Nothing was ever committed (verified). Rule added in PR #255;
+  ADL-39 stamped with a correction this session.
+
+## Completed this session
+- PR #252 OP-23/ADL-40 · #253 PHASE-4 close + backlog plan · #254 OP-15(c) · #255 doc sync
+  + gitignore · #256 CODEBASE.md refresh. PR #126 closed as obsolete.
+- Production promoted twice (ce5dbd5, then 1a4f84f) — deployed SUCCESS, verified via
+  Railway's deployment history, not assumed.
+- New tracker IDs: OP-23, QUAL-03, QUAL-04, OQ-03. PHASE-4 -> done. BUG-37 -> backlog.
+- jobs/COO/backlog-clearance-plan.md — the sequencing plan for the whole remaining backlog.
+
+## State of play
+- **main** 0432e52, green. **production** 1a4f84f, deployed and healthy. Zero open PRs.
+  Main is a few doc-only commits ahead of production; no app-code drift.
+- **Backlog: 33 items** (26 backlog + 7 features sharing their code surface) sequenced in
+  jobs/COO/backlog-clearance-plan.md as 6 scoping dispatches + 9 implementation briefs +
+  2 parked. Batched by FILE SURFACE, not priority, per Ryan's explicit instruction.
+- **Nothing dispatched yet.** Wave 0 and Wave 1 are both ready to go.
+- P1s still unbriefed: BUG-50 (delete a trip — no DELETE route exists at all), BUG-51
+  (companion name propagation, data integrity).
+- QUAL-04 (P3): three dead-code / stale-comment findings from the Docs agent — best folded
+  into a Wave-1 frontend batch already touching those files, not briefed alone.
+
+## Suggested next actions
+1. Clear the two Wave-0 gates recorded in the plan's §8: ONE BRD bump covering BUG-50 /
+   BUG-57 / BUG-40's new behaviour (not one per brief), and PRE-ASSIGNED ADL numbers for
+   the five concurrent Architect dispatches — otherwise they each independently read the
+   ADL log and pick "the next number". Worktree isolation does NOT protect against that;
+   same class as the shared refs/stash collision in OP-20.
+2. Dispatch Wave 0 (6 scoping) + Wave 1 sub-wave A (B1, B2, B3, B6, B9). Wave 0 is pure
+   spec output so it runs concurrently with Wave 1 at zero conflict risk.
+3. Consider running B9 (QUAL-03, test-db.ts) early regardless of sub-wave — it makes every
+   other backend brief's tests trustworthy and clears OP-15 prerequisite (a).
+4. OQ-03 is a cheap PO question (a product decision, not research) — bundle it into the
+   next PO session; it unblocks BRD-CU0103.
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — D-04 through D-11, unchanged this session.
+
+Operational gotcha, noted here rather than tracked (COO-only; agents do not switch branches
+in the main tree): a `git checkout` mid-session was blocked by hook-appended
+drift-ledger.jsonl lines. The reflex fix `git checkout -f` would have SILENTLY DROPPED
+audit records that /coo-startup reads. Correct handling is to extract the new lines, switch,
+then re-append. Ryan was shown this in the restart preview and agreed it belongs here rather
+than in the tracker.
+
+## Restart preview
+Shown to Ryan before this doc was written; confirmed "good to close".
+**Captured:** 5 merged PRs, production promoted and deployed, PHASE-4 closed, OP-15
+un-deferred, 4 new tracker IDs, ADL-40, backlog clearance plan, CODEBASE.md refreshed.
+**Captured, not actioned:** the 26-item backlog incl. BUG-50/BUG-51 (P1), BUG-62, BUG-63,
+D-04–D-11, DEP-02's deferred react-router cluster, ADL-39 F4, and Wave 0/1 themselves —
+all durably tracked, none at risk from /clear.
+**Not captured:** exactly one, and it was closed during the preview rather than reported —
+ADL-39's false "gitignored" claim, now stamped with a correction.
