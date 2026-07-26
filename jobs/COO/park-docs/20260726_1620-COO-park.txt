@@ -1,0 +1,145 @@
+COO SESSION PARK — 2026-07-26 1620 UTC (doc-state decay: QUAL-05 sweep + QUAL-06 cleanup)
+================================================================================
+
+## Session summary
+Picked up post-/clear. Ran /coo-startup — hooks OK, main green, UAT clean, ledger clean,
+BRD coverage clean. Two staleness findings at pickup (BRD-IT0809 stuck "in-progress" four
+months after its PR merged; tracker meta.updated stale) which turned out to be the leading
+edge of the session's actual theme.
+
+Ryan brought a drafted Docs brief for a state-language sweep and asked for review +
+reformat before dispatch. That dispatch went well and then kept unfolding: each fix
+surfaced a further instance of the same class, ending with the discovery that the COO's own
+system prompt had never been loaded by anything. Four PRs, main verified green after each.
+
+### 1. QUAL-05 — the sweep Ryan briefed (PR #259, issue #258)
+The thesis was his and it was right: **requirement tables are reliable because briefs cite
+IDs, which forces a re-read; prose has nothing referencing it, so nothing ever forces one.**
+Fix removes the class of sentence that decays rather than adding process to maintain it.
+
+Six changes made to the draft before dispatch. Three mattered:
+- **Its epigraph's premise was false.** It told the agent to "check against the CLAUDE.md
+  brief template gate (OP-08)". No such gate exists — OP-08's tracker NOTE claimed one, but
+  what actually landed is the Backend-only security checklist, and a general brief template
+  was explicitly REJECTED in PR #254. The instruction had no target. A stale tracker note
+  had misdirected a brief; corrected in OP-08's entry.
+- **Internal contradiction.** §5.15/MB-01 appeared in both the "fix directly" and "flag
+  only" tables with opposite instructions. Split: preamble stamped (already-shipped WP-04
+  fact), MB-01's requirement text left alone. This turned out to be the single most
+  important edit — see the agent's feedback below.
+- **Unbounded scope.** "Any agent context/ or tech/ document" is 100+ files. Tightened to
+  report-only outside the two named files. This is what surfaced security-backlog.md as a
+  finding instead of burying it in an unreviewable diff.
+Also added: no general brief template exists (so the agent didn't hunt for one), the
+three-place BRD bump with /record-decision, pre-assigned v3.7, and the OP-19/OP-20/D-08
+dispatch mechanics.
+
+Agent delivered well and stayed inside the rails. Its answer to "was the state-vs-intent
+test sufficient" is the reusable bit: the test classified everything cleanly, but its two
+branches — REMOVE vs STAMP — need spelling out. §5.15's phone framing reads as a factual
+assumption but is downstream of a decision, so naive application of the "remove" branch
+would have destroyed the record. Captured in QUAL-07's note.
+
+### 2. QUAL-06 — the follow-on, in three PRs (#260, #261, #262)
+Cleared what the sweep reported plus the startup findings.
+- **security-backlog.md H2 (no HTTPS) and M3 (trust proxy) were both OPEN and both
+  resolved** — H2 by Railway edge TLS, M3 by app.set('trust proxy', 1) at server.ts:99
+  (ADL-37/BUG-60, with a dedicated test). Verified in code, not taken on report. A security
+  doc asserting unfixed vulnerabilities is the highest-stakes instance of this class.
+- **project-plan.txt DELETED** (Ryan's call). Frozen March v1.0, still targeting a packaged
+  Electron .app — the exact error QUAL-05 had just removed from CODEBASE.md. Two
+  consequences handled rather than left dangling: it had inherited the project-objective
+  role when objective.txt was deleted (0a39162), and the COO prompt read/updated it.
+- **dependency-graph.txt DELETED** (Ryan's call, after he asked for a content check first —
+  the right instinct). Nothing unique survived. The one candidate, the critical path
+  ARCHITECT->DATABASE->BACKEND->FRONTEND->QA, was deliberately NOT carried forward: it is
+  derivable from job-registry.txt AND actively wrong, since work now runs as concurrent
+  cross-role agents batched by file surface. Preserving it would have moved an abandoned
+  waterfall into a fresh document and restarted the decay.
+- README.md Data storage rewritten per-environment; CODEBASE.md key-files row removed;
+  BRD-IT0809 in-progress->partial; OP-08 note corrected; meta.updated.
+
+### 3. The real find — COO-system-prompt.txt had never been loaded (PR #262)
+Prompted entirely by Ryan's question: *"if that coo prompt was a mandatory step, why was it
+skipped silently?"* I had claimed every COO session was silently skipping a mandatory read.
+That was wrong, and the truth is worse.
+
+**Nothing has ever loaded that file.** No .claude/agents/coo.md — D-01 built wrappers for
+the 8 DISPATCHED roles, and COO is the interactive session, not a subagent — and neither
+CLAUDE.md nor /coo-startup referenced it. Its persona and every standard in it had never
+once executed. The broken `_project/BRD.md` reference in its "mandatory" init list was
+never going to be hit. Note it was edited twice earlier the same day (#260, #261) without
+anyone asking whether it loads.
+
+Nothing broke because its functions had migrated to homes that DO load (init ->
+/coo-startup, close-out -> /coo-merge-and-close, git -> CLAUDE.md) with the original never
+stamped or removed. Supersession without a stamp — clause 2 of the rule this whole session
+was enforcing everywhere else.
+
+Disposition (Ryan chose migrate-persona-too over standards-only): persona + decision
+framing + completion-report reading migrated into /coo-startup, which runs every session.
+Dropped as superseded: its git requirement (`git add .` -> push direct to main, the same
+obsolete workflow D-01/#254 fixed in all 8 role prompts and missed here because COO isn't
+dispatched), its park-doc format, and its SS-23/24 pointer (content safe in
+_shared/frameworks.txt).
+
+**Audit gap worth carrying forward:** audits/session-a-doc-integrity.md:423 passed the
+registry as "Clean" because "system-prompt paths exist" — a referential check that asks
+whether a pointer resolves, not whether anything follows it. Written to memory as
+feedback_verify_docs_are_loaded_not_just_resolvable.
+
+### 4. BUG-64 (P1) — ci-wait.sh can PASS against the previous commit
+Caught live during close-out. In branch mode, scripts/ci-wait.sh:79 infers its target SHA
+from `gh run list --limit 1` — whatever the LATEST RUN is — then waits only for that SHA.
+Run immediately after a merge, before GitHub registers the new commit's runs, it returns
+PASS for the PREVIOUS commit. Observed: PASS @ 89ad005 seconds after merging #262 while
+main was at 1b84557 with both workflows still in_progress.
+
+P1 because this is the enforcement mechanism for CLAUDE.md's MANDATORY post-merge check —
+the one thing standing between a squash-merge race and an unnoticed red main (BUG-24). It
+FAILS OPEN, and it fails precisely when the documented procedure says to run it. Caught
+only because the printed SHA was read rather than just the PASS line. Issue #263.
+
+## Completed this session
+- PR #259 QUAL-05 sweep (BRD v3.7) · #260 QUAL-06 cleanup · #261 dependency-graph deletion
+  · #262 COO prompt migration+deletion. Main verified green after each.
+- New tracker IDs: QUAL-05 (done), QUAL-06 (done), QUAL-07 (pending), BUG-64 (pending).
+- Issues #258 (closed), #263 (BUG-64).
+- 3 documents deleted, each after a content check. 2 false OPEN security findings closed.
+- open-dialogues.md D-12 added. Memory entry written. Inbox triaged.
+
+## State of play
+- **main** green, zero open PRs, only `main` locally. **production** 1a4f84f — main is
+  several doc-only commits ahead; no app-code drift, no promotion needed.
+- **Nothing dispatched from the backlog clearance plan.** Wave 0 and Wave 1 both still
+  ready. This session was entirely doc-integrity work.
+- BRD v3.7; header == changelog; no new requirement IDs introduced, so nothing owed.
+
+## Suggested next actions
+1. Clear Wave 0's two gates (backlog-clearance-plan.md §8): ONE BRD bump covering
+   BUG-50/57/40, and PRE-ASSIGNED ADL numbers for the five concurrent Architects —
+   worktree isolation does not protect against five agents each picking "the next number".
+2. Dispatch Wave 0 (6 scoping) + Wave 1 sub-wave A (B1, B2, B3, B6, B9).
+3. B9 (QUAL-03, test-db.ts) early regardless of sub-wave — makes every other backend
+   brief's tests trustworthy and clears OP-15's last prerequisite.
+4. BUG-64 is cheap and P1 — worth folding into the first available session rather than
+   waiting for a wave; until it's fixed, read the SHA in ci-wait's PASS line, don't trust
+   the word PASS.
+5. OQ-03 is a cheap PO question that unblocks BRD-CU0103 — bundle into the next PO session.
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — D-04 through D-12. D-12 is new this session (the four
+§5.3 BRD contradictions needing PO/Architect decisions; item 1, the SE-01/SE-03 three-role
+drift, is the one with real consequences — BUG-62 and BUG-63 arguably can't be correctly
+specified until it's resolved).
+
+## Restart preview
+Shown to Ryan before this doc was written; he chose to add D-12 and write the memory entry.
+**Captured:** 4 merged PRs, BRD v3.7, 4 new tracker IDs, 2 issues, 3 documents deleted,
+security-backlog closed out, COO persona migrated into a home that loads, inbox triaged.
+**Captured, not actioned:** Wave 0/1 and all 15 briefs, the 26-item backlog incl. BUG-50 /
+BUG-51 (P1), BUG-62, BUG-63, QUAL-03/04, OP-15, OQ-03, D-04–D-11, DEP-02's react-router
+cluster — all durably tracked, none at risk from /clear.
+**Not captured:** exactly one, and it was closed during the preview — the four §5.3 BRD
+contradictions existed only as prose in a tracker note and an archived completion report;
+now D-12.

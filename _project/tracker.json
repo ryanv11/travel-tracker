@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-26 (QUAL-05 state-language sweep merged, PR #259, BRD v3.7; QUAL-06 doc-state cleanup: project-plan.txt deleted, security-backlog H2/M3 flipped to DONE, stale tracker notes corrected)"
+    "updated": "2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup complete, PRs #259-#262: three orphaned/frozen docs deleted, security-backlog H2/M3 closed, COO persona+standards migrated into /coo-startup. BUG-64 logged: ci-wait.sh branch mode can PASS against the previous commit)"
   },
   "items": [
 
@@ -2093,6 +2093,28 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "Reported 2026-07-26 by Ryan: two independent live sightings on mobile, both non-owner accounts. (1) A friend Ryan gave the app to reported being unable to create a trip with a forbidden-type error. (2) Ryan reproduced something matching that description himself on staging, also on mobile, around the same time — but could not reproduce it again when asked, and has no captured network response/status/screenshot from either occurrence. Distinct from the country-picker symptom raised in the same conversation, which turned out to be a separate, fully-diagnosed issue (production had not been promoted past commit c9c86f3, predating the BUG-61/ADL-38 countries-read fix and all of BRD-AD07/AD08 — fast-forwarded main→production this session to close that gap). COO investigation into THIS symptom found nothing: full non-owner-relevant backend test suite green (142/142, including security.access-matrix.test.ts Part E which is the exact regression test for this class of bug), direct local reproduction as a non-owner via BYPASS_AUTH succeeded (GET /api/admin/countries 200, POST /api/trips 201), staging's Turso DB confirmed correctly migrated, staging deploy logs show no errors around trips/companions/countries/admin since the AD07/AD08 deploy. Working theory (unconfirmed, not yet investigated): 'forbidden' may be an imprecise description of a 401 rather than a literal 403 — e.g. a mobile Clerk session/token-refresh edge case (backgrounded tab, token expiry) or an azp-origin-allowlist mismatch specific to mobile browser contexts (HC-02) — worth checking ALLOWED_ORIGINS / mobile origin handling next time this happens. Logged so this doesn't evaporate across a session boundary; Ryan is watching for a recurrence and will capture the actual network response next time. No brief until it's reproducible or a concrete lead surfaces."
+    },
+    {
+      "id": "QUAL-07",
+      "type": "chore",
+      "title": "Standing docs-vs-code audit — recurring Docs brief to catch prose/reality drift before someone trips over it",
+      "status": "pending",
+      "owner": "docs",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Raised 2026-07-26 out of QUAL-05's completion report (§9 follow-on) and confirmed systemic by QUAL-06. The QUAL-05 sweep was reactive — three errors were noticed by a human reading the docs, and the sweep then found more. Everything QUAL-06 cleared (project-plan.txt frozen since March, security-backlog.md asserting two resolved vulnerabilities as OPEN, an orphaned COO system prompt nothing had ever loaded, README with no mention of hosted deployment) had been wrong for weeks-to-months with no detection mechanism at all. Proposed shape: a periodic Docs brief that diffs durable-doc prose against tracker status and the actual source tree, and REPORTS contradictions only — no edits, no new tracked artefact, output is a list for COO to route. Deliberately not automated as a CI gate: the QUAL-05 experience was that classifying a sentence as state-vs-intent needs judgment, and its two branches (remove vs. supersession-stamp) were the one place the Docs agent reported the test being ambiguous. Two checks worth building in, both learned the hard way this session: (1) verify documents are LOADED, not merely that their paths resolve — audits/session-a-doc-integrity.md passed the COO system prompt as 'Clean' because 'system-prompt paths exist', and a dead document with a valid path passes that test perfectly; (2) check for status/verdict docs whose claims contradict a merged PR, which is the OP-06 failure class the Document lifecycle rule exists to prevent. Not scheduled — raise with PO when the backlog clearance plan's waves are through, since it competes with feature work for the same Docs capacity."
+    },
+    {
+      "id": "BUG-64",
+      "type": "bug",
+      "title": "scripts/ci-wait.sh branch mode can PASS against the previous commit — races the mandatory post-merge main check",
+      "status": "pending",
+      "owner": "unassigned",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "GitHub issue #263. Found live 2026-07-26 during the QUAL-06 close-out. In branch mode, scripts/ci-wait.sh:79 resolves its target by taking `gh run list --branch <b> --limit 1 --json headSha` — i.e. whatever the LATEST RUN happens to be — then waits only for runs whose headSha matches that. Called immediately after a merge, before GitHub has registered workflow runs for the new commit, the latest run is still the PREVIOUS commit's, which is already complete and green. It prints 'PASS — all runs green for main @ <old sha>' and exits 0 without ever waiting for the commit the caller cares about. Observed exactly this: returned PASS @ 89ad005 seconds after merging PR #262, while main was actually at 1b84557 with both CI and Security Checks still in_progress. Re-running ~30s later correctly waited and passed @ 1b84557. Severity is P1 because this is the enforcement mechanism for CLAUDE.md's MANDATORY post-merge verification ('a green PR does not guarantee a green main', BUG-24) — the one check standing between a squash-merge race and an unnoticed red main. It fails open: a genuinely red main would be reported green if the check is run promptly after merging, which is exactly when the procedure says to run it. Caught here only because the printed SHA was read rather than just the PASS. Fix direction: branch mode should take the expected SHA rather than inferring it — e.g. accept an optional SHA argument, or derive `git rev-parse origin/<branch>` after a fetch — and POLL UNTIL RUNS EXIST for that SHA (with a timeout) instead of treating 'no runs yet' as 'use the latest run'. Note ci-wait.sh:89 already has a 'No runs found for the latest commit' branch, so the not-yet-registered case is partly anticipated; the defect is that the SHA itself is inferred from run history rather than from the branch tip. PR-mode (`ci-wait.sh pr <n>`) is not affected — it resolves runs from the PR, not from run recency."
     }
 
   ]

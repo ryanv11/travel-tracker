@@ -25,6 +25,43 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-12: Four BRD contradictions surfaced by the QUAL-05 sweep that need a PO (and in one case Architect) decision
+**Raised:** 2026-07-26
+
+The QUAL-05 state-language sweep (PR #259) was scoped to fix prose that decays and to
+**flag, not resolve**, anything where the fix would pre-empt a product or architecture
+decision. Four items came back flagged. They are recorded in QUAL-05's tracker note and in
+the Docs completion report (`jobs/COO/inbox/read/20260726_2234-DOCS-state-language-sweep-
+complete.txt`), but neither surfaces at `/coo-startup`, which is why they are here.
+
+None is urgent. All four are wording-level in the BRD — the shipped app is unaffected.
+
+1. **§5.11 SE-01/SE-03 — the three-role model has drifted from reality.** AD-07 and AD-08
+   moved map shading and companions to per-user with `requireAuth`, and non-owner users
+   create their own trips in production, but SE-03 still describes authenticated-but-
+   ungranted users receiving 403 on admin operations. **BUG-61/62/63 are live symptoms of
+   this drift, not independent bugs.** This is a semantic change to a *security*
+   requirement, so it needs PO **and Architect** — explicitly out of scope for a doc sweep.
+   Of the four, this is the one with real consequences: BUG-62 and BUG-63 are both open and
+   arguably cannot be correctly specified until SE-01/SE-03 say what the intended model is.
+2. **§7 and §11 — historical import.** Both state import tooling is out of scope and manual
+   entry is the answer. Import requirements IM-01–33 are drafted but **not approved**.
+   Deleting those lines would pre-empt the PO decision; leaving them is fine until IM is
+   either approved or dropped.
+3. **§5.15 MB-01 — mobile scope.** The §5.15 preamble ("the phone is a reference device,
+   not an editing surface") was stamped SUPERSEDED by WP-04 in v3.7, but MB-01's own
+   requirement text still scopes mobile to the read path only, while WP-04 shipped a fully
+   editable mobile layout. Whether to widen MB-01's stated scope — and whether that implies
+   anything about offline support — is a product call, not a wording fix.
+4. **§5.7 PH-02 vs IM-06.** PH-02 says "the app does not store or copy photos"; IM-06
+   (client-side EXIF import) will read as contradicting it. Consistent in substance today.
+   **Conditional — only needs resolving if import is approved**, i.e. it collapses into
+   item 2.
+
+Suggested handling: item 1 alongside the BUG-62/63 work rather than as a separate pass;
+items 2 and 4 together whenever the import decision is made; item 3 whenever mobile scope
+next comes up. Not blocking the backlog clearance plan's waves.
+
 ### D-11: `.claude/settings.local.json` disappeared from disk mid-session — root cause unknown, and it's gitignored so a `git clone` migration won't carry it
 **Raised:** 2026-07-23
 
