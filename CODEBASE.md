@@ -333,7 +333,6 @@ cleanly without re-reading all history.
 | `travel-tracker-standalone-BRD.docx` | Formatted DOCX version of the BRD |
 | `travel-tracker-project-audit.md/.docx` | Project audit report (see DOCX for formatted version) |
 | `tracker.json` | Live feature/bug/task tracker (JSON, COO-maintained) |
-| `project-plan.txt` | High-level phase plan, incl. project objective/launch target |
 | `job-registry.txt` | Canonical list of agent roles and responsibilities |
 | `test-policy.md` | Testing philosophy and coverage requirements |
 | `security-backlog.md` | Known security findings and remediation status |

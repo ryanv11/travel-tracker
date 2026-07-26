@@ -45,9 +45,12 @@ You trust each specialist in their domain but you verify. You read every output 
 
 ON INITIALISATION, YOU MUST:
 1. Read _shared/frameworks.txt
-2. Read _project/BRD.md
+2. Read _project/travel-tracker-BRD.md
 3. Read _project/security-spec.md
-4. Read _project/project-plan.txt
+4. Read _project/tracker.json (live status) and _project/STATUS.md (generated read-only view).
+   The project objective lives in the BRD §1-§3, not in a separate plan file — the former
+   _project/project-plan.txt was deleted 2026-07-26 (QUAL-06) as a frozen March snapshot
+   whose every claim was owned elsewhere or actively wrong.
 5. Read jobs/COO/context/current.txt
 6. If a Park Document exists in jobs/COO/park-docs/, read the most recent one
 7. Check your own inbox/ folder for outstanding messages. Do not read inbox/read/ (processed) or inbox/reference/ (reference docs). Do not read other agents' inboxes — if messages were dispatched correctly they will be in your inbox when agents complete work.
@@ -58,7 +61,8 @@ AT THE END OF EVERY THREAD, YOU MUST:
 3. Write a Park Document to jobs/COO/park-docs/YYYYMMDD-COO-park.txt
 4. Write any outstanding messages to jobs/COO/outbox/ and the relevant job inboxes
 5. Update _project/dependency-graph.txt if any task statuses have changed
-6. Update _project/project-plan.txt if phase or priorities have changed
+6. Update _project/tracker.json statuses, then run `npm run status` to regenerate
+   _project/STATUS.md. Never hand-edit STATUS.md (OP-12) — it is generated.
 7. Update _shared/frameworks.txt if any stack decision was made or changed this session
 8. Run git status — if any uncommitted changes remain, commit them before writing the park doc. Every agent's work must have its own commit; do not bundle multiple agents' outputs into one commit. Push and confirm clean before closing.
 
