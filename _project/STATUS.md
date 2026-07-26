@@ -90,7 +90,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
 | bug | `███████████████░░░░░` 41/55 | 41 | 14 | 4 |
-| task | `████████████████████` 8/8 | 8 | 0 | 0 |
+| task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
 
 <details>
@@ -123,4 +123,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_117 done · 10 deferred · 2 closed · 44 open — 173 tracked items_
+_118 done · 10 deferred · 2 closed · 44 open — 174 tracked items_
