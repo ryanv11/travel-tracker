@@ -51,6 +51,45 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-07-26 (PHASE-4 formal close — QA & Documentation)
+
+**Scope:** Phase 4 phase-completion gate. Not a fresh test pass — this records the PO's
+verdict that the Scotland dogfood trial and the 2026-07-20 / 2026-07-21 UAT sessions below
+*were* the Phase 4 UAT.
+**Build:** main @ 1a4f84f (verdict given against the dogfooded builds: c4340ef, 7bafc11, f5fa666)
+**Verdict:** PASS — closes PHASE-4. PO: *"phase 4 can already close, the dogfooding was the UAT."*
+
+#### Findings
+
+- [x] Phase 4 deliverables confirmed complete and exercised in real use.
+      580 backend + 154 frontend unit tests passing, contract tests passing, Playwright E2E
+      suite a permanent CI gate (OP-11, PR #124), README + CODEBASE.md done, OP-06 hardening
+      gate closed 2026-07-16 (PR #115).
+      Fixed myself: no — PO verdict, no action needed.
+
+- [x] PHASE-4's tracker note was stale and is corrected in the same PR as this entry.
+      It listed *"Remaining before formal close: OP-07 (UI/UX expert review) + PO phase UAT"* —
+      but OP-07 was already `done` and the note was never flipped (Document lifecycle miss).
+      PO UAT was therefore the only genuinely outstanding gate, which this session supplies.
+      Fixed myself: no — found by COO during the close-out audit.
+
+#### Notes / Observations
+
+1. **The 21 UAT-found defects do not block this close and have been re-phased 4 → 6.**
+   BUG-40–58, BRD-DP06 and OQ-06 were *found during* Phase 4 but are feature/UX defects, not
+   Phase 4 deliverables — they only carried a `phase: 4` tag because that was the open phase
+   when they were logged. Phase 4's own scope is QA infrastructure and documentation, all of
+   which shipped. PHASE-6's flagship features (BRD-PL0104, BRD-CU0103) are already explicitly
+   gated on this same batch being worked through, so phase 6 is their accurate home.
+2. **Two genuinely Phase-4-scope items stay parked under the closed phase**, matching the
+   existing ENV-01 / QUAL-02 / UX-05 pattern: BUG-37 (→ `backlog`; not reproducible in 13 runs,
+   see its tracker note) and OP-15 (→ phase 6, following its prerequisite QUAL-03).
+3. This close does **not** assert the product is defect-free — 26 open backlog items remain,
+   sequenced in `jobs/COO/backlog-clearance-plan.md`. It asserts Phase 4's deliverables are
+   done and were validated by real dogfooding use.
+
+---
+
 ### UAT Session — 2026-07-21 (WP-03/WP-04 Waypoint Trips reskin, Phase 2)
 
 **Scope:** Trips screen desktop reskin (WP-03) + net-new mobile Trips layout (WP-04), per BRD §5.16 / `jobs/ux/tech/20260721-UX-waypoint-spec.md` Phase 2. Cross-reference table in the UX spec's Phase 2 section (item 8) defined the intended UAT scope.

@@ -13,11 +13,11 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | PHASE-1 | Data Layer — Database Schema & Migrations | ✅ Done |
 | PHASE-2 | API Layer — Backend REST API | ✅ Done |
 | PHASE-3 | UI Layer — React Frontend SPA | ✅ Done |
-| PHASE-4 | QA & Documentation | 🔄 In progress |
+| PHASE-4 | QA & Documentation | ✅ Done |
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (44)
+## Open work (45)
 
 ### P0 — Blockers (1)
 
@@ -32,11 +32,12 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (25)
+### P2 — Important (26)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
+| QUAL-03 | test-db.ts hand-mirrors 21 CREATE TABLE statements — silent schema-drift risk in every repository test | backend | ⬜ Pending |
 | BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | 🔄 In progress |
 | BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
@@ -91,7 +92,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
 | bug | `███████████████░░░░░` 41/55 | 41 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `████████████████░░░░` 7/9 | 7 | 2 | 0 |
+| chore | `██████████████░░░░░░` 7/10 | 7 | 3 | 0 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -123,4 +124,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_119 done · 10 deferred · 2 closed · 44 open — 175 tracked items_
+_119 done · 10 deferred · 2 closed · 45 open — 176 tracked items_
