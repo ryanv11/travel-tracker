@@ -55,12 +55,12 @@
       "id": "PHASE-4",
       "type": "phase",
       "title": "QA & Documentation",
-      "status": "in_progress",
+      "status": "done",
       "owner": "qa",
       "priority": "P0",
       "brdRefs": [],
       "phase": 4,
-      "notes": "186 backend + 55 frontend unit tests passing. Contract tests passing. Playwright E2E suite (36 tests) now a permanent CI gate (OP-11, PR #124). README + CODEBASE.md done. OP-06 gate CLOSED 2026-07-16 (PR #115) — no longer a blocker. Remaining before formal close: OP-07 (UI/UX expert review) + PO phase UAT."
+      "notes": "CLOSED 2026-07-26 on PO UAT PASS — the Scotland dogfood trial and the 2026-07-20/21 UAT sessions were the phase UAT (PO: 'phase 4 can already close, the dogfooding was the UAT'). Deliverables all shipped: 580 backend + 154 frontend unit tests passing, contract tests passing, Playwright E2E suite a permanent CI gate (OP-11, PR #124), README + CODEBASE.md done, OP-06 gate CLOSED 2026-07-16 (PR #115). PRIOR NOTE WAS STALE — it listed 'OP-07 (UI/UX expert review) + PO phase UAT' as remaining, but OP-07 had already been closed and the note was never flipped (Document lifecycle miss, corrected here). PO UAT was therefore the only outstanding gate. The 21 UAT-found defects (BUG-40–58, BRD-DP06, OQ-06) were re-phased 4→6 in this same PR: they were found during Phase 4 but are feature/UX defects, not Phase 4 deliverables, and PHASE-6's flagship features (BRD-PL0104, BRD-CU0103) are already explicitly gated on that batch being worked through. Two genuinely Phase-4-scope items stay parked under this closed phase, matching the existing ENV-01/QUAL-02/UX-05 pattern: BUG-37 (backlog) and OP-15 (pending, prerequisites actively clearing)."
     },
     {
       "id": "PHASE-5",
@@ -775,8 +775,8 @@
       "owner": "coo",
       "priority": "P3",
       "brdRefs": [],
-      "phase": 4,
-      "notes": "PO direction 2026-07-18: these two Session-C drafts need more consideration and planning before installing. Prerequisites: (a) Q22 test-DDL consolidation lands first — it removes the schema skill's most error-prone step (13 hand-mirrored DDL copies); (b) Q3/Q8 lock/PATCH fixes land so the backend skill's carve-out warnings can be written as settled rules; (c) decide the brief-template enforcement mechanism (skills only work if COO briefs consistently instruct agents to load them). Drafts remain in audits/session-c-workflow-extraction.md on chore/audit-questions. W5 frontend skill: extract from real PHASE-6 friction, not speculatively."
+      "phase": 6,
+      "notes": "PO direction 2026-07-18: these two Session-C drafts need more consideration and planning before installing. Prerequisites: (a) Q22 test-DDL consolidation lands first — it removes the schema skill's most error-prone step (13 hand-mirrored DDL copies); (b) Q3/Q8 lock/PATCH fixes land so the backend skill's carve-out warnings can be written as settled rules; (c) decide the brief-template enforcement mechanism (skills only work if COO briefs consistently instruct agents to load them). Drafts are on main at audits/session-c-workflow-extraction.md (NOT stranded on the deleted chore/audit-questions branch — verified 2026-07-26). W5 frontend skill: extract from real PHASE-6 friction, not speculatively. PREREQUISITE AUDIT 2026-07-26 (COO), prompted by PO pushing back on deferring this: (b) MET — BUG-27 and BUG-28 both done. (a) NOT met and has got WORSE — src/backend/repositories/__tests__/test-db.ts now hand-mirrors 21 CREATE TABLE statements, not the 13 recorded here; tracked properly as QUAL-03 (was previously untracked, existing only as this sub-bullet, so deferring OP-15 would have buried it). (c) RESOLVED 2026-07-26 — a brief template was rejected as having the same weakness it was meant to fix (it only works if the COO remembers to use it, which is the stated failure mode); enforcement moved agent-side into jobs/<role>/<role>-system-prompt.txt, which every dispatch reads via the thin .claude/agents/*.md wrappers (D-01), so the agent enforces skill loading regardless of what the brief says. Status stays pending, NOT deferred: (c) is done and (a) is scheduled as QUAL-03. Sequence QUAL-03 before this design pass — the schema skill's own steps depend on what the DDL workflow looks like afterward."
     },
     {
       "id": "OP-16",
@@ -973,12 +973,12 @@
       "id": "BUG-37",
       "type": "bug",
       "title": "Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked'",
-      "status": "pending",
+      "status": "backlog",
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": [],
       "phase": 4,
-      "notes": "Found 2026-07-20 by the BUG-10 frontend brief (unrelated to that fix — confirmed pre-existing by reproducing on a clean branch tip with the BUG-10 diff stashed out). src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx — onClose occasionally called 2-3x instead of 1x when Skip is clicked. Not investigated further; flagging so it isn't lost once the reporting agent's worktree is cleaned up."
+      "notes": "Found 2026-07-20 by the BUG-10 frontend brief (unrelated to that fix — confirmed pre-existing by reproducing on a clean branch tip with the BUG-10 diff stashed out). src/frontend/components/CarryForward/__tests__/CarryForwardModal.test.tsx — onClose occasionally called 2-3x instead of 1x when Skip is clicked. NOT REPRODUCIBLE as of 2026-07-26 (COO, 13 runs): 10/10 passes running the file in isolation, plus 3/3 clean full-suite runs at 154/154 each. Something merged since 2026-07-20 likely fixed it incidentally. Downgraded pending → backlog rather than closed: 13 runs is not proof of absence for a defect described as 'occasional' (could be ~1-in-50), and closing flakes silently means a recurrence gets re-diagnosed from scratch. It is demonstrably not gating anything — test:frontend is a required check on every PR, so a real recurrence will resurface with a run ID attached. Parked under the closed PHASE-4 alongside QUAL-02 as known QA quality debt."
     },
     {
       "id": "BUG-38",
@@ -1114,7 +1114,18 @@
       "priority": "P3",
       "brdRefs": [],
       "phase": 4,
-      "notes": "QA review (2026-03-23) flagged gaps in QUAL-01 tests. Top priorities: (1) filter inversion bug undetectable — category/activity/country filter tests seed 1 trip and assert length=1; inverted filter would also return 1. Fix: seed 3 trips, assert exactly 1. (2) GET /api/trips sort order (startDate desc) not tested. (3) Response shape assertions too shallow — toHaveProperty() without type/value checks. (4) Cross-trip item isolation (same user, different trips). Deferred: personal app scale makes exhaustive edge case coverage low ROI."
+      "notes": "QA review (2026-03-23) flagged gaps in QUAL-01 tests. Top priorities: (1) filter inversion bug undetectable — category/activity/country filter tests seed 1 trip and assert length=1; inverted filter would also return 1. Fix: seed 3 trips, assert exactly 1. (2) GET /api/trips sort order (startDate desc) not tested. (3) Response shape assertions too shallow — toHaveProperty() without type/value checks. (4) Cross-trip item isolation (same user, different trips). Deferred: personal app scale makes exhaustive edge case coverage low ROI. 2026-07-26: findings (1) and (2) scheduled into the backlog-clearance plan's batch B4 (trip search/filter, BUG-52/55/56) — the agent is already in those exact test files and BUG-52's fix is unverifiable under assertions this weak. Findings (3) and (4) stay backlog."
+    },
+    {
+      "id": "QUAL-03",
+      "type": "chore",
+      "title": "test-db.ts hand-mirrors 21 CREATE TABLE statements — silent schema-drift risk in every repository test",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Logged 2026-07-26 (COO) during the OP-15 prerequisite audit. Was previously untracked — it existed only as a sub-bullet inside OP-15's notes ('Q22 test-DDL consolidation'), so deferring OP-15 would have buried it. src/backend/repositories/__tests__/test-db.ts imports db/schema.ts for Drizzle typing but then hand-writes all 21 tables as literal DDL. A migration can therefore change the real schema while every repository test keeps passing green against the stale copy — the tests would not detect the drift. Same family as the stale local dev.db that caused a false alarm during the 2026-07-26 BUG-63 investigation (companions missing user_id post-migration 0012). Count has grown from the 13 recorded in OP-15's notes to 21, so this is actively worsening. Fix direction: drop the hand-written DDL and apply the real migrations to the in-memory libSQL DB (migrate(db, { migrationsFolder: 'src/backend/migrations' })) so the test schema is identical to production's by construction. IMPLEMENTATION CAVEAT for the brief: createTestDb() runs in beforeEach across ~580 backend tests, so replaying 12+ migration files per test may hurt suite time — build the schema once and clone per test rather than re-migrating. Also clears OP-15 prerequisite (a); sequence this BEFORE the OP-15 skills design pass. Scheduled as batch B9 in jobs/COO/backlog-clearance-plan.md."
     },
 
     // ─── CODE REVIEW FINDINGS — 2026-03-22 ───────────────────────────────────
@@ -1649,7 +1660,7 @@
       "owner": "fullstack",
       "priority": "P2",
       "brdRefs": ["DP-06"],
-      "phase": 4,
+      "phase": 6,
       "notes": "Added to BRD v3.1, 2026-07-20 UAT. Success criteria: adding the first place to a trip with dates set pre-fills place arrival/departure from trip start/end; later per-place edits persist independently of trip dates."
     },
     {
@@ -1772,7 +1783,7 @@
       "owner": "fullstack",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. BUG-32 implemented place deletion by silently reassigning items to trip-level (trip_place_id=null). PO wants an explicit confirmation step instead: warn that the place has items and let the user choose delete-all / move-to-trip-level / cancel, rather than always auto-reassigning."
     },
     {
@@ -1783,7 +1794,7 @@
       "owner": "architect",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Example: Seattle→London (layover)→Glasgow, all one booking. Current flight item model is single-leg. Needs Architect schema design before this is briefable — likely a flight-legs sub-entity under one booking item, not a simple field addition."
     },
     {
@@ -1794,7 +1805,7 @@
       "owner": "architect",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Should be able to assign multiple companions/seats to one booking item (flight, car, etc.) instead of one implicit traveller. Needs schema/UX scoping — how seat assignment interacts with the existing companion model."
     },
     {
@@ -1805,7 +1816,7 @@
       "owner": "integrations",
       "priority": "P3",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, PO-flagged as longer-term/aspirational, logged only. Idea: parse Apple Wallet boarding-pass/booking passes to pre-fill flight/car booking fields instead of manual multi-seat entry (see BUG-42). Backlog — needs a research spike on .pkpass format access before any real scoping."
     },
     {
@@ -1816,7 +1827,7 @@
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Mirror the existing flight pattern (airline + flight number render as subtext under the flight item) — car rental should show pickup location as subtext under the provider name the same way. Small, self-contained UI fix."
     },
     {
@@ -1827,7 +1838,7 @@
       "owner": "architect",
       "priority": "P3",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, PO-flagged as longer-term, logged only. Replace free-text entry for airline / car-rental-provider with a dropdown sourced from a comprehensive external list, falling back to an 'Other' + free-text option when not found. Needs a data-source decision (licensing/comprehensiveness) before scoping — same theme as OQ-06 (systematic reference data vs. hand-seeded lists)."
     },
     {
@@ -1838,7 +1849,7 @@
       "owner": "architect",
       "priority": "P3",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Raised 2026-07-21 UAT. PO initially suspected account data leakage (saw a Northern Ireland trip under their own account) — self-diagnosed in-session as the known BUG-30 gap (GB region seeding), not a leak; BUG-30 is already done and closed. Real open question: BUG-30 hand-seeded England/Scotland/Wales/NI under GB as a one-off fix — is there a more systematic ISO 3166-2 subdivision dataset that should back region seeding generally, rather than patching countries one at a time as gaps are found? Same theme as BUG-45's comprehensive-list ask. For Architect to weigh before the next region-data gap surfaces."
     },
     {
@@ -1849,7 +1860,7 @@
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Admin-defined activities are selectable when editing a trip but the field doesn't appear on trip create at all. NOTE: check against BUG-47 before briefing as a simple add-to-create-form fix — PO's proposed activity redesign may supersede this."
     },
     {
@@ -1860,7 +1871,7 @@
       "owner": "architect",
       "priority": "P3",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. PO's proposed redesign: instead of manually pre-selecting activities on a trip, derive/auto-populate them from the trip's actual place/item content. Trip categories stay manual — PO confirmed they serve a distinct purpose and are fine as-is, this is activities only. Needs product/UX scoping — what content drives auto-population is undefined."
     },
     {
@@ -1871,7 +1882,7 @@
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Example: US requires zooming in until the whole country fills the screen before state shading appears at all, and rendering latency means the practical zoom needed is even further in than that. State shading should trigger at a meaningfully lower zoom level."
     },
     {
@@ -1882,7 +1893,7 @@
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. When state shading activates it visually covers city tag markers — layer/z-order issue, city markers should stay on top."
     },
     {
@@ -1893,7 +1904,7 @@
       "owner": "fullstack",
       "priority": "P1",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. No delete affordance exists for a trip itself (BUG-32 only covers removing a place from within a trip). Needs a route (if missing) + UI entry point + confirmation, same shape as BUG-32's brief."
     },
     {
@@ -1904,7 +1915,7 @@
       "owner": "backend",
       "priority": "P1",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Renaming a companion in the admin panel updated correctly on one trip automatically, but a second trip (companion role 'partner', renamed to Aisling) kept showing the old value until that trip was opened, edited, and saved. Suggests inconsistent propagation/derivation of companion name depending on how the trip stores/displays the reference — data-integrity concern, needs investigation."
     },
     {
@@ -1915,7 +1926,7 @@
       "owner": "backend",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Searching 'United States' or 'USA' returns no results even when a trip has a US place, unless the country string literally appears in the trip title. Search should match against place/country data, not just the trip title."
     },
     {
@@ -1926,7 +1937,7 @@
       "owner": "ux",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed (combines two related findings). Current: each place in the trips panel shows city (bold) with country underneath in lighter text. PO wants: city (bold) with state on the second line instead of country, and country surfaced elsewhere — either as a pill next to the category, or its own row just beneath it. Also affects trip scannability alongside BUG-52 (search), since country isn't otherwise visible on the trip card unless it happens to be in the title. Needs a UX spec before this is briefable — specific layout choice (pill vs row) isn't decided."
     },
     {
@@ -1937,7 +1948,7 @@
       "owner": "ux",
       "priority": "P3",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT. PO explicitly flagged this as a future-phase requirement, not near-term — categories and activities currently have no user-controllable color. Logged for backlog only, no near-term action expected."
     },
     {
@@ -1948,7 +1959,7 @@
       "owner": "backend",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Entering a city name doesn't auto-fill its country/state fields — likely the geocode/lookup path isn't wired to populate those fields on selection."
     },
     {
@@ -1959,7 +1970,7 @@
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Small polish — city name input should auto-capitalize the first letter."
     },
     {
@@ -1970,7 +1981,7 @@
       "owner": "fullstack",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. PO wants consistent date-picker defaulting across all item entry: (1) if the trip's date range is set, adding any item should default its date(s) to the start of the trip's range rather than today; (2) flights specifically should default arrival to the same day as departure once departure is entered, editable after. Explicit PO goal: avoid manually moving both to/from date pickers away from 'today' when entering a trip outside the current month — defaulting should land the picker in the right neighborhood automatically. Subsumes the narrower 'flight arrival defaults to departure date' finding from the same session."
     },
     {
@@ -1981,7 +1992,7 @@
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
-      "phase": 4,
+      "phase": 6,
       "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Moving a trip to an earlier status (backward through the workflow) clears the trip selection entirely, forcing the user to re-find and re-select it in the left panel. Expected: trip stays selected, detail panel just updates to reflect the new status. Meaningful friction at high trip volume."
     },
     {
