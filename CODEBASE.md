@@ -106,8 +106,17 @@ src/
 ├── frontend/
 │   ├── main.tsx                React entry point, Clerk + QueryClient providers
 │   ├── App.tsx                 Root router
+│   ├── index.css               Tailwind entry point + global reset (imports theme-waypoint.css)
+│   ├── theme-waypoint.css      Waypoint design-system tokens — colors, fonts (WP-02; wired into
+│   │                           Trips/TripDetail UI as of WP-03/WP-04)
 │   ├── types/
 │   │   └── api.ts              Shared TypeScript types (TripSummary, TripStatus, etc.)
+│   ├── pages/                  Route-level page components, used by App.tsx's <Routes>
+│   │   ├── MapPage.tsx         Full-screen map page
+│   │   ├── TripsPage.tsx       Legacy trips-list page — superseded by TripsLayout (App.tsx routes
+│   │   │                       /trips to TripsLayout directly; this file is unreferenced)
+│   │   ├── TripDetailPage.tsx  Trip detail or post-trip review, branched by trip status
+│   │   └── AdminPage.tsx       Admin panel page
 │   ├── hooks/                  TanStack Query hooks — one file per domain
 │   │   ├── useTrips.ts
 │   │   ├── usePlaces.ts
@@ -115,28 +124,50 @@ src/
 │   │   ├── useAdmin.ts
 │   │   ├── useCities.ts
 │   │   ├── useMapShading.ts
-│   │   └── useGeocodeRetryQueue.ts
+│   │   ├── useGeocodeRetryQueue.ts
+│   │   ├── useMe.ts            Identity endpoint (GET /api/me) — owner-gated nav (BUG-26)
+│   │   └── useIsMobile.ts      Viewport breakpoint hook driving the WP-04 mobile layout switch
+│   ├── utils/
+│   │   ├── apiClient.ts        Centralised fetch() wrapper — base URL, auth token, error handling
+│   │   ├── formatDate.ts       ISO date string → human-readable display format
+│   │   ├── resolvePlaceDateRange.ts Place date precedence: explicit > hotel dates > trip dates (ADL-24)
+│   │   └── urlSanitiser.ts     Restricts user-supplied URLs to https/file schemes (SEC-12)
+│   ├── services/
+│   │   └── geocodeRetryQueue.ts Offline geocoding status poll with progressive backoff (NR-06)
+│   ├── design/                 Waypoint design-system primitives (WP-02, spec §5)
+│   │   ├── Button.tsx          Button variants — primitive only, not yet wired into existing screens
+│   │   ├── Input.tsx           Text input — primitive only, not yet wired into existing screens
+│   │   └── badges.ts           Status/category badge hue lookup, wired into StatusBadge.tsx (WP-03/WP-04)
 │   └── components/
 │       ├── TripList/           Left panel — trip list, search, filters, sort
-│       │   ├── TripsLayout.tsx Two-panel shell (list + <Outlet />)
-│       │   ├── TripCard.tsx    Individual trip card
-│       │   └── TripList.tsx    Trip list rendering + filter/sort logic
+│       │   ├── TripsLayout.tsx        Routes to Desktop or Mobile trips layout via useIsMobile
+│       │   ├── DesktopTripsLayout.tsx Two-panel shell (list + <Outlet />) for ≥768px viewports
+│       │   ├── MobileTripsLayout.tsx  WP-04 single-panel list/detail slide layout for <768px
+│       │   ├── TripCard.tsx           Individual trip card
+│       │   └── TripList.tsx           filterAndSortTrips utility, shared by both layouts
 │       ├── TripDetail/         Right panel — trip detail view and edit form
-│       │   ├── TripDetail.tsx  Main detail view
+│       │   ├── TripDetail.tsx  Main detail view (desktop)
+│       │   ├── MobileTripDetailView.tsx WP-04 mobile detail view (shares logic via the hook below)
+│       │   ├── useTripDetailController.ts Status/lock/modal state shared by desktop + mobile detail views
+│       │   ├── StatusStepper.tsx 4-dot status stepper (Plan→Active→Review→Locked), WP-03, satisfies TR-12
 │       │   ├── TripForm.tsx    Create/edit trip modal
 │       │   ├── AddPlaceFlow.tsx Multi-step modal: city search → create → carry-forward
 │       │   ├── PlaceSection.tsx Place card with items list
 │       │   ├── PlaceDateForm.tsx Arrived/departed date inputs for a place
+│       │   ├── TripItemsSection.tsx Trip-level items with no parent place — flights/car rentals (BUG-36)
 │       │   ├── ItemForm.tsx    Add/edit item (hotel, restaurant, flight, etc.)
 │       │   └── ItemCard.tsx    Item display card
 │       ├── Map/                World map page
 │       │   ├── MapView.tsx     Full-screen MapLibre map, click/zoom handlers
 │       │   ├── CountryLayer.tsx Country fill shading (feature-state driven)
 │       │   ├── RegionLayer.tsx  State/province shading at zoom >= 3
-│       │   └── CityMarkers.tsx  City pins for geocoded cities
-│       ├── Admin/              Admin page — categories, activities, companions
+│       │   ├── CityMarkers.tsx  City pins for geocoded cities
+│       │   └── MapLegend.tsx    Shading-color legend, data-driven from GET /api/map/shading/config (MAP-02)
+│       ├── Admin/              Admin page — categories, activities, companions, map shading, countries
 │       ├── CarryForward/       Copy hotels/items from a previous trip
 │       ├── PostTripReview/     Post-trip checklist and lock flow
+│       ├── icons/              Waypoint SVG icon set (13 glyphs, inline <svg> JSX) — replaced the
+│       │                       old emoji-based item/status icons (WP-02, extended WP-03)
 │       └── shared/             Reusable primitives (LoadingSpinner, ErrorMessage, etc.)
 │
 └── backend/
@@ -148,21 +179,29 @@ src/
     │   ├── schema.ts           Drizzle schema — single source of truth for DB shape
     │   ├── index.ts            DB client singleton
     │   ├── seed.ts             Seed runner
-    │   ├── seed-data.ts        Default category/activity/companion data
+    │   ├── seed-data.ts        Default category/activity data + map shading defaults (companions
+    │   │                       are no longer globally seeded — per-user now, ADL-28)
+    │   └── reset-staging.ts    CLI: wipes user/trip data from a Turso DB for PR preview envs;
+    │                           refuses to run against a non-"staging" remote URL without an override flag
     ├── migrations/             SQL migration files (generated by drizzle-kit)
     ├── routes/                 Express route handlers — one file per resource
     │   ├── trips.ts
     │   ├── places.ts
     │   ├── items.ts
+    │   ├── items-helper.ts     Shared items-with-extensions query logic (used by items.ts and trips.ts)
     │   ├── cities.ts
     │   ├── admin.ts
     │   ├── map.ts
-    │   └── trip-countries.ts
+    │   ├── trip-countries.ts
+    │   ├── companions.ts       Per-user companions CRUD, requireAuth only (BRD-AD08)
+    │   └── me.ts               GET /api/me — authenticated identity + isOwner flag (BUG-26)
     ├── repositories/           DB query layer — called by routes
     │   ├── trips.ts
     │   ├── places.ts
     │   ├── items.ts
-    │   └── users.ts
+    │   ├── users.ts
+    │   ├── companions.ts       Per-user companions, every query scoped to userId (BRD-AD08)
+    │   └── shadingConfig.ts    Per-user map shading config, lazily seeded on first access (BRD-AD07)
     ├── services/               Business logic that spans multiple repositories
     │   ├── shading.service.ts  Map shading state computation (country + region)
     │   ├── items.service.ts    Carry-forward and item transaction logic
@@ -322,8 +361,12 @@ they run against the **real** server (`npm run start` with `BYPASS_AUTH=true`), 
 - **PRs:** COO reviews and merges. Squash merge is standard.
 - **Auth in local dev:** set `BYPASS_AUTH=true` in `.env.local` — the devcontainer
   firewall cannot reach Clerk's JWKS endpoint.
-- **Two-panel layout:** left panel is the trip list; right panel (`data-testid="trip-detail-panel"`)
-  is the `<Outlet />`. Locators and tests should scope to the correct panel.
+- **Two-panel layout (desktop, ≥768px):** left panel is the trip list; right panel
+  (`data-testid="trip-detail-panel"`) is the `<Outlet />` (`DesktopTripsLayout.tsx`).
+  Below 768px, `MobileTripsLayout.tsx` (WP-04) renders a single-panel list/detail
+  slide layout instead — no `<Outlet />` there, but the same `trip-detail-panel`
+  test id is kept on the detail surface. Locators and tests should scope to the
+  correct panel/viewport.
 - **Agent sections below** are maintained by the relevant agent and may be more
   detailed than what appears here.
 
