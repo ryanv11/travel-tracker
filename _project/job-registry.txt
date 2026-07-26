@@ -20,7 +20,13 @@ ACTIVE AGENT ROLES
 
 COO
   Directory:        jobs/COO/
-  System prompt:    jobs/COO/COO-system-prompt.txt
+  System prompt:    none as a file — COO is the interactive session, not a dispatched
+                     subagent, so there is no .claude/agents/coo.md wrapper to load one.
+                     Persona and operating standards live in .claude/skills/coo-startup/
+                     SKILL.md, run via /coo-startup at the start of every session; the
+                     workflow rules live in CLAUDE.md and /coo-merge-and-close. The former
+                     jobs/COO/COO-system-prompt.txt was deleted 2026-07-26 (QUAL-06) —
+                     nothing had ever loaded it.
   Responsibility:   Coordination, prioritisation, PR review and merge, session
                      management. Writes briefs to other agents' inboxes and
                      reviews their completion reports.
@@ -95,7 +101,7 @@ Integrations
   Job ID prefix:    INTEGRATIONS
 
 ================================================================================
-STANDARD JOB DIRECTORY SHAPE (every agent above except PO)
+STANDARD JOB DIRECTORY SHAPE (every agent above except PO and COO)
 ================================================================================
 
 jobs/<agent>/
@@ -127,6 +133,18 @@ direct result (see change log below).
 ================================================================================
 CHANGE LOG
 ================================================================================
+
+2026-07-26  COO   COO's "System prompt" entry corrected (QUAL-06). It pointed at
+                   jobs/COO/COO-system-prompt.txt, which existed but was never
+                   loaded by anything — no .claude/agents/coo.md, and neither
+                   CLAUDE.md nor /coo-startup referenced it — so its persona and
+                   standards had never once executed. Persona + operating
+                   standards migrated into .claude/skills/coo-startup/SKILL.md
+                   (which does run every session); obsolete git and park-doc
+                   sections dropped as superseded; the file deleted. Note the
+                   2026-07-07 audit passed this file as "Clean" on the basis that
+                   "system-prompt paths exist" — a referential check that asks
+                   whether the pointer resolves, not whether anything follows it.
 
 2026-07-07  COO   Backfilled this file — it existed as an empty 0-byte stub
                    since project init (2026-03-07) and was never populated.
