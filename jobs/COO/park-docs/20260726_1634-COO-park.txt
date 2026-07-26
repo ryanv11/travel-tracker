@@ -1,0 +1,99 @@
+COO SESSION PARK — 2026-07-26 1634 UTC (production promotion drift found + closed; BUG-63 logged)
+================================================================================
+
+## Session summary
+Picked up post-/clear with no live thread. Ran /coo-startup — all clean (hooks OK,
+main CI green modulo known-red DEP-01, UAT stable, drift ledger clean, BRD coverage
+clean, lifecycle clean).
+
+Ryan reported a live bug: as a non-owner, forbidden from creating a trip, and no
+country values in the trip-creation country picker, attributed to the AD07/AD08
+deploy. Investigated thoroughly before concluding anything:
+
+- Reviewed every AD07/AD08 diff (trips.ts, admin.ts, map.ts, server.ts,
+  companions.ts) — no owner-gate added to trip creation or the countries endpoint.
+- Ran the full relevant backend test suite (security.access-matrix.test.ts,
+  owner-access.test.ts, companions.test.ts, map.test.ts, trips.test.ts) — 142
+  passed, 0 failed, including the exact Part E regression test for this class of
+  bug (BUG-61/ADL-38).
+- Spun up the backend locally simulating a non-owner via BYPASS_AUTH and hit the
+  real endpoints directly: GET /api/admin/countries → 200 (250 rows), POST
+  /api/trips → 201. Found one real but unrelated bug: local /workspace/dev.db was
+  never migrated after PR #240, so GET /api/companions/active 500s locally (schema
+  missing user_id). Local-only, not present on staging.
+- Used the read-only Railway/Turso diagnostic scripts (scripts/agent-diagnostics/)
+  to check staging directly: migration 0012 correctly applied, 250 countries
+  seeded, 2 non-owner users exist, no errors in staging deploy logs around
+  trips/companions/countries/admin since the AD07/AD08 deploy.
+- Checked production the same way — and found the actual root cause: production's
+  `production` branch HEAD (c9c86f3, 2026-07-22 21:07) was one promotion behind
+  main, predating BOTH the BUG-61/ADL-38 countries-read fix (1e36620, merged
+  21:53:56 that same session) AND all of AD07/AD08. Production was promoted at
+  21:15 that session, then BUG-61 landed on main at 21:53 — but production was
+  never re-promoted afterward. Confirmed via git ancestry (`merge-base
+  --is-ancestor`) and independently via Turso: production's companions table
+  still lacked the user_id column. This exactly reproduces the original,
+  already-fixed BUG-61 symptom (non-owner country picker 403s and renders empty)
+  — just never shipped to prod. Not an AD07/AD08 regression at all.
+
+Fixed: verified production was a clean fast-forward ancestor of main, then pushed
+`git push origin origin/main:refs/heads/production` (299ab5c) — the documented
+manual promotion step. Railway's redeploy is queued but stuck on
+"Deployment queued due to upstream GitHub issues" — the same Railway-side queueing
+problem as last week (not a repo/CI issue). Ryan is monitoring this himself; not
+yet confirmed live as of this close.
+
+Separately, Ryan and a friend both independently hit a mobile-specific "forbidden"
+error blocking trip creation for a non-owner, on staging, sometime after the
+AD07/AD08 deploy — not reproducible on request, no captured network response.
+Investigated but found nothing wrong in current code/staging state (same clean
+test-suite + log findings as above). Logged as BUG-63 with a documented working
+theory (imprecise description of a 401 rather than a literal 403 — mobile Clerk
+token/session edge case, or an azp-origin-allowlist mismatch per HC-02 — worth
+checking next occurrence) so the report survives this session boundary. PR #248
+(tracker entry + regenerated STATUS.md), CI green modulo DEP-01, squash-merged,
+main verified green.
+
+## Completed this session
+- Diagnosed and closed the production promotion-drift gap (git push, no PR — this
+  is the documented direct-promotion step, distinct from the branch-per-brief PR
+  workflow)
+- PR #248 — BUG-63 logged (non-owner mobile "forbidden" trip-create, unreproducible),
+  STATUS.md regenerated
+- Main verified green after merge (DEP-01 excepted, known-red/tracked)
+- Local dev.db staleness noted (companions table missing user_id post-PR#240) —
+  not fixed this session, flagged below
+
+## State of play
+- **Production:** promotion pushed (299ab5c), Railway deploy QUEUED as of this
+  close — stuck on Railway's own upstream GitHub-integration queueing issue, same
+  symptom as last week. Not yet confirmed live. Ryan is watching it himself.
+- **BUG-63 (new, P2, pending, unassigned):** non-owner mobile "forbidden"
+  trip-create error, reported independently by Ryan and a friend, not currently
+  reproducible. No brief until it recurs with a captured network response or a
+  concrete lead surfaces.
+- **Local dev.db (not tracked, minor):** /workspace/dev.db predates migration
+  0012 — GET /api/companions/active 500s locally for any non-owner test. Fix is
+  `npm run db:migrate` whenever someone next needs local companions data; not
+  urgent enough to track formally, noting here for continuity.
+- Everything else unchanged from the prior close: BUG-50/BUG-51 (P1, UAT-found,
+  not yet briefed), BUG-62 (P2, admin panel page-gating), D-04–D-09 open
+  dialogues, PR #126 (open, untouched), DEP-01 npm audit backlog (still red on
+  main), ADL-39 F4 (stale OneDrive doc references).
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — unchanged this session (D-04 through D-09).
+The Railway deploy-queueing issue is NOT logged there — it's a recurring
+Railway-platform symptom outside repo control that Ryan is handling directly,
+not a decision or proposal awaiting resolution.
+
+## Restart preview
+Shown to Ryan before this doc was written; confirmed accurate ("nope, close out").
+**Captured:** production promotion (git push), root-cause diagnosis for the
+country-picker report, BUG-63 logged + PR #248 merged, STATUS.md regenerated,
+main green.
+**Captured, not actioned:** BUG-50, BUG-51, BUG-62, D-04–D-09, PR #126, DEP-01,
+ADL-39 F4 — all pre-existing, untouched this session.
+**Not captured:** the production Railway deploy's queued/unconfirmed-live status
+— explicitly Ryan's to monitor, not a repo action item, but worth knowing next
+session if it's referenced as "already promoted."
