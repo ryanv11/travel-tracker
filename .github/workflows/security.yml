@@ -1,8 +1,24 @@
 name: Security Checks
 
+# ADL-40: `production` is deliberately excluded from the push trigger.
+#
+# The dependency-scan job runs `npm audit`, which queries the GitHub Advisory
+# Database at run time — so its verdict is a function of commit *and date*, not
+# commit alone. That broke promotion: 299ab5c passed on main 2026-07-24 and the
+# identical tree failed on production 2026-07-26, because GHSA-v422-hmwv-36x6
+# (body-parser) was published in between. Railway gates prod deploys on CI green
+# and is all-or-nothing about which checks count, so a newly-published advisory
+# blocked prod deploys entirely — including the deploy that would have fixed it.
+#
+# Check runs attach to a commit SHA, not a branch, and `production` is only ever
+# fast-forwarded from main (never a PR target). So a promoted SHA already carries
+# this workflow's green statuses, earned on main. Skipping the re-run doesn't
+# remove the security verdict — it freezes it at the point it was earned, which
+# is what makes promotion deterministic. ci.yml still runs on every branch and
+# still gates production.
 on:
   push:
-    branches: ["**"]
+    branches-ignore: ["production"]
   pull_request:
     branches: [main, master]
 

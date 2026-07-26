@@ -1,5 +1,5 @@
 # Travel Tracker — Security Backlog
-**Version:** 1.2
+**Version:** 1.3
 **Date:** 2026-07-26
 **Author:** COO
 **Source:** BACKEND security report (20260308_1000-BACKEND-security-report.txt)
@@ -106,6 +106,34 @@ vulnerabilities remain — the 4 already-accepted esbuild/drizzle-kit findings p
 
 ---
 
+## Where the dependency scan runs (ADL-40, 2026-07-26)
+
+The `Dependency Vulnerability Scan` job **no longer runs on the `production` branch**
+(`.github/workflows/security.yml` uses `branches-ignore: ["production"]`). Canonical
+decision record: **ADL-40** — this section is a pointer, not a second authority.
+
+Why, in one line: `npm audit` queries the advisory database at run time, so its verdict is
+a function of commit **and date** — the identical tree passed on `main` (2026-07-24) and
+failed on `production` (2026-07-26) when GHSA-v422-hmwv-36x6 was published in between,
+which blocked all production deploys via Railway's CI gate.
+
+What this does **not** change:
+
+- The scan still runs on **every PR and every push to `main`** — unchanged detection. Both
+  DEP-01 and DEP-02 were found this way and would be found identically today.
+- Promoted commits keep their security verdict. Check runs attach to a **commit SHA, not a
+  branch**, and `production` is only ever fast-forwarded from `main`, so every promoted SHA
+  already carries this workflow's green statuses. The verdict is frozen at the point it was
+  earned, not removed.
+- `ci.yml` is unchanged and still gates production deploys.
+
+**Residual gap, accepted:** a commit pushed *directly* to `production`, bypassing `main`,
+would never be security-scanned. Contained by process only (CLAUDE.md makes `production`
+fast-forward-only and off-limits to agents), not by the workflow. Revisit if direct pushes
+to `production` ever become possible.
+
+---
+
 ## Accepted Risks
 
 | ID | Finding | Decision | Rationale | Date |
@@ -129,4 +157,5 @@ vulnerabilities remain — the 4 already-accepted esbuild/drizzle-kit findings p
 | 1.0 | 2026-03-08 | Initial security backlog created from BACKEND Phase 1 security report |
 | 1.1 | 2026-07-07 | DEP-01 (#98, ADL-30): npm audit pass — 23 non-breaking fixes, drizzle-orm GHSA-gpj5-g38j-94v9 fixed by 0.45.2, esbuild/drizzle-kit moderate cluster formally accepted; superseded the 2026-03-08 "npm Audit — Deferred" section |
 | 1.2 | 2026-07-26 | DEP-02 (#250): npm audit pass — body-parser + postcss highs fixed non-breaking, esbuild/drizzle-kit cluster re-affirmed accepted (unchanged), react-router moderate cluster newly deferred |
+| 1.3 | 2026-07-26 | ADL-40: Dependency Vulnerability Scan excluded from the `production` branch — time-varying checks must not gate deploys. Detection on PRs/`main` unchanged; `ci.yml` still gates production. |
 

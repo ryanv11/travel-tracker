@@ -123,4 +123,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_118 done · 10 deferred · 2 closed · 44 open — 174 tracked items_
+_119 done · 10 deferred · 2 closed · 44 open — 175 tracked items_
