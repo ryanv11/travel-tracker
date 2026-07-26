@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (45)
+## Open work (46)
 
 ### P0 — Blockers (1)
 
@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (26)
+### P2 — Important (27)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -48,6 +48,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
 | BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
 | OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
+| OQ-03 | Approximate/partial dates for shell trips — year-only or month-only, and their effect on shading and ordering | architect | ⬜ Pending |
 | BUG-40 | Place deletion should prompt (delete all / move to trip-level / cancel) when the place has items | fullstack | ⬜ Pending |
 | BUG-41 | Multi-leg / connecting flights within a single booking | architect | ⬜ Pending |
 | BUG-42 | Multiple companions/seats per booking item | architect | ⬜ Pending |
@@ -89,7 +90,7 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
-| requirement | `███████████████████░` 31/33 | 31 | 2 | 5 |
+| requirement | `██████████████████░░` 31/34 | 31 | 3 | 5 |
 | bug | `███████████████░░░░░` 41/55 | 41 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `██████████████░░░░░░` 7/10 | 7 | 3 | 0 |
@@ -124,4 +125,4 @@ _Tracker last updated: 2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGIN
 
 ---
 
-_119 done · 10 deferred · 2 closed · 45 open — 176 tracked items_
+_119 done · 10 deferred · 2 closed · 46 open — 177 tracked items_

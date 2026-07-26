@@ -203,6 +203,7 @@ Screenshots are stored in `jobs/PO/screenshots/`.
 ## Key files
 See [CODEBASE.md](./CODEBASE.md) for the full repository map. Essential references:
 - `_project/tracker.json` — Feature/bug tracker (COO-maintained)
-- `_project/travel-tracker-BRD.md` — Business requirements document (v2.7)
+- `_project/travel-tracker-BRD.md` — Business requirements document (version is in its own
+  header; deliberately not duplicated here so it cannot go stale)
 - `src/backend/db/schema.ts` — Drizzle schema (single source of truth)
 - `patches/drizzle-kit+0.31.9.patch` — drizzle-kit SQLite bug fixes (patch-package)

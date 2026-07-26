@@ -69,7 +69,7 @@
       "status": "pending",
       "owner": "integrations",
       "priority": "P2",
-      "brdRefs": ["N-01","N-02","N-03","N-04"],
+      "brdRefs": ["N-01","N-02","N-03","N-04","N-05"],
       "phase": 5,
       "notes": "Post-MVP. Not on critical path."
     },
@@ -260,9 +260,9 @@
       "status": "done",
       "owner": "frontend",
       "priority": "P0",
-      "brdRefs": ["TR-06","TR-07","RV-01","NR-05"],
+      "brdRefs": ["TR-06","TR-07","RV-01"],
       "phase": 3,
-      "notes": "Fixed in a60ec17 — Return to Planning button + confirm dialog added to ReviewPanel. Also closes NR-05. Closed 2026-03-09."
+      "notes": "Fixed in a60ec17 — Return to Planning button + confirm dialog added to ReviewPanel. Also closes NR-05. Closed 2026-03-09. 2026-07-26 data fix: NR-05 removed from brdRefs — it is a tracker item ID, not a BRD requirement ID, so it was the only phantom BRD reference in the file (found by a BRD↔tracker sync audit). The relationship to NR-05 is retained in these notes, which is its correct home."
     },
     {
       "id": "BUG-05",
@@ -1684,6 +1684,17 @@
       "brdRefs": ["OQ-05"],
       "phase": 5,
       "notes": "Added to BRD v3.1 §10, 2026-07-20 UAT. `uniq_trip_places_trip_city` (trip_id, city_id) currently blocks realistic itineraries like Glasgow → day trip to Edinburgh → back to Glasgow. Open question for Architect: move to one-row-per-visit? Knock-on effects on map shading, DP-05/DP-06 chronological ordering, and items.trip_place_id attachment need resolving before any brief touches trip-place identity."
+    },
+    {
+      "id": "OQ-03",
+      "type": "requirement",
+      "title": "Approximate/partial dates for shell trips — year-only or month-only, and their effect on shading and ordering",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": ["OQ-03"],
+      "phase": 6,
+      "notes": "BRD §10 open question, opened in BRD v3.0 (2026-07-18 PO requirements interview). Backfilled into the tracker 2026-07-26 during a BRD↔tracker sync audit — it was the ONLY BRD requirement/open-question ID with no tracker entry (121 IDs checked, 120 covered). Question: historic trips entered via the shell-trip flow may lack exact dates; do we need approximate/partial dates (year-only, month-only), and how do they interact with map shading and chronological ordering? BRD assigns it to PO + Architect, to resolve before CU-01 is briefed. THIS IS THE SPECIFIC UNBLOCK FOR BRD-CU0103 (shell trips / historic catch-up), which is otherwise only blocked by the general 2026-07-21 deprioritization — worth resolving in the same session as the next PO UAT round, since it is a product decision needing very little investigation, not a research task."
     },
     {
       "id": "UX-11",
