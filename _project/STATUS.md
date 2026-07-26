@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-26 (QUAL-05 state-language sweep merged, PR #259, BRD v3.7; QUAL-06 doc-state cleanup: project-plan.txt deleted, security-backlog H2/M3 flipped to DONE, stale tracker notes corrected)_
+_Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup complete, PRs #259-#262: three orphaned/frozen docs deleted, security-backlog H2/M3 closed, COO persona+standards migrated into /coo-startup. BUG-64 logged: ci-wait.sh branch mode can PASS against the previous commit)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 state-language sweep merged, PR #259,
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (47)
+## Open work (49)
 
 ### P0 — Blockers (1)
 
@@ -25,12 +25,13 @@ _Tracker last updated: 2026-07-26 (QUAL-05 state-language sweep merged, PR #259,
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (2)
+### P1 — Critical (3)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
+| BUG-64 | scripts/ci-wait.sh branch mode can PASS against the previous commit — races the mandatory post-merge main check | unassigned | ⬜ Pending |
 
 ### P2 — Important (27)
 
@@ -64,7 +65,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 state-language sweep merged, PR #259,
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 
-### P3 — Minor (17)
+### P3 — Minor (18)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -85,6 +86,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 state-language sweep merged, PR #259,
 | BUG-47 | Auto-populate activities from trip/place content instead of manual pre-selection | architect | ⬜ Pending |
 | BUG-54 | Category/activity color customization | ux | ⬜ Pending |
 | BUG-56 | City name not auto-capitalized on entry | frontend | ⬜ Pending |
+| QUAL-07 | Standing docs-vs-code audit — recurring Docs brief to catch prose/reality drift before someone trips over it | docs | ⬜ Pending |
 
 ## Coverage by type
 
@@ -92,9 +94,9 @@ _Tracker last updated: 2026-07-26 (QUAL-05 state-language sweep merged, PR #259,
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `██████████████████░░` 31/34 | 31 | 3 | 5 |
-| bug | `███████████████░░░░░` 41/55 | 41 | 14 | 4 |
+| bug | `███████████████░░░░░` 41/56 | 41 | 15 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `██████████████░░░░░░` 9/13 | 9 | 4 | 0 |
+| chore | `█████████████░░░░░░░` 9/14 | 9 | 5 | 0 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -126,4 +128,4 @@ _Tracker last updated: 2026-07-26 (QUAL-05 state-language sweep merged, PR #259,
 
 ---
 
-_121 done · 10 deferred · 2 closed · 47 open — 180 tracked items_
+_121 done · 10 deferred · 2 closed · 49 open — 182 tracked items_
