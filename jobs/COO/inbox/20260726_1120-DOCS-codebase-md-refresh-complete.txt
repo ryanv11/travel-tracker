@@ -1,0 +1,45 @@
+Tracker ID: none (documentation maintenance) · PR #256 · BRD section: n/a · Branch: chore/codebase-md-refresh
+
+WHAT WAS DOCUMENTED
+Refreshed CODEBASE.md's "App source tree (src/)" section to match the actual src/ tree,
+stale since PR #110 (2026-07-15). Every added entry was verified by reading the file's
+actual content, not inferred from its name.
+
+COVERAGE
+- Backend: routes/companions.ts, routes/me.ts, routes/items-helper.ts, repositories/
+  companions.ts, repositories/shadingConfig.ts, db/reset-staging.ts (missed by the COO's
+  seed list) all now documented — BRD-AD07/AD08, BUG-26.
+- Frontend: hooks/useMe.ts, hooks/useIsMobile.ts, TripDetail/StatusStepper.tsx,
+  MobileTripDetailView.tsx, TripItemsSection.tsx, useTripDetailController.ts (missed by
+  the COO's list), Map/MapLegend.tsx, TripList/DesktopTripsLayout.tsx +
+  MobileTripsLayout.tsx (missed — TripsLayout.tsx no longer IS the shell, it now routes
+  between these two), and the previously-absent pages/, utils/, design/, services/
+  directories and the icons/ directory.
+- Corrected two prose sections the same reskin invalidated: seed-data.ts's description
+  (companions no longer globally seeded, ADL-28) and the "Key conventions" two-panel-
+  layout bullet (mobile doesn't use <Outlet/>, per MobileTripsLayout.tsx's own doc
+  comment).
+
+CI: gh pr checks 256 — all 9 jobs green (Biome, Type Check, Backend/Frontend/Contract/E2E
+Tests, Dependency Scan, Secret Scan, Semgrep). scripts/ci-wait.sh pr 256 confirmed PASS.
+
+FINDINGS BEYOND THE SEED LIST (not fixed — out of scope for a docs-only PR, flagging for
+triage)
+1. src/frontend/pages/TripsPage.tsx is dead code — App.tsx routes /trips directly to
+   TripsLayout, never to TripsPage, and nothing else imports it. Noted in CODEBASE.md
+   rather than deleted.
+2. src/backend/db/seed-data.ts still exports an unused `COMPANIONS` constant — dead code
+   left over from the ADL-28 migration that removed the global companions seed list
+   (grepped src/backend/, no importers). A Backend/cleanup candidate.
+3. src/frontend/theme-waypoint.css's own header comment says "PHASE 1 ONLY — defined-
+   but-unused," but badges.ts (WIRED, per its own header) and the reskinned Trips/
+   TripDetail components consume its wp-* tokens throughout. This is a source-code
+   comment, not a CODEBASE.md fact — left alone, flagging in case a WP cleanup brief
+   wants it fixed at the source.
+
+None of the three block anything.
+
+OPEN ISSUES/BLOCKERS: none.
+
+WHAT IS NOW UNBLOCKED: CODEBASE.md is accurate again for anyone (human or agent)
+orienting in src/ — no engineering work was gated on this, it was pure doc lag.
