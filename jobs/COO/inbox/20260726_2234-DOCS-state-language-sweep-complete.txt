@@ -1,0 +1,87 @@
+QUAL-05 · GitHub #258 → PR #259 · BRD v3.6→v3.7 · Branch: chore/docs-state-language-sweep
+
+WHAT WAS DOCUMENTED
+Swept CODEBASE.md and the BRD for prose asserting current system state that decays as
+work progresses (vs. intent/rationale that only changes on a new decision), per the
+brief's state-vs-intent test. Fixed all 3 known instances plus items the sweep found
+independently; stamped decision-superseded prose using the existing NF-01/NF-04
+supersession convention rather than a new rule.
+
+COVERAGE
+- CODEBASE.md: removed stale localhost-beta/Electron delivery target (NF-09 shipped,
+  OQ-02 RESOLVED); corrected DB stack row + data-flow diagram (Turso in staging/prod,
+  ADL-32); added a new Environments section (local/staging/production/preview, ADL-35/
+  OP-22 promotion model, ADL-40's production security-checks exclusion); added a
+  staging/production env-var table to Configuration files (incl. the ALLOWED_ORIGINS gap
+  that caused BUG-59); refreshed CI/CD section + footer timestamp; noted Waypoint's
+  in-app rename (WP-01).
+- BRD v3.7 (header + §13 changelog + body, all consistent, status stays Approved): §3
+  Users and §5.15 preamble and §11 Assumptions all had the "phone is reference-only, not
+  an editing surface" framing — stamped SUPERSEDED by WP-04 (shipped fully-editable
+  mobile layout). MB-01's own requirement text is untouched. §11's stale "hosted-vs-file
+  deployment is OQ-04" corrected to RESOLVED (ADL-32) — duplicate of an already-closed
+  §10 row. Single v3.7 changelog row covers the whole sweep.
+- Tracker: added QUAL-05 (#258, #259 in notes) — the one permitted edit. STATUS.md
+  regenerated.
+
+§5.3 ITEMS — FLAGGED, NOT TOUCHED (per brief, these need a PO/Architect decision)
+1. §7/§11 import vs. manual-entry contradiction — IM-01–33 drafted, not approved. PO call.
+2. §5.11 SE-01/SE-03 three-role model has drifted from AD-07/AD-08's per-user reality;
+   BUG-61/62/63 are the live symptoms. PO + Architect call, not a wording fix.
+3. §5.7 PH-02 ("app does not store or copy photos") will read as contradicting IM-06 if
+   import is ever approved — consistent today, needs explicit wording only if/when IM
+   ships. PO call, conditional.
+4. §5.15 MB-01's own requirement text scopes mobile to read-only; shipped reality (WP-04)
+   exceeds it. Whether to widen MB-01's stated scope is a PO call — preamble is stamped,
+   MB-01 itself is untouched.
+
+OTHER DURABLE DOCS WITH THE SAME CLASS OF ISSUE (report only — zero edits)
+- _project/project-plan.txt — v1.0, dated 2026-03-07, never updated since. Still frames
+  the launch target as a packaged Electron .app (line 15, echoes the exact CODEBASE.md
+  error this brief fixed) and phase statuses (ACTIVE/BLOCKED/PENDING, lines 58-121) that
+  don't match reality — e.g. Phase 4 shows ACTIVE/BLOCKED here but closed per commit
+  c544b31 this session. Line 134 still says "PostgreSQL (Phase 2)" where ADL-32 chose
+  Turso, not Postgres. This is the single strongest candidate for either a rewrite or an
+  explicit HISTORICAL banner (CLAUDE.md lifecycle rule §3) — as currently written it's
+  the most out-of-date document in the repo I found.
+- _project/security-backlog.md — line 21 (H2 "No HTTPS — plaintext transport," status
+  OPEN) and line 22 (M3 "trust proxy not configured," status OPEN) are both actually
+  resolved: Railway terminates TLS for the hosted app (NF-09 success criteria, confirmed
+  live 2026-07-21), and trust proxy was fixed by ADL-37/BUG-60 (verified live 2026-07-22).
+  This doc's own header calls itself "the authoritative record for all security
+  decisions" and instructs "update whenever a finding is resolved" — these two rows
+  weren't, despite both being closed elsewhere in the tracker/ADL log.
+- README.md — "Data storage" section (and the tech-stack table's DB row) describe only
+  the local SQLite file with no mention that staging/production run on hosted Turso.
+  Not factually wrong for local dev (which is the section's apparent scope) but a reader
+  using README as their only reference would not learn the app is hosted at all — same
+  gap CODEBASE.md had before this PR.
+
+STATE CLAIM WITH NO HOME ELSEWHERE
+None found — every state claim fixed or flagged had an existing owner (a resolved
+OQ/ADL, a shipped WP requirement, or the tracker).
+
+STATE-VS-INTENT TEST — USABILITY ASSESSMENT
+The test classified every case in CODEBASE.md and the BRD without ambiguity — each
+sentence tested cleanly as "breaks on progress alone" or "breaks only on a new decision."
+The one genuine judgment call was §5.15/§11's phone-reference framing: it reads like a
+factual assumption but is really downstream of a design decision (WP-04) that changed
+mobile's scope, so supersession-stamping (not deletion) was the right tool, not the
+plainer "remove" branch of the test. Worth noting for reuse: the test's two branches
+(remove vs. stamp) need that judgment call spelled out explicitly, or a future sweep
+might delete decision-superseded text instead of stamping it. Recommend the test as a
+standing check with that one clarification, and recommend the §9 recurring docs-vs-code
+audit brief given project-plan.txt's condition — both are recommendations only, not
+started.
+
+CI: gh pr checks 259 — 9/9 pass (scripts/ci-wait.sh pr 259 confirmed PASS)
+
+OPEN ISSUES / BLOCKERS: None.
+
+WHAT'S UNBLOCKED
+BRD is now internally consistent for anyone reading §3/§5.15/§11 without tribal
+knowledge of WP-04. CODEBASE.md's new Environments section gives Backend/Architect a
+single place to point at instead of re-explaining Railway/Turso/promotion per brief.
+project-plan.txt and security-backlog.md dispositions are ready for COO to route
+(fix-in-place, HISTORICAL banner, or a follow-on Docs brief) whenever convenient — not
+blocking anything.

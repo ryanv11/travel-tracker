@@ -1,6 +1,6 @@
 # Business Requirements Document
 ## Travel Tracker Application
-**Version:** 3.6
+**Version:** 3.7
 **Date:** July 2026
 **Author:** Claude (BSA/COO) / Ryan V (Product Owner)
 **Status:** Approved
@@ -38,8 +38,10 @@ The product identity, in priority order (PO direction 2026-07-18):
 
 ## 3. Users
 
-**Primary user:** Ryan (personal use — browser app; hosted for own use on the near-term
-roadmap, laptop is always available when travelling, phone used as a reference device)
+**Primary user:** Ryan (personal use — hosted browser app, NF-09; ~~laptop is always
+available when travelling, phone used as a reference device~~ **SUPERSEDED (2026-07-26)
+by WP-04** — the mobile browser is now a full editing surface, not reference-only;
+retained for history)
 **Near-term users (~6 months):** Trip companions with edit access — co-planning
 (contributing to the idea pool) is the target first companion capability
 **Future users:** Wider sharing (view links, recommendations) — Phase 3+
@@ -291,8 +293,14 @@ places can't be revisited after moving on), not a requirement for every trip.
 
 ### 5.15 Mobile Reference Mode (v3.0)
 
-The phone is a **reference device**, not an editing surface: mid-trip, the user checks
-booking details and gets directions. The laptop travels on every trip for everything else.
+> ~~The phone is a **reference device**, not an editing surface: mid-trip, the user
+> checks booking details and gets directions. The laptop travels on every trip for
+> everything else.~~ **SUPERSEDED (2026-07-26) by WP-04** — the Waypoint mobile Trips
+> reskin shipped a fully editable mobile layout (list + detail views, with Edit/Photos
+> actions reachable from the mobile detail header). Retained for history. This does not
+> change MB-01/MB-02 below, which describe the read/directions path specifically — whether
+> mobile's requirement scope should be revised to match shipped reality is a separate PO
+> decision, not made here (flagged to COO, tracker QUAL-05).
 
 | ID | Requirement | Success criteria |
 |----|-------------|------------------|
@@ -404,12 +412,15 @@ The following are explicitly out of scope for MVP but must not be architecturall
 - Ryan will manually enter all historical trip data — no import tooling required; shell
   trips (§5.14) keep the per-trip cost low. The existing seeded/test data is entirely
   synthetic and will be wiped, not migrated
-- Primary usage is on the Mac (laptop travels on every trip); the phone is a reference
-  device only (§5.15)
+- ~~Primary usage is on the Mac (laptop travels on every trip); the phone is a reference
+  device only (§5.15)~~ **SUPERSEDED (2026-07-26) by WP-04** — the phone is now a full
+  editing surface, not reference-only; retained for history
 - ~~OneDrive sync is acceptable for personal multi-device use~~ **SUPERSEDED (2026-07-18)**
   — hosting (NF-09) replaces file-sync
 - Photo albums are managed externally (Apple Photos, Google Photos etc) — the app stores a reference link only
-- SQLite/libSQL is the database format; hosted-vs-file deployment is OQ-04
+- SQLite/libSQL is the database format; hosted-vs-file deployment ~~is OQ-04~~ **RESOLVED
+  (2026-07-20) by ADL-32** — Turso (hosted libSQL) for staging and production, file-based
+  for local development only
 
 ---
 
@@ -445,5 +456,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 3.4 | July 2026 | COO / Ryan V (PO) | Corrected WP-02's icon-set count: v3.3 said "11-glyph," but the UX spec's own §3 tables (8 item/status icons + 4 nav/chrome icons) enumerate 12 with real path data — arithmetic error, not a scope change. Surfaced by Frontend during WP-02 implementation (PR #198), which built all 12 with no principled basis to drop one. WP-02 row corrected to "12-glyph" |
 | 3.5 | July 2026 | COO / Ryan V (PO) | Closed the C1–C13 Phase 2 conflict-resolution gate (all resolved 2026-07-21, stamped into `jobs/ux/tech/20260721-UX-waypoint-spec.md`, PR #203) — WP-03/WP-04 now unblocked for Frontend dispatch. WP-04 revised: mobile Edit/Photos entry point changes from v3.3/v3.4's "overflow (⋯) menu" to a compact icon-only pair — two conflicting PO answers were given in the same session, so the final call was explicitly delegated to UX, who chose the icon pair (affordance/discoverability over premature menu-hiding at 2 actions). Added an explicit no-horizontal-scroll constraint to WP-04 (mobile Trips screen, status filter chips excepted). C10 (left panel width, 320px→340px) and the Confirmed/Completed badge-hue split (Confirmed stays hue 150, Completed moves to hue 220 — concrete tokens picked by UX) are recorded at the design-detail level in the spec, not restated here. Noted for Frontend: shipped Phase 1 code (`src/frontend/design/badges.ts`) still collapses Confirmed/Completed to one hue per the mockup's literal content — fixing this is in scope for the WP-03/WP-04 implementation brief, not a new BRD item |
 | 3.6 | July 2026 | COO / Ryan V (PO) | Added success criteria to AD-07 (map shading per-user) and AD-08 (companions per-user) — neither had a measurable definition of done, required before either can be briefed per the success-criteria gate. Criteria drawn from ADL-28's already-decided design (`jobs/architect/tech/ADL-28-per-user-shading-companions.md`): per-user isolation (config, shading computation, companion lists), lazy default seeding, `requireOwner`→`requireAuth`+userId-scoping on the affected routes, cross-user companion assignment rejected with 400, and migration preserving existing data under the owner. No requirement text changed beyond appending success criteria; BRD-AD07/BRD-AD08 tracker entries already exist from ADL-28's delivery, unchanged by this bump |
+| 3.7 | July 2026 | Docs / Ryan V (PO) | State-language sweep (QUAL-05) — no requirement meaning changed. §3 Users: removed the stale "hosted for own use on the near-term roadmap" framing (shipped, NF-09/ADL-32) and stamped the laptop-always-available/phone-reference-device framing as superseded by WP-04 (shipped fully editable mobile layout). §5.15 preamble ("phone is a reference device, not an editing surface"): stamped SUPERSEDED by WP-04, retained for history — MB-01/MB-02 requirement text itself is unchanged, its scope relative to shipped mobile editing is flagged separately for a PO decision, not resolved here. §11 Assumptions: same phone-reference-device framing stamped superseded by WP-04; "hosted-vs-file deployment is OQ-04" corrected to RESOLVED (ADL-32) — OQ-04 was already closed at §10 and this was a stale duplicate. No change to §5.3-flagged items (SE-01/03 three-role drift, PH-02/IM-06 photo wording, import-vs-manual-entry §7/§11) — reported to COO, left untouched pending PO/Architect decisions |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*
