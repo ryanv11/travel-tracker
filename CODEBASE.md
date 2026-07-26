@@ -20,8 +20,9 @@ the boundary and the plan.
 6. [The agent workflow system (`jobs/`)](#the-agent-workflow-system-jobs)
 7. [Project management (`_project/`)](#project-management-_project)
 8. [Two projects in one repo](#two-projects-in-one-repo)
-9. [CI/CD](#cicd)
-10. [Key conventions](#key-conventions)
+9. [Environments](#environments)
+10. [CI/CD](#cicd)
+11. [Key conventions](#key-conventions)
 
 ---
 
@@ -32,9 +33,15 @@ Travel Tracker is a personal travel logging app. You record trips, attach places
 notes. Trips progress through a status lifecycle: Planning → Active → Review → Locked.
 A world map shows your travel history with country and region shading.
 
-Current delivery target: localhost web app in browser (beta). Architecture is designed
-to support packaging as a desktop app (Electron/Tauri) and future iOS migration without
-a data model rebuild.
+The app is a hosted web app (Railway + Turso, see [Environments](#environments) below),
+accessed via browser, with real authentication (Clerk) — NF-09. Architecture is designed
+to support future iOS migration without a data model rebuild (NF-06); a packaged desktop
+app (Electron/Tauri) was considered and dropped (OQ-02, RESOLVED 2026-07-18).
+
+In the running app, the product name is **Waypoint** — the nav bar, browser tab title,
+and other in-app copy render "Waypoint," not "Travel Tracker" (WP-01). Repo name, this
+document, and other project-identity artifacts outside the running app are explicitly
+out of scope for that rename.
 
 ---
 
@@ -50,7 +57,7 @@ a data model rebuild.
 | Auth | Clerk (React SDK v6) | JWT-based; bypassed in local dev via `BYPASS_AUTH=true` |
 | Backend | Express v5 | REST API, TypeScript |
 | ORM | Drizzle ORM | Schema-first, typed queries |
-| Database | SQLite via libSQL (`@libsql/client`) | Local file; architecture supports Postgres/Turso |
+| Database | SQLite via libSQL (`@libsql/client`) | Turso (hosted libSQL) in staging and production (ADL-32); local file (`file:./dev.db`) in local dev only |
 | Validation | Zod v4 | Schema validation on API inputs |
 | Security middleware | Helmet, express-rate-limit | Applied in `server.ts` |
 | Testing — unit | Vitest + Testing Library | Separate configs for backend/frontend |
@@ -216,12 +223,17 @@ src/
 ```
 Browser → React component
        → TanStack Query hook (useTrips, usePlaces, etc.)
-       → fetch() to Express API (localhost:3001)
+       → fetch() to Express API
        → Auth middleware (JWT check)
        → Route handler (routes/)
        → Repository (repositories/) — Drizzle query
-       → SQLite file
+       → SQLite (local dev: local file · staging/production: Turso, ADL-32)
 ```
+
+In local dev, the API is a separate process on `localhost:3001` (Vite proxies `/api` to
+it). In staging and production, one Railway service serves both the built frontend
+(`express.static` + SPA fallback) and the API from the same origin — there is no
+separate API host to name. See [Environments](#environments).
 
 ---
 
@@ -233,8 +245,21 @@ Browser → React component
 | `vite.config.ts` | Frontend build; proxies `/api` to `:3001` in dev |
 | `tsconfig.frontend.json` | Strict TS for `src/frontend/` |
 | `tsconfig.backend.json` | TS for `src/backend/` — module resolution differs |
-| `.env.local` | Secrets — DB path, Clerk keys, `BYPASS_AUTH`. Never committed. |
+| `.env.local` | Secrets — DB path, Clerk keys, `BYPASS_AUTH`. Never committed. Local dev only — staging and production set the equivalents below via Railway's variable store (per-environment, never in a committed file). |
 | `patches/drizzle-kit+0.31.9.patch` | Fixes 4 drizzle-kit SQLite bugs; auto-applied on `npm install` via patch-package |
+
+Staging and production (Railway) set these in place of `.env.local`'s local-dev values
+(ADL-32 §7):
+
+| Variable | Purpose |
+|---|---|
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | Hosted libSQL connection — separate credentials per environment (production DB vs. staging/preview DB) |
+| `HOST=0.0.0.0`, `NODE_ENV=production` | Bind for Railway's proxy; local dev stays `127.0.0.1` |
+| `ALLOWED_ORIGINS` | CORS + Clerk `azp` allowlist — must include the environment's actual scheme-qualified origin (`https://...`), not just the bare hostname. A missing `https://` scheme on staging's value caused a full white-screen CORS failure (BUG-59) |
+| `CLERK_JWKS_URI`, `CLERK_ISSUER`, `OWNER_CLERK_ID`, `VITE_CLERK_PUBLISHABLE_KEY` | Clerk auth, carried over from local dev's equivalents |
+| `VITE_MAPTILER_KEY` | Map tile provider key |
+| `VITE_API_BASE_URL` | Deliberately left **unset** in staging/production (same-origin API+frontend service) — a placeholder value here breaks routing, it must be a true unset so the frontend falls back to relative paths |
+| `BYPASS_AUTH` | Never set in staging or production — a `NODE_ENV === 'production'` guard makes it a fatal error if it is (SE-06) |
 
 ---
 
@@ -337,20 +362,85 @@ is in `src/`, `geo/`, `data/`, and the config files at the root. The rest is pro
 
 ---
 
+## Environments
+
+Three environments, each a Railway environment watching a different ref, per ADL-32
+(platform/database choice) and ADL-35/OP-22 (the two-environment promotion model):
+
+| Environment | Watched ref | Deploys when | Database |
+|---|---|---|---|
+| **Local** | — (not Railway) | `npm run dev` / `npm run dev:api` | Local SQLite file (`SQLITE_PATH=file:./dev.db`) |
+| **Staging** | `main` | Continuously — every merge to `main`, gated on CI green | Staging Turso instance |
+| **Production** | `production` branch | Explicitly — only when `production` is fast-forwarded to a soaked `main` commit and pushed | Production Turso instance |
+| **Preview** (per-PR, optional) | PR head | Automatically per open PR | Staging Turso instance (shared, never production) |
+
+**Promotion is a manual, zero-glue fast-forward, not a tag or a GitHub Action:**
+
+```
+git fetch origin
+git merge --ff-only origin/main   # while on a local `production` branch
+git push origin production
+```
+
+Railway's own branch-watching does the deploy — there is no CI job or script that
+triggers a production deploy. This is a deliberate choice (ADL-35): using Railway's
+native branch-watching for both environments avoids hand-rolled deploy glue (a
+`flyctl`/`railway up`-style CI step), and fast-forward-only promotion makes it
+structurally impossible for a commit to reach `production` without having first been an
+ancestor of `main` (i.e. already soaked on Staging).
+
+`production` is **never a PR target** and agents never touch it — the branch-per-brief
+workflow (`feat/`/`fix`/`chore` off `main`, PR back to `main`) is unaffected; promotion is
+a separate, COO-driven step after a merge, only when a change is ready for prod rather
+than just staging.
+
+Because GitHub check runs attach to a commit SHA (not a branch), a fast-forwarded commit
+carries its already-green `main` checks — Railway's CI gate is satisfied immediately, no
+redundant CI run. The one exception is `security.yml`'s dependency-scan job, which is
+excluded from the `production` push trigger entirely (ADL-40) because `npm audit`'s
+verdict can change with the calendar alone, which would otherwise make a previously-green
+promotion candidate spuriously fail on `production` with no code change. See
+[CI/CD](#cicd) for detail.
+
+`npm run db:reset-staging` (`src/backend/db/reset-staging.ts`) wipes user/trip data from
+a Turso database so preview environments don't accumulate cruft across PRs — it refuses
+to run against any remote URL that doesn't look like the staging instance, without an
+explicit override flag.
+
+Staging and production currently share one Clerk user pool (a topology question tracked
+separately, not yet decided).
+
+---
+
 ## CI/CD
 
-Two GitHub Actions workflows run on every push and PR:
+Two GitHub Actions workflows:
 
-| Workflow | Jobs |
-|---|---|
-| `ci.yml` | Biome (lint + format) · Type Check · Backend Tests · Frontend Tests · Contract Tests |
-| `security.yml` | Dependency Scan (npm audit) · Secret Scan (Gitleaks) · SAST (Semgrep) |
+| Workflow | Jobs | Push trigger |
+|---|---|---|
+| `ci.yml` | Biome (lint + format) · Type Check · Backend Tests · Frontend Tests · Contract Tests | Every branch (`branches: ["**"]`) + every PR to `main` |
+| `security.yml` | Dependency Scan (npm audit) · Secret Scan (Gitleaks) · SAST (Semgrep) | Every branch **except `production`** (ADL-40) + every PR to `main` |
 
 E2E tests (Playwright) are **not in CI** — run on demand with `npm run test:e2e`.
 
 All jobs must be green before a PR is merged. Contract tests require a live backend; in CI
 they run against the **real** server (`npm run start` with `BYPASS_AUTH=true`), not
 `server-test-app.ts` — that lightweight app is used only by the backend route unit tests.
+
+**Why `security.yml` excludes `production` (ADL-40):** `npm audit` queries the GitHub
+Advisory Database at run time, so its verdict depends on the calendar as well as the
+commit — an identical tree can pass on `main` one day and fail after a new advisory
+publishes, with no code change. Since `production` is only ever fast-forwarded from an
+already-green `main` commit (never a PR target — see
+[Environments](#environments)), that commit's GitHub check runs (keyed to the commit SHA,
+not the branch) are already green from when it ran on `main`; re-running a time-varying
+check on `production` could only ever produce a false block on promotion, never real new
+detection. `ci.yml` is deliberately unchanged and still gates every environment.
+
+Merging a PR to `main` triggers Railway's Staging deploy once CI is green (see
+[Environments](#environments) for the full promotion model) — this is the same
+push-to-`main` deploy behaviour as before, just no longer the only environment `main`
+drives.
 
 ---
 
@@ -372,4 +462,4 @@ they run against the **real** server (`npm run start` with `BYPASS_AUTH=true`), 
 
 ---
 
-*Last updated by COO — 2026-07-07. Agent-specific sections appended as agents contribute.*
+*Last updated by Docs — 2026-07-26 (QUAL-05 state-language sweep). Agent-specific sections appended as agents contribute.*
