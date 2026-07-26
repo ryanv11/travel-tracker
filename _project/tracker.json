@@ -1127,6 +1127,17 @@
       "phase": 6,
       "notes": "Logged 2026-07-26 (COO) during the OP-15 prerequisite audit. Was previously untracked — it existed only as a sub-bullet inside OP-15's notes ('Q22 test-DDL consolidation'), so deferring OP-15 would have buried it. src/backend/repositories/__tests__/test-db.ts imports db/schema.ts for Drizzle typing but then hand-writes all 21 tables as literal DDL. A migration can therefore change the real schema while every repository test keeps passing green against the stale copy — the tests would not detect the drift. Same family as the stale local dev.db that caused a false alarm during the 2026-07-26 BUG-63 investigation (companions missing user_id post-migration 0012). Count has grown from the 13 recorded in OP-15's notes to 21, so this is actively worsening. Fix direction: drop the hand-written DDL and apply the real migrations to the in-memory libSQL DB (migrate(db, { migrationsFolder: 'src/backend/migrations' })) so the test schema is identical to production's by construction. IMPLEMENTATION CAVEAT for the brief: createTestDb() runs in beforeEach across ~580 backend tests, so replaying 12+ migration files per test may hurt suite time — build the schema once and clone per test rather than re-migrating. Also clears OP-15 prerequisite (a); sequence this BEFORE the OP-15 skills design pass. Scheduled as batch B9 in jobs/COO/backlog-clearance-plan.md."
     },
+    {
+      "id": "QUAL-04",
+      "type": "chore",
+      "title": "Dead code and one stale source comment left by the WP reskin and the ADL-28 companions migration",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-26 by the Docs agent during the CODEBASE.md staleness refresh (PR #256) — flagged, deliberately not fixed there since that was a docs-only PR. Three independent items, none blocking anything: (1) src/frontend/pages/TripsPage.tsx is dead code — App.tsx routes /trips directly to TripsLayout and nothing imports TripsPage; it is documented in CODEBASE.md as unreferenced rather than deleted, so the doc is accurate either way. (2) src/backend/db/seed-data.ts still exports an unused COMPANIONS constant, left over from the ADL-28 migration that removed the global companions seed (no importers remain in src/backend/) — this one is Backend, not Frontend, if split. (3) src/frontend/theme-waypoint.css's own header comment says 'PHASE 1 ONLY — defined-but-unused', which is now false: badges.ts and the reskinned Trips/TripDetail components consume its wp-* tokens throughout (WP-03/WP-04). That is a source-code comment rather than a tracked doc, so no Document-lifecycle violation, but it will mislead the next reader. Good candidate to fold into any Wave-1 frontend batch already touching these files rather than briefing on its own."
+    },
 
     // ─── CODE REVIEW FINDINGS — 2026-03-22 ───────────────────────────────────
     {
