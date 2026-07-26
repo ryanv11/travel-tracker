@@ -1,0 +1,72 @@
+PARK DOCUMENT — Docs
+Date: 2026-07-26
+Branch: chore/codebase-md-refresh
+Dispatch: COO, CODEBASE.md staleness audit (no tracker ID — documentation maintenance)
+
+WHAT WAS DONE
+CODEBASE.md's "App source tree (src/)" section was refreshed against the actual src/
+tree (last updated 2026-07-15, PR #110; 33 commits had touched src/ since). Verified
+every file that appears in the diff by reading its content — no descriptions were
+inferred from filenames alone.
+
+Beyond the COO's seed list, I found and fixed:
+- src/backend/db/reset-staging.ts — missing from the itemized db/ list (db/ is fully
+  itemized in this doc, unlike routes/repositories' siblings such as middleware/ or
+  validation/, which are one-line directory summaries; reset-staging.ts's omission was
+  a genuine gap at the doc's own granularity).
+- src/frontend/components/TripDetail/useTripDetailController.ts — the hook WP-03/WP-04
+  extracted so desktop TripDetail.tsx and the new MobileTripDetailView.tsx share status/
+  lock/modal logic without duplicating it. Not in the COO's list; found by diffing the
+  actual TripDetail/ directory.
+- src/frontend/components/TripList/DesktopTripsLayout.tsx and MobileTripsLayout.tsx —
+  TripsLayout.tsx no longer IS the two-panel shell; WP-04 turned it into a router that
+  picks Desktop or Mobile based on useIsMobile(). The old one-line description ("Two-panel
+  shell (list + <Outlet />)") was actively wrong post-WP-04, not just incomplete.
+- src/frontend/{pages,utils,design,services}/ — all four were entirely absent from the
+  tree per the brief; itemized each at the doc's existing granularity.
+- src/frontend/index.css and theme-waypoint.css — added; theme-waypoint.css's own header
+  comment claims the Waypoint tokens are "defined-but-unused" (Phase 1 framing), but
+  badges.ts's header says WIRED as of WP-03/WP-04 and DesktopTripsLayout.tsx/
+  MobileTripsLayout.tsx/StatusStepper.tsx all consume wp-* Tailwind classes throughout —
+  described this accurately in CODEBASE.md without touching the (increasingly stale)
+  source comment itself, which is out of scope for a docs-only change.
+
+Also corrected two prose sections invalidated by the same drift:
+- seed-data.ts's description said it holds "companion" default data; ADL-28 removed
+  companions' global seed list entirely (seed.ts's own comment: "companions has no
+  default list post-migration"). Fixed to describe what's actually seeded now.
+- The "Key conventions" bullet on the two-panel layout described only the desktop
+  <Outlet/>-based mechanism as if it were universal. MobileTripsLayout.tsx explicitly
+  does NOT render <Outlet/> (documented in its own header comment) — it mounts both
+  panels and slides between them. Rewrote the bullet to cover both, while keeping the
+  fact that `data-testid="trip-detail-panel"` is present in both (still true, still the
+  right locator for tests).
+
+NOT FIXED — FLAGGED FOR COO/OTHER ROLES (out of scope for a docs-only PR)
+1. src/frontend/pages/TripsPage.tsx appears to be dead code — App.tsx routes /trips
+   directly to TripsLayout, never to TripsPage. Nothing else imports TripsPage. Noted
+   in CODEBASE.md's description ("this file is unreferenced") rather than deleted, since
+   deleting source files is not this brief's scope.
+2. src/backend/db/seed-data.ts still exports a `COMPANIONS` constant that nothing in
+   src/backend imports (grepped clean) — dead code left over from the ADL-28 migration
+   that removed the global companions seed. Not touched; a Backend/cleanup brief's call.
+3. theme-waypoint.css's own header comment ("PHASE 1 ONLY — these tokens are
+   defined-but-unused") is now stale relative to badges.ts and the reskinned Trips/
+   TripDetail components. This is a source-code comment, not a CODEBASE.md fact, so
+   left alone here — flagging in case a future WP cleanup brief wants to fix it at
+   the source.
+
+None of the three above block anything; they're hygiene notes only.
+
+CI / VERIFICATION
+- npm run check (Biome) — pass
+- npm run type:check:all — pass
+- npm run test:backend — 580 passed, 1 skipped
+- npm run test:frontend — 154 passed
+- npm run status:check — STATUS.md already in sync (this PR touches no tracker/status facts)
+- PR: see completion report in jobs/COO/inbox/ for the PR number and CI-wait confirmation
+
+NEXT SESSION
+Nothing queued. This was a self-contained doc-maintenance thread; no docs backlog left
+open beyond the three hygiene notes above, which belong to other roles' inboxes if COO
+wants them actioned.

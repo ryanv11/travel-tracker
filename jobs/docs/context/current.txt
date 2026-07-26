@@ -1,7 +1,9 @@
-DOCS CONTEXT — 2026-03-07
+DOCS CONTEXT — 2026-07-26
 PROJECT: Travel Tracker
-CURRENT STATUS: Not yet started
-ACTIVE TASKS: None
-PENDING MESSAGES TO COO: None
-OPEN ISSUES: None
-LAST PARK DOC: None
+CURRENT STATUS: CODEBASE.md refresh complete, PR open, awaiting COO merge
+ACTIVE TASKS: None (thread closed pending merge)
+PENDING MESSAGES TO COO: Completion report filed in jobs/COO/inbox/
+OPEN ISSUES: See park doc for hygiene findings not fixed in-scope (dead TripsPage.tsx,
+  unused COMPANIONS constant in seed-data.ts, theme-waypoint.css's stale internal
+  "defined-but-unused" comment — none blocking, all noted for COO/Backend/Frontend triage)
+LAST PARK DOC: jobs/docs/park-docs/20260726-DOCS-park.txt
