@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-21 (BUG-59 logged: staging Railway ALLOWED_ORIGINS gap found and diagnosed post-OP-22-split, root cause confirmed via deployment logs, fix is a Railway dashboard env var)"
+    "updated": "2026-07-26 (QUAL-05 state-language sweep merged, PR #259, BRD v3.7; QUAL-06 doc-state cleanup: project-plan.txt deleted, security-backlog H2/M3 flipped to DONE, stale tracker notes corrected)"
   },
   "items": [
 
@@ -1142,12 +1142,23 @@
       "id": "QUAL-05",
       "type": "chore",
       "title": "State-language sweep across durable documents — CODEBASE.md and BRD prose contradicted shipped requirements",
-      "status": "pending",
+      "status": "done",
       "owner": "docs",
       "priority": "P2",
       "brdRefs": ["WP-04", "NF-09", "OQ-02", "OQ-04"],
       "phase": 6,
       "notes": "GitHub issue #258, PR #259. Three factual errors found 2026-07-26, all the same class — prose describing current system state, written once and never re-read as work progressed: CODEBASE.md claimed a localhost-beta delivery target with Electron/Tauri packaging planned (contradicted by NF-09/OQ-02, both resolved); BRD §5.15 preamble and §3/§11 called the phone a reference device only, not an editing surface (contradicted by WP-04's shipped fully-editable mobile layout); BRD §11 called hosted-vs-file deployment an open question (OQ-04 resolved by ADL-32). Fix applied the existing rule (CLAUDE.md Document lifecycle, clause 2) rather than adding a new one: state claims removed/updated at the source of truth (tracker/requirement), decision-superseded prose stamped strikethrough + pointer (matching the existing NF-01/NF-04 convention), no new tracked artefact created. CODEBASE.md gained a new Environments section (local/staging/production, ADL-32 + ADL-35/OP-22 promotion model, ADL-40's production security-checks exclusion) plus a corrected Configuration files table (staging/production env vars, including the ALLOWED_ORIGINS scheme gap that caused BUG-59) and CI/CD section. BRD bumped to v3.7 (header + §13 changelog + body), status stays Approved. §5.3-class items requiring a product/architecture decision (SE-01/03 three-role drift — BUG-61/62/63; import-vs-manual-entry in §7/§11 pending IM-01–33 approval; PH-02 vs IM-06 wording; MB-01's own requirement scope vs. shipped WP-04 reality) were flagged only, left untouched, per brief. Full breakdown in the Docs completion report (jobs/COO/inbox/) and park doc (jobs/docs/park-docs/)."
+    },
+    {
+      "id": "QUAL-06",
+      "type": "chore",
+      "title": "Doc-state cleanup follow-on to QUAL-05 — stale status claims outside the swept files",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Direct follow-on to QUAL-05, covering the same decay class in the documents that sweep deliberately scoped out (report-only) plus tracker entries found during the 2026-07-26 /coo-startup audit. (1) _project/project-plan.txt DELETED — PO call 2026-07-26. Frozen at v1.0/2026-03-07; still framed the launch target as a packaged Electron .app, the exact error QUAL-05 removed from CODEBASE.md, plus phase statuses contradicting the tracker and 'PostgreSQL (Phase 2)' where ADL-32 chose Turso. Every fact it held was owned elsewhere or actively wrong. Note it had become the de-facto home of the project objective when objective.txt was deleted (commit 0a39162) — the objective now lives in BRD §1-§3, which is a better home and already current. (2) jobs/COO/COO-system-prompt.txt — read/update instructions for project-plan.txt removed (they would have dangled), AND a pre-existing broken reference fixed: mandatory init step 2 pointed at _project/BRD.md, which does not exist (actual file is travel-tracker-BRD.md). End-of-thread step 6 now points at tracker.json + `npm run status` with an explicit never-hand-edit-STATUS.md warning (OP-12). (3) _project/security-backlog.md — H2 (no HTTPS) and M3 (trust proxy) were both still OPEN despite being resolved: H2 by Railway edge TLS (NF-09/ADL-32, not the planned nginx/Caddy route the row describes), M3 by app.set('trust proxy', 1) at src/backend/server.ts:99 (ADL-37/BUG-60, with a dedicated test). Section preamble stamped as satisfied; L3's 'requires HTTPS first' blocker noted as met. A security doc asserting unfixed vulnerabilities is the highest-stakes instance of this decay class. (4) README.md Data storage — described only the local SQLite file and gave OneDrive-sync guidance, with no mention that staging/production run on Turso; rewritten per-environment, and the OneDrive line turned into an explicit warning given D-10's two dehydration incidents. (5) Tracker corrections: BRD-IT0809 in-progress -> partial (PR #90 merged 2026-03-24 but the note still said 'pending merge'); OP-08's note corrected (see its own entry — it claimed a 'brief template gate' that never existed); meta.updated refreshed. CODEBASE.md's key-files table row for project-plan.txt removed. Deferred deliberately: _project/dependency-graph.txt is frozen at 2026-03-08 and the COO system prompt still instructs updating it — same class, but its disposition is a PO call like project-plan.txt's was, so it was flagged rather than decided unilaterally."
     },
 
     // ─── CODE REVIEW FINDINGS — 2026-03-22 ───────────────────────────────────
@@ -1348,7 +1359,7 @@
       "priority": "P1",
       "brdRefs": ["SE-01","SE-02","SE-03","SE-04","SE-05","SE-06","SE-07"],
       "phase": 1,
-      "notes": "All three layers implemented 2026-03-24. (1) CLAUDE.md brief template gate added. (2) Access matrix regression suite PR #93: 59 tests (28 unauth 401, 26 non-owner 403, 5 cross-user isolation) — 1 test skipped pending BUG-22 merge. (3) Custom Semgrep Rule 1 active (PR #94): flags route files missing auth import. Rule 2 (Drizzle unscoped query) commented out — Drizzle fluent chain AST too complex for Semgrep; TODO filed in .semgrep/security.yml."
+      "notes": "All three layers implemented 2026-03-24. (1) CLAUDE.md gate added — CORRECTION 2026-07-26 (QUAL-06): this was recorded as a 'brief template gate', but no general brief template exists or ever existed. What landed is CLAUDE.md's 'Security checklist for Backend briefs' — Backend-only, route-scoped. The wording mattered: a later brief was drafted instructing an agent to 'check against the CLAUDE.md brief template gate (OP-08) and reformat if the required sections differ', which had no target to differ from. A general brief template was separately proposed and REJECTED in PR #254 (OP-15 c) as having the same weakness it was meant to fix — it only works if the COO remembers to use it, which is the stated failure mode; enforcement moved agent-side into the 8 role system prompts instead. (2) Access matrix regression suite PR #93: 59 tests (28 unauth 401, 26 non-owner 403, 5 cross-user isolation) — 1 test skipped pending BUG-22 merge. (3) Custom Semgrep Rule 1 active (PR #94): flags route files missing auth import. Rule 2 (Drizzle unscoped query) commented out — Drizzle fluent chain AST too complex for Semgrep; TODO filed in .semgrep/security.yml."
     },
 
     {
@@ -1423,12 +1434,12 @@
       "id": "BRD-IT0809",
       "type": "feature",
       "title": "Rating sort and filter in item list views, cross-trip by city (IT-08/09)",
-      "status": "in-progress",
+      "status": "partial",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["IT-08","IT-09"],
       "phase": 3,
-      "notes": "Backend API done: PR #90 (issue #89), CI green, pending merge. sort_by=rating, sort_order=asc|desc, min_rating=1-5 added to GET /api/trips/:tripId/items and GET /api/cities/:id/items. Frontend UI (sort/filter controls in item list views) is a separate pending dispatch."
+      "notes": "Backend API done and MERGED: PR #90 (issue #89) merged 2026-03-24. sort_by=rating, sort_order=asc|desc, min_rating=1-5 added to GET /api/trips/:tripId/items and GET /api/cities/:id/items. Frontend UI (sort/filter controls in item list views) is NOT built — it is brief B8 in jobs/COO/backlog-clearance-plan.md §4, not yet dispatched. Status corrected in-progress -> partial 2026-07-26 (QUAL-06): the entry had said 'CI green, pending merge' for four months after the merge and read as live work-in-flight when nothing was in flight."
     },
     {
       "id": "BRD-AD07",

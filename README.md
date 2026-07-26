@@ -113,9 +113,18 @@ To browse the database interactively: `npm run db:studio` (Drizzle Studio).
 
 ## Data storage
 
-All data is stored in a local SQLite file. The path is set by `SQLITE_PATH` in `.env.local`.
+Storage depends on the environment (see [CODEBASE.md](./CODEBASE.md#environments) for the
+full picture):
 
-**OneDrive / cloud sync:** The database file can live inside a synced folder for personal backup, but only one device should run the app at a time. SQLite does not support concurrent writes from multiple machines via a synced folder.
+- **Local development** — a SQLite file, path set by `SQLITE_PATH` in `.env.local`.
+- **Staging and production** — Turso (hosted libSQL), a separate database per environment,
+  credentialled via `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` in Railway's variable store
+  (ADL-32). The same Drizzle schema drives both.
+
+**Do not keep the local database file in a cloud-synced folder.** Only one device may run
+the app at a time — SQLite does not support concurrent writes from multiple machines via a
+synced folder — and OneDrive's Files On-Demand dehydration has twice corrupted this
+project's files, once including git's own refs.
 
 ---
 

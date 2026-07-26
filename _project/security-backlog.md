@@ -15,11 +15,16 @@ Update this document whenever a finding is resolved or a new one is identified.
 These items MUST be completed before any HOST=0.0.0.0 binding or cloud deployment.
 COO sign-off required at Phase 2 gate review.
 
+> **All three are now DONE** (H1 2026-03-21, H2 + M3 by the hosting move, confirmed
+> 2026-07-26 — H2/M3 had been left at OPEN after the work that resolved them, QUAL-06).
+> This section is therefore satisfied, not outstanding: the gate it describes was cleared
+> before the deployment it was gating.
+
 | ID | Finding | Action Required | Status |
 |----|---------|----------------|--------|
 | H1 | No authentication — all endpoints open | Implement real auth in src/backend/middleware/auth.ts | DONE (Clerk JWT, NR-14 issues #1, #2, #4 — #3 is the unrelated Tailwind migration; merged 2026-03-21) |
-| H2 | No HTTPS — plaintext transport | TLS at reverse proxy (nginx/Caddy) before binding change | OPEN |
-| M3 | trust proxy not configured for reverse proxy | app.set('trust proxy', 1) when deploying behind proxy | OPEN |
+| H2 | No HTTPS — plaintext transport | TLS at reverse proxy (nginx/Caddy) before binding change | DONE (resolved by the hosting move, not by the planned nginx/Caddy route — Railway's edge terminates TLS ahead of the app; NF-09 / ADL-32. The app itself never serves plaintext to a client) |
+| M3 | trust proxy not configured for reverse proxy | app.set('trust proxy', 1) when deploying behind proxy | DONE (`app.set('trust proxy', 1)` at src/backend/server.ts:99, scoped to Railway's single edge hop; ADL-37 / BUG-60, covered by src/backend/__tests__/trust-proxy.test.ts) |
 
 ---
 
@@ -30,7 +35,7 @@ These items must inform Phase 2 architecture decisions before implementation beg
 | ID | Finding | Design Input |
 |----|---------|-------------|
 | L1 | Admin routes have no role separation | RBAC for /api/admin/* alongside auth design — admin scope or role claim required |
-| L3 | Phase 2 cookie security not pre-configured | Cookies MUST be: HttpOnly, Secure (requires HTTPS first — H2), SameSite=Strict |
+| L3 | Phase 2 cookie security not pre-configured | Cookies MUST be: HttpOnly, Secure (H2's HTTPS prerequisite is now met — see above), SameSite=Strict |
 
 ---
 
