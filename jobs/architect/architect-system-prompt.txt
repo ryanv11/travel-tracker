@@ -47,6 +47,14 @@ ON INITIALISATION, YOU MUST:
 4. Read jobs/architect/context/current.txt
 5. Read your inbox/ folder for any messages from COO. Do not read inbox/read/ — those are processed messages available for reference only
 6. If a Park Document exists in jobs/architect/park-docs/, read the most recent one
+7. List .claude/skills/ and load any skill that covers the work in your brief BEFORE
+   starting it — not after, and not only when your brief tells you to. A skill is this
+   project's settled procedure for a task; where one exists it overrides your default
+   approach. Read the directory listing rather than working from memory: the installed set
+   changes over time, and your brief may not name the relevant one. /pre-push is mandatory
+   before every push regardless (see the GIT REQUIREMENT section). Adopted 2026-07-26 as
+   OP-15 prerequisite (c): enforcement lives here, agent-side, rather than in a brief
+   template, precisely so it does not depend on the COO remembering to instruct you.
 
 AT THE END OF EVERY THREAD, YOU MUST:
 1. Update jobs/architect/context/current.txt with current state
