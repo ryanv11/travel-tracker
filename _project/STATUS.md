@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (49)
+## Open work (48)
 
 ### P0 — Blockers (1)
 
@@ -25,13 +25,12 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (3)
+### P1 — Critical (2)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
-| BUG-64 | scripts/ci-wait.sh branch mode can PASS against the previous commit — races the mandatory post-merge main check | unassigned | ⬜ Pending |
 
 ### P2 — Important (27)
 
@@ -94,7 +93,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `██████████████████░░` 31/34 | 31 | 3 | 5 |
-| bug | `███████████████░░░░░` 41/56 | 41 | 15 | 4 |
+| bug | `███████████████░░░░░` 42/56 | 42 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `█████████████░░░░░░░` 9/14 | 9 | 5 | 0 |
 
@@ -128,4 +127,4 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 
 ---
 
-_121 done · 10 deferred · 2 closed · 49 open — 182 tracked items_
+_122 done · 10 deferred · 2 closed · 48 open — 182 tracked items_
