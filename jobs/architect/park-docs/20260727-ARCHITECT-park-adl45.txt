@@ -1,0 +1,110 @@
+ARCHITECT PARK DOCUMENT — 2026-07-27
+THREAD: Wave 0 scoping brief S6 — ADL-45, item map URL column (BRD-IT10)
+ISSUE: #276   BRANCH: chore/adl45-item-maps-url
+DELIVERABLE TYPE: spec only — no schema, migration or code change
+
+================================================================================
+WHAT WAS ASKED
+================================================================================
+BRD §5.5 IT-10: each item can optionally store a Google Maps URL; when present the trip
+detail view shows a one-click map/directions link, no separate address/phone fields needed.
+Small change (nullable URL column) but the schema-change rule requires Architect review
+before any Database brief — rule on column placement/name/type/nullability/length cap,
+migration approach, and (the main reason the brief exists) validation and sanitisation of
+the user-supplied URL: scheme allowlisting, host restriction or not, where validation runs,
+rel/target attributes on the rendered anchor. Also: check for overlap/conflict with the
+§5.6 structured confirmation fields, and consistency with ADL-42's item-shape direction
+(read first — it reshapes item_flights/adds item_flight_legs/item_travellers, all merged).
+
+================================================================================
+WHAT I FOUND BEFORE DECIDING
+================================================================================
+1. ADL-42 (merged, read in full) makes NO change to the base `items` table or to
+   item_hotels/item_restaurants/item_car_rentals/item_experiences — only item_flights
+   shrinks and two new tables appear. So there's no fresh churn to avoid on the base table,
+   and `notes` (schema.ts:464) is a clean precedent for "field IT-04/IT-10 requires on all
+   item types lives on `items`, not duplicated into five extension tables."
+2. `_project/security-spec.md` SEC-12 already has a rule for exactly this class of field:
+   "URL fields (e.g. photo_album_ref) rendered as links must be sanitised... only https://
+   and file:// permitted... reject javascript:/data:." This isn't aspirational text — a
+   real, tested implementation exists: `src/frontend/utils/urlSanitiser.ts`'s
+   `sanitiseUrl()`, with a full test suite at `__tests__/urlSanitiser.test.ts`.
+3. THE FINDING: `sanitiseUrl()` has ZERO call sites in any component.
+   `grep -rln "sanitiseUrl" src/frontend` returns only the utility file and its own test.
+   Nothing renders `trips.photo_album_ref` as a link anywhere today. Worse — the server side
+   doesn't validate it either: `CreateTripSchema`/`UpdateTripSchema`
+   (trips.schemas.ts:22,37) type `photo_album_ref` as plain `zOptionalString`, no scheme
+   check. So the one existing precedent field is unprotected end-to-end; it's silently safe
+   only because nothing currently renders it. Flagged to COO as a follow-up, not fixed here
+   (out of scope for IT-10, and not gating it).
+4. No LENGTH() CHECK anywhere in schema.ts (`grep -n "LENGTH(" src/backend/db/schema.ts`
+   empty) — confirms length caps in this codebase are Zod-only (`zName`, 75 chars, no DB
+   CHECK), which is the precedent I followed for map_url's 2048-char cap.
+5. BRD §12 (line 435) already has a "Restaurant note: Link to Google Maps location —
+   https://maps.google.com/..." example — evidence this is a real, previously-worked-around
+   need (users were pasting map links into the free-text notes field before IT-10 existed).
+6. §5.6 checked for phone/address overlap: no item type has a phone field anywhere in the
+   BRD. HT-01 has `address`; IT-10's "no separate fields required" text is about optionality
+   (you don't need both), not about removing HT-01's address field. No conflict, no §5.6
+   edit needed.
+
+================================================================================
+DECISION
+================================================================================
+10 rulings, full text + code snippets in jobs/architect/tech/20260307-architecture-decisions-log.md
+(ADL-45 entry, rewritten in place from the RESERVED stub):
+ - `map_url text`, nullable, no default, on the base `items` table. All item types get it,
+   including `note` — no per-type special-casing.
+ - NOT named `google_maps_url` — https:// scheme required, but deliberately NO Google-host
+   allowlist (real share links come from several Google domains; a host allowlist would be
+   a maintenance liability with no real security benefit — scheme allowlisting is the actual
+   control against the injection threat, host is not).
+ - Server-side Zod (`zMapUrl`, new primitive in common.ts, same style as zName/zHexColor) is
+   authoritative. Frontend re-validates at render via `sanitiseUrl()` — EXTENDED to accept
+   an optional allowed-scheme list, not forked into a second function. Called with
+   `['https:']` for map_url (narrower than its current default, which also allows file://).
+ - `target="_blank" rel="noopener noreferrer"` mandatory on the rendered anchor — stated
+   explicitly since there's no existing anchor-rendering code in this app to copy (finding
+   #3 above — this is literally the first real caller of the sanitiser).
+ - No DB CHECK for scheme or length (Zod-only, matches zName precedent; also avoids forcing
+   a SQLite table-recreation migration for a column that doesn't otherwise need one).
+ - One additive migration file, db:generate + db:migrate. No two-file split needed (unlike
+   ADL-42) — nullable, no default, no CHECK, nothing to backfill.
+ - No conflict with §5.6 (finding #6). No BRD edit needed anywhere — IT-10's success
+   criteria are unchanged by this decision.
+
+REJECTED: `google_maps_url` naming (misleading given no host restriction); Google-domain
+allowlist (brittle, wrong threat model); a second, independently-written sanitiser function
+(same "two homes for one fact" trap ADL-42 called out at larger scale); a DB CHECK for
+scheme/length (inconsistent with the zName precedent, forces unnecessary table recreation).
+
+SUPERSESSION: none. Extends SEC-12's scope (one URL field covered → two) without changing
+its rule.
+
+================================================================================
+OPEN / HANDOFF
+================================================================================
+  1. COO: no BRD gate action needed for this one — IT-10 already has success criteria and
+     an existing tracker entry (BRD-IT10), which I updated in place (status stays "pending",
+     notes now record "DESIGNED 2026-07-27" per the same convention ADL-42 used for
+     BUG-41/BUG-42 — see tracker.json).
+  2. COO: merge PR for chore/adl45-item-maps-url after CI green — do not self-merge.
+  3. Unblocks: Database brief (schema.ts + one migration file), then Backend (zMapUrl +
+     itemBase wiring) + Frontend (ItemForm input, ItemCard affordance, urlSanitiser.ts
+     extension) — no ordering constraint like ADL-42's "must land together" (this field has
+     no compatibility-breaking shape change, it's purely additive). Also unblocks
+     BRD-MB0102 (§5.15 MB-02 directions link), which was blocked on this column existing.
+  4. Recommend COO raise a small separate follow-up tracker item (not gating IT-10): give
+     `photo_album_ref` the same server-side scheme validation and an actual `sanitiseUrl()`
+     call site — see finding #3. Not bundled into this brief; flagged loudly per the
+     Architect's "unreviewed gap" mandate, not silently left for someone to rediscover.
+  5. Verified before closing: ADL-41/ADL-43/ADL-44 stubs and the completed ADL-42 entry are
+     byte-for-byte untouched (grep of all `## ADL-4` headers confirms five distinct, intact
+     entries in the log). Only the ADL-45 stub was rewritten.
+  6. Every file path and line number cited in the ADL entry was verified against the actual
+     file contents before writing (schema.ts:453-503/464, common.ts:12-16, items.schemas.ts:10-17,
+     trips.schemas.ts:22/37, urlSanitiser.ts:9, ItemCard.tsx:132, api.ts:114, BRD:180,
+     security-spec.md:330-331) — none are guessed.
+
+No blockers. No open questions left for the implementing Database brief to resolve — the
+column shape, name, validation model and migration approach are all fully specified.

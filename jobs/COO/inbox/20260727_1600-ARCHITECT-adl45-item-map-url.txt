@@ -1,0 +1,53 @@
+TO: COO
+FROM: Architect
+DATE: 2026-07-27
+RE: ADL-45 decided — item map URL column (BRD-IT10)
+
+ADL-45 · Issue #276 · BRD §5.5 IT-10 · Branch chore/adl45-item-maps-url
+
+Decided: nullable `map_url` TEXT column on the base `items` table (not per extension
+table); https-only scheme, deliberately NO Google-host allowlist; server-side Zod
+authoritative, frontend reuses (extends, doesn't fork) the existing but currently-unused
+`sanitiseUrl()` utility for render-time defense in depth; one additive migration file, no
+DB CHECK. Spec only — no schema/migration/code change made. Full entry rewritten in place
+at jobs/architect/tech/20260307-architecture-decisions-log.md (ADL-45).
+
+Per-decision verdicts:
+- Column on base `items` table, not extension tables: adopted
+- `map_url` name (not `google_maps_url`): adopted — see host-restriction ruling below
+- https:// scheme required, no Google-host allowlist: adopted
+- Server Zod authoritative + frontend `sanitiseUrl()` extended for a second scheme param: adopted
+- `target="_blank" rel="noopener noreferrer"` mandatory on the rendered anchor: adopted
+- 2048-char cap, Zod-only (no DB CHECK), matches `zName` precedent: adopted
+- Single additive migration (db:generate/db:migrate), no two-file split: adopted
+- No conflict/edit needed to §5.6 structured fields: confirmed, no action
+
+No BRD gate action needed: IT-10 already has success criteria in BRD §5.5, unchanged by
+this decision. tracker.json BRD-IT10 updated in place (status stays "pending", notes record
+"DESIGNED 2026-07-27" — same convention ADL-42 used for BUG-41/BUG-42).
+
+Finding, flagged not fixed (real, pre-existing, not introduced by this ADL): the frontend
+`sanitiseUrl()` utility SEC-12 specifies has ZERO call sites in any component today, and its
+one existing target field, `trips.photo_album_ref`, has no server-side scheme validation
+either (`CreateTripSchema`/`UpdateTripSchema` type it as plain `zOptionalString`). A
+`javascript:` value could be written to that field today and would only be harmless because
+nothing renders it as a link yet. Recommend a small separate follow-up tracker item —
+NOT bundling it into BRD-IT10's implementation, and not a blocker for it.
+
+CI: no code commit made, nothing to run — spec-only branch. `/pre-push` run clean (below).
+
+Open issues or blockers: none. Every file path/line number cited in the ADL entry was
+verified against actual file contents before writing.
+
+Unblocked: Database brief (schema.ts + one migration file for `map_url`), then
+Backend (zMapUrl + itemBase wiring) and Frontend (ItemForm input, ItemCard affordance,
+urlSanitiser.ts scheme-param extension) — no forced sequencing between Backend/Frontend
+like ADL-42 required (this is purely additive, no compatibility break). Also unblocks
+BRD-MB0102 (§5.15 MB-02 directions link).
+
+Also noted, not actioned (out of scope for this thread): two unread COO→Architect inbox
+messages dated 2026-03-21 and 2026-03-23 (backend type-errors DB strategy, ADL-27/OP-06
+corrections) are still sitting in jobs/architect/inbox/ rather than inbox/read/. Both
+appear long superseded by later work (ADL-15, ADL-27, ADL-28, NR-14 all closed since), but
+flagging since they were never formally moved/closed — worth a quick COO sweep if inbox
+hygiene matters, not urgent.
