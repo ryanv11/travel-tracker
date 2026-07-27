@@ -63,6 +63,11 @@ Architects who will each independently read the ADL log and pick "the next numbe
 Worktree isolation does **not** protect against this — same class as the shared-`refs/stash`
 collision in OP-20. COO assigns numbers in the briefs.
 
+> **DONE 2026-07-27:** S1→**ADL-41**, S2→**ADL-42**, S3→**ADL-43**, S5→**ADL-44**,
+> S6→**ADL-45**, reserved as stubs in the ADL log. S4 is UX and gets no ADL number.
+> Briefs instruct each Architect to rewrite its own reserved stub in place — not to append
+> a new entry, which is what would make five concurrent PRs conflict.
+
 ---
 
 ## 4. Wave 1 — implementation (file-partitioned)
@@ -156,10 +161,17 @@ FUTURE-01/02/03, BRD-PL05/06, BRD-LB01/02/03, BRD-FL04, UX-05 / BRD-PH03 (photos
 
 ## 8. Gates to clear before Wave 1 dispatch
 
-1. **BRD bump.** BUG-50, BUG-57 and BUG-40 introduce behaviour with no BRD home. Per the BRD
+1. ~~**BRD bump.** BUG-50, BUG-57 and BUG-40 introduce behaviour with no BRD home. Per the BRD
    gate and success-criteria rules, that is **one** version bump covering all of Wave 1 — done
-   once, not per brief.
-2. **Pre-assigned ADL numbers** for the Wave 0 Architects (§3).
+   once, not per brief.~~ **CLEARED 2026-07-27 — BRD v3.8.** TR-14 (delete a trip, from
+   BUG-50), TR-15 (place removal prompts for item disposition, from BUG-40), IT-11 (item date
+   defaults from the trip range, from BUG-57), each with success criteria. Tracked via the
+   existing bug entries' `brdRefs`, not duplicate feature items.
+2. ~~**Pre-assigned ADL numbers** for the Wave 0 Architects (§3).~~ **CLEARED 2026-07-27 —
+   ADL-41 (S1), ADL-42 (S2), ADL-43 (S3), ADL-44 (S5), ADL-45 (S6)**, reserved as stubs in
+   `jobs/architect/tech/20260307-architecture-decisions-log.md`. Each Architect **edits its own
+   stub in place** rather than appending — five concurrent agents appending to the log's tail
+   would conflict in every pairing; five rewriting separated blocks merge cleanly.
 3. **Security checklist** in every brief that adds or modifies routes (B3, B4, B7) — auth
    middleware, `userId` scoping, FK `.notNull()`, per CLAUDE.md and OP-06 §2.
 4. **`isolation: "worktree"`** on every dispatch (all of these do git work), and `npm install`

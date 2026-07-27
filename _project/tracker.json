@@ -1826,9 +1826,9 @@
       "status": "pending",
       "owner": "fullstack",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["TR-15"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. BUG-32 implemented place deletion by silently reassigning items to trip-level (trip_place_id=null). PO wants an explicit confirmation step instead: warn that the place has items and let the user choose delete-all / move-to-trip-level / cancel, rather than always auto-reassigning."
+      "notes": "Found 2026-07-21 UAT. BUG-32 implemented place deletion by silently reassigning items to trip-level (trip_place_id=null). PO wants an explicit confirmation step instead: warn that the place has items and let the user choose delete-all / move-to-trip-level / cancel, rather than always auto-reassigning. BRD gate cleared 2026-07-27 (v3.8): TR-15 added with success criteria and stamped as superseding BUG-32's always-reassign behaviour — no separate BRD-TR15 tracker item exists, this entry is TR-15's tracked work. Still gated on ADL-41 (S1, trip-place identity) before implementation. Reuses the existing src/frontend/components/shared/ConfirmDialog.tsx — no new component."
     },
     {
       "id": "BUG-41",
@@ -1947,9 +1947,9 @@
       "status": "pending",
       "owner": "fullstack",
       "priority": "P1",
-      "brdRefs": [],
+      "brdRefs": ["TR-14"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. No delete affordance exists for a trip itself (BUG-32 only covers removing a place from within a trip). Needs a route (if missing) + UI entry point + confirmation, same shape as BUG-32's brief."
+      "notes": "Found 2026-07-21 UAT. No delete affordance exists for a trip itself (BUG-32 only covers removing a place from within a trip). Needs a route (if missing) + UI entry point + confirmation, same shape as BUG-32's brief. BRD gate cleared 2026-07-27 (v3.8): TR-14 added with success criteria, so this is now dispatchable as backlog-clearance-plan B7 — no separate BRD-TR14 tracker item exists, this entry is TR-14's tracked work. Sizing note from the plan §6: this is fullstack, there is no router.delete in src/backend/routes/trips.ts at all. Cascade semantics are ruled on by ADL-41 (S1); TR-14 is deliberately scoped as hard deletion and must not foreclose NR-12 (Phase 2 archive)."
     },
     {
       "id": "BUG-51",
@@ -2024,9 +2024,9 @@
       "status": "pending",
       "owner": "fullstack",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["IT-11"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. PO wants consistent date-picker defaulting across all item entry: (1) if the trip's date range is set, adding any item should default its date(s) to the start of the trip's range rather than today; (2) flights specifically should default arrival to the same day as departure once departure is entered, editable after. Explicit PO goal: avoid manually moving both to/from date pickers away from 'today' when entering a trip outside the current month — defaulting should land the picker in the right neighborhood automatically. Subsumes the narrower 'flight arrival defaults to departure date' finding from the same session."
+      "notes": "Found 2026-07-21 UAT. PO wants consistent date-picker defaulting across all item entry: (1) if the trip's date range is set, adding any item should default its date(s) to the start of the trip's range rather than today; (2) flights specifically should default arrival to the same day as departure once departure is entered, editable after. Explicit PO goal: avoid manually moving both to/from date pickers away from 'today' when entering a trip outside the current month — defaulting should land the picker in the right neighborhood automatically. Subsumes the narrower 'flight arrival defaults to departure date' finding from the same session. BRD gate cleared 2026-07-27 (v3.8): IT-11 added with success criteria — no separate BRD-IT11 tracker item exists, this entry is IT-11's tracked work. Ships in backlog-clearance-plan B6 alongside BRD-DP06: IT-11 and DP-06 are one defaulting code path, so briefing them separately would write the same logic twice."
     },
     {
       "id": "BUG-58",
