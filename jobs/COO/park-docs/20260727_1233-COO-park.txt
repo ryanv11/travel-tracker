@@ -1,0 +1,139 @@
+COO SESSION PARK — 2026-07-27 1233 UTC (BUG-64: the merge gate that failed open)
+================================================================================
+
+## Session summary
+Picked up post-/clear. Ran /coo-startup — all six checks clean (hooks OK, main green,
+UAT clean, ledger clean, BRD coverage clean, lifecycle clean). Ryan scoped the session
+tightly to BUG-64 rather than the backlog waves, then added two follow-ons. Three PRs,
+main verified green after each.
+
+### 1. BUG-64 — ci-wait.sh was a gate that failed open (PRs #265, #268)
+The reported bug was real and the fix was straightforward, but investigating it turned
+up two more instances of the same class, one of them introduced by the first fix.
+
+**The class:** a gate reporting PASS without having positively observed evidence for
+the thing it was asked about. Absence of evidence read as evidence of success.
+
+Three variants, all fixed:
+1. **branch mode took its target from `gh run list --limit 1`** — the newest *run*, not
+   the branch tip. Run right after a merge, before GitHub registers the new commit's
+   runs, it watched the *previous* commit's already-green runs and printed PASS. The
+   cleanest statement of it is structural: the old script contained **zero** branch-tip
+   lookups, so by construction it could not detect an untested tip.
+2. **pr mode, contrary to the original triage, was affected too.** An empty
+   `statusCheckRollup` (no checks registered yet) gave zero non-green → PASS; and the
+   non-green filter selected on `conclusion != null`, so still-queued checks were
+   excluded from the count entirely. The triage note asserting "PR-mode is not affected"
+   has been corrected in the tracker rather than left standing.
+3. **pr mode reported PASS while a second trigger's checks were still arriving.** Caught
+   only by asking why PR #267 showed 9 checks where #265 showed 18 — the rollup read 18
+   moments after PASS was reported. This one was **introduced by the first fix**: branch
+   mode got a settle window, pr mode did not, on the assumption `gh pr checks --watch`
+   covered it. It does not. Fixed in #268.
+
+Design point worth keeping: in the #268 fix, correctness deliberately does not rest on
+the re-watch loop terminating at the right moment. The authoritative rollup counts
+anything non-terminal as not-green, so exiting early yields a FAIL, never a false PASS.
+The loop only avoids spurious failures — the guarantee lives in the rollup.
+
+**Incidental find, worth remembering:** `gh api` ignores `--jq` on an error response and
+writes the raw error JSON body to stdout with a non-zero exit. So a resolved SHA that is
+merely non-empty can be `{"message":"No commit found for SHA: ..."}`. It sailed past a
+`-z` guard. Guards now validate the 40-hex shape, not emptiness. Found because a
+bad-branch test produced the right exit code with the wrong message.
+
+Verified with 7 tests including forced-unregistered-commit harnesses proving fail-closed
+in both modes, plus a stubbed count sequence (9 → 18 → stable) to prove the re-watch
+branch actually executes — the live run on #268 settled without needing to re-watch, so
+PASS-at-18 alone would not have proven that path works.
+
+### 2. DEP-03 — Node 20 deprecation (PR #267, issue #266)
+Surfaced from reading main's CI logs during the BUG-64 verification, not from a failure.
+`actions/checkout` and `actions/setup-node` are SHA-pinned to v4 across 16 call sites
+(ci.yml 8+6, security.yml 3+1) and GitHub is force-running them on Node 24. Logged P3
+deliberately: the forced run *passes*, so compatibility is empirically proven rather than
+assumed; the residual risk is only that GitHub eventually errors instead of forcing.
+Success criteria recorded, including the one that is easy to get wrong — **preserve SHA
+pinning** on the v5 bump rather than reverting to floating tags.
+
+### 3. Branch cleanup — a non-finding, and a correction
+Reported at pickup as "21 stale remote branches". That was wrong: they were stale local
+remote-tracking refs. GitHub only ever had `main` and `production` — `--delete-branch`
+on squash merge had been working correctly the whole time. `git fetch --prune` cleared
+them. Recorded here because the original claim went into the pickup summary.
+
+### 4. status.js audited clean (no PR — negative result)
+Scoped by the deciding dimension: not "does it call an external API" but "does anything
+act on its output automatically, or does a human read it". That left exactly one
+unaudited gate — `status.js`, since `status:check` gates both /pre-push and CI.
+
+Six paths tested (STATUS.md truncated/deleted/one-char-altered; tracker.json truncated/
+invalid; a real tracker status change) — all exit non-zero. It is safe because it
+**recomputes the expected artifact and compares byte-for-byte**, so there is no
+absence-of-evidence path: an unreadable input throws, a missing output compares unequal.
+That is precisely the property ci-wait.sh lacked. Its contract — only detecting drift in
+*rendered* fields, so a `notes` edit correctly does not mark STATUS.md stale — is noted
+so it is not later mistaken for a hole.
+
+The two agent-diagnostics scripts (railway-query.sh, turso-query.mjs) were **explicitly
+excluded by Ryan**. They call external APIs but a human reads their output while actively
+debugging, so a misleading result cannot silently approve anything. Do not re-raise.
+
+### 5. Self-inflicted near-miss: tracker.json truncated to 0 bytes
+A Python one-liner (`open(p,'w').write(open(p).read())`) truncated the file before the
+read evaluated, destroying all 190 items. Recovered byte-identical via `git checkout --`
+only because the tree was clean and the file committed at HEAD. Written to memory along
+with the quieter half of the lesson: even a *correct* json round-trip strips the 15
+`// ───` section headers, producing a valid file that passes `npm run status` and would
+land in a PR unnoticed. Read the tracker with `stripJsonComments`; write it only via Edit.
+
+## Completed this session
+- PRs #265, #268 (BUG-64 both modes), #267 (DEP-03). Main verified green after each.
+- BUG-64 → done, with the corrected PR-mode triage recorded. DEP-03 → new, pending, P3.
+- Issue #266 raised, #263 closed.
+- status.js + lib/tracker-data.js audited clean; diagnostics excluded by PO decision.
+- 2 memory entries written: feedback_tracker_json_is_jsonc_edit_in_place,
+  project_gate_script_failopen_audit. MEMORY.md updated.
+- Inbox already clear at pickup; nothing to triage.
+
+## State of play
+- **main** green @ adb08bd, zero open PRs, only `main` locally, clean tree.
+- **production** @ 1a4f84f — main is ahead by doc/tooling commits only; `src/` and
+  `package.json` are identical, so no promotion needed.
+- **Nothing dispatched from the backlog clearance plan.** Wave 0 and Wave 1 both still
+  sit behind the same two §8 gates as at the last park. This session was tooling work.
+- BRD v3.7, untouched this session — no new requirement IDs, nothing owed.
+
+## Suggested next actions
+Ryan's stated intent at close: **dispatch Wave 0 clean.** That needs §8's two gates first:
+1. **ONE BRD bump** covering BUG-50, BUG-57 and BUG-40 — they introduce behaviour with no
+   BRD home, and the success-criteria rule blocks dispatch without it. One version bump for
+   all of Wave 1, not one per brief.
+2. **Pre-assign ADL numbers** for the five concurrent Architects (S1/S2/S3/S5/S6).
+   Worktree isolation does not protect against five agents each independently picking
+   "the next number" — same class as the shared-refs/stash collision in OP-20.
+3. Then Wave 0 (6 scoping dispatches, spec output only, zero conflict with Wave 1) and,
+   if capacity allows, Wave 1 sub-wave A (B1, B2, B3, B6, B9). B9 (QUAL-03) is worth
+   running early regardless — it makes every other backend brief's tests trustworthy and
+   clears OP-15's last prerequisite.
+4. Every dispatch needs `isolation: "worktree"` and `npm install` inside the fresh
+   worktree; briefs touching routes (B3, B4, B7) need the security checklist.
+5. DEP-03 is cheap and self-contained if a filler task is ever wanted — but it touches
+   every job in both workflows, so it wants its own PR, not a ride-along.
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — D-04 through D-12, unchanged this session. Nothing new
+was added: all four items surfaced in this session's restart preview were clear-cut
+captures (resolved into memory or this doc), not unresolved dialogue.
+
+## Restart preview
+Shown to Ryan before this doc was written; he chose to log items 1–3 and drop item 4
+(Claude Code fast mode being same-quality at 2x token cost — noted in conversation,
+deliberately not persisted).
+**Captured:** 3 merged PRs, BUG-64 done + triage correction, DEP-03 logged with success
+criteria, 1 issue raised / 1 closed, ci-wait.sh header documenting all three fail-open
+variants, 2 memory entries, STATUS.md + drift ledger.
+**Captured, not actioned:** Wave 0/1 and all 15 briefs, both §8 gates, ~44 pending tracker
+items incl. P1s BUG-50/BUG-51, D-04–D-12, DEP-03 itself, QUAL-03/04, OP-15, OQ-03, QUAL-07
+— all durably tracked, none at risk from /clear.
+**Not captured:** nothing outstanding. All four preview items were dispositioned.
