@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (48)
+## Open work (49)
 
 ### P0 — Blockers (1)
 
@@ -64,7 +64,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 
-### P3 — Minor (18)
+### P3 — Minor (19)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -86,6 +86,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-54 | Category/activity color customization | ux | ⬜ Pending |
 | BUG-56 | City name not auto-capitalized on entry | frontend | ⬜ Pending |
 | QUAL-07 | Standing docs-vs-code audit — recurring Docs brief to catch prose/reality drift before someone trips over it | docs | ⬜ Pending |
+| DEP-03 | GitHub Actions pinned to v4 target Node.js 20 — deprecated, force-run on Node 24 | unassigned | ⬜ Pending |
 
 ## Coverage by type
 
@@ -95,7 +96,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | requirement | `██████████████████░░` 31/34 | 31 | 3 | 5 |
 | bug | `███████████████░░░░░` 42/56 | 42 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `█████████████░░░░░░░` 9/14 | 9 | 5 | 0 |
+| chore | `████████████░░░░░░░░` 9/15 | 9 | 6 | 0 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -127,4 +128,4 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 
 ---
 
-_122 done · 10 deferred · 2 closed · 48 open — 182 tracked items_
+_122 done · 10 deferred · 2 closed · 49 open — 183 tracked items_
