@@ -1,0 +1,73 @@
+UX PARK DOCUMENT — 2026-07-27
+================================================================================
+THREAD: S4 — trip-list place display, status pill colours, activities auto-populate
+(GitHub #274, Wave 0 scoping brief, jobs/COO/backlog-clearance-plan.md §3)
+================================================================================
+
+OUTCOME: DELIVERED. jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md covers
+BUG-53, UX-11, BUG-54 (ruling), BUG-47, and BUG-46 (ruling) in one pass, batched because
+they share a surface (trip-list card) and a data system (Waypoint badges / per-user
+shading config), and because BUG-47's design directly determines BUG-46's disposition.
+
+WHAT'S IN THE SPEC (full detail in the tech doc, summarized in
+jobs/ux/context/current.txt — not restated a third time here):
+
+- BUG-53: two-line place chip (city bold + region/state) + a new, separate country row
+  (my pill-vs-row call — row, reasoned against the card's existing one-row-one-meaning
+  convention and multi-country trips). Flagged a real discrepancy between the tracker's
+  "current state" description and what TripCard.tsx actually renders (it matches the
+  trip-DETAIL place section instead) rather than silently guessing which surface was
+  meant. Requires a small Backend field addition (country_name + new region_name on
+  TripSummaryPlace.city) — both already computed by the underlying query, just not
+  surfaced in the list-endpoint response mapper. Caught, by reading the repository code
+  rather than assuming, that the existing trip.countries field is NOT a usable source for
+  the new country row (it's fed by a different, mostly-empty-in-practice feature —
+  trip_countries explicit associations, ADL-23 — not derived from places).
+- UX-11: trip status (4 values/trip) and map shading state (7 values/place-aggregate) are
+  different taxonomies — mapped the 2 with exact semantic matches (planning→planned,
+  active→active) and deliberately gave Review and Locked the SAME shading colour
+  (visited_once) rather than inventing a distinct-but-wrong mapping for Locked, with
+  reasoning given. New real cost: a contrast-safe text-colour utility (S effort) for
+  arbitrary admin-picked shading hex — everything else rides an already-shipped pattern
+  (MapLegend.tsx already applies live shading colours as inline style).
+- BUG-54: ruled NOT free — UX-11 gives a rendering technique, not the schema + admin UI
+  BUG-54 actually needs. Stays parked, per the PO's own framing.
+- BUG-47: suggestion-based design modeled on the app's existing IT-07 carry-forward
+  accept/reject pattern, not a silent-write defaulting engine — avoids re-triggering the
+  "never overwrite a user edit" problem this codebase already solved once (IT-11/DP-06).
+  Deliberately thin, honest derivation table (restaurant→"Dining" only) rather than
+  guessing at Experience items, which item_type (6 values) can't disambiguate against a
+  17-entry free-text activity list.
+- BUG-46: ruled FIX, not delete — BUG-47's suggestions are item-driven and no items exist
+  yet at trip-create time, so the plain manual field stays load-bearing on create even
+  after BUG-47 ships. Root cause confirmed in TripForm.tsx (single `isEditing &&` gate).
+  Independent of BUG-47, can ship first.
+
+BUGS DISCOVERED: None (spec/audit work only, no implementation). One forward-flag, not a
+bug against any current requirement: the trip-list endpoint's response mapper
+(buildTripResponse in routes/trips.ts) silently drops country_name even though the
+underlying query already computes it — not a defect until BUG-53 needs it, at which point
+it's a one-line addition (documented precisely in the spec §1.2), not new plumbing.
+
+OPEN ISSUES / BLOCKERS: None UX-owned. One judgment call flagged for COO/PO to confirm
+rather than assume, not a blocker to closing this thread: BUG-53's scope (trip-list card
+vs. trip-detail place section) — see spec §1.1 for the full reasoning; I scoped to the
+list card per the issue title and flagged the discrepancy rather than guessing silently.
+
+WHAT'S UNBLOCKED FOR OTHER JOBS: Nothing dispatches yet — per CLAUDE.md's BRD gate, COO
+must add the 3 recommended new BRD IDs (DP-07 for BUG-53, DP-08 for UX-11, TR-16 for
+BUG-47 — full success-criteria text drafted in the spec §7, ready to paste in) and bump
+the BRD version before any Backend/Frontend brief goes out. BUG-46 needs no new BRD ID
+(conformance fix against existing TR-04) and could be briefed immediately once COO
+confirms the ruling. BUG-53 and UX-11 both need a Backend-touching brief in addition to
+Frontend (BUG-53: the field addition in §1.2; UX-11: no backend work, but the frontend
+contrast utility in §2.3 should be called out as real effort in the brief, not bundled
+into "just a reskin").
+
+GIT: Branch chore/ux-trip-list-spec. Spec + tracker + housekeeping in this thread's
+commits. See completion report in jobs/COO/inbox/ for PR number and CI status.
+
+NEXT ACTIONS: COO — BRD gate, then dispatch. My next thread: standard review-against-spec
+pass once any of BUG-53/UX-11/BUG-47/BUG-46 lands in Frontend's implementation, same
+pattern as the Waypoint Phase 2 review.
+================================================================================
