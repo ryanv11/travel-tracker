@@ -38,9 +38,24 @@ was **Opus where a wrong answer costs a data migration, Sonnet where it costs a 
 - S5 ADL-44 region shading payload — Sonnet (#275)
 - S6 ADL-45 item Maps URL — Sonnet (#276)
 
-**All six terminated with "You've hit your monthly spend limit."** Not a dispatch
-defect — the guardrails held; the account ran out of budget. Five notified failure; S2
-never notified and is idle with nothing produced.
+**Five of six terminated with "You've hit your monthly spend limit."** Not a dispatch
+defect — the guardrails held; the account ran out of budget.
+
+> **CORRECTION (same session, ~1325 UTC).** The line above originally read "all six
+> terminated" and described S2 as "idle with nothing produced." **That was wrong.** S2
+> completed its brief in full and its work is now merged (PR #278, main @ e49a1c9).
+>
+> The error: S2 had not notified, and a point-in-time check of its worktree showed a
+> clean tree and no commits ahead of main — so it was recorded as dead. It was in fact
+> still running, and finished minutes later. The tell that caught it was three
+> drift-ledger lines appended at 13:10-13:11 by `agent_type: architect` in S2's worktree
+> — visible only because an unrelated `git checkout` refused to clobber the modified
+> ledger. **A clean worktree is not evidence an agent is dead; it is equally consistent
+> with an agent that has not committed yet.** Check the drift ledger for recent writes
+> before concluding an agent has stopped, or wait for its notification.
+>
+> S1's salvage (§3) is unaffected — S1 genuinely did die, and its work is genuinely
+> incomplete.
 
 ### 3. What survived: S1's design doc, salvaged and stamped
 S1 had **finished** its 559-line standalone design doc (`jobs/architect/tech/
@@ -69,29 +84,56 @@ the only external runtime dependency in either workflow that isn't SHA-pinned. B
 flakiness source and a floating-tag supply-chain surface. Ryan was asked whether to log
 it as a tracker item; **no answer given before the limit hit.** Still open.
 
+### 5. S2 delivered ADL-42 in full (PR #278, merged, main green)
+Wave 0 is **1 of 6 complete**, not 0. ADL-42 rules that BUG-41 and BUG-42 are one defect:
+one booking = one item, with an `item_flight_legs` 1:N child and a single `item_travellers`
+table whose nullable `leg_id` selects the scope. 13 rulings, all adopted. The stub was
+rewritten in place and ADL-41/43/44/45 left untouched — **the rewrite-in-place mechanism
+worked as designed**, which is the one piece of evidence this session produced for it.
+
+**It hands back a BRD-gate blocker — COO's, and it gates all dispatch from ADL-42:**
+1. **FL-01 is superseded** — "Each flight is logged as an individual leg" is precisely the
+   model ADL-42 replaces. Needs rewriting + a supersession stamp.
+2. **FL-02** must move `seat` off the flight field list (it becomes per-traveller, per-leg).
+3. **BUG-41 needs a new BRD requirement ID** + success criteria (`brdRefs` empty today).
+4. **BUG-42 needs a new BRD requirement ID** + success criteria, covering "traveller on some
+   legs but not others" explicitly.
+S2 deliberately left the FL-01 stamp to the COO's BRD-bump PR rather than splitting it and
+leaving the BRD internally inconsistent between two PRs. BUG-41/42 owner moved to `coo`.
+
+**Two incidental findings from S2, neither actioned, neither with a tracker home yet:**
+- **BRD IT-03 lists status `Shortlisted`, but it was never implemented.** `chk_items_status`
+  in `src/backend/db/schema.ts` omits it and `shortlisted` appears nowhere in `src/`. Added
+  to the BRD in v3.0 (§5.12 planning loop) and never built. This is a real requirement gap,
+  not a doc nit — PL-02's promote/demote flow depends on that status existing.
+- **`jobs/database/tech/schema.ts` is an unmaintained copy of the real schema** and still
+  repeats the superseded FL-01 claim. Candidate for a HISTORICAL banner or deletion.
+
 ## State of play
-- **main** green @ 07671a3, clean tree. Zero open PRs.
+- **main** green @ e49a1c9, clean tree. Zero open PRs.
 - **production** @ 1a4f84f — src/ and package.json identical to main, no promotion owed.
-- **Unmerged branch:** `feat/adl41-trip-place-identity` (salvaged doc, no PR).
-- **Two worktrees left in place** — agent-af1f4a86179dc9ad2 (S1) and
-  agent-a82f791e3ef4b40e1 (S2, locked). Deliberately NOT removed: D-09 records that
-  worktree cleanup can race a lingering agent process, and the salvage value was already
-  secured by pushing. Safe to remove next session once confirmed idle.
-- **Six open issues #271-#276** with no work behind five of them. They are valid briefs
-  and should be re-dispatched, not re-written.
-- Tracker unchanged this session apart from BUG-50/40/57 brdRefs. 44 pending.
-- BRD v3.8.
+- **Unmerged branch:** `feat/adl41-trip-place-identity` (S1 salvage, no PR — see §3).
+- **Worktrees cleaned up.** Both agents confirmed stopped; worktrees and their branches
+  removed. No worktree debt outstanding.
+- **Issues #271-#276:** #272 closed by PR #278. Five still open (#271, #273-#276) with no
+  work behind them. They are valid briefs and should be re-dispatched, not re-written.
+- Tracker: BUG-50/40/57 brdRefs added; BUG-41/42 updated to `designed`, owner `coo`.
+- BRD v3.8 — **owes the four-item bump above before ADL-42 can be dispatched from.**
 
 ## Suggested next actions
 1. **Raise the spend limit before anything else** — every agent dispatch will fail until
    then. This is the blocking item.
-2. **Re-dispatch Wave 0.** The six briefs in issues #271-#276 are complete and reusable;
-   the dispatch prompts are in this session's transcript but the issues carry the scope.
-   S1 can be re-dispatched *cheaper* — point it at the salvaged doc to review, correct
-   and complete rather than redesign from scratch.
-3. Decide the S1 salvage branch's fate: review-and-complete, or discard and re-run.
-4. Wave 1 still untouched and still gated only on Wave 0's specs (both §8 gates are now
-   permanently cleared).
+2. **Do the ADL-42 BRD bump** (the four items in §5). It needs no agent, so it is the one
+   piece of forward progress available while the limit is still hit. Doing it also keeps
+   the BRD internally consistent, which it currently is *not* on FL-01.
+3. **Re-dispatch the five remaining Wave 0 briefs.** Issues #271, #273-#276 carry the full
+   scope. S1 can be re-dispatched *cheaper* — point it at the salvaged doc to review,
+   correct and complete rather than redesign from scratch.
+4. Decide the S1 salvage branch's fate: review-and-complete, or discard and re-run.
+5. Wave 1 still untouched and still gated only on Wave 0's specs (both §8 gates are now
+   permanently cleared). ADL-42 additionally unblocks a Database brief (schema + two
+   migration files) then **one combined Backend+Frontend brief on a single branch** — S2
+   was explicit that there is no compatibility shim, so both layers must land together.
 5. Unanswered from this session: log the unpinned `semgrep/semgrep:latest` as a tracker
    item, or leave it.
 
