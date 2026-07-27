@@ -2705,15 +2705,149 @@ ordering (DP-05/DP-06) and item attachment (`items.trip_place_id`). Must also ru
 cascade semantics TR-14 (trip deletion) depends on, and must not foreclose NR-12 (Phase 2
 archive-instead-of-delete). Unblocks BUG-40, TR-14/TR-15 implementation.
 
-## ADL-42 — RESERVED (S2: booking-item shape / BUG-41 + BUG-42)
+## ADL-42 — Booking item shape: multi-leg flights and multi-traveller seats
 
-**Date:** reserved 2026-07-27
-**Status:** RESERVED — Wave 0 brief S2 not yet dispatched. No decision recorded.
-**Scope:** Multi-leg/connecting flights (BUG-41) and multiple companions/seats per booking
-item (BUG-42) are one schema problem — the booking item is flat — not two. Decide the shape
-(likely sub-entities under a single booking item) covering both, including how seat
-assignment interacts with the existing per-user companion model (AD-08). Downstream: BUG-43
-(Apple Wallet import, research spike only).
+**Date:** 2026-07-27
+**Status:** **Decided, implementation pending.** No schema, migration or code change was made
+by this ADL — it is the design that unblocks those briefs. **Blocked on a COO BRD bump before
+any brief dispatches** (see "COO action required" below).
+**Trigger:** Wave 0 scoping brief S2, GitHub issue #272. Tracker BUG-41 and BUG-42, both
+raised at the 2026-07-21 Scotland dogfood UAT.
+**BRD refs:** §5.5 IT-01–IT-11, §5.6 FL-01–FL-04, CR-01–CR-02.
+**Full ADL:** `jobs/architect/tech/ADL-42-booking-item-shape.md` — the standalone file carries
+the table definitions, migration SQL, API shape and rejected alternatives. This entry is the
+decision of record.
+
+**Problem.** BUG-41 (multi-leg flights on one booking) and BUG-42 (multiple companions/seats
+per booking) are one defect, not two: the booking item is flat. It models one segment of
+travel carrying one implicit traveller. A Seattle→London→Glasgow itinerary on a single PNR
+must today be two unrelated `flight` items (BRD FL-01, echoed at `src/backend/db/schema.ts:507`),
+duplicating the booking reference with nothing keeping them equal and giving one booking two
+statuses. Separately, `item_flights.seat` is one `TEXT` column and **no per-item companion
+link exists anywhere in the schema** — companions attach to trips only, via
+`trip_companions_map`. Neither is fixable alone: a seat belongs to a person on a leg.
+
+**Decisions.**
+
+| # | Decision | Recommendation | Confidence |
+|---|----------|----------------|------------|
+| D1 | Booking shape | New `item_flight_legs` child table under **one** flight item; `item_flights` retained as the booking-level extension row | High |
+| D2 | Leg ordering | Explicit 1-based contiguous `leg_order`, full-replace on write — **not** sorted by `departure_datetime` | High |
+| D3 | Parent vs leg fields | Parent: `booking_reference` (the PNR). Leg: airline, flight number, both airports, both datetimes | High |
+| D4 | Traveller / seat model | **One** table `item_travellers` with a **nullable `leg_id`** selecting the scope; row presence = travels this scope; `seat` on the row | High |
+| D5 | The owning user | `companion_id` **nullable**, `NULL` = "me". Do not synthesise a "Me" companion | High |
+| D6 | Manifest mode | Per item, traveller rows are all leg-scoped (flights) or all booking-scoped (all other types) — never mixed | High |
+| D7 | Cross-user companion guard | Mandatory `companionRepository.validateOwnership` (ADL-28 R4) at the new write path; `userId` is the repository's first argument | High |
+| D8 | Does a leg have a status? | **No.** Status stays item-level (IT-03, FL-03) | High |
+| D9 | Cost | Booking-level whenever introduced, never per-leg. Not added — no BRD requirement exists | High |
+| D10 | Migration | **Two** files: additive create-and-backfill, then a separate destructive shrink of `item_flights` | High |
+| D11 | API read path | Legs/travellers fetched in a **second batched query** — never `leftJoin`ed into `fetchItemsWithExtensions` | High |
+| D12 | Compatibility shim | **None.** Backend and frontend land together | Medium |
+| D13 | Traveller scope by type | `item_travellers` open to all item types; legs flight-only | High |
+
+**Why one table for travellers (D4/D5/D6) — the load-bearing choice.** Three requirements
+pull apart: multiple seats per leg, a companion who is on some legs but not others, and
+non-flight items that have travellers but no legs. Having both a booking-level and a
+leg-level junction is the trap — two homes for one fact, and "on the booking but no row on
+leg 2" becomes ambiguous between *not travelling that leg* and *seat unknown*. A single table
+with a nullable `leg_id` resolves it: **row presence is the assertion**, `seat IS NULL` means
+"on this leg, seat unknown", and for flights the booking roster is derived
+(`SELECT DISTINCT companion_id ... WHERE item_id = ?`), never stored, so a stored roster and
+manifest cannot disagree. Uniqueness needs **four partial unique indexes**, because SQLite
+treats NULLs as distinct and a plain composite unique would accept the same traveller twice;
+the cheaper two-index alternative (a `0` self-sentinel) was rejected because `0` cannot carry
+an FK to `companions.id` — referential integrity outranks index count.
+
+`companion_id` must be nullable because **`companions` is a list of *other* people — the user
+is not in it.** Today's single `seat` column *is* the user's own seat, implicitly; a
+`NOT NULL companion_id` junction would have nowhere to put it, making the "fix" a regression.
+
+**Why no leg status (D8).** A PNR is confirmed or cancelled as a unit. Per-leg status has no
+correct aggregate (leg 1 Completed, leg 2 Cancelled → what does the item show?) and every
+consumer reads one status: `itemRepository.findByTrip`'s `filters.status`, IT-06 bulk review,
+IT-08/IT-09 rating filters, PL-03 planning-stage grouping. The real need behind it — "the
+airline cancelled my second leg" — is an operational disruption, not a planning stage, and
+belongs on its own nullable per-leg marker if the PO ever asks.
+
+**Alternatives rejected:** legs as separate items joined by a `booking_group_id` (leaves N
+statuses per booking); widening `item_flights` with `leg2_*`/`leg3_*` columns (hard cap,
+unindexable); a JSON `legs` array (ADL-11 rejected JSON for item fields precisely because
+SQLite cannot index JSON paths, and leg departure dates are queried —
+`20260307-tech-blueprint.md:292`); and a generalised `item_segments` table spanning flights,
+hotels and car rentals — the most elegant option and the wrong one, since it requires
+migrating three extension tables and rewriting every route, helper, test and component to buy
+a second segment for types that will never have one. Rejected on cost, not taste.
+
+**Implementation implications.**
+- Two new tables; `item_flights` shrinks to `(item_id, booking_reference)`. `items`,
+  `item_hotels`, `item_car_rentals`, `item_restaurants` and `item_experiences` are untouched —
+  blast radius stays small and ADL-11's pattern stays intact.
+- **The most likely implementation bug:** `fetchItemsWithExtensions`
+  (`src/backend/routes/items-helper.ts:82`) left-joins five **1:1** tables into one flat row.
+  Legs and travellers are **1:N** — joining them multiplies rows (a 3-leg flight with 2
+  travellers returns 6 rows for one item) and silently corrupts `effectiveRating`, the rating
+  sort and the `minRating` filter. Second batched query, always.
+- `item_travellers.companion_id` is a second write path to `companions.id` and therefore a
+  path around AD-08. The repository signature must be
+  `itemTravellerRepository.replace(userId, itemId, assignments)` — `userId` first and
+  mandatory, so the junction cannot be written without the scoping value. Cross-user IDs are
+  **400, not 404**, matching ADL-28. The Backend brief must mirror ADL-28's rejection tests
+  from `src/backend/repositories/__tests__/trips.test.ts` into
+  `src/backend/repositories/__tests__/items.test.ts`.
+- Migration is **two files**: file 1 creates the tables and backfills one leg per existing
+  flight plus the legacy `seat` as the owning user's seat on leg 1; file 2 drops the seven
+  moved columns. Steps in file 1 read columns file 2 destroys, and Drizzle cannot know the
+  ordering — two files make inverting it structurally impossible and leave a safe, reversible
+  resting point. Verify row counts on staging between them. `db:push` remains forbidden (ADL-15).
+- `patches/drizzle-kit+0.31.9.patch` Bug 4 (partial-index `WHERE` reading) is **load-bearing**
+  for the four partial unique indexes; without it drizzle-kit will churn these migrations.
+  Verified expressible: `uniqueIndex()` and `index()` share one builder in the installed
+  drizzle-orm (`sqlite-core/indexes.d.ts`, `IndexBuilder.where()`).
+- **BUG-45/ADL-43 cross-dependency:** `airline` moves to `item_flight_legs`. The sourced
+  airline dropdown must target `item_flight_legs.airline`, not `item_flights.airline`, or that
+  brief will need reworking.
+- No back-compat shim, so the Database brief may merge alone (additive), but the Backend and
+  Frontend changes must land on one branch as a single brief —
+  `src/frontend/types/api.ts:133–141`, `ItemCard.tsx`, `ItemForm.tsx` and `useItems.ts` all
+  read the flat flight keys that disappear.
+- **Naive datetimes make one UI feature unsafe:** leg datetimes carry no timezone, so layover
+  and total-journey durations computed across legs are wrong whenever a connection crosses a
+  timezone — which is the norm for the itinerary that motivated BUG-41. The frontend must not
+  display connection durations until timezone data exists (depends on airport reference data,
+  ADL-43's territory).
+
+**Drift found while checking, flagged not fixed:** BRD IT-03 (v3.0) lists **Shortlisted** as
+an item status, but `chk_items_status` (`src/backend/db/schema.ts:499`) permits only
+`consider, confirmed, completed, cancelled, next_time` and the string `shortlisted` appears
+nowhere in `src/`. It was added to the BRD and never implemented; its home is the
+deprioritized planning-core tracker entry. ADL-42 does not rebuild the `items` table so it
+neither depends on nor resolves this.
+
+**COO action required before any brief dispatches** (CLAUDE.md BRD gate): **FL-01 is
+superseded** — "Each flight is logged as an individual leg" is the exact model this replaces —
+and must be rewritten and stamped `> SUPERSEDED (2026-07-27) by ADL-42 — retained for history.`
+FL-02 must move `seat` off the flight field list. BUG-41 and BUG-42 both have empty `brdRefs`
+and need new requirement IDs with measurable success criteria. **The BRD was deliberately not
+edited here** — the FL-01 stamp belongs in the COO's BRD-bump PR alongside the new IDs and the
+header/§13 changelog bump, not split across two PRs leaving the BRD internally inconsistent in
+between. The implementing Database brief must also rewrite `src/backend/db/schema.ts:507`,
+which still asserts the superseded FL-01 model; `jobs/database/tech/schema.ts:507` is a stale
+copy carrying the same claim and needs refreshing or a HISTORICAL banner.
+`jobs/architect/tech/20260307-ER-schema.md:303` repeats it but already has a HISTORICAL banner
+and needs no further stamp.
+
+**Supersession:** no ADL entry is superseded. **ADL-11** (base + extension tables) is preserved
+and extended — `item_flights` remains the 1:1 booking extension and the leg table is a new 1:N
+child beneath it. **ADL-28** (per-user companions) is reinforced — its `validateOwnership`
+guard becomes mandatory at a second write path. The one supersession is BRD FL-01, stamped by
+the COO per the paragraph above.
+
+**Out of scope:** BUG-43 (Apple Wallet `.pkpass` import) — not designed. Two notes only for
+whoever picks up the spike: a boarding pass carries exactly *(flight number, both airports,
+both times, seat, passenger name, PNR)*, mapping 1:1 onto one leg row plus one traveller row,
+so this design is import-shaped by construction; and an importer would dedupe on
+`booking_reference`, so that column must **not** be made globally unique — dedupe within
+`(user_id, booking_reference)` at the application layer.
 
 ## ADL-43 — RESERVED (S3: sourced reference data / BUG-45 + OQ-06)
 

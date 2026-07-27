@@ -1835,22 +1835,22 @@
       "type": "feature",
       "title": "Multi-leg / connecting flights within a single booking",
       "status": "pending",
-      "owner": "architect",
+      "owner": "coo",
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Example: Seattle→London (layover)→Glasgow, all one booking. Current flight item model is single-leg. Needs Architect schema design before this is briefable — likely a flight-legs sub-entity under one booking item, not a simple field addition."
+      "notes": "Found 2026-07-21 UAT. Example: Seattle→London (layover)→Glasgow, all one booking. DESIGNED 2026-07-27 — Architect ADL-42 (issue #272, Wave 0 brief S2) decided jointly with BUG-42: one booking = one item, legs in a new item_flight_legs 1:N child table with explicit leg_order; item_flights shrinks to (item_id, booking_reference); airline/flight_number/airports/datetimes move to the leg. Full design jobs/architect/tech/ADL-42-booking-item-shape.md. Status 'designed', implementation pending. BLOCKED on the COO BRD gate: FL-01 ('each flight is logged as an individual leg') is superseded and must be rewritten + stamped, and this entry needs a new BRD requirement ID with success criteria (brdRefs currently empty). Sequencing: Database brief (schema + 2 migration files) first, then one combined Backend+Frontend brief. Note for ADL-43/BUG-45: airline moves to item_flight_legs.airline."
     },
     {
       "id": "BUG-42",
       "type": "feature",
       "title": "Multiple companions/seats per booking item",
       "status": "pending",
-      "owner": "architect",
+      "owner": "coo",
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Should be able to assign multiple companions/seats to one booking item (flight, car, etc.) instead of one implicit traveller. Needs schema/UX scoping — how seat assignment interacts with the existing companion model."
+      "notes": "Found 2026-07-21 UAT. DESIGNED 2026-07-27 — Architect ADL-42 (issue #272, Wave 0 brief S2) decided jointly with BUG-41: one new item_travellers table with a nullable leg_id (scope) and a nullable companion_id (NULL = the owning user, since companions is a list of OTHER people and today's single seat column is implicitly the user's own). Row presence = travels this scope; seat NULL = seat unknown. Open to all item types; legs flight-only. ADL-28's companionRepository.validateOwnership guard is mandatory at this second write path (cross-user companion = 400, not 404). Full design jobs/architect/tech/ADL-42-booking-item-shape.md. Status 'designed', implementation pending. BLOCKED on the COO BRD gate: needs a new BRD requirement ID with success criteria covering the 'traveller on some legs but not others' case (brdRefs currently empty); FL-02 must also move seat off the flight field list."
     },
     {
       "id": "BUG-43",

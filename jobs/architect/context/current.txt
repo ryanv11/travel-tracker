@@ -1,62 +1,90 @@
-ARCHITECT CONTEXT — 2026-07-22
+ARCHITECT CONTEXT — 2026-07-27
 PROJECT: Travel Tracker
-CURRENT STATUS: ADL-38 decided AND implemented — BUG-61 (#225) non-owner country-picker fix.
-Root cause: src/backend/routes/admin.ts registered GET /countries and
-GET /countries/:countryCode/regions directly on adminRouter, and adminRouter.use(requireOwner)
-(admin.ts) gated the WHOLE router — reads included. So a non-owner account (Ryan's staging test
-sign-in) got 403 on GET /api/admin/countries; TripForm's country picker (useCountries) rendered
-empty and no non-owner could create a trip at all. Per GE-04/GE-05 every country ships as a
-global, pre-seeded default available to all users out of the box (same tier as AD-09
-categories/activities), so gating the READ behind owner status was wrong.
+CURRENT STATUS: ADL-42 DECIDED, IMPLEMENTATION PENDING — booking item shape (BUG-41 + BUG-42),
+Wave 0 scoping brief S2, GitHub issue #272, branch feat/adl42-booking-item-shape.
+Spec output only — no schema, migration or code change was made.
 
-DECISION (read/write split): the two country/region GET routes now require only requireAuth
-(already applied globally to /api/* in server.ts); the three WRITE routes (PATCH country config,
-POST region, PATCH region) stay owner-gated exactly as before. Implementation kept the router
-FAIL-CLOSED by default: I moved the two GET handlers ABOVE the router-level requireOwner guard
-rather than removing the blanket guard + adding per-route requireOwner. That means a future
-admin route is owner-gated unless deliberately moved into the small, labelled reads block —
-avoids the fail-open BUG-22 class (requireOwner forgotten on a write route). The guard block in
-admin.ts carries an explicit FAIL-CLOSED comment; only global-reference-data reads may sit above it.
+PROBLEM: BUG-41 (multi-leg flights on one booking) and BUG-42 (multiple companions/seats per
+booking) are ONE defect: the booking item is flat. It models one segment of travel carrying
+one implicit traveller. Seattle→London→Glasgow on a single PNR must today be two unrelated
+flight items (BRD FL-01; echoed at src/backend/db/schema.ts:507), duplicating the booking
+reference and giving one booking two statuses. Separately item_flights.seat is one TEXT column
+and there is NO per-item companion link anywhere in the schema — companions attach to trips
+only via trip_companions_map. Neither is fixable alone: a seat belongs to a person on a leg.
 
-DISTINCT FROM ADL-28 (BRD-AD07/AD08): ADL-28 = make genuinely owner-only data (map shading,
-companions) work PER-USER via a userId FK (still awaiting Backend brief). BUG-61 = global,
-already-shared data wrongly gated as owner-only. No userId scoping here; countries/regions have
-no per-user dimension. Did NOT expand into ADL-28's scope.
+DECISION (13 rulings, full design in jobs/architect/tech/ADL-42-booking-item-shape.md):
+ - One booking = one item. New item_flight_legs 1:N child table with explicit 1-based
+   contiguous leg_order (NOT sorted by departure_datetime — datetimes are optional under
+   PL-01 and naive/timezone-less). item_flights retained as the booking-level extension row,
+   shrunk to (item_id, booking_reference). airline/flight_number/airports/datetimes move to
+   the leg (interline itineraries genuinely change carrier between legs).
+ - ONE new item_travellers table with a nullable leg_id selecting scope and a nullable
+   companion_id. Row presence = travels this scope; seat NULL = seat unknown. This is the
+   load-bearing choice: two junctions (booking-level + leg-level) would give two homes for one
+   fact and make "on the booking but no row on leg 2" ambiguous. For flights the booking
+   roster is DERIVED, never stored.
+ - companion_id NULLABLE, NULL = the owning user. Reason nobody had written down: `companions`
+   is a list of OTHER people; the user is not in it, and today's single seat column IS the
+   user's own seat implicitly. A NOT NULL companion_id would have made the fix a regression.
+   Rejected auto-creating a "Me" companion (pollutes an AD-08 user-managed list, collides with
+   uniq_companions_user_name, self-row becomes soft-deletable).
+ - Four partial unique indexes — SQLite treats NULLs as distinct so a plain composite unique
+   accepts the same traveller twice. The two-index alternative (0 as a self sentinel) was
+   rejected because 0 cannot carry an FK to companions.id. Integrity > index count.
+ - NO leg status. Status stays item-level (IT-03/FL-03). Per-leg status has no correct
+   aggregate and every consumer reads one status.
+ - Cost is booking-level whenever introduced, never per-leg. Not added — no BRD requirement
+   for item cost exists anywhere.
+ - Migration in TWO files (additive create+backfill, then destructive shrink) — file 1 reads
+   columns file 2 destroys and Drizzle cannot know the ordering.
+ - AD-08 guard: item_travellers.companion_id is a SECOND write path to companions.id.
+   companionRepository.validateOwnership mandatory; 400 not 404; repository signature takes
+   userId FIRST so the junction cannot be written without it (structural, not a reminder).
 
-Change confined to admin.ts. Regression: security.access-matrix.test.ts Part E added (non-owner
-GET countries/regions -> 200; non-owner writes -> 403); the two old GET-403 cases removed from
-Part B. Full backend suite 538 passed / 1 skip; type:check:backend clean. Manual live check with
-a non-owner bypass user (BYPASS_AUTH=true, OWNER_CLERK_ID mismatch -> isOwner:0): GET countries
-200 (250 rows), GET regions 200, PATCH/POST writes 403, GET /api/admin/categories still 403
-(fail-closed intact). ADL-27 standalone file stamped SUPERSEDED IN PART for the two GET routes.
-Branch fix/bug61-country-picker-auth, PR pending CI. See 20260722-ARCHITECT-park-adl38.txt.
+REJECTED: booking_group_id on separate items (N statuses per booking); leg2_*/leg3_* columns
+(hard cap, unindexable); JSON legs array (ADL-11 rejected JSON precisely because SQLite cannot
+index JSON paths and leg dates are queried); a generalised item_segments table spanning
+flights/hotels/car rentals — most elegant, wrong on cost: it requires migrating three extension
+tables and rewriting every route/helper/test/component to buy a second segment for types that
+will never have one.
 
-PRIOR STATUS: ADL-37 decided AND implemented — BUG-60 (#221) trust-proxy fix.
-app.set('trust proxy', 1) in server.ts + server-test-app.ts. Integer hop count 1 (NOT true,
-which is client-spoofable). Regression test src/backend/__tests__/trust-proxy.test.ts.
-Branch fix/bug60-trust-proxy. See 20260722-ARCHITECT-park-adl37.txt.
-
-PRIOR STATUS: ADL-36 decided — BUG-39 (#209) FK review. items.carriedFromItemId gets
-onDelete: 'set null'. Database owned the migration (0011_majestic_nehzno.sql).
-
-PRIOR STATUS: ADL-35 decided — environment promotion model. Staging watches `main`
-(continuous soak); Production watches a long-lived `production` branch, promoted by explicit
-`git merge --ff-only origin/main` + push. Branch-per-brief UNCHANGED.
+SUPERSESSION: no ADL entry superseded. ADL-11 preserved and extended; ADL-28 reinforced. The
+one supersession is BRD FL-01 — deliberately NOT stamped by me, it belongs in the COO's
+BRD-bump PR alongside the new IDs and the header/§13 bump.
 
 ================================================================================
 OPEN / HANDOFF
 ================================================================================
 
-  1. COO: merge PR #225 (fix/bug61-country-picker-auth) after CI green — do not self-merge.
-     Then flip BUG-61 tracker status (tracker is COO-maintained; I did not edit it). Issue
-     title / tracker notes already carry BUG-61 <-> #225 cross-reference.
-  2. No new BRD requirement IDs — BUG-61 is a bug fix against existing GE-04/GE-05, brdRefs
-     already set; no BRD bump needed.
-  3. Frontend: no change required — the reported symptom (empty country picker for non-owners)
-     resolves end-to-end once this merges. Non-owner "share the app with a friend" path is
-     unblocked through trip creation.
-  4. Carried over, still open, unrelated to this thread:
-     - ADL-28 (BRD-AD07/AD08) per-user map-shading + companions still awaiting Backend brief.
+  1. COO BRD GATE BLOCKS ALL DISPATCH (CLAUDE.md rule). Four items: rewrite + stamp FL-01
+     ("each flight is logged as an individual leg" is exactly the model ADL-42 replaces);
+     amend FL-02 (seat moves off the flight field list); new requirement ID + success criteria
+     for BUG-41; new requirement ID + success criteria for BUG-42 covering the "traveller on
+     some legs but not others" case. Both tracker entries have brdRefs: [] today.
+  2. COO: merge PR for feat/adl42-booking-item-shape after CI green — do not self-merge.
+  3. Brief sequencing once the BRD gate clears: (a) Database brief — schema + the two migration
+     files, additive, safe to merge alone; (b) ONE combined Backend+Frontend brief on a single
+     branch, because there is no compatibility shim and the flat flight keys disappear from the
+     API. One branch per brief still holds — this is one brief spanning two layers.
+  4. BUG-45 / ADL-43 cross-dependency: airline moves to item_flight_legs.airline. If S3's brief
+     is written against item_flights.airline it will need reworking.
+  5. Frontend constraint to carry into that brief: leg datetimes are naive/timezone-less, so
+     layover and total-journey durations across legs are WRONG whenever a connection crosses a
+     timezone — the norm for the itinerary that motivated BUG-41. Do not display connection
+     durations until timezone data exists (depends on airport reference data, ADL-43).
+  6. Drift found, flagged not fixed: BRD IT-03 (v3.0) lists Shortlisted as an item status but
+     chk_items_status (src/backend/db/schema.ts:499) permits only consider/confirmed/completed/
+     cancelled/next_time and the string 'shortlisted' appears nowhere in src/. Added to the BRD
+     and never implemented; home is the deprioritized planning-core entry. ADL-42 does not
+     rebuild the items table so it neither depends on nor resolves this.
+  7. Stale doc flagged, not actioned: jobs/database/tech/schema.ts is an unmaintained COPY of
+     src/backend/db/schema.ts and repeats the superseded FL-01 claim at line 507. Needs
+     refreshing or a HISTORICAL banner. jobs/architect/tech/20260307-ER-schema.md:303 repeats
+     it too but already carries a HISTORICAL banner — no further stamp needed.
+  8. patches/drizzle-kit+0.31.9.patch Bug 4 (partial-index WHERE reading) is LOAD-BEARING for
+     the four partial unique indexes. If drizzle-kit is ever upgraded, re-verify before this
+     lands or migrations will churn.
+  9. Carried over, unrelated to this thread:
      - Clerk preview-origin question (ADL-32 §6) + §10 success criteria pending a real deploy.
-     - D-05 Clerk staging/prod user-pool split (shared pool today — jobs/COO/open-dialogues.md).
-     - OQ-03 (shell trip approximate dates), OQ-05 (trip_places one-row-per-city constraint).
+     - D-05 Clerk staging/prod user-pool split (jobs/COO/open-dialogues.md).
+     - OQ-03 (shell trip approximate dates). OQ-05 is ADL-41's (S1), not mine.

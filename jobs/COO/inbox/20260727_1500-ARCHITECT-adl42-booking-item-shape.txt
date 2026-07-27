@@ -1,0 +1,56 @@
+ADL-42 · issue #272 (Wave 0 brief S2) · BRD §5.5 IT-01–11, §5.6 FL-01–04 · feat/adl42-booking-item-shape
+
+DECIDED: BUG-41 and BUG-42 are one defect — the booking item is flat, modelling one segment
+of travel carrying one implicit traveller. One booking = one item, with a new item_flight_legs
+1:N child and a single new item_travellers table whose nullable leg_id selects the scope.
+Spec only; no schema, migration or code changed. Status: Decided, implementation pending.
+
+PER-DECISION VERDICT (13 rulings, all adopted; full detail in the ADL):
+ D1  ADOPTED  item_flight_legs 1:N child; item_flights shrinks to (item_id, booking_reference)
+ D2  ADOPTED  explicit 1-based leg_order, full-replace on write — not a datetime sort
+ D3  ADOPTED  parent carries the PNR; airline/flight_number/airports/datetimes are per-leg
+ D4  ADOPTED  ONE item_travellers table, nullable leg_id; row presence = travels this scope
+ D5  ADOPTED  companion_id nullable, NULL = the owning user
+ D6  ADOPTED  manifest mode — per item, rows all leg-scoped or all booking-scoped, never mixed
+ D7  ADOPTED  validateOwnership mandatory (400 not 404); userId is the repo's first argument
+ D8  ADOPTED  no leg status — status stays item-level (IT-03/FL-03)
+ D9  ADOPTED  cost is booking-level when introduced, never per-leg; not added (no BRD req)
+ D10 ADOPTED  two migration files: additive backfill, then destructive shrink
+ D11 ADOPTED  legs/travellers via a second batched query, never left-joined
+ D12 ADOPTED  no compatibility shim; backend + frontend land together (Medium confidence)
+ D13 ADOPTED  item_travellers open to all item types; legs flight-only
+ REJECTED: booking_group_id; leg2_*/leg3_* columns; JSON legs array; a generalised
+ item_segments table across flights/hotels/car rentals; two separate traveller junctions;
+ an auto-created "Me" companion row. Reasoning per option is in the ADL and park doc.
+
+CI: no code commit — docs and tracker only. PR CI confirmed green before this report.
+
+BLOCKER — YOURS, AND IT GATES ALL DISPATCH:
+ This needs new BRD requirement IDs. I did NOT add them; the BRD gate is yours. Four items:
+  1. FL-01 is SUPERSEDED — "Each flight is logged as an individual leg" is exactly the model
+     ADL-42 replaces. Rewrite + stamp: > SUPERSEDED (2026-07-27) by ADL-42 — retained for history.
+  2. FL-02 must move `seat` off the flight field list (it becomes per-traveller, per-leg).
+  3. New requirement ID + success criteria for BUG-41 (brdRefs is [] today).
+  4. New requirement ID + success criteria for BUG-42, covering "traveller on some legs but
+     not others" explicitly (brdRefs also []).
+ I left the FL-01 stamp to your BRD-bump PR deliberately rather than splitting it across two
+ PRs and leaving the BRD internally inconsistent in between — not a skipped lifecycle step.
+
+OTHER FLAGS (none blocking):
+ - BUG-45/ADL-43 (S3) cross-dependency: airline moves to item_flight_legs.airline. If S3's
+   brief is written against item_flights.airline it will need reworking.
+ - Drift, not fixed: BRD IT-03 lists Shortlisted; chk_items_status (schema.ts:499) does not
+   have it and 'shortlisted' appears nowhere in src/. Never implemented. Not mine to fix.
+ - Stale doc: jobs/database/tech/schema.ts is an unmaintained COPY of the real schema file and
+   repeats the superseded FL-01 claim. Needs refreshing or a HISTORICAL banner.
+ - Frontend constraint to carry into the brief: leg datetimes are timezone-less, so layover
+   and journey durations across legs are wrong whenever a connection crosses a timezone.
+   Do not display connection durations until timezone data exists.
+
+NOW UNBLOCKED (once the BRD gate clears):
+ Database brief — schema + the two migration files; additive, safe to merge alone. Then ONE
+ combined Backend+Frontend brief on a single branch (no shim, so the flat flight keys
+ disappear from the API and both layers must land together). Quote D11 verbatim into the
+ Backend brief: legs/travellers are 1:N and left-joining them into fetchItemsWithExtensions
+ multiplies rows and silently corrupts the rating sort, minRating filter and item counts.
+ That is the one error this change is most likely to produce.
