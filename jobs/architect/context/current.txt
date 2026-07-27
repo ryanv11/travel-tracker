@@ -1,5 +1,6 @@
-ARCHITECT CONTEXT — 2026-07-27
+ARCHITECT CONTEXT — 2026-07-27 (S6 / ADL-45)
 PROJECT: Travel Tracker
+--- concurrent Wave 0 session block A ---
 CURRENT STATUS: ADL-44 DECIDED, IMPLEMENTATION PENDING — region-shading geometry payload
 (BUG-48), Wave 0 scoping brief S5, GitHub issue #275, branch
 chore/adl44-region-shading-payload. Spec output only — no code, asset, or schema change made.
@@ -62,10 +63,67 @@ file is ~10x that — and the "load once at init, cache in memory" delivery mode
 `> SUPERSEDED (2026-07-27) by ADL-44`. 20260307-map-shading-spec.md read in full (404 lines)
 and found to specify only shading-STATE SQL, never geometry delivery — no stamp applied,
 nothing in it is affected.
+--- concurrent Wave 0 session block B ---
+CURRENT STATUS: ADL-45 DECIDED, IMPLEMENTATION PENDING — item map URL column (BRD-IT10),
+Wave 0 scoping brief S6, GitHub issue #276, branch chore/adl45-item-maps-url.
+Spec output only — no schema, migration or code change was made.
+
+NOTE: this file is shared across concurrent Wave 0 Architect dispatches (S1/S2/S3/S5/S6
+each ran or are running in their own worktree). Whichever session closes last will show
+here; see jobs/architect/park-docs/ for the full set of session-specific park docs
+(20260727-ARCHITECT-park-adl42.txt, and this session's 20260727-ARCHITECT-park-adl45.txt)
+if this summary looks like it's missing another wave's work — it is not necessarily stale,
+just single-slotted.
+
+PROBLEM: BRD §5.5 IT-10 — each item can optionally store a Google Maps URL; when present
+the trip detail view shows a one-click map/directions link, and no separate address/phone
+fields are required when a URL is set. Small schema addition (one nullable column) but the
+schema-change rule requires Architect review before any Database brief — this ADL is that
+gate. The brief called out validation/sanitisation of the user-supplied URL as the main
+reason it exists (it renders as a clickable href).
+
+DECISION (10 rulings, full text in jobs/architect/tech/20260307-architecture-decisions-log.md
+ADL-45 entry — rewritten in place, no standalone file needed for a decision this size):
+ - `map_url text`, nullable, no default, on the BASE `items` table (schema.ts:453-503) —
+   same placement as `notes`, not on any item_* extension table. Applies to every item_type
+   including `note`; no per-type special-casing needed or added.
+ - Not named `google_maps_url` — deliberately provider-agnostic. https:// scheme required,
+   but NO Google-host allowlist: real Google Maps share links come from several domains
+   (google.com/maps, maps.google.com, goo.gl/maps, maps.app.goo.gl, g.page) and a host
+   allowlist is a maintenance liability that would silently break the feature the day
+   Google issues from an unlisted domain. Scheme allowlisting is the correct control for
+   the actual threat (javascript:/data: injection); host is not.
+ - Server (Zod, new `zMapUrl` in validation/common.ts) is authoritative. Client re-validates
+   at render via the EXISTING `src/frontend/utils/urlSanitiser.ts` `sanitiseUrl()` —
+   extended to take an optional allowed-scheme list rather than forked into a second
+   function. Call it with `['https:']` (narrower than its current default `['https:',
+   'file:']` — file:// dropped, it doesn't make sense for a directions link).
+ - `target="_blank" rel="noopener noreferrer"` mandatory on the rendered anchor
+   (reverse-tabnabbing control) — stated explicitly because there is no existing
+   anchor-rendering precedent in this app to copy: `sanitiseUrl()` exists and is tested but
+   has ZERO call sites in any component today. IT-10 is the first real caller.
+ - No DB CHECK for scheme or length. Length capped at 2048 via Zod `.max()` only, matching
+   the `zName` precedent (75-char cap, no matching `LENGTH()` CHECK anywhere in schema.ts —
+   verified by grep). A CHECK would also force SQLite table recreation for this column,
+   which a plain `ALTER TABLE items ADD COLUMN` avoids.
+ - One additive migration file (db:generate + db:migrate). No two-file split needed (unlike
+   ADL-42) — nullable column, no default, no CHECK, nothing to backfill.
+ - No conflict with §5.6 structured fields (HT-01 address etc.) — IT-10's "no separate
+   fields required" is about optionality, not field removal; nothing there to reconcile.
+
+FINDING, flagged not fixed (real security gap, pre-existing, NOT introduced by this ADL):
+`trips.photo_album_ref` — the field SEC-12 (security-spec.md:330-331) was originally written
+for — has NO server-side scheme validation today (CreateTripSchema/UpdateTripSchema both
+type it as plain `zOptionalString`, trips.schemas.ts:22,37). The only control that exists is
+the frontend `sanitiseUrl()`, which nothing calls. So a `javascript:` value could be written
+via the API today and would pass through harmlessly only because nothing renders it as a
+link yet. Recommended as a small COO follow-up tracker item — NOT bundled into BRD-IT10,
+and not blocking it.
 
 ================================================================================
 OPEN / HANDOFF
 ================================================================================
+--- concurrent Wave 0 session block A ---
 
   1. No BRD gate blocks dispatch — no new requirement ID was needed (this is a performance
      defect against existing GE-10/MP-01/MP-02, not new functional scope). Reported to COO in
@@ -93,3 +151,19 @@ OPEN / HANDOFF
      - ADL-42's own handoff items (BRD gate, brief sequencing, BUG-45/ADL-43 cross-dependency)
        are unaffected by this thread — see jobs/architect/park-docs/20260727-ARCHITECT-park-
        adl42.txt for that thread's own handoff if still relevant when this is read.
+--- concurrent Wave 0 session block B ---
+  1. COO: this ADL does NOT require a BRD edit — IT-10 already has success criteria stated
+     in BRD §5.5 and this decision doesn't change them. tracker.json BRD-IT10 updated in
+     place (status stays "pending", notes now say "DESIGNED 2026-07-27" — same convention
+     ADL-42 used for BUG-41/BUG-42).
+  2. COO: merge PR for chore/adl45-item-maps-url after CI green — do not self-merge.
+  3. Once merged, unblocks: Database brief (schema.ts + one migration file — safe to merge
+     alone, nothing depends on the column existing yet) and the Frontend/Backend brief that
+     consumes it (map_url in items.schemas.ts + ItemForm.tsx + ItemCard.tsx +
+     urlSanitiser.ts extension). Also unblocks BRD-MB0102 (§5.15 MB-02 directions link),
+     which was blocked on this column existing.
+  4. Optional follow-up for COO to raise as its own tracker item (not gating IT-10): add
+     server-side scheme validation to `photo_album_ref` and give `sanitiseUrl()` its first
+     real call site — see FINDING above.
+  5. Nothing in this ADL touches ADL-41/ADL-43/ADL-44 stubs or ADL-42's completed entry —
+     verified untouched after edit (grep confirms all five headers intact and distinct).

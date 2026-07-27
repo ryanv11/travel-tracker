@@ -1705,7 +1705,7 @@
       "priority": "P3",
       "brdRefs": ["IT-10"],
       "phase": 5,
-      "notes": "Added to BRD v3.1, 2026-07-20 UAT. Small schema addition (nullable URL column) — needs Architect review before a Database brief per the schema-change rule. Success criteria in BRD §5.5. Also covers item-level phone/address access without separate structured fields, per PO rationale."
+      "notes": "Added to BRD v3.1, 2026-07-20 UAT. GitHub issue #276. DESIGNED 2026-07-27 — Architect ADL-45 (jobs/architect/tech/20260307-architecture-decisions-log.md, Wave 0 brief S6) decided: nullable map_url TEXT column on base items table (not per-extension-table); https-only scheme allowlist, deliberately no Google-host restriction; server-side Zod (zMapUrl) authoritative, frontend sanitiseUrl() extended (not forked) for render-time defense in depth; single additive db:generate/db:migrate migration, no DB CHECK (Zod-only length/scheme cap, matches zName precedent). Status 'designed', implementation pending. Success criteria unchanged, still in BRD §5.5 — no BRD edit needed. Flagged, not fixed: trips.photo_album_ref has no server-side URL scheme validation today and its existing sanitiseUrl() utility has no call site yet — follow-up candidate, not bundled into this item."
     },
     {
       "id": "OQ-05",
