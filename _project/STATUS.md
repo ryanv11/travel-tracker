@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (48)
+## Open work (47)
 
 ### P0 — Blockers (1)
 
@@ -63,7 +63,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 
-### P3 — Minor (19)
+### P3 — Minor (18)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -79,8 +79,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | UX-11 | Trip-list status pill colours should match map shading colours (admin-driven) | ux | ⬜ Pending |
 | WP-05 | Waypoint reskin must not be reported as closing unrelated data/behavior gaps it only reskins the display of | coo | ⬜ Pending |
 | BUG-43 | Apple Wallet (.pkpass) import to pre-populate booking details | integrations | ⬜ Pending |
-| BUG-45 | Convert free-text airline/car-rental-provider fields to a sourced dropdown with Other fallback | architect | ⬜ Pending |
-| OQ-06 | Adopt a systematic subdivision reference list (ISO 3166-2) instead of ad hoc per-country region seeding | architect | ⬜ Pending |
+| BUG-45 | Convert free-text airline/car-rental-provider fields to a sourced dropdown with Other fallback | coo | ⬜ Pending |
 | BUG-47 | Auto-populate activities from trip/place content instead of manual pre-selection | architect | ⬜ Pending |
 | BUG-54 | Category/activity color customization | ux | ⬜ Pending |
 | BUG-56 | City name not auto-capitalized on entry | frontend | ⬜ Pending |
@@ -92,7 +91,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
-| requirement | `███████████████████░` 32/34 | 32 | 2 | 5 |
+| requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 42/56 | 42 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `████████████░░░░░░░░` 9/15 | 9 | 6 | 0 |
@@ -116,15 +115,16 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 </details>
 
 <details>
-<summary>Closed without change (2)</summary>
+<summary>Closed without change (3)</summary>
 
 | ID | Title | Resolution |
 |---|---|---|
 | BUG-38 | SQLite foreign_keys pragma never enabled — declared cascade FKs not actually enforced | not-a-bug |
 | BUG-17 | BUG-A untracked — trips.ts comment references unlogged issue | not-a-bug |
+| OQ-06 | Adopt a systematic subdivision reference list (ISO 3166-2) instead of ad hoc per-country region seeding | closed |
 
 </details>
 
 ---
 
-_123 done · 10 deferred · 2 closed · 48 open — 183 tracked items_
+_123 done · 10 deferred · 3 closed · 47 open — 183 tracked items_

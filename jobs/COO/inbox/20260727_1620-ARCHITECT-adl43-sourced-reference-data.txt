@@ -1,0 +1,55 @@
+ADL-43 · issue #273 (Wave 0 brief S3) · BRD §5.2 GE-01–15, §5.6 FL-01/02, CR-01/02 · chore/adl43-sourced-reference-data
+
+DECIDED: BUG-45 and OQ-06 are posed as one decision (source reference data vs. hand-seed);
+the honest answer after evidence is "it depends which list." 22 of the 26 countries with
+region_tier_enabled=1 have zero seeded regions today (22 latent BUG-30s). Adopted a systematic
+subdivision source (country-region-data, MIT) plus a mandatory per-country override table —
+BOTH Natural Earth (already bundled for GE-10) and the new source return UK county-level codes
+for GB, not the GB-ENG/SCT/WLS/NIR codes BUG-30 needed, verified by direct inspection, not
+assumed. Airlines get a different source (OpenFlights via airline-codes npm) with a materially
+heavier ODbL licensing obligation. Car rental providers have no external source at all. Spec
+only; no schema, migration, seed data or code changed. Status: Decided, implementation pending.
+
+PER-DECISION VERDICT (full detail in the ADL / jobs/architect/tech/ADL-43-sourced-reference-data.md):
+ S1  ADOPTED  country-region-data (npm, MIT) generates data/regions.json
+ S2  ADOPTED  scope to the 26 currently-enabled countries (940 rows measured), not all 249
+ S3  ADOPTED  mandatory per-country override table — GB confirmed as first entry (Medium — the
+              exact override list needs review, GB is the only case verified this session)
+ S4  ADOPTED  storage unchanged: same regions table, same seed path, no new mechanism
+ A1  ADOPTED  airline-codes (npm) -> OpenFlights, filtered active+IATA (978 rows measured)
+              (Medium — dataset choice good, upstream data-quality caveats not spot-checked)
+ A2  ADOPTED  new `airlines` table, reuses trip_categories/activities pattern + search endpoint
+              — not a bundled frontend JSON (learns ADL-44's same-batch lesson, doesn't repeat it)
+ A3  FLAGGED  OpenFlights data is ODbL, not MIT (wrapper's MIT claim covers its own code only) —
+              attribution + license text required; needs re-confirmation against openflights.org
+              directly, unreachable through this container's firewall (Medium confidence)
+ C1  ADOPTED  no car-rental-provider dataset exists — checked npm, nothing found
+ C2  ADOPTED  hand-curated ~20-30 brand list, same admin-list table pattern as airlines
+ REJECTED: reusing geo/regions.json directly (wrong GB granularity); seeding all 249 countries
+ now; bundling the airline list as a frontend JSON array; airline_id/provider_id FK columns
+ instead of free text; treating this as one dataset decision for all three lists.
+
+CI: no code commit — docs and tracker only. PR CI confirmed green before this report
+(scripts/ci-wait.sh pr <PR#> — see below once opened).
+
+OPEN ISSUES — YOURS, GATES DISPATCH:
+ BUG-45 needs new BRD §5.6 requirement IDs (brdRefs is empty). Suggested FL-06 for airline
+ (FL-05 is already taken — ADL-42's leg-ordering requirement, BRD v3.9, checked this session)
+ and CR-03 for car rental provider, both with success criteria (wording in the standalone
+ file §9). Not added here — the BRD gate is yours. OQ-06 needs no new BRD ID (internal sourcing
+ decision) and is already closed in tracker.json.
+
+OTHER FLAGS (none blocking):
+ - Cross-dependency on ADL-42: airline dropdown's real target is item_flight_legs.airline (not
+   yet in schema.ts). The flight half of BUG-45 can't land until ADL-42's Database brief ships
+   the legs table; car-rental-provider half and the new reference tables have no such dependency.
+ - The GB granularity mismatch generalizes — the override table (S3) is the standing mechanism
+   for the NEXT country that hits this, not a one-off GB patch. Flag this to whoever picks up
+   the Database brief.
+ - ODbL re-verification (A3) should happen once implementation starts and this session's
+   firewall constraint (GitHub/npm/Anthropic API only) no longer applies.
+
+NOW UNBLOCKED (once the BRD gate clears): Database brief for the two new reference tables +
+generation scripts (independent of ADL-42). Backend brief for the read-only reference/search
+endpoints. Frontend dropdown wiring for car-rental provider can proceed once BRD lands; airline
+dropdown wiring additionally waits on ADL-42's item_flight_legs table.

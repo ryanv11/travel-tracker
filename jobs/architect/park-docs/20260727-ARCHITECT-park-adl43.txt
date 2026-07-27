@@ -1,0 +1,145 @@
+ARCHITECT PARK DOCUMENT — 2026-07-27
+THREAD: Wave 0 scoping brief S3 — ADL-43, sourced reference data (BUG-45 + OQ-06)
+ISSUE: #273   BRANCH: chore/adl43-sourced-reference-data
+DELIVERABLE TYPE: spec only — no schema, migration, seed data or code change
+
+================================================================================
+WHAT WAS ASKED
+================================================================================
+One ADL covering BUG-45 (airline / car-rental-provider free text -> dropdown with "Other"
+fallback) and OQ-06 (adopt a systematic ISO 3166-2 subdivision list instead of hand-seeding
+per country, as BUG-30 did for GB) — posed in the brief as the same decision: does this
+project source reference data from a maintained dataset, or keep patching gaps as found?
+Must address licensing, bundle size, offline behaviour (GE-10), refresh strategy, and whether
+airlines/subdivisions genuinely share one mechanism. Firewall allows GitHub, npm, Anthropic
+API only — anything else had to be reasoned from documented knowledge and flagged as such.
+
+================================================================================
+WHAT I FOUND BEFORE DECIDING
+================================================================================
+1. The gap is real, not hypothetical, and bigger than BUG-30's single GB fix suggests:
+   data/regions.json holds 76 rows across exactly 4 countries (US/CA/AU/GB), but
+   data/countries.json marks 26 countries region_tier_enabled=1. 22 of those 26 have ZERO
+   seeded regions today — 22 latent BUG-30s, not one closed bug.
+2. THE KEY FINDING, which reframed the whole ADL: I checked whether the app's OWN already-
+   bundled Natural Earth boundary data (geo/regions.json, ADL-09, used for GE-10 map shading)
+   could just be reused as the source for the regions TABLE — the "obvious, zero-new-
+   dependency" answer. It cannot. Sampled geo/regions.json directly: 217 GB entries, all UK
+   counties/unitary authorities (type_en values like "Unitary Authority", "District", never
+   "Country"), NONE of them GB-ENG/SCT/WLS/NIR — the four codes BUG-30 actually needed. I then
+   checked the npm alternative I was about to recommend (country-region-data) against the same
+   case and it has the IDENTICAL gap — also 217 GB rows, also zero of the four codes. Both
+   datasets are internally correct; ISO 3166-2 just has multiple coexisting category levels
+   per country and any systematic source silently commits to one. This is not a GB one-off —
+   it's the general shape of the next country-level surprise, and it means "adopt a
+   comprehensive dataset" does NOT, by itself, solve OQ-06. A per-country override table is a
+   mandatory part of the design, not a footnote.
+3. Checked the airline dataset candidate (airline-codes npm package -> OpenFlights
+   airlines.dat) against its own claimed license: package.json says MIT, but that only covers
+   the wrapper code. Pulled jpatokal/openflights/data/LICENSE directly from GitHub (allowed
+   under the firewall) — the actual data is ODbL 1.0, which requires attribution and makes any
+   filtered/derived subset we ship remain available under ODbL on request. Real obligation,
+   not blocking, but the npm package's blanket "MIT" was about to be taken at face value and
+   would have been wrong.
+4. Checked npm for a car-rental-provider equivalent of OpenFlights/ISO 3166-2. Nothing exists.
+   This became the deliberate negative case in the ADL — proof that "source everything" isn't
+   a policy this ADL should assert as a blanket rule.
+5. Mid-session discovery: my worktree was created before ADL-42's BRD gate cleared, and I only
+   found BRD v3.9 (FL-01 superseded, FL-05/IT-12 added) after fetching+checking out origin/main
+   for my branch. FL-05 was about to be my suggested ID for the new airline requirement —
+   already taken by ADL-42's leg-ordering requirement. Caught and corrected to FL-06 in all
+   three places (standalone ADL, main log entry, tracker.json note) before finalizing.
+6. Measured, not estimated: country-region-data gives 940 rows for the 26 currently-enabled
+   countries (vs. 4,387 for all 249) — confirms bundle size is a non-issue either way, nowhere
+   near ADL-44's 39-40 MB regions.json problem in the same batch.
+
+================================================================================
+THE DECISIONS (summary — full reasoning in the ADL)
+================================================================================
+Subdivisions (OQ-06): country-region-data (npm, MIT) generates data/regions.json for the 26
+  enabled countries, PLUS a mandatory per-country override table (GB confirmed as the first
+  entry) for category mismatches. Same regions table, same seed path — no new mechanism.
+Airlines (BUG-45 pt.1): airline-codes (npm) -> OpenFlights, filtered active+IATA (978 rows,
+  measured). New `airlines` table reusing the trip_categories/activities admin-list pattern
+  (schema.ts:141-167), queried via a backend search endpoint — NOT a bundled frontend array
+  (ADL-44, same batch, is the live cautionary tale for why not). ODbL attribution required.
+Car rental providers (BUG-45 pt.2): no external source exists. Hand-curated ~20-30 brand list,
+  same admin-list table pattern as airlines.
+"Other" fallback for both: UI-only sentinel, no DB row, no FK, no schema change to
+  item_flights/item_flight_legs/item_car_rentals — dropdown is purely a frontend/API concern.
+Answer to "do airlines and subdivisions share one mechanism": NO. Three distinct mechanisms
+  (sourced+override / sourced+new-table-with-heavier-licensing / hand-curated), one shared
+  principle (prefer a maintained source when it exists and checks out; fall back to the
+  existing AD-09 curated-list pattern when it doesn't).
+
+================================================================================
+WHY NOT THE OBVIOUS ALTERNATIVES
+================================================================================
+- Reuse geo/regions.json (Natural Earth, already bundled) directly for the regions table:
+  wrong GB granularity, verified by direct inspection — this was my first instinct and it's
+  wrong, which is the load-bearing finding of the whole ADL.
+- Seed all 249 countries now instead of the 26 enabled ones: speculative, no consumer until
+  GE-07 turns a country on. The generation script should make adding one cheap, not front-load
+  4,387 rows nobody's UI shows yet.
+- Bundle the filtered airline list as a frontend JSON array: this project has a live, same-
+  batch cautionary tale (ADL-44) about exactly this mistake at a larger scale. The DB-table +
+  search-endpoint pattern already exists in this codebase and costs nothing extra to reuse.
+- FK columns (airline_id/provider_id) instead of free text: BUG-45's own spec requires an
+  unconstrained "Other" value to keep working regardless, so a parallel FK buys nothing this
+  ADL's scope needs.
+- Treating this as one dataset decision covering all three lists, as the brief poses it:
+  collapses genuinely different licensing regimes (ODbL vs. MIT vs. none) and genuinely
+  different data availability (source exists for two of three lists, not the third). Working
+  through that collapse is itself the useful output of this ADL.
+
+================================================================================
+THINGS I VERIFIED RATHER THAN ASSUMED
+================================================================================
+- geo/regions.json's GB entries: sampled directly, confirmed county/unitary-authority level,
+  zero constituent-country codes.
+- country-region-data's GB entries: npm-packed, extracted, sampled directly — identical gap.
+- Row counts (940 for 26 countries, 4,387 for all 249; 978 active+IATA airlines): computed
+  from the actual fetched package data, not estimated.
+- jpatokal/openflights license: fetched data/LICENSE directly from GitHub — ODbL, not the
+  wrapper's claimed MIT. Root-level LICENSE (AGPLv3) is a red herring for the DATA specifically
+  — the data/README points to data/LICENSE as governing, which is ODbL.
+- openflights.org itself is unreachable through this container's firewall (GitHub/npm/
+  Anthropic API only) — explicitly flagged in the ADL as needing re-confirmation before
+  implementation, not asserted as settled.
+- FL-05 was already taken (BRD v3.9, ADL-42's leg-ordering requirement) — checked before
+  finalizing my own suggested IDs, corrected FL-05 -> FL-06 everywhere it appeared.
+- Every file path cited (schema.ts:141-167, ItemForm.tsx:389/428, migration 0008, README.md:19,
+  startup.service.ts) checked against the actual tree.
+- tracker.json validated as parseable JSON after edits (comment-stripped); edited in place with
+  the Edit tool, never round-tripped through a script.
+
+================================================================================
+STATE AT PARK
+================================================================================
+- ADL-43 reserved stub REWRITTEN IN PLACE in jobs/architect/tech/
+  20260307-architecture-decisions-log.md. Other reserved stubs (ADL-41, 44, 45) not touched —
+  other Architect agents were running concurrently on the same file. ADL-42 (already merged)
+  also untouched.
+- Standalone design: jobs/architect/tech/ADL-43-sourced-reference-data.md.
+- tracker.json: OQ-06 closed (status "closed", answered — no new BRD ID needed). BUG-45 notes
+  rewritten with the decision + #273; owner moved architect -> coo (next actor is the BRD
+  gate, matching the ADL-42/BUG-41 precedent); status left "pending" — deliberately did not
+  invent a "designed" status value, matched the BUG-41/BUG-42 precedent of communicating
+  design-complete via the notes prefix instead.
+- BRD NOT edited. See handoff item below.
+
+================================================================================
+IF I PICKED THIS UP COLD TOMORROW
+================================================================================
+The design is complete and self-contained. The only thing standing between this and a
+dispatchable Database brief is the COO's BRD bump — BUG-45 still has brdRefs: []. Suggested
+IDs are FL-06 (airline) and CR-03 (car rental provider), both in the standalone file §9 with
+suggested success-criteria wording.
+
+The single highest-risk item at implementation time is the GB-shaped granularity trap (§6.1 of
+the standalone file): whoever builds the subdivision generation script must NOT treat "ran the
+systematic source" as done — the override table for category mismatches is load-bearing, and
+GB is only the first confirmed entry, not the only one that will ever exist. The second-highest
+risk is the ODbL attribution requirement for airlines being skipped because the npm package's
+own metadata says MIT — it doesn't, for the data itself, and that needs re-verification against
+openflights.org directly once this container's firewall isn't the constraint.
