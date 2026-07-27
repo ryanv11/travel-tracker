@@ -50,8 +50,8 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
 | OQ-03 | Approximate/partial dates for shell trips — year-only or month-only, and their effect on shading and ordering | architect | ⬜ Pending |
 | BUG-40 | Place deletion should prompt (delete all / move to trip-level / cancel) when the place has items | fullstack | ⬜ Pending |
-| BUG-41 | Multi-leg / connecting flights within a single booking | coo | ⬜ Pending |
-| BUG-42 | Multiple companions/seats per booking item | coo | ⬜ Pending |
+| BUG-41 | Multi-leg / connecting flights within a single booking | database | ⬜ Pending |
+| BUG-42 | Multiple companions/seats per booking item | database | ⬜ Pending |
 | BUG-44 | Car rental pickup location should show as subtext under provider | frontend | ⬜ Pending |
 | BUG-46 | Activities selector missing from trip create flow (only present on edit) | frontend | ⬜ Pending |
 | BUG-48 | Country→state map shading zoom threshold too high / laggy | frontend | ⬜ Pending |
