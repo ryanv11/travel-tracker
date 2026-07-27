@@ -1,0 +1,63 @@
+ADL-41 · issue #271 · BRD §10 OQ-05, §5.1 TR-14/TR-15, §5.9 DP-05/DP-06 · feat/adl41-trip-place-identity
+
+DECIDED: trip_places moves to one row per VISIT (drop uniq_trip_places_trip_city, replace with
+a plain composite index; 409-unless-allow_revisit takes over duplicate protection). This was a
+completion+REVIEW dispatch — the prior S1 run's doc was reviewed against the code, corrected on
+four points, and given the log entry, OQ-05 closure and tracker update it never reached.
+
+PER-DECISION VERDICT
+ 1  One row per visit                     ADOPTED
+ 2  409 + allow_revisit escape hatch      ADOPTED
+ 3  Map shading needs no change           ADOPTED — verified exact, now a binding rule for ADL-44
+ 4  Persisted sort_order column           ADOPTED — supersedes ADL-24 §4.1/§4.2 (§5.2 unaffected)
+ 5  DP-06 one-shot on first place         ADOPTED
+ 6  One item = one visit, no re-parenting  ADOPTED
+ 7  Merge/split                           SPECIFIED, NOT SCHEDULED — keep out of TR-14/TR-15
+ 8  TR-14 cascade                         REVERSED from the draft — keep relying on declared
+                                          cascades; do NOT hand-roll an ordered delete
+ 9  Assert PRAGMA foreign_keys at startup NEW — replaces what decision 8 was guarding against
+ 10 Photo refs need no cleanup            ADOPTED
+ 11 TR-15 items param, fail closed 400    ADOPTED
+ 12 NR-12 uses archived_at, not a status  ADOPTED
+
+TWO CORRECTIONS YOU MUST ACT ON — both are facts your planning docs currently assert
+ 1. "There is no router.delete in routes/trips.ts; TR-14 is fullstack" is WRONG. The route
+    (trips.ts:429-454, userId-scoped, 403 on locked), repository (repositories/trips.ts:195-202),
+    frontend hook and a cascade test ALL EXIST. The draft grepped `router.delete` against a
+    router named `tripsRouter`. TR-14 remaining scope is FRONTEND ONLY: detail-view delete
+    affordance, confirmation naming the trip/places/items, and surfacing the 403 unlock message.
+    I corrected BUG-50's tracker note. jobs/COO/backlog-clearance-plan.md §6 is yours and STILL
+    CARRIES THE WRONG SIZING — re-size B7 before dispatching it.
+ 2. B7/BUG-50 NO LONGER BLOCKS on the ADL-41 Database brief, or on anything else here. It was
+    gated on ADL-41 only for the cascade ruling, which is now "no change required". Dispatch it
+    whenever you like.
+
+MAJOR ANOMALY RESOLVED (the one the salvage banner asked to be verified independently)
+The draft's claim that PRAGMA foreign_keys is off and declared cascades are unenforced is FALSE.
+@libsql/client@0.14.0 enables FK enforcement BY DEFAULT (libSQL diverges from stock SQLite).
+Probed directly: PRAGMA returns 1 on a fresh connection; a NO ACTION FK blocks a parent delete;
+and replaying the real FK shape, DELETE FROM trips cascades cleanly AND leaves a cross-trip
+derived item with carried_from_item_id NULL / is_carried_forward 1 — the exact ADL-36 state, for
+free. So there is NO latent schema-wide issue, and no ADL is owed for it. The eight ordered
+deletes would have been worse than the status quo: they duplicate the FK graph in app code and
+go stale the moment a child table is added.
+
+BLOCKERS: none. Three items for you, none blocking:
+ - Candidate tracker item: assert PRAGMA foreign_keys = 1 at startup (ADL-41 §7.2.1). Small
+   backend task. Carries the one question I could NOT answer — whether the REMOTE Turso path
+   enforces FKs. The firewall blocks every Turso host, so my probes cover the embedded driver
+   only. Needs a check against staging.
+ - Candidate tracker item: schema.ts:390-391 says trip_countries is "derived from trip_places";
+   no code derives it. Comment or behaviour is wrong. Independent of ADL-41.
+ - No BRD bump and no new requirement IDs added — your gate. If you want IDs for the two items
+   above, both are specified in enough detail to write success criteria from.
+
+PROCESS HAZARD: jobs/architect/context/current.txt is ONE shared file and Wave 0 dispatched
+S1/S3/S5/S6 concurrently, each told to update it. Obeyed literally, the last PR to merge
+silently wins. I PREPENDED an S1 block rather than overwriting S2's. Expect conflicts from the
+sibling PRs and resolve by KEEPING ALL BLOCKS. Fix for next wave: per-thread context files, or
+let the park doc be the per-thread state (already uniquely named).
+
+CI: see PR — do not merge my own.
+UNBLOCKED: BUG-40 (TR-15), BUG-50 (TR-14, frontend-only), and the Database/Backend/Frontend
+briefs scoped in ADL-41 §10. Detail in jobs/architect/park-docs/20260727-ARCHITECT-park-adl41.txt.

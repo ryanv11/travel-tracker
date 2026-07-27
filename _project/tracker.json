@@ -1711,12 +1711,12 @@
       "id": "OQ-05",
       "type": "requirement",
       "title": "Same-city revisit within a trip — trip_places one-row-per-city constraint",
-      "status": "pending",
+      "status": "done",
       "owner": "architect",
       "priority": "P2",
       "brdRefs": ["OQ-05"],
       "phase": 5,
-      "notes": "Added to BRD v3.1 §10, 2026-07-20 UAT. `uniq_trip_places_trip_city` (trip_id, city_id) currently blocks realistic itineraries like Glasgow → day trip to Edinburgh → back to Glasgow. Open question for Architect: move to one-row-per-visit? Knock-on effects on map shading, DP-05/DP-06 chronological ordering, and items.trip_place_id attachment need resolving before any brief touches trip-place identity."
+      "notes": "Added to BRD v3.1 §10, 2026-07-20 UAT. RESOLVED 2026-07-27 by ADL-41 (GitHub issue #271, Wave 0 brief S1): model moves to one row per VISIT — `uniq_trip_places_trip_city` dropped, replaced by a plain composite index; duplicate protection moves to a 409 unless `allow_revisit: true`. Knock-ons resolved: map shading needs no change (all aggregates already COUNT DISTINCT trips.id, verified); ordering gets a persisted `sort_order` column, partially superseding ADL-24 §4.1/§4.2; DP-06 fires only on the empty-trip → first-place transition; items.trip_place_id unchanged structurally. ADL-41 also reversed the draft's cascade ruling on evidence — @libsql/client enables FK enforcement by default, so declared ON DELETE CASCADE IS enforced and TR-14 keeps relying on it. Spec only; implementation pending via the downstream briefs in ADL-41 §10."
     },
     {
       "id": "OQ-03",
@@ -1949,7 +1949,7 @@
       "priority": "P1",
       "brdRefs": ["TR-14"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT. No delete affordance exists for a trip itself (BUG-32 only covers removing a place from within a trip). Needs a route (if missing) + UI entry point + confirmation, same shape as BUG-32's brief. BRD gate cleared 2026-07-27 (v3.8): TR-14 added with success criteria, so this is now dispatchable as backlog-clearance-plan B7 — no separate BRD-TR14 tracker item exists, this entry is TR-14's tracked work. Sizing note from the plan §6: this is fullstack, there is no router.delete in src/backend/routes/trips.ts at all. Cascade semantics are ruled on by ADL-41 (S1); TR-14 is deliberately scoped as hard deletion and must not foreclose NR-12 (Phase 2 archive)."
+      "notes": "Found 2026-07-21 UAT. No delete affordance exists for a trip itself (BUG-32 only covers removing a place from within a trip). Needs a route (if missing) + UI entry point + confirmation, same shape as BUG-32's brief. BRD gate cleared 2026-07-27 (v3.8): TR-14 added with success criteria, so this is now dispatchable as backlog-clearance-plan B7 — no separate BRD-TR14 tracker item exists, this entry is TR-14's tracked work. TR-14 is deliberately scoped as hard deletion and must not foreclose NR-12 (Phase 2 archive). RE-SIZED 2026-07-27 by ADL-41 (#271): the plan §6 sizing note ('this is fullstack, there is no router.delete in src/backend/routes/trips.ts at all') is WRONG and jobs/COO/backlog-clearance-plan.md §6 still carries it. There IS a delete route — tripsRouter.delete('/:id') at routes/trips.ts:429-454 with userId scoping and a locked-trip 403, tripRepository.delete at repositories/trips.ts:195-202, useDeleteTrip wired to bulk delete in Desktop/MobileTripsLayout, and routes/__tests__/trips.delete.test.ts covering cascade. The earlier claim came from grepping 'router.delete' against a router named tripsRouter. Remaining scope is FRONTEND ONLY: (1) a delete affordance in the trip DETAIL view (today only bulk-select in the trip list), (2) confirmation text naming the trip, its places and its items (today: 'Delete N trips? This cannot be undone.'), (3) surface the 403 lock refusal with an unlock instruction. Cascade semantics ruled by ADL-41 §7.2: declared ON DELETE CASCADE IS enforced (@libsql/client enables FKs by default, verified empirically) — no ordered-delete batch needed, no backend change. B7 no longer blocks on the ADL-41 Database brief and can dispatch immediately."
     },
     {
       "id": "BUG-51",

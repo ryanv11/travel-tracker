@@ -230,6 +230,19 @@ use in `GET /api/trips/:id`.
 
 ## 4. Frontend ordering logic
 
+> SUPERSEDED (2026-07-27) by ADL-41 — retained for history.
+> §4.1 and §4.2 only. ADL-41 moves `trip_places` to one row per *visit*, which turns the
+> place list from a set into a sequence and makes ordering load-bearing rather than
+> cosmetic. Ordering becomes a persisted, server-assigned `sort_order` column, applied at
+> write time from `arrived_on`; `findByTrip` gains an `ORDER BY` and clients render in the
+> order they receive. The client-side sort specified below is retired. The reasoning here
+> stands for the model it was written against — under one-row-per-city the data genuinely
+> had no inherent canonical order. §4.3 is moot with the sort removed.
+> **§5 (interaction with DP-04) and in particular §5.2's display-date precedence rule are
+> NOT superseded and remain current.** See `jobs/architect/tech/ADL-41-trip-place-identity.md`
+> §4 for the replacement, including the exact insertion-position rule and the backfill that
+> reproduces the ordering below.
+
 ### 4.1 Decision: sort client-side
 
 **Decision: chronological ordering of places is applied on the frontend, not in
