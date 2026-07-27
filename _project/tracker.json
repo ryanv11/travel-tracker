@@ -2126,6 +2126,99 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "GitHub issue #266. Surfaced 2026-07-27 while reading main's CI logs during the BUG-64 verification (PR #265) — every job emits 'Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e1148..., actions/setup-node@49933ea...'. Both are SHA-pinned to v4 across 16 call sites: .github/workflows/ci.yml (8x checkout, 6x setup-node) and .github/workflows/security.yml (3x checkout, 1x setup-node). P3 rather than P2 because GitHub is ALREADY force-running these on Node 24 and they pass, so runtime compatibility is empirically proven rather than assumed; the residual risk is only that GitHub eventually errors instead of forcing, which would break CI entirely. Long runway, low effort, no current breakage. Success criteria: (1) both actions at v5 across all 16 call sites; (2) SHA pinning PRESERVED — pin the v5 commit SHA with a trailing '# v5' comment matching the existing convention, do not switch to floating tags (the pinning is a deliberate supply-chain control); (3) the deprecation warning no longer appears in any job log; (4) all CI + Security Checks green on the PR and main green after merge. Wants its own PR rather than riding along with feature work — mechanical, but it touches every job in both workflows, so a mistake breaks the gate for everything else."
+    },
+
+    // ─── WAVE 0 INCIDENTAL FINDINGS (2026-07-27) ─────────────────────────────
+    // Surfaced by the six Wave 0 scoping briefs as side-observations, not as
+    // brief deliverables. Logged here so they survive the wave; none blocks
+    // Wave 1 or Wave 2.
+    {
+      "id": "QUAL-08",
+      "type": "chore",
+      "title": "sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-27 by ADL-45/S6 (issue #276) while designing IT-10's URL validation. PRE-EXISTING, not introduced by ADL-45. src/frontend/utils/urlSanitiser.ts exports sanitiseUrl() but it has ZERO call sites in any component — the guard exists and is never invoked. Its one intended target, trips.photo_album_ref, has no server-side scheme validation either (src/backend/validation/trips.schemas.ts uses a plain zOptionalString), so a javascript:/data: URL can be stored and, if that field is ever rendered as an href, executed. Deliberately NOT bundled into BRD-IT10 — ADL-45's own map_url path is specified correctly with an https-only allowlist, and mixing a pre-existing gap into that brief would obscure both. Success criteria: photo_album_ref validated server-side with the same scheme allowlist as map_url; sanitiseUrl() either given its real call sites at every URL render point or deleted as dead code; a test asserts a javascript: URL is rejected at the API boundary."
+    },
+    {
+      "id": "QUAL-09",
+      "type": "bug",
+      "title": "BRD IT-03 lists item status 'Shortlisted' but it was never implemented",
+      "status": "pending",
+      "owner": "fullstack",
+      "priority": "P2",
+      "brdRefs": ["IT-03", "PL-02"],
+      "phase": 6,
+      "notes": "Found 2026-07-27 by ADL-42/S2 (issue #272) while reading the item status model. BRD IT-03 and §4 Definitions both list 'Shortlisted', added in the v3.0 planning-first rewrite, but chk_items_status in src/backend/db/schema.ts omits it and the string 'shortlisted' appears nowhere in src/. This is a requirement gap, not a doc nit: §5.12 PL-02 specifies promote/demote across Consider -> Shortlisted -> Confirmed, and PL-03's planning view groups by idea pool / shortlist / booked. Both are unimplementable while the status does not exist, so the middle of the documented planning loop is currently missing. Needs a decision on which is authoritative — implement the status, or amend the BRD — before either PL-02 or PL-03 is briefed. Success criteria: BRD and chk_items_status agree; if implemented, a migration adds the value and PL-02's transitions work end to end."
+    },
+    {
+      "id": "QUAL-10",
+      "type": "chore",
+      "title": "jobs/database/tech/schema.ts is an unmaintained copy of the real schema",
+      "status": "pending",
+      "owner": "docs",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-27 by ADL-42/S2 (issue #272). jobs/database/tech/schema.ts duplicates src/backend/db/schema.ts (the single source of truth per CLAUDE.md) and has drifted — it still repeats the FL-01 one-item-per-leg claim that BRD v3.9 stamped SUPERSEDED. A second copy of the schema in a docs tree is exactly the 'one canonical home per topic' failure the document-lifecycle rule exists to prevent. Success criteria: the file is deleted, or given a > HISTORICAL banner and a pointer to src/backend/db/schema.ts. Deletion preferred — nothing references it."
+    },
+    {
+      "id": "QUAL-11",
+      "type": "chore",
+      "title": "Assert PRAGMA foreign_keys=1 at startup, and confirm FK enforcement on the remote Turso path",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Raised 2026-07-27 by ADL-41/S1 (issue #271, §11). NOT a live defect — S1 probed the installed @libsql/client and found foreign keys are ON by default (a libSQL divergence from stock SQLite), so declared ON DELETE CASCADE is genuinely enforced and TR-14's delete works as designed. This entry is the guard, not a fix: createLibSQLDb issues no PRAGMA of its own, so the behaviour rests entirely on a client default that a future version bump could change silently, and every cascade in the schema depends on it. Asserting it at startup converts a silent data-integrity regression into a loud boot failure. OPEN QUESTION S1 COULD NOT ANSWER: its probes covered the embedded/file driver only — this container's firewall blocks every Turso host, so whether the REMOTE Turso path (production, ADL-32) enforces FKs identically is unverified. That needs a staging check, and it matters more than the assertion itself. Success criteria: startup asserts PRAGMA foreign_keys=1 and fails loudly if not; the remote Turso path is verified to enforce FKs, with the result recorded."
+    },
+    {
+      "id": "QUAL-12",
+      "type": "chore",
+      "title": "Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-27 during the Wave 0 merge round, flagged by ADL-41/S1. jobs/architect/context/current.txt is ONE file and all five Wave 0 Architect briefs instructed the agent to update it, so concurrent dispatches collide there by construction. Worktree isolation does not help — it is a genuine same-file, same-region conflict. Three of the four merges hit it and were resolved by hand, keeping every session's block; S1 pre-empted it by prepending rather than clobbering, which is the only reason nothing was silently lost. Left unresolved it is a data-loss shape, not just friction: git auto-merge CAN succeed by taking one side, and the last PR merged would silently win. Note the ADL log did NOT conflict in any merge — the pre-assigned-number + rewrite-your-own-stub-in-place design worked exactly as intended, so the contrast points at the fix. Options: per-dispatch context files (current-<brief>.txt), an append-only format with a required section header per session, or dropping the 'update current.txt' instruction from concurrent-wave briefs entirely. Success criteria: a wave of >=3 concurrent same-role dispatches produces no manual conflict resolution in the context file."
+    },
+    {
+      "id": "QUAL-13",
+      "type": "chore",
+      "title": "Stale unread COO->Architect inbox messages from March 2026",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-27 by ADL-45/S6 (issue #276). Two messages remain in jobs/architect/inbox/ rather than inbox/read/, dated March 2026 and apparently long superseded by later work. Harmless but they make the inbox a misleading signal — an agent picking up the role sees unread work that is not real. Success criteria: both triaged and moved to inbox/read/, or deleted if genuinely superseded."
+    },
+    {
+      "id": "QUAL-14",
+      "type": "chore",
+      "title": "MapView.tsx comment documents zoom >= 4 while the constant is 3",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-26 during clearance-plan sizing, re-confirmed 2026-07-27 by ADL-44/S5 (issue #275). src/frontend/components/Map/MapView.tsx:6 documents 'zoom >= 4' while REGION_ZOOM_THRESHOLD on line 28 is 3. Trivial stale-doc drift, but it sits on exactly the constant BUG-48's implementation will change, so it should be corrected by whichever PR touches that file rather than tracked forever. Fold into the BUG-48 implementation brief; this entry exists only so it is not lost if that brief is deferred."
+    },
+    {
+      "id": "DEP-04",
+      "type": "chore",
+      "title": "Semgrep job pulls semgrep/semgrep:latest unpinned from Docker Hub",
+      "status": "pending",
+      "owner": "unassigned",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-27 when main went red immediately after PR #270 merged: the Security Checks / Static Analysis (Semgrep) job failed because the runner could not reach Docker Hub (registry-1.docker.io: context deadline exceeded, 3 retries) and the container never started. Not a code failure — Semgrep had passed on the identical tree 20 minutes earlier, and a re-run passed. TWO distinct concerns from one incident: (1) FLAKINESS — this is the only external runtime dependency in either workflow that is not SHA-pinned, and a registry blip turns main red for reasons unrelated to the code, which under CLAUDE.md must then be diagnosed and fixed immediately rather than left; (2) SUPPLY CHAIN — 'latest' means the analysis container can change under us with no review, while every GitHub Action in the same workflows is deliberately SHA-pinned (see DEP-03, which treats that pinning as a control worth preserving). The inconsistency is the argument. PENDING PO DECISION: raised with Ryan twice on 2026-07-27, no answer given either time — log it or leave it. Logged here rather than dropped so the question survives the session. Success criteria if actioned: the Semgrep image pinned to a digest with a version comment, matching the actions/* convention; a registry outage then fails in a way that is obviously infrastructure rather than a code finding."
     }
 
   ]

@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (47)
+## Open work (55)
 
 ### P0 — Blockers (1)
 
@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (26)
+### P2 — Important (30)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -62,8 +62,12 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
+| QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
+| QUAL-09 | BRD IT-03 lists item status 'Shortlisted' but it was never implemented | fullstack | ⬜ Pending |
+| QUAL-11 | Assert PRAGMA foreign_keys=1 at startup, and confirm FK enforcement on the remote Turso path | backend | ⬜ Pending |
+| QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 
-### P3 — Minor (18)
+### P3 — Minor (22)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -85,6 +89,10 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-56 | City name not auto-capitalized on entry | frontend | ⬜ Pending |
 | QUAL-07 | Standing docs-vs-code audit — recurring Docs brief to catch prose/reality drift before someone trips over it | docs | ⬜ Pending |
 | DEP-03 | GitHub Actions pinned to v4 target Node.js 20 — deprecated, force-run on Node 24 | unassigned | ⬜ Pending |
+| QUAL-10 | jobs/database/tech/schema.ts is an unmaintained copy of the real schema | docs | ⬜ Pending |
+| QUAL-13 | Stale unread COO->Architect inbox messages from March 2026 | coo | ⬜ Pending |
+| QUAL-14 | MapView.tsx comment documents zoom >= 4 while the constant is 3 | frontend | ⬜ Pending |
+| DEP-04 | Semgrep job pulls semgrep/semgrep:latest unpinned from Docker Hub | unassigned | ⬜ Pending |
 
 ## Coverage by type
 
@@ -92,9 +100,9 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `███████████████░░░░░` 42/56 | 42 | 14 | 4 |
+| bug | `███████████████░░░░░` 42/57 | 42 | 15 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `████████████░░░░░░░░` 9/15 | 9 | 6 | 0 |
+| chore | `████████░░░░░░░░░░░░` 9/22 | 9 | 13 | 0 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -127,4 +135,4 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 
 ---
 
-_123 done · 10 deferred · 3 closed · 47 open — 183 tracked items_
+_123 done · 10 deferred · 3 closed · 55 open — 191 tracked items_
