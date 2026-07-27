@@ -1,90 +1,76 @@
-ARCHITECT CONTEXT — 2026-07-27
+ARCHITECT CONTEXT — 2026-07-27 (S6 / ADL-45)
 PROJECT: Travel Tracker
-CURRENT STATUS: ADL-42 DECIDED, IMPLEMENTATION PENDING — booking item shape (BUG-41 + BUG-42),
-Wave 0 scoping brief S2, GitHub issue #272, branch feat/adl42-booking-item-shape.
+CURRENT STATUS: ADL-45 DECIDED, IMPLEMENTATION PENDING — item map URL column (BRD-IT10),
+Wave 0 scoping brief S6, GitHub issue #276, branch chore/adl45-item-maps-url.
 Spec output only — no schema, migration or code change was made.
 
-PROBLEM: BUG-41 (multi-leg flights on one booking) and BUG-42 (multiple companions/seats per
-booking) are ONE defect: the booking item is flat. It models one segment of travel carrying
-one implicit traveller. Seattle→London→Glasgow on a single PNR must today be two unrelated
-flight items (BRD FL-01; echoed at src/backend/db/schema.ts:507), duplicating the booking
-reference and giving one booking two statuses. Separately item_flights.seat is one TEXT column
-and there is NO per-item companion link anywhere in the schema — companions attach to trips
-only via trip_companions_map. Neither is fixable alone: a seat belongs to a person on a leg.
+NOTE: this file is shared across concurrent Wave 0 Architect dispatches (S1/S2/S3/S5/S6
+each ran or are running in their own worktree). Whichever session closes last will show
+here; see jobs/architect/park-docs/ for the full set of session-specific park docs
+(20260727-ARCHITECT-park-adl42.txt, and this session's 20260727-ARCHITECT-park-adl45.txt)
+if this summary looks like it's missing another wave's work — it is not necessarily stale,
+just single-slotted.
 
-DECISION (13 rulings, full design in jobs/architect/tech/ADL-42-booking-item-shape.md):
- - One booking = one item. New item_flight_legs 1:N child table with explicit 1-based
-   contiguous leg_order (NOT sorted by departure_datetime — datetimes are optional under
-   PL-01 and naive/timezone-less). item_flights retained as the booking-level extension row,
-   shrunk to (item_id, booking_reference). airline/flight_number/airports/datetimes move to
-   the leg (interline itineraries genuinely change carrier between legs).
- - ONE new item_travellers table with a nullable leg_id selecting scope and a nullable
-   companion_id. Row presence = travels this scope; seat NULL = seat unknown. This is the
-   load-bearing choice: two junctions (booking-level + leg-level) would give two homes for one
-   fact and make "on the booking but no row on leg 2" ambiguous. For flights the booking
-   roster is DERIVED, never stored.
- - companion_id NULLABLE, NULL = the owning user. Reason nobody had written down: `companions`
-   is a list of OTHER people; the user is not in it, and today's single seat column IS the
-   user's own seat implicitly. A NOT NULL companion_id would have made the fix a regression.
-   Rejected auto-creating a "Me" companion (pollutes an AD-08 user-managed list, collides with
-   uniq_companions_user_name, self-row becomes soft-deletable).
- - Four partial unique indexes — SQLite treats NULLs as distinct so a plain composite unique
-   accepts the same traveller twice. The two-index alternative (0 as a self sentinel) was
-   rejected because 0 cannot carry an FK to companions.id. Integrity > index count.
- - NO leg status. Status stays item-level (IT-03/FL-03). Per-leg status has no correct
-   aggregate and every consumer reads one status.
- - Cost is booking-level whenever introduced, never per-leg. Not added — no BRD requirement
-   for item cost exists anywhere.
- - Migration in TWO files (additive create+backfill, then destructive shrink) — file 1 reads
-   columns file 2 destroys and Drizzle cannot know the ordering.
- - AD-08 guard: item_travellers.companion_id is a SECOND write path to companions.id.
-   companionRepository.validateOwnership mandatory; 400 not 404; repository signature takes
-   userId FIRST so the junction cannot be written without it (structural, not a reminder).
+PROBLEM: BRD §5.5 IT-10 — each item can optionally store a Google Maps URL; when present
+the trip detail view shows a one-click map/directions link, and no separate address/phone
+fields are required when a URL is set. Small schema addition (one nullable column) but the
+schema-change rule requires Architect review before any Database brief — this ADL is that
+gate. The brief called out validation/sanitisation of the user-supplied URL as the main
+reason it exists (it renders as a clickable href).
 
-REJECTED: booking_group_id on separate items (N statuses per booking); leg2_*/leg3_* columns
-(hard cap, unindexable); JSON legs array (ADL-11 rejected JSON precisely because SQLite cannot
-index JSON paths and leg dates are queried); a generalised item_segments table spanning
-flights/hotels/car rentals — most elegant, wrong on cost: it requires migrating three extension
-tables and rewriting every route/helper/test/component to buy a second segment for types that
-will never have one.
+DECISION (10 rulings, full text in jobs/architect/tech/20260307-architecture-decisions-log.md
+ADL-45 entry — rewritten in place, no standalone file needed for a decision this size):
+ - `map_url text`, nullable, no default, on the BASE `items` table (schema.ts:453-503) —
+   same placement as `notes`, not on any item_* extension table. Applies to every item_type
+   including `note`; no per-type special-casing needed or added.
+ - Not named `google_maps_url` — deliberately provider-agnostic. https:// scheme required,
+   but NO Google-host allowlist: real Google Maps share links come from several domains
+   (google.com/maps, maps.google.com, goo.gl/maps, maps.app.goo.gl, g.page) and a host
+   allowlist is a maintenance liability that would silently break the feature the day
+   Google issues from an unlisted domain. Scheme allowlisting is the correct control for
+   the actual threat (javascript:/data: injection); host is not.
+ - Server (Zod, new `zMapUrl` in validation/common.ts) is authoritative. Client re-validates
+   at render via the EXISTING `src/frontend/utils/urlSanitiser.ts` `sanitiseUrl()` —
+   extended to take an optional allowed-scheme list rather than forked into a second
+   function. Call it with `['https:']` (narrower than its current default `['https:',
+   'file:']` — file:// dropped, it doesn't make sense for a directions link).
+ - `target="_blank" rel="noopener noreferrer"` mandatory on the rendered anchor
+   (reverse-tabnabbing control) — stated explicitly because there is no existing
+   anchor-rendering precedent in this app to copy: `sanitiseUrl()` exists and is tested but
+   has ZERO call sites in any component today. IT-10 is the first real caller.
+ - No DB CHECK for scheme or length. Length capped at 2048 via Zod `.max()` only, matching
+   the `zName` precedent (75-char cap, no matching `LENGTH()` CHECK anywhere in schema.ts —
+   verified by grep). A CHECK would also force SQLite table recreation for this column,
+   which a plain `ALTER TABLE items ADD COLUMN` avoids.
+ - One additive migration file (db:generate + db:migrate). No two-file split needed (unlike
+   ADL-42) — nullable column, no default, no CHECK, nothing to backfill.
+ - No conflict with §5.6 structured fields (HT-01 address etc.) — IT-10's "no separate
+   fields required" is about optionality, not field removal; nothing there to reconcile.
 
-SUPERSESSION: no ADL entry superseded. ADL-11 preserved and extended; ADL-28 reinforced. The
-one supersession is BRD FL-01 — deliberately NOT stamped by me, it belongs in the COO's
-BRD-bump PR alongside the new IDs and the header/§13 bump.
+FINDING, flagged not fixed (real security gap, pre-existing, NOT introduced by this ADL):
+`trips.photo_album_ref` — the field SEC-12 (security-spec.md:330-331) was originally written
+for — has NO server-side scheme validation today (CreateTripSchema/UpdateTripSchema both
+type it as plain `zOptionalString`, trips.schemas.ts:22,37). The only control that exists is
+the frontend `sanitiseUrl()`, which nothing calls. So a `javascript:` value could be written
+via the API today and would pass through harmlessly only because nothing renders it as a
+link yet. Recommended as a small COO follow-up tracker item — NOT bundled into BRD-IT10,
+and not blocking it.
 
 ================================================================================
 OPEN / HANDOFF
 ================================================================================
-
-  1. COO BRD GATE BLOCKS ALL DISPATCH (CLAUDE.md rule). Four items: rewrite + stamp FL-01
-     ("each flight is logged as an individual leg" is exactly the model ADL-42 replaces);
-     amend FL-02 (seat moves off the flight field list); new requirement ID + success criteria
-     for BUG-41; new requirement ID + success criteria for BUG-42 covering the "traveller on
-     some legs but not others" case. Both tracker entries have brdRefs: [] today.
-  2. COO: merge PR for feat/adl42-booking-item-shape after CI green — do not self-merge.
-  3. Brief sequencing once the BRD gate clears: (a) Database brief — schema + the two migration
-     files, additive, safe to merge alone; (b) ONE combined Backend+Frontend brief on a single
-     branch, because there is no compatibility shim and the flat flight keys disappear from the
-     API. One branch per brief still holds — this is one brief spanning two layers.
-  4. BUG-45 / ADL-43 cross-dependency: airline moves to item_flight_legs.airline. If S3's brief
-     is written against item_flights.airline it will need reworking.
-  5. Frontend constraint to carry into that brief: leg datetimes are naive/timezone-less, so
-     layover and total-journey durations across legs are WRONG whenever a connection crosses a
-     timezone — the norm for the itinerary that motivated BUG-41. Do not display connection
-     durations until timezone data exists (depends on airport reference data, ADL-43).
-  6. Drift found, flagged not fixed: BRD IT-03 (v3.0) lists Shortlisted as an item status but
-     chk_items_status (src/backend/db/schema.ts:499) permits only consider/confirmed/completed/
-     cancelled/next_time and the string 'shortlisted' appears nowhere in src/. Added to the BRD
-     and never implemented; home is the deprioritized planning-core entry. ADL-42 does not
-     rebuild the items table so it neither depends on nor resolves this.
-  7. Stale doc flagged, not actioned: jobs/database/tech/schema.ts is an unmaintained COPY of
-     src/backend/db/schema.ts and repeats the superseded FL-01 claim at line 507. Needs
-     refreshing or a HISTORICAL banner. jobs/architect/tech/20260307-ER-schema.md:303 repeats
-     it too but already carries a HISTORICAL banner — no further stamp needed.
-  8. patches/drizzle-kit+0.31.9.patch Bug 4 (partial-index WHERE reading) is LOAD-BEARING for
-     the four partial unique indexes. If drizzle-kit is ever upgraded, re-verify before this
-     lands or migrations will churn.
-  9. Carried over, unrelated to this thread:
-     - Clerk preview-origin question (ADL-32 §6) + §10 success criteria pending a real deploy.
-     - D-05 Clerk staging/prod user-pool split (jobs/COO/open-dialogues.md).
-     - OQ-03 (shell trip approximate dates). OQ-05 is ADL-41's (S1), not mine.
+  1. COO: this ADL does NOT require a BRD edit — IT-10 already has success criteria stated
+     in BRD §5.5 and this decision doesn't change them. tracker.json BRD-IT10 updated in
+     place (status stays "pending", notes now say "DESIGNED 2026-07-27" — same convention
+     ADL-42 used for BUG-41/BUG-42).
+  2. COO: merge PR for chore/adl45-item-maps-url after CI green — do not self-merge.
+  3. Once merged, unblocks: Database brief (schema.ts + one migration file — safe to merge
+     alone, nothing depends on the column existing yet) and the Frontend/Backend brief that
+     consumes it (map_url in items.schemas.ts + ItemForm.tsx + ItemCard.tsx +
+     urlSanitiser.ts extension). Also unblocks BRD-MB0102 (§5.15 MB-02 directions link),
+     which was blocked on this column existing.
+  4. Optional follow-up for COO to raise as its own tracker item (not gating IT-10): add
+     server-side scheme validation to `photo_album_ref` and give `sanitiseUrl()` its first
+     real call site — see FINDING above.
+  5. Nothing in this ADL touches ADL-41/ADL-43/ADL-44 stubs or ADL-42's completed entry —
+     verified untouched after edit (grep confirms all five headers intact and distinct).
