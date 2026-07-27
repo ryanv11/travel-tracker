@@ -1,0 +1,131 @@
+ARCHITECT PARK DOCUMENT — 2026-07-27
+THREAD: Wave 0 scoping brief S2 — ADL-42, booking item shape (BUG-41 + BUG-42)
+ISSUE: #272   BRANCH: feat/adl42-booking-item-shape
+DELIVERABLE TYPE: spec only — no schema, migration or code change
+
+================================================================================
+WHAT WAS ASKED
+================================================================================
+Decide one shape covering BUG-41 (multi-leg/connecting flights within a single booking,
+e.g. Seattle→London layover→Glasgow, all one booking) and BUG-42 (multiple companions/seats
+per booking item). Resolve: leg ordering; leg fields vs parent fields; how seat/companion
+assignment attaches given a companion may be on some legs and not others; interaction with
+the per-user companion model (AD-08/ADL-28) without creating a path around it; interaction
+with item statuses (IT-03); migration for existing flat flight items. BUG-43 (Apple Wallet)
+out of scope, note implications only.
+
+================================================================================
+WHAT I FOUND BEFORE DECIDING
+================================================================================
+1. BRD FL-01 ("Each flight is logged as an individual leg") is the CURRENT decision this
+   brief asks me to reverse. It is echoed in three places: src/backend/db/schema.ts:507,
+   jobs/architect/tech/20260307-ER-schema.md:303 (already HISTORICAL-bannered), and
+   jobs/database/tech/schema.ts:507 (an unmaintained COPY of the schema file).
+2. There is NO per-item companion link anywhere in the schema. Companions attach to trips
+   only (trip_companions_map). BUG-42 is not "extend the existing link" — there is nothing
+   to extend.
+3. THE KEY FINDING, which nobody had written down: `companions` is a list of OTHER people.
+   The owning user is not in it. So today's single item_flights.seat column IS the user's own
+   seat, implicitly — that is exactly what BUG-42 means by "one implicit traveller". Any
+   traveller junction keyed on a NOT NULL companion_id would have nowhere to put the user's
+   own seat, making the "fix" a regression. This finding drove D5.
+4. There is no cost/price column anywhere in the schema, and no BRD requirement for one.
+   The brief's "what the parent carries (confirmation number, provider, cost)" assumes a
+   field that does not exist. Ruled on it forward-looking rather than inventing it.
+5. fetchItemsWithExtensions (src/backend/routes/items-helper.ts:82) left-joins five 1:1
+   extension tables into ONE FLAT ROW per item. Legs and travellers are 1:N. This is the
+   trap the implementation will fall into if not told.
+6. Drift, unrelated but found en route: BRD IT-03 (v3.0) lists Shortlisted as an item status;
+   chk_items_status (schema.ts:499) does not have it and 'shortlisted' appears nowhere in
+   src/. Added to the BRD, never implemented.
+
+================================================================================
+THE 13 DECISIONS (summary — full reasoning in the ADL)
+================================================================================
+D1  One booking = one item. New item_flight_legs 1:N child. item_flights retained, shrunk
+    to (item_id, booking_reference).
+D2  Explicit 1-based contiguous leg_order, full-replace on write. NOT a datetime sort —
+    datetimes are optional (PL-01 quick capture) and naive/timezone-less.
+D3  Parent: booking_reference. Leg: airline, flight_number, both airports, both datetimes.
+    airline is per-leg because interline/codeshare itineraries genuinely change carrier.
+D4  ONE item_travellers table, nullable leg_id selects the scope. Row presence = travels
+    this scope. seat NULL = seat unknown (unambiguously different from "not on this leg").
+D5  companion_id NULLABLE, NULL = the owning user. See finding 3 above.
+D6  Manifest mode: per item, rows are all leg-scoped (flights) or all booking-scoped
+    (everything else). Never mixed. Keeps the flight roster derived, never stored.
+D7  companionRepository.validateOwnership mandatory at this second write path; 400 not 404;
+    userId is the repository's FIRST argument so the junction cannot be written without it.
+D8  No leg status. Status stays item-level.
+D9  Cost is booking-level whenever introduced, never per-leg. Not added here.
+D10 TWO migration files: additive create+backfill, then destructive shrink.
+D11 Legs/travellers fetched in a SECOND batched query, never left-joined.
+D12 No compatibility shim. Backend + frontend land together.
+D13 item_travellers open to all item types; legs flight-only.
+
+================================================================================
+WHY NOT THE OBVIOUS ALTERNATIVES
+================================================================================
+- booking_group_id linking separate leg-items: leaves N statuses for one booking, so IT-06
+  bulk review and PL-03 grouping stay broken. Also puts a grouping key on the generic items
+  table for one type's benefit.
+- leg2_*/leg3_* columns on item_flights: hard cap in the schema, unindexable, and exactly
+  the "dozens of nullable columns" failure ADL-11 already rejected.
+- JSON legs array: ADL-11 rejected JSON for item fields because SQLite cannot efficiently
+  index JSON paths, and leg departure dates ARE queried (tech-blueprint.md:292).
+- A generalised item_segments table spanning flights, hotels and car rentals: the most
+  elegant option and the wrong one. It requires migrating all three existing extension
+  tables and rewriting every route, helper, test and component, to buy a second segment for
+  types that will never have one (a multi-city car hire is a second rental). That is a
+  rebuild sold as a refactor. Rejected on cost, not on taste. Worth re-reading if anyone
+  proposes it later — the reasoning is in ADL-42 §3.
+- Two junctions (booking-level roster + leg-level seat map): two homes for one fact, and
+  "on the booking but no row on leg 2" becomes ambiguous between not-travelling and
+  seat-unknown. Rejected; this is what D4's nullable leg_id exists to avoid.
+- A "Me" companion row auto-created per user: pollutes an AD-08 user-managed list with a row
+  the user can rename/deactivate/delete, collides with uniq_companions_user_name, and makes
+  the self-row soft-deletable — orphaning the meaning of every seat attached to it.
+- A NOT NULL traveller_ref with 0 as a self sentinel (2 indexes instead of 4): 0 cannot
+  carry an FK to companions.id. Referential integrity outranks index count.
+
+================================================================================
+THINGS I VERIFIED RATHER THAN ASSUMED
+================================================================================
+- uniqueIndex(...).on(...).where(...) is expressible in the INSTALLED drizzle-orm:
+  uniqueIndex() and index() share one builder (node_modules/drizzle-orm/sqlite-core/
+  indexes.d.ts — IndexBuilderOn -> IndexBuilder.where()). The four partial unique indexes
+  are not hypothetical.
+- patches/drizzle-kit+0.31.9.patch Bug 4 (partial-index WHERE reading) is load-bearing for
+  this design. Without it drizzle-kit will churn these migrations.
+- Every file path and line number cited in the ADL was checked against the tree. One was
+  wrong on first write (schema.ts:508 -> 507) and was corrected — the exact ADL-27/29
+  failure /record-decision warns about. Check them again if the ADL is ever edited.
+- tracker.json round-trips cleanly after my edits: 15 // ─── section headers intact,
+  190 entries parse. Edited in place with the Edit tool, never through a script.
+
+================================================================================
+STATE AT PARK
+================================================================================
+- ADL-42 reserved stub REWRITTEN IN PLACE in jobs/architect/tech/
+  20260307-architecture-decisions-log.md. Other reserved stubs (ADL-41, 43, 44, 45) not
+  touched — four other Architects were running concurrently on the same file.
+- Standalone design: jobs/architect/tech/ADL-42-booking-item-shape.md.
+- tracker.json: BUG-41 and BUG-42 notes rewritten with the decision + #272; owner moved
+  architect -> coo (the next actor is the BRD gate, not me); status left "pending" because
+  NOTHING is implemented. Deliberately did not invent a "designed" status value or use
+  "partial" — "partial" is used in this tracker for partially-SHIPPED features and would
+  read to a UAT reviewer as "some of this works", which is exactly the status decay the
+  doc-lifecycle rules exist to stop.
+- BRD NOT edited. See handoff item 1.
+
+================================================================================
+IF I PICKED THIS UP COLD TOMORROW
+================================================================================
+The design is complete and self-contained; nothing is half-decided. The only thing standing
+between this and a dispatchable brief is the COO's BRD bump (FL-01 supersession + FL-02
+amendment + two new requirement IDs with success criteria). Do not let a Database brief go
+out before that lands — BUG-41 and BUG-42 both still have brdRefs: [].
+
+The single highest-risk item at implementation time is D11 (row multiplication in
+fetchItemsWithExtensions). If the Backend brief is written without that warning quoted
+verbatim, expect corrupted rating sorts and wrong item counts that will look like a
+frontend bug.
