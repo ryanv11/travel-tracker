@@ -127,10 +127,18 @@ These override the naive read of the tracker notes.
    the latency the PO reported **worse**. The real fix is the payload (simplification,
    tiling, per-country splitting). Hence S5. Separately, `MapView.tsx:6` documents
    `zoom >= 4` while the constant is `3` — stale-doc drift, fix in whichever PR touches it.
-2. **BUG-50 is fullstack.** There is no `router.delete` in `src/backend/routes/trips.ts` at
+2. ~~**BUG-50 is fullstack.** There is no `router.delete` in `src/backend/routes/trips.ts` at
    all. New route + cascade semantics (trip_places, items, photos) → needs a BRD ID and
-   success criteria before dispatch. **Must not foreclose NR-12** (Phase 2: archive rather
-   than hard-delete for structured lists) — flag to Architect in S1.
+   success criteria before dispatch.~~ **CORRECTED 2026-07-27 (ADL-41 / PR #284) — the
+   premise was false.** `tripsRouter.delete('/:id')` **does** exist
+   (`src/backend/routes/trips.ts:429`), is `userId`-scoped, returns 403 on locked trips, and
+   cascades; `tripRepository.delete` exists (`src/backend/repositories/trips.ts:195`) and
+   `useDeleteTrip` is already wired into both `DesktopTripsLayout` and `MobileTripsLayout`
+   for bulk delete. The original probe grepped for `router.delete` against a router actually
+   named `tripsRouter`, and the COO propagated the result into BUG-50's tracker note without
+   re-verifying it. **B7 is frontend-only and must be re-sized before dispatch** — the
+   remaining gap is a per-trip delete affordance in the trip *detail* view, not a route.
+   The BRD ID (TR-14, v3.8) and NR-12 non-foreclosure still stand and are unaffected.
 3. **BUG-52 sizing unknown.** No server-side trip search was found anywhere; it is likely
    client-side title filtering. The brief needs a discovery step before it can carry an
    estimate.
