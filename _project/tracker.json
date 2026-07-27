@@ -1879,22 +1879,22 @@
       "type": "feature",
       "title": "Convert free-text airline/car-rental-provider fields to a sourced dropdown with Other fallback",
       "status": "pending",
-      "owner": "architect",
+      "owner": "coo",
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, PO-flagged as longer-term, logged only. Replace free-text entry for airline / car-rental-provider with a dropdown sourced from a comprehensive external list, falling back to an 'Other' + free-text option when not found. Needs a data-source decision (licensing/comprehensiveness) before scoping — same theme as OQ-06 (systematic reference data vs. hand-seeded lists)."
+      "notes": "Found 2026-07-21 UAT, PO-flagged as longer-term, logged only. DESIGNED 2026-07-27 — Architect ADL-43 (issue #273, Wave 0 brief S3) decided jointly with OQ-06: airlines sourced from OpenFlights (via npm `airline-codes`, ODbL data licence — attribution required, flagged for re-confirmation) into a new admin-managed `airlines` table with a search endpoint; car rental providers have no comparable external source and get a hand-curated list on the same admin-managed table pattern; both keep 'Other' as a UI-only free-text fallback with no schema change to item_flights/item_flight_legs/item_car_rentals. Full design jobs/architect/tech/ADL-43-sourced-reference-data.md. Designed, implementation pending. BLOCKED on the COO BRD gate: brdRefs is empty and this needs new §5.6 requirement IDs (suggested FL-06 — FL-05 is already taken by ADL-42's leg-ordering requirement, BRD v3.9 — and CR-03) with success criteria before any brief dispatches. Sequencing: the airline half also depends on ADL-42's item_flight_legs table shipping first (car-rental-provider half does not)."
     },
     {
       "id": "OQ-06",
       "type": "requirement",
       "title": "Adopt a systematic subdivision reference list (ISO 3166-2) instead of ad hoc per-country region seeding",
-      "status": "pending",
+      "status": "closed",
       "owner": "architect",
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Raised 2026-07-21 UAT. PO initially suspected account data leakage (saw a Northern Ireland trip under their own account) — self-diagnosed in-session as the known BUG-30 gap (GB region seeding), not a leak; BUG-30 is already done and closed. Real open question: BUG-30 hand-seeded England/Scotland/Wales/NI under GB as a one-off fix — is there a more systematic ISO 3166-2 subdivision dataset that should back region seeding generally, rather than patching countries one at a time as gaps are found? Same theme as BUG-45's comprehensive-list ask. For Architect to weigh before the next region-data gap surfaces."
+      "notes": "Raised 2026-07-21 UAT. PO initially suspected account data leakage (saw a Northern Ireland trip under their own account) — self-diagnosed in-session as the known BUG-30 gap (GB region seeding), not a leak; BUG-30 is already done and closed. CLOSED 2026-07-27 — Architect ADL-43 (issue #273, Wave 0 brief S3): yes, adopt a systematic source (npm `country-region-data`, MIT) for region seeding, restricted to the 26 countries currently `region_tier_enabled=1` (measured: 22 of those 26 have zero seeded regions today, i.e. 22 latent BUG-30s). Load-bearing finding: both Natural Earth (already bundled for GE-10) and country-region-data return UK county-level codes (217 rows), not the GB-ENG/SCT/WLS/NIR codes BUG-30 needed — a systematic source alone does not fix this class of gap, so a small per-country override table (GB is the first entry) is a mandatory part of the design, not an afterthought. Full design jobs/architect/tech/ADL-43-sourced-reference-data.md. No new BRD ID needed (internal sourcing decision, not a new user-facing requirement) — implementation pending a Database brief."
     },
     {
       "id": "BUG-46",
