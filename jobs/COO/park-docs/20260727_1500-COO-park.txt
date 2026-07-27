@@ -1,0 +1,120 @@
+COO SESSION PARK — 2026-07-27 ~1500 UTC (Wave 0 complete, 6/6)
+================================================================================
+
+## Session summary
+Long session, three phases: cleared both Wave 1 gates, dispatched Wave 0 and lost it to
+a monthly API spend limit, then re-dispatched after Ryan raised the limit and took all
+six briefs to merge. 11 PRs merged, main verified green after each.
+
+Two earlier park docs from this same day (20260727_1233, 20260727_1310) cover the
+BUG-64 work and the spend-limit interruption respectively. This one supersedes 1310's
+"state of play" and "suggested next" sections; its incident record still stands.
+
+### 1. Wave 1 gates cleared (PR #270)
+- BRD v3.8: TR-14 (delete a trip), TR-15 (place removal prompts for item disposition),
+  IT-11 (item date defaults from trip range). All with success criteria.
+- ADL-41..45 pre-reserved as rewrite-in-place stubs.
+- Clearance plan §8 gates 1-2 struck through and stamped CLEARED.
+
+### 2. Wave 0 dispatched, killed, re-dispatched, completed 6/6
+First round: all six agents died on "You've hit your monthly spend limit." Guardrails
+held — this was budget, not a dispatch defect. S2 completed anyway (see the 1310 park
+doc for why it was briefly and wrongly recorded as dead). S1's finished design doc was
+salvaged to a branch and stamped UNREVIEWED. Ryan raised the limit; the remaining five
+were re-dispatched and all merged.
+
+| Brief | Deliverable | PR |
+|---|---|---|
+| S1 | ADL-41 trip-place identity — one row per visit; OQ-05 closed | #284 |
+| S2 | ADL-42 booking item shape — legs + travellers | #278 |
+| S3 | ADL-43 sourced reference data — THREE mechanisms, not one | #285 |
+| S4 | UX spec — trip list, status colours, activities | #283 |
+| S5 | ADL-44 region-shading payload — per-country split | #282 |
+| S6 | ADL-45 item map URL — base-table column | #281 |
+
+### 3. The most valuable output was a correction, not a decision
+S1 was re-dispatched as a COMPLETION task pointed at the salvaged doc, told to review it
+critically rather than rubber-stamp. It found two claims false, both already spread into
+our own planning docs:
+
+1. **"PRAGMA foreign_keys is off at runtime"** — FALSE. `@libsql/client` enables FKs by
+   default (a libSQL divergence from stock SQLite), verified by direct probe. The draft's
+   proposed eight ordered deletes would have been WORSE than the status quo: duplicating
+   the FK graph in application code, going stale the first time a child table was added.
+   No latent issue, no ADL owed. Residual: the probe covered the embedded driver only —
+   the REMOTE Turso path is unverified (firewall blocks every Turso host). → QUAL-11.
+2. **"There is no router.delete in trips.ts at all"** — FALSE. `tripsRouter.delete('/:id')`
+   exists at trips.ts:429, userId-scoped, 403 on locked, cascading; `useDeleteTrip` already
+   wired into both trip layouts. The original probe grepped `router.delete` against a
+   router named `tripsRouter`, and **the COO propagated it into BUG-50's tracker note
+   without re-verifying**. Corrected in plan §6.2 and the tracker. **B7 is frontend-only.**
+
+S3 likewise rejected its own brief's framing on measured evidence: BUG-45 and OQ-06 are
+NOT one mechanism. 22 countries have `region_tier_enabled=1` with zero seeded regions (22
+latent BUG-30s), and the recommended dataset has the IDENTICAL gap that caused BUG-30 — so
+a per-country override table is mandatory regardless of source.
+
+### 4. BRD v3.9 and v3.10
+- **v3.9** — ADL-42's gate: FL-01 rewritten + stamped SUPERSEDED, FL-02 split with `seat`
+  removed, FL-03 clarified to booking-level status, FL-05 and IT-12 added with success
+  criteria. IT-12 placed in §5.5 not §5.6 deliberately (travellers span all item types,
+  legs are flight-only).
+- **v3.10** — OQ-05 closure, following the v3.2 precedent. S1 had been told not to bump
+  (a COO v3.9 was in flight); the COO added the bump during conflict resolution.
+
+### 5. Process results worth keeping (memory written)
+The ADL log had **zero conflicts across four concurrent merges**; the shared
+`jobs/architect/context/current.txt` collided in **three of four**. Same wave, same agents.
+The difference is design: pre-assigned numbers + rewrite-your-own-stub-in-place. Both
+halves load-bearing — pre-assignment alone still leaves N agents appending to one tail.
+→ QUAL-12, and `project_wave0_concurrency_patterns` memory.
+
+Model tiering was refined at Ryan's request from blanket-Opus-for-Architect to
+**"Opus where a wrong answer costs a data migration, Sonnet where it costs a re-run"**
+(2 Opus, 4 Sonnet). All six produced adopted decisions; the Sonnet ones were not visibly
+weaker. → `project_model_tiering_policy` updated.
+
+## State of play
+- **main** green @ cebb442+ (this close-out's PR on top), clean tree, only `main` locally,
+  no worktrees, zero open PRs.
+- **production** @ 1a4f84f — unchanged; no promotion owed (docs/spec work only this session).
+- **BRD v3.10**, header and changelog match.
+- **Tracker:** 128 done / 51 pending. New: QUAL-08..14, DEP-04.
+- **Wave 1 (§4) is dispatchable TODAY** — both its gates are permanently cleared.
+- **Wave 2 is gated** on the new §8b BRD bump.
+
+## Suggested next actions
+1. **Wave 2 BRD gate (§8b)** — one bump: FL-06, CR-03 (ADL-43), DP-07, DP-08, TR-16 (UX
+   spec §7 has the success-criteria text drafted — lift it). Verify which IDs are actually
+   free first; S3 suggested FL-05 and had to self-correct when v3.9 claimed it mid-flight.
+2. **Dispatch Wave 1 sub-wave A** — B1, B2, B3, B6, B9. Not blocked by anything.
+   **B9 (QUAL-03) first regardless** — it makes every other backend brief's tests
+   trustworthy and clears OP-15's last prerequisite.
+3. **Re-size B7 before dispatching it** — frontend-only now (§6.2 correction).
+4. **QUAL-09 needs a decision before PL-02/PL-03 are briefed** — BRD IT-03 lists item
+   status `Shortlisted`, never implemented. Build it, or amend the BRD. Briefing the
+   planning loop while its middle stage doesn't exist yields an unbuildable brief.
+5. **QUAL-11's open half needs staging** — whether the remote Turso path enforces FKs.
+   Not answerable from inside this container.
+6. **DEP-04 awaits a PO decision** — pin `semgrep/semgrep:latest` or leave it. Raised twice
+   on 2026-07-27, no answer either time; logged rather than dropped.
+7. ADL-42 implementation, when it comes: Database brief FIRST (schema + 2 migrations, safe
+   alone), then ONE combined Backend+Frontend brief on a single branch — no compatibility
+   shim, so both layers land together.
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — D-04 through D-12, unchanged this session. Nothing new
+added: every item surfaced in the restart preview was a clear-cut capture (resolved into
+the tracker, the clearance plan, memory, or this doc), not unresolved dialogue.
+
+## Restart preview
+Shown to Ryan before this doc was written.
+**Captured:** 11 merged PRs; Wave 0 6/6 with 5 ADLs + 1 UX spec; BRD v3.8→v3.9→v3.10;
+OQ-05 and OQ-06 closed; 8 new tracker items; two false claims corrected in place; Wave 2
+gate written into §8b; 2 memory entries; inbox triaged; worktrees cleaned.
+**Captured, not actioned:** Wave 1 (B1-B9) and Wave 2; ~51 pending items incl. P1s BUG-50
+and BUG-51; D-04-D-12; DEP-03, QUAL-03/04/07, OP-15, OQ-03; the 8 items logged today.
+**Not captured:** nothing. Both gaps found during the preview — the Wave 2 gate having no
+durable home, and the reusable dispatch lessons — were closed during the close-out itself.
+Three items need a PO decision next session (QUAL-09, QUAL-11's staging check, DEP-04) but
+all three are durably tracked with the question stated in their notes.
