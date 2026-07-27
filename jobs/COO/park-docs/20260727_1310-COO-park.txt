@@ -1,0 +1,109 @@
+COO SESSION PARK — 2026-07-27 ~1310 UTC (Wave 0 dispatched, killed by spend limit)
+================================================================================
+
+## Session summary
+Picked up post-/clear. /coo-startup clean on all six checks. Ryan scoped the session to
+the two Wave 1 gates, then authorised Wave 0 dispatch only (Wave 1 explicitly held).
+Both gates cleared and merged. Wave 0 dispatched — then **all six agents died mid-flight
+when the account hit its monthly API spend limit.** One deliverable salvaged.
+
+### 1. Both Wave 1 gates CLEARED (PR #270, merged, main green)
+- **BRD v3.8** — one bump covering the three Wave 1 items with no BRD home:
+  - TR-14 (from BUG-50) — delete a trip. Deliberately scoped as *hard* deletion, with an
+    explicit note that it must not foreclose NR-12 (Phase 2 archive).
+  - TR-15 (from BUG-40) — place removal prompts delete-all / reassign / cancel. Stamped
+    as superseding BUG-32's shipped silent-reassign behaviour.
+  - IT-11 (from BUG-57) — item dates default from trip range; flight arrival defaults to
+    departure. Noted as one code path with DP-06, so B6 implements them together.
+  Header + body + changelog all bumped (the three places). Per the BRD→tracker rule the
+  IDs are tracked via BUG-50/40/57's `brdRefs`, NOT duplicate BRD-* items — each note
+  says so, so a later reader doesn't hunt for a missing BRD-TR14.
+- **ADL-41..45 reserved** as stubs in the ADL log, with a banner instructing each
+  Architect to **rewrite its own stub in place, never append**. Pre-assigned numbers fix
+  the numbering race; the rewrite-in-place rule fixes the *file* race, which the
+  clearance plan had not accounted for — five agents appending to a 2,700-line log
+  conflict in every pairing.
+- Clearance plan §8 gates 1-2 and §3's pre-dispatch note struck through and stamped
+  CLEARED in the same PR.
+
+### 2. Wave 0 dispatched, then killed — issues #271-#276 raised
+Six briefs dispatched in parallel, all `isolation: "worktree"`, all with the standard
+guardrails (cwd confirm first, npm install, no bare git stash, no literal /workspace).
+Model tiering applied per-brief at Ryan's request rather than blanket Opus — rule used
+was **Opus where a wrong answer costs a data migration, Sonnet where it costs a re-run**:
+- S1 ADL-41 trip-place identity — **Opus** (#271)
+- S2 ADL-42 booking item shape — **Opus** (#272)
+- S3 ADL-43 sourced reference data — Sonnet (#273)
+- S4 UX trip-list spec — Sonnet (#274)
+- S5 ADL-44 region shading payload — Sonnet (#275)
+- S6 ADL-45 item Maps URL — Sonnet (#276)
+
+**All six terminated with "You've hit your monthly spend limit."** Not a dispatch
+defect — the guardrails held; the account ran out of budget. Five notified failure; S2
+never notified and is idle with nothing produced.
+
+### 3. What survived: S1's design doc, salvaged and stamped
+S1 had **finished** its 559-line standalone design doc (`jobs/architect/tech/
+ADL-41-trip-place-identity.md`) before dying, but completed none of its closing steps.
+Committed by COO to `feat/adl41-trip-place-identity` (pushed, **no PR opened**) with a
+prominent UNREVIEWED/PARTIAL banner, because:
+- the ADL-41 log stub was never rewritten — so per /record-decision **ADL-41 does not
+  yet exist as a decision**; this file supplements a log entry that was never written
+- the doc's own §11 asserts "OQ-05 is closed by this PR; BRD bumped to v3.9" — **both
+  false**, describing what it intended to do next. BRD is untouched at v3.8. The banner
+  calls this out explicitly so the false claim can't be read as fact.
+- no tracker update, no PR, no completion report, no review
+
+Kept rather than discarded because re-deriving it costs another full Opus run. **Its
+§7.1 claim that `PRAGMA foreign_keys` is not enabled on the application connection is
+worth independent verification** — if true, declared `ON DELETE CASCADE` is not enforced
+at runtime, which is a latent issue across the whole schema, far beyond this brief.
+
+### 4. Transient CI failure (resolved, no action needed)
+Main went red immediately after #270 merged: Security Checks failed because the runner
+could not reach Docker Hub (`registry-1.docker.io: context deadline exceeded`, 3
+retries), so the Semgrep container never started. Not a code failure — Semgrep passed on
+the identical tree 20 min earlier. Re-ran, passed, main confirmed green at 07671a3.
+**Surfaced but NOT actioned:** the Semgrep job pulls `semgrep/semgrep:latest` unpinned —
+the only external runtime dependency in either workflow that isn't SHA-pinned. Both a
+flakiness source and a floating-tag supply-chain surface. Ryan was asked whether to log
+it as a tracker item; **no answer given before the limit hit.** Still open.
+
+## State of play
+- **main** green @ 07671a3, clean tree. Zero open PRs.
+- **production** @ 1a4f84f — src/ and package.json identical to main, no promotion owed.
+- **Unmerged branch:** `feat/adl41-trip-place-identity` (salvaged doc, no PR).
+- **Two worktrees left in place** — agent-af1f4a86179dc9ad2 (S1) and
+  agent-a82f791e3ef4b40e1 (S2, locked). Deliberately NOT removed: D-09 records that
+  worktree cleanup can race a lingering agent process, and the salvage value was already
+  secured by pushing. Safe to remove next session once confirmed idle.
+- **Six open issues #271-#276** with no work behind five of them. They are valid briefs
+  and should be re-dispatched, not re-written.
+- Tracker unchanged this session apart from BUG-50/40/57 brdRefs. 44 pending.
+- BRD v3.8.
+
+## Suggested next actions
+1. **Raise the spend limit before anything else** — every agent dispatch will fail until
+   then. This is the blocking item.
+2. **Re-dispatch Wave 0.** The six briefs in issues #271-#276 are complete and reusable;
+   the dispatch prompts are in this session's transcript but the issues carry the scope.
+   S1 can be re-dispatched *cheaper* — point it at the salvaged doc to review, correct
+   and complete rather than redesign from scratch.
+3. Decide the S1 salvage branch's fate: review-and-complete, or discard and re-run.
+4. Wave 1 still untouched and still gated only on Wave 0's specs (both §8 gates are now
+   permanently cleared).
+5. Unanswered from this session: log the unpinned `semgrep/semgrep:latest` as a tracker
+   item, or leave it.
+
+## Open threads
+`jobs/COO/open-dialogues.md` D-04 through D-12, unchanged this session — nothing added.
+
+## Restart preview
+**Captured:** PR #270 (both gates), BRD v3.8 + 3 requirements, ADL-41..45 reservations,
+issues #271-#276, S1's salvaged doc on a pushed branch, this park doc.
+**Captured, not actioned:** Wave 0 (all 6 briefs, dispatch failed — issues persist),
+Wave 1 and all 9 batches, ~44 pending tracker items incl. P1s BUG-50/BUG-51, D-04-D-12,
+DEP-03, QUAL-03/04, OP-15, OQ-03.
+**Not captured:** the six dispatch prompts themselves (reconstructable from the issues,
+which carry the full scope); the semgrep-pin question, which has no tracker home yet and
+will be lost unless raised again — it is written into §4 above for that reason.
