@@ -1638,3 +1638,14 @@
 {"ts":"2026-07-27T12:44:33Z","action":"edit","file":"/workspace/_project/tracker.json"}
 {"ts":"2026-07-27T12:44:49Z","action":"edit","file":"/workspace/jobs/COO/backlog-clearance-plan.md"}
 {"ts":"2026-07-27T12:44:59Z","action":"edit","file":"/workspace/jobs/COO/backlog-clearance-plan.md"}
+{"ts":"2026-07-27T13:05:26Z","action":"write","file":"/workspace/.claude/worktrees/agent-af1f4a86179dc9ad2/jobs/architect/tech/ADL-41-trip-place-identity.md","agent_type":"architect"}
+{"ts":"2026-07-27T13:07:21Z","action":"write","file":"/workspace/.claude/worktrees/agent-a82f791e3ef4b40e1/jobs/architect/tech/ADL-42-booking-item-shape.md","agent_type":"architect"}
+{"ts":"2026-07-27T13:08:15Z","action":"edit","file":"/workspace/.claude/worktrees/agent-af1f4a86179dc9ad2/jobs/architect/tech/ADL-41-trip-place-identity.md"}
+{"ts":"2026-07-27T13:08:20Z","action":"edit","file":"/workspace/.claude/worktrees/agent-a82f791e3ef4b40e1/jobs/architect/tech/20260307-architecture-decisions-log.md","agent_type":"architect"}
+{"ts":"2026-07-27T13:08:31Z","action":"edit","file":"/workspace/.claude/worktrees/agent-a82f791e3ef4b40e1/_project/tracker.json","agent_type":"architect"}
+{"ts":"2026-07-27T13:08:36Z","action":"edit","file":"/workspace/.claude/worktrees/agent-a82f791e3ef4b40e1/_project/tracker.json","agent_type":"architect"}
+{"ts":"2026-07-27T13:09:03Z","action":"edit","file":"/workspace/.claude/worktrees/agent-a82f791e3ef4b40e1/_project/tracker.json","agent_type":"architect"}
+{"ts":"2026-07-27T13:09:05Z","action":"edit","file":"/workspace/.claude/worktrees/agent-a82f791e3ef4b40e1/_project/tracker.json","agent_type":"architect"}
+{"ts":"2026-07-27T13:09:39Z","action":"edit","file":"/workspace/.claude/worktrees/agent-a82f791e3ef4b40e1/jobs/architect/tech/ADL-42-booking-item-shape.md","agent_type":"architect"}
+{"ts":"2026-07-27T13:09:40Z","action":"edit","file":"/workspace/.claude/worktrees/agent-a82f791e3ef4b40e1/jobs/architect/tech/20260307-architecture-decisions-log.md","agent_type":"architect"}
+{"ts":"2026-07-27T13:09:43Z","action":"write","file":"/workspace/jobs/COO/park-docs/20260727_1310-COO-park.txt"}
