@@ -1,10 +1,11 @@
-UX CONTEXT — 2026-07-21 (updated — C1-C13 gate closed, Phase 2 ready for dispatch)
+UX CONTEXT — 2026-07-27 (updated — S4 trip-list/status-pill/activities spec delivered)
 PROJECT: Travel Tracker
-CURRENT STATUS: Waypoint redesign spec fully resolved. Phase 1 (WP-02) shipped, merged,
-UAT PASS. Phase 2 (WP-03/WP-04) spec is stamped with all 13 conflict resolutions plus
-three adjacent flagged items plus one new UX-made call (mobile Edit/Photos) plus one new
-constraint (mobile no-horizontal-scroll) — ready for Frontend dispatch, no open UX-owned
-questions remain on this spec.
+CURRENT STATUS: Waypoint Phase 1+2 fully shipped, UAT PASS, CLOSED (see prior entries
+below). New thread this session: Wave 0 scoping brief S4 (GitHub #274), a batched spec
+covering BUG-53 (trip-list place display), UX-11 (status pill colours vs map shading),
+BUG-54 (category/activity colour — ruled parked), BUG-47 (auto-populate activities), and
+a ruling on BUG-46 (fix, not delete). Spec delivered, no open UX-owned questions. Next
+step is COO's: BRD gate (3 new IDs recommended, not added by me) + brief dispatch.
 
 ================================================================================
 ROLE SUMMARY
@@ -15,82 +16,120 @@ implementation specs for Frontend. Reports to COO. Does not send change
 requests to Frontend directly.
 
 ================================================================================
-PROJECT CONTEXT (verified 2026-07-21)
+PROJECT CONTEXT (verified 2026-07-27, unchanged since 2026-07-21 except as noted)
 ================================================================================
 
   App type:     Travel tracking — map-centric, data entry, workflow management
   Frontend:     React 18 + TypeScript + Vite + React Router + TanStack Query
-  Styling:      Tailwind CSS v4, CSS-first config (@import "tailwindcss" in
-                src/frontend/index.css — no tailwind.config.js/.ts exists)
-  Component lib: NONE adopted. No shadcn/ui, no Radix, no icon library
-                (no lucide-react, no clsx/cva) in package.json as of 2026-07-21.
+  Styling:      Tailwind CSS v4, CSS-first config (@theme in theme-waypoint.css)
+  Component lib: NONE adopted (still no shadcn/ui, no Radix, no icon library dependency —
+                Waypoint's 12 icons are hand-authored inline SVG, no npm package)
   Mapping:      MapLibre GL JS + react-map-gl + MapTiler tiles
-  Current palette: being replaced by the Waypoint palette (warm paper neutrals +
-                deep pine primary, oklch-based); Phase 1 tokens already shipped.
+  Palette:      Waypoint (warm paper neutrals + deep pine primary, oklch-based) — fully
+                shipped (WP-01/02/03/04, all CLOSED, PO UAT PASS 2026-07-21)
+  Dark theme:   Does not exist anywhere in the codebase (checked index.css and
+                theme-waypoint.css — zero dark/prefers-color-scheme references). Noted as
+                N/A rather than silently skipped when a brief asks for dark-theme contrast
+                checks (this session's S4 brief did).
 
 ================================================================================
-COMPLETED THREAD — Waypoint Phase 2 conflict-resolution stamp (2026-07-21, PM session)
+COMPLETED THREAD — S4: trip-list display, status pill colours, activities (2026-07-27)
 ================================================================================
 
-  Brief: jobs/ux/tech/20260721-UX-waypoint-spec.md (authored earlier the same day) left
-  13 conflicts (C1-C13) plus several adjacent flagged items explicitly open — "COO
-  adjudicates those; I have not." A COO/PO session the same day (two rounds) resolved all
-  of them, some already landed in BRD v3.3/v3.4 §5.16, others decided fresh in the second
-  round. Task: stamp every resolution into the spec so it stops asserting things are open,
-  and make one remaining judgment call myself.
+  Brief: GitHub #274 (Wave 0 scoping brief S4, jobs/COO/backlog-clearance-plan.md §3).
+  One spec pass, four tracker items batched because they share a surface (trip-list card)
+  and a data system (Waypoint badges / per-user shading config). Deliverable:
+  jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md.
 
-  What changed in the spec (same file, no new file):
-  - Status line: no longer "gated on 13 conflicts" — states resolved, ready for dispatch,
-    points to both this doc (design-detail record) and BRD v3.4 §5.16 (requirement-level
-    record).
-  - C1-C13 table: added a Resolution column, every row stamped "Confirmed 2026-07-21
-    (COO/PO)" with the verbatim decision (all matched my original recommendations, no
-    re-litigation needed).
-  - Confirmed/Completed status-badge hue: resolved as TWO distinct hues, not one (mockup's
-    STATUS_META collapsed them — rejected). I picked concrete replacement tokens myself:
-    Confirmed stays hue 150 (green), Completed moves to hue 220 (blue) — same L/C recipe
-    as the rest of the palette, chosen for open hue-space separation from all 7 existing
-    hues and a sensible green="on track"/blue="done" semantic pairing. Flagged that shipped
-    Phase 1 code (src/frontend/design/badges.ts) still collapses both to hue 150 — bug
-    relative to this decision, fix is part of the Phase 2 Frontend brief, not mine to touch.
-  - Font loading: confirmed final as self-hosted @fontsource (already implemented Phase 1).
-  - TR-12/stepper: confirmed by PO as acceptable fulfillment, not scope creep.
-  - MY OWN CALL: mobile trip-detail Edit/Photos entry point. Two conflicting COO/PO answers
-    existed (overflow "⋯" menu per BRD v3.3/v3.4 WP-04 as first recorded, vs. compact icon
-    pair as PO's answer in a later round, who then explicitly punted the final call to UX).
-    I chose the COMPACT ICON PAIR — reasoning: overflow menus earn their keep at 3+ actions,
-    not 2; hiding two frequent primary actions behind an extra tap actively works against
-    affordance/discoverability; icon-only pair keeps mobile behavior-consistent with desktop
-    (Edit/Photos always visible there too) as a density change, not a new interaction
-    pattern; extensibility isn't foreclosed since converting to an overflow menu later, if a
-    3rd action appears, is a small change. Added a new pencil/edit SVG icon spec to §3 (not
-    in either source mockup — authored to match the existing icon set's style) since the
-    mockup had no Edit icon at all. This supersedes the overflow-menu wording currently
-    sitting in BRD WP-04 — flagged explicitly for COO to reconcile in its own BRD pass; not
-    something I touched myself (BRD/tracker updates were COO's parallel work this session).
-  - New constraint added: no horizontal scrolling anywhere on mobile Trips except the
-    status filter chip row (already-documented overflow-x:auto exception) — trip cards,
-    place/category chip rows, item rows must all wrap/truncate. Added to the Mobile layout
-    section and as new Phase 2 success criterion #6 (verified against real/varied data, not
-    just the mockup's fixed example strings, since the mockup can't exercise this itself).
-  - Cross-reference summary table: all "Flag" verdicts converted to "Resolved" with the
-    concrete outcome; two new rows added (mobile Edit/Photos, mobile no-horizontal-scroll).
-  - Phase 2 success criteria: renumbered to 8 items, criterion 2 reworded from "needs
-    resolution" to "resolution must be honored in implementation," new criterion 6 added
-    for the no-horizontal-scroll constraint.
+  BUG-53 (trip-list place display): flagged a discrepancy — the tracker's "current state"
+  description ("city bold, country underneath") doesn't match what TripCard.tsx actually
+  renders today (single-line, non-bold, no country at all); it matches the trip-DETAIL
+  place-section header instead. Scoped to the list card anyway per the issue title, with
+  the discrepancy stated explicitly rather than silently resolved. Design: two-line place
+  chip (city bold + region/state, falls back to city-only when no region resolved — never
+  duplicates country into that slot) + a NEW, separate country row (my pill-vs-row call:
+  row, not merged into the category row — reasoning is the card's existing "one row = one
+  meaning" convention, and that a merged row can't cleanly show multiple countries on a
+  multi-country trip). Country row is deduped/ordered from trip.places client-side, NOT
+  from trip.countries (checked: that field is fed by the separate trip_countries explicit-
+  association table, ADL-23, and would render empty for most normal trips — a real trap
+  caught by reading the repository code, not assumed). Requires a small Backend field
+  addition (country_name + new region_name on TripSummaryPlace.city) — both joins already
+  exist in tripRepository.getPlaces(), just not surfaced in the response mapper. No schema
+  change.
 
-  Did NOT touch: BRD, tracker.json (explicitly COO's parallel work this session, per
-  brief). Did NOT implement any code — spec only.
+  UX-11 (status pill colours vs shading): the real problem is that trip status (4 values,
+  per-trip) and map shading state (7 values, per-place-aggregate) are different taxonomies
+  — this can't be a lossless 1:1 mapping, and I said so explicitly rather than faking
+  precision. Mapping: planning→planned, active→active (exact semantic matches), review_
+  pending→visited_once, locked→visited_once (deliberately the SAME colour — rejected a
+  locked→visited_multiple mapping because it could show "visited multiple times" on a
+  trip's pill while the map correctly shows "visited once" for the same trip, a direct
+  cross-surface contradiction; distinctness between Review/Locked carried by label text +
+  the existing LockedIcon, not hue). Real new cost flagged: a contrast-safe text-colour
+  utility (S effort) since admin-picked shading hex colours have no paired text colour and
+  could be any lightness. Applies to StatusBadge for trip statuses in BOTH the list card
+  and detail header (shared component) — explicitly not to item-status badges (no shading
+  analogue at item level). Confirmed this rides an ALREADY-SHIPPED pattern (MapLegend.tsx
+  already applies useShadingConfig() colours as inline style) — not new architecture, just
+  the one contrast utility.
+
+  BUG-54 (category/activity colour): ruled NOT free as a UX-11 side effect. UX-11 builds a
+  reusable rendering technique; BUG-54 still needs a schema change (no colour column on
+  categories/activities) and a net-new admin UI section, neither provided. Stays parked.
+
+  BUG-47 (auto-populate activities): the honest constraint is that item_type is a 6-value
+  enum and activities are a 17-entry free-text list (Skiing, Wine Tasting, Museum, etc.) —
+  6 types cannot disambiguate 17 activities, so a full auto-derivation would mean guessing,
+  and a wrong guess (e.g. any Experience item → "Sightseeing") is worse than no guess.
+  Design: suggestion-based, modeled directly on the app's existing IT-07 carry-forward
+  accept/reject pattern (already shipped, already tested) rather than a silent-write
+  defaulting engine — this also sidesteps the "never overwrite a user edit" problem this
+  codebase already solved once for IT-11/DP-06. Concrete derivation table: restaurant→
+  "Dining" (the one reliable mapping), everything else → no suggestion, stated as a
+  deliberate scope limit, not a gap. Self-contained frontend logic, no backend change.
+
+  BUG-46 (activities missing from create): ruled FIX, not delete. BUG-47's suggestions are
+  item-driven and no items exist yet at trip-create time (items are logged after trip+
+  places are saved), so the plain manual field is still load-bearing on create even after
+  BUG-47 ships — deleting it would regress, not simplify. Root cause confirmed in
+  TripForm.tsx: single `isEditing &&` gate (line 324), same fix shape as Categories/
+  Companions already use. Independent of BUG-47, can ship first.
+
+  Tracker updated in place (BUG-53, UX-11, BUG-54, BUG-47, BUG-46) — status + GitHub #274
+  + spec section reference in notes, per this session's brief scope. Did NOT touch owner
+  fields, BRD, or brdRefs — flagged 3 new BRD ID recommendations (DP-07, DP-08, TR-16) for
+  COO to add, per CLAUDE.md's BRD-gate rule (not mine to add).
+
+  BUGS DISCOVERED: none new (this was audit-by-reading-source, not implementation) — but
+  worth flagging forward: BUG-53's investigation surfaced that TripSummaryPlace.city's
+  country_name is silently dropped by the list-endpoint response mapper despite already
+  being computed by the underlying query — not a bug against any current requirement (list
+  responses were never spec'd to include it), but exactly the gap this brief's Backend
+  data-contract addition closes.
+
+  GIT: Branch chore/ux-trip-list-spec. Spec-only + tracker + housekeeping commits. See
+  completion report in jobs/COO/inbox/ for PR number and CI status.
 
 ================================================================================
 NEXT ACTIONS
 ================================================================================
 
-  Phase 2 (WP-03/WP-04) is unblocked for Frontend dispatch — no outstanding UX-owned
-  question remains on jobs/ux/tech/20260721-UX-waypoint-spec.md. COO's remaining work
-  (separate from this thread): reconcile BRD WP-04's overflow-menu wording against this
-  spec's compact-icon-pair resolution, then dispatch the Frontend brief for Phase 2.
+  COO: BRD gate (add DP-07, DP-08, TR-16 per the spec's §7 recommendations, bump BRD
+  version, create tracker entries for the new IDs per the BRD→tracker rule) before
+  dispatching any of BUG-53/UX-11/BUG-47/BUG-46 as implementation briefs. BUG-53 and UX-11
+  both need a Backend brief in addition to Frontend (small field addition for BUG-53;
+  no backend work for UX-11 itself, just the new frontend contrast utility). BUG-46 can be
+  briefed independently of BUG-47 at any time — no ordering dependency.
 
-  When Frontend's Phase 2 implementation lands, UX's next thread is the standard review-
-  against-spec pass (desktop + mobile, all cross-reference table rows, all 8 success
-  criteria above) before PO UAT.
+  My next thread (once any of these land): standard review-against-spec pass for whichever
+  ships first, same pattern as the Waypoint Phase 2 review will follow.
+
+================================================================================
+PRIOR THREAD — Waypoint Phase 2 conflict-resolution stamp (2026-07-21, PM session)
+================================================================================
+  See jobs/ux/park-docs/20260721-UX-park.txt for full detail — status line at the top of
+  this file previously tracked that thread; superseded by the S4 entry above. Summary:
+  all 13 C1-C13 conflicts + adjacent flags resolved and stamped into
+  jobs/ux/tech/20260721-UX-waypoint-spec.md; Phase 2 (WP-03/WP-04) subsequently
+  implemented by Frontend, PO UAT PASS 2026-07-21, CLOSED.

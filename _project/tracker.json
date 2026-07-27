@@ -1733,12 +1733,12 @@
       "id": "UX-11",
       "type": "feature",
       "title": "Trip-list status pill colours should match map shading colours (admin-driven)",
-      "status": "backlog",
+      "status": "pending",
       "owner": "ux",
       "priority": "P3",
       "brdRefs": [],
       "phase": 5,
-      "notes": "Found 2026-07-20 UAT. Needs a UX spec (which pill maps to which shading state/colour, admin-tab-driven per AD-07) before this becomes a BRD requirement — not yet briefable per the BRD gate."
+      "notes": "GitHub #274. UX spec delivered 2026-07-27: jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md §2. Mapping: planning→planned, active→active, review_pending→visited_once, locked→visited_once (deliberately same colour as review — distinctness carried by label + LockedIcon, not hue; reasoning against a distinct visited_multiple mapping for locked is in the spec). Applies to StatusBadge for trip statuses in both the list card and detail header (not item statuses). Requires a small new contrast-utility (S effort) to keep pill text readable against arbitrary admin-picked shading colours; reuses the existing useShadingConfig() runtime-style pattern already shipped in MapLegend.tsx — no new architecture. Recommends new BRD ID DP-08 (COO to add). Ready for BRD gate + brief dispatch."
     },
     {
       "id": "OP-22",
@@ -1905,7 +1905,7 @@
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Admin-defined activities are selectable when editing a trip but the field doesn't appear on trip create at all. NOTE: check against BUG-47 before briefing as a simple add-to-create-form fix — PO's proposed activity redesign may supersede this."
+      "notes": "GitHub #274. UX ruling delivered 2026-07-27 (jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md §5): FIX, not delete. BUG-47's suggestion mechanism is item-driven and no items exist yet at trip-create time, so the plain manual Activities field is still load-bearing on create — removing it would be a regression, not a simplification. Root cause confirmed: TripForm.tsx's Activities block is gated behind a single `isEditing &&` condition (line 324) — same fix pattern as Categories/Companions already use. Independent of BUG-47 — can ship first, as a plain parity fix. Ready for brief dispatch."
     },
     {
       "id": "BUG-47",
@@ -1916,7 +1916,7 @@
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. PO's proposed redesign: instead of manually pre-selecting activities on a trip, derive/auto-populate them from the trip's actual place/item content. Trip categories stay manual — PO confirmed they serve a distinct purpose and are fine as-is, this is activities only. Needs product/UX scoping — what content drives auto-population is undefined."
+      "notes": "GitHub #274. UX spec delivered 2026-07-27: jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md §4. Design: suggestion-based (modeled on the app's existing IT-07 carry-forward accept/reject pattern), never a silent write — item_type drives a small, honest lookup (restaurant→'Dining' only; 'experience' items are deliberately not guessed at, since 6 item types can't disambiguate 17 free-text activities). Self-contained frontend logic, no backend/schema change — owner field left as-is, COO's call whether to reassign to frontend for dispatch. Recommends new BRD ID TR-16 (COO to add). Ready for BRD gate + brief dispatch."
     },
     {
       "id": "BUG-48",
@@ -1982,7 +1982,7 @@
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed (combines two related findings). Current: each place in the trips panel shows city (bold) with country underneath in lighter text. PO wants: city (bold) with state on the second line instead of country, and country surfaced elsewhere — either as a pill next to the category, or its own row just beneath it. Also affects trip scannability alongside BUG-52 (search), since country isn't otherwise visible on the trip card unless it happens to be in the title. Needs a UX spec before this is briefable — specific layout choice (pill vs row) isn't decided."
+      "notes": "GitHub #274. UX spec delivered 2026-07-27: jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md §1. Decision: own row beneath (not pill next to category) for country, deduped/ordered from trip.places; two-line place chip (city bold + region/state, falls back to city-only when no region resolved). Requires a small Backend field addition (country_name + new region_name on TripSummaryPlace.city) — no schema change. Recommends new BRD ID DP-07 (COO to add). Ready for BRD gate + brief dispatch."
     },
     {
       "id": "BUG-54",
@@ -1993,7 +1993,7 @@
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT. PO explicitly flagged this as a future-phase requirement, not near-term — categories and activities currently have no user-controllable color. Logged for backlog only, no near-term action expected."
+      "notes": "GitHub #274. UX ruling delivered 2026-07-27 (jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md §3): stays parked, NOT made free by UX-11. UX-11 builds a reusable 'runtime colour + computed contrast text' rendering technique, but BUG-54 still needs a schema change (categories/activities have no colour column) and a net-new admin UI section, neither of which UX-11 provides. PO explicitly flagged this as future-phase — logged for backlog only, no near-term action expected."
     },
     {
       "id": "BUG-55",
