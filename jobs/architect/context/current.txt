@@ -1,5 +1,6 @@
-ARCHITECT CONTEXT — 2026-07-27
+ARCHITECT CONTEXT — 2026-07-27 (S6 / ADL-45)
 PROJECT: Travel Tracker
+--- concurrent Wave 0 session block ---
 CURRENT STATUS: ADL-43 DECIDED, IMPLEMENTATION PENDING — sourced reference data (BUG-45 +
 OQ-06), Wave 0 scoping brief S3, GitHub issue #273, branch chore/adl43-sourced-reference-data.
 Spec output only — no schema, migration, seed data or code change was made.
@@ -82,3 +83,171 @@ NEXT: Database brief can create the airlines/car_rental_providers tables + gener
 once COO clears the BRD gate above. Backend brief for the reference endpoints follows. Frontend
 dropdown wiring for airline is blocked on ADL-42's item_flight_legs landing first; car-rental
 provider dropdown is not blocked on anything beyond the BRD gate.
+--- concurrent Wave 0 session block ---
+--- concurrent Wave 0 session block A ---
+CURRENT STATUS: ADL-44 DECIDED, IMPLEMENTATION PENDING — region-shading geometry payload
+(BUG-48), Wave 0 scoping brief S5, GitHub issue #275, branch
+chore/adl44-region-shading-payload. Spec output only — no code, asset, or schema change made.
+
+PROBLEM: BUG-48 read as "lower REGION_ZOOM_THRESHOLD" and was explicitly not that.
+MapView.tsx:28 sets the threshold to 3; region shading's GEOMETRY fetch (RegionLayer.tsx,
+/geo/regions.json) is a separate, unscoped, uncompressed 40.7MB (verified with `ls -la`, not
+assumed) file covering all 241 countries' admin-1 boundaries, refetched in full every time
+the threshold is crossed. Lowering the threshold would fire that fetch sooner and more often
+and make the reported latency worse while looking like a fix in a quick manual test. The
+shading-STATE fetch (GET /api/map/shading/regions/:countryCode) is already per-country and
+was never the problem.
+
+DECISION (full reasoning + measured numbers in jobs/architect/tech/
+ADL-44-region-shading-payload.md):
+ - Split geo/regions.json into geo/regions/{ISO_A2}.json, one static file per country, still
+   fully bundled/committed (satisfies GE-10 — see below), fetched lazily for the visible
+   country only. Measured: median country 92KB, worst case Russia 3.26MB, the bug's own US
+   example 1.39MB — 30x-400x smaller than the world file, per country, before any other
+   optimisation. This is the load-bearing fix.
+ - Property whitelist: iso_3166_2 + name only (the only property the frontend actually
+   reads is iso_3166_2 — grepped every Map/*.tsx to confirm). Drops 119 of 121 Natural Earth
+   columns. Tested in isolation: this alone only cuts the WORLD file 40.7MB -> 29.5MB — real
+   but not the dominant cost. The dominant cost is raw geometry point density
+   (1.3M coordinate pairs across 4,596 features), which splitting attacks directly.
+ - Topology-preserving geometry simplification (e.g. mapshaper -simplify ... keep-shapes, NOT
+   independent per-feature coordinate rounding, which risks gaps at shared borders) for the
+   handful of large/complex countries: Russia, Canada, US, GB, Indonesia, Philippines.
+ - Add `compression` middleware + long-lived Cache-Control to the /geo express.static mount
+   (server.ts:195) — currently has neither.
+ - No server/DB compute anywhere in this fix. Stays a build-time static-asset problem;
+   Railway/Turso (ADL-32) are not involved.
+ - REGION_ZOOM_THRESHOLD left at 3 — not touched by this ADL. Whether to tune it further once
+   the payload no longer confounds the perceived latency is a PO/UAT call, not an
+   architecture call, and is explicitly deferred.
+ - ADL-41's DISTINCT invariant (trips.id / regions.id) is untouched by construction — this
+   ADL's diff surface is static assets + RegionLayer.tsx + server.ts static options only;
+   shading.service.ts is not touched, stated as a success criterion (zero-line diff expected).
+
+WHY NOT VECTOR TILES / VISITED-ONLY / MULTI-TIER: vector tiles (MVT) require either
+MapTiler-hosted tiles (violates GE-10 outright) or self-hosted pmtiles, which the original
+tech blueprint itself already flags at ~100MB for a world basemap — trading a 40MB problem
+for a 100MB one; revisit only if a future requirement needs city-level detail. Shading only
+visited countries' regions was rejected as the primary mechanism — a user planning a future
+trip needs to see boundaries for a country with no visits yet, and it would turn a static
+reference asset into per-user filtered data. Precomputed multi-tier detail levels are
+unnecessary once per-country splitting means only one country loads at a time.
+
+GE-10 (bundled/offline boundary data — flagged as the hardest constraint, addressed
+directly): per-country files are generated once at build time and committed as static
+assets, served by the app's OWN Express instance — same trust boundary as geo/countries.json
+and every /api/* route today, on localhost (offline Electron) or hosted Railway alike.
+Today's implementation already issues a network fetch to a locally bundled file (MapLibre's
+GeoJSON Source XHRs /geo/regions.json) — GE-10 has never meant zero HTTP requests, only zero
+dependency on the internet or a third-party host. Splitting changes only the granularity of
+what's requested from the same local/bundled source.
+
+SUPERSESSION: 20260307-tech-blueprint.md Section 2.3 (single-file ~4MB estimate — the shipped
+file is ~10x that — and the "load once at init, cache in memory" delivery model) stamped
+`> SUPERSEDED (2026-07-27) by ADL-44`. 20260307-map-shading-spec.md read in full (404 lines)
+and found to specify only shading-STATE SQL, never geometry delivery — no stamp applied,
+nothing in it is affected.
+--- concurrent Wave 0 session block B ---
+CURRENT STATUS: ADL-45 DECIDED, IMPLEMENTATION PENDING — item map URL column (BRD-IT10),
+Wave 0 scoping brief S6, GitHub issue #276, branch chore/adl45-item-maps-url.
+Spec output only — no schema, migration or code change was made.
+
+NOTE: this file is shared across concurrent Wave 0 Architect dispatches (S1/S2/S3/S5/S6
+each ran or are running in their own worktree). Whichever session closes last will show
+here; see jobs/architect/park-docs/ for the full set of session-specific park docs
+(20260727-ARCHITECT-park-adl42.txt, and this session's 20260727-ARCHITECT-park-adl45.txt)
+if this summary looks like it's missing another wave's work — it is not necessarily stale,
+just single-slotted.
+
+PROBLEM: BRD §5.5 IT-10 — each item can optionally store a Google Maps URL; when present
+the trip detail view shows a one-click map/directions link, and no separate address/phone
+fields are required when a URL is set. Small schema addition (one nullable column) but the
+schema-change rule requires Architect review before any Database brief — this ADL is that
+gate. The brief called out validation/sanitisation of the user-supplied URL as the main
+reason it exists (it renders as a clickable href).
+
+DECISION (10 rulings, full text in jobs/architect/tech/20260307-architecture-decisions-log.md
+ADL-45 entry — rewritten in place, no standalone file needed for a decision this size):
+ - `map_url text`, nullable, no default, on the BASE `items` table (schema.ts:453-503) —
+   same placement as `notes`, not on any item_* extension table. Applies to every item_type
+   including `note`; no per-type special-casing needed or added.
+ - Not named `google_maps_url` — deliberately provider-agnostic. https:// scheme required,
+   but NO Google-host allowlist: real Google Maps share links come from several domains
+   (google.com/maps, maps.google.com, goo.gl/maps, maps.app.goo.gl, g.page) and a host
+   allowlist is a maintenance liability that would silently break the feature the day
+   Google issues from an unlisted domain. Scheme allowlisting is the correct control for
+   the actual threat (javascript:/data: injection); host is not.
+ - Server (Zod, new `zMapUrl` in validation/common.ts) is authoritative. Client re-validates
+   at render via the EXISTING `src/frontend/utils/urlSanitiser.ts` `sanitiseUrl()` —
+   extended to take an optional allowed-scheme list rather than forked into a second
+   function. Call it with `['https:']` (narrower than its current default `['https:',
+   'file:']` — file:// dropped, it doesn't make sense for a directions link).
+ - `target="_blank" rel="noopener noreferrer"` mandatory on the rendered anchor
+   (reverse-tabnabbing control) — stated explicitly because there is no existing
+   anchor-rendering precedent in this app to copy: `sanitiseUrl()` exists and is tested but
+   has ZERO call sites in any component today. IT-10 is the first real caller.
+ - No DB CHECK for scheme or length. Length capped at 2048 via Zod `.max()` only, matching
+   the `zName` precedent (75-char cap, no matching `LENGTH()` CHECK anywhere in schema.ts —
+   verified by grep). A CHECK would also force SQLite table recreation for this column,
+   which a plain `ALTER TABLE items ADD COLUMN` avoids.
+ - One additive migration file (db:generate + db:migrate). No two-file split needed (unlike
+   ADL-42) — nullable column, no default, no CHECK, nothing to backfill.
+ - No conflict with §5.6 structured fields (HT-01 address etc.) — IT-10's "no separate
+   fields required" is about optionality, not field removal; nothing there to reconcile.
+
+FINDING, flagged not fixed (real security gap, pre-existing, NOT introduced by this ADL):
+`trips.photo_album_ref` — the field SEC-12 (security-spec.md:330-331) was originally written
+for — has NO server-side scheme validation today (CreateTripSchema/UpdateTripSchema both
+type it as plain `zOptionalString`, trips.schemas.ts:22,37). The only control that exists is
+the frontend `sanitiseUrl()`, which nothing calls. So a `javascript:` value could be written
+via the API today and would pass through harmlessly only because nothing renders it as a
+link yet. Recommended as a small COO follow-up tracker item — NOT bundled into BRD-IT10,
+and not blocking it.
+
+================================================================================
+OPEN / HANDOFF
+================================================================================
+--- concurrent Wave 0 session block A ---
+
+  1. No BRD gate blocks dispatch — no new requirement ID was needed (this is a performance
+     defect against existing GE-10/MP-01/MP-02, not new functional scope). Reported to COO in
+     the ADL per "report, don't add"; COO decides if a project-wide perf-budget requirement is
+     worth adding separately. Dispatchable to Frontend as-is.
+  2. COO: merge PR for chore/adl44-region-shading-payload after CI green — do not self-merge.
+  3. Implementing brief must be told explicitly, both easy to get wrong:
+     (a) simplification must be topology-preserving, not independent per-feature rounding —
+         naive per-polygon simplification can open gaps/overlaps at shared region borders;
+     (b) verify react-map-gl's <Source> behaviour when its `data` URL changes between country
+         codes while RegionLayer stays mounted (panning between two zoomed countries without
+         crossing back below the threshold) — must fetch the new country's file, not silently
+         keep serving the old one's cached GeoJSON. Flagged as a risk to verify, not verified
+         by me — requires running the app, out of this spec-only brief's scope.
+  4. Comment drift flagged, not fixed (spec-only scope): MapView.tsx:6 says region shading
+     loads "at zoom >= 4"; the constant at line 28 is 3. Whoever implements this brief and
+     touches MapView.tsx must correct the comment to match the final threshold value.
+  5. data/regions.json (8KB, DB seed data for the regions table) is unrelated to
+     geo/regions.json (40MB, boundary geometry) despite the identical filename — noted as a
+     minor naming trap for future engineers, not actioned.
+  6. Carried over, unrelated to this thread — from the prior ADL-42 session, still open:
+     - Clerk preview-origin question (ADL-32 §6) + §10 success criteria pending a real deploy.
+     - D-05 Clerk staging/prod user-pool split (jobs/COO/open-dialogues.md).
+     - OQ-03 (shell trip approximate dates). OQ-05 is ADL-41's (S1), not mine.
+     - ADL-42's own handoff items (BRD gate, brief sequencing, BUG-45/ADL-43 cross-dependency)
+       are unaffected by this thread — see jobs/architect/park-docs/20260727-ARCHITECT-park-
+       adl42.txt for that thread's own handoff if still relevant when this is read.
+--- concurrent Wave 0 session block B ---
+  1. COO: this ADL does NOT require a BRD edit — IT-10 already has success criteria stated
+     in BRD §5.5 and this decision doesn't change them. tracker.json BRD-IT10 updated in
+     place (status stays "pending", notes now say "DESIGNED 2026-07-27" — same convention
+     ADL-42 used for BUG-41/BUG-42).
+  2. COO: merge PR for chore/adl45-item-maps-url after CI green — do not self-merge.
+  3. Once merged, unblocks: Database brief (schema.ts + one migration file — safe to merge
+     alone, nothing depends on the column existing yet) and the Frontend/Backend brief that
+     consumes it (map_url in items.schemas.ts + ItemForm.tsx + ItemCard.tsx +
+     urlSanitiser.ts extension). Also unblocks BRD-MB0102 (§5.15 MB-02 directions link),
+     which was blocked on this column existing.
+  4. Optional follow-up for COO to raise as its own tracker item (not gating IT-10): add
+     server-side scheme validation to `photo_album_ref` and give `sanitiseUrl()` its first
+     real call site — see FINDING above.
+  5. Nothing in this ADL touches ADL-41/ADL-43/ADL-44 stubs or ADL-42's completed entry —
+     verified untouched after edit (grep confirms all five headers intact and distinct).

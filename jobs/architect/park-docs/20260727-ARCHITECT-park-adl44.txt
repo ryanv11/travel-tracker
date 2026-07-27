@@ -1,0 +1,132 @@
+ARCHITECT PARK DOCUMENT — 2026-07-27
+THREAD: Wave 0 scoping brief S5 — ADL-44, region-shading geometry payload (BUG-48)
+ISSUE: #275   BRANCH: chore/adl44-region-shading-payload
+DELIVERABLE TYPE: spec only — no code, asset, or schema change
+
+================================================================================
+WHAT WAS ASKED
+================================================================================
+BUG-48 was reported as "region shading requires zooming in far too much." The brief warned
+this reads like "lower REGION_ZOOM_THRESHOLD" and explicitly said that fix is wrong, and told
+me to verify the reported 39MB geo/regions.json figure myself before designing anything, and
+to stop and say so if the premise didn't hold. Decide the payload strategy that lets the
+threshold drop without regressing performance, honouring GE-10 (bundled/offline boundary
+data — the hardest constraint) and the concurrent ADL-41 DISTINCT invariant for shading
+aggregates.
+
+================================================================================
+WHAT I FOUND BEFORE DECIDING
+================================================================================
+1. The premise HOLDS. geo/regions.json is 40,726,851 bytes (38.8 MiB) — the COO's "39MB"
+   probe was correct, not inflated. Verified with `ls -la`, not taken on faith.
+2. The geometry fetch (RegionLayer.tsx, /geo/regions.json) is a SEPARATE, UNSCOPED fetch from
+   the shading-state fetch (GET /api/map/shading/regions/:countryCode, already per-country).
+   RegionLayer's Source URL is a constant — every mount pulls all 241 countries' admin-1
+   boundaries regardless of which one is visible. RegionLayer unmounts/remounts on every
+   REGION_ZOOM_THRESHOLD crossing (MapView.tsx:155), so this isn't a one-time session cost.
+3. No compression middleware anywhere in server.ts/package.json. No cache headers on the
+   /geo express.static mount. Confirmed by grep, not assumed.
+4. Root cause of the size is genuinely geometry point density, NOT primarily property bloat.
+   Tested directly: stripping 121 properties/feature down to the 1 actually used
+   (iso_3166_2 — grepped every Map/*.tsx, nothing else reads region properties) only cuts
+   40.7MB -> 29.5MB. The 1.3M coordinate pairs across 4,596 features are the real cost.
+5. Per-country split is the load-bearing fix, and the numbers prove it: grouped by country,
+   median is 92KB, worst case Russia 3.26MB, the bug's own US example 1.39MB — 30x-400x
+   smaller than the world file, per country, before any other optimisation.
+6. The original tech blueprint (20260307-tech-blueprint.md:227-236, 2026-03-07) estimated
+   this exact file at ~4MB. The shipped file is ~10x that. Whether the estimate was wrong or
+   a higher-fidelity extract got bundled than intended is moot — either way nobody caught a
+   10x miss against the architecture's own stated budget. Stamped superseded (see below).
+7. countries.json (838KB, 177 features, avg 60 coord pairs/feature) is clear evidence the
+   simplification step WAS done correctly for the country tier and simply never applied to
+   the region tier (avg 282 coord pairs/feature, no simplification visible). The fix pattern
+   already exists in this codebase; it just wasn't extended to regions.
+
+================================================================================
+THE DECISION (full reasoning + numbers in the standalone ADL)
+================================================================================
+D1 Split geo/regions.json into geo/regions/{ISO_A2}.json, one file per country, still fully
+   bundled/committed like today's single file — fetched lazily for the visible country only.
+D2 Property whitelist: iso_3166_2 + name only. Drop the other 119 Natural Earth columns.
+D3 Topology-preserving geometry simplification (mapshaper -simplify ... keep-shapes, not
+   independent per-feature rounding, which risks gaps at shared borders) for the handful of
+   large/complex countries: Russia, Canada, US, GB, Indonesia, Philippines.
+D4 Coordinate precision <=5dp — tolerance left to implementation QA, not mandated exactly.
+D5 Add `compression` middleware + long-lived Cache-Control to the /geo static mount.
+D6 No server/DB compute. Stays a build-time static-asset problem — Railway/Turso irrelevant.
+D7 REGION_ZOOM_THRESHOLD left at 3 in this ADL. Whether to tune it further once the payload
+   no longer confounds perception is a PO/UAT call, not decided here.
+D8 ADL-41 DISTINCT invariant: NOT touched. This ADL's diff surface is static assets,
+   RegionLayer.tsx, and server.ts static options only — shading.service.ts is untouched by
+   construction, stated as a success criterion (zero-line diff expected from the brief).
+
+================================================================================
+WHY NOT THE OBVIOUS ALTERNATIVES
+================================================================================
+- Vector tiles (MVT/tippecanoe): the "correct" long-term answer, rejected here. Either
+  MapTiler-hosted tiles (violates GE-10 outright) or self-hosted pmtiles, which the blueprint
+  itself flags at ~100MB for a world basemap (tech-blueprint.md:223) — trading a 40MB problem
+  for a 100MB one. Revisit only if a future requirement needs city-level polygon detail.
+- Shading only visited countries' regions: rejected as primary mechanism — a user planning a
+  future trip needs to see boundaries for a country with no visits yet (GE-09 isn't
+  conditioned on visit history), and it would turn a static reference asset into per-user
+  filtered data, which doesn't fit "bundled, offline".
+- Precomputed multi-tier detail levels: unnecessary once per-country splitting means only one
+  country's data loads at a time — there's no intermediate zoom range where a coarser-than-
+  full region tier is shown (region shading is binary: off below threshold, full detail above).
+- Coordinate rounding alone, no splitting: tested directly. 4dp rounding on the WORLD file
+  only gets to 24.3MB (7.3MB gzipped) — still an unscoped fetch on every threshold crossing.
+  Splitting is load-bearing; rounding/stripping are additive, not substitutes.
+
+================================================================================
+GE-10 — ADDRESSED DIRECTLY (this was flagged as the hardest constraint)
+================================================================================
+Per-country files are generated once at build time and committed as static assets, served by
+the app's OWN Express instance — same trust boundary as geo/countries.json and every /api/*
+route today, whether the server is localhost (offline Electron) or hosted Railway. Today's
+implementation ALREADY issues a network fetch to a locally bundled file (MapLibre's GeoJSON
+Source XHRs /geo/regions.json) — GE-10 has never meant zero HTTP requests, only zero
+dependency on the internet or a third-party host. Splitting one locally-served file into many
+locally-served files does not change that guarantee. What WOULD violate GE-10 — third-party
+geodata host, MapTiler-hosted vector tiles at render time — was considered and rejected above.
+
+================================================================================
+STATE AT PARK
+================================================================================
+- ADL-44 reserved stub REWRITTEN IN PLACE in jobs/architect/tech/
+  20260307-architecture-decisions-log.md. ADL-41/43/45 stubs and the completed ADL-42 entry
+  not touched — other Architects running concurrently on the same file.
+- Standalone design: jobs/architect/tech/ADL-44-region-shading-payload.md (9 sections:
+  problem, verified facts table, decision matrix, GE-10 compliance, rejected alternatives,
+  implementation implications, success criteria, BRD note, supersession).
+- Supersession stamp applied: 20260307-tech-blueprint.md Section 2.3 (the ~4MB single-file
+  estimate and "load once at init, cache in memory" model) stamped
+  `> SUPERSEDED (2026-07-27) by ADL-44`. 20260307-map-shading-spec.md was read in full
+  (all 404 lines) and found to specify only shading-STATE SQL, never geometry delivery —
+  no stamp applied there, nothing in it is affected by this decision.
+- tracker.json: BUG-48 notes rewritten with the diagnosis + #275 + ADL-44 pointer. Owner left
+  "frontend" (no BRD gate blocks this — no new requirement ID needed, unlike ADL-42). Status
+  left "pending", NOT set to an invented "spec-complete" value — checked ADL-42's precedent
+  (BUG-41/BUG-42) first and matched it: "DESIGNED YYYY-MM-DD" goes in the notes text, the
+  status enum stays one of the pre-existing values. (I actually wrote "spec-complete" first,
+  caught it wasn't a real value anywhere else in the tracker, and corrected it before commit.)
+- BRD: not touched. No new requirement ID needed — reported to COO in the ADL, not added.
+- Comment drift flagged, not fixed (spec-only scope): MapView.tsx:6 says "zoom >= 4",
+  the actual constant at line 28 is 3. Whoever implements this brief and touches MapView.tsx
+  must correct the comment in the same PR.
+
+================================================================================
+IF I PICKED THIS UP COLD TOMORROW
+================================================================================
+The design is complete and self-contained. Nothing is half-decided and there is no BRD
+blocker — this is dispatchable to Frontend as-is. The two things an implementing brief needs
+to be told explicitly, because they're easy to get wrong:
+1. Simplification must be topology-preserving (mapshaper keep-shapes or equivalent), not
+   independent per-feature coordinate rounding — naive per-polygon simplification can open
+   gaps or create overlaps at borders shared between adjacent regions.
+2. Verify how react-map-gl's <Source> behaves when its `data` URL prop changes between
+   country codes while RegionLayer stays mounted (panning between two zoomed-in countries
+   without crossing back below the threshold) — it must issue a fresh fetch for the new
+   country's file, not silently keep serving the previous country's cached GeoJSON. I flagged
+   this as a risk to verify in the standalone doc §6; I did not verify it myself since it
+   requires running the app, out of this brief's spec-only scope.
