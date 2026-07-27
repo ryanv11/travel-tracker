@@ -224,6 +224,14 @@ The Express server in Electron is started by the main process and is identical t
 
 ### 2.3 GeoJSON Boundary Data
 
+> SUPERSEDED (2026-07-27) by ADL-44 — retained for history. The regions file this section
+> estimates at ~4MB shipped at 40.7MB (~10x), was never scoped per-country, and is no
+> longer "loaded once at initialisation and cached in memory" — it is now split into one
+> file per country under `geo/regions/{ISO_A2}.json`, fetched lazily for the visible
+> country only. See `jobs/architect/tech/ADL-44-region-shading-payload.md` for the current
+> design, measured sizes, and rationale. The `countries.json` row below is unaffected and
+> still accurate.
+
 **Source: Natural Earth** (public domain, no attribution required for basic use)
 
 Two files bundled with the app:

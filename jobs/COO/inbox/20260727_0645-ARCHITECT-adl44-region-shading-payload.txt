@@ -1,0 +1,60 @@
+ADL-44 · BUG-48 · GitHub issue/PR #275 / PR #282 · BRD refs: GE-10, MP-01, MP-02 (no new ID)
+Branch: chore/adl44-region-shading-payload
+
+WHAT WAS DECIDED
+BUG-48 read as "lower REGION_ZOOM_THRESHOLD" and is not. Verified the reported payload
+myself first, per the brief: geo/regions.json is a real 40,726,851 bytes (38.8 MiB), served
+uncompressed/uncached, as ONE unscoped world file for all 241 countries, refetched in full
+on every zoom-threshold crossing (the shading-state fetch was already per-country; the
+geometry fetch never was). Lowering the threshold would have made it worse, not better.
+Decision: split into geo/regions/{ISO_A2}.json (one file per country, still fully bundled —
+satisfies GE-10), strip 119 of 121 unused Natural Earth properties, topology-preserving
+simplification for the largest countries, add compression + cache headers to the /geo
+static mount. No server/DB compute. Measured evidence: per-country median 92KB, worst case
+Russia 3.26MB, the bug's own US example 1.39MB (30x-400x smaller than the world file).
+Full design: jobs/architect/tech/ADL-44-region-shading-payload.md
+
+PER-DECISION VERDICT
+- Per-country static split (primary fix): adopted, High confidence
+- Property whitelist (iso_3166_2 + name only): adopted, High confidence
+- Topology-preserving simplification for RU/CA/US/GB/ID/PH: adopted, Medium confidence
+  (exact tolerance left to implementation QA)
+- compression + Cache-Control on /geo: adopted, High confidence
+- Vector tiles (MVT): rejected — either violates GE-10 (hosted tiles) or trades a 40MB
+  problem for a ~100MB self-hosted pmtiles basemap (blueprint's own prior estimate)
+- Shade only visited countries: rejected — breaks browsing an unvisited country's map,
+  turns static reference data into per-user filtered data
+- REGION_ZOOM_THRESHOLD value itself: left at 3, not decided here — deferred to a follow-up
+  PO/UAT call once the payload fix removes the perceptual confound
+
+DOCUMENT LIFECYCLE
+- 20260307-tech-blueprint.md §2.3 stamped SUPERSEDED (2026-07-27) by ADL-44 — its own ~4MB
+  estimate was ~10x under the shipped 40.7MB file, and its "load once, cache in memory"
+  delivery model no longer matches either the pre-existing lazy-fetch design or this change.
+- 20260307-map-shading-spec.md checked in full (404 lines) — specifies only shading-STATE
+  SQL, never geometry delivery. No stamp applied; confirmed unaffected.
+- tracker.json BUG-48: notes rewritten with diagnosis + #275 + ADL-44 pointer, status left
+  "pending" (matched ADL-42's precedent rather than inventing a new status value — see park
+  doc for the self-correction). Owner left "frontend" — no BRD gate blocks this.
+
+BRD
+No new requirement ID needed — this is a performance defect against existing GE-10/MP-01/
+MP-02, not new functional scope. Reporting per "report, don't add"; COO's call whether a
+project-wide non-functional payload/latency budget requirement is worth adding separately.
+
+CI: gh pr checks 282 — all 9 checks green (Biome, Type Check, Backend Tests 580/580+1
+skipped, Frontend Tests 154/154, Contract Tests, E2E Tests, Semgrep, Gitleaks, Dependency
+Scan). No src/ files touched — spec-only brief.
+
+OPEN ISSUES / BLOCKERS
+None. Dispatchable to Frontend as-is, no BRD gate. Two things the implementing brief must
+be told explicitly (both in the ADL §6 and park doc): (1) simplification must be
+topology-preserving, not independent per-feature rounding, or adjacent regions can get
+gaps/overlaps at shared borders; (2) verify react-map-gl's <Source> refetches when its
+`data` URL changes country code while RegionLayer stays mounted (panning between two
+zoomed-in countries) — not verified by me, requires running the app, out of spec-only scope.
+Also flagged, not fixed: MapView.tsx:6 comment says "zoom >= 4", the constant at line 28 is
+3 — whoever implements this must correct it in the same PR.
+
+WHAT'S NOW UNBLOCKED
+A Frontend brief for BUG-48/ADL-44 can be dispatched immediately — no BRD bump needed first.

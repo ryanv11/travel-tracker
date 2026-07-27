@@ -1705,7 +1705,7 @@
       "priority": "P3",
       "brdRefs": ["IT-10"],
       "phase": 5,
-      "notes": "Added to BRD v3.1, 2026-07-20 UAT. Small schema addition (nullable URL column) — needs Architect review before a Database brief per the schema-change rule. Success criteria in BRD §5.5. Also covers item-level phone/address access without separate structured fields, per PO rationale."
+      "notes": "Added to BRD v3.1, 2026-07-20 UAT. GitHub issue #276. DESIGNED 2026-07-27 — Architect ADL-45 (jobs/architect/tech/20260307-architecture-decisions-log.md, Wave 0 brief S6) decided: nullable map_url TEXT column on base items table (not per-extension-table); https-only scheme allowlist, deliberately no Google-host restriction; server-side Zod (zMapUrl) authoritative, frontend sanitiseUrl() extended (not forked) for render-time defense in depth; single additive db:generate/db:migrate migration, no DB CHECK (Zod-only length/scheme cap, matches zName precedent). Status 'designed', implementation pending. Success criteria unchanged, still in BRD §5.5 — no BRD edit needed. Flagged, not fixed: trips.photo_album_ref has no server-side URL scheme validation today and its existing sanitiseUrl() utility has no call site yet — follow-up candidate, not bundled into this item."
     },
     {
       "id": "OQ-05",
@@ -1835,22 +1835,22 @@
       "type": "feature",
       "title": "Multi-leg / connecting flights within a single booking",
       "status": "pending",
-      "owner": "coo",
+      "owner": "database",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["FL-05"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT. Example: Seattle→London (layover)→Glasgow, all one booking. DESIGNED 2026-07-27 — Architect ADL-42 (issue #272, Wave 0 brief S2) decided jointly with BUG-42: one booking = one item, legs in a new item_flight_legs 1:N child table with explicit leg_order; item_flights shrinks to (item_id, booking_reference); airline/flight_number/airports/datetimes move to the leg. Full design jobs/architect/tech/ADL-42-booking-item-shape.md. Status 'designed', implementation pending. BLOCKED on the COO BRD gate: FL-01 ('each flight is logged as an individual leg') is superseded and must be rewritten + stamped, and this entry needs a new BRD requirement ID with success criteria (brdRefs currently empty). Sequencing: Database brief (schema + 2 migration files) first, then one combined Backend+Frontend brief. Note for ADL-43/BUG-45: airline moves to item_flight_legs.airline."
+      "notes": "Found 2026-07-21 UAT. Example: Seattle→London (layover)→Glasgow, all one booking. DESIGNED 2026-07-27 — Architect ADL-42 (issue #272, Wave 0 brief S2) decided jointly with BUG-42: one booking = one item, legs in a new item_flight_legs 1:N child table with explicit leg_order; item_flights shrinks to (item_id, booking_reference); airline/flight_number/airports/datetimes move to the leg. Full design jobs/architect/tech/ADL-42-booking-item-shape.md. BRD GATE CLEARED 2026-07-27 (v3.9): FL-01 rewritten + stamped SUPERSEDED, FL-02 split booking-level/per-leg with seat removed, FL-03 clarified to booking-level status, and FL-05 added with success criteria as this entry's BRD home — no separate BRD-FL05 tracker item exists, this entry is FL-05's tracked work. NOW DISPATCHABLE. Sequencing: Database brief (schema + 2 migration files, additive then destructive — safe alone) FIRST, then ONE combined Backend+Frontend brief on a single branch (ADL-42 D12: no compatibility shim, so both layers must land together). Quote into the Backend brief verbatim: legs and travellers are 1:N and must NOT be leftJoin'd into fetchItemsWithExtensions — a 3-leg flight with 2 travellers returns 6 rows for one item, silently corrupting rating sort, minRating filter and every item count (ADL-42 D11). Note for ADL-43/BUG-45: airline moves to item_flight_legs.airline."
     },
     {
       "id": "BUG-42",
       "type": "feature",
       "title": "Multiple companions/seats per booking item",
       "status": "pending",
-      "owner": "coo",
+      "owner": "database",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["IT-12"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT. DESIGNED 2026-07-27 — Architect ADL-42 (issue #272, Wave 0 brief S2) decided jointly with BUG-41: one new item_travellers table with a nullable leg_id (scope) and a nullable companion_id (NULL = the owning user, since companions is a list of OTHER people and today's single seat column is implicitly the user's own). Row presence = travels this scope; seat NULL = seat unknown. Open to all item types; legs flight-only. ADL-28's companionRepository.validateOwnership guard is mandatory at this second write path (cross-user companion = 400, not 404). Full design jobs/architect/tech/ADL-42-booking-item-shape.md. Status 'designed', implementation pending. BLOCKED on the COO BRD gate: needs a new BRD requirement ID with success criteria covering the 'traveller on some legs but not others' case (brdRefs currently empty); FL-02 must also move seat off the flight field list."
+      "notes": "Found 2026-07-21 UAT. DESIGNED 2026-07-27 — Architect ADL-42 (issue #272, Wave 0 brief S2) decided jointly with BUG-41: one new item_travellers table with a nullable leg_id (scope) and a nullable companion_id (NULL = the owning user, since companions is a list of OTHER people and today's single seat column is implicitly the user's own). Row presence = travels this scope; seat NULL = seat unknown. Open to all item types; legs flight-only. ADL-28's companionRepository.validateOwnership guard is mandatory at this second write path (cross-user companion = 400, not 404). Full design jobs/architect/tech/ADL-42-booking-item-shape.md. BRD GATE CLEARED 2026-07-27 (v3.9): IT-12 added with success criteria as this entry's BRD home, placed in §5.5 not §5.6 because ADL-42 D13 opens travellers to ALL item types while legs stay flight-only — no separate BRD-IT12 tracker item exists, this entry is IT-12's tracked work. FL-02 also had seat removed in the same bump. NOW DISPATCHABLE — ships with BUG-41 in the same Database-then-Backend+Frontend sequence, not separately. IT-12's success criteria deliberately name the two cases most likely to be got wrong: a companion travelling only some legs, and the owning user as a traveller without being added to the AD-08 companion list."
     },
     {
       "id": "BUG-43",
@@ -1927,7 +1927,7 @@
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Example: US requires zooming in until the whole country fills the screen before state shading appears at all, and rendering latency means the practical zoom needed is even further in than that. State shading should trigger at a meaningfully lower zoom level."
+      "notes": "Found 2026-07-21 UAT. DESIGNED 2026-07-27 — Architect ADL-44 (issue #275, Wave 0 brief S5, jobs/architect/tech/ADL-44-region-shading-payload.md) diagnosed this as a payload-size bug, not a threshold bug. geo/regions.json is a real, verified 40.7MB unscoped world file with no compression/caching, refetched in full on every zoom-threshold crossing; lowering REGION_ZOOM_THRESHOLD would make the latency worse, not better. ADL-44 decides: split into per-country static files (geo/regions/{ISO_A2}.json, still fully bundled per GE-10), strip unused Natural Earth properties (121→2 per feature), simplify large-country geometry, add compression + cache headers to the /geo static mount. No schema/DB change; shading.service.ts untouched (ADL-41 DISTINCT invariant preserved by construction). Status 'designed', implementation pending — ready for a Frontend brief. No new BRD requirement ID needed."
     },
     {
       "id": "BUG-49",

@@ -2859,24 +2859,339 @@ maintained dataset or continues hand-seeding per-country gaps as they are found 
 one such patch). One ADL covering licensing, bundle size, offline behaviour (GE-10 requires
 boundary data ship offline) and refresh strategy.
 
-## ADL-44 — RESERVED (S5: region-shading payload / BUG-48)
+## ADL-44 — Region-shading geometry payload: per-country split, not a lower threshold
 
-**Date:** reserved 2026-07-27
-**Status:** RESERVED — Wave 0 brief S5 not yet dispatched. No decision recorded.
-**Scope:** BUG-48 reads as "lower the zoom threshold" but is not — `MapView.tsx` sets
-`REGION_ZOOM_THRESHOLD = 3` while region shading pulls a **39 MB** `geo/regions.json`, so
-lowering the threshold loads that payload sooner and more often and makes the reported
-latency worse. Decide the payload strategy (geometry simplification, tiling, per-country
-splitting, or lazy per-country fetch) that lets the threshold drop without regressing
-performance. Note the stale-doc drift for whichever PR touches it: `MapView.tsx:6` documents
-`zoom >= 4` while the constant is `3`.
+**Date:** 2026-07-27
+**Status:** **Decided, implementation pending.** No code, asset, or schema change was made
+by this ADL — it is the design that unblocks the implementing brief.
+**Tracker:** BUG-48 | **GitHub:** #275 | **Full ADL:** `jobs/architect/tech/ADL-44-region-shading-payload.md`
 
-## ADL-45 — RESERVED (S6: item Google Maps URL column / BRD-IT10)
+**Trigger:** Wave 0 scoping brief S5. BUG-48 reads as "lower the zoom threshold" — it is
+not. `MapView.tsx:28` sets `REGION_ZOOM_THRESHOLD = 3`, but region shading's geometry
+fetch (`RegionLayer.tsx:16,77`, `/geo/regions.json`) pulls **one unscoped, uncompressed,
+world-covering file for all 241 countries** on every threshold crossing. Lowering the
+threshold fires that fetch sooner and more often — it makes the reported latency worse
+while appearing to fix the complaint in a quick manual test.
 
-**Date:** reserved 2026-07-27
-**Status:** RESERVED — Wave 0 brief S6 not yet dispatched. No decision recorded.
-**Scope:** IT-10 adds a nullable Google Maps URL column on items. Small, but the
-schema-change rule requires Architect review before any Database brief. Rule on column
-placement, nullability, validation/sanitisation of a user-supplied URL (it is rendered as a
-clickable link — this is the security-relevant part), and migration. Unblocks BRD-IT10
-implementation in B6 and BRD-MB0102, which consumes the directions link.
+**Verified, not assumed** (full measurements in the standalone doc §2): the file is
+40,726,851 bytes (38.8 MiB) — the COO's "39 MB" probe was correct. No compression
+middleware exists on the `/geo` static mount (`server.ts:195`) and no cache headers are
+set. The fetch is not scoped by country (`REGIONS_GEOJSON_URL` is a constant), even
+though the shading-*state* API it pairs with already is
+(`GET /api/map/shading/regions/:countryCode`). Grouped by country, the same source data
+is 30×–400× smaller per country than the world file (median 92 KB; worst case Russia
+3.26 MB; the bug's own US example, 1.39 MB) — the per-country split is the load-bearing
+fix, not a nice-to-have. The bundled file is also ~10× the tech blueprint's own original
+budget (`20260307-tech-blueprint.md:227-236`, ~4 MB estimate for the 10 m admin-1
+extract) — stamped superseded, see below.
+
+**Decision:** Split `geo/regions.json` into one static, still-fully-bundled file per
+country (`geo/regions/{ISO_A2}.json`), fetched lazily for only the visible country.
+Combine with: property whitelist (`iso_3166_2` + `name` only — 119 of 121 Natural Earth
+columns are dead weight, nothing else is read by the frontend), topology-preserving
+geometry simplification for the handful of large/complex countries (Russia, Canada, US,
+GB, Indonesia, Philippines), `compression` middleware + long-lived `Cache-Control` on the
+`/geo` static mount. No server/DB compute involved (Railway/Turso irrelevant — this stays
+a build-time static-asset problem). `REGION_ZOOM_THRESHOLD` itself is left at `3` in this
+ADL; further tuning is a product-feel call for a follow-up PO/UAT once the payload no
+longer confounds it.
+
+**GE-10 compliance (the hardest constraint) — addressed directly, not glossed:**
+per-country files are generated once at build time and committed as static assets exactly
+like today's single file; they are served by the app's own Express instance
+(`express.static`), the same trust boundary already used for `geo/countries.json` and
+every `/api/*` route, whether that server is `localhost` (offline Electron) or the hosted
+Railway deployment. Today's implementation already issues a network fetch to a locally
+bundled file (MapLibre's GeoJSON `Source` XHRs `/geo/regions.json`) — GE-10 has never
+meant zero HTTP requests, only zero dependency on the internet or a third-party host.
+Splitting one locally-served file into many locally-served files does not change that
+guarantee. What *would* violate GE-10 — fetching geometry from a third-party geodata host
+or MapTiler-hosted vector tiles at render time — was considered and explicitly rejected
+(standalone doc §5).
+
+**ADL-41 DISTINCT invariant:** no conflict. This ADL never touches
+`shading.service.ts` or any SQL aggregate — it changes only how boundary *geometry*
+reaches the client, never how shading *state* is computed. The implementing brief's diff
+to `shading.service.ts` must be zero lines; that is a stated success criterion (standalone
+doc §7).
+
+**Supersession:** `20260307-tech-blueprint.md` §2.3 (single-file ~4 MB estimate,
+"loaded once … cached in memory for the session" delivery model) stamped
+`> SUPERSEDED (2026-07-27) by ADL-44` in this PR. `20260307-map-shading-spec.md` was
+checked in full and found to specify only shading-state SQL, never geometry delivery —
+no stamp applied, nothing there is affected.
+
+**Drift flagged, not fixed (spec-only scope):** `MapView.tsx:6` documents region shading
+loading "at zoom >= 4"; the constant at line 28 is `3`. Whoever implements this brief and
+touches `MapView.tsx` must correct the comment.
+
+**Implications:** see standalone doc §6 for the full implementation surface
+(`RegionLayer.tsx` URL parameterisation and a `<Source>` re-fetch-on-country-change risk
+to verify, `server.ts:195` / `server-test-app.ts:112` static options, the new build-time
+preprocessing step) and §7 for measurable success criteria (per-country payload budget,
+render-latency target, simplification QA checklist) satisfying the CLAUDE.md
+success-criteria-before-dispatch gate. No new BRD requirement ID needed — reported to
+COO per §8, not added by this ADL.
+
+## ADL-45 — Item map URL: base-table column, https-only + no host allowlist, reuse (don't fork) the existing sanitiser
+
+**Date:** 2026-07-27
+**Status:** Decided, implementation pending.
+**Trigger:** GitHub issue #276 (Wave 0 scoping brief S6). BRD §5.5 IT-10 (added v3.1,
+2026-07-20 UAT) — each item can optionally store a Google Maps URL; when present it
+surfaces a one-click map/directions link and no separate address/phone fields are required.
+**BRD refs:** §5.5 IT-10 (success criteria already stated — unchanged by this decision).
+Unblocks BRD-IT10 (tracker) and feeds BRD-MB0102 (§5.15 MB-02, directions link on phone).
+**Depends on:** ADL-11 (base + extension table split), ADL-15 (migrate-only workflow),
+security-spec.md SEC-12 (output encoding / URL sanitisation, Phase 1).
+**Supersedes:** nothing. Extends SEC-12's scope from one field (`trips.photo_album_ref`) to
+two; does not change SEC-12's rule.
+
+---
+
+### Summary table
+
+| # | Decision | Recommendation | Confidence |
+|---|----------|-----------------|------------|
+| D1 | Column placement | New nullable `map_url` on the **base** `items` table, not on any `item_*` extension table. | High |
+| D2 | Column name/type | `map_url text`, nullable, no default. Not `google_maps_url` — see D4 on why. | High |
+| D3 | Length cap | Zod `.max(2048)` at the validation layer only. No DB `CHECK(LENGTH(...))` — matches the existing `zName` precedent (75-char cap, zod-only, no DB check). | High |
+| D4 | Host restriction | **No** Google-host allowlist. Accept any well-formed `https://` URL. | High |
+| D5 | Scheme allowlist | `https://` only — narrower than the existing `sanitiseUrl()` (`https:`/`file:`). `file://` is dropped for this field. | High |
+| D6 | Where validation runs | Both. Server (Zod, new `zMapUrl` in `common.ts`) is authoritative and rejects on write (400). Client re-validates at render via `sanitiseUrl()` before using the value as an `href` — never trust a stored value just because it once passed the server check. | High |
+| D7 | Sanitiser implementation | **Extend** `src/frontend/utils/urlSanitiser.ts`'s `sanitiseUrl()` to take an optional allowed-scheme list (default preserves current `https:`/`file:` behaviour for `photo_album_ref`); call it with `['https:']` for `map_url`. Do not write a second sanitiser. | High |
+| D8 | Rendered anchor attributes | `target="_blank" rel="noopener noreferrer"`. Mandatory, not optional. | High |
+| D9 | Migration | One additive file, `db:generate` + `db:migrate`. Plain `ALTER TABLE items ADD COLUMN map_url text` — no table recreation, no backfill, no two-file split (unlike ADL-42). | High |
+| D10 | Overlap with §5.6 structured fields | None. `map_url` is additive; existing fields (`item_hotels.address` etc.) are untouched and can coexist with a populated `map_url`. | High |
+
+---
+
+### D1 — column placement: base `items` table
+
+**Recommendation:** `map_url` belongs on `items`, alongside `notes`, not on any of the five
+`item_*` extension tables (`src/backend/db/schema.ts:453-503`).
+
+- IT-10's own text is type-agnostic ("each item can optionally store…"); the brief's
+  framing confirms it — this applies to restaurants, hotels and experiences, not only
+  flights. A base-table column is the only placement that covers all six `item_type`
+  values without a per-type migration times five.
+- `notes` (`schema.ts:464`) is the direct precedent: a field IT-04 requires on *all* item
+  types lives on `items`, not duplicated into every extension table. `map_url` is the same
+  shape of requirement.
+- Every `item_type` value, including `note`, gets the column. No per-type conditional is
+  needed anywhere in the schema or in Zod — `notes`-type items simply leave it unset. This
+  is a deliberate non-decision: special-casing `note` out would need a CHECK SQLite cannot
+  express against another table's data (`items.item_type`), the same class of constraint
+  ADL-42 D13 already declined to add for `item_travellers`.
+- Rejected: adding `map_url` independently to `item_hotels`, `item_restaurants`,
+  `item_car_rentals`, `item_experiences` and (for symmetry) `item_flights`. Five migrations
+  instead of one, and a base-table field would still be needed for `note`/uncovered future
+  types — no actual benefit for the extra tables touched.
+
+### D2/D3 — name, type, length
+
+**Recommendation:** `map_url text`, nullable, no DB default. Length capped at 2048 chars,
+enforced only in the Zod schema (`common.ts`), not via a DB `CHECK`.
+
+- `google_maps_url` was considered and rejected — see D4, the column deliberately does not
+  enforce a Google-only constraint, so a name promising one would mislead the next reader.
+- 2048 is the conventional practical URL length ceiling (the historical IE limit, still
+  the norm most apps borrow) — generous for any real Google Maps share link (which run to a
+  few hundred characters) while bounding storage and JSON payload size.
+- No DB `CHECK` for length: `zName` (`common.ts:12-16`) caps trip/item names at 75 chars
+  and there is no matching `CHECK(LENGTH(name) <= 75)` anywhere in `schema.ts` — confirmed,
+  `grep -n "LENGTH(" src/backend/db/schema.ts` returns nothing. This project's existing
+  split is: relational/enum invariants (`chk_items_item_type`, `chk_items_status`,
+  `chk_items_is_carried_forward`) get a DB `CHECK`; field-level formatting and length
+  constraints are Zod-only. A URL length cap is the latter kind. Following the split also
+  avoids forcing SQLite table recreation for a `CHECK`-constrained column add (see D9).
+
+### D4/D5 — validation: scheme allowlist, no host allowlist
+
+This is the security-relevant decision the brief exists for.
+
+**D5 — scheme: `https://` only, narrower than the existing sanitiser.**
+`src/frontend/utils/urlSanitiser.ts` already implements exactly this class of control for
+`trips.photo_album_ref`, per SEC-12 (`_project/security-spec.md:330-331`: "only `https://`
+and `file://` schemes are permitted... Reject `javascript:` and `data:` schemes"). Reuse it
+(D7) rather than invent a second control — but narrow the allowed set for this field:
+`file://` is dropped. A local file path is a legitimate way to reference a photo album on
+the same machine; it is never a legitimate value for a "get directions" link a user taps
+from their phone (BRD MB-02). Widening the accepted scheme set beyond what the field can
+legitimately use only grows the injection surface for no product benefit.
+
+**D4 — no Google-host allowlist. Accept any well-formed `https://` URL.**
+
+- Real Google Maps links are not one host. `google.com/maps`, `maps.google.com`,
+  `goo.gl/maps`, `maps.app.goo.gl` and `g.page` have all been live Google-issued share-link
+  domains at different times (the BRD's own §12 example note uses `maps.google.com`). A
+  host allowlist is a maintenance liability that silently breaks the feature the day Google
+  issues a link from a domain not on the list — a false rejection is a worse failure mode
+  for this field than accepting a non-Google link, because it makes IT-10 *appear* broken.
+- The security control this field needs is scheme allowlisting, not host allowlisting.
+  Rendering `<a href>` to an attacker-controlled `https://` host is not an XSS vector — the
+  browser navigates the tab (or a new one, per D8), it does not execute injected script or
+  read local files. `javascript:`/`data:`/`vbscript:` are the vectors SEC-12 exists to
+  block, and scheme allowlisting blocks all of them regardless of host.
+- IT-10's text names "a Google Maps URL" as the illustrative, expected case, not an
+  exclusivity requirement — nothing in the requirement or its success criteria says a
+  non-Google link must be rejected. Staying host-agnostic also leaves room for an Apple
+  Maps or other provider link without a future schema/validation change, which is exactly
+  the kind of foreclosure this project's future-proofing principle exists to avoid.
+- Rejected alternative: allowlist `google.com`, `maps.google.com`, `goo.gl`,
+  `maps.app.goo.gl`, `g.page` (suffix-matched). Considered and set aside — it adds ongoing
+  maintenance risk (new Google short-domains have appeared before) for a control that does
+  not address the actual threat model (scheme, not host) and BRD IT-10 does not ask for it.
+
+### D6/D7 — where validation runs, and reusing the existing control
+
+**Server-side (authoritative):** add `zMapUrl` to `src/backend/validation/common.ts`,
+alongside `zName`/`zHexColor`/`zCountryCode`:
+
+```typescript
+export const zMapUrl = z
+  .string()
+  .trim()
+  .url()
+  .max(2048, 'Map URL must be 2048 characters or fewer')
+  .refine((u) => u.startsWith('https://'), {
+    message: 'Map URL must use https://',
+  })
+  .optional();
+```
+
+Wire it into `CreateItemSchema` and `UpdateItemSchema`
+(`src/backend/validation/items.schemas.ts:10-17`, `itemBase`) as `map_url: zMapUrl` —
+base-table field, so it belongs in `itemBase`, not `extensionFields`.
+
+**Finding, flagged not fixed:** `trips.photo_album_ref` — the field SEC-12 was written for
+— has **no** server-side scheme validation today. `CreateTripSchema`/`UpdateTripSchema`
+(`src/backend/validation/trips.schemas.ts:22,37`) both type it as plain `zOptionalString`.
+The only enforcement point that exists is the frontend `sanitiseUrl()`, and (next finding)
+that function is not currently called from any component —
+`grep -rln "sanitiseUrl" src/frontend` returns only the utility file and its own test file.
+So `photo_album_ref` can be written today with a `javascript:` value and the server accepts
+it; it happens to be harmless only because nothing renders it as a link yet. This is a
+pre-existing gap this ADL does not fix (`photo_album_ref` is out of scope for IT-10), but it
+should not be repeated for `map_url` — `zMapUrl` above is the authoritative check this field
+gets that its predecessor didn't. Recommend a small follow-up tracker item: add the same
+scheme check to `photo_album_ref`'s schema and wire `sanitiseUrl()` into wherever it is
+(or will be) rendered.
+
+**Client-side (defense in depth, not authoritative):** extend `sanitiseUrl()`:
+
+```typescript
+export function sanitiseUrl(
+  url: string | null | undefined,
+  allowedSchemes: string[] = ['https:', 'file:'],
+): string | null {
+  if (!url) return null;
+  try {
+    const scheme = new URL(url).protocol; // throws on unparseable input
+    return allowedSchemes.includes(scheme) ? url : null;
+  } catch {
+    return null;
+  }
+}
+```
+
+(Switching from `startsWith` string checks to `new URL(url).protocol` is optional hardening
+noted here for completeness, not mandatory — `startsWith('https://')` remains correct for
+this use since scheme confusion tricks like `https:/\evil` are a redirect/parsing concern,
+not a script-execution one. Either implementation satisfies this ADL; do not block the
+brief on this detail.) Call it as `sanitiseUrl(item.map_url, ['https:'])` wherever the item
+card renders the map affordance (`src/frontend/components/TripDetail/ItemCard.tsx`, near the
+existing `item.notes` rendering at line 132). Update the file's header comment — it
+currently says "The only Phase 1 user-supplied URL field is trip.photo_album_ref"
+(`urlSanitiser.ts:9`), which becomes false the moment this lands.
+
+**Why one function, not two:** ADL-42 (D4-D6) rejected a two-junction traveller model
+specifically because two homes for one fact make later disagreement possible and silent.
+The same argument applies here at smaller scale — a second, independently-written
+`sanitiseMapUrl()` is one more place the scheme allowlist can drift out of sync with SEC-12
+the next time either field's rule changes. One function, parameterised, is not just less
+code; it is the only version of this control that structurally cannot disagree with itself.
+
+### D8 — rendered anchor attributes
+
+**Recommendation:** every rendered map-link anchor carries `target="_blank"
+rel="noopener noreferrer"`. Not optional.
+
+- `target="_blank"` without `rel="noopener"` lets the opened page reach back into
+  `window.opener` and repoint the original tab (reverse tabnabbing) — a standard,
+  well-documented control for exactly this pattern (user-supplied external link, opened in
+  a new tab). `noreferrer` additionally suppresses the `Referer` header, which is a
+  reasonable default when the destination host is unvalidated (D4).
+- There is no existing anchor-rendering code in this app to pattern-match against —
+  `sanitiseUrl()` is written and tested but never called from a component (D6 finding), so
+  IT-10 is the first place this pattern is actually established, not just specified. Being
+  explicit here is why this ADL states it rather than leaving it to be re-derived.
+
+### D9 — migration
+
+**Recommendation:** one migration file via `npm run db:generate` + `npm run db:migrate`.
+`db:push` remains forbidden (ADL-15).
+
+Because `map_url` is nullable with no default and adds no new `CHECK` constraint, SQLite's
+native `ALTER TABLE items ADD COLUMN map_url text` applies directly — no table recreation is
+needed (recreation is only required when a new `CHECK`/`NOT NULL` needs backfill, or an
+existing constraint must be redefined). This is a second, independent reason (besides the
+D3 reasoning) to skip a DB-level scheme or length `CHECK` on this column: adding one would
+force the same expensive recreate-and-copy migration path, touching the same
+`patches/drizzle-kit+0.31.9.patch`-dependent CHECK-regex machinery ADL-15 documents as
+previously buggy, for a control that is already authoritatively enforced at the Zod layer
+(D6). Unlike ADL-42, this does not need a two-file split — there is no data to backfill and
+nothing later in the same change destroys columns the first step reads.
+
+### D10 — relationship to §5.6 structured confirmation fields
+
+**Recommendation:** no conflict, no schema change to any `item_*` extension table.
+
+IT-10's "no separate address or phone fields are required when a URL is set" describes
+*optionality*, not field removal: a hotel item can still populate `item_hotels.address`
+(HT-01, `travel-tracker-BRD.md:180`) independently of `map_url`, and neither field implies
+or requires the other. No BRD field is a phone number anywhere in §5.6 today (restaurants,
+hotels, car rentals, experiences — none list one), so there is nothing to reconcile there
+either; the BRD clause is forward cover for a field that does not yet exist, not a
+description of a current overlap. Nothing in this ADL asks the COO to touch §5.6.
+
+---
+
+### What this ADL does not decide
+
+- **Whether `photo_album_ref` gets the same server-side scheme check.** Flagged in D6 as a
+  pre-existing gap; fixing it is a separate, small follow-up, not bundled into IT-10's
+  brief.
+- **Wiring `sanitiseUrl()` into an actual `photo_album_ref` render.** Same status — flagged,
+  not actioned. Whoever picks up `map_url` will write the first real caller of this
+  function; extending it to `photo_album_ref` at the same time would be a reasonable, small
+  scope increase for that brief to accept, but is not required by this decision.
+- **Any change to `security-spec.md` SEC-12 itself.** The rule text ("URL fields (e.g.
+  `photo_album_ref`)...") already reads as illustrative, not exhaustive, so `map_url` fits
+  under it without an edit. The implementing brief should still add `map_url` as a second
+  named example there, for the next reader — noted as a nice-to-have, not gating.
+
+---
+
+**Implementation implications:**
+- `src/backend/db/schema.ts` — add `mapUrl: text('map_url')` to the `items` table
+  definition (`schema.ts:453-503`), nullable, no default, no CHECK.
+- `src/backend/migrations/` — one new file (`db:generate`), e.g.
+  `00NN_adl45_item_map_url.sql`.
+- `src/backend/validation/common.ts` — add `zMapUrl` (D6).
+- `src/backend/validation/items.schemas.ts` — add `map_url: zMapUrl` to `itemBase`
+  (`items.schemas.ts:10-17`).
+- `src/frontend/types/api.ts` — add `map_url: string | null` to `Item`
+  (`api.ts:114`).
+- `src/frontend/utils/urlSanitiser.ts` — extend `sanitiseUrl()` with an optional
+  allowed-scheme parameter (D7); update its stale header comment.
+- `src/frontend/components/TripDetail/ItemCard.tsx` — render the map/directions affordance
+  when `sanitiseUrl(item.map_url, ['https:'])` is non-null; `target="_blank"
+  rel="noopener noreferrer"` (D8). No affordance when null (covers both "not set" and
+  "failed validation" — same rendering for both is correct, a rejected scheme should never
+  surface as a broken or suspicious link).
+- `src/frontend/components/TripDetail/ItemForm.tsx` — add the optional URL input field.
+- `_project/security-spec.md` SEC-12 — optional, non-blocking addition of `map_url` as a
+  second named example (see "What this ADL does not decide").
+
+**Supersession:** none.
