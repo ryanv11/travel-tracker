@@ -32,6 +32,12 @@
 #      still queued (conclusion null → filtered out) reported PASS. Now a
 #      still-pending check counts as not-green, and zero checks is a failure.
 #
+#   3. pr mode reported PASS while more checks for the same commit were still
+#      arriving. `gh pr checks --watch` returns when the checks it knows about
+#      finish, and this repo's `push` + `pull_request` triggers register two sets
+#      at different moments (PR #267: PASS on 9 checks, 18 present moments later).
+#      Both modes now settle and re-query before reporting.
+#
 # The general rule both fixes follow: never report PASS without having positively
 # observed a terminal green result for the exact commit asked about. Absence of
 # evidence is treated as failure, not success.
@@ -92,6 +98,14 @@ is_sha() {
     [[ "$1" =~ ^[0-9a-f]{40}$ ]]
 }
 
+# How many checks the PR currently reports. Empty/unreadable answers are left
+# empty rather than defaulted to 0, so callers can tell "no checks" from
+# "could not ask".
+pr_check_count() {
+    gh pr view "$TARGET" --repo "$REPO" --json statusCheckRollup \
+        --jq '(.statusCheckRollup // []) | length' 2>/dev/null
+}
+
 usage() {
     echo "Usage: $0 pr <PR_NUMBER> [TIMEOUT_SECONDS]" >&2
     echo "       $0 branch <BRANCH_NAME> [TIMEOUT_SECONDS]" >&2
@@ -119,8 +133,7 @@ if [ "$MODE" = "pr" ]; then
     echo "[ci-wait] Waiting for checks to register (up to ${DISCOVERY_TIMEOUT}s)..."
     discovery_deadline=$(( $(date +%s) + DISCOVERY_TIMEOUT ))
     while :; do
-        check_count=$(gh pr view "$TARGET" --repo "$REPO" --json statusCheckRollup \
-            --jq '(.statusCheckRollup // []) | length' 2>/dev/null)
+        check_count=$(pr_check_count)
         [ -n "$check_count" ] && [ "$check_count" != "null" ] && [ "$check_count" -gt 0 ] && break
         if [ "$(date +%s)" -ge "$discovery_deadline" ] || [ "$(date +%s)" -ge "$DEADLINE" ]; then
             echo "[ci-wait] FAIL — no checks registered for PR #$TARGET @ $head_sha within ${DISCOVERY_TIMEOUT}s." >&2
@@ -130,14 +143,40 @@ if [ "$MODE" = "pr" ]; then
         sleep "$DISCOVERY_POLL"
     done
 
-    echo "[ci-wait] Watching PR #$TARGET checks (budget $(remaining)s)..."
-    timeout "$(remaining)" gh pr checks "$TARGET" --repo "$REPO" --watch --interval "$INTERVAL"
-    watch_rc=$?
+    # `gh pr checks --watch` returns once the checks it already knows about have
+    # finished — but a second trigger's checks can register after that. This repo
+    # runs both `push` and `pull_request`, so every commit gets two sets, and they
+    # do not appear together: observed live on PR #267, which reported PASS on 9
+    # checks with 18 present moments later. Re-watch while the set is still
+    # growing, mirroring the settle window branch mode already had.
+    #
+    # Correctness does not depend on this loop terminating at the right moment:
+    # the authoritative rollup below counts anything non-terminal as not-green, so
+    # exiting early yields a FAIL, never a false PASS. The loop exists to avoid
+    # spurious failures, not to provide the guarantee.
+    while :; do
+        echo "[ci-wait] Watching PR #$TARGET checks (budget $(remaining)s)..."
+        timeout "$(remaining)" gh pr checks "$TARGET" --repo "$REPO" --watch --interval "$INTERVAL"
+        watch_rc=$?
 
-    if [ "$watch_rc" -eq 124 ]; then
-        echo "[ci-wait] TIMEOUT — checks did not reach a terminal state within ${TIMEOUT}s." >&2
-        exit 124
-    fi
+        if [ "$watch_rc" -eq 124 ]; then
+            echo "[ci-wait] TIMEOUT — checks did not reach a terminal state within ${TIMEOUT}s." >&2
+            exit 124
+        fi
+
+        count_before=$(pr_check_count)
+        sleep "$SETTLE_SECONDS"
+        count_after=$(pr_check_count)
+
+        # Equal (or unreadable, in which case both are empty and the rollup below
+        # fails closed) means the set has stopped growing.
+        [ "$count_after" = "$count_before" ] && break
+        echo "[ci-wait] $(( count_after - count_before )) further check(s) registered after the watch — re-watching."
+        if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+            break
+        fi
+    done
+    check_count="${count_after:-$check_count}"
 
     # Authoritative re-check via --json rather than trusting the watch exit code
     # alone. A check counts as green only if it has positively concluded green:
