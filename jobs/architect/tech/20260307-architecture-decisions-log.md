@@ -2859,17 +2859,79 @@ maintained dataset or continues hand-seeding per-country gaps as they are found 
 one such patch). One ADL covering licensing, bundle size, offline behaviour (GE-10 requires
 boundary data ship offline) and refresh strategy.
 
-## ADL-44 — RESERVED (S5: region-shading payload / BUG-48)
+## ADL-44 — Region-shading geometry payload: per-country split, not a lower threshold
 
-**Date:** reserved 2026-07-27
-**Status:** RESERVED — Wave 0 brief S5 not yet dispatched. No decision recorded.
-**Scope:** BUG-48 reads as "lower the zoom threshold" but is not — `MapView.tsx` sets
-`REGION_ZOOM_THRESHOLD = 3` while region shading pulls a **39 MB** `geo/regions.json`, so
-lowering the threshold loads that payload sooner and more often and makes the reported
-latency worse. Decide the payload strategy (geometry simplification, tiling, per-country
-splitting, or lazy per-country fetch) that lets the threshold drop without regressing
-performance. Note the stale-doc drift for whichever PR touches it: `MapView.tsx:6` documents
-`zoom >= 4` while the constant is `3`.
+**Date:** 2026-07-27
+**Status:** **Decided, implementation pending.** No code, asset, or schema change was made
+by this ADL — it is the design that unblocks the implementing brief.
+**Tracker:** BUG-48 | **GitHub:** #275 | **Full ADL:** `jobs/architect/tech/ADL-44-region-shading-payload.md`
+
+**Trigger:** Wave 0 scoping brief S5. BUG-48 reads as "lower the zoom threshold" — it is
+not. `MapView.tsx:28` sets `REGION_ZOOM_THRESHOLD = 3`, but region shading's geometry
+fetch (`RegionLayer.tsx:16,77`, `/geo/regions.json`) pulls **one unscoped, uncompressed,
+world-covering file for all 241 countries** on every threshold crossing. Lowering the
+threshold fires that fetch sooner and more often — it makes the reported latency worse
+while appearing to fix the complaint in a quick manual test.
+
+**Verified, not assumed** (full measurements in the standalone doc §2): the file is
+40,726,851 bytes (38.8 MiB) — the COO's "39 MB" probe was correct. No compression
+middleware exists on the `/geo` static mount (`server.ts:195`) and no cache headers are
+set. The fetch is not scoped by country (`REGIONS_GEOJSON_URL` is a constant), even
+though the shading-*state* API it pairs with already is
+(`GET /api/map/shading/regions/:countryCode`). Grouped by country, the same source data
+is 30×–400× smaller per country than the world file (median 92 KB; worst case Russia
+3.26 MB; the bug's own US example, 1.39 MB) — the per-country split is the load-bearing
+fix, not a nice-to-have. The bundled file is also ~10× the tech blueprint's own original
+budget (`20260307-tech-blueprint.md:227-236`, ~4 MB estimate for the 10 m admin-1
+extract) — stamped superseded, see below.
+
+**Decision:** Split `geo/regions.json` into one static, still-fully-bundled file per
+country (`geo/regions/{ISO_A2}.json`), fetched lazily for only the visible country.
+Combine with: property whitelist (`iso_3166_2` + `name` only — 119 of 121 Natural Earth
+columns are dead weight, nothing else is read by the frontend), topology-preserving
+geometry simplification for the handful of large/complex countries (Russia, Canada, US,
+GB, Indonesia, Philippines), `compression` middleware + long-lived `Cache-Control` on the
+`/geo` static mount. No server/DB compute involved (Railway/Turso irrelevant — this stays
+a build-time static-asset problem). `REGION_ZOOM_THRESHOLD` itself is left at `3` in this
+ADL; further tuning is a product-feel call for a follow-up PO/UAT once the payload no
+longer confounds it.
+
+**GE-10 compliance (the hardest constraint) — addressed directly, not glossed:**
+per-country files are generated once at build time and committed as static assets exactly
+like today's single file; they are served by the app's own Express instance
+(`express.static`), the same trust boundary already used for `geo/countries.json` and
+every `/api/*` route, whether that server is `localhost` (offline Electron) or the hosted
+Railway deployment. Today's implementation already issues a network fetch to a locally
+bundled file (MapLibre's GeoJSON `Source` XHRs `/geo/regions.json`) — GE-10 has never
+meant zero HTTP requests, only zero dependency on the internet or a third-party host.
+Splitting one locally-served file into many locally-served files does not change that
+guarantee. What *would* violate GE-10 — fetching geometry from a third-party geodata host
+or MapTiler-hosted vector tiles at render time — was considered and explicitly rejected
+(standalone doc §5).
+
+**ADL-41 DISTINCT invariant:** no conflict. This ADL never touches
+`shading.service.ts` or any SQL aggregate — it changes only how boundary *geometry*
+reaches the client, never how shading *state* is computed. The implementing brief's diff
+to `shading.service.ts` must be zero lines; that is a stated success criterion (standalone
+doc §7).
+
+**Supersession:** `20260307-tech-blueprint.md` §2.3 (single-file ~4 MB estimate,
+"loaded once … cached in memory for the session" delivery model) stamped
+`> SUPERSEDED (2026-07-27) by ADL-44` in this PR. `20260307-map-shading-spec.md` was
+checked in full and found to specify only shading-state SQL, never geometry delivery —
+no stamp applied, nothing there is affected.
+
+**Drift flagged, not fixed (spec-only scope):** `MapView.tsx:6` documents region shading
+loading "at zoom >= 4"; the constant at line 28 is `3`. Whoever implements this brief and
+touches `MapView.tsx` must correct the comment.
+
+**Implications:** see standalone doc §6 for the full implementation surface
+(`RegionLayer.tsx` URL parameterisation and a `<Source>` re-fetch-on-country-change risk
+to verify, `server.ts:195` / `server-test-app.ts:112` static options, the new build-time
+preprocessing step) and §7 for measurable success criteria (per-country payload budget,
+render-latency target, simplification QA checklist) satisfying the CLAUDE.md
+success-criteria-before-dispatch gate. No new BRD requirement ID needed — reported to
+COO per §8, not added by this ADL.
 
 ## ADL-45 — Item map URL: base-table column, https-only + no host allowlist, reuse (don't fork) the existing sanitiser
 
