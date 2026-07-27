@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (48)
+## Open work (47)
 
 ### P0 — Blockers (1)
 
@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (27)
+### P2 — Important (26)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -47,7 +47,6 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BRD-LB01 | Destination recommendations view — aggregated across trips (LB-01) | fullstack | ⬜ Pending |
 | BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
 | BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
-| OQ-05 | Same-city revisit within a trip — trip_places one-row-per-city constraint | architect | ⬜ Pending |
 | OQ-03 | Approximate/partial dates for shell trips — year-only or month-only, and their effect on shading and ordering | architect | ⬜ Pending |
 | BUG-40 | Place deletion should prompt (delete all / move to trip-level / cancel) when the place has items | fullstack | ⬜ Pending |
 | BUG-41 | Multi-leg / connecting flights within a single booking | database | ⬜ Pending |
@@ -92,7 +91,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
-| requirement | `███████████████████░` 31/33 | 31 | 2 | 6 |
+| requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 42/56 | 42 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `████████████░░░░░░░░` 9/15 | 9 | 6 | 0 |
@@ -128,4 +127,4 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 
 ---
 
-_122 done · 10 deferred · 3 closed · 48 open — 183 tracked items_
+_123 done · 10 deferred · 3 closed · 47 open — 183 tracked items_

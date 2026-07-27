@@ -961,6 +961,18 @@ WHERE trips.id IN (
 **Status:** Decided — full design ready for implementation, no further Architect input needed
 **BRD ref:** DP-05 (v2.5); DP-04 (v2.4)
 
+> SUPERSEDED IN PART (2026-07-27) by ADL-41 — retained for history.
+> The **ordering** decision only ("Chronological ordering of place sections is a frontend
+> client-side sort (nulls last, stable)" below, and §4.1/§4.2 of
+> `jobs/architect/tech/ADL-24-place-date-ranges.md`). ADL-41 moves `trip_places` to one row
+> per *visit*, which makes the place list a sequence rather than a set — ordering stops
+> being cosmetic and a nulls-last client sort destroys the itinerary for the mixed
+> dated/undated case (Glasgow(–) → Edinburgh(dated) → Glasgow(–)). Ordering moves to a
+> persisted, server-assigned `sort_order` column with an `ORDER BY` in `findByTrip`.
+> **Everything else in ADL-24 remains current** — the `arrived_on`/`departed_on` columns,
+> the `PATCH` endpoint, and specifically the DP-04 three-source display precedence below,
+> which ADL-41 does not touch.
+
 **Decision:** Add nullable `arrived_on` / `departed_on` (`text`, ISO 8601 `YYYY-MM-DD`)
 columns to `trip_places` for optional, explicit place-level dates — distinct from
 DP-04's hotel-derived *display* dates. New `PATCH /api/trips/:tripId/places/:placeId`
@@ -2694,16 +2706,158 @@ promotion works.
 > A stub still reading RESERVED after its brief has landed means that brief did not record
 > its decision; treat it as an incomplete deliverable, not as a spare number.
 
-## ADL-41 — RESERVED (S1: trip-place identity / OQ-05)
+## ADL-41 — Trip-place identity: one row per *visit*; declared FK cascades are enforced and TR-14 keeps relying on them
 
-**Date:** reserved 2026-07-27
-**Status:** RESERVED — Wave 0 brief S1 not yet dispatched. No decision recorded.
-**Scope:** Resolve OQ-05 — `uniq_trip_places_trip_city` enforces one row per (trip, city),
-which disallows realistic revisits (Glasgow → Edinburgh → Glasgow). Decide whether the model
-moves to one-row-per-visit, and resolve the knock-on effects on map shading, chronological
-ordering (DP-05/DP-06) and item attachment (`items.trip_place_id`). Must also rule on the
-cascade semantics TR-14 (trip deletion) depends on, and must not foreclose NR-12 (Phase 2
-archive-instead-of-delete). Unblocks BUG-40, TR-14/TR-15 implementation.
+**Date:** 2026-07-27
+**Status:** **Decided, implementation pending.** No schema, migration or route change is
+made by the PR carrying this entry — it is spec output only. Downstream briefs are scoped
+in §10 of the supplementing file.
+**Trigger:** Wave 0 scoping brief S1 (`jobs/COO/backlog-clearance-plan.md` §3), GitHub
+issue #271, resolving BRD §10 **OQ-05**. Gates BUG-40 (TR-15) and BUG-50 (TR-14).
+**Supplemented by:** `jobs/architect/tech/ADL-41-trip-place-identity.md` — delete ordering,
+API shapes, migration SQL and downstream brief scoping. This entry is the authoritative
+record; that file carries the implementation detail.
+
+### Decision summary
+
+| # | Decision | Recommendation | Confidence |
+|---|----------|----------------|------------|
+| 1 | Trip-place identity | **One row per visit.** Drop `uniqueIndex('uniq_trip_places_trip_city')` (`src/backend/db/schema.ts:362`). `trip_places.id` stays the identity; a row now means "a stay in a city", not "a city on the trip" | High |
+| 2 | Accidental-duplicate protection | Keep it, move it up a layer. `POST .../places` returns 409 carrying the existing rows unless the caller passes `allow_revisit: true`. Replace the dropped unique index with a plain composite index | High |
+| 3 | Map shading | **No change required.** Every shading aggregate already counts `DISTINCT trips.id` / `DISTINCT regions.id` — verified line-by-line in both spec and implementation. Add a binding rule so it stays true | High |
+| 4 | Ordering (DP-05) | Add `sort_order INTEGER NOT NULL DEFAULT 0` as the canonical order; `arrived_on` drives it at write time rather than render time | High |
+| 5 | DP-06 first-place inheritance | Fires only on the empty-trip → first-place transition. A revisit row never inherits | High |
+| 6 | Item attachment | An item belongs to exactly one *visit*. No implicit re-parenting, ever. Disambiguation is a UI concern, not a data-model one | High |
+| 7 | Merge / split | Specified in the supplementing file, **not scheduled**. Not required by TR-14, TR-15 or OQ-05 | Medium |
+| 8 | TR-14 cascade semantics | **Keep relying on the declared `ON DELETE CASCADE`.** FK enforcement *is* on — verified empirically, see below. Do **not** hand-roll an ordered delete batch | High |
+| 9 | Guarding decision 8 | Add a **startup assertion** that `PRAGMA foreign_keys` returns 1 on the application connection and fails loudly if not. Cheap; converts silent orphaning into a boot failure | High |
+| 10 | TR-15 "reassign to trip level" | Means `items.trip_place_id = NULL`, unchanged by the identity change. The choice becomes a **required** request parameter, not a UI convention | High |
+| 11 | NR-12 non-foreclosure | One service-layer entry point for deletion; NR-12 uses a new nullable `archived_at` column, **never** a new `trips.status` value | High |
+
+### The core decision (1)
+
+`trip_places` moves from one row per (trip, city) to one row per visit segment. Nothing
+else about the table's shape changes: `items.trip_place_id` (`schema.ts:461`) and
+`trip_place_activities_map.trip_place_id` (`schema.ts:379-381`) keep pointing at
+`trip_places.id`; only the *referent* sharpens from "the city on this trip" to "this stay
+in this city on this trip". No FK moves, no join rewires, no ID remapping — which is why a
+change to the core entity has a small blast radius.
+
+The unique index was buying two things and only one was real. Shading double-count
+protection was **not** real (decision 3). Accidental-double-add protection **was** real,
+but is already enforced a layer up by `placeRepository.create`'s pre-check
+(`src/backend/repositories/places.ts:147-153`, `ConflictError('Trip already has this
+city')`). That is a UX concern, and guarding a UX concern with a DB constraint that also
+forbids a legitimate real-world fact is the wrong instrument.
+
+**Alternatives rejected:** a separate `visits` child table (adds a second nullable FK on
+`items` and forces every consumer to choose a grain); a `visit_count` ordinal on the
+existing row (cannot carry per-visit dates or per-visit items, which are the two points);
+and status quo (corrupts the data — Glasgow "3–9 June" when the user was in Edinburgh on
+the 6th).
+
+### Decisions 8 and 9 — this reverses the S1 draft, on evidence
+
+The killed S1 dispatch's draft asserted that the application connection never issues
+`PRAGMA foreign_keys=ON`, therefore every declared `onDelete: 'cascade'` is "documentation
+of intent, not enforced runtime behaviour", and therefore TR-14 must hand-roll an
+eight-step ordered delete. **The premise is false and the conclusion falls with it.**
+
+The premise's first half is literally true — `createLibSQLDb` (`src/backend/db/index.ts:108`)
+issues no `PRAGMA`. But `@libsql/client@0.14.0` **enables foreign keys by default**, a
+deliberate libSQL divergence from stock SQLite. Probed directly against the installed
+client on `:memory:`, `file::memory:` and a `file:` path:
+
+- `PRAGMA foreign_keys` returns **1** on a fresh connection with no PRAGMA issued.
+- A `NO ACTION` FK **blocks** a parent delete (`SQLITE_CONSTRAINT_FOREIGNKEY`).
+- Replaying the real FK shape (trips → trip_places CASCADE, trips → items CASCADE,
+  trip_places → `items.trip_place_id` NO ACTION, `items.carried_from_item_id` SET NULL,
+  trip_places → tpam CASCADE, items → item_hotels CASCADE), a bare
+  `DELETE FROM trips WHERE id = 1` **succeeds** and leaves zero rows in `trip_places`,
+  `items`, `item_hotels` and `trip_place_activities_map` — while a *derived* item on
+  another trip survives with `carried_from_item_id = NULL` and `is_carried_forward = 1`,
+  which is exactly the intended ADL-36 post-deletion state, reached automatically.
+
+So the declared cascades work, and the existing `tripRepository.delete`
+(`src/backend/repositories/trips.ts:195-202`) is correct as written. An eight-step ordered
+delete would have been **worse architecture**, not belt-and-braces: it duplicates FK
+knowledge in application code, and the copy goes stale the first time a child table is
+added and missed — silently orphaning rows the declared cascade would have covered for
+free. It also buys nothing on the Phase 2 Postgres path, where FKs are always enforced.
+
+What the draft's instinct *did* correctly identify is that the guarantee is currently
+**implicit** — a driver default, not a stated dependency. Two residual gaps, which
+decision 9 closes cheaply:
+
+1. A `@libsql/client` major bump could change the default, and nothing would fail loudly.
+2. The **remote Turso (`libsql://`) path is unverified here** — production uses
+   `TURSO_DATABASE_URL`, and this environment's firewall permits no Turso host, so the
+   probes above cover the embedded driver only. A PRAGMA issued once at connect would not
+   reliably stick on a stateless HTTP connection anyway, which is precisely why the guard
+   must be an *assertion*, not a *set*.
+
+Decision 9 is therefore: at startup, execute `PRAGMA foreign_keys` on the real application
+connection and fail the boot (or log at ERROR in dev) if it is not 1. It reads actual
+connection state, so it is correct on embedded and remote alike, and it turns the worst
+failure mode — a trip delete silently orphaning every dependent row in production — into a
+boot failure. Sizing: one query in `startup.service.ts`.
+
+`src/backend/db/reset-staging.ts:30-35` deliberately does *not* assume FK enforcement and
+deletes child-before-parent by hand. That remains correct for a destructive operator-run
+script against an environment it does not control, and is not evidence that enforcement is
+off. It is not superseded.
+
+### Correction to a fact the backlog is currently being planned from
+
+The S1 draft, `jobs/COO/backlog-clearance-plan.md` §6, and the **BUG-50 tracker note** all
+state there is no delete route for a trip. There is:
+
+- `tripsRouter.delete('/:id', ...)` — `src/backend/routes/trips.ts:429-454`, with `userId`
+  scoping via `findByIdOrThrow`, a `LockError` guard for locked trips (BUG-27), and 204.
+- `tripRepository.delete(userId, tripId)` — `src/backend/repositories/trips.ts:195-202`.
+- Frontend: `useDeleteTrip` wired into bulk delete with a 5-second undo window in
+  `src/frontend/components/TripList/DesktopTripsLayout.tsx:75,173` and
+  `MobileTripsLayout.tsx:78,166`.
+- Tests: `src/backend/routes/__tests__/trips.delete.test.ts`, including a cascade assertion.
+
+The earlier claim came from grepping `router.delete` against a file whose router is named
+`tripsRouter`. TR-14 is therefore **mostly shipped**, and what remains is narrower and
+mostly frontend: a delete affordance **reachable from the trip detail view** (only bulk
+select in the trip list exists today), confirmation text that **names what will be lost**
+(current text is `Delete N trips? This cannot be undone.` — it does not name places or
+items), and surfacing the 403 lock refusal with a message directing the user to unlock.
+BUG-50's note is corrected in the PR carrying this entry; the COO should re-size B7 before
+dispatching it as fullstack.
+
+### Implementation implications
+
+- **Database:** drop `uniq_trip_places_trip_city`; add `index('idx_trip_places_trip_city')`
+  on `(trip_id, city_id)` — the revisit pre-check queries exactly that pair on every place
+  creation and would otherwise lose its index; add `sort_order` with a backfill that
+  reproduces today's visible order. All three are additive or index-level — **no table
+  recreation**, which keeps this clear of the drizzle-kit SQLite bugs in ADL-15. Rewrite the
+  `trip_places` doc comment at `schema.ts:331-341`, which currently asserts "UNIQUE
+  (trip_id, city_id): a trip visits each city at most once".
+- **Backend (places):** `allow_revisit` + enriched 409 payload; `sort_order` assignment and
+  `.orderBy` on `findByTrip` (`src/backend/repositories/places.ts:52`, which has no
+  `ORDER BY` at all today); DP-06 as a one-shot; TR-15's required `items` parameter,
+  failing closed with 400 rather than defaulting.
+- **Backend (TR-14):** decision 9's startup assertion. No change to the delete path itself.
+- **Binding rule for all future shading work:** any query deriving shading state from
+  `trip_places` MUST aggregate `DISTINCT` on `trips.id` or on the geographic entity id, and
+  MUST NOT count `trip_places.id` or bare rows. Before ADL-41 this was a nice property;
+  after it, it is the only thing standing between the model and double-shaded countries.
+  **ADL-44 (BUG-48) touches this exact query path and must not regress it.**
+
+### Supersession and closure
+
+- **ADL-24 §4.1/§4.2** (client-side sort by `arrived_on`, nulls last) is superseded by
+  decision 4 — ordering becomes persisted and server-assigned. ADL-24 §5.2 (display date
+  precedence: explicit place dates > hotel dates > trip dates) is **unaffected and remains
+  current**. Both the ADL-24 log entry and `jobs/architect/tech/ADL-24-place-date-ranges.md`
+  are stamped in the PR carrying this entry.
+- **BRD §10 OQ-05** is closed in the same PR. No BRD version bump and no new requirement
+  IDs are introduced by this entry — the COO owns that gate.
 
 ## ADL-42 — Booking item shape: multi-leg flights and multi-traveller seats
 

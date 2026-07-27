@@ -1,3 +1,81 @@
+--- concurrent Wave 0 session block ---
+=============================================================================
+S1 / ADL-41 BLOCK — PREPENDED 2026-07-27, DOES NOT REPLACE THE S2 BLOCK BELOW
+=============================================================================
+NOTE TO COO — PROCESS HAZARD, PLEASE READ:
+  This file is a single shared "current context" doc, but Wave 0 dispatched S1/S3/S5/S6
+  concurrently in separate worktrees, each instructed by the Architect system prompt to
+  "update jobs/architect/context/current.txt with current state". If each obeys literally,
+  whichever PR merges LAST silently wins and every other thread's context is lost. I
+  prepended instead of overwriting: a merge conflict is visible and recoverable, silent
+  loss is not. Expect conflicts here from the sibling PRs and resolve by keeping all
+  blocks. Suggested fix for the next wave: per-thread context files
+  (context/<ADL>-current.txt) with current.txt as an index, or make the park doc the only
+  per-thread state (it is already uniquely named and collision-free).
+
+ARCHITECT CONTEXT — 2026-07-27 (S1)
+CURRENT STATUS: ADL-41 DECIDED, IMPLEMENTATION PENDING — trip-place identity / OQ-05,
+Wave 0 scoping brief S1, GitHub issue #271, branch feat/adl41-trip-place-identity.
+Spec output only — no schema, migration or code change was made.
+
+This was a COMPLETION+REVIEW dispatch. A prior S1 run wrote the 559-line design doc and was
+killed by an API spend limit before recording the decision anywhere. I reviewed it against
+the code, corrected it, and did the closing steps it never reached.
+
+DECISION: trip_places moves to one row per VISIT. uniq_trip_places_trip_city dropped,
+replaced by a plain composite index; duplicate protection moves up a layer (409 + existing
+rows in the payload, unless allow_revisit: true). Ordering moves from ADL-24's client-side
+sort to a persisted sort_order column assigned at write time. DP-06 fires only on the
+empty-trip → first-place transition. Item attachment unchanged structurally.
+
+FOUR CORRECTIONS TO THE DRAFT (details in ADL-41 file §0):
+ A. Draft: "PRAGMA foreign_keys is not enabled, so declared cascades are not enforced."
+    FALSE. @libsql/client@0.14.0 enables FK enforcement BY DEFAULT (libSQL diverges from
+    stock SQLite). Probed directly: PRAGMA returns 1 on a fresh connection; a NO ACTION FK
+    blocks a parent delete; replaying the real FK shape, DELETE FROM trips cascades
+    correctly AND leaves a cross-trip derived item with carried_from_item_id NULL /
+    is_carried_forward 1 — the exact ADL-36 state, for free. So the draft's 8-step ordered
+    delete is NOT needed and would be worse (duplicates the FK graph in app code; goes
+    stale when a child table is added). Decision 8 reversed.
+ B. Draft: "there is no router.delete in routes/trips.ts, TR-14 is net-new." FALSE — it
+    grepped router.delete against a router named tripsRouter. The route, repository,
+    frontend hook and a cascade test all exist. TR-14 is MOSTLY SHIPPED; what remains is
+    frontend-only. Same wrong claim is in the BUG-50 note (I corrected it) and in
+    jobs/COO/backlog-clearance-plan.md §6 (COO-owned, flagged not edited).
+ C. Draft called §8.4 trip_countries "a genuine new bug surface created by this ADL."
+    Overstated — trip_countries is never derived from trip_places by any code path, so
+    nothing breaks. Rewritten as a forward guardrail.
+ D. Draft §11 claimed "OQ-05 closed, BRD bumped to v3.9" — was false when written. OQ-05
+    is now genuinely closed in BRD §10. I did NOT touch the BRD version (COO's gate).
+
+VERIFIED AS WRITTEN: §3's shading audit is exact — all 16 cited lines in the map-shading
+spec and all 5 in shading.service.ts hold, and there is no non-DISTINCT COUNT anywhere in
+the shading path. So one-row-per-visit cannot double-shade. This is now a BINDING RULE and
+ADL-44 (BUG-48) must not regress it.
+
+I ALSO TIGHTENED (draft was underspecified, not wrong): §4.2.1 now states the sort_order
+insertion-position rule exactly (undated rows are inert anchors; scan ascending, insert
+before the first dated row with a later arrived_on, else append) — the draft's "inserted at
+the position its date implies" had at least three readings and was not implementable. Also
+recorded: NO unique constraint on (trip_id, sort_order) — SQLite has no deferred
+constraints so shift-on-insert would transiently violate it.
+
+OPEN FOR COO (full list in ADL-41 §11):
+ - Re-size BUG-50 / clearance-plan B7 as FRONTEND-ONLY before dispatch. It no longer blocks
+   on the ADL-41 Database brief and can go immediately.
+ - New candidate tracker item: assert PRAGMA foreign_keys = 1 at startup (ADL-41 §7.2.1).
+   Small backend item. Includes an open question I could NOT answer here — whether the
+   REMOTE Turso path enforces FKs. The firewall blocks all Turso hosts, so my probes cover
+   the embedded driver only. Check against staging.
+ - New candidate tracker item: schema.ts:390-391 says trip_countries is "derived from
+   trip_places"; no code derives it. Comment or behaviour is wrong. Independent of ADL-41.
+ - §8.3 fourth TR-15 option ("reassign to the OTHER visit") needs a BRD decision if wanted.
+
+=============================================================================
+S2 / ADL-42 BLOCK — PRE-EXISTING, LEFT INTACT
+=============================================================================
+ARCHITECT CONTEXT — 2026-07-27
+--- concurrent Wave 0 session block ---
 ARCHITECT CONTEXT — 2026-07-27 (S6 / ADL-45)
 PROJECT: Travel Tracker
 --- concurrent Wave 0 session block ---
