@@ -29,7 +29,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
-| BUG-50 | No way to delete an entire trip | fullstack | ⬜ Pending |
+| BUG-50 | No way to delete an entire trip | frontend | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
 ### P2 — Important (30)

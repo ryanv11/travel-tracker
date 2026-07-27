@@ -187,6 +187,31 @@ FUTURE-01/02/03, BRD-PL05/06, BRD-LB01/02/03, BRD-FL04, UX-05 / BRD-PH03 (photos
 
 ---
 
+## 8b. Wave 2 BRD gate — OWED, added 2026-07-27 after Wave 0 completed
+
+Wave 0 is **complete (6/6 merged)**. Its specs handed back a second BRD gate, exactly like
+Wave 1's. **This is the single blocking item before any Wave 2 implementation brief.** As
+before it is **one** bump covering everything, not one per brief.
+
+| From | New IDs needed | Notes |
+|---|---|---|
+| ADL-43 / S3 (BUG-45) | `FL-06`, `CR-03` | S3 suggested `FL-05` first, then self-corrected — BRD v3.9 had already claimed it mid-flight. Verify what is actually free before assigning |
+| UX spec / S4 (BUG-53) | `DP-07`, `DP-08` | Full success-criteria text already drafted in the spec's §7 — lift it, don't rewrite it |
+| UX spec / S4 (UX-11) | `TR-16` | ditto |
+
+Also owed at the same time, and easy to miss because they aren't new IDs:
+
+- **BUG-47** (activity auto-population) — S4 designed it as *suggestion-based*, modelled on
+  IT-07's carry-forward pattern, deliberately not silent-write. Needs a BRD home or an
+  explicit decision that it stays a spec-only idea.
+- **QUAL-09** must be resolved *before* PL-02/PL-03 are briefed — BRD IT-03 lists item status
+  `Shortlisted`, which was never implemented. Either build it or amend the BRD; briefing the
+  planning loop while its middle stage doesn't exist would produce an unbuildable brief.
+- **B7 (BUG-50) is frontend-only** — see §6.2's correction. Re-size before dispatch.
+
+The Wave 1 gates above stay cleared; this does not reopen them. Wave 1 (§4) is dispatchable
+today — only Wave 2 is gated on this bump.
+
 ## 9. Expected shape
 
 **33 items → 6 scoping dispatches + 9 implementation briefs + 2 parked**, in roughly three

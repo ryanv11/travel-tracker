@@ -1945,7 +1945,7 @@
       "type": "bug",
       "title": "No way to delete an entire trip",
       "status": "pending",
-      "owner": "fullstack",
+      "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["TR-14"],
       "phase": 6,
