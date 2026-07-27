@@ -2675,3 +2675,74 @@ gate contributed the block, not the detection.
 **Supersession:** none. ADL-35/OP-22 established the two-environment promotion model and is
 unaffected — this refines which checks evaluate on the `production` branch, not how
 promotion works.
+
+---
+
+> **ADL-41 … ADL-45 are RESERVED numbers, allocated by the COO on 2026-07-27 ahead of the
+> Wave 0 scoping dispatch** (`jobs/COO/backlog-clearance-plan.md` §3). Five Architect agents
+> run concurrently, and worktree isolation does not stop five of them from each reading this
+> log and independently picking "the next number" — the same collision class as the shared
+> `refs/stash` incident in OP-20. Pre-allocating here removes the race.
+>
+> **Each dispatched Architect edits its own stub below in place** — it must not append a new
+> entry at the end of the file and must not touch any other stub. This is deliberate: five
+> agents appending to the tail of this file would conflict with each other in every pairing,
+> whereas five agents rewriting five well-separated blocks merge cleanly. A long design may
+> additionally live in a standalone `ADL-NN-<slug>.md`, but per `/record-decision` the entry
+> below is still required — the standalone file supplements it, never replaces it.
+>
+> A stub still reading RESERVED after its brief has landed means that brief did not record
+> its decision; treat it as an incomplete deliverable, not as a spare number.
+
+## ADL-41 — RESERVED (S1: trip-place identity / OQ-05)
+
+**Date:** reserved 2026-07-27
+**Status:** RESERVED — Wave 0 brief S1 not yet dispatched. No decision recorded.
+**Scope:** Resolve OQ-05 — `uniq_trip_places_trip_city` enforces one row per (trip, city),
+which disallows realistic revisits (Glasgow → Edinburgh → Glasgow). Decide whether the model
+moves to one-row-per-visit, and resolve the knock-on effects on map shading, chronological
+ordering (DP-05/DP-06) and item attachment (`items.trip_place_id`). Must also rule on the
+cascade semantics TR-14 (trip deletion) depends on, and must not foreclose NR-12 (Phase 2
+archive-instead-of-delete). Unblocks BUG-40, TR-14/TR-15 implementation.
+
+## ADL-42 — RESERVED (S2: booking-item shape / BUG-41 + BUG-42)
+
+**Date:** reserved 2026-07-27
+**Status:** RESERVED — Wave 0 brief S2 not yet dispatched. No decision recorded.
+**Scope:** Multi-leg/connecting flights (BUG-41) and multiple companions/seats per booking
+item (BUG-42) are one schema problem — the booking item is flat — not two. Decide the shape
+(likely sub-entities under a single booking item) covering both, including how seat
+assignment interacts with the existing per-user companion model (AD-08). Downstream: BUG-43
+(Apple Wallet import, research spike only).
+
+## ADL-43 — RESERVED (S3: sourced reference data / BUG-45 + OQ-06)
+
+**Date:** reserved 2026-07-27
+**Status:** RESERVED — Wave 0 brief S3 not yet dispatched. No decision recorded.
+**Scope:** Airline / car-rental-provider dropdowns (BUG-45) and ISO 3166-2 subdivision
+seeding (OQ-06) are the same decision — whether this project sources reference data from a
+maintained dataset or continues hand-seeding per-country gaps as they are found (BUG-30 was
+one such patch). One ADL covering licensing, bundle size, offline behaviour (GE-10 requires
+boundary data ship offline) and refresh strategy.
+
+## ADL-44 — RESERVED (S5: region-shading payload / BUG-48)
+
+**Date:** reserved 2026-07-27
+**Status:** RESERVED — Wave 0 brief S5 not yet dispatched. No decision recorded.
+**Scope:** BUG-48 reads as "lower the zoom threshold" but is not — `MapView.tsx` sets
+`REGION_ZOOM_THRESHOLD = 3` while region shading pulls a **39 MB** `geo/regions.json`, so
+lowering the threshold loads that payload sooner and more often and makes the reported
+latency worse. Decide the payload strategy (geometry simplification, tiling, per-country
+splitting, or lazy per-country fetch) that lets the threshold drop without regressing
+performance. Note the stale-doc drift for whichever PR touches it: `MapView.tsx:6` documents
+`zoom >= 4` while the constant is `3`.
+
+## ADL-45 — RESERVED (S6: item Google Maps URL column / BRD-IT10)
+
+**Date:** reserved 2026-07-27
+**Status:** RESERVED — Wave 0 brief S6 not yet dispatched. No decision recorded.
+**Scope:** IT-10 adds a nullable Google Maps URL column on items. Small, but the
+schema-change rule requires Architect review before any Database brief. Rule on column
+placement, nullability, validation/sanitisation of a user-supplied URL (it is rendered as a
+clickable link — this is the security-relevant part), and migration. Unblocks BRD-IT10
+implementation in B6 and BRD-MB0102, which consumes the directions link.
