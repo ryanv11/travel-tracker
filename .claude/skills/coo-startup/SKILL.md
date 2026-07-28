@@ -110,6 +110,23 @@ after=$(wc -l < /workspace/.claude/hooks/typecheck-perf.log)
 echo '{"tool_input":{"file_path":"/workspace/jobs/COO/canary-test.md","content":"This route does not exist anywhere in the codebase."}}' \
   | bash /workspace/.claude/hooks/negative-findings-guard.sh | grep -q "negative-findings-guard" \
   && echo "negative-findings guard OK" || echo "FAIL: negative-findings guard broken"
+
+# negative-findings guard, COO brief path (OP-29) — must also warn on a gh issue body.
+# This is the COO's own failure path: briefs are authored via Bash, not Write.
+echo '{"tool_name":"Bash","tool_input":{"command":"gh issue create --body \"this is not enforced on the backend today\""}}' \
+  | bash /workspace/.claude/hooks/negative-findings-guard.sh | grep -q "negative-findings-guard" \
+  && echo "negative-findings guard (brief path) OK" || echo "FAIL: negative-findings brief path broken"
+
+# no-wholesale-rewrite guard (OP-28) must warn on a Write over an existing tracked shared record
+echo '{"tool_name":"Write","tool_input":{"file_path":"/workspace/jobs/COO/open-dialogues.md"}}' \
+  | bash /workspace/.claude/hooks/no-wholesale-rewrite.sh | grep -q "no-wholesale-rewrite" \
+  && echo "no-wholesale-rewrite guard OK" || echo "FAIL: no-wholesale-rewrite guard broken"
+
+# ...and must stay silent on an Edit of that same file (the correct way to amend it)
+echo '{"tool_name":"Edit","tool_input":{"file_path":"/workspace/jobs/COO/open-dialogues.md"}}' \
+  | bash /workspace/.claude/hooks/no-wholesale-rewrite.sh | grep -q "no-wholesale-rewrite" \
+  && echo "FAIL: no-wholesale-rewrite guard fires on Edit (should be silent)" \
+  || echo "no-wholesale-rewrite guard (Edit path) OK"
 ```
 
 Any FAIL → fix the hook before doing anything else this session. Secondary tell for the

@@ -30,7 +30,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BUG-50 | No way to delete an entire trip | frontend | ⬜ Pending |
-| BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
+| BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
 
 ### P2 — Important (29)
 
@@ -45,22 +45,22 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BRD-PL06 | Co-planning — companions contribute to idea pool on shared trips (PL-06, Phase 3) | architect | ⬜ Pending |
 | BRD-LB01 | Destination recommendations view — aggregated across trips (LB-01) | fullstack | ⬜ Pending |
 | BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
-| BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
+| BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | done_pending_uat |
 | OQ-03 | Approximate/partial dates for shell trips — year-only or month-only, and their effect on shading and ordering | architect | ⬜ Pending |
 | OP-25 | Scheduled cloud health-check routines (daily CI/drift, weekly doc-lifecycle) + cron-flag surfacing in /coo-startup | coo | ⛔ Blocked |
 | BUG-40 | Place deletion should prompt (delete all / move to trip-level / cancel) when the place has items | fullstack | ⬜ Pending |
 | BUG-41 | Multi-leg / connecting flights within a single booking | database | ⬜ Pending |
 | BUG-42 | Multiple companions/seats per booking item | database | ⬜ Pending |
-| BUG-44 | Car rental pickup location should show as subtext under provider | frontend | ⬜ Pending |
+| BUG-44 | Car rental pickup location should show as subtext under provider | frontend | done_pending_uat |
 | BUG-46 | Activities selector missing from trip create flow (only present on edit) | frontend | ⬜ Pending |
 | BUG-48 | Country→state map shading zoom threshold too high / laggy | frontend | ⬜ Pending |
-| BUG-49 | City markers render behind state shading layer | frontend | ⬜ Pending |
+| BUG-49 | City markers render behind state shading layer | frontend | done_pending_uat |
 | BUG-52 | Trip search doesn't match on country name | backend | ⬜ Pending |
 | BUG-53 | Trip list place display: show state (not country) under city, surface country separately | ux | ⬜ Pending |
 | BUG-55 | City entry doesn't auto-populate country/state | backend | ⬜ Pending |
-| BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | ⬜ Pending |
+| BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | done_pending_uat |
 | BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
-| BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
+| BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | done_pending_uat |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
@@ -78,7 +78,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-04 | Dead code and one stale source comment left by the WP reskin and the ADL-28 companions migration | frontend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
 | BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
-| BRD-IT10 | Optional Google Maps URL per item — one-click directions (IT-10) | architect | ⬜ Pending |
+| BRD-IT10 | Optional Google Maps URL per item — one-click directions (IT-10) | architect | done_pending_uat |
 | UX-11 | Trip-list status pill colours should match map shading colours (admin-driven) | ux | ⬜ Pending |
 | WP-05 | Waypoint reskin must not be reported as closing unrelated data/behavior gaps it only reskins the display of | coo | ⬜ Pending |
 | BUG-43 | Apple Wallet (.pkpass) import to pre-populate booking details | integrations | ⬜ Pending |
@@ -135,4 +135,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_130 done · 10 deferred · 4 closed · 54 open — 198 tracked items_
+_133 done · 10 deferred · 4 closed · 54 open — 201 tracked items_

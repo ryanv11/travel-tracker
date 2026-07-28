@@ -138,6 +138,89 @@ block** — regex against natural language will false-positive (e.g. an agent qu
 very rule), and a hard block stalls an agent mid-task for no reason. Revisit block-vs-warn
 once the false-positive rate from real use is known.
 
+**The rule binds the whole team, and the hook now reaches the COO too (2026-07-28, OP-29).**
+It fired again on the very next wave: brief B2 (issue #298) asserted that *"AD-09's
+owner-only deactivation is not enforced on the backend today"* and bundled a "go enforce it"
+task on that premise. It was false — `adminRouter.use(requireOwner)` already gated every
+categories/activities route, and `security.access-matrix.test.ts` already had passing
+non-owner-403 tests for exactly that. The claim came out of a planning doc and the COO
+propagated it into the brief without a second probe. Only the brief's own instruction to
+double-probe caught it, before any code was written.
+
+Two things follow, both adopted on PO direction:
+
+1. **No role is exempt — explicitly including the COO.** The rule applies to every artifact
+   any role produces: deliverables, tracker notes, ADLs, plans, completion reports, **and
+   COO-authored briefs**. A claim inherited from an existing project document is *not*
+   pre-verified; age is not evidence. If you are about to build on "X doesn't exist," probe
+   it again yourself.
+2. **Enforcement had a COO-shaped hole and it has been closed.** The OP-26 hook matched only
+   `Write|Edit`, but the COO does not write briefs to files — it writes them into GitHub
+   issue bodies via Bash. The single highest-leverage place for a false absence was the one
+   place the hook could not see. It now also scans `gh issue create` / `gh pr create` /
+   `gh issue comment` bodies. The pattern set was widened at the same time: testing showed it
+   missed *both* phrasings that actually caused this project's false premises — "is not
+   enforced" and "there is no X" — so absence-of-enforcement language is now covered.
+
+### No wholesale rewrites of shared records (mandatory, OP-28)
+
+Adopted 2026-07-28 on PO direction: *"agents should never fully rewrite anything — if a full
+rewrite is required there is a fundamental issue/deviation and I'd want it double checked."*
+
+Trigger: two concurrent Frontend agents (B1 and B2) each rewrote
+`jobs/frontend/context/current.txt` in full on the same day. Each rewrite was individually
+reasonable and each silently dropped the other's thread record; it surfaced only as a merge
+conflict the COO hand-resolved. This was a **recurrence** — the Wave 0 concurrency notes
+record the same file colliding in 3 of 4 concurrent agents for the same reason, and the fix
+identified then was never adopted. Twice across two waves is a pattern, not an accident.
+
+**The rule, scoped by file class:**
+
+- **Shared-record files — append or amend only, never wholesale replacement.** These
+  accumulate entries across many agents and sessions, so replacing one destroys other
+  people's records: `jobs/**` (context docs, park docs, inbox, role tech docs),
+  `_project/tracker.json`, the BRD, the ADL log, the backlog clearance plan, `.planning/**`,
+  and `CLAUDE.md`. Mechanically: **use `Edit`, not `Write`, on any of these that already
+  exists.** Add a new dated entry; leave prior entries in place.
+- **Source code — a full-file rewrite is allowed, but must be declared.** A small module
+  legitimately changing in full is normal work and blocking it would be noise. But if you
+  replace a source file wholesale, **say so explicitly in your completion report with the
+  reason**, so the COO can double-check that it was a deliberate choice and not a deviation
+  from the brief.
+
+A blanket "never rewrite anything" was considered and deliberately narrowed to this split —
+the PO invited that calibration. Generated files, stubs a brief says to replace, and small
+modules changing entirely are all legitimate; the accumulating-record case is the one where
+a rewrite is nearly always wrong.
+
+**Hook-enforced (warn, not block).** `.claude/hooks/no-wholesale-rewrite.sh` fires on a
+`Write` to an already-tracked file under the shared-record paths and points the agent at
+`Edit`. Warn-only, following OP-26's precedent; revisit once the false-positive rate is known.
+
+### Scanner suppressions need COO sign-off (mandatory, OP-30)
+
+Adopted 2026-07-28. During B2, Gitleaks' `generic-api-key` rule flagged the literal string
+`Categories/Activities/Countries` in a tracker note the agent had just written — a genuine
+false positive. The agent resolved it by adding `.gitleaks.toml` with a narrow allowlist and
+went green. The config itself is sound (`useDefault = true` keeps every standard rule active;
+the allowlist is an exact-string match on that one phrase, not a path or file exemption), and
+it is kept.
+
+The precedent is the problem: an implementation agent independently weakening a **security
+scanner's** configuration in order to turn a red check green is not a call an implementation
+brief carries, however narrow the change.
+
+- **First, fix your own text.** When a scanner flags content *you just authored* and it is a
+  false positive, reword your text. Rephrasing a changelog note costs nothing and leaves the
+  scanner at full strength.
+- **Never add or widen a scanner suppression** — `.gitleaks.toml` allowlists, `nosemgrep`
+  comments on new code, `npm audit` exceptions, lint-rule disables — **without COO sign-off.**
+  Stop and report the finding instead. Existing `nosemgrep` annotations with a stated reason
+  (e.g. the `requireAuth`-applied-globally comments in `src/backend/routes/`) are unaffected;
+  this governs *new* suppressions.
+- A suppression the COO does approve carries a comment naming what was flagged, why it is a
+  false positive, and how it was verified — as `.gitleaks.toml` now does.
+
 ### BRD → tracker rule (mandatory)
 Whenever the BRD is updated (a changelog entry is written), the COO must create tracker
 entries for every new requirement ID introduced before closing the session. No BRD version
