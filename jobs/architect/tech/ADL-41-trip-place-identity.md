@@ -462,9 +462,26 @@ Two residual gaps:
 
 1. A `@libsql/client` major bump could flip the default and nothing would fail loudly. The
    symptom would be silent orphaning in production, discovered months later.
-2. **The remote Turso (`libsql://`) path is unverified.** Production runs on
+2. ~~**The remote Turso (`libsql://`) path is unverified.** Production runs on
    `TURSO_DATABASE_URL`; this environment's firewall reaches no Turso host, so the probes
-   above cover the embedded driver only.
+   above cover the embedded driver only.~~
+   > **VERIFIED (2026-07-28) — COO, QUAL-11.** The premise was wrong: the firewall *does*
+   > reach Turso via the ADL-33 / OP-21 diagnostic path, which is allowlisted. Probed staging
+   > with `scripts/agent-diagnostics/turso-query.mjs staging "PRAGMA foreign_keys"` →
+   > **returns 1**. Connection confirmed genuinely remote (`libsql://…turso.io` + auth token;
+   > the script has no file-URL fallback and exits if the URL is absent), so this is not a
+   > local-driver result misread as a remote one.
+   >
+   > This result is *stronger* than it looks given §7.2's own transport analysis below: because
+   > each statement is independently dispatched on the remote HTTP transport, a `PRAGMA
+   > foreign_keys` read reflects the per-statement server default — i.e. exactly the condition
+   > every cascade actually executes under.
+   >
+   > **Residual (unchanged, stated honestly):** this is a pragma *read* on a read-only
+   > connection, not a behavioural test that an FK-violating write is rejected. The diagnostic
+   > token is deliberately read-only and the script refuses non-SELECT, so the conclusive
+   > version needs write credentials this environment does not have. Residual gap 1 below is
+   > untouched and remains the reason for the startup assertion.
 
 The fix is **not** to issue `PRAGMA foreign_keys=ON` at connect. On the remote HTTP
 transport each statement is independently dispatched, so a PRAGMA set once has no reliable
@@ -738,8 +755,12 @@ cascade ruling, which §7.2 now settles as "no change required". It can dispatch
    still carries the wrong sizing.
 3. **§7.2.1 FK startup assertion** — small backend item, no tracker entry yet. Not a TR-14
    blocker; TR-14 works today. Worth raising as its own tracker item + GitHub issue.
-   Includes the open question of whether the remote Turso path enforces FKs, which cannot be
-   verified from this environment (firewall) and should be checked against staging.
+   ~~Includes the open question of whether the remote Turso path enforces FKs, which cannot be
+   verified from this environment (firewall) and should be checked against staging.~~
+   > **UPDATED (2026-07-28) — QUAL-11.** Tracked as QUAL-11. The remote-Turso half is
+   > **answered, not deferred to staging** — see §7.2's stamped residual gap 2; the "firewall
+   > reaches no Turso host" premise was false. PO direction 2026-07-28: the assertion itself
+   > rides along with the B9/QUAL-03 backend brief rather than dispatching separately.
 4. **§8.4 `trip_countries` doc-integrity gap** — `schema.ts:390-391` asserts the table is
    "derived from trip_places"; no code derives it. Either the comment or the behaviour is
    wrong. Independent of ADL-41; candidate tracker item.
