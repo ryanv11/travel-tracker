@@ -1,5 +1,11 @@
 import { useCallback, useState } from 'react';
-import { useLockTrip, useUnlockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
+import { useNavigate } from 'react-router-dom';
+import {
+  useDeleteTrip,
+  useLockTrip,
+  useUnlockTrip,
+  useUpdateTripStatus,
+} from '../../hooks/useTrips';
 import type { TripDetail, TripStatus } from '../../types/api';
 
 /** The linear next-step for the persistent status bar/stepper (F-04/TR-12). */
@@ -10,8 +16,9 @@ const NEXT_STATUS: Partial<Record<TripStatus, { to: TripStatus; label: string; h
 };
 
 /**
- * Shared trip-detail state/handlers — status transitions, lock/unlock, the
- * "Photos coming soon" toast, and the Edit/Add-Place modal toggles.
+ * Shared trip-detail state/handlers — status transitions, lock/unlock,
+ * delete (BUG-50/TR-14), the "Photos coming soon" toast, and the
+ * Edit/Add-Place modal toggles.
  *
  * WP-03/WP-04: extracted from `TripDetail.tsx` (desktop) so the new mobile
  * detail view (`MobileTripDetailView.tsx`) can share the exact same business
@@ -26,15 +33,20 @@ export function useTripDetailController(trip: TripDetail) {
   const [showAddPlace, setShowAddPlace] = useState(false);
   const [confirmUnlock, setConfirmUnlock] = useState(false);
   const [confirmLock, setConfirmLock] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [photosToast, setPhotosToast] = useState(false);
 
+  const navigate = useNavigate();
   const updateStatus = useUpdateTripStatus();
   const lockTrip = useLockTrip();
   const unlockTrip = useUnlockTrip();
+  const deleteTrip = useDeleteTrip();
 
   const isLocked = trip.status === 'locked';
   const statusError = updateStatus.error ?? lockTrip.error ?? unlockTrip.error;
   const isPending = updateStatus.isPending || lockTrip.isPending || unlockTrip.isPending;
+  const isDeleting = deleteTrip.isPending;
+  const deleteError = deleteTrip.error;
 
   // BUG-18: memoised so AddPlaceFlow's useEffect dep on onClose is stable
   const handleAddPlaceClose = useCallback(() => setShowAddPlace(false), []);
@@ -69,6 +81,38 @@ export function useTripDetailController(trip: TripDetail) {
     setTimeout(() => setPhotosToast(false), 2500);
   };
 
+  // BUG-50/TR-14: opens the delete-confirmation dialog. Resets any previous
+  // attempt's error, same precedent as PlaceSection's remove-place flow.
+  const handleDeleteClick = () => {
+    deleteTrip.reset();
+    setConfirmDelete(true);
+  };
+
+  // TR-14 success criterion: "attempting to delete a Locked trip is refused
+  // with a message directing the user to unlock." The trip's lock state is
+  // already known client-side (trip.status), so a locked trip never reaches
+  // the backend's LockError — the dialog's confirm action instead re-routes
+  // straight into the existing unlock flow rather than duplicating the
+  // lock/unlock business rule in a second place.
+  const handleDeleteDialogConfirm = () => {
+    if (isLocked) {
+      setConfirmDelete(false);
+      setConfirmUnlock(true);
+      return;
+    }
+    void handleDeleteConfirm();
+  };
+
+  // Deletes the trip, then navigates back to the trips list — a deleted trip
+  // has nothing left to keep selected (unlike BUG-58, where a status change
+  // alone must NOT navigate away). Mirrors the bulk-delete precedent in
+  // DesktopTripsLayout/MobileTripsLayout (`navigate('/trips', { replace: true })`).
+  const handleDeleteConfirm = async () => {
+    await deleteTrip.mutateAsync(trip.id);
+    setConfirmDelete(false);
+    navigate('/trips', { replace: true });
+  };
+
   return {
     showEdit,
     setShowEdit,
@@ -78,10 +122,14 @@ export function useTripDetailController(trip: TripDetail) {
     setConfirmUnlock,
     confirmLock,
     setConfirmLock,
+    confirmDelete,
+    setConfirmDelete,
     photosToast,
     isLocked,
     statusError,
     isPending,
+    isDeleting,
+    deleteError,
     handleAddPlaceClose,
     nextStep,
     handleNextStep,
@@ -89,5 +137,7 @@ export function useTripDetailController(trip: TripDetail) {
     handleLockConfirm,
     handleUnlockConfirm,
     handlePhotos,
+    handleDeleteClick,
+    handleDeleteDialogConfirm,
   };
 }

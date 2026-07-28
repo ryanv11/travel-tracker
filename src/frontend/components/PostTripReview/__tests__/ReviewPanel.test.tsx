@@ -234,6 +234,50 @@ describe('ReviewPanel', () => {
   });
 
   // ----------------------------------------------------------------
+  // BUG-58 regression: backward status transition must not clear selection
+  // ----------------------------------------------------------------
+
+  // BUG-58: "Return to Planning" is review_pending -> planning, a *backward*
+  // move through the status workflow. The old handler called onClose() right
+  // after the status mutation succeeded, which — one level up, in
+  // TripDetailPage/MobileTripsLayout — navigates to '/trips' and drops the
+  // :id param, clearing the selection entirely (TR-11 violation). The fix:
+  // the mutation alone is enough: once status flips to 'planning', the parent
+  // stops rendering ReviewPanel for this trip and shows TripDetail instead,
+  // with the same :id still selected. Contrast with the Lock action below,
+  // which is a *forward* transition and is unaffected by this brief.
+  it('BUG-58 regression: "Return to Planning" does NOT call onClose', async () => {
+    mockReturnToPlanning.mutateAsync.mockResolvedValue({});
+    const trip = makeTrip([makePlace([])]);
+    render(<ReviewPanel trip={trip} onClose={onClose} />);
+
+    // The page's trigger button and the confirm dialog's confirm button share
+    // the exact same accessible name ("Return to Planning") once the dialog
+    // opens — the trigger click, the dialog's confirm click.
+    await userEvent.click(screen.getByRole('button', { name: 'Return to Planning' }));
+    const [, confirmButton] = screen.getAllByRole('button', { name: 'Return to Planning' });
+    await userEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(mockReturnToPlanning.mutateAsync).toHaveBeenCalledWith({
+        id: 10,
+        status: 'planning',
+      });
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('"Return to Planning" still shows a confirmation dialog before mutating', async () => {
+    const trip = makeTrip([makePlace([])]);
+    render(<ReviewPanel trip={trip} onClose={onClose} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /Return to Planning/ }));
+
+    expect(screen.getByText('Return to planning?')).toBeInTheDocument();
+    expect(mockReturnToPlanning.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  // ----------------------------------------------------------------
   // BUG-05 regression: "Mark all Completed" must exclude next_time items
   // ----------------------------------------------------------------
 

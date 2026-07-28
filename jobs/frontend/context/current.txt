@@ -1,3 +1,101 @@
+FRONTEND CONTEXT — as of 2026-07-28 (BUG-50/BUG-58, brief B7, Wave 1 sub-wave B)
+
+STATUS: fix/b7-trip-delete-and-selection branch, GitHub issue #316, tracker
+  BUG-50 (P1, TR-14) + BUG-58 (P2). B5 folded into this brief but its other
+  two items (BUG-06, BUG-37) were explicitly out of scope and not touched.
+  Concurrent with B8 (TripItemsSection.tsx/useItems.ts) and B4 (TripList.tsx
+  filterAndSortTrips + backend route tests) — stayed off both, no overlap.
+
+  BUG-50/TR-14: per-trip delete affordance. tripsRouter.delete('/:id')
+  already existed (src/backend/routes/trips.ts:429) — frontend-only per the
+  brief, no backend route added. Delete button added to TripDetail.tsx's
+  header action row (desktop, icon+label) and MobileTripDetailView.tsx's
+  compact icon row (mobile, new TrashIcon in components/icons/). Both reuse
+  the existing ConfirmDialog (per the brief's explicit instruction — no new
+  dialog written) and both share logic via useTripDetailController.ts, which
+  gained handleDeleteClick/handleDeleteDialogConfirm/handleDeleteConfirm and
+  wraps the pre-existing useDeleteTrip hook. Confirmation names what will be
+  lost (place + item counts), per TR-14's success criteria. Locked trips:
+  the button stays visible/reachable (unlike Edit, which hides outright) —
+  clicking it on a locked trip shows a message directing the user to unlock,
+  and the dialog's confirm button re-routes straight into the existing
+  unlock confirmation flow rather than duplicating the lock/unlock rule
+  client-side or making a doomed API call. KNOWN GAP surfaced, not fixed:
+  a review_pending trip renders ReviewPanel.tsx instead of TripDetail/
+  MobileTripDetailView, which has no Delete affordance — such a trip can't
+  currently be deleted without changing its status first. The brief's own
+  file-scope anchors named only TripDetail.tsx/MobileTripDetailView.tsx, so
+  this was flagged rather than silently expanded into a third file.
+
+  BUG-58: classification was this brief's first task, per CLAUDE.md's OP-32
+  defect-classification rule — done via TWO INDEPENDENT probes (git log
+  --follow on TripDetailPage.tsx/ReviewPanel.tsx/the unlock handler, showing
+  no changes from PR #208; and a full text diff of the pre-#208
+  TripsLayout.tsx/TripDetail.tsx against today's DesktopTripsLayout.tsx/
+  TripDetail.tsx). Both show the actual mechanism is byte-identical before
+  and after the WP-03/WP-04 reskin — CLASSIFIED AS A GAP, NOT A REGRESSION.
+  It only surfaced in the same UAT session as #208 by coincidence of timing
+  (that was the first UAT pass exercising the reskinned Trips flow at all).
+  Root cause: ReviewPanel.tsx's handleReturnToPlanning (the only reachable
+  backward transition, review_pending -> planning, BUG-04's fix) called
+  onClose() right after the status mutation succeeded; onClose is wired to
+  navigate('/trips') one level up, dropping the trip's :id and clearing
+  selection in the same click that changes status. Fix: dropped the
+  onClose() call — the mutation alone suffices, since once trip.status
+  flips to 'planning' the parent (TripDetailPage / MobileTripsLayout)
+  naturally stops rendering ReviewPanel for this trip and renders
+  TripDetail/MobileTripDetailView instead, same :id still selected. The
+  OTHER backward transition (Unlock, locked -> review_pending, in
+  useTripDetailController) never called onClose() in the first place and
+  was already correct — added a regression test rather than just trusting
+  inspection, per the negative-findings-adjacent discipline of this project.
+  NOT touched, flagged instead: ReviewPanel's forward Lock path
+  (review_pending -> locked) has the identical onClose()-after-mutation
+  pattern, but is a forward transition, not filed as BUG-58, and explicitly
+  out of this brief's stated scope ("moves backward") — surfaced to COO as
+  a related but separate possible issue rather than fixed here.
+
+  VERIFICATION: npm run check (biome, clean after one auto-fix pass on new
+  test files), npm run type:check:all (clean), npm run test:backend
+  (599 passed / 1 skipped, unaffected — no backend files touched),
+  npm run test:frontend (191 passed, includes 14 new tests across
+  useTripDetailController.test.tsx, TripDetail.test.tsx,
+  MobileTripDetailView.test.tsx, and +2 in ReviewPanel.test.tsx),
+  npm run status:check (STATUS.md regenerated and in sync after the tracker
+  edits). See completion report for PR number and CI status.
+
+  KEY FILE LOCATIONS (changed this thread)
+    src/frontend/components/TripDetail/useTripDetailController.ts (delete
+      state/handlers added; shared by both desktop and mobile detail views)
+    src/frontend/components/TripDetail/TripDetail.tsx (desktop Delete button
+      + ConfirmDialog)
+    src/frontend/components/TripDetail/MobileTripDetailView.tsx (mobile
+      Delete icon button + ConfirmDialog)
+    src/frontend/components/PostTripReview/ReviewPanel.tsx (BUG-58 fix:
+      removed onClose() from handleReturnToPlanning)
+    src/frontend/components/icons/TrashIcon.tsx (new icon, added to barrel)
+    src/frontend/components/icons/index.ts, icons.test.tsx (14 icons now)
+    src/frontend/components/TripDetail/__tests__/useTripDetailController.test.tsx (new)
+    src/frontend/components/TripDetail/__tests__/TripDetail.test.tsx (new)
+    src/frontend/components/TripDetail/__tests__/MobileTripDetailView.test.tsx (new)
+    src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx (+2 tests)
+    _project/tracker.json (BUG-50, BUG-58 notes appended, both flipped to
+      done_pending_uat), _project/STATUS.md (regenerated)
+
+  NEXT STEPS (when resumed)
+    COO: review PR (branch fix/b7-trip-delete-and-selection), consider the
+    two flagged-not-fixed observations above (review_pending trips have no
+    delete affordance; ReviewPanel's forward Lock path shares BUG-58's
+    onClose()-after-mutation pattern) for a possible follow-up tracker
+    entry, merge via /coo-merge-and-close when CI is green, flip BUG-50/
+    BUG-58 status to "done".
+
+========================================================================
+PRIOR THREAD, SAME DAY — BUG-51 / brief (PR pending at the time this thread
+branched). Retained in full below per the newest-first pattern already
+established in this file's history.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-07-28 (BUG-51 trips cache invalidation)
 
 STATUS: fix/bug51-trips-cache-invalidation branch, GitHub issue #305, tracker

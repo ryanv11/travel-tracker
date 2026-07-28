@@ -18,10 +18,14 @@
  * TripItemsSection, PlaceSection (with Set/Edit dates + Remove), ItemCard
  * (ratings/carried-forward/subtext), the locked banner, and the Unlock
  * affordance (C2) — via the same shared components desktop uses.
+ *
+ * BUG-50/TR-14: adds a third icon-only button (Delete/TrashIcon) alongside
+ * Edit/Photos, same reachable-even-when-locked rule as desktop — see
+ * TripDetail.tsx's module doc for the full rationale.
  */
 import type { TripDetail } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
-import { BackChevronIcon, EditIcon, LockedIcon, PhotosIcon } from '../icons';
+import { BackChevronIcon, EditIcon, LockedIcon, PhotosIcon, TrashIcon } from '../icons';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { StatusBadge } from '../shared/StatusBadge';
@@ -51,6 +55,24 @@ const ICON_BUTTON_CLASS =
  */
 export function MobileTripDetailView({ trip, onBack }: MobileTripDetailViewProps) {
   const c = useTripDetailController(trip);
+
+  // TR-14: the confirmation step must name what will be lost — trip, places, items.
+  const placeCount = trip.places.length;
+  const itemCount = trip.places.reduce((sum, place) => sum + place.items.length, 0);
+  const deleteDialogCopy = c.isLocked
+    ? {
+        title: 'This trip is locked',
+        message: "Locked trips can't be deleted. Unlock this trip first, then try again.",
+        confirmLabel: 'Unlock Trip',
+      }
+    : {
+        title: `Delete "${trip.name}"?`,
+        message:
+          placeCount > 0
+            ? `This permanently deletes the trip, along with ${placeCount} place${placeCount === 1 ? '' : 's'} and ${itemCount} item${itemCount === 1 ? '' : 's'}. This cannot be undone.`
+            : 'This permanently deletes the trip. This cannot be undone.',
+        confirmLabel: 'Delete Trip',
+      };
 
   return (
     <div className="flex flex-col h-full bg-wp-bg-page min-w-0" data-testid="trip-detail">
@@ -96,6 +118,20 @@ export function MobileTripDetailView({ trip, onBack }: MobileTripDetailViewProps
                 className={ICON_BUTTON_CLASS}
               >
                 <PhotosIcon size={18} />
+              </button>
+              {/* BUG-50/TR-14: Delete — reachable even when locked (see module doc).
+                  Own class string (not ICON_BUTTON_CLASS + override) because Tailwind
+                  utility precedence is CSS source order, not class-attribute order —
+                  appending a second text-color utility on top of ICON_BUTTON_CLASS's
+                  own `text-wp-ink` would be a real conflict, not a safe override. */}
+              <button
+                type="button"
+                onClick={c.handleDeleteClick}
+                aria-label="Delete Trip"
+                title="Delete Trip"
+                className="w-9 h-9 rounded-wp bg-wp-bg-surface border border-wp-border hover:bg-wp-bg-subtle flex items-center justify-center text-wp-btn-destructive-text cursor-pointer flex-shrink-0"
+              >
+                <TrashIcon size={18} />
               </button>
             </div>
           </div>
@@ -270,6 +306,20 @@ export function MobileTripDetailView({ trip, onBack }: MobileTripDetailViewProps
           void c.handleUnlockConfirm();
         }}
         onCancel={() => c.setConfirmUnlock(false)}
+      />
+
+      {/* BUG-50/TR-14: Delete trip — locked trips route the confirm action into
+          the unlock flow instead (see useTripDetailController). */}
+      <ConfirmDialog
+        isOpen={c.confirmDelete}
+        title={deleteDialogCopy.title}
+        message={deleteDialogCopy.message}
+        confirmLabel={deleteDialogCopy.confirmLabel}
+        confirmingLabel="Deleting…"
+        onConfirm={c.handleDeleteDialogConfirm}
+        onCancel={() => c.setConfirmDelete(false)}
+        error={c.deleteError}
+        isConfirming={c.isDeleting}
       />
     </div>
   );

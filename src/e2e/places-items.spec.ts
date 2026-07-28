@@ -118,7 +118,11 @@ test('delete item with confirmation', async ({ page, request }) => {
   await page.goto(`http://localhost:5173/trips/${trip.id}`);
   await expect(page.getByText('Note to delete').first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Delete' }).first().click();
+  // exact: true — BUG-50/TR-14 added a trip-level "Delete Trip" button
+  // (aria-label) higher up the page; Playwright's default `name` match is a
+  // substring match, so a non-exact 'Delete' now matches both buttons and
+  // .first() would pick the wrong one (trip-level, not this item's own).
+  await page.getByRole('button', { name: 'Delete', exact: true }).first().click();
 
   // ConfirmDialog uses plain div, not role="dialog"; scope via heading
   const deleteModal = page.getByRole('heading', { name: 'Delete item?' }).locator('..');

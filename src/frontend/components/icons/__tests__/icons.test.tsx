@@ -21,6 +21,7 @@ import {
   PhotosIcon,
   RestaurantIcon,
   SuitcaseIcon,
+  TrashIcon,
 } from '..';
 
 const ALL_ICONS = [
@@ -37,17 +38,20 @@ const ALL_ICONS = [
   AdminIcon,
   BackChevronIcon,
   EditIcon,
+  TrashIcon,
 ];
 
 describe('Waypoint icon set', () => {
   // NOTE (spec/brief count discrepancy, flagged to COO in WP-02): the WP-02 brief
   // and the spec's own Phase 1 success criteria said "11 icons total (8
   // item/status + 4 nav/chrome)" — but 8 + 4 = 12, and spec §3's two tables
-  // enumerated 12 icons with real path data. WP-03 adds a 13th (EditIcon, the
-  // mobile detail-view pencil glyph, a new addition documented in spec §3's
-  // "Two additional icons used only in the Trips mockups" table).
-  it('has all 13 icon components documented in spec §3 (WP-02: 12, WP-03 adds EditIcon)', () => {
-    expect(ALL_ICONS).toHaveLength(13);
+  // enumerated 12 icons with real path data. WP-03 added a 13th (EditIcon, the
+  // mobile detail-view pencil glyph, documented in spec §3's "Two additional
+  // icons used only in the Trips mockups" table). BUG-50/TR-14 (this brief) adds
+  // a 14th, TrashIcon, for the per-trip delete affordance — not in the original
+  // spec's icon tables since the delete affordance itself didn't exist yet.
+  it('has all 14 icon components (WP-02: 12, WP-03 adds EditIcon, BUG-50 adds TrashIcon)', () => {
+    expect(ALL_ICONS).toHaveLength(14);
   });
 
   it.each(ALL_ICONS)('renders a literal <svg> element, sized via props', (Icon) => {
