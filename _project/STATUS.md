@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (55)
+## Open work (54)
 
 ### P0 — Blockers (1)
 
@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-50 | No way to delete an entire trip | frontend | done_pending_uat |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
 
-### P2 — Important (29)
+### P2 — Important (28)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -55,7 +55,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-46 | Activities selector missing from trip create flow (only present on edit) | frontend | ⬜ Pending |
 | BUG-48 | Country→state map shading zoom threshold too high / laggy | frontend | ⬜ Pending |
 | BUG-49 | City markers render behind state shading layer | frontend | done_pending_uat |
-| BUG-52 | Trip search doesn't match on country name | backend | ⬜ Pending |
+| BUG-52 | Trip search doesn't match on country name | frontend | done_pending_uat |
 | BUG-53 | Trip list place display: show state (not country) under city, surface country separately | ux | ⬜ Pending |
 | BUG-55 | City entry doesn't auto-populate country/state | backend | ⬜ Pending |
 | BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | done_pending_uat |
@@ -64,7 +64,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
-| QUAL-17 | 15 further backend test files hand-roll the same 21-table DDL that QUAL-03 just removed from test-db.ts | backend | ⬜ Pending |
 
 ### P3 — Minor (23)
 
@@ -74,7 +73,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | BUG-37 | Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked' | frontend | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
-| QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
+| QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ◐ Partial |
 | QUAL-04 | Dead code and one stale source comment left by the WP reskin and the ADL-28 companions migration | frontend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
 | BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
@@ -86,7 +85,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-45 | Convert free-text airline/car-rental-provider fields to a sourced dropdown with Other fallback | coo | ⬜ Pending |
 | BUG-47 | Auto-populate activities from trip/place content instead of manual pre-selection | architect | ⬜ Pending |
 | BUG-54 | Category/activity color customization | ux | ⬜ Pending |
-| BUG-56 | City name not auto-capitalized on entry | frontend | ⬜ Pending |
+| BUG-56 | City name not auto-capitalized on entry | frontend | done_pending_uat |
 | QUAL-07 | Standing docs-vs-code audit — recurring Docs brief to catch prose/reality drift before someone trips over it | docs | ⬜ Pending |
 | DEP-03 | GitHub Actions pinned to v4 target Node.js 20 — deprecated, force-run on Node 24 | unassigned | ⬜ Pending |
 | QUAL-10 | jobs/database/tech/schema.ts is an unmaintained copy of the real schema | docs | ⬜ Pending |
@@ -102,7 +101,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 44/58 | 44 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `██████████░░░░░░░░░░` 11/23 | 11 | 12 | 1 |
+| chore | `██████████▓░░░░░░░░░` 12/23 | 12 | 11 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -136,4 +135,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_133 done · 10 deferred · 4 closed · 55 open — 202 tracked items_
+_134 done · 10 deferred · 4 closed · 54 open — 202 tracked items_
