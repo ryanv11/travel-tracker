@@ -274,3 +274,109 @@ OPEN FLAGS FOR COO
 NEXT STEPS (when resumed)
   COO: review PR (see completion report for #), merge via
   /coo-merge-and-close when CI is green.
+
+================================================================================
+2026-07-28 — B8: rating sort/filter controls (IT-08/IT-09, BRD-IT0809, issue
+#317, PR #318)
+================================================================================
+
+TASK
+  Build frontend rating sort/filter controls for item list views. Backend
+  (PR #90, March 2026) already supports sort_by=rating, sort_order,
+  min_rating on GET /api/trips/:tripId/items and GET /api/cities/:id/items;
+  this brief was the frontend half, stranded four months for lack of BRD
+  success criteria (added BRD v3.12).
+
+SCOPE FINDING — brief's stated surface didn't match reality
+  Brief named TripItemsSection.tsx + useItems.ts as "your surface." Two
+  probes (reading ItemCard.tsx's hasRating check; reading TripItemsSection's
+  own module doc restricting it to Flight/Car Rental) confirmed rateable
+  types (restaurant/hotel/experience) NEVER render in TripItemsSection.tsx —
+  they render in PlaceSection.tsx, which the brief didn't name. Built the
+  controls there instead (not B7-owned — B7 owns TripDetail.tsx/
+  MobileTripDetailView.tsx, the parents that render PlaceSection, not the
+  component itself). TripItemsSection.tsx left functionally unchanged, with
+  a module-doc comment explaining why no controls were added — flagged as a
+  deliberate scope narrowing, not a silent gap, per the brief's own "if a
+  view is impractical to cover, say which and why" instruction.
+
+SECOND FINDING — IT-09 had zero frontend surface
+  GET /api/cities/:id/items (IT-09's cross-trip city view) had no frontend
+  consumer at all before this PR. Two independent probes: (1) a repo-wide
+  grep for any reference to the endpoint or a hook wrapping it found only
+  the CityItem type declaration in types/api.ts; (2) reading useCities.ts in
+  full confirmed no query function existed. No page, no route, no nav entry
+  point anywhere. Since IT-09's success criteria require this view to exist
+  and behave correctly, built it net-new rather than leaving it
+  unimplemented: useCityItems hook (useCities.ts), CityItemsPage.tsx, a new
+  /cities/:id route in App.tsx, reached via a new link on the city name in
+  PlaceSection.tsx.
+
+ENUMERATED ITEM LIST VIEWS (IT-08 "all item list views")
+  PlaceSection.tsx (desktop + mobile via shared component) — controls added,
+    only place rateable items render.
+  TripItemsSection.tsx — controls NOT added, Flight/Car Rental only, never
+    rateable (documented in-file).
+  CityItemsPage.tsx (new, IT-09) — controls added, server-side via the
+    dedicated endpoint's own query params.
+  ReviewPanel/ReviewItemRow.tsx (post-trip review) — controls NOT added:
+    it's the flow for *assigning* ratings pre-completion, not a browse/list
+    view; sorting by a rating mid-entry isn't meaningful and BUG-05's bulk-
+    complete already treats all items uniformly regardless of rating.
+
+DESIGN DECISION — client-side (PlaceSection) vs server-side (CityItemsPage)
+  PlaceSection's place.items arrives pre-loaded, nested inside the trip
+  detail fetch (GET /api/trips/:id), which has no sort_by/min_rating query
+  support (confirmed: grep of trips.ts's buildTripResponse shows no
+  reference to either param) — client-side sort/filter over already-loaded
+  data via applyRatingSortFilter() (useItems.ts) avoids restructuring
+  TripDetail's data flow (owned by concurrent brief B7) into N per-place
+  fetches, and avoids extra round-trips on every toggle. CityItemsPage, by
+  contrast, calls a dedicated flat endpoint built for exactly this, so
+  sort/filter there passes straight through as real query params (server-
+  side), matching the endpoint's own default (rating DESC, unfiltered).
+  Both share one RatingSortFilterControls component and one semantic
+  contract (unrated excluded by filter, unrated sorts last, clearing resets
+  to default) so they behave identically per IT-09's AC.
+
+VERIFICATION
+  npm run type:check:all — clean. npm run test:frontend — 195/195 passing
+  (21 new tests: applyRatingSortFilter unit tests mirroring the backend's
+  own sort/filter semantics test file; useCityItems query-param construction;
+  CityItemsPage rendering/empty/error states; PlaceSection sort/filter
+  interaction + city-link tests, including a MemoryRouter wrapper added to
+  that test file since PlaceSection's city name is now a <Link>). npm run
+  test:backend — 599/599 passing, unaffected (no backend files touched).
+  npm run check (Biome CI, incl. organizeImports) — clean. Full /pre-push
+  checklist run; PR #318 CI green 18/18.
+
+KEY FILE LOCATIONS (changed/added this thread)
+  src/frontend/components/TripDetail/PlaceSection.tsx (sort/filter UI,
+    city-name link)
+  src/frontend/components/TripDetail/TripItemsSection.tsx (doc comment only
+    — deliberate non-change, see above)
+  src/frontend/components/shared/RatingSortFilterControls.tsx (new, shared)
+  src/frontend/hooks/useItems.ts (applyRatingSortFilter,
+    RatingSortFilterState, DEFAULT_RATING_SORT_FILTER)
+  src/frontend/hooks/useCities.ts (useCityItems, new)
+  src/frontend/pages/CityItemsPage.tsx (new page)
+  src/frontend/App.tsx (new /cities/:id route)
+  Plus matching test files under each __tests__/ directory.
+
+OPEN FLAGS FOR COO
+  None blocking. Two things worth a look when reviewing:
+  1. CityItemsPage's city-name/country-name display comes from router
+     location.state (passed by PlaceSection's link) rather than a fetched
+     city record — a direct/refreshed visit to /cities/:id with no state
+     falls back to a generic "This city" heading. Acceptable for a first
+     cut (the only entry point today is that link) but worth knowing if a
+     second entry point (e.g. a city search) gets added later without a
+     city-name fetch.
+  2. Tracker BRD-IT0809 set to done_pending_uat (not done) per the UAT gate
+     — flip after PO PASS verdict.
+
+NEXT STEPS (when resumed)
+  COO: review PR #318, merge via /coo-merge-and-close when ready. PO: UAT
+  needed to close BRD-IT0809 per the mandatory UAT gate — suggest checking
+  the two-probe-confirmed IT-09 net-new page in particular, since it's the
+  one part of this brief that didn't exist in any form before today.

@@ -37,7 +37,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
-| BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | ◐ Partial |
+| BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | done_pending_uat |
 | BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
 | BRD-FL04 | Flight number lookup — auto-populate fields from flight number + date (FL-04) | backend | ⬜ Pending |
