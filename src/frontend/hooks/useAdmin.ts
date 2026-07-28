@@ -154,6 +154,10 @@ export function useCreateCompanion() {
     mutationFn: (name: string) => apiPost<Companion>('/api/companions', { name }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
+      // BUG-51: trips embed the companion's name via a live LEFT JOIN, not a
+      // denormalised copy — a fresh ['trips'] query would keep serving the
+      // pre-mutation name until something else forced a refetch.
+      void qc.invalidateQueries({ queryKey: ['trips'] });
     },
   });
 }
@@ -166,6 +170,9 @@ export function useUpdateCompanion() {
       apiPatch<Companion>(`/api/companions/${id}`, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
+      // BUG-51: see useCreateCompanion — a companion rename must invalidate
+      // every trip referencing it, not just the admin companions list.
+      void qc.invalidateQueries({ queryKey: ['trips'] });
     },
   });
 }
@@ -177,6 +184,9 @@ export function useDeleteCompanion() {
     mutationFn: (id: number) => apiDelete(`/api/companions/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
+      // BUG-51: see useCreateCompanion — deactivation must also refresh trips
+      // that reference this companion.
+      void qc.invalidateQueries({ queryKey: ['trips'] });
     },
   });
 }
