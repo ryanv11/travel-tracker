@@ -1,10 +1,10 @@
 /**
  * Waypoint icon set (WP-02/WP-03, spec §3) — barrel export.
  *
- * 8 item/status icons + 5 nav/chrome icons (the WP-03 addition is EditIcon, the
- * mobile detail-view compact Edit/Photos icon pair's Edit glyph) = 13 total, all
- * literal inline `<svg>` JSX components (never `dangerouslySetInnerHTML` —
- * frameworks.txt rule 22 / C8).
+ * 8 item/status icons + 6 nav/chrome icons (the WP-03 addition was EditIcon, the
+ * mobile detail-view compact Edit/Photos icon pair's Edit glyph; BUG-50/TR-14 adds
+ * TrashIcon for the per-trip delete affordance) = 14 total, all literal inline
+ * `<svg>` JSX components (never `dangerouslySetInnerHTML` — frameworks.txt rule 22 / C8).
  *
  * NOTE (carried from WP-02): the WP-02 brief and the spec's own Phase 1 success
  * criteria said "11 icons total" but enumerated 8 + 4 = 12 — a count error in the
@@ -32,3 +32,4 @@ export { NoteIcon } from './NoteIcon';
 export { PhotosIcon } from './PhotosIcon';
 export { RestaurantIcon } from './RestaurantIcon';
 export { SuitcaseIcon } from './SuitcaseIcon';
+export { TrashIcon } from './TrashIcon';

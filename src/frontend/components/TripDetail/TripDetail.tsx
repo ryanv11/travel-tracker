@@ -18,11 +18,20 @@
  *   C2: Unlock button/flow preserved as new stepper-card chrome (mockup has no
  *       unlock affordance at all — see StatusStepper's doc comment).
  *
- * Locked trips show a read-only banner and hide all write controls.
+ * BUG-50/TR-14: per-trip "Delete" affordance in the header action row, next to
+ * Edit/Photos. Deliberately NOT hidden when the trip is locked (unlike Edit) —
+ * TR-14 requires the affordance stay reachable and a locked-trip delete attempt
+ * be refused with a message directing the user to unlock, rather than the
+ * button disappearing with no explanation. See useTripDetailController's
+ * handleDeleteDialogConfirm for how that refusal re-routes into the existing
+ * unlock flow instead of duplicating the lock/unlock rule client-side.
+ *
+ * Locked trips show a read-only banner and hide all write controls (Delete is
+ * the one deliberate exception, see above).
  */
 import type { TripDetail as TripDetailType } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
-import { EditIcon, LockedIcon, PhotosIcon } from '../icons';
+import { EditIcon, LockedIcon, PhotosIcon, TrashIcon } from '../icons';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { StatusBadge } from '../shared/StatusBadge';
@@ -45,6 +54,24 @@ interface TripDetailProps {
  */
 export function TripDetail({ trip }: TripDetailProps) {
   const c = useTripDetailController(trip);
+
+  // TR-14: the confirmation step must name what will be lost — trip, places, items.
+  const placeCount = trip.places.length;
+  const itemCount = trip.places.reduce((sum, place) => sum + place.items.length, 0);
+  const deleteDialogCopy = c.isLocked
+    ? {
+        title: 'This trip is locked',
+        message: "Locked trips can't be deleted. Unlock this trip first, then try again.",
+        confirmLabel: 'Unlock Trip',
+      }
+    : {
+        title: `Delete "${trip.name}"?`,
+        message:
+          placeCount > 0
+            ? `This permanently deletes the trip, along with ${placeCount} place${placeCount === 1 ? '' : 's'} and ${itemCount} item${itemCount === 1 ? '' : 's'}. This cannot be undone.`
+            : 'This permanently deletes the trip. This cannot be undone.',
+        confirmLabel: 'Delete Trip',
+      };
 
   return (
     <div className="flex flex-col h-full bg-wp-bg-page" data-testid="trip-detail">
@@ -117,6 +144,18 @@ export function TripDetail({ trip }: TripDetailProps) {
               >
                 <PhotosIcon size={14} />
                 Photos
+              </button>
+              {/* BUG-50/TR-14: Delete — reachable even when locked (see module doc).
+                  aria-label disambiguates from each item's own per-item "Delete"
+                  button (ItemCard) for assistive tech and test queries alike. */}
+              <button
+                type="button"
+                onClick={c.handleDeleteClick}
+                aria-label="Delete Trip"
+                className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-bg-surface text-wp-btn-destructive-text border border-wp-border hover:bg-wp-btn-destructive-bg hover:border-wp-btn-destructive-border cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <TrashIcon size={14} />
+                <span aria-hidden="true">Delete</span>
               </button>
             </div>
           </div>
@@ -261,6 +300,20 @@ export function TripDetail({ trip }: TripDetailProps) {
           void c.handleUnlockConfirm();
         }}
         onCancel={() => c.setConfirmUnlock(false)}
+      />
+
+      {/* BUG-50/TR-14: Delete trip — locked trips route the confirm action into
+          the unlock flow instead (see useTripDetailController). */}
+      <ConfirmDialog
+        isOpen={c.confirmDelete}
+        title={deleteDialogCopy.title}
+        message={deleteDialogCopy.message}
+        confirmLabel={deleteDialogCopy.confirmLabel}
+        confirmingLabel="Deleting…"
+        onConfirm={c.handleDeleteDialogConfirm}
+        onCancel={() => c.setConfirmDelete(false)}
+        error={c.deleteError}
+        isConfirming={c.isDeleting}
       />
     </div>
   );

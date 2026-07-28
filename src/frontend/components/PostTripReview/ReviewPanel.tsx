@@ -41,11 +41,16 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
     onClose();
   };
 
-  // BUG-04: allow reverting review_pending → planning
+  // BUG-04: allow reverting review_pending → planning.
+  // BUG-58: this is a *backward* status transition — TR-11 promises the right
+  // panel just reflects the new status without navigating away, so this must
+  // NOT call onClose() the way handleLock does. Once the status flips to
+  // 'planning', the parent (TripDetailPage / MobileTripsLayout) re-renders
+  // this trip through TripDetail/MobileTripDetailView instead of ReviewPanel
+  // on its own — no navigation needed, and the trip stays selected.
   const handleReturnToPlanning = async () => {
     await returnToPlanning.mutateAsync({ id: trip.id, status: 'planning' });
     setShowConfirmReturnToPlanning(false);
-    onClose();
   };
 
   /** BUG-05: only bulk-complete consider/confirmed items — not next_time */
