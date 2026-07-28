@@ -1439,7 +1439,7 @@
       "priority": "P2",
       "brdRefs": ["IT-08","IT-09"],
       "phase": 3,
-      "notes": "Backend API done and MERGED: PR #90 (issue #89) merged 2026-03-24. sort_by=rating, sort_order=asc|desc, min_rating=1-5 added to GET /api/trips/:tripId/items and GET /api/cities/:id/items. Frontend UI (sort/filter controls in item list views) is NOT built — it is brief B8 in jobs/COO/backlog-clearance-plan.md §4, not yet dispatched. Status corrected in-progress -> partial 2026-07-26 (QUAL-06): the entry had said 'CI green, pending merge' for four months after the merge and read as live work-in-flight when nothing was in flight."
+      "notes": "Backend API done and MERGED: PR #90 (issue #89) merged 2026-03-24. sort_by=rating, sort_order=asc|desc, min_rating=1-5 added to GET /api/trips/:tripId/items and GET /api/cities/:id/items. Frontend UI (sort/filter controls in item list views) is NOT built — it is brief B8 in jobs/COO/backlog-clearance-plan.md §4, not yet dispatched. Status corrected in-progress -> partial 2026-07-26 (QUAL-06): the entry had said 'CI green, pending merge' for four months after the merge and read as live work-in-flight when nothing was in flight. BRD GATE CLEARED 2026-07-28 (BRD v3.12): IT-08 and IT-09 shipped their backend in March 2026 but NEITHER requirement ever stated success criteria, so B8 could not dispatch under the success-criteria-before-dispatch gate — this was the real reason it stayed stranded, not just missing brief capacity. Both now carry measurable criteria. Frontend absence re-confirmed 2026-07-28 by two independent probes before briefing: (1) no file under src/frontend/hooks/ references sort_by, sort_order or min_rating; (2) src/frontend/components/TripDetail/TripItemsSection.tsx contains no sort, filter or rating control. Backend surface confirmed present at src/backend/routes/items.ts:38."
     },
     {
       "id": "BRD-AD07",
@@ -2057,9 +2057,9 @@
       "status": "pending",
       "owner": "backend",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["TR-13"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Searching 'United States' or 'USA' returns no results even when a trip has a US place, unless the country string literally appears in the trip title. Search should match against place/country data, not just the trip title."
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Searching 'United States' or 'USA' returns no results even when a trip has a US place, unless the country string literally appears in the trip title. Search should match against place/country data, not just the trip title. SIZED + BRD GATE CLEARED 2026-07-28 (BRD v3.12, brief B4): smaller than the plan's 'sizing unknown' note suggested. Search is client-side in filterAndSortTrips (src/frontend/components/TripList/TripList.tsx), not server-side — GET /api/trips takes only status/category_id/activity_id/country query params (src/backend/routes/trips.ts:115) and the repository has no LIKE/search path. The country names are ALREADY in the list payload: TripSummary.countries[] is {country_code, name}[] (src/frontend/types/api.ts:204), and filterAndSortTrips simply never reads it — it matches trip name and city name only. TR-13 amended to cover country names because the fix would otherwise ship behaviour outside its stated scope. Note the PO's 'USA' example: TR-13 deliberately requires full-country-name matching only, NOT ISO codes or informal abbreviations — an alias list is a separate decision, not this fix."
     },
     {
       "id": "BUG-53",
@@ -2090,9 +2090,9 @@
       "status": "pending",
       "owner": "backend",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["GE-15"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Entering a city name doesn't auto-fill its country/state fields — likely the geocode/lookup path isn't wired to populate those fields on selection."
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Entering a city name doesn't auto-fill its country/state fields — likely the geocode/lookup path isn't wired to populate those fields on selection. RECLASSIFIED AS A REGRESSION 2026-07-28 (PO): 'country and state/region as that's how it was working previously'. This is NOT an unbuilt feature — the brief leads with diagnosing what broke it (git history over the geocode/city-selection path), not building it from scratch. BRD gate cleared at v3.12: GE-15 already covered the country half and was extended to cover region/state where GE-03 has the Region tier enabled. VERIFICATION CONSTRAINT (ENV-01): Nominatim is firewall-blocked in this devcontainer, so the live geocode path CANNOT be exercised here — any agent claim that the path 'works' or 'is broken' based on a live call is unreliable by construction. ROOT CAUSE FOUND 2026-07-28 (COO, two independent probes) — THIS IS A DEPLOYMENT/CONFIG DEFECT, NOT A PRODUCT BUG, AND NOT A FRONTEND BRIEF. The feature is fully built and looks correct: AddPlaceFlow.tsx:183-208 auto-populates country AND region (GE-15/UX-04) from lookupCityCountry(). Probe 1: src/frontend/hooks/useCities.ts:14,46 shows the BROWSER fetches https://nominatim.openstreetmap.org/search directly — it is not proxied through the backend. Probe 2: helmet's CSP connectSrc at src/backend/server.ts:128-130 is [self, *.maptiler.com, CLERK_ORIGIN] — nominatim.openstreetmap.org is absent. So in any environment where the backend serves the app with helmet applied, that fetch is CSP-blocked; AddPlaceFlow.tsx:206's bare .catch() swallows the failure with no user feedback and no logging, and the fields silently stay blank. It works under the Vite dev server (different origin, no helmet CSP), which is exactly why the PO reports it 'was working previously' and why no test caught it — every test runs in the dev/jsdom path. SECOND DEFECT IN THE SAME FUNCTION: useCities.ts:47 sets a 'User-Agent' header, which is a forbidden header name for browser fetch() and is silently dropped by the browser — Nominatim's usage policy requires an identifying UA, so even with CSP fixed, direct browser calls are exposed to throttling/blocking. Both defects point the same way: the lookup likely belongs behind a backend proxy route rather than a CSP allowlist entry. That is a SEC-01/external-integration call — needs an Architect pass before implementation, per the infra/runtime guardrail. PULLED OUT OF BRIEF B4 2026-07-28 for this reason."
     },
     {
       "id": "BUG-56",
