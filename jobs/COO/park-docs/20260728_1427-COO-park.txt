@@ -1,0 +1,141 @@
+COO SESSION PARK — 2026-07-28 ~1427 UTC (three PO decisions cleared, Wave 1 opened with B9)
+================================================================================
+
+## Session summary
+Picked up from the 2026-07-27 close. Cleared all three PO decisions that park doc had
+left outstanding, adopted a new dispatch guardrail, and ran the first Wave 1 brief.
+5 PRs merged, main verified green after every one.
+
+NOTE: a SECOND COO session (id 8dec7c83) ran concurrently today on autonomy work.
+It wrote 5 memory entries but merged nothing to main. See "Concurrent session" below —
+this matters for reading today's memory directory, and it is a live collision risk.
+
+| PR | What |
+|---|---|
+| #288 | BRD v3.11 — Shortlisted removed (QUAL-09) |
+| #289 | QUAL-11 remote Turso path verified; DEP-04 closed |
+| #290 | Negative-findings guard; QUAL-15 fixed; QUAL-16 logged |
+| #292 | B9 — migration-driven test schema + FK startup assertion (issue #291) |
+| #293 | B9 close-out; QUAL-17 logged |
+
+### 1. The three blocked PO decisions, all resolved
+- **QUAL-09 — removed, not built.** PO: "Considering is doing enough work here... Confirmed
+  vs Considering is enough." Shortlisted was specified in BRD v3.0 and never implemented;
+  chk_items_status never had it. Resolved in favour of the code. BRD v3.11: IT-03, the §4
+  definition (struck + SUPERSEDED, text retained), §4 planning stages 3→2, PL-02, PL-03,
+  PL-06, and the §1/§2 narrative. ZERO code change. Unblocks PL-02/PL-03 for briefing.
+- **QUAL-11 — the "unanswerable" half was answerable.** ADL-41/S1 recorded that the remote
+  Turso FK question "cannot be verified from this environment (firewall)". FALSE — the
+  ADL-33/OP-21 diagnostic path is allowlisted. `turso-query.mjs staging "PRAGMA
+  foreign_keys"` returns 1. Confirmed genuinely remote (libsql://...turso.io + token, no
+  file-URL fallback in the script) before trusting it. Residual stated, not glossed: a
+  pragma READ on a read-only connection, not a behavioural write-rejection test.
+  The assertion itself was assigned to B9 (PO call) and shipped in #292.
+- **DEP-04 — closed, leave as-is.** Two findings undercut the entry's own framing:
+  (1) pinning the image does NOT pin the analysis — 4 of 5 --config values are Semgrep
+  Registry rulesets fetched at scan time, so the job has two external runtime deps, not
+  one; (2) "add a retry" isn't cheap — it's a job-level container:, so a failed pull kills
+  the job before any step runs. IF IT RECURS the fix is restructuring the job (pip install
+  on a normal runner), NOT a digest pin. Both written into the tracker note.
+
+### 2. New standing rule: negative findings need two probes (CLAUDE.md)
+Adopted on PO direction after THREE false premises came out of Wave 0, each caught only by
+re-probing: "PRAGMA foreign_keys is off" (false), "there is no router.delete in trips.ts"
+(false — and the COO propagated it unchecked), "the firewall reaches no Turso host" (false,
+found this session). Shared shape: probe once, get a negative, report the absence as fact.
+
+Rule: a claim that something does not exist / is not enabled / is unreachable needs TWO
+independent probes that could fail differently, or an explicit UNVERIFIED marker naming the
+probe and its blind spot. Binds agents AND the COO propagating agent findings.
+
+Placement was checked, not assumed: neither .claude/agents/*.md nor any role system prompt
+references CLAUDE.md, so canonical text lives in CLAUDE.md and a pointer went into all 8
+role system prompts (which each agent definition already calls the source of truth).
+
+### 3. QUAL-15 — found while doing the above, and the more serious find
+All 8 jobs/<role>/<role>-system-prompt.txt files listed "Read _project/BRD.md" as a
+MANDATORY init step. That file does not exist. Every dispatched agent has been either
+silently skipping the BRD at init or hunting for it — in a project whose first rule is
+that the BRD is law.
+
+Directly foreshadowed and missed: the 2026-07-26 park doc recorded this exact broken path
+in the ORPHANED COO system prompt (QUAL-06), fixed by deleting that file. Nobody swept the
+8 live siblings. Fixed; verified 0 broken / 8 correct / target exists. Memory
+`feedback_verify_docs_are_loaded_not_just_resolvable` extended with the recurrence and the
+generalisable lesson: when a dead reference turns up in one file, sweep the whole family.
+
+### 4. B9 delivered — and unblocked less than its report claimed
+Dispatched backend, worktree-isolated, Sonnet. Merged as #292. Good work: it demonstrated
+drift detection rather than asserting it (a DROP COLUMN added to migration 0012 made all 17
+companions tests fail; before the change that edit failed nothing), and it caught 8 uses of
+item status 'booked' that has NEVER been valid against chk_items_status — silently green
+for the life of that file because the hand-written DDL carried no CHECK constraint.
+
+But its report said "every other Wave 1 backend brief's tests are now trustworthy." That
+holds only for the REPOSITORY layer. 15 further test files (13 routes/__tests__, 2
+services/__tests__) never used test-db.ts at all and hand-roll the same 21-table DDL.
+Route tests are NOT drift-safe. Logged as QUAL-17 and written into the clearance plan so
+B3/B4 get briefed knowing it. The agent counted 14; COO re-counted 15 before logging.
+
+COO verification of B9 was done against the diff, not the self-report: confirmed the one
+remaining "CREATE TABLE" string sits in a doc comment, and that the FK check READS
+(db.get(sql`PRAGMA foreign_keys`)) rather than sets — the constraint that actually mattered.
+
+### 5. Concurrent session (read this before trusting today's memory dir)
+A second COO session (8dec7c83) ran today on autonomy work. It wrote 5 memory entries —
+feedback_coo_autonomy_toggle, feedback_coo_practice_mode, feedback_negative_findings_hook_
+enforcement, feedback_architect_fresh_eyes_review, project_product_preference_auto_fetch —
+none of which this session had context on, and none of which this session acted on.
+
+- Its hook-enforcement memory records that the PO wants THIS session's CLAUDE.md
+  negative-findings rule made mechanically enforced rather than written-only. That thread
+  belongs to the other session; deliberately NOT logged as D-13 here to avoid duplicating
+  or colliding with their work.
+- It merged nothing to main (verified: local == origin/main, no open PRs), so no conflict
+  occurred. But BOTH sessions can write tracker.json, MEMORY.md and open-dialogues.md.
+  This is the QUAL-12 collision class raised one level — concurrent COOs, not concurrent
+  agents, and tracker.json is the project's status authority. Worth a rule if concurrent
+  COO sessions become normal rather than a one-off.
+- MEMORY.md was verified intact after this session's edit (33 sections, their 5 entries
+  present, 31 files).
+
+## State of play
+- **main** green @ 20756f2. Clean tree, only `main` locally, no worktrees, zero open PRs.
+- **production** @ 1a4f84f — unchanged; no promotion owed (docs/test-infra only).
+- **BRD v3.11**, header and changelog match. v3.11 added no new requirement IDs (a removal),
+  so no tracker entries were owed under the BRD→tracker rule.
+- **Tracker:** 132 done / 49 pending / 4 partial / 9 deferred / 2 closed.
+- **Wave 1 sub-wave A: B9 DONE. B1, B2, B3, B6 remain and are unblocked.**
+- **Wave 2 still gated** on the §8b BRD bump.
+
+## Suggested next actions
+1. **Dispatch the rest of sub-wave A — B1, B2, B3, B6.** Nothing blocks them.
+   - **B3 must carry the QUAL-17 caveat** (its route tests still verify against a
+     hand-maintained schema copy) AND the mandatory route security checklist.
+   - B7 is frontend-only — the §6.2 correction still stands; re-read it before briefing.
+2. **QUAL-17** — 15 files, same fix pattern as QUAL-03 which is now proven. Good candidate
+   to ride along with a backend brief rather than dispatch alone.
+3. **Wave 2 BRD gate (§8b)** — FL-06, CR-03, DP-07, DP-08, TR-16. Verify which IDs are
+   actually free first (S3 suggested FL-05 and had to self-correct). UX spec §7 has the
+   success-criteria text drafted — lift it. Plus BUG-47 needs a BRD home or an explicit
+   decision that it stays spec-only.
+4. **Reconcile with the autonomy session** before adopting anything from its memories —
+   particularly the hook-enforcement design, which would modify the rule added today.
+5. QUAL-16 (ambiguous `_shared/frameworks.txt` init reference) — cheap, needs one decision
+   about which document(s) init step 1 should name.
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — D-04 through D-12, unchanged this session. Nothing new
+added: the one item that surfaced in the restart preview (hook-enforcing the negative-
+findings rule) is owned by the concurrent autonomy session, not this one.
+
+## Restart preview
+Shown to Ryan before this doc was written.
+**Captured:** 5 merged PRs; BRD v3.10→v3.11; QUAL-03/09/11/15 done, DEP-04 closed,
+QUAL-16/17 logged; the CLAUDE.md negative-findings rule; all 8 role prompts fixed; 4 sets
+of lifecycle stamps; 1 memory extended; drift-ledger sentinel.
+**Captured, not actioned:** B1/B2/B3/B6 + sub-wave B; Wave 2 §8b gate; 49 pending incl.
+P1s BUG-50/BUG-51; QUAL-16/17; D-04–D-12; OP-15, OQ-03, DEP-03, QUAL-02/04/07.
+**Not captured:** one item — hook-enforcing the negative-findings rule — resolved during
+the preview as belonging to the concurrent autonomy session, so deliberately not
+duplicated here.
