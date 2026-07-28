@@ -16,6 +16,7 @@ import {
   useUpdateItem,
 } from '../../hooks/useItems';
 import type { Item, ItemStatus, ItemType } from '../../types/api';
+import { resolveDefaultDate, resolveDefaultDateTime } from '../../utils/dateDefaults';
 import { ITEM_TYPE_ICONS } from '../icons';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { RatingStars } from '../shared/RatingStars';
@@ -34,6 +35,13 @@ interface ItemFormProps {
    * tied to a specific city and don't make sense without a place.
    */
   allowedTypes?: ItemType[];
+  /**
+   * Trip start date (YYYY-MM-DD) — seeds new-item date field defaults
+   * (BUG-57/IT-11). Ignored in edit mode; existingItem's saved values win.
+   */
+  tripStartDate?: string;
+  /** Trip end date (YYYY-MM-DD) — seeds new-item "end" date field defaults (IT-11). */
+  tripEndDate?: string;
   /** Called when the modal should close. */
   onClose: () => void;
 }
@@ -116,6 +124,8 @@ export function ItemForm({
   tripPlaceId,
   existingItem,
   allowedTypes,
+  tripStartDate,
+  tripEndDate,
   onClose,
 }: ItemFormProps) {
   const isEditing = !!existingItem;
@@ -126,6 +136,7 @@ export function ItemForm({
   const [itemType, setItemType] = useState<ItemType | null>(existingItem?.item_type ?? null);
   const [status, setStatus] = useState<ItemStatus>(existingItem?.status ?? 'consider');
   const [notes, setNotes] = useState(existingItem?.notes ?? '');
+  const [mapUrl, setMapUrl] = useState(existingItem?.map_url ?? '');
   const [rating, setRating] = useState<number | null>(existingItem?.rating ?? null);
   const [postVisitNotes, setPostVisitNotes] = useState(existingItem?.post_visit_notes ?? '');
 
@@ -138,8 +149,16 @@ export function ItemForm({
   const [source, setSource] = useState(existingItem?.source ?? '');
   const [propertyName, setPropertyName] = useState(existingItem?.property_name ?? '');
   const [address, setAddress] = useState(existingItem?.address ?? '');
-  const [checkInDate, setCheckInDate] = useState(existingItem?.check_in_date ?? '');
-  const [checkOutDate, setCheckOutDate] = useState(existingItem?.check_out_date ?? '');
+  // BUG-57/IT-11: new items default date fields from the trip's date range
+  // rather than opening blank (which made native date pickers default to the
+  // current month regardless of the trip's actual dates). Edit mode is
+  // untouched — existingItem's saved values win, no re-defaulting.
+  const [checkInDate, setCheckInDate] = useState(
+    isEditing ? (existingItem?.check_in_date ?? '') : resolveDefaultDate(tripStartDate, true),
+  );
+  const [checkOutDate, setCheckOutDate] = useState(
+    isEditing ? (existingItem?.check_out_date ?? '') : resolveDefaultDate(tripEndDate, false),
+  );
   const [bookingReference, setBookingReference] = useState(existingItem?.booking_reference ?? '');
   const [confirmationNumber, setConfirmationNumber] = useState(
     existingItem?.confirmation_number ?? '',
@@ -149,16 +168,42 @@ export function ItemForm({
   const [departureAirport, setDepartureAirport] = useState(existingItem?.departure_airport ?? '');
   const [arrivalAirport, setArrivalAirport] = useState(existingItem?.arrival_airport ?? '');
   const [departureDatetime, setDepartureDatetime] = useState(
-    existingItem?.departure_datetime ?? '',
+    isEditing
+      ? (existingItem?.departure_datetime ?? '')
+      : resolveDefaultDateTime(tripStartDate, true),
   );
-  const [arrivalDatetime, setArrivalDatetime] = useState(existingItem?.arrival_datetime ?? '');
+  const [arrivalDatetime, setArrivalDatetime] = useState(
+    isEditing
+      ? (existingItem?.arrival_datetime ?? '')
+      : resolveDefaultDateTime(tripStartDate, true),
+  );
+  // Tracks whether the user has hand-edited arrival — once true, changing
+  // departure never overwrites it again (IT-11: "changing either date by
+  // hand persists that value through save and re-open"). Starts true in
+  // edit mode so opening an existing item never re-triggers the cascade.
+  const [arrivalTouched, setArrivalTouched] = useState(isEditing);
   const [seat, setSeat] = useState(existingItem?.seat ?? '');
   const [provider, setProvider] = useState(existingItem?.provider ?? '');
   const [pickupLocation, setPickupLocation] = useState(existingItem?.pickup_location ?? '');
   const [dropoffLocation, setDropoffLocation] = useState(existingItem?.dropoff_location ?? '');
-  const [pickupDatetime, setPickupDatetime] = useState(existingItem?.pickup_datetime ?? '');
-  const [dropoffDatetime, setDropoffDatetime] = useState(existingItem?.dropoff_datetime ?? '');
+  const [pickupDatetime, setPickupDatetime] = useState(
+    isEditing ? (existingItem?.pickup_datetime ?? '') : resolveDefaultDateTime(tripStartDate, true),
+  );
+  const [dropoffDatetime, setDropoffDatetime] = useState(
+    isEditing ? (existingItem?.dropoff_datetime ?? '') : resolveDefaultDateTime(tripEndDate, false),
+  );
   const [vehicleClass, setVehicleClass] = useState(existingItem?.vehicle_class ?? '');
+
+  // BUG-57/IT-11: entering a flight departure date populates arrival with the
+  // same value, but only until the user hand-edits arrival themselves.
+  const handleDepartureDatetimeChange = (v: string) => {
+    setDepartureDatetime(v);
+    if (!arrivalTouched) setArrivalDatetime(v);
+  };
+  const handleArrivalDatetimeChange = (v: string) => {
+    setArrivalTouched(true);
+    setArrivalDatetime(v);
+  };
 
   const createItem = useCreateItem();
   const updateItem = useUpdateItem();
@@ -177,7 +222,7 @@ export function ItemForm({
 
   const buildPayload = (): CreateItemData | UpdateItemData => {
     const n = (v: string) => v.trim() || undefined;
-    const base = { status, notes: n(notes) };
+    const base = { status, notes: n(notes), map_url: n(mapUrl) };
     const typeFields =
       itemType === 'restaurant'
         ? {
@@ -403,13 +448,13 @@ export function ItemForm({
                     <Field
                       label="Departure"
                       value={departureDatetime}
-                      onChange={setDepartureDatetime}
+                      onChange={handleDepartureDatetimeChange}
                       type="datetime-local"
                     />
                     <Field
                       label="Arrival"
                       value={arrivalDatetime}
-                      onChange={setArrivalDatetime}
+                      onChange={handleArrivalDatetimeChange}
                       type="datetime-local"
                     />
                   </div>
@@ -478,6 +523,15 @@ export function ItemForm({
                   </div>
                 </>
               )}
+
+              {/* Map URL — base field, all types (IT-10, ADL-45) */}
+              <Field
+                label="Map URL"
+                value={mapUrl}
+                onChange={setMapUrl}
+                type="url"
+                placeholder="https://maps.google.com/…"
+              />
 
               {/* Notes — all types */}
               <div className="mb-3.5">

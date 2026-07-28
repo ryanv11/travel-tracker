@@ -54,3 +54,20 @@ export const zOptionalString = z.string().trim().min(1).optional();
 
 /** Positive integer ID */
 export const zId = z.coerce.number().int().positive();
+
+/**
+ * Optional map/directions URL (IT-10, ADL-45).
+ * https:// only (narrower than the frontend sanitiseUrl()'s https:/file: default —
+ * ADL-45 D5, file:// is not a legitimate "get directions" link). No host allowlist
+ * (ADL-45 D4) — any well-formed https:// URL is accepted. Length capped at 2048
+ * chars, Zod-only, no DB CHECK (ADL-45 D3, matches the zName precedent).
+ */
+export const zMapUrl = z
+  .string()
+  .trim()
+  .url()
+  .max(2048, 'Map URL must be 2048 characters or fewer')
+  .refine((u) => u.startsWith('https://'), {
+    message: 'Map URL must use https://',
+  })
+  .optional();

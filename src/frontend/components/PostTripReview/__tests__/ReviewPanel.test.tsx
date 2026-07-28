@@ -70,6 +70,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     item_type: 'restaurant',
     status: 'consider',
     notes: null,
+    map_url: null,
     name: 'Test Restaurant',
     neighbourhood_area: null,
     cuisine_type: null,

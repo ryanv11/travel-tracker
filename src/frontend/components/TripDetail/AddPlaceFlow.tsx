@@ -21,12 +21,24 @@ import {
 import { useAddPlace } from '../../hooks/usePlaces';
 import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
 import type { City } from '../../types/api';
+import { resolveDefaultDate } from '../../utils/dateDefaults';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { ErrorMessage } from '../shared/ErrorMessage';
 
 interface AddPlaceFlowProps {
   tripId: number;
   onClose: () => void;
+  /** Trip start date (YYYY-MM-DD) — inherited by the first place (BRD-DP06). */
+  tripStartDate: string;
+  /** Trip end date (YYYY-MM-DD) — inherited by the first place (BRD-DP06). */
+  tripEndDate: string;
+  /**
+   * True only on the empty-trip → first-place transition (ADL-41 constraint).
+   * Pass `trip.places.length === 0` from the caller — a revisit (trip already
+   * has at least one place) never inherits trip dates, regardless of model
+   * (works unchanged once ADL-41's one-row-per-visit migration lands, Wave 2).
+   */
+  isFirstPlace: boolean;
 }
 
 /** Debounce delay for city search (ms). */
@@ -36,7 +48,13 @@ const DEBOUNCE_MS = 300;
  * Renders the multi-step Add Place modal. Handles city search, city creation,
  * place creation (with optional dates), and triggering carry-forward when applicable.
  */
-export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
+export function AddPlaceFlow({
+  tripId,
+  onClose,
+  tripStartDate,
+  tripEndDate,
+  isFirstPlace,
+}: AddPlaceFlowProps) {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [showNewCityForm, setShowNewCityForm] = useState(false);
@@ -49,9 +67,18 @@ export function AddPlaceFlow({ tripId, onClose }: AddPlaceFlowProps) {
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
   const [showCarryForward, setShowCarryForward] = useState(false);
 
-  // UX-02: optional date fields for place creation
-  const [arrivedOn, setArrivedOn] = useState('');
-  const [departedOn, setDepartedOn] = useState('');
+  // UX-02: optional date fields for place creation.
+  // BRD-DP06: the first place added to an empty trip inherits the trip's date
+  // range as a starting value — ADL-41 constraint: fires only on the
+  // empty-trip → first-place transition (isFirstPlace), never on a revisit.
+  // resolveDefaultDate's fallbackToToday=false means "no trip range to
+  // inherit" leaves these blank, same as before this brief.
+  const [arrivedOn, setArrivedOn] = useState(
+    isFirstPlace ? resolveDefaultDate(tripStartDate, false) : '',
+  );
+  const [departedOn, setDepartedOn] = useState(
+    isFirstPlace ? resolveDefaultDate(tripEndDate, false) : '',
+  );
   const [dateValidationError, setDateValidationError] = useState<string | null>(null);
   const [placeWarnings, setPlaceWarnings] = useState<string[]>([]);
 

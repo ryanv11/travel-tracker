@@ -40,6 +40,7 @@ function makeFlight(overrides: Partial<Item> = {}): Item {
     item_type: 'flight',
     status: 'confirmed',
     notes: null,
+    map_url: null,
     is_carried_forward: false,
     carried_from_item_id: null,
     created_at: '2026-01-01T00:00:00Z',
@@ -66,7 +67,14 @@ describe('TripItemsSection', () => {
     mockUseUpdateItem.mockReturnValue(idleMutation);
     mockUseDeleteItem.mockReturnValue(idleMutation);
 
-    render(<TripItemsSection tripId={1} isLocked={false} />);
+    render(
+      <TripItemsSection
+        tripId={1}
+        isLocked={false}
+        tripStartDate="2026-06-01"
+        tripEndDate="2026-06-10"
+      />,
+    );
 
     expect(screen.getByText('LHR → JFK')).toBeInTheDocument();
     expect(screen.getByText('Trip Items')).toBeInTheDocument();
@@ -78,7 +86,14 @@ describe('TripItemsSection', () => {
     mockUseUpdateItem.mockReturnValue(idleMutation);
     mockUseDeleteItem.mockReturnValue(idleMutation);
 
-    render(<TripItemsSection tripId={1} isLocked={false} />);
+    render(
+      <TripItemsSection
+        tripId={1}
+        isLocked={false}
+        tripStartDate="2026-06-01"
+        tripEndDate="2026-06-10"
+      />,
+    );
 
     expect(screen.getByText(/No trip-level items yet/)).toBeInTheDocument();
   });
@@ -89,7 +104,14 @@ describe('TripItemsSection', () => {
     mockUseUpdateItem.mockReturnValue(idleMutation);
     mockUseDeleteItem.mockReturnValue(idleMutation);
 
-    render(<TripItemsSection tripId={1} isLocked={false} />);
+    render(
+      <TripItemsSection
+        tripId={1}
+        isLocked={false}
+        tripStartDate="2026-06-01"
+        tripEndDate="2026-06-10"
+      />,
+    );
     await userEvent.click(screen.getByText('+ Add Trip Item'));
 
     expect(screen.getByText('Flight')).toBeInTheDocument();
@@ -110,7 +132,14 @@ describe('TripItemsSection', () => {
     mockUseUpdateItem.mockReturnValue(idleMutation);
     mockUseDeleteItem.mockReturnValue(idleMutation);
 
-    render(<TripItemsSection tripId={1} isLocked={true} />);
+    render(
+      <TripItemsSection
+        tripId={1}
+        isLocked={true}
+        tripStartDate="2026-06-01"
+        tripEndDate="2026-06-10"
+      />,
+    );
 
     expect(screen.queryByText('+ Add Trip Item')).not.toBeInTheDocument();
   });
@@ -121,7 +150,14 @@ describe('TripItemsSection', () => {
     mockUseUpdateItem.mockReturnValue(idleMutation);
     mockUseDeleteItem.mockReturnValue(idleMutation);
 
-    const { container } = render(<TripItemsSection tripId={1} isLocked={true} />);
+    const { container } = render(
+      <TripItemsSection
+        tripId={1}
+        isLocked={true}
+        tripStartDate="2026-06-01"
+        tripEndDate="2026-06-10"
+      />,
+    );
 
     expect(container).toBeEmptyDOMElement();
   });

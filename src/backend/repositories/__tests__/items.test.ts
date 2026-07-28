@@ -171,6 +171,30 @@ describe('itemRepository.create', () => {
     expect(item.notes).toBeNull();
   });
 
+  // IT-10 / ADL-45: base-table map_url field, applies to all item types.
+  it('sets map_url when provided', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+
+    const item = await itemRepository.create(
+      TEST_USER_ID,
+      trip.id,
+      { itemType: 'hotel', mapUrl: 'https://maps.google.com/?q=Grand+Hotel' },
+      {},
+    );
+
+    expect(item.map_url).toBe('https://maps.google.com/?q=Grand+Hotel');
+  });
+
+  it('stores null map_url when not provided', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+
+    const item = await itemRepository.create(TEST_USER_ID, trip.id, { itemType: 'note' }, {});
+
+    expect(item.map_url).toBeNull();
+  });
+
   it('assigns userId from the provided userId', async () => {
     const db = testDb!;
     const trip = await seedTrip(db);
@@ -405,6 +429,46 @@ describe('itemRepository.update', () => {
     );
 
     expect(result!.notes).toBe('Needs early check-in');
+  });
+
+  // IT-10 / ADL-45: base-table map_url field, updatable independently of extension fields.
+  it('updates map_url field', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+    const item = await itemRepository.create(TEST_USER_ID, trip.id, { itemType: 'hotel' }, {});
+
+    const result = await itemRepository.update(
+      TEST_USER_ID,
+      trip.id,
+      item.id as number,
+      { mapUrl: 'https://maps.google.com/?q=Updated' },
+      {},
+      'hotel',
+    );
+
+    expect(result!.map_url).toBe('https://maps.google.com/?q=Updated');
+  });
+
+  it('leaves map_url unchanged when not provided in the update', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+    const item = await itemRepository.create(
+      TEST_USER_ID,
+      trip.id,
+      { itemType: 'hotel', mapUrl: 'https://maps.google.com/?q=Original' },
+      {},
+    );
+
+    const result = await itemRepository.update(
+      TEST_USER_ID,
+      trip.id,
+      item.id as number,
+      { status: 'confirmed' },
+      {},
+      'hotel',
+    );
+
+    expect(result!.map_url).toBe('https://maps.google.com/?q=Original');
   });
 
   it('updates flight extension fields', async () => {

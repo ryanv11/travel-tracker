@@ -327,8 +327,10 @@ BACKEND responsibility:
 FRONTEND responsibility (spec for when FRONTEND begins):
 - All user-supplied content rendered via React's JSX is automatically escaped. Do not use
   `dangerouslySetInnerHTML` anywhere. If it appears in a code review, it is a blocking defect.
-- URL fields (e.g. `photo_album_ref`) rendered as links must be sanitised before use:
-  only `https://` and `file://` schemes are permitted. Reject `javascript:` and `data:` schemes.
+- URL fields (e.g. `photo_album_ref`, `items.map_url` — ADL-45) rendered as links must be
+  sanitised before use: only `https://` and `file://` schemes are permitted by default.
+  Reject `javascript:` and `data:` schemes. `map_url` narrows this further to `https://`
+  only (ADL-45 D5) via `sanitiseUrl()`'s optional allowed-scheme parameter.
 - MapLibre map labels or popups containing user data must use MapLibre's text rendering,
   not innerHTML injection.
 

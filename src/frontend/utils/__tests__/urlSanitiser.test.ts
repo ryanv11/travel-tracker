@@ -81,4 +81,29 @@ describe('sanitiseUrl()', () => {
   it('returns null for an empty string', () => {
     expect(sanitiseUrl('')).toBeNull();
   });
+
+  // ----------------------------------------------------------------
+  // allowedSchemes parameter (ADL-45 D7 — item.map_url uses ['https:'])
+  // ----------------------------------------------------------------
+
+  describe('with an explicit allowedSchemes list', () => {
+    it('accepts https:// when allowedSchemes is ["https:"]', () => {
+      const url = 'https://maps.google.com/?q=Paris';
+      expect(sanitiseUrl(url, ['https:'])).toBe(url);
+    });
+
+    it('rejects file:// when allowedSchemes is ["https:"] (ADL-45 D5)', () => {
+      expect(sanitiseUrl('file:///Users/alice/map.html', ['https:'])).toBeNull();
+    });
+
+    it('still rejects javascript: regardless of allowedSchemes', () => {
+      expect(sanitiseUrl('javascript:alert(1)', ['https:'])).toBeNull();
+    });
+
+    it('defaults to https:/file: when allowedSchemes is omitted (back-compat)', () => {
+      expect(sanitiseUrl('file:///Users/alice/Photos/japan')).toBe(
+        'file:///Users/alice/Photos/japan',
+      );
+    });
+  });
 });

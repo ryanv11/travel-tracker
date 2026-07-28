@@ -1,0 +1,204 @@
+PARK DOCUMENT — BACKEND — 2026-07-28
+BRIEF: B6 (Wave 1 sub-wave A) — BUG-57/IT-11, BRD-DP06, BUG-44, BRD-IT10
+BRANCH: feat/b6-item-dates-and-map-url
+GITHUB ISSUE: #300
+
+=== SCOPE ===
+Fullstack brief, one file surface (ItemForm.tsx, ItemCard.tsx + one additive
+migration), four bundled items:
+1. BUG-57/IT-11 — item date fields default from the trip's date range.
+2. BRD-DP06 — first place added to an empty trip inherits the trip's range.
+3. BUG-44 — car rental pickup location as subtext (mirrors flight pattern).
+4. BRD-IT10 — optional item map URL, per ADL-45 (design already decided,
+   implemented as specified, not re-derived).
+
+=== IT-10 / ADL-45 IMPLEMENTATION ===
+
+Implemented exactly per ADL-45 D1-D9:
+- schema.ts: `mapUrl: text('map_url')` added to the base `items` table
+  (schema.ts, after `notes`), nullable, no default, no CHECK.
+- Migration: `npm run db:generate` produced
+  src/backend/migrations/0013_fantastic_vance_astro.sql — single statement,
+  `ALTER TABLE items ADD map_url text` — matches D9 exactly (no table
+  recreation). Applied via `npm run db:migrate` against local dev.db.
+- validation/common.ts: `zMapUrl` added — trim, `.url()`, `.max(2048)`,
+  `.refine(startsWith('https://'))`, optional. No host allowlist (D4).
+- validation/items.schemas.ts: `map_url: zMapUrl` added to `itemBase` (feeds
+  CreateItemSchema) AND explicitly to `UpdateItemSchema` — UpdateItemSchema
+  does NOT spread itemBase (it hand-lists status/notes/...extensionFields),
+  so map_url needed adding to both call sites, not just itemBase, to
+  actually reach the PATCH schema. Documented inline with a comment so the
+  next reader doesn't assume the itemBase spread alone covers it.
+- routes/items-helper.ts (fetchItemsWithExtensions / flattenItem): mapUrl
+  added to the select projection, ItemRow interface, and the `base` object
+  in flattenItem (applies to all item types, same tier as `notes`). This is
+  shared by both routes/items.ts and routes/trips.ts's nested
+  GET /api/trips/:id response — no separate change needed in trips.ts.
+- repositories/items.ts: create()/update() both accept `mapUrl` in their
+  data param; create() inserts `data.mapUrl ?? null`; update() only touches
+  the column `if (data.mapUrl !== undefined)`, matching the existing
+  status/notes pattern (omitted field ⇒ untouched, not cleared — same
+  pre-existing app-wide limitation as `notes`, not something this brief
+  introduces or fixes).
+- routes/items.ts: POST passes `mapUrl: body.map_url ?? null`; PATCH passes
+  `mapUrl: body.map_url` through to the repository.
+- Frontend: types/api.ts Item.map_url: string | null (required field, all
+  existing Item test fixtures updated — see TEST FIXTURE FALLOUT below).
+  hooks/useItems.ts CreateItemData.map_url?: string | null (UpdateItemData
+  inherits it via the existing Partial<Omit<...>> type).
+- urlSanitiser.ts: sanitiseUrl() extended with an optional `allowedSchemes`
+  parameter (default `['https:', 'file:']`, preserves photo_album_ref
+  behaviour unchanged). Implementation changed from two `startsWith`
+  literals to `allowedSchemes.some(s => url.startsWith(`${s}//`))` — same
+  semantics, parameterised. Header comment updated (D7's explicit ask — the
+  old comment said "the only Phase 1 user-supplied URL field is
+  photo_album_ref", now false).
+- ItemCard.tsx: `sanitiseUrl(item.map_url, ['https:'])` renders a "View map"
+  link with `target="_blank" rel="noopener noreferrer"` (D8, mandatory) when
+  non-null. Placed near the notes rendering per ADL-45's pointer.
+- ItemForm.tsx: added a "Map URL" field (type="url") as a base field shown
+  for every item type, right before Notes. Included in buildPayload's
+  `base` object for both create and update.
+- security-spec.md SEC-12: updated to name `map_url` as a second example
+  URL field (ADL-45's stated non-blocking nice-to-have).
+
+=== IT-11 / DP-06 SHARED DEFAULTING LOGIC ===
+
+New file src/frontend/utils/dateDefaults.ts — one shared mechanism per the
+brief's explicit instruction ("IT-11 and DP-06 are one defaulting code
+path... implementing them as two separate mechanisms defeats the purpose").
+Two functions:
+- resolveDefaultDate(tripDate, fallbackToToday) — returns tripDate if set,
+  else todayIso() if fallbackToToday, else ''.
+- resolveDefaultDateTime(tripDate, fallbackToToday) — same, formatted as
+  `${date}T00:00` for `<input type="datetime-local">`, which silently
+  ignores a bare YYYY-MM-DD value (browsers require the full format to
+  register anything at all).
+
+Design decision beyond the literal success-criteria text (flagging this
+explicitly, not silently assumed): the BRD text only names two concrete
+behaviours — "opens the date picker on the trip's start date" (singular)
+and "flight arrival defaults to departure date". It says nothing about
+hotel check-out or car-rental drop-off. I generalised to a symmetric
+start/end model:
+  - "start" fields (check_in_date, departure_datetime, pickup_datetime)
+    default from trip start_date, falling back to today.
+  - "end" fields (check_out_date, dropoff_datetime) default from trip
+    end_date, no fallback (blank if trip has no end — currently
+    unreachable, see below).
+  - EXCEPTION: flight arrival_datetime does NOT default from trip end — it
+    live-cascades from departure_datetime instead (mirrors it on every
+    change), exactly as the BRD names, since arrival-hours-after-departure
+    is a different fact than trip-end-date. This is the one field with
+    "touched" tracking (arrivalTouched state) — once the user hand-edits
+    arrival, changing departure never overwrites it again. All other
+    fields need no touched-tracking: nothing else auto-mutates them after
+    mount, so a direct edit already persists (satisfies "changing either
+    date by hand persists that value through save and re-open").
+  - All defaulting is create-mode only (isEditing gate) — edit mode always
+    starts from existingItem's actual saved values, cascade disabled
+    (arrivalTouched initialises to true when editing).
+Please have QA/PO confirm this checkout/dropoff generalisation matches
+intent — it's a reasonable, coherent extension but not literally spelled
+out in the quoted success criteria.
+
+Finding (not fixed, out of scope, noted so nobody re-derives it as a bug):
+`trips.start_date`/`trips.end_date` are NOT NULL in schema.ts — every trip
+always has a date range today. IT-11's "adding an item to a trip with no
+date range set falls back to today with no error" branch is implemented
+(resolveDefaultDate's fallbackToToday=true path) but currently unreachable
+via the trips table as it stands. Implemented anyway per the stated success
+criteria; harmless if the constraint is ever relaxed.
+
+DP-06 wiring: AddPlaceFlow.tsx gained `tripStartDate`, `tripEndDate`,
+`isFirstPlace` props. `isFirstPlace` must be computed by the caller as
+`trip.places.length === 0` — both TripDetail.tsx and MobileTripDetailView.tsx
+now pass this. This is model-agnostic per the ADL-41 constraint in the brief
+("fires only on the empty-trip → first-place transition... stays correct
+under both models") — "empty trip" is well-defined whether or not the
+Wave-2 one-row-per-visit migration has landed. arrivedOn/departedOn's
+initial useState only applies the trip-range default when isFirstPlace is
+true; a revisit (trip already has ≥1 place) keeps the pre-existing blank
+default untouched.
+
+Props threaded through: TripItemsSection.tsx gained required
+tripStartDate/tripEndDate (passed to both its ItemForm instances);
+PlaceSection.tsx already had tripStartDate/tripEndDate (D-03 precedent) —
+just wired them into its two ItemForm instances, which previously received
+neither.
+
+=== BUG-44 ===
+
+Small, self-contained. ItemCard.tsx: car_rental block already existed as
+the card's bold header (`getItemLabel` returns `item.provider`) but had NO
+subtext line — added one showing `item.pickup_location` when set, directly
+mirroring the flight block's shape (bold header + muted subtext row below).
+
+=== TEST FIXTURE FALLOUT (map_url added to Item type) ===
+
+`Item.map_url: string | null` (no `?`) meant every hand-built Item test
+fixture without an `as Item` cast needed the field added or TypeScript
+would fail. Fixed 3 files: resolvePlaceDateRange.test.ts, PlaceSection.test.tsx,
+ReviewPanel.test.tsx (PostTripReview). TripItemsSection.test.ts's makeFlight()
+uses `as Item` so it wouldn't have failed type-check, but I added map_url
+there too for correctness/consistency. TripItemsSection.tsx's new required
+tripStartDate/tripEndDate props meant all 5 `render(<TripItemsSection .../>)`
+calls in its test needed the two new props — added `tripStartDate="2026-06-01"
+tripEndDate="2026-06-10"` throughout.
+
+=== QUAL-17 CAVEAT — HAND-ROLLED ROUTE-TEST DDL ===
+
+Confirmed QUAL-17's finding still holds: 12 of the 15 hand-rolled-DDL route
+test files (per the CLAUDE.md/brief caveat) create the `items` table and
+needed `map_url TEXT,` inserted manually (they don't derive from
+migrations — only repository tests do, since PR #292/B9). Verified via two
+independent probes matching the brief's negative-findings rule: (1) grep
+`CREATE TABLE` across src/backend found 16 files total; (2) reading
+test-db.ts confirmed it's the one exception (schema-derived via the real
+migrator, not hand-rolled — the "CREATE TABLE" hit there is a doc-comment
+reference, not literal DDL), giving exactly 15 hand-rolled files, matching
+QUAL-17's stated count. Of those 15, 12 create the `items` table (verified
+by grep for the literal `notes TEXT,` line, anchored to avoid false-positive
+matches on `post_visit_notes TEXT,`) and got `map_url TEXT,` inserted via a
+scripted, verified-unique-match replacement, confirmed by full backend
+suite going green after (598 tests, up from 583 baseline — 15 new: 4
+repository create/update tests + 11 zMapUrl validation tests). The other 3
+(cities.get-by-id.test.ts, companions.test.ts, map.test.ts) don't create an
+items table at all and needed no change.
+
+This is a mechanical fix to keep the existing hand-rolled-DDL tests
+truthful, NOT a resolution of QUAL-17 itself (the "not drift-safe" design
+flaw is untouched — still 12 files that will need the same manual fix on
+the next schema change). Flagging so QUAL-17 isn't mistakenly considered
+addressed by this brief.
+
+map_url write-path is verified at three independent layers, not just the
+route tests: (1) repository tests (drift-safe, schema-derived —
+items.test.ts, 4 new cases), (2) live contract tests against a running
+`npm run dev:api` + real dev.db (items.contract.test.ts, 6 new cases, all
+passed), (3) the hand-rolled-DDL route tests (patched as above, not
+drift-safe long-term per QUAL-17).
+
+=== VERIFICATION RUN ===
+
+- npm run type:check:all — clean.
+- npm run test:backend — 598 passed, 1 skipped (was 583 baseline; +15 new).
+- npm run test:frontend — 167 passed (was 154 baseline; +13 new: 9
+  dateDefaults.test.ts, 4 urlSanitiser.test.ts allowedSchemes cases).
+- npm run test:contract — 115 passed (was ~109; +6 items.contract.test.ts
+  map_url cases), run against `npm run dev:api` with BYPASS_AUTH=true and
+  OWNER_CLERK_ID=test_clerk_id in a throwaway .env.local (gitignored, not
+  committed — needed because this worktree had none; ADL-27's bypass-auth
+  owner derivation requires OWNER_CLERK_ID to match the hardcoded
+  'test_clerk_id' bypass value, confirmed by reading
+  src/backend/middleware/auth.ts:99-111).
+
+=== NOT DONE / FOLLOW-UPS ===
+
+- QUAL-18 (photo_album_ref has no server-side scheme validation,
+  sanitiseUrl() had zero call sites) — explicitly out of scope per ADL-45,
+  left alone. Note: sanitiseUrl() now DOES have a call site (ItemCard.tsx,
+  for map_url) — QUAL-18's "zero call sites" premise for photo_album_ref
+  itself is still true (unchanged), only map_url gained a caller.
+- The checkout/dropoff generalisation beyond the literal success-criteria
+  text (see above) — flagged for QA/PO confirmation, not blocking.

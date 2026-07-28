@@ -1,0 +1,44 @@
+BUG-51 (P1) · GitHub #305 · PR #308 · BRD: no BRD requirement ID (data-integrity
+bug fix, tracker entry pre-existing, no new requirement) · Branch:
+fix/bug51-trips-cache-invalidation
+
+WHAT WAS BUILT
+useCreateCompanion, useUpdateCompanion and useDeleteCompanion in
+src/frontend/hooks/useAdmin.ts now cross-invalidate ['trips'] alongside the
+existing ['admin','companions'] invalidation, mirroring the ['map','shading']
+precedent already in the same file (useUpdateCountry). Fixes stale companion
+names surviving on trips whose ['trips'] query was still within the 5-minute
+staleTime at rename/create/deactivate time.
+
+ACCEPTANCE CRITERIA (from GitHub #305)
+- Renaming a companion updates that companion's name on every trip
+  referencing it, no trip write, no manual refresh: PASS (fix invalidates
+  ['trips'] on the update mutation)
+- Creating and deactivating a companion behave the same way: PASS (same fix
+  applied to useCreateCompanion and useDeleteCompanion)
+- Frontend test asserts each of the three mutations invalidates both
+  ['admin','companions'] and ['trips']: PASS (3/3 new tests in
+  src/frontend/hooks/__tests__/useAdmin.companions.test.tsx)
+- No backend change: PASS (only src/frontend/hooks/useAdmin.ts touched,
+  plus the new test file and tracker.json notes)
+
+CI: gh pr checks 308 — all 18 checks green (scripts/ci-wait.sh pr 308 -> PASS)
+
+OPEN ISSUES / BLOCKERS
+None blocking. Two scope-discipline judgment calls flagged for COO, not
+decided unilaterally (see park doc for detail):
+  1. tracker.json BUG-51 "owner" field left as "backend" even though the
+     fix landed in frontend — reassignment felt like a taxonomy call above
+     this brief's scope.
+  2. BUG-51's brdRefs is empty; DP-03 ("trip detail header shows... the
+     names of companions on the trip") is the closest BRD home if COO wants
+     to backfill the cross-reference — not done here, not compelled by the
+     brief.
+Not audited: whether the non-companion mutations in useAdmin.ts (categories/
+activities/countries) have their own staleness gaps — out of scope, only
+skimmed for shape, not independently verified.
+
+WHAT IS NOW UNBLOCKED
+BUG-51 is ready for COO review/merge via /coo-merge-and-close. Once merged,
+this closes the P1 data-integrity bug that #302 (backend half) left open.
+No other work depends on this branch.

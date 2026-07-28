@@ -25,6 +25,7 @@ interface ItemRow {
   itemType: string;
   status: string;
   notes: string | null;
+  mapUrl: string | null;
   isCarriedForward: number;
   carriedFromItemId: number | null;
   createdAt: string;
@@ -97,6 +98,7 @@ export async function fetchItemsWithExtensions(
       itemType: items.itemType,
       status: items.status,
       notes: items.notes,
+      mapUrl: items.mapUrl,
       isCarriedForward: items.isCarriedForward,
       carriedFromItemId: items.carriedFromItemId,
       createdAt: items.createdAt,
@@ -172,6 +174,7 @@ function flattenItem(row: ItemRow): Record<string, unknown> {
     item_type: row.itemType,
     status: row.status,
     notes: row.notes,
+    map_url: row.mapUrl,
     is_carried_forward: row.isCarriedForward === 1,
     carried_from_item_id: row.carriedFromItemId,
     created_at: row.createdAt,

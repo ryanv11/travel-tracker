@@ -116,6 +116,8 @@ export interface Item {
   item_type: ItemType;
   status: ItemStatus;
   notes: string | null;
+  /** Optional map/directions link (IT-10, ADL-45). https:// only, null if unset. */
+  map_url: string | null;
   is_carried_forward: boolean;
   carried_from_item_id: number | null;
   created_at: string;

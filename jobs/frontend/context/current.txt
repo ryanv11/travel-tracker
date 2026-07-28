@@ -1,3 +1,54 @@
+FRONTEND CONTEXT — as of 2026-07-28 (BUG-51 trips cache invalidation)
+
+STATUS: fix/bug51-trips-cache-invalidation branch, GitHub issue #305, tracker
+  BUG-51 (P1). Follow-up to the B3 backend investigation (issue #299, PR
+  #302), which closed out only the backend half. Root cause was already
+  established and NOT re-investigated here (per the brief and the
+  negative-findings rule — the backend LEFT JOIN / no-denormalised-copy
+  claim was already double-probed in #302 and re-verified by the COO): the
+  bug is frontend cache invalidation. useCreateCompanion, useUpdateCompanion
+  and useDeleteCompanion in src/frontend/hooks/useAdmin.ts invalidated only
+  ['admin','companions'], never ['trips'], against the global 5-minute
+  staleTime at main.tsx:32.
+
+  Fix: added `qc.invalidateQueries({ queryKey: ['trips'] })` alongside the
+  existing invalidation in all three companion mutations, mirroring the
+  existing ['map','shading'] cross-invalidation precedent at useAdmin.ts:237
+  (useUpdateCountry). Three lines of source change, no refactor, no other
+  mutations touched — scope held exactly to the brief.
+
+  New test file src/frontend/hooks/__tests__/useAdmin.companions.test.tsx
+  (3 tests, modeled on the existing useGeocodeRetryQueue.test.tsx pattern —
+  mocked apiClient, real QueryClient per test, spy on
+  qc.invalidateQueries) asserts each of the three mutations invalidates
+  BOTH ['admin','companions'] and ['trips'] on success.
+
+  tracker.json: BUG-51 notes appended with the root-cause split (#299/#302
+  backend, #305 frontend) and this fix summary, per the mandatory GitHub
+  issue <-> tracker cross-referencing rule. Status left "pending" — COO
+  flips to "done" at merge, same pattern as the BUG-62 entry above.
+
+  VERIFICATION: npm run check (biome, clean), npm run type:check:all
+  (clean), npm run test:backend (584 passed / 1 skipped, unaffected — no
+  backend files touched), npm run test:frontend (161 passed, includes the
+  3 new BUG-51 tests), npm run status:check (STATUS.md in sync). See
+  completion report for PR number and CI status.
+
+  KEY FILE LOCATIONS (changed this thread)
+    src/frontend/hooks/useAdmin.ts (3-line invalidation fix x3 mutations)
+    src/frontend/hooks/__tests__/useAdmin.companions.test.tsx (new, 3 tests)
+    _project/tracker.json (BUG-51 notes)
+
+  NEXT STEPS (when resumed)
+    COO: review PR (branch fix/bug51-trips-cache-invalidation), merge via
+    /coo-merge-and-close when CI is green, flip BUG-51 status to "done".
+
+========================================================================
+PRIOR THREAD, SAME DAY — BUG-62 / brief B2 (PR #303, merged into main before
+this thread branched). Retained in full below per the newest-first pattern
+already established in this file's history.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-07-28 (BUG-62 per-tab admin gating, B2 backlog-clearance)
 
 STATUS: fix/bug62-admin-per-tab-gating branch, GitHub issue #298, Wave 1 sub-wave A

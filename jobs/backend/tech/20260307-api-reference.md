@@ -752,6 +752,7 @@ List all items on a trip.
     "item_type": "restaurant",
     "status": "consider",
     "notes": "Try the tasting menu",
+    "map_url": null,
     "is_carried_forward": false,
     "carried_from_item_id": null,
     "created_at": "2026-03-07T14:32:00.000Z",
@@ -808,6 +809,7 @@ Base fields (all item types):
   "item_type": "restaurant",
   "status": "consider",
   "notes": "Try the tasting menu",
+  "map_url": "https://maps.google.com/?q=Le+Jules+Verne",
   "is_carried_forward": false,
   "carried_from_item_id": null
 }
@@ -819,6 +821,7 @@ Base fields (all item types):
 | `item_type` | string | **Yes** | One of: `flight`, `hotel`, `car_rental`, `restaurant`, `experience`, `note` |
 | `status` | string | No | Default: `"consider"`. See [Item Status Values](#item-status-values) |
 | `notes` | string \| null | No | Free-text notes |
+| `map_url` | string \| null | No | Optional map/directions link (IT-10, ADL-45). Must be a well-formed `https://` URL (no other scheme, no host allowlist), max 2048 chars. No DB-level check — enforced only by Zod (`zMapUrl`), rejects on write with `400`. |
 | `is_carried_forward` | boolean | No | Default: `false`. Must be `true` if `carried_from_item_id` is set |
 | `carried_from_item_id` | integer \| null | No | Source item ID if this is a carry-forward copy |
 
@@ -902,7 +905,8 @@ Base fields:
 ```json
 {
   "status": "completed",
-  "notes": "Updated notes"
+  "notes": "Updated notes",
+  "map_url": "https://maps.google.com/?q=Le+Jules+Verne"
 }
 ```
 
