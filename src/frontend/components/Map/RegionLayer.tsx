@@ -20,7 +20,7 @@ interface RegionLayerProps {
   regionData: RegionShading[];
 }
 
-const regionFillLayer: FillLayerSpecification = {
+export const regionFillLayer: FillLayerSpecification & { beforeId: string } = {
   id: 'regions-fill',
   type: 'fill',
   source: 'regions-source',
@@ -38,6 +38,17 @@ const regionFillLayer: FillLayerSpecification = {
     // state/province grid regardless of visit status.
     'fill-outline-color': '#64748B',
   },
+  // BUG-49: this layer mounts lazily (only once zoom crosses the region
+  // threshold and shading data has loaded), well after CityMarkers' unconditional
+  // 'city-markers' layer. react-map-gl/maplibre inserts a newly-added layer at
+  // the top of the style stack unless told otherwise, so without an explicit
+  // beforeId the region shading landed above the city markers as soon as it
+  // activated, even though CityMarkers renders later in this file's JSX
+  // sibling order — JSX order only reflects mount order, not paint order, once
+  // a layer is conditionally (re)mounted after the others are already present.
+  // Pinning beforeId to 'city-markers' keeps this layer directly below city
+  // markers regardless of when it mounts.
+  beforeId: 'city-markers',
 };
 
 /**

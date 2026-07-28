@@ -3,7 +3,7 @@
  *
  * Renders the world map with:
  *   - Country fill shading driven by the /api/map/shading response (MP-01 to MP-06)
- *   - Region shading loaded lazily at zoom >= 4 (MP-02)
+ *   - Region shading loaded lazily at zoom >= 3 (MP-02)
  *   - City marker pins for resolved cities (MP-02, GE-13)
  *   - Click handlers for country, region, and city selection (MP-03, GE-09)
  *

@@ -138,3 +138,88 @@ NEXT STEPS (when resumed)
     non-owners, per AD-09's "any user can add custom entries" text) —
     ADL-28 Question 5 already scoped this as a separate future brief if/
     when prioritized. Not blocking, not touched here.
+
+========================================================================
+PRIOR THREAD, SAME DAY — BUG-49 / brief B1 (merged as PR #301 before this one).
+Retained in full below: both B1 and B2 rewrote this file concurrently, so the
+conflict was resolved by the COO keeping both entries newest-first rather than
+letting either agent's thread record be dropped.
+========================================================================
+
+FRONTEND CONTEXT — as of 2026-07-28 (BUG-49 / brief B1, backlog-clearance-plan Wave 1A)
+
+STATUS: fix/bug49-map-marker-zorder branch, GitHub issue #296, tracker BUG-49 (P2).
+  City markers were rendering behind the region/state shading layer once it
+  activated. Fixed by pinning RegionLayer's 'regions-fill' MapLibre layer with
+  beforeId: 'city-markers'. Also fixed the stale zoom-threshold doc comment on
+  MapView.tsx:6 (said `zoom >= 4`, constant is `3`) per CLAUDE.md's document
+  lifecycle rule, since this PR touched MapView.tsx. PR to be opened as the
+  final step of this thread — see completion report for PR number and CI
+  status.
+
+  This supersedes the prior (2026-07-23, BRD-AD08/#244) entry in this file as
+  the "current" thread; that thread's detail lives in
+  jobs/frontend/park-docs/20260723-FRONTEND-companions-api-route-park.txt and
+  is not repeated here.
+
+ROOT CAUSE (BUG-49)
+  All three map layers (CountryLayer, RegionLayer, CityMarkers) are native
+  MapLibre GL layers added via react-map-gl's <Source>/<Layer> components, not
+  HTML DOM markers — so MapLibre's *paint stacking order* (which layer was
+  added to the style last wins the top) governs z-order, not JSX sibling
+  order. CountryLayer and CityMarkers both mount unconditionally on MapView's
+  initial render, in that JSX order, so their paint order is already correct
+  (countries below city markers). RegionLayer, though, is *conditionally*
+  rendered — it only mounts once `zoom >= REGION_ZOOM_THRESHOLD` AND region
+  data has loaded — so its 'regions-fill' layer gets added to the MapLibre
+  style well after 'city-markers' already exists. Verified by reading
+  node_modules/@vis.gl/react-maplibre/src/components/layer.ts directly: the
+  Layer component calls `map.addLayer(options, props.beforeId)` on mount, and
+  MapLibre's addLayer with no second argument always inserts at the very top
+  of the style's layer stack. So even though CityMarkers appears later than
+  RegionLayer in MapView.tsx's JSX, RegionLayer's *later mount* put its layer
+  above city-markers in the actual paint order the moment shading activated —
+  exactly the bug report's symptom.
+
+FIX
+  src/frontend/components/Map/RegionLayer.tsx: regionFillLayer now carries
+  `beforeId: 'city-markers'`. The Layer component honours this on both
+  initial `addLayer` and on any later update via `map.moveLayer`, so region
+  shading is now pinned directly below city markers regardless of mount
+  timing or how many times RegionLayer mounts/unmounts as the user zooms in
+  and out or changes country. Exported `regionFillLayer` (was previously
+  module-private) purely so the new unit test can assert on it without
+  needing to mock the full MapLibre map instance.
+
+  src/frontend/components/Map/MapView.tsx:6 doc comment corrected from
+  `zoom >= 4` to `zoom >= 3` to match `REGION_ZOOM_THRESHOLD` on line 28.
+
+  Explicitly did NOT touch: REGION_ZOOM_THRESHOLD's value, the region-shading
+  geometry payload, or CountryLayer (already correctly ordered — mounts
+  unconditionally before CityMarkers, no beforeId needed there). Those are
+  BUG-48/ADL-44 per issue #296 and clearance-plan §6.1 — out of scope here.
+
+VERIFICATION
+  npm run type:check (frontend, clean). npm run test:frontend -- --run
+  src/frontend/components/Map (3 files, 11 tests passed, including the new
+  src/frontend/components/Map/__tests__/RegionLayer.test.ts asserting
+  regionFillLayer.beforeId === 'city-markers'). Full /pre-push checklist run
+  before pushing — see completion report for the outcome and PR/CI status.
+
+KEY FILE LOCATIONS (changed this thread)
+  src/frontend/components/Map/RegionLayer.tsx (beforeId fix)
+  src/frontend/components/Map/MapView.tsx (stale comment fix, line 6)
+  src/frontend/components/Map/__tests__/RegionLayer.test.ts (new regression test)
+
+OPEN FLAGS FOR COO
+  none blocking. BUG-49's tracker entry (_project/tracker.json) currently has
+  an empty brdRefs array — BRD MP-02 ("Zooming in on the map reveals
+  region-level shading (where enabled) and city-level pins") is the governing
+  requirement; COO may want to backfill that cross-reference when closing
+  this out, per the BRD → tracker rule, though MP-02 itself isn't a new/
+  changed requirement from this PR so it may not strictly need a version
+  bump — COO's call.
+
+NEXT STEPS (when resumed)
+  COO: review PR (see completion report for #), merge via
+  /coo-merge-and-close when CI is green.
