@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (55)
+## Open work (58)
 
 ### P0 — Blockers (1)
 
@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-50 | No way to delete an entire trip | frontend | done_pending_uat |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
 
-### P2 — Important (29)
+### P2 — Important (31)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -62,11 +62,13 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | done_pending_uat |
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | done_pending_uat |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
+| BUG-65 | A review_pending trip has no delete affordance — TR-14 is unreachable in that state | frontend | ⬜ Pending |
+| BUG-66 | ReviewPanel's forward Lock path repeats BUG-58's onClose()-after-mutation pattern | frontend | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 | QUAL-17 | 15 further backend test files hand-roll the same 21-table DDL that QUAL-03 just removed from test-db.ts | backend | ⬜ Pending |
 
-### P3 — Minor (23)
+### P3 — Minor (24)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -88,6 +90,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-54 | Category/activity color customization | ux | ⬜ Pending |
 | BUG-56 | City name not auto-capitalized on entry | frontend | ⬜ Pending |
 | QUAL-07 | Standing docs-vs-code audit — recurring Docs brief to catch prose/reality drift before someone trips over it | docs | ⬜ Pending |
+| BUG-67 | Locked-trip delete refusal is decided from client-held status, not re-checked at confirm time | frontend | ⬜ Pending |
 | DEP-03 | GitHub Actions pinned to v4 target Node.js 20 — deprecated, force-run on Node 24 | unassigned | ⬜ Pending |
 | QUAL-10 | jobs/database/tech/schema.ts is an unmaintained copy of the real schema | docs | ⬜ Pending |
 | QUAL-13 | Stale unread COO->Architect inbox messages from March 2026 | coo | ⬜ Pending |
@@ -100,7 +103,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `███████████████░░░░░` 44/58 | 44 | 14 | 4 |
+| bug | `██████████████░░░░░░` 44/61 | 44 | 17 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `██████████░░░░░░░░░░` 11/23 | 11 | 12 | 1 |
 
@@ -136,4 +139,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_133 done · 10 deferred · 4 closed · 55 open — 202 tracked items_
+_133 done · 10 deferred · 4 closed · 58 open — 205 tracked items_
