@@ -187,9 +187,7 @@ export function ItemForm({
   const [pickupLocation, setPickupLocation] = useState(existingItem?.pickup_location ?? '');
   const [dropoffLocation, setDropoffLocation] = useState(existingItem?.dropoff_location ?? '');
   const [pickupDatetime, setPickupDatetime] = useState(
-    isEditing
-      ? (existingItem?.pickup_datetime ?? '')
-      : resolveDefaultDateTime(tripStartDate, true),
+    isEditing ? (existingItem?.pickup_datetime ?? '') : resolveDefaultDateTime(tripStartDate, true),
   );
   const [dropoffDatetime, setDropoffDatetime] = useState(
     isEditing ? (existingItem?.dropoff_datetime ?? '') : resolveDefaultDateTime(tripEndDate, false),
