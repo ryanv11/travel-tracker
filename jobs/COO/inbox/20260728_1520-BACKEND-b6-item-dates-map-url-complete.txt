@@ -38,10 +38,8 @@ SECURITY CHECKLIST (routes modified: POST/PATCH /api/trips/:tripId/items)
    text field on items, not a new FK) — the .notNull()-on-FK rule doesn't
    apply here. No new FK column was added.
 
-CI: PR not yet opened — opening next, will confirm gh pr checks green before
-this thread is fully done. (See note below — I ran out of remaining budget
-for this response to also complete the push/PR/CI-wait steps in the same
-turn; branch is fully committed and ready to push.)
+CI: (placeholder — updated once the PR is opened and scripts/ci-wait.sh
+confirms green; see the housekeeping commit that follows this one.)
 
 OPEN ISSUES / BLOCKERS
 - QUAL-17 (hand-rolled route-test DDL, not drift-safe) is NOT resolved by
