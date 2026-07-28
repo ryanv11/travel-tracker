@@ -34,18 +34,33 @@ Backend agent" below are now implemented.
   removed `/api/admin/companions`; `src/e2e/admin.spec.ts`'s companion test is un-skipped
   and passing (verified locally via the full Playwright suite, not just CI).
 
-  **New gap found while closing the above, NOT fixed by this brief (deliberately out of
-  scope — flagged to COO):** `CompanionTab.tsx` itself has no owner-only gating, but it is
-  unreachable by a non-owner in practice — the entire `/admin` route is wrapped in
-  `RequireOwner` (`App.tsx`) and the "Admin" nav link is hidden unless `me.isOwner` (BUG-26,
-  its own dedicated tested behaviour in `App.test.tsx`). So a non-owner authenticated user
-  still cannot reach the Companions tab at all, even though AD-08's access model says any
-  authenticated user should manage their own companions. Fixing this correctly means
-  touching shared nav/route infrastructure that also gates the four still-owner-only tabs
-  (categories, activities, shading, countries) and reversing part of BUG-26's tested
-  contract — judged too architecturally significant to fold into a same-brief hook-URL fix.
-  Needs its own scoped follow-up brief (likely: per-tab gating inside `AdminPanel.tsx`
-  instead of a page-level `RequireOwner`, plus updating `App.test.tsx`'s BUG-26 assertions).
+  **Gap CLOSED (2026-07-28, GitHub #298, PR TBD, `fix/bug62-admin-per-tab-gating`):**
+  `CompanionTab.tsx` itself has no owner-only gating, but it was unreachable by a non-owner
+  in practice — the entire `/admin` route was wrapped in `RequireOwner` (`App.tsx`) and the
+  "Admin" nav link was hidden unless `me.isOwner` (BUG-26, its own dedicated tested
+  behaviour in `App.test.tsx`). Fixed exactly as proposed below: `RequireOwner` and the
+  `isOwner` nav-link check are removed from `App.tsx` (Admin nav/route now behave like
+  Map/Trips — any authenticated user), and per-tab owner gating moved into
+  `AdminPanel.tsx` (Companions + Map Shading open to any authenticated user; Categories,
+  Activities, Countries stay owner-only, hidden from the tab bar and double-guarded on
+  render for non-owners). `App.test.tsx`'s BUG-26 assertions rewritten to match; a new
+  `AdminPanel.test.tsx` covers the per-tab contract. The map-shading UI tab referenced
+  below as hypothetical now exists (`ShadingTab.tsx`, already registered in
+  `AdminPanel.tsx`) and is covered by the same fix. See `_project/tracker.json`'s BUG-62
+  entry for full verification detail (test/CI results).
+
+  Original gap description (2026-07-23), retained for history: `CompanionTab.tsx` itself
+  has no owner-only gating, but it is unreachable by a non-owner in practice — the entire
+  `/admin` route is wrapped in `RequireOwner` (`App.tsx`) and the "Admin" nav link is
+  hidden unless `me.isOwner` (BUG-26, its own dedicated tested behaviour in
+  `App.test.tsx`). So a non-owner authenticated user still cannot reach the Companions tab
+  at all, even though AD-08's access model says any authenticated user should manage their
+  own companions. Fixing this correctly means touching shared nav/route infrastructure
+  that also gates the four still-owner-only tabs (categories, activities, shading,
+  countries) and reversing part of BUG-26's tested contract — judged too architecturally
+  significant to fold into a same-brief hook-URL fix. Needs its own scoped follow-up brief
+  (likely: per-tab gating inside `AdminPanel.tsx` instead of a page-level `RequireOwner`,
+  plus updating `App.test.tsx`'s BUG-26 assertions).
 
 ---
 

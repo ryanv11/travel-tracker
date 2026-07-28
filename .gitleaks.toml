@@ -1,0 +1,26 @@
+# Gitleaks configuration — Travel Tracker
+#
+# Extends gitleaks' built-in default ruleset (all standard secret-detection
+# rules stay active) and adds a narrow allowlist for proven false positives.
+# `gitleaks detect --source=.` (see .github/workflows/security.yml) picks up
+# this file automatically from the repo root — no workflow change needed.
+#
+# Entry 1 (2026-07-28, BUG-62/#298/#303): the `generic-api-key` rule flagged
+# the literal string "Categories/Activities/Countries" in a tracker.json
+# note (commit 92eba3f) — three capitalized words joined by slashes with no
+# whitespace happened to match the rule's entropy/shape heuristic. Confirmed
+# not a secret (it's admin-panel tab names in a plain-English changelog
+# note, verified by reading the source line directly). Allowlisted by an
+# exact-string regex match on gitleaks' own reported `match` text (not a
+# path or commit-wide exception) — this suppresses only this literal
+# 50-character phrase, anywhere it appears, rather than exempting the whole
+# file or commit from future scanning. A real secret is not going to
+# collide with this exact phrase.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "BUG-62 tracker.json note: 'Categories/Activities/Countries' is plain-English tab-name text, not a secret (generic-api-key false positive)"
+regexTarget = "match"
+regexes = ['''authenticated user, Categories/Activities/Countries ''']

@@ -1,3 +1,151 @@
+FRONTEND CONTEXT — as of 2026-07-28 (BUG-62 per-tab admin gating, B2 backlog-clearance)
+
+STATUS: fix/bug62-admin-per-tab-gating branch, GitHub issue #298, Wave 1 sub-wave A
+  brief B2. Moved admin gating from page-level RequireOwner (App.tsx) to
+  per-tab gating inside AdminPanel.tsx: Companions and Map Shading are open
+  to any authenticated user (AD-08/AD-07); Categories, Activities, and
+  Countries stay owner-only (AD-09). App.test.tsx's 6 BUG-26 assertions
+  rewritten to 2 BUG-62 assertions; new AdminPanel.test.tsx (8 tests) covers
+  the per-tab contract directly. All local checks green: npm run check,
+  type:check:all, test:backend 583/1-skipped (unaffected — no backend code
+  touched), test:frontend 156 passed, status:check clean, full Playwright
+  suite 52/52 (admin.spec.ts 5/5 unaffected). PR #303 opened, 9/9 CI checks
+  green (scripts/ci-wait.sh pr 303 → PASS) after a fix-forward for a
+  Gitleaks false positive (see park doc's CI NOTE — added .gitleaks.toml,
+  no workflow change). Awaiting COO review.
+
+  This supersedes the prior (2026-07-23, BRD-AD08/#244) entry in this file
+  as the "current" thread; that thread's detail lives in
+  jobs/frontend/park-docs/20260723-FRONTEND-companions-api-route-park.txt
+  and is not repeated here.
+
+WHAT WAS DONE (this thread — BUG-62 / GitHub #298)
+  - src/frontend/App.tsx: removed the `RequireOwner` component entirely and
+    the `!!me?.isOwner` check gating the Admin nav link. The `/admin` route
+    now renders `<AdminPage />` directly; the Admin nav link renders
+    unconditionally, same as Map/Trips. `useMe` import removed (no longer
+    used in this file).
+  - src/frontend/components/Admin/AdminPanel.tsx: added a per-tab
+    `ownerOnly` flag to the TABS array. Companions and Map Shading:
+    `ownerOnly: false`. Categories, Activities, Countries: `ownerOnly:
+    true`. AdminPanel now calls `useMe()` itself, filters the tab bar to
+    only the tabs a given user can see, defaults to Categories for an owner
+    and Companions for a non-owner (computed once identity resolves, via a
+    null-until-resolved `activeTab` state + effect — avoids defaulting to
+    Categories then jumping to Companions once we learn the user isn't the
+    owner). Renders a LoadingSpinner while identity is pending (fail-closed,
+    no flash — same principle the old RequireOwner used). Owner-only tab
+    content is also guarded a second time at the render site
+    (`currentTab === 'categories' && isOwner && <CategoryTab />`) as
+    defence-in-depth against a stale `activeTab` surviving an identity
+    change — belt-and-suspenders on top of the tab bar already hiding the
+    button.
+  - src/frontend/__tests__/App.test.tsx: rewritten. The 6 BUG-26 tests
+    (owner/non-owner/loading × nav-link-visibility/route-guard) are gone —
+    that contract no longer exists at this level. 2 new BUG-62 tests: Admin
+    nav link always shown; /admin always renders AdminPage with no
+    "Not authorised" text. useMe mock removed (App no longer calls it).
+  - New src/frontend/components/Admin/__tests__/AdminPanel.test.tsx (8
+    tests): loading state (spinner, no tab bar, no tab content); owner sees
+    all 5 tabs and defaults to Categories, can switch to an owner-only tab;
+    non-owner sees only Companions + Map Shading, defaults to Companions,
+    can switch to Map Shading, and owner-only tab content never renders
+    (category/activity/country tabs all absent).
+  - _project/tracker.json: BUG-62 entry's notes appended with the fix
+    detail and #298 cross-reference (status left "pending" — COO flips to
+    "done" at merge, per the BRD-AD08/#245 precedent in this file's git
+    history). BRD-AD09 entry's notes corrected — see BUGS DISCOVERED below,
+    this is the significant finding of this thread.
+  - jobs/architect/tech/ADL-28-per-user-shading-companions.md: the
+    "Migration status" preamble's "New gap found... NOT fixed" paragraph is
+    now stamped "Gap CLOSED (2026-07-28...)" with the fix summary, original
+    text retained below for history per the document-lifecycle rule.
+
+WHAT WAS DELIBERATELY NOT DONE
+  No backend code was touched. GitHub #298 bundled a second item,
+  BRD-AD09 ("enforce owner-only deactivation of categories/activities on
+  the backend — not enforced today"). Before building anything against that
+  premise, checked it per the mandatory negative-findings rule (any "not
+  enforced" claim needs two independent probes) — see BUGS DISCOVERED.
+  Found the premise false: it's already enforced. No backend change made.
+
+BUGS DISCOVERED / CORRECTED
+  [FINDING, not a bug — a stale tracker note] BRD-AD09's tracker note
+  (backfilled 2026-03-23) claimed "Owner-only deactivation not enforced —
+  any user can deactivate." This is what #298 bundled a backend task on.
+  Checked with three independent probes before writing any code:
+    1. Code read of src/backend/routes/admin.ts:
+       `adminRouter.use(requireOwner)` (line ~105) is registered BEFORE the
+       categories/activities CRUD sub-routers mount
+       (`adminRouter.use('/categories', ...)` / `.../'activities'`, lines
+       ~232-233). Express processes router middleware in registration
+       order regardless of when sub-routers are added later, so every
+       categories/activities route — GET, POST, PATCH, DELETE, including
+       the PATCH/DELETE deactivation paths — is owner-gated today.
+    2. src/backend/routes/__tests__/security.access-matrix.test.ts already
+       has explicit tests: "PATCH /api/admin/categories/1 -> 403",
+       "DELETE /api/admin/categories/1 -> 403", same pair for activities,
+       for a non-owner authenticated user.
+    3. Ran that test file live in this worktree (not just trusted the
+       source): `npx vitest run ... -t "categories"` -> 7/7 passed.
+    Also grepped repositories/routes for any other write path to
+    categories/activities `isActive` outside admin.ts — none found.
+  Conclusion: deactivation IS owner-only enforced on the backend today.
+  BRD-AD09's real, still-open gap is the OTHER half of its text ("Any user
+  can add custom entries") — creation (POST) is also behind the same
+  router-level requireOwner, which is MORE restrictive than AD-09
+  specifies, not less. That's the opposite direction from a security gap
+  and is explicitly out of scope for this brief (ADL-28 Question 5 already
+  calls it out as "a separate brief" if the COO wants to open it).
+  tracker.json's BRD-AD09 note corrected accordingly; status left "partial"
+  since a real gap remains, just not the one previously described.
+  Disposition: flagged to COO in this park doc and the completion report,
+  not fixed unilaterally (nothing to fix on the deactivation side; the
+  creation-scope question is a product/architecture call, not mine to make
+  unprompted).
+
+VERIFICATION
+  npm run check (biome, clean), npm run type:check:all (clean),
+  npm run test:backend (583 passed / 1 skipped, unaffected — no backend
+  files changed), npm run test:frontend (156 passed, includes the 8 new
+  AdminPanel tests and the rewritten 2-test App.test.tsx), npm run
+  status:check (STATUS.md in sync), full Playwright suite via
+  `DB_TYPE=sqlite npm run test:e2e` (52/52 passed, including admin.spec.ts
+  5/5 unaffected — the BYPASS_AUTH test user is the seeded owner, so all
+  five owner-only category/activity/companion e2e flows still exercise the
+  same code paths they always did). Manual browser/Clerk sign-in check NOT
+  performed — same sandbox limitation as every prior Frontend thread (no
+  real Clerk publishable key, firewall doesn't reach Clerk's hosted
+  sign-in). The Playwright run against BYPASS_AUTH is the closest available
+  substitute for both the owner AND, implicitly, the per-tab gating logic
+  itself (verified directly via AdminPanel.test.tsx's owner/non-owner unit
+  coverage, which Playwright's owner-only BYPASS_AUTH user can't exercise
+  on its own).
+
+KEY FILE LOCATIONS (changed this thread)
+  src/frontend/App.tsx (RequireOwner removed, nav link unconditional)
+  src/frontend/components/Admin/AdminPanel.tsx (per-tab ownerOnly gating)
+  src/frontend/__tests__/App.test.tsx (rewritten, 6 tests -> 2)
+  src/frontend/components/Admin/__tests__/AdminPanel.test.tsx (new, 8 tests)
+  _project/tracker.json (BUG-62 + BRD-AD09 notes)
+  jobs/architect/tech/ADL-28-per-user-shading-companions.md (gap closed stamp)
+
+NEXT STEPS (when resumed)
+  - COO: review PR (branch fix/bug62-admin-per-tab-gating), merge, flip
+    BUG-62 status to "done" in tracker.json at merge time (matches the
+    BRD-AD08/#245 precedent already in that file's history).
+  - COO: route BRD-AD09's real remaining gap (creation not open to
+    non-owners, per AD-09's "any user can add custom entries" text) —
+    ADL-28 Question 5 already scoped this as a separate future brief if/
+    when prioritized. Not blocking, not touched here.
+
+========================================================================
+PRIOR THREAD, SAME DAY — BUG-49 / brief B1 (merged as PR #301 before this one).
+Retained in full below: both B1 and B2 rewrote this file concurrently, so the
+conflict was resolved by the COO keeping both entries newest-first rather than
+letting either agent's thread record be dropped.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-07-28 (BUG-49 / brief B1, backlog-clearance-plan Wave 1A)
 
 STATUS: fix/bug49-map-marker-zorder branch, GitHub issue #296, tracker BUG-49 (P2).

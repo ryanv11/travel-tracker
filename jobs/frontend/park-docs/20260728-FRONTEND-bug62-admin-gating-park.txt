@@ -1,0 +1,177 @@
+FRONTEND PARK DOCUMENT — 2026-07-28
+Thread: BUG-62 per-tab admin gating + BRD-AD09 backend check (fix/bug62-admin-per-tab-gating, GitHub #298)
+
+SUMMARY
+Brief B2 (Wave 1 sub-wave A, jobs/COO/backlog-clearance-plan.md §4) bundled two
+items on purpose: BUG-62 (move admin gating from page-level RequireOwner to
+per-tab inside AdminPanel.tsx, since AD-08 made companions per-user) and
+BRD-AD09 (enforce owner-only deactivation of categories/activities on the
+backend — bundled because shipping BUG-62 alone over an unenforced backend is
+the exact HC-04/BUG-26 shape this project has been bitten by twice).
+
+BUG-62 is implemented as specced. BRD-AD09's backend half turned out to
+already be enforced — the premise the brief was built on was wrong, caught
+before writing any backend code, not after. No backend changes in this PR.
+
+WHAT CHANGED
+1. src/frontend/App.tsx — removed the `RequireOwner` wrapper component and
+   the `!!me?.isOwner` conditional around the Admin `NavLink`. The `/admin`
+   route now renders `<AdminPage />` unconditionally; the Admin nav link
+   renders unconditionally, matching Map/Trips. `useMe` import dropped (no
+   longer referenced in this file).
+2. src/frontend/components/Admin/AdminPanel.tsx — added `ownerOnly: boolean`
+   to each entry in the `TABS` array (Categories/Activities/Countries: true;
+   Companions/Map Shading: false). The component now calls `useMe()`,
+   computes `isOwner` (fail-closed: `isPending` counts as non-owner),
+   filters `TABS` down to `visibleTabs`, and picks a default active tab
+   once identity resolves (Categories for an owner, Companions for a
+   non-owner) via a `null`-until-resolved `activeTab` state — this avoids a
+   flash where a non-owner briefly sees Categories selected before the
+   panel learns they're not the owner. Renders a `LoadingSpinner` while
+   identity is pending. Owner-only tab content is guarded a second time at
+   the render call site (`currentTab === 'categories' && isOwner && ...`)
+   as defence-in-depth, on top of the tab-bar button already being absent
+   for non-owners.
+3. src/frontend/__tests__/App.test.tsx — rewritten. BUG-26's 6 tests
+   (nav-link visibility × owner/non-owner/loading, route guard ×
+   owner/non-owner/loading) are replaced with 2 BUG-62 tests: the Admin nav
+   link is always shown; direct `/admin` navigation always renders
+   `AdminPage` (mocked stub) with no "Not authorised" text anywhere. The
+   `useMe` mock is removed since App.tsx no longer calls it.
+4. New src/frontend/components/Admin/__tests__/AdminPanel.test.tsx (8
+   tests) — mocks `useMe` and every tab component as a stub, covers: loading
+   state renders a spinner and no tab bar/content; an owner sees all 5 tabs
+   and defaults to Categories, and can switch to an owner-only tab
+   (Activities); a non-owner sees only Companions + Map Shading and
+   defaults to Companions, can switch to Map Shading, and no owner-only tab
+   content renders under any circumstance tested (Categories, Activities,
+   Countries all absent from the DOM).
+5. _project/tracker.json — BUG-62 entry's notes appended with the fix
+   summary and #298 cross-reference (status left "pending"; COO flips to
+   "done" at merge per the BRD-AD08/#245 precedent already in this file).
+   BRD-AD09 entry's notes corrected — see BUGS DISCOVERED, this is the
+   substantive finding of the thread.
+6. jobs/architect/tech/ADL-28-per-user-shading-companions.md — the
+   "New gap found... NOT fixed by this brief" paragraph in the migration
+   status preamble is stamped "Gap CLOSED (2026-07-28...)" with a summary;
+   original text retained below for history per the document-lifecycle
+   rule (CLAUDE.md).
+
+WHAT WAS EXPLICITLY NOT CHANGED
+- No backend files touched. See BUGS DISCOVERED for why — BRD-AD09's
+  "not enforced" premise was checked and found false before any code was
+  written.
+- CompanionTab.tsx, ShadingTab.tsx, CategoryTab.tsx, ActivityTab.tsx,
+  CountryTab.tsx — none of these tab components changed; only the gating
+  around which tabs are reachable and rendered changed.
+- No schema/migration work — not applicable to this brief.
+
+BUGS DISCOVERED
+[FINDING — stale tracker note, corrected, not a code bug]
+tracker.json's BRD-AD09 entry (backfilled 2026-03-23) said: "Owner-only
+deactivation not enforced — any user can deactivate." GitHub #298's
+BRD-AD09 task was written against that premise: "The owner-only
+deactivation half is not enforced on the backend today. Enforce it."
+
+Per the mandatory negative-findings rule (CLAUDE.md — any "not
+enforced"/"not implemented" claim needs two independent probes before it's
+treated as fact), checked this before writing any backend code:
+
+  Probe 1 (code read): src/backend/routes/admin.ts registers
+  `adminRouter.use(requireOwner)` at line ~105, BEFORE the categories and
+  activities CRUD sub-routers mount at lines ~232-233
+  (`adminRouter.use('/categories', createAdminListRouter(...))` etc.).
+  Express Router processes middleware in registration order for every
+  request that reaches it, independent of when child routers are added
+  later in the same file — so every categories/activities route (GET,
+  POST, PATCH `/:id` which handles `is_active` updates, and DELETE `/:id`
+  which soft-deletes by setting `is_active = 0`) is gated by `requireOwner`
+  today.
+
+  Probe 2 (existing test suite): src/backend/routes/__tests__/
+  security.access-matrix.test.ts already contains, and already passes:
+  "PATCH /api/admin/categories/1 -> 403", "DELETE /api/admin/categories/1
+  -> 403", and the same pair for activities — all asserting a non-owner
+  authenticated request is rejected.
+
+  Probe 3 (live run, not just trusted the source): ran
+  `npx vitest run src/backend/routes/__tests__/security.access-matrix.test.ts
+  -t "categories"` in this worktree — 7/7 passed.
+
+  Also grepped repositories/routes for any other write path to
+  `isActive` on `tripCategories`/`activities` outside admin.ts — none
+  found, ruling out a bypass route.
+
+Conclusion: owner-only deactivation of categories/activities IS enforced on
+the backend today. The tracker note was wrong (likely stale since before
+`requireOwner` was actually wired into admin.ts, given both the ADL-27
+decision and the tracker backfill share a date of 2026-03-23 — plausible
+the note was written slightly ahead of the implementation and never
+re-verified after). No backend change was made as a result — there was
+nothing to fix on this half of AD-09.
+
+BRD-AD09's real, still-open gap is the OTHER half of its text: "Any user
+can add custom entries." Category/activity creation (POST) is currently
+ALSO behind the same router-level `requireOwner` — more restrictive than
+AD-09 specifies, not less. This is the opposite direction from a security
+hole (over-restrictive, not under-enforced) and was already correctly
+scoped as a separate future brief in ADL-28 Question 5 ("If the COO wants
+to open category/activity creation to non-owners per AD-09, that is a
+separate brief") — not touched in this thread. tracker.json's BRD-AD09
+status stays "partial" for this reason, with corrected notes.
+
+Disposition: flagged here and in the completion report, not fixed
+unilaterally — there is nothing to fix on the deactivation side, and
+opening creation to non-owners is a product/architecture scope decision,
+not something to do unprompted on a brief that asked for the opposite.
+
+VERIFICATION RUN (all local, this worktree)
+  npm run check                clean
+  npm run type:check:all       clean
+  npm run test:backend         583 passed, 1 skipped (pre-existing,
+                                unaffected — no backend files changed)
+  npm run test:frontend        156 passed (includes 8 new AdminPanel tests,
+                                rewritten 2-test App.test.tsx)
+  npm run status:check         STATUS.md in sync
+  DB_TYPE=sqlite npm run test:e2e   52/52 passed via full Playwright suite
+                                (admin.spec.ts 5/5 unaffected — BYPASS_AUTH
+                                test user is the seeded owner, per
+                                playwright.config.ts's OWNER_CLERK_ID=
+                                test_clerk_id)
+  Manual browser/Clerk sign-in check: NOT performed — same sandbox
+  limitation as every prior Frontend thread (no real Clerk publishable key
+  configured, firewall only allows GitHub/npm/Anthropic so Clerk's hosted
+  sign-in is unreachable here). AdminPanel.test.tsx's owner/non-owner unit
+  coverage is the only local verification of the actual per-tab gating
+  logic (Playwright's BYPASS_AUTH user is always the owner, so it can't
+  exercise the non-owner tab-hiding path at all — this is why the new unit
+  test file matters here, not just an e2e pass).
+
+CI NOTE — Gitleaks false positive, fixed via allowlist not workflow change
+PR #303's first CI run failed one check: Secret Scanning (Gitleaks) flagged
+"Categories/Activities/Countries" (three slash-joined capitalized words in
+my own BUG-62 tracker.json note) as a generic-api-key match — an
+entropy/shape heuristic misfire, confirmed not a secret by reading the
+source line directly. Reworded the note for clarity, but gitleaks scans the
+full commit history by default (`fetch-depth: 0`), so the flagged text
+stayed present at the earlier commit regardless of a later rewording commit
+— rewriting that commit's history (amend/force-push) was avoided per the
+git safety protocol, so instead added `.gitleaks.toml` at the repo root: an
+allowlist entry matching gitleaks' own reported match string exactly
+(narrow — suppresses only this literal 50-character phrase, not the whole
+file or commit), which `./gitleaks detect --source=.`
+(.github/workflows/security.yml, unchanged) picks up automatically with no
+workflow edit. Verified locally with the same pinned gitleaks v8.30.1
+binary + sha256 the workflow uses: 1 leak → 0 with the config in place, full
+355-commit history scanned. PR #303 is now 9/9 green.
+
+WHAT'S NOW UNBLOCKED
+- BUG-62 is closed pending COO merge — non-owner authenticated users can
+  now actually reach and use the Companions and Map Shading tabs, closing
+  the last piece of AD-07/AD-08's frontend rollout.
+- FLAG-AD08-1 (in the 2026-07-23 park doc/context file) is resolved by this
+  thread.
+- BRD-AD09's tracker note no longer misdirects a future brief toward
+  "fixing" enforcement that already exists; the real remaining gap
+  (creation scope) is accurately described and already has a scoped
+  next step in ADL-28 Question 5 if the COO wants to prioritize it.
