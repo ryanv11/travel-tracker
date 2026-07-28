@@ -9,9 +9,10 @@ STATUS: fix/bug62-admin-per-tab-gating branch, GitHub issue #298, Wave 1 sub-wav
   the per-tab contract directly. All local checks green: npm run check,
   type:check:all, test:backend 583/1-skipped (unaffected — no backend code
   touched), test:frontend 156 passed, status:check clean, full Playwright
-  suite 52/52 (admin.spec.ts 5/5 unaffected). PR to be opened as the final
-  step of this thread — see completion report for the PR number and CI
-  status.
+  suite 52/52 (admin.spec.ts 5/5 unaffected). PR #303 opened, 9/9 CI checks
+  green (scripts/ci-wait.sh pr 303 → PASS) after a fix-forward for a
+  Gitleaks false positive (see park doc's CI NOTE — added .gitleaks.toml,
+  no workflow change). Awaiting COO review.
 
   This supersedes the prior (2026-07-23, BRD-AD08/#244) entry in this file
   as the "current" thread; that thread's detail lives in

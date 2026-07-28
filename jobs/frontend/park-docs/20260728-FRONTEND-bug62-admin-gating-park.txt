@@ -147,6 +147,24 @@ VERIFICATION RUN (all local, this worktree)
   exercise the non-owner tab-hiding path at all — this is why the new unit
   test file matters here, not just an e2e pass).
 
+CI NOTE — Gitleaks false positive, fixed via allowlist not workflow change
+PR #303's first CI run failed one check: Secret Scanning (Gitleaks) flagged
+"Categories/Activities/Countries" (three slash-joined capitalized words in
+my own BUG-62 tracker.json note) as a generic-api-key match — an
+entropy/shape heuristic misfire, confirmed not a secret by reading the
+source line directly. Reworded the note for clarity, but gitleaks scans the
+full commit history by default (`fetch-depth: 0`), so the flagged text
+stayed present at the earlier commit regardless of a later rewording commit
+— rewriting that commit's history (amend/force-push) was avoided per the
+git safety protocol, so instead added `.gitleaks.toml` at the repo root: an
+allowlist entry matching gitleaks' own reported match string exactly
+(narrow — suppresses only this literal 50-character phrase, not the whole
+file or commit), which `./gitleaks detect --source=.`
+(.github/workflows/security.yml, unchanged) picks up automatically with no
+workflow edit. Verified locally with the same pinned gitleaks v8.30.1
+binary + sha256 the workflow uses: 1 leak → 0 with the config in place, full
+355-commit history scanned. PR #303 is now 9/9 green.
+
 WHAT'S NOW UNBLOCKED
 - BUG-62 is closed pending COO merge — non-owner authenticated users can
   now actually reach and use the Companions and Map Shading tabs, closing

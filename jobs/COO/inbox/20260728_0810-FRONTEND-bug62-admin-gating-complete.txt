@@ -1,6 +1,6 @@
 FRONTEND COMPLETION REPORT
 
-Tracker: BUG-62, BRD-AD09 · GitHub #298 (PR: see below) · BRD §5.10 AD-08/AD-09
+Tracker: BUG-62, BRD-AD09 · GitHub #298 · PR #303 · BRD §5.10 AD-08/AD-09
 Branch: fix/bug62-admin-per-tab-gating
 
 WHAT WAS BUILT
@@ -37,8 +37,17 @@ createAdminListRouter operates on the whole table, not user-scoped, which is
 correct for AD-09 (categories/activities are global, not per-user, data —
 userId scoping doesn't apply here by design); (c) no new FK columns added.
 
-CI: gh pr checks <PR#> — pending, PR being opened now (see next message /
-follow-up if not included below)
+CI: all 9 checks green on PR #303 (scripts/ci-wait.sh pr 303 → PASS). One
+fix-forward needed along the way: Secret Scanning (Gitleaks) flagged the
+literal string "Categories/Activities/Countries" in my own BUG-62 tracker
+note (three slash-joined capitalized words, an entropy/shape false positive
+on the generic-api-key rule — confirmed not a secret by reading the source
+line). Reworded the note and, since gitleaks scans full commit history and
+the flagged text stays in the earlier commit regardless of later edits,
+added `.gitleaks.toml` — a narrow allowlist matching gitleaks' own reported
+50-character match string exactly, not a path/commit-wide exception. No
+CI workflow file touched. Verified locally with the pinned gitleaks binary
+before pushing (1 leak → 0).
 
 FLAG FOR COO — BRD-AD09 backend premise was wrong
 GitHub #298 bundled BUG-62 with a backend task on the stated premise that
