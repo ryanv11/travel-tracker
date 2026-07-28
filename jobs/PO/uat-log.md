@@ -51,6 +51,66 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-07-28 (Wave 1 sub-wave B — AWAITING PO, not yet tested)
+
+**Scope:** Three more items shipped by Wave 1 sub-wave B, on top of the seven from sub-wave A
+below. All `done_pending_uat`. COO-raised checklist, not a completed test session — the verdict
+line stays blank until you run it.
+**Build:** main @ 1f4f535
+**Verdict:** _(pending — PO to fill in)_
+
+#### To verify
+
+- [ ] **BUG-50 / TR-14** — open a trip with places and items and delete it from the **detail**
+      view (not the bulk-select in the list). The confirmation should name the trip and what
+      will be lost. Cancelling must leave everything untouched. Try it on a **Locked** trip:
+      it should refuse with a message pointing you at unlocking, not fail silently. Check
+      desktop and mobile. (PR #319)
+      *Read this as TR-14 partially delivered — see the caveat below.*
+
+- [ ] **BUG-58** — move a trip **backward** through the status workflow ("Return to Planning"
+      from review). The trip should stay selected with the detail panel just updating. (PR #319)
+
+- [ ] **BUG-52 / TR-13** — search your trip list for **"United States"** (or any country name)
+      and a trip with a US place should appear even if the title says nothing about the US.
+      **Searching "USA" will still return nothing, and that is correct as specified** — TR-13
+      covers full country names only. See the open question below. (PR #320)
+
+- [ ] **BUG-56** — type a lowercase city name into the new-city form; the first letter should
+      capitalise. (PR #320)
+
+- [ ] **BRD-IT0809 / IT-08 + IT-09** — on a trip with rated restaurants/hotels/experiences,
+      sort by rating both ways and apply a minimum-rating filter. Unrated items should
+      **disappear** under a minimum filter rather than sorting to the bottom. Clearing both
+      should restore the original order, and the setting must not carry over to another trip.
+      (PR #318)
+
+- [ ] **NEW SCREEN, needs your eyes most** — IT-09 required a cross-trip city view that had no
+      frontend at all, so **a brand-new page was built with no UX spec**: click a city name in
+      a place section to reach `/cities/:id`. It should list rated items for that city drawn
+      from **every** trip that visited it, with the same sort/filter behaviour. Judge the
+      design as much as the function — an implementation agent designed this screen, not UX.
+      (PR #318)
+
+#### Caveat — BUG-50 passing does NOT close TR-14
+
+A trip in **review_pending** status renders a different component and has **no delete
+affordance at all**, so it cannot be deleted without changing status first. Logged as
+**BUG-65**; TR-14 is not fully satisfied until that ships. Two related items logged at the same
+time: **BUG-66** (the forward Lock path repeats BUG-58's pattern — unverified, and whether it's
+even unwanted is a product question) and **BUG-67** (the locked-delete refusal reads cached
+status rather than the backend's authoritative 403 — not a security issue).
+
+#### Open question for the PO
+
+- [ ] **Should trip search match "USA" and "US" as well as "United States"?** You gave both
+      "United States" and "USA" as examples in the original report; only the first works today.
+      Full analysis and a COO recommendation (add ISO codes — cheap; leave colloquial names
+      like "America"/"Britain" parked — genuinely needs a data source) are in
+      `jobs/COO/open-dialogues.md` **D-14**. Adopting it needs a small TR-13 amendment.
+
+---
+
 ### UAT Session — 2026-07-28 (Wave 1 sub-wave A — AWAITING PO, not yet tested)
 
 **Scope:** Seven items shipped by Wave 1 sub-wave A, all flipped to `done_pending_uat` and

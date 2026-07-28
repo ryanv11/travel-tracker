@@ -25,6 +25,77 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-15: A green PR earned against a stale base merged into a red main — does the merge step need a mandatory re-check?
+**Raised:** 2026-07-28
+
+Wave 1 sub-wave B produced a **red main from two individually-green PRs**. B8 (#318) and B7
+(#319) had no textual conflict, were each 18/18 green, and were partitioned by file surface
+exactly as `backlog-clearance-plan.md` §4 intends. They broke only in combination, because
+B7's CI ran against a base that predated B8.
+
+Two layers, the second hidden behind the first:
+1. B7's `TripDetail.test.tsx` used a **total** `vi.mock` of `hooks/useItems`, listing only the
+   exports that existed when B7 branched. B8 added `DEFAULT_RATING_SORT_FILTER`, which
+   `PlaceSection` consumes — absent under a total mock, so `PlaceSection` threw.
+2. Fixing that let `PlaceSection` genuinely mount, which exposed that B8's new per-city `Link`
+   to `/cities/:id` needs router context the test never provided.
+
+Fixed in PR #322 (partial mock via `importOriginal`, plus `MemoryRouter`), and the identical
+latent pattern in `MobileTripDetailView.test.tsx` fixed preventively — it passes today only
+because no test there mounts a place.
+
+**The general point.** The plan's conflict analysis reasons about *file overlap*. This was a
+**shared-module contract** break — invisible to that check, and it will recur for as long as
+sub-waves run concurrently. The cheap mitigation, applied by hand this session for B4 (#320)
+and shown to work: before merging the second and subsequent PRs of a wave, update the branch
+against current `main` and re-run its CI, rather than trusting a green earned against a stale
+base. GitHub's `pulls/:n/update-branch` API does this in one call.
+
+Open question: make that a standing step in `/coo-merge-and-close`, or rely on the existing
+mandatory post-merge `ci-wait.sh branch main` to catch it after the fact? The post-merge check
+*did* catch it, and fixing forward took one PR. So the honest framing is prevention-vs-detection
+cost, not a safety gap — main was never left red unowned. Note this is BUG-24's known class,
+which is already why the post-merge check is mandatory; what's new is a concrete, cheap
+prevention step rather than another instance.
+
+**Second, smaller item raised by the same wave, recorded here rather than as its own entry:**
+B4's agent (#320) merged with **all four of its tracker items still at their pre-brief status**
+— it updated `jobs/**` but never `_project/tracker.json`, while B7 and B8 both did. Caught by a
+post-merge COO check, not by the agent's own completion report, which claimed done. Fixed in
+#323. One agent's miss, not obviously systemic — flagged to watch for recurrence before it
+earns a rule.
+
+### D-14: Trip country search matches full names only — should ISO codes ("US"/"USA") be added?
+**Raised:** 2026-07-28
+
+BUG-52 shipped (#320) matching **full country names only**. TR-13 was amended at BRD v3.12 to
+require exactly that and to explicitly exclude ISO codes and informal abbreviations, so the
+shipped behaviour is correct-as-specified.
+
+**But the PO's original report gave two examples — "United States" *and* "USA" — and only the
+first works.** The COO made that scoping call inside the brief rather than surfacing it, which
+is the same shape as the BUG-55 misclassification: a product decision settled unilaterally.
+Ryan asked for the reasoning (explicitly not as disagreement), which prompted the re-analysis
+below.
+
+The original reasoning was that an alias list is a **data-sourcing decision** of the same class
+as BUG-45 (airline dropdown) and OQ-06 (ISO 3166-2 subdivisions), both parked pending ADL-43 —
+so bundling it would either block a 7-line fix on an ADL, or have an agent invent an unsourced
+alias list. That still holds for *part* of it. But the re-analysis found the COO had collapsed
+**three** tiers into two:
+
+| Tier | Example | Real cost |
+|---|---|---|
+| Full name | "United States" | **Done.** Already in the payload (`TripSummary.countries[].name`) |
+| ISO codes | "US", "USA" | **Much cheaper than presented.** `country_code` (alpha-2) is *already in the payload*, so "US" was excluded for no good reason. "USA" is alpha-3 — a stable, closed, public ~250-entry list. No source decision, no ambiguity, no ADL |
+| Colloquial | "America", "Britain", "Holland" | Genuinely BUG-45's class — needs a curated source and a judgment call on what counts |
+
+Only tier 3 is really the parked problem. **COO recommendation: add tier 2** (a small static
+ISO alpha-2/alpha-3 map, roughly an hour, no ADL needed) so both of the PO's original examples
+work; leave tier 3 parked with BUG-45. Suggested as a follow-up item rather than reopening
+BUG-52, since the shipped behaviour is correct as far as it goes. **Not yet decided** — awaiting
+Ryan. If adopted it needs a small TR-13 amendment, since TR-13 currently forbids exactly this.
+
 ### D-13: Two concurrent COO sessions collided three times in one day — does this need a rule, or was standing one down enough?
 **Raised:** 2026-07-28
 
