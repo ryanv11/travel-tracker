@@ -1,71 +1,56 @@
-BACKEND CONTEXT — 2026-07-23
+BACKEND CONTEXT — 2026-07-28
 PROJECT: Travel Tracker
-CURRENT STATUS: ADL-28 (AD-07/AD-08) routes/repositories/service brief, this thread.
-  1. BRD-AD07/BRD-AD08 (PR #243 — feat/ad07-ad08-routes-repos, issue #242): implemented
-     ADL-28's "Migration sequence for Backend agent" steps 5-14. Schema half (steps 1-4)
-     had already landed via PR #240 (Database brief).
-     - New repositories: src/backend/repositories/companions.ts (companionRepository —
-       findAll/findActive/findById/create/update/deactivate/validateOwnership) and
-       src/backend/repositories/shadingConfig.ts (shadingConfigRepository —
-       findAll/findByStateKey/update/seedDefaults, lazy-seeding from the
-       MAP_SHADING_CONFIG constant in db/seed-data.ts).
-     - New router src/backend/routes/companions.ts mounted at /api/companions
-       (requireAuth only, no requireOwner) — registered in server.ts AND
-       server-test-app.ts (both needed updating).
-     - src/backend/routes/admin.ts: removed the companions registration entirely
-       (companions are no longer an admin/owner resource).
-     - src/backend/routes/map.ts: dropped requireOwner from all 5 shading routes
-       (GET /shading, GET/PATCH /shading/config, GET /shading/countries/:code,
-       GET /shading/regions/:code) — requireAuth (global) is now the only gate.
-     - src/backend/services/shading.service.ts: getConfigMap is now per-userId
-       (Map<userId, ShadingConfigMap> cache, was a single global Map keyed by
-       stateKey — R2 fix); invalidateConfigCache(userId?) invalidates one user's
-       entry (or all, if called with no arg, for test resets). getCityShading also
-       gained a userId param and scopes its trips join (R1 fix — it was
-       unscoped, aggregating every user's trips). Note: getAllCountryShading/
-       getCountryShading/getRegionShading were ALREADY userId-scoped before this
-       brief (HC-03, 2026-07-15) — that part of R1 was not a gap this brief closed,
-       only getCityShading and the config layer were.
-     - src/backend/repositories/trips.ts: replaceAssociations gained a userId
-       param (all callers updated in routes/trips.ts) and now calls
-       companionRepository.validateOwnership before inserting
-       trip_companions_map rows, throwing ValidationError (400) for any
-       companionId not owned by the caller (R4 — the sole enforcement point,
-       SQLite can't do this at the schema level).
-     - Test coverage added: repositories/__tests__/companions.test.ts,
-       repositories/__tests__/shadingConfig.test.ts, routes/__tests__/
-       companions.test.ts, routes/__tests__/map.test.ts, plus cross-user
-       companion-assignment-rejection cases in repositories/__tests__/trips.test.ts.
-     - Existing tests updated: owner-access.test.ts (removed companion admin
-       tests + HC-05 map-shading-owner-gate describe, both superseded),
-       security.access-matrix.test.ts (DDL fix for map_shading_config/companions
-       userId columns, Part A/B/C rows updated for the new auth model),
-       qa-backend-fixes.test.ts (PATCH url moved to /api/companions). Both tests
-       the schema-migration brief had left `.skip`'d
-       (owner-access.test.ts's "POST /api/admin/companions → 201 for owner" and
-       e2e admin.spec.ts's "create companion appears in list") are resolved:
-       the backend one is deleted/replaced by non-skipped coverage in the new
-       companions.test.ts; the e2e one remains skipped (see Open Issues below).
-     - Document lifecycle: updated jobs/architect/tech/20260307-map-shading-spec.md's
-       HC-03 correction note (was "not yet userId-scoped", now accurate) and
-       ADL-28's own Migration status note (all 14 steps now recorded done).
-       Also updated jobs/backend/tech/20260307-api-reference.md (v1.5) — new
-       Companions section, Map Shading section per-user note, Admin section
-       companions removed — and _project/tracker.json notes for BRD-AD07/BRD-AD08.
-ACTIVE TASKS: None — PR #243 open, awaiting CI + COO review/merge.
-PENDING MESSAGES TO COO:
-  20260723_[time]-BACKEND-ad07-ad08-routes-repos-complete.txt (sent)
+CURRENT STATUS: B9 brief (QUAL-03 + QUAL-11), this thread.
+  1. QUAL-03/QUAL-11 (branch chore/b9-migration-driven-test-schema, issue #291):
+     - src/backend/repositories/__tests__/test-db.ts rewritten: no more
+       hand-written 21-table DDL. Now applies the real migrations
+       (src/backend/migrations/*.sql) via drizzle-orm's libsql migrator to a
+       template :memory: DB ONCE per module instance (Vitest isolate:true
+       default ⇒ effectively once per test file), snapshots the schema from
+       sqlite_master, and replays that cached snapshot into a fresh
+       :memory: DB per createTestDb() call via client.batch(). Exported API
+       (createTestDb, TestDb, TEST_USER_ID, OTHER_USER_ID, seedTestUser,
+       seedTrip, seedCountry, seedCity, seedCompanion) is unchanged — all 7
+       consumers needed no changes.
+     - This immediately surfaced real pre-existing drift: items.test.ts used
+       status: 'booked' in 8 places, which has never been valid against the
+       real chk_items_status CHECK constraint (schema.ts:497-500 —
+       consider/confirmed/completed/cancelled/next_time) and appears nowhere
+       in application code. Only the old hand-written DDL (no CHECK at all)
+       let it silently pass. Fixed by replacing with 'confirmed' — preserves
+       every test's actual intent (a non-default status for filter/update
+       assertions).
+     - src/backend/services/startup.service.ts: added
+       assertForeignKeysEnabled() — reads (never sets) PRAGMA foreign_keys on
+       the real application connection, throws if not exactly 1. No-op for
+       DB_TYPE=postgres. Wired into server.ts's startup() right after getDb().
+       Covered by new src/backend/services/__tests__/startup.service.test.ts
+       (3 tests: resolves at 1, throws when flipped OFF on a real connection,
+       no-ops for postgres).
+     - jobs/architect/tech/ADL-41-trip-place-identity.md §7.2.1: stamped
+       residual gap 1 IMPLEMENTED, citing this brief.
+     - Drift-detection demonstrated live: temporarily appended
+       `ALTER TABLE companions DROP COLUMN is_active;` to migrations/0012,
+       all 17 companions.test.ts tests failed, reverted via `git checkout --`,
+       re-ran green. See completion report for full detail.
+     - Backend suite: 583 passed (580 baseline + 3 new tests), 1 skipped.
+       Duration ~6.7-6.9s before and after — no material regression.
+     - Found but OUT OF SCOPE: 14 other test files (routes/__tests__/*,
+       services/__tests__/shading.*.test.ts) independently hand-roll the
+       SAME 21-table DDL rather than importing test-db.ts — the brief's "7
+       files consume test-db.ts" undercounts the total duplication. Same
+       staleness risk, not touched this thread; flagged to COO as a
+       follow-up-sized finding.
+ACTIVE TASKS: None — PR to be opened this thread, awaiting CI + COO review/merge.
+PENDING MESSAGES TO COO: 20260728_[time]-BACKEND-b9-qual03-qual11-complete.txt (to send)
 OPEN ISSUES:
-  - src/e2e/admin.spec.ts's companion e2e test remains `.skip`'d. Root cause: the
-    frontend (src/frontend/hooks/useAdmin.ts) still calls the old
-    /api/admin/companions path, which this brief removed. Fixing that hook is a
-    frontend change outside a Backend brief's scope. Needs a small Frontend
-    follow-up brief to repoint useAdmin.ts's companion calls at /api/companions,
-    after which this e2e test should be un-skipped and pass unmodified.
-  - Contract tests (npm run test:contract) were not run this thread — they
-    require a live backend and grep confirmed no contract test touches
-    /api/admin/companions or /api/map/shading directly (only the generic
-    trip.companions array shape, unaffected). Flagged as low-risk, not verified
-    live.
-LAST PARK DOC: jobs/backend/park-docs/20260723-BACKEND-ad07-ad08-park.txt
-  (see also 20260721-BACKEND-nf09-hosted-deployment-park.txt for prior thread)
+  - 14 test files beyond test-db.ts's 7 consumers hand-roll their own copy of
+    the same 21-table DDL (routes/__tests__/*.test.ts,
+    services/__tests__/shading.trip-countries.test.ts,
+    services/__tests__/shading.user-scope.test.ts). Same drift risk as
+    QUAL-03 described, at larger scale. Sizing a fix: likely a bigger lift
+    than B9 (touches more files, some may have per-test seed helpers beyond
+    what test-db.ts exports) — recommend COO size as its own QUAL item rather
+    than folding into this brief's scope.
+LAST PARK DOC: jobs/backend/park-docs/20260728-BACKEND-b9-park.txt
+  (see also 20260723-BACKEND-ad07-ad08-park.txt for prior thread)

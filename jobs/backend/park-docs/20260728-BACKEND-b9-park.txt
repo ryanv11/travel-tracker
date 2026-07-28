@@ -1,0 +1,167 @@
+PARK DOCUMENT — BACKEND — 2026-07-28
+BRIEF: B9 (Wave 1 sub-wave A) — QUAL-03 + QUAL-11
+BRANCH: chore/b9-migration-driven-test-schema
+GITHUB ISSUE: #291
+
+=== SCOPE ===
+Two backend items, one branch, no route changes:
+1. QUAL-03 — make src/backend/repositories/__tests__/test-db.ts derive its
+   schema from the real migrations instead of hand-written DDL.
+2. QUAL-11 — assert (never set) PRAGMA foreign_keys = 1 on the real
+   application connection at startup.
+
+=== QUAL-03 IMPLEMENTATION ===
+
+Old shape: test-db.ts imported db/schema.ts for Drizzle typing only, then
+hand-wrote all 21 tables as literal CREATE TABLE strings executed in a for
+loop against a fresh :memory: client per test. A migration could change the
+real schema (add a column, tighten a CHECK constraint, add a FK) and every
+repository test would keep passing against the stale copy.
+
+New shape:
+- getSchemaDdl() (module-scope, memoized via a single cached Promise):
+  spins up a throwaway template :memory: libsql client, runs
+  drizzle-orm/libsql/migrator's migrate(templateDb, { migrationsFolder })
+  against src/backend/migrations/ — the same 13 .sql files + meta/_journal.json
+  that `npm run db:migrate` applies in every real environment — then reads
+  `SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE
+  'sqlite_%' AND name != '__drizzle_migrations' ORDER BY rowid` to capture
+  the resulting schema as an ordered list of DDL statements. rowid order is
+  creation order, which is what makes replaying it back safe regardless of
+  how many migrations rewrote/recreated a given table along the way — by
+  the time we snapshot, sqlite_master reflects only the FINAL state, and
+  SQLite doesn't validate FK target existence at CREATE TABLE time, so
+  statement order relative to FK targets is a non-issue.
+- createTestDb() creates a fresh :memory: client (unchanged: still
+  PRAGMA foreign_keys = ON; explicitly, still isolated per test), then
+  replays the cached DDL snapshot via a single `client.batch(ddl, 'write')`
+  call instead of 21 sequential `client.execute()` round-trips.
+
+Cost model: migrate() (the expensive part — reading 13 files, applying each
+in its own transaction) runs ONCE per module instance. Vitest's default
+`isolate: true` gives each test FILE its own module registry (confirmed —
+vitest.config.backend.ts has no isolate override), so in practice this is
+"once per test file that imports test-db.ts" (7 files), not once globally
+and NOT once per test. Measured migrate() cost in isolation: ~37ms.
+client.batch() replay of the resulting ~40-50 statement snapshot into a
+fresh :memory: DB: ~3ms. Both are trivial next to the ~230ms per-file
+Vitest/transform overhead already present.
+
+Exported API unchanged: createTestDb, TestDb, TEST_USER_ID, OTHER_USER_ID,
+seedTestUser, seedTrip, seedCountry, seedCity, seedCompanion. All 7
+consumers (shadingConfig.test.ts, items.test.ts, users.test.ts,
+companions.test.ts, places.test.ts, trips.test.ts, lock-matrix.test.ts)
+needed zero changes beyond the one described below.
+
+=== REAL DRIFT SURFACED IMMEDIATELY ===
+
+items.test.ts used `status: 'booked'` in 8 places (lines 101, 107, 240, 250,
+252, 384, 390, 444 in the pre-fix file). Running against the real migrations
+failed with SQLITE_CONSTRAINT_CHECK: chk_items_status — 'booked' is not in
+('consider', 'confirmed', 'completed', 'cancelled', 'next_time')
+(schema.ts:493-500, present since migration 0000). Verified by two
+independent checks that this is genuinely dead/wrong test data, not a
+missing app feature: (1) grep for `'booked'` across src/backend outside
+__tests__/ returns nothing — no route, service, or repository ever writes
+this value; (2) the old hand-written test-db.ts DDL had NO CHECK constraint
+on items.status at all, so nothing before this fix could ever have caught
+it. Fixed by replacing all 8 occurrences with 'confirmed' — every affected
+test only used the value as "some non-default status" for filter/update
+assertions, never asserting on the literal word "booked", so intent is
+fully preserved.
+
+=== DRIFT-DETECTION DEMONSTRATION (success criterion 2) ===
+
+Temporarily appended one line to migrations/0012_grey_ultimates.sql:
+  ALTER TABLE `companions` DROP COLUMN `is_active`;
+Ran `npx vitest run --config vitest.config.backend.ts
+src/backend/repositories/__tests__/companions.test.ts`:
+  → migrate() itself failed: "SQLITE_ERROR: error in table companions after
+    drop column: no such column: companions.is_active" (SQLite refuses to
+    drop a column referenced by the CHECK constraint chk_companions_is_active
+    also defined in that same migration file) — all 17 companions.test.ts
+    tests failed as a result.
+Reverted via `git checkout -- src/backend/migrations/0012_grey_ultimates.sql`
+(confirmed clean via `git diff` — no bare stash used, per OP-20). Re-ran the
+same file: 17/17 pass again. Confirms the fix is real: before this brief,
+this exact migration edit would have had ZERO effect on any repository test,
+since test-db.ts's hand-written DDL never even referenced migrations/.
+
+=== QUAL-11 IMPLEMENTATION ===
+
+assertForeignKeysEnabled() added to startup.service.ts:
+- No-ops (logs + returns) when process.env.DB_TYPE !== 'sqlite' — Postgres
+  always enforces declared FK constraints, no PRAGMA equivalent, no driver-
+  default risk.
+- Otherwise calls getDb().get(sql`PRAGMA foreign_keys`) and throws a
+  descriptive Error (citing ADL-41 §7.2.1) if the result isn't exactly 1.
+- Per ADL-41 §7.2's transport analysis: this READS state, never SETS it.
+  Read is correct on both the embedded driver and the remote libsql://
+  HTTP transport (each statement independently dispatched — reading
+  reflects the per-statement default that every real cascade executes
+  under; setting once at connect would not persist across statements).
+
+Wired into server.ts's startup() as new step 2, immediately after
+`getDb()`/"Database connection: OK" and before any seeding — renumbered the
+existing steps 2-6 to 3-7 (module doc comment + inline `// N.` comments both
+updated, including the 4b/4c bypass-user/owner-reconciliation comments which
+are now 5b/5c).
+
+server-test-app.ts does not call the seed/startup functions at all (grepped
+directly — confirmed by reading the file, not just the negative grep), so
+no change needed there.
+
+Test coverage: src/backend/services/__tests__/startup.service.test.ts, 3
+cases, using the same vi.mock('../../db/index.js', ...) + createTestDb()
+pattern as every other repository/service test:
+  1. resolves silently when PRAGMA foreign_keys = 1 (createTestDb()'s
+     existing explicit PRAGMA foreign_keys = ON — the production-equivalent
+     state per the @libsql/client default).
+  2. throws with message matching /PRAGMA foreign_keys returned/ and
+     /Refusing to start/ after explicitly issuing
+     `PRAGMA foreign_keys = OFF;` on the real test connection — a genuine
+     read of genuine per-connection state, not a mocked return value.
+  3. no-op for DB_TYPE=postgres — getDb() is never even called in that
+     branch (testDb set to null to prove it).
+
+ADL-41 §7.2.1 updated: residual gap 1 ("a @libsql/client major bump could
+flip the default and nothing would fail loudly") struck through and stamped
+IMPLEMENTED (2026-07-28, Backend, QUAL-11 #291), same pattern as the
+existing gap-2 VERIFIED stamp already in that file.
+
+=== VERIFICATION RUN (all green) ===
+- npm run test:backend: 583 passed (580 + 3 new), 1 skipped — matches
+  baseline + new coverage exactly.
+- Suite duration: baseline (2 runs, pre-change) 6.75s / 6.73s. Post-change
+  (2 runs) 6.91s / 6.93s. Within run-to-run noise; not a material
+  regression.
+- npm run test:frontend: 154 passed (untouched by this brief, sanity check).
+- npm run type:check:all: clean.
+- npm run check (biome): clean.
+- npm run status:check: STATUS.md already in sync, no regen needed.
+
+=== FOUND, NOT ACTIONED (flagged for COO) ===
+14 files beyond test-db.ts's 7 consumers independently hand-roll the exact
+same 21-table DDL rather than importing test-db.ts at all:
+  src/backend/routes/__tests__/{cities.get-by-id,places,
+    items.rating-sort-filter,qa-backend-fixes,items,trips.crud,
+    owner-access,trip-countries,map,trips.delete,
+    security.access-matrix,cities.carry-forward}.test.ts
+  src/backend/services/__tests__/{shading.trip-countries,
+    shading.user-scope}.test.ts
+Confirmed by two probes: grep for the literal DDL string across all 15
+matches, then read three of them directly (cities.get-by-id.test.ts,
+security.access-matrix.test.ts, shading.trip-countries.test.ts) to confirm
+each has its own local `createTestDb()` function, not an import of
+test-db.ts. Same staleness risk QUAL-03 was raised for, at larger scale —
+the brief's "7 files consume test-db.ts" framing underrepresents how much
+of this pattern actually exists in the test suite. Not touched this thread
+(out of the brief's stated scope: "src/backend/repositories/__tests__/
+test-db.ts ... 7 files consume test-db.ts"). Recommend COO size this as its
+own follow-up QUAL item.
+
+=== NOTHING CONTRADICTS THE BRIEF'S CORE DIRECTION ===
+The "build once, clone per test" caveat, the "assert don't set" constraint,
+and the "already-verified remote gap" note in the brief all held up exactly
+as stated. The one thing the brief undersold is the true size of the
+duplicate-DDL problem (see above) — everything else matched what was found.

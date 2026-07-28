@@ -1,0 +1,58 @@
+Tracker: QUAL-03, QUAL-11 · Issue/PR: #291 / (PR to be opened) · BRD: none (internal quality) · Branch: chore/b9-migration-driven-test-schema
+
+WHAT WAS BUILT
+test-db.ts now derives its schema from the real migrations (drizzle-orm's
+libsql migrator applied to src/backend/migrations/*.sql, snapshotted once
+per module instance, replayed per test via client.batch()) instead of
+hand-writing 21 tables as literal DDL. Added assertForeignKeysEnabled() to
+startup.service.ts, wired into server.ts, which reads (never sets) PRAGMA
+foreign_keys on the real app connection and fails boot loudly if it isn't 1.
+
+ACCEPTANCE CRITERIA
+1. Test schema derives from real migrations, no hand-written CREATE TABLE remains: PASS
+2. Drift now detectable (demonstrated): PASS — see below
+3. Backend suite green, 580/1 skipped baseline: PASS (583/1 skipped — +3 new startup tests, explained)
+4. Suite runtime not materially regressed: PASS — 6.73-6.75s baseline vs 6.91-6.93s after (noise-level)
+5. Startup asserts PRAGMA foreign_keys=1, fails loudly, covered by test: PASS
+6. type:check:all and check clean: PASS
+
+DRIFT-DETECTION DEMONSTRATION
+Temporarily added `ALTER TABLE companions DROP COLUMN is_active;` to
+migrations/0012_grey_ultimates.sql. All 17 companions.test.ts tests failed
+(migrate() itself errored — SQLite refused the drop because a CHECK
+constraint in that same migration still references the column). Reverted
+via `git checkout --` (confirmed clean, no bare stash per OP-20); re-ran,
+17/17 green again. Before this brief, this exact edit would have had zero
+effect on any test.
+
+REAL DRIFT FOUND ALONG THE WAY (not injected — pre-existing)
+items.test.ts used `status: 'booked'` in 8 places. Real chk_items_status
+CHECK constraint has never allowed it (valid: consider/confirmed/completed/
+cancelled/next_time); grep confirms 'booked' appears nowhere in application
+code. Only the old hand-written DDL (no CHECK at all) let it silently pass.
+Fixed: replaced with 'confirmed' in all 8 spots — preserves test intent
+(a non-default status value), doesn't change what's being verified.
+
+SECURITY CHECKLIST
+N/A — no routes added or modified. Confirmed: touched files are test
+infra, a service, and server.ts's startup sequence only.
+
+CI: not yet opened — opening PR next, will run scripts/ci-wait.sh and report separately if needed.
+
+OPEN ISSUES / FINDINGS FOR COO
+1. Scope-sizing gap in the brief: 14 files beyond test-db.ts's 7 consumers
+   (12 in routes/__tests__/, 2 in services/__tests__/) independently
+   hand-roll the SAME 21-table DDL rather than importing test-db.ts — same
+   staleness risk as QUAL-03, larger footprint. Confirmed via grep + reading
+   3 of the 15 files directly. Recommend sizing as its own follow-up QUAL
+   item; not touched here (brief scoped explicitly to test-db.ts).
+2. ADL-41 §7.2.1 residual gap 1 updated in this PR (stamped IMPLEMENTED,
+   citing QUAL-11) per document-lifecycle rule — same-PR update since this
+   brief closes exactly that gap.
+3. tracker.json is COO-maintained per CLAUDE.md — left untouched; QUAL-03/
+   QUAL-11 status update is for COO to make on merge.
+
+WHAT'S NOW UNBLOCKED
+Every other Wave 1 backend brief's repository tests are now trustworthy
+against real schema (this was flagged as "worth running first" in the
+backlog-clearance-plan). OP-15 prerequisite (a) is clear per that plan.
