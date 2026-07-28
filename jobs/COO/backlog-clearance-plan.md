@@ -85,7 +85,7 @@ and the conflict pairs below must not run concurrently.
 | B6 | fullstack | BUG-44, 57 **+ BRD-DP06 + BRD-IT10** | `ItemForm.tsx`, `ItemCard.tsx` |
 | B7 | fullstack | BUG-50 | new `DELETE /api/trips/:id`, `TripDetail` header, `ConfirmDialog` |
 | B8 | frontend | **BRD-IT0809** | item-list sort/filter UI |
-| B9 | backend | **QUAL-03 + QUAL-11** | `test-db.ts` migration-driven schema; `db/index.ts` FK startup assertion |
+| ~~B9~~ | backend | ~~**QUAL-03 + QUAL-11**~~ **DONE 2026-07-28, PR #292** | `test-db.ts` migration-driven schema; FK startup assertion |
 
 **Conflict pairs — must be split across sub-waves:**
 
@@ -105,6 +105,19 @@ brief's tests trustworthy, and it clears OP-15 prerequisite (a).
 > each statement is independently dispatched on the remote HTTP transport (ADL-41 §7.2).
 > QUAL-11's other half — whether the remote Turso path enforces FKs — is **already answered**
 > (staging returns `1`; ADL-41 §7.2 residual gap 2 is stamped VERIFIED) and is not brief scope.
+
+> **B9 DONE 2026-07-28 (PR #292), but read this before relying on it.** B9 delivered both
+> items and demonstrated drift detection rather than asserting it. **It does not make all
+> backend tests trustworthy — only the repository layer.** The B9 agent found, and the COO
+> re-counted, **15 further test files that never used `test-db.ts` at all** and hand-roll the
+> same 21-table DDL inline: 13 under `routes/__tests__/`, 2 under `services/__tests__/`.
+> Tracked as **QUAL-17**.
+>
+> **Consequence for the remaining Wave 1 backend briefs (B3, B4):** if a brief's verification
+> rests on *route* tests, it is still verifying against a hand-maintained schema copy. Say so
+> in those briefs. The risk is not theoretical — QUAL-03's fix immediately exposed 8 uses of
+> an item status (`booked`) that has never been valid against `chk_items_status`, silently
+> green for the life of that file because the hand-written DDL carried no CHECK constraint.
 
 ---
 

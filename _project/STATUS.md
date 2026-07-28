@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-28 (negative-findings guard adopted into CLAUDE.md + all 8 role system prompts; QUAL-15 fixed — every role prompt's mandatory init step pointed at a nonexistent BRD path; QUAL-16 logged. QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)_
+_Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292; QUAL-17 logged: 15 more test files hand-roll the same DDL, so route tests are not yet drift-safe. Negative-findings guard adopted into CLAUDE.md + all 8 role system prompts; QUAL-15 fixed — every role prompt's mandatory init step pointed at a nonexistent BRD path; QUAL-16 logged. QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (negative-findings guard adopted into CLAUDE.m
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (54)
+## Open work (53)
 
 ### P0 — Blockers (1)
 
@@ -32,12 +32,11 @@ _Tracker last updated: 2026-07-28 (negative-findings guard adopted into CLAUDE.m
 | BUG-50 | No way to delete an entire trip | frontend | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (29)
+### P2 — Important (28)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
-| QUAL-03 | test-db.ts hand-mirrors 21 CREATE TABLE statements — silent schema-drift risk in every repository test | backend | ⬜ Pending |
 | BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | ◐ Partial |
 | BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
@@ -63,8 +62,8 @@ _Tracker last updated: 2026-07-28 (negative-findings guard adopted into CLAUDE.m
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
-| QUAL-11 | Assert PRAGMA foreign_keys=1 at startup (remote Turso path verified 2026-07-28) | backend | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
+| QUAL-17 | 15 further backend test files hand-roll the same 21-table DDL that QUAL-03 just removed from test-db.ts | backend | ⬜ Pending |
 
 ### P3 — Minor (22)
 
@@ -101,7 +100,7 @@ _Tracker last updated: 2026-07-28 (negative-findings guard adopted into CLAUDE.m
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 44/58 | 44 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `████████░░░░░░░░░░░░` 9/22 | 9 | 13 | 1 |
+| chore | `██████████░░░░░░░░░░` 11/23 | 11 | 12 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -135,4 +134,4 @@ _Tracker last updated: 2026-07-28 (negative-findings guard adopted into CLAUDE.m
 
 ---
 
-_125 done · 10 deferred · 4 closed · 54 open — 193 tracked items_
+_127 done · 10 deferred · 4 closed · 53 open — 194 tracked items_
