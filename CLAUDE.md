@@ -126,6 +126,18 @@ tracker notes, briefs, or plans** — failure 2 above was a COO failure, not an 
 Applies to every role. Briefs should not need to restate it, but a brief whose core task is
 to establish an absence should call it out explicitly.
 
+**Hook-enforced, not just written (adopted 2026-07-28, OP-26).** PO direction after the
+above: local-environment quirks in this project (firewall allowlist, patched drizzle-kit,
+remote libSQL transport behavior) make a single negative probe disproportionately likely to
+be an environment artifact rather than a true absence — this rule needs to catch that
+mechanically, not rely on an agent remembering it mid-task. A `PostToolUse` hook scans new
+writes under `jobs/**` and tracker notes for absence-language patterns ("does not exist,"
+"not found," "unreachable," "cannot be verified," "not implemented," "is off/disabled") and
+flags any that lack an adjacent second-probe or `UNVERIFIED` marker. Starts as **warn, not
+block** — regex against natural language will false-positive (e.g. an agent quoting this
+very rule), and a hard block stalls an agent mid-task for no reason. Revisit block-vs-warn
+once the false-positive rate from real use is known.
+
 ### BRD → tracker rule (mandatory)
 Whenever the BRD is updated (a changelog entry is written), the COO must create tracker
 entries for every new requirement ID introduced before closing the session. No BRD version
@@ -216,6 +228,42 @@ and the full session-close checklist live there. Two rules bind regardless:
 Load the `/record-decision` skill before editing the ADL log, a standalone ADL file,
 or the BRD — numbering, supersession stamps, open-question closure, and the
 three-places BRD version bump live there.
+
+### Architect fresh-eyes review (mandatory, OP-27)
+Adopted 2026-07-28. Every Architect deliverable that will be cited elsewhere — an ADL
+feeding a BRD bump or an implementation brief — gets reviewed by a **second, freshly
+dispatched** Architect agent before it's trusted, not by the same agent re-checking its
+own work in the same thread.
+
+Workflow: dispatch the spec-writing Architect brief → let that subagent close out fully
+(new context, no memory of its own reasoning carried forward) → dispatch a second Architect
+agent, fresh context, given only the spec, with an explicit instruction to critique and
+stress-test it rather than confirm it. This is not optional for small deliverables — the
+Wave 0 precedent this is modeled on (ADL-41 §7.2.1's false FK-enforcement claim, caught only
+because the re-dispatched agent was told to review critically rather than rubber-stamp) cost
+a wrong eight-delete design when it was skipped once. Same shape as the negative-findings
+rule above: a single reasoning chain, even given a chance to double back, tends to
+re-confirm its own premise — genuinely independent eyes catch what a self-check doesn't.
+
+## COO operating mode
+
+### Autonomy on pre-cleared mechanical work (adopted 2026-07-28, OP-24)
+Dispatching a brief whose BRD gate and success criteria are already recorded, merging a
+green PR, and routine tracker/doc hygiene do not require asking the PO first — those are
+already fully specified by standing rules elsewhere in this document. Default to
+**milestone-level autonomy**: execute pre-cleared steps within a milestone without a
+per-step ask, but stop and report at the next natural boundary (a wave finishing, a PR
+merged, a gate reached) rather than auto-chaining into further milestones — this preserves
+the PO's ability to close a session at a natural break. An explicit "keep going" chains
+past a boundary; an explicit request for tighter check-ins drops back to narrating each
+step. Mechanism adopted in principle 2026-07-28; treat the exact verbal-cue phrasing as
+still settling in practice rather than fixed.
+
+### Decision framing during the practice period (adopted 2026-07-28)
+State an actual recommendation with reasoning when a decision comes up, not a neutral menu
+of options — the PO still makes the call. This is a deliberate practice period before
+handing more decisions to standing COO authority; treat COO opinions as genuinely fallible
+input to weigh, not as a settled recommendation to rubber-stamp.
 
 ## Environment
 - Running inside a devcontainer (Docker) — workspace at `/workspace`

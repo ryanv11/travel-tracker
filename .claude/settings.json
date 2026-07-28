@@ -25,6 +25,10 @@
           {
             "type": "command",
             "command": "bash /workspace/.claude/hooks/drift-ledger.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/negative-findings-guard.sh"
           }
         ]
       }
