@@ -115,6 +115,7 @@ export const itemRepository = {
       itemType: string;
       status?: string;
       notes?: string | null;
+      mapUrl?: string | null;
       isCarriedForward?: boolean;
       carriedFromItemId?: number | null;
     },
@@ -131,6 +132,7 @@ export const itemRepository = {
         itemType: data.itemType,
         status: data.status ?? 'consider',
         notes: data.notes ?? null,
+        mapUrl: data.mapUrl ?? null,
         isCarriedForward: data.isCarriedForward ? 1 : 0,
         carriedFromItemId: data.carriedFromItemId ?? null,
         userId,
@@ -159,6 +161,7 @@ export const itemRepository = {
     data: {
       status?: string;
       notes?: string | null;
+      mapUrl?: string | null;
     },
     extensionBody: Record<string, unknown>,
     itemType: string,
@@ -169,6 +172,7 @@ export const itemRepository = {
     const baseUpdates: Partial<typeof items.$inferInsert> = { updatedAt: now };
     if (data.status !== undefined) baseUpdates.status = data.status;
     if (data.notes !== undefined) baseUpdates.notes = data.notes;
+    if (data.mapUrl !== undefined) baseUpdates.mapUrl = data.mapUrl;
 
     await db
       .update(items)

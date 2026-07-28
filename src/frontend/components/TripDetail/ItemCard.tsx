@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { useDeleteItem } from '../../hooks/useItems';
 import type { Item } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
+import { sanitiseUrl } from '../../utils/urlSanitiser';
 import { ITEM_TYPE_ICONS, NoteIcon } from '../icons';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { RatingStars } from '../shared/RatingStars';
@@ -77,6 +78,11 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
       item.item_type === 'experience') &&
     rating !== null;
 
+  // IT-10/ADL-45: https:// only (narrower than sanitiseUrl()'s https:/file: default —
+  // file:// is not a legitimate "get directions" link). Client-side re-validation —
+  // the server (zMapUrl) is authoritative; this is defense in depth only.
+  const mapHref = sanitiseUrl(item.map_url, ['https:']);
+
   // WP-02: icon lookup by item_type; falls back to the generic Note glyph for
   // any (currently impossible) unrecognised type rather than leaving a gap.
   const TypeIcon = ITEM_TYPE_ICONS[item.item_type] ?? NoteIcon;
@@ -121,6 +127,12 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
               {item.departure_datetime ? ` · ${item.departure_datetime.slice(0, 10)}` : ''}
             </div>
           )}
+          {/* BUG-44: car rental pickup location as subtext, mirroring the flight pattern above */}
+          {item.item_type === 'car_rental' && item.pickup_location && (
+            <div className="mt-1 font-ui text-xs text-wp-ink-muted break-words">
+              {item.pickup_location}
+            </div>
+          )}
 
           {/* C5: rating stars (read-only) — must preserve */}
           {hasRating && (
@@ -133,6 +145,20 @@ export function ItemCard({ item, tripId, isLocked, onEdit }: ItemCardProps) {
             <div className="mt-1 font-ui text-xs text-wp-ink-muted italic break-words">
               {item.notes.slice(0, 100)}
               {item.notes.length > 100 ? '…' : ''}
+            </div>
+          )}
+
+          {/* IT-10/ADL-45: map/directions link — target=_blank + noopener noreferrer mandatory (D8) */}
+          {mapHref && (
+            <div className="mt-1">
+              <a
+                href={mapHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-ui text-xs text-wp-primary hover:underline"
+              >
+                View map
+              </a>
             </div>
           )}
         </div>

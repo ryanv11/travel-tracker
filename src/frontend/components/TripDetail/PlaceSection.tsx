@@ -215,7 +215,15 @@ export function PlaceSection({
       </div>
 
       {/* Add item modal */}
-      {showAddItem && <ItemForm tripId={tripId} tripPlaceId={place.id} onClose={handleCloseForm} />}
+      {showAddItem && (
+        <ItemForm
+          tripId={tripId}
+          tripPlaceId={place.id}
+          tripStartDate={tripStartDate}
+          tripEndDate={tripEndDate}
+          onClose={handleCloseForm}
+        />
+      )}
 
       {/* Edit item modal */}
       {editingItem && (
@@ -223,6 +231,8 @@ export function PlaceSection({
           tripId={tripId}
           tripPlaceId={place.id}
           existingItem={editingItem}
+          tripStartDate={tripStartDate}
+          tripEndDate={tripEndDate}
           onClose={handleCloseForm}
         />
       )}

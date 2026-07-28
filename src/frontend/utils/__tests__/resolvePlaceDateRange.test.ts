@@ -12,6 +12,7 @@ function hotelItem(checkIn: string, checkOut: string): Item {
     item_type: 'hotel',
     status: 'confirmed',
     notes: null,
+    map_url: null,
     is_carried_forward: false,
     carried_from_item_id: null,
     created_at: '2025-01-01',

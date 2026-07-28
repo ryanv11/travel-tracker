@@ -1,0 +1,70 @@
+BACKEND completion report
+Tracker: BUG-57, BRD-DP06, BUG-44, BRD-IT10 · GitHub issue #300 · PR #306
+BRD: §5.5 IT-10/IT-11 · §5.x DP-06 · §5.16 WP-05
+Branch: feat/b6-item-dates-and-map-url
+
+WHAT WAS BUILT
+Fullstack (backend + frontend) brief, one file surface. IT-10: nullable
+`map_url` on the base `items` table per ADL-45 (implemented exactly as
+specified, not re-derived) — Zod-only validation, https://-only, no host
+allowlist, sanitiseUrl() extended (not forked), "View map" link with
+target=_blank/noopener/noreferrer. IT-11 + DP-06 implemented as one shared
+defaulting utility (dateDefaults.ts) per the brief's instruction. BUG-44:
+car rental pickup-location subtext added to ItemCard, mirroring the flight
+pattern.
+
+ACCEPTANCE CRITERIA
+- IT-11: item date fields default from trip start (fallback today when no
+  range) on create: PASS
+- IT-11: flight arrival defaults to/cascades from departure until hand-edited: PASS
+- IT-11: a hand-edited date persists through save and re-open: PASS
+- DP-06: first place on an empty trip inherits trip start/end: PASS
+- DP-06: a revisit (trip already has ≥1 place) never inherits: PASS
+- BUG-44: car rental pickup location renders as subtext under provider: PASS
+- IT-10: map_url nullable base-table column, additive migration only: PASS
+- IT-10: https://-only, no host allowlist, 2048 cap, Zod-only: PASS
+- IT-10: sanitiseUrl() extended (not forked), map_url passes ['https:']: PASS
+- IT-10: anchor has target=_blank rel="noopener noreferrer": PASS
+
+SECURITY CHECKLIST (routes modified: POST/PATCH /api/trips/:tripId/items)
+1. Auth middleware — requireAuth applied globally via app.use('/api/', requireAuth)
+   in server.ts (unchanged by this brief; both routes pre-existing, only the
+   body schema/repository call changed).
+2. Repository queries — itemRepository.create/update both scope by
+   eq(items.userId, userId) (update's WHERE; create verifies trip ownership
+   via assertWritable before insert) — unchanged pattern, map_url flows
+   through the same userId-scoped calls as notes/status.
+3. New user-data column — `map_url` does NOT reference a user (it's a plain
+   text field on items, not a new FK) — the .notNull()-on-FK rule doesn't
+   apply here. No new FK column was added.
+
+CI: scripts/ci-wait.sh pr 306 — PASS, all 18 checks green @ 5057a1c
+(Type Check, Biome, Backend/Frontend/Contract/E2E Tests, Static Analysis,
+Dependency Scan, Secret Scanning — each runs twice per the known accepted
+push+pull_request duplicate-trigger behaviour, CLAUDE.md).
+
+OPEN ISSUES / BLOCKERS
+- QUAL-17 (hand-rolled route-test DDL, not drift-safe) is NOT resolved by
+  this brief — I mechanically patched the 12 affected `items`-table files
+  to add `map_url TEXT,` so they keep passing, but the underlying "each
+  file hand-rolls its own copy" problem is untouched. Flagging so it isn't
+  mistaken for closed.
+- Design decision beyond the literal BRD text: I generalised hotel
+  check-out / car-rental drop-off to default from trip end_date (no
+  fallback), by symmetry with check-in/pickup defaulting from trip start —
+  the quoted success criteria only names flight-arrival cascading and the
+  generic "opens on trip start" behaviour explicitly. Recommend QA/PO
+  confirm this matches intent. Full reasoning in the park doc.
+- map_url write-path verification rests partly on route-level tests
+  (QUAL-17 caveat) but is independently confirmed via repository tests
+  (drift-safe, schema-derived) AND live contract tests against a running
+  `npm run dev:api` + real dev.db — not resting on the route tests alone.
+
+WHAT IS NOW UNBLOCKED
+- Frontend/QA can build/verify against a stable map_url + date-defaulting
+  contract; jobs/backend/tech/20260307-api-reference.md updated with the
+  map_url field in both POST/PATCH item bodies and the GET response shape.
+- BRD-IT10, BRD-DP06, BUG-57, BUG-44 all have a working implementation
+  ready for UAT once PR merges.
+
+Full detail: jobs/backend/park-docs/20260728-BACKEND-b6-park.txt

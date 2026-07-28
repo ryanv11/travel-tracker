@@ -13,6 +13,8 @@ export interface CreateItemData {
   item_type: ItemType;
   status?: ItemStatus;
   notes?: string | null;
+  /** Optional map/directions link (IT-10, ADL-45). https:// only. */
+  map_url?: string | null;
   // Restaurant
   name?: string | null;
   neighbourhood_area?: string | null;

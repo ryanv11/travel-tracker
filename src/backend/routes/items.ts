@@ -90,6 +90,7 @@ itemsRouter.post(
         itemType: body.item_type,
         status: body.status ?? 'consider',
         notes: body.notes ?? null,
+        mapUrl: body.map_url ?? null,
         isCarriedForward: !!body.is_carried_forward,
         carriedFromItemId: body.carried_from_item_id ?? null,
       },
@@ -129,6 +130,7 @@ itemsRouter.patch(
       {
         status: body.status,
         notes: body.notes,
+        mapUrl: body.map_url,
       },
       body,
       existing.itemType,

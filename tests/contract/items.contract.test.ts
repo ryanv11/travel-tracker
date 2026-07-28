@@ -158,6 +158,43 @@ describe('POST /api/trips/:tripId/items — note type', () => {
     expect(res.body).toHaveProperty('error');
   });
 
+  // IT-10 / ADL-45
+  it('201 — creates an item with a map_url', async () => {
+    const res = await api
+      .post(`/api/trips/${tripId}/items`)
+      .send({ item_type: 'note', map_url: 'https://maps.google.com/?q=Test' })
+      .expect(201);
+
+    expect(res.body.map_url).toBe('https://maps.google.com/?q=Test');
+  });
+
+  it('201 — map_url is null when not provided', async () => {
+    const res = await api
+      .post(`/api/trips/${tripId}/items`)
+      .send({ item_type: 'note' })
+      .expect(201);
+
+    expect(res.body.map_url).toBeNull();
+  });
+
+  it('400 — rejects a non-https map_url (ADL-45 D5)', async () => {
+    const res = await api
+      .post(`/api/trips/${tripId}/items`)
+      .send({ item_type: 'note', map_url: 'http://maps.google.com/?q=Test' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('400 — rejects a javascript: map_url', async () => {
+    const res = await api
+      .post(`/api/trips/${tripId}/items`)
+      .send({ item_type: 'note', map_url: 'javascript:alert(1)' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+  });
+
   it('403 — POST rejected when trip is locked', async () => {
     const lockedTrip = await createTestTrip({ name: '[TEST] Locked trip for items POST' });
     await lockTrip(lockedTrip.id);
@@ -299,6 +336,25 @@ describe('PATCH /api/trips/:tripId/items/:itemId', () => {
       .expect(200);
 
     expect(res.body.notes).toBe('Updated note text');
+  });
+
+  // IT-10 / ADL-45
+  it('200 — updates item map_url', async () => {
+    const res = await api
+      .patch(`/api/trips/${tripId}/items/${itemId}`)
+      .send({ map_url: 'https://maps.google.com/?q=Updated' })
+      .expect(200);
+
+    expect(res.body.map_url).toBe('https://maps.google.com/?q=Updated');
+  });
+
+  it('400 — rejects a non-https map_url on update', async () => {
+    const res = await api
+      .patch(`/api/trips/${tripId}/items/${itemId}`)
+      .send({ map_url: 'file:///etc/passwd' })
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
   });
 
   it('400 — invalid status value on update', async () => {
