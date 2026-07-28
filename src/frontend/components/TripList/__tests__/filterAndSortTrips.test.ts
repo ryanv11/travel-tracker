@@ -231,7 +231,14 @@ describe('filterAndSortTrips — country-name search (TR-13, BUG-52)', () => {
   it('returns a trip whose only US place is a city, when searching the full country name', () => {
     // Binding TR-13 success criterion: a trip whose only US place is "Seattle" is
     // returned when searching "United States".
-    const result = filterAndSortTrips(tripsWithCountries, 'United States', 'date_desc', null, null, null);
+    const result = filterAndSortTrips(
+      tripsWithCountries,
+      'United States',
+      'date_desc',
+      null,
+      null,
+      null,
+    );
     expect(result.map((t) => t.id).sort()).toEqual([30, 32]);
   });
 

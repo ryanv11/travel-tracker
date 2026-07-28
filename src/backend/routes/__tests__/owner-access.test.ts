@@ -103,11 +103,7 @@ async function seedTestUser(db: TestDb, isOwner = 0) {
     .onConflictDoNothing();
 }
 
-async function seedCountry(
-  db: TestDb,
-  countryCode = 'US',
-  name = 'United States',
-) {
+async function seedCountry(db: TestDb, countryCode = 'US', name = 'United States') {
   await db.insert(schema.countries).values({ countryCode, name }).onConflictDoNothing();
 }
 

@@ -89,10 +89,7 @@ async function seedTestUser(db: TestDb) {
     .onConflictDoNothing();
 }
 
-async function seedTrip(
-  db: TestDb,
-  overrides: Partial<typeof schema.trips.$inferInsert> = {},
-) {
+async function seedTrip(db: TestDb, overrides: Partial<typeof schema.trips.$inferInsert> = {}) {
   const [trip] = await db
     .insert(schema.trips)
     .values({
@@ -127,11 +124,7 @@ async function seedCountryAndCity(
   return city;
 }
 
-async function seedTripPlace(
-  db: TestDb,
-  tripId: number,
-  cityId: number,
-) {
+async function seedTripPlace(db: TestDb, tripId: number, cityId: number) {
   const [place] = await db
     .insert(schema.tripPlaces)
     .values({ tripId, cityId, userId: TEST_USER_ID })

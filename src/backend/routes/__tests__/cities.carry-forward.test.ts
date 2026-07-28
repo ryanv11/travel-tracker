@@ -92,10 +92,7 @@ async function seedTestUser(db: TestDb) {
 
 type TripStatus = 'planning' | 'active' | 'review_pending' | 'locked';
 
-async function seedCityAndTrip(
-  db: TestDb,
-  tripStatus: TripStatus,
-) {
+async function seedCityAndTrip(db: TestDb, tripStatus: TripStatus) {
   await db
     .insert(schema.countries)
     .values({ countryCode: 'IE', name: 'Ireland' })

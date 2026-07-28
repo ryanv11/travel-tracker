@@ -118,18 +118,11 @@ async function seedUser(
     .onConflictDoNothing();
 }
 
-async function seedCountry(
-  db: TestDb,
-  countryCode = 'US',
-  name = 'United States',
-) {
+async function seedCountry(db: TestDb, countryCode = 'US', name = 'United States') {
   await db.insert(schema.countries).values({ countryCode, name }).onConflictDoNothing();
 }
 
-async function seedTrip(
-  db: TestDb,
-  userId: string,
-): Promise<number> {
+async function seedTrip(db: TestDb, userId: string): Promise<number> {
   const now = new Date().toISOString();
   const inserted = await db
     .insert(schema.trips)

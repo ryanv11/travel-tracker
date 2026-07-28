@@ -82,10 +82,7 @@ async function seedTestUser(db: TestDb) {
     .onConflictDoNothing();
 }
 
-async function seedTrip(
-  db: TestDb,
-  overrides: Partial<typeof schema.trips.$inferInsert> = {},
-) {
+async function seedTrip(db: TestDb, overrides: Partial<typeof schema.trips.$inferInsert> = {}) {
   const [trip] = await db
     .insert(schema.trips)
     .values({

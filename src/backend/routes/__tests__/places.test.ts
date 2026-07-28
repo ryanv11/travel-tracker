@@ -78,19 +78,11 @@ async function seedTestUser(db: TestDb) {
     .onConflictDoNothing();
 }
 
-async function seedCountry(
-  db: TestDb,
-  countryCode: string,
-  name: string,
-) {
+async function seedCountry(db: TestDb, countryCode: string, name: string) {
   await db.insert(schema.countries).values({ countryCode, name }).onConflictDoNothing();
 }
 
-async function seedCity(
-  db: TestDb,
-  countryCode: string,
-  name: string,
-) {
+async function seedCity(db: TestDb, countryCode: string, name: string) {
   const [city] = await db
     .insert(schema.cities)
     .values({ name, countryCode, geocodeStatus: 'resolved' })
@@ -98,10 +90,7 @@ async function seedCity(
   return city;
 }
 
-async function seedTrip(
-  db: TestDb,
-  overrides: Partial<typeof schema.trips.$inferInsert> = {},
-) {
+async function seedTrip(db: TestDb, overrides: Partial<typeof schema.trips.$inferInsert> = {}) {
   const [trip] = await db
     .insert(schema.trips)
     .values({

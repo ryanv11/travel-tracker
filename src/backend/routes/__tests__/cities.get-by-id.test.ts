@@ -68,10 +68,7 @@ const supertest = (await import('supertest')).default;
 // Seed helpers
 // ----------------------------------------------------------------
 
-async function seedCity(
-  db: TestDb,
-  overrides: Partial<typeof schema.cities.$inferInsert> = {},
-) {
+async function seedCity(db: TestDb, overrides: Partial<typeof schema.cities.$inferInsert> = {}) {
   await db
     .insert(schema.countries)
     .values({ countryCode: 'IE', name: 'Ireland' })

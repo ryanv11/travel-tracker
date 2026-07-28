@@ -70,11 +70,7 @@ const supertest = (await import('supertest')).default;
 const TEST_USER_ID = 'test-user-id';
 const OTHER_USER_ID = 'other-user-id';
 
-async function seedTestUser(
-  db: TestDb,
-  id = TEST_USER_ID,
-  email = 'test@example.com',
-) {
+async function seedTestUser(db: TestDb, id = TEST_USER_ID, email = 'test@example.com') {
   const now = Date.now();
   await db
     .insert(schema.users)
@@ -88,11 +84,7 @@ async function seedTestUser(
     .onConflictDoNothing();
 }
 
-async function seedCountryAndCity(
-  db: TestDb,
-  countryCode = 'FR',
-  cityName = 'Paris',
-) {
+async function seedCountryAndCity(db: TestDb, countryCode = 'FR', cityName = 'Paris') {
   await db
     .insert(schema.countries)
     .values({ countryCode, name: countryCode === 'FR' ? 'France' : 'Ireland' })
