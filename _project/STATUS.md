@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-28 (QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)_
+_Tracker last updated: 2026-07-28 (negative-findings guard adopted into CLAUDE.md + all 8 role system prompts; QUAL-15 fixed — every role prompt's mandatory init step pointed at a nonexistent BRD path; QUAL-16 logged. QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (QUAL-11 remote-Turso half verified against st
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (53)
+## Open work (54)
 
 ### P0 — Blockers (1)
 
@@ -66,7 +66,7 @@ _Tracker last updated: 2026-07-28 (QUAL-11 remote-Turso half verified against st
 | QUAL-11 | Assert PRAGMA foreign_keys=1 at startup (remote Turso path verified 2026-07-28) | backend | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 
-### P3 — Minor (21)
+### P3 — Minor (22)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -91,6 +91,7 @@ _Tracker last updated: 2026-07-28 (QUAL-11 remote-Turso half verified against st
 | QUAL-10 | jobs/database/tech/schema.ts is an unmaintained copy of the real schema | docs | ⬜ Pending |
 | QUAL-13 | Stale unread COO->Architect inbox messages from March 2026 | coo | ⬜ Pending |
 | QUAL-14 | MapView.tsx comment documents zoom >= 4 while the constant is 3 | frontend | ⬜ Pending |
+| QUAL-16 | Role system prompts' 'Read _shared/frameworks.txt' init step is ambiguous — two different docs share that filename | coo | ⬜ Pending |
 
 ## Coverage by type
 
@@ -98,9 +99,9 @@ _Tracker last updated: 2026-07-28 (QUAL-11 remote-Turso half verified against st
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `███████████████░░░░░` 43/57 | 43 | 14 | 4 |
+| bug | `███████████████░░░░░` 44/58 | 44 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `█████████░░░░░░░░░░░` 9/21 | 9 | 12 | 1 |
+| chore | `████████░░░░░░░░░░░░` 9/22 | 9 | 13 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -134,4 +135,4 @@ _Tracker last updated: 2026-07-28 (QUAL-11 remote-Turso half verified against st
 
 ---
 
-_124 done · 10 deferred · 4 closed · 53 open — 191 tracked items_
+_125 done · 10 deferred · 4 closed · 54 open — 193 tracked items_

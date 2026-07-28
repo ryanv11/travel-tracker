@@ -87,6 +87,45 @@ will hit confusing missing-module errors that look like a worktree-isolation bug
 aren't. Run `npm install` inside the worktree before anything else that needs
 `node_modules`, same as a fresh clone would.
 
+### Negative findings need two probes (mandatory)
+Adopted 2026-07-28 after three confidently-stated false premises came out of one wave of
+Architect work (Wave 0), each caught only because someone later re-ran the probe:
+
+1. **"`PRAGMA foreign_keys` is off at runtime"** — false. `@libsql/client` enables FK
+   enforcement by default (a libSQL divergence from stock SQLite). The design built on it
+   proposed eight hand-ordered deletes duplicating the FK graph in application code.
+2. **"There is no `router.delete` in `trips.ts`"** — false. `tripsRouter.delete('/:id')`
+   exists at `src/backend/routes/trips.ts:429`. The probe grepped `router.delete` against a
+   router actually named `tripsRouter`. The COO then propagated it into a tracker note
+   without re-verifying, and it mis-sized a brief until corrected.
+3. **"This environment's firewall reaches no Turso host"** — false. The ADL-33 / OP-21
+   diagnostic path is allowlisted; `scripts/agent-diagnostics/turso-query.mjs` reaches
+   staging fine. An open question sat recorded as unanswerable for a day.
+
+All three share a shape: **an agent probes once, gets a negative result, and reports the
+absence as established fact.** A grep that missed on a naming assumption, a probe that
+covered one driver, a connection attempt that didn't use the allowlisted path. Positive
+findings self-verify — the thing is there, you can see it. Negative findings don't, and
+they are disproportionately load-bearing because designs get built on top of "X doesn't
+exist" without anyone thinking to check again.
+
+**The rule.** Any claim that something does not exist, is not enabled, is unreachable, or
+is not implemented must either:
+- be established by **two independent probes** that could fail differently — e.g. a grep
+  *and* reading the file; a network probe *and* checking the allowlist config; a code
+  search *and* running the thing — where "independent" means a single wrong assumption
+  cannot produce both results; **or**
+- be **explicitly marked unverified** in the deliverable, with the probe that was run and
+  its known blind spot stated, so the next reader knows what was and wasn't checked.
+
+Never silently upgrade a single negative probe into a stated fact. "I grepped for X and
+found nothing" is a finding; "X does not exist" is a claim, and it needs the second probe.
+
+This binds **agents writing deliverables** and **the COO propagating agent findings into
+tracker notes, briefs, or plans** — failure 2 above was a COO failure, not an agent one.
+Applies to every role. Briefs should not need to restate it, but a brief whose core task is
+to establish an absence should call it out explicitly.
+
 ### BRD → tracker rule (mandatory)
 Whenever the BRD is updated (a changelog entry is written), the COO must create tracker
 entries for every new requirement ID introduced before closing the session. No BRD version
