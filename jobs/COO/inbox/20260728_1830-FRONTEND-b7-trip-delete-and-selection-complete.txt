@@ -1,0 +1,50 @@
+BUG-50 (P1) + BUG-58 (P2) · GitHub #316 · PR #319 · BRD §5.1 TR-14, TR-11 ·
+Branch: fix/b7-trip-delete-and-selection
+
+WHAT WAS BUILT
+BUG-50: per-trip Delete affordance in the trip detail view (desktop
+TripDetail.tsx header row, mobile MobileTripDetailView.tsx icon button, new
+TrashIcon), frontend-only, reusing ConfirmDialog. Locked trips: button stays
+reachable and refuses with a message that routes into the existing unlock
+flow, rather than hiding outright or duplicating the lock rule client-side.
+BUG-58: classified as a GAP (two independent probes vs. the pre-#208 code,
+not a regression), then fixed at its root — ReviewPanel.tsx's "Return to
+Planning" no longer calls onClose() after its status mutation, so a
+backward status change no longer clears the trip's selection.
+
+ACCEPTANCE CRITERIA
+- TR-14: delete reachable from trip detail view, both breakpoints: PASS
+- TR-14: confirmation names trip + place/item counts: PASS
+- TR-14: Locked trip delete refused, directs to unlock: PASS
+- TR-14: hard delete, no archive state added/foreclosed: PASS
+- BUG-58: classification done first, with two probes, before any fix: PASS
+- BUG-58: trip stays selected across a backward status change: PASS
+- BUG-58 fix doesn't break BUG-50's "delete clears selection": PASS (tested)
+- No backend route added: PASS (confirmed via diff — src/backend/ untouched)
+
+CI: scripts/ci-wait.sh pr 319 -> PASS, 18/18 green (second push — see below)
+
+OPEN ISSUES / BLOCKERS
+None blocking. Found and fixed one real regression during this thread, not
+after: CI's E2E job caught a substring accessible-name collision between the
+new "Delete Trip" button and a pre-existing e2e test's `.first()` lookup for
+an item's own Delete button (places-items.spec.ts). Fixed with `exact: true`
+on that lookup, reproduced + verified locally (full E2E suite, 52/52), then
+re-pushed green. Full account in the park doc addendum.
+
+Three findings flagged to COO, not fixed (outside this brief's stated
+scope — see park doc for full reasoning):
+  1. review_pending trips render ReviewPanel, which has no Delete
+     affordance at all — TR-14 gap the brief's file-scope anchors didn't
+     cover (only TripDetail.tsx/MobileTripDetailView.tsx were named).
+  2. ReviewPanel's forward Lock action has the identical
+     onClose()-after-mutation pattern BUG-58 fixed, but it's a forward
+     transition and wasn't filed.
+  3. The locked-trip delete dialog's copy reflects trip.status as held
+     client-side at dialog-open time, not re-verified against the server
+     at confirm time — narrow edge case, not believed risky.
+
+WHAT IS NOW UNBLOCKED
+BUG-50 and BUG-58 are ready for COO review/merge via /coo-merge-and-close.
+Both tracker entries flipped to done_pending_uat with PR #319 recorded.
+Consider the three flagged findings above for follow-up tracker entries.
