@@ -29,10 +29,18 @@ vi.mock('../../../utils/apiClient', async (importOriginal) => {
   return { ...actual, apiPatch: vi.fn(), apiDelete: vi.fn() };
 });
 
-vi.mock('../../../hooks/useItems', () => ({
-  useTripLevelItems: () => ({ data: [], isLoading: false, error: null }),
-  useDeleteItem: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
-}));
+// Partial mock via importOriginal — see the same mock in TripDetail.test.tsx for
+// the full rationale. This file renders PlaceSection too (MobileTripDetailView.tsx:254),
+// so it carries the identical hazard; it survives today only because no test here
+// mounts a place, which would stop being true the moment one did.
+vi.mock('../../../hooks/useItems', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../hooks/useItems')>();
+  return {
+    ...actual,
+    useTripLevelItems: () => ({ data: [], isLoading: false, error: null }),
+    useDeleteItem: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
+  };
+});
 
 vi.mock('../../../hooks/usePlaces', () => ({
   useRemovePlace: () => ({ mutate: vi.fn(), isPending: false, error: null, reset: vi.fn() }),
