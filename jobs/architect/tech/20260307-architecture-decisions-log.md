@@ -3465,3 +3465,143 @@ description of a current overlap. Nothing in this ADL asks the COO to touch §5.
   second named example (see "What this ADL does not decide").
 
 **Supersession:** none.
+
+---
+
+## ADL-46 — Per-user access model: resource tier × role, city creation, and external egress policy
+
+**Date:** 2026-07-28
+**Status:** Decided — **spec only, implementation pending.** Backend **and Database** briefs
+specified but not yet dispatched; no code, schema or migration changed by this decision.
+**Trigger:** GitHub issue #326. BUG-63 (P1 — a non-owner cannot add a place to a trip at all,
+reproduced on staging with the browser console captured), bundled with BUG-55, BRD-AD09 and
+D-12 item 1 because all four are one question: which surfaces are reachable by whom.
+**PO direction mid-task (recorded because it changed the outcome):** the PO decided AD-09
+outright — categories and activities become **per-user**, lazy-seeded from the global defaults
+so a new user is never blank; countries stay owner-only. **This reversed the Architect's draft
+position**, which had kept creation owner-only and deferred per-user entries; that draft
+objection (any user writing irreversibly into every other user's global pickers) is entirely
+dissolved by the per-user model, and the draft is withdrawn. The PO also split city creation out
+of SE-03 and directed that questions 3 and 5 be answered together.
+**BRD refs:** §5.11 SE-01, SE-03; §5.10 AD-09 — all three amended (proposed text in the
+standalone doc §6, for the COO to apply as v3.13). One new ID **flagged, not invented**:
+**GE-16** (city create-on-demand — **blocking**, it is the BRD home for the cities decision).
+*(A deferred AD-10 was proposed in the draft to hold per-user entries; the PO's direction
+promotes that capability into AD-09 itself, so AD-10 is no longer needed.)*
+**Standalone doc:** `jobs/architect/tech/ADL-46-non-owner-access-model.md` — full analysis,
+proposed BRD text, the test-assertion change list, the phasing and both brief specs live there.
+
+**The finding that reframes it.** BUG-63 is not a forgotten gate. **SE-03 and AD-09 contradict
+each other in the BRD**, on the same routes: SE-03 names "city creation" an owner-only admin
+operation and AD-09 says "any user can add custom entries" for categories/activities. The code
+implements SE-03 faithfully; AD-09's clause was never built (established by two independent
+probes — a structural code read of the router mounts, and a table-symbol grep across the whole
+backend that does not depend on router naming). SE-03 was *already* stale in two of its five
+clauses: AD-07 and AD-08 moved map-shading config and companions to per-user `requireAuth` and
+SE-03 was never updated. And **ADL-38 named categories/activities as "the same data tier" as the
+countries/regions it opened, in writing, and stopped one step short** — BUG-63 is the predictable
+consequence six days later.
+
+**Decision (9 parts).**
+1. **D1 — access is determined by resource *tier* × operation, not role alone.** Three tiers:
+   global reference data (countries, regions, cities — read `requireAuth`, write `requireOwner`
+   bar an explicitly-specified constrained path), per-user data (trips, places, items, companions,
+   shading config, **and now categories + activities** — `requireAuth` + `userId` scoping), and
+   instance administration (`requireOwner`). Unstated tier defaults to instance administration.
+   **This is the load-bearing decision** — a rule that classifies *future* routes is the only thing
+   that stops a fourth recurrence after BUG-61/62/63. URL prefix is not a tier
+   (`/api/admin/countries` is tier 1; `PATCH /api/cities/:id` is tier 3).
+2. **D2 — non-owner READ of active categories/activities opens** (`requireAuth`), extending
+   ADL-38's read/write split unchanged. Only `/active`; the unfiltered admin lists stay owner-only.
+   **Explicitly temporary scaffolding** — Phase 3 moves these resources off `/api/admin/*` entirely
+   and deletes the carve-out. It exists so the P1 clears without waiting on a migration.
+3. **D3 — categories and activities become PER-USER** (PO-decided): `userId NOT NULL` FK with
+   cascade, global `UNIQUE(name)` → `UNIQUE(user_id, name)`, existing rows migrated to the owner
+   via ADL-28's CROSS JOIN pattern, lazy-seeded from the global defaults on first access. Routes
+   move to `/api/categories` + `/api/activities`, exactly as ADL-28 moved companions. **Rejected:
+   a nullable `user_id` "NULL = shared default" model** — it cannot express AD-03/AD-06 per-user
+   without an override table, and SQLite treats NULLs as distinct in a unique index, so a user
+   could silently duplicate a global default in their own picker.
+4. **D4 — city CURATION splits from city CREATION** (PO-directed). Owner curates the shared
+   catalogue (`PATCH`/deactivate — unchanged, `requireOwner`); any authenticated user creates on
+   demand while logging a trip. The original gate was not wrong so much as **under-specified**:
+   SE-03 bundled two different verbs under one word.
+5. **D5 — city creation is validated by RESOLVE-THEN-CREATE.** The backend resolves the name
+   against the geocoder and builds the row from the *canonical response*, running find-or-create a
+   second time against the canonical name — which converges `"Denverr"`, `"denver co"` and
+   diacritic variants that `COLLATE NOCASE` alone cannot. Unresolvable input still creates (GE-12,
+   offline-safe) as `geocode_status='pending'` and stays **creator-private until it resolves**;
+   promotion is automatic via the existing 15-minute server-side queue, so junk that never resolves
+   never goes global. Costs one nullable `cities.created_by_user_id` and one WHERE clause.
+   Rejected: per-user city scoping (fragments the join key behind carry-forward, LB-01 aggregation
+   and city shading aggregates), owner-moderated pending rows (converts a 403 into an indefinite
+   wait on a human), geocode-*gated* creation (violates GE-12, breaks CI), and a separate
+   `city_suggestions` table (`geocodeStatus` already is that state machine).
+6. **D6 — SE-01 and SE-03 rewritten.** After this ADL **SE-03 retains none of its original five
+   clauses**, which is the clearest available statement that the requirement was never maintained.
+7. **D7 — BUG-55 is fixed by a backend proxy route, not a widened CSP allowlist.** Decisive:
+   `User-Agent` is a forbidden header name for browser `fetch()`, so the direct browser call can
+   *never* be compliant with Nominatim's usage policy — and a fully compliant client already exists
+   server-side (`geocoding.service.ts`: correct UA, 1.1 s delay, ADL-10). The frontend hook is a
+   non-compliant duplicate of a client we already own. Rate limiting is only enforceable at a
+   server-side chokepoint. **Same route serves D5's validation** — the convergence the PO identified.
+8. **D8 — the CSP allowlist is a closed, per-entry-justified register; proxy or disable by
+   default.** No change to the current `connectSrc` recommended. QUAL-19 must cover **third-party
+   SDK egress as well as first-party source** — the staging console showed two violations from
+   different sources, and a source-grep-only test catches Nominatim but misses `clerk-telemetry.com`.
+9. **D9 — four phases, not one change.** Phase 1 (no schema) **fully clears the P1**; Phase 2 is
+   the proxy + resolve-then-create; Phase 3 is the per-user migration; Phase 4 is city containment.
+
+**Alternatives considered:** see standalone §3.2 (the rejected nullable-`user_id` model), §4.5
+(four rejected city models) and §13 (confidence register naming the two weakest calls).
+
+**The trap this decision exists to clear.** `security.access-matrix.test.ts` asserts the three
+offending 403s as *correct behaviour* and is green — the suite actively encodes the defect as the
+intended security contract. The spec therefore had to move before the code. Standalone §7 lists
+every assertion current → intended so the Backend brief inherits authority to change them rather
+than appearing to weaken a security test on its own initiative. It also found a **stale
+`it.skip`** at line ~457 (`PATCH /api/cities/1 → 403`, skipped pending BUG-22, which has since
+merged — `requireOwner` is present at `cities.ts:211`) suppressing an assertion that D4 makes
+load-bearing.
+
+**Implementation implications.** **Phase 1 (the P1) needs no schema change, no migration and no new
+columns** — that separability is the finding the PO asked for, and it is why the P1 does not wait on
+the per-user work. **Phase 3 owes a Database brief:** two SQLite table recreations (`UNIQUE(name)`
+→ `UNIQUE(user_id, name)` cannot be done with `ALTER TABLE`), following ADL-28 Question 3 as prior
+art — **preserving `id` through the CROSS JOIN**, which is essential because `trip_categories_map`
+FKs to it and existing mappings must survive. `db:generate`/`db:migrate` only; **`db:push` forbidden
+(ADL-15)**, and the generated SQL must be hand-reviewed because drizzle-kit's four patched bugs are
+specifically around table recreation. Phase 3 also adds the ADL-28-shaped ownership validation to
+`tripRepository.replaceAssociations` for `category_id`/`activity_id` (cross-user IDs → 400).
+**Blocking pre-migration check:** query staging for category/activity mappings on non-owner trips —
+expected zero (the picker has always 403'd) but that is an *inference* with a named blind spot, since
+`POST /api/trips` accepts `category_ids` under `requireAuth` alone. Frontend needs no change for
+BUG-63; BUG-55 repoints `lookupCityCountry` at the proxy and deletes the forbidden `User-Agent`
+header. **ENV-01 carries into the brief:** Nominatim is unreachable from this devcontainer — probed
+here (`curl` exit 7, with `api.github.com` returning 200 from the same shell as a control), so the
+proxy must be verified against a mocked upstream locally and confirmed on staging.
+
+**Premise corrected rather than inherited.** The direction stated the pending/resolve machinery is
+"driven from the browser." **It is not** — two independent probes: `useGeocodeRetryQueue.ts`'s only
+network call is `apiGet('/api/cities/:id')` and its comment says "polling is read-only (BUG-29) —
+the backend re-runs geocoding itself every 15 minutes"; and `processQueue`
+(`geocoding.service.ts:148-192`) is invoked from `server.ts:47`. The only browser-driven geocoding
+is `lookupCityCountry` — the BUG-55 path, nothing else. **This makes Phase 2 materially smaller than
+the direction implies:** D7 replaces one function, not a subsystem.
+
+**Supersession:** partially supersedes **ADL-27**'s "Routes to protect with `requireOwner`" list —
+`GET /api/admin/{categories,activities}/active` and `POST /api/cities` leave the owner-only set, and
+Phase 3 removes categories/activities from `/api/admin/*` altogether. The router-level guard, the
+fail-closed default and every remaining write route's owner-only status are unchanged. ADL-27's
+standalone file is stamped in this PR. Also supersedes **ADL-28 Question 5**, which recorded
+"`trip_categories` and `activities` tables are unaffected by this ADL… if the COO wants to open
+category/activity creation to non-owners per AD-09, that is a separate brief" — this is that brief,
+and the answer is per-user rather than open-creation. Amends the **OP-06 hardening checklist §2**
+access matrix (new §2.1 appended in place — the original table keeps its existing SUPERSEDED stamp
+and its history). **Extends ADL-38** rather than superseding it: same mechanism, same fail-closed
+invariant, two more enumerated reads above the guard — removed again at Phase 3. **Consistent with
+ADL-43**, whose §6.2 ODbL finding applies to Nominatim-derived data; a README attribution notice is
+flagged as a separate item (single-probe finding, marked as such in the standalone §4.6).
+
+**Open question closed:** D-12 item 1 in `jobs/COO/open-dialogues.md` ("the three-role model has
+drifted from reality") is answered by D1/D5. Items 2–4 remain open.

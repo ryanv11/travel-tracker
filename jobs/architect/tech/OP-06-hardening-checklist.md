@@ -129,6 +129,82 @@ Unauthenticated requests are rejected before this matrix applies (see §3).
 
 ---
 
+## 2.1 Access matrix — current model (2026-07-28, ADL-46)
+
+> **This subsection is the live access matrix.** §2 above is retained for history under its
+> existing supersession stamp. Appended — not a rewrite — per OP-28.
+>
+> **Status: SPEC. Nothing below is implemented yet.** Rows marked **⚠P1** land in ADL-46 Phase 1
+> (no schema change); rows marked **⚠P3** / **⚠P4** land in later phases (see ADL-46 §9). Until
+> Phase 1 merges, those routes still return 403 to a non-owner and `security.access-matrix.test.ts`
+> still asserts that 403 as correct. Flip each marker in the PR that implements it
+> (document-lifecycle rule 1).
+
+**Access is determined by resource *tier* × operation, not by role alone** (ADL-46 D1). The
+three-role framing in §2 above asks only "who is the caller?" and has nowhere to put the answer
+"it depends what they're touching" — which is the root cause shared by BUG-61, BUG-62 and BUG-63.
+
+**Tier 1 — global reference data.** Seeded, shared, no per-user dimension, no user FK.
+Read: `requireAuth`. Write: `requireOwner`, except an explicitly specified constrained path.
+
+| Resource / route | Owner | Authenticated non-owner | Notes |
+|---|---|---|---|
+| `GET /api/admin/countries` | Read | **Read (200)** | ADL-38 (BUG-61) — shipped |
+| `GET /api/admin/countries/:code/regions` | Read | **Read (200)** | ADL-38 — shipped |
+| `GET /api/admin/categories/active` | Read | **Read (200)** ⚠P1 | ADL-46 D2 — feeds `TripForm.tsx:60`. **Temporary** — Phase 3 moves this resource to tier 2 and deletes the route |
+| `GET /api/admin/activities/active` | Read | **Read (200)** ⚠P1 | ADL-46 D2 — feeds `TripForm.tsx:62`. Same: temporary |
+| `GET /api/cities` (search) | Read | Read (200) | already ungated — `cities.ts:37`. **⚠P4** adds `WHERE geocode_status='resolved' OR created_by_user_id = :me` (ADL-46 §4.4) |
+| `GET /api/cities/:id` | Read | Read (200) | BUG-29 — geocode-status polling |
+| `POST /api/cities` | Write | **Write (201/200)** ⚠P1 | ADL-46 D4/D5, proposed GE-16. **Permitted only via the constrained find-or-create** (`cities.ts:120-146`): coordinates never client-supplied, country and region validated, duplicates impossible. Not general row creation. **⚠P2** adds resolve-then-create so the row is built from the geocoder's canonical response |
+
+**Tier 2 — per-user data.** `requireAuth` + `userId` scoping, both directions. No cross-user
+visibility; ownership failures are opaque (404, not 403 — SE-05).
+
+| Resource | Owner | Authenticated non-owner | Notes |
+|---|---|---|---|
+| Trips / places / items | Full CRUD (own) | Full CRUD (own) | SE-02; other users' rows → 404 |
+| Companions | Full CRUD (own) | Full CRUD (own) | AD-08 / ADL-28 — shipped |
+| Map shading + shading config | Read/Update (own) | Read/Update (own) | AD-07 / ADL-28 — shipped |
+| **Trip categories** — `/api/categories` | Full CRUD (own) | Full CRUD (own) ⚠P3 | AD-09 as amended. Moves off `/api/admin/*` exactly as ADL-28 moved companions. Lazy-seeded from the global defaults on first access |
+| **Activities** — `/api/activities` | Full CRUD (own) | Full CRUD (own) ⚠P3 | Same |
+
+**Tier 3 — instance administration.** `requireOwner`. **This is the default for any route whose
+tier is not stated.**
+
+| Resource / route | Owner | Authenticated non-owner |
+|---|---|---|
+| `GET /api/admin/categories`, `/activities` (unfiltered, incl. inactive) | Read | **403** — *route removed at Phase 3* |
+| `POST`/`PATCH`/`DELETE` `/api/admin/categories`, `/activities` | Write | **403** — *route removed at Phase 3* |
+| `PATCH /api/admin/countries/:code` | Update | **403** |
+| `POST`/`PATCH` `/api/admin/countries/:code/regions[/:id]` | Write | **403** |
+| `PATCH /api/cities/:id` (catalogue curation) | Update | **403** |
+
+**The tier-1/tier-2 discriminator, because it is the thing that keeps being got wrong:** a
+*category* is a taxonomy choice with no external truth condition and no convergence property — two
+users adding "Beach" and "Beach Holiday" produce two rows both of which are correct, so it belongs
+per-user. A *city* is a fact about the world with an external truth condition (a geocoder resolves
+it or does not) and a natural uniqueness key the DB already enforces — two users adding "Denver, US"
+converge on one row by construction, so it belongs global. Applying the per-user pattern to cities
+would fragment the join key behind carry-forward, city item history, LB-01 aggregation and city
+shading aggregates; applying the global pattern to categories is what produced BUG-63.
+
+**Outside the matrix:** `/geo/*` static GeoJSON and `/health` are unauthenticated — accepted risk,
+unchanged from §1.2. `GET /api/me` returns the caller's own identity to any authenticated user.
+
+**Invariants that must survive any future change to this matrix:**
+
+1. **Fail-closed by default.** `adminRouter.use(requireOwner)` (`admin.ts:105`) gates the router;
+   the only routes above it are the four enumerated tier-1 reads. A newly added admin route is
+   owner-only unless deliberately moved into that block. Never move a write above the guard.
+2. **Opening a tier-1 read or the find-or-create write never opens it to an unauthenticated
+   caller** — `requireAuth` is applied globally to `/api/*` in `server.ts`, and every route above
+   still returns 401 without a valid token (Part A of the access-matrix suite, unchanged).
+3. **Tier 1 write stays closed except where a constrained path is specified.** Today that is
+   exactly one route (`POST /api/cities`), and the constraint — not the gate — is what makes it
+   safe. A change that removes the find-or-create logic re-closes the route.
+
+---
+
 ## 3. Token / Claim Validation
 
 ### 3.1 Validation sequence
