@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-28 (QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)"
+    "updated": "2026-07-28 (negative-findings guard adopted into CLAUDE.md + all 8 role system prompts; QUAL-15 fixed — every role prompt's mandatory init step pointed at a nonexistent BRD path; QUAL-16 logged. QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)"
   },
   "items": [
 
@@ -2208,6 +2208,28 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "Found 2026-07-26 during clearance-plan sizing, re-confirmed 2026-07-27 by ADL-44/S5 (issue #275). src/frontend/components/Map/MapView.tsx:6 documents 'zoom >= 4' while REGION_ZOOM_THRESHOLD on line 28 is 3. Trivial stale-doc drift, but it sits on exactly the constant BUG-48's implementation will change, so it should be corrected by whichever PR touches that file rather than tracked forever. Fold into the BUG-48 implementation brief; this entry exists only so it is not lost if that brief is deferred."
+    },
+    {
+      "id": "QUAL-15",
+      "type": "bug",
+      "title": "All 8 role system prompts had a mandatory init step pointing at a nonexistent BRD path",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-28 while adding the negative-findings guard to the role system prompts. Every one of the 8 jobs/<role>/<role>-system-prompt.txt files listed 'Read _project/BRD.md' as init step 2 — a MANDATORY step — but that file does not exist; the BRD is at _project/travel-tracker-BRD.md. So every dispatched agent since the prompts were written either silently skipped the BRD at init or found it by hunting, in a project whose first rule is that the BRD is law. Same class as QUAL-06's orphaned COO system prompt, and directly foreshadowed by it: the 2026-07-26 park doc explicitly recorded 'the broken _project/BRD.md reference in its mandatory init list' for the COO prompt, which was resolved by DELETING that file — nobody checked whether the 8 live role prompts carried the identical broken path. They all did. The lesson is the one in the feedback_verify_docs_are_loaded_not_just_resolvable memory, inverted: that memory covers docs nothing reads; this is a doc everything reads pointing somewhere nothing is. FIXED in the same PR — all 8 now read _project/travel-tracker-BRD.md, verified 0 remaining references to the broken path and 8 to the correct one, and the target verified to exist."
+    },
+    {
+      "id": "QUAL-16",
+      "type": "chore",
+      "title": "Role system prompts' 'Read _shared/frameworks.txt' init step is ambiguous — two different docs share that filename",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-28 alongside QUAL-15, while sweeping the same init lists for broken paths. NOT broken — flagged, not fixed, because resolving it needs a judgment call rather than a correction. All 8 role prompts say 'Read _shared/frameworks.txt' as init step 1, and TWO different files answer to that name: /_shared/frameworks.txt (8397 bytes, 'SHARED FRAMEWORKS' — the 30 numbered binding standards covering coding, communication, quality, security SEC rules 19-22, spec review 23-24, and bug classification 25-30) and /jobs/_shared/frameworks.txt (1562 bytes, 'TRAVEL TRACKER — SHARED TECH STACK' — languages, frameworks, versions, env vars). They are not duplicates of each other; they are unrelated documents that collide on filename. From the repo root, which is where a worktree-isolated agent starts, the bare path resolves to the 30-standards doc — which is probably the intended one, since /coo-startup references 'Shared Standards 23/24' as living in _shared/frameworks.txt. So current behaviour is likely correct and no agent is reading nothing. But an agent reading the prompt from jobs/<role>/ could reasonably resolve it the other way, and the tech-stack doc is genuinely useful at init too. Success criteria: init step 1 names its target(s) by explicit path from the repo root — probably both files, since both are relevant — so there is no resolution ambiguity; consider renaming one file if the collision is worth removing outright."
     },
     {
       "id": "DEP-04",
