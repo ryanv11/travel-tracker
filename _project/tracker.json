@@ -1439,7 +1439,7 @@
       "priority": "P2",
       "brdRefs": ["IT-08","IT-09"],
       "phase": 3,
-      "notes": "Backend API done and MERGED: PR #90 (issue #89) merged 2026-03-24. sort_by=rating, sort_order=asc|desc, min_rating=1-5 added to GET /api/trips/:tripId/items and GET /api/cities/:id/items. Frontend UI (sort/filter controls in item list views) is NOT built — it is brief B8 in jobs/COO/backlog-clearance-plan.md §4, not yet dispatched. Status corrected in-progress -> partial 2026-07-26 (QUAL-06): the entry had said 'CI green, pending merge' for four months after the merge and read as live work-in-flight when nothing was in flight."
+      "notes": "Backend API done and MERGED: PR #90 (issue #89) merged 2026-03-24. sort_by=rating, sort_order=asc|desc, min_rating=1-5 added to GET /api/trips/:tripId/items and GET /api/cities/:id/items. Frontend UI (sort/filter controls in item list views) is NOT built — it is brief B8 in jobs/COO/backlog-clearance-plan.md §4, not yet dispatched. Status corrected in-progress -> partial 2026-07-26 (QUAL-06): the entry had said 'CI green, pending merge' for four months after the merge and read as live work-in-flight when nothing was in flight. BRD GATE CLEARED 2026-07-28 (BRD v3.12): IT-08 and IT-09 shipped their backend in March 2026 but NEITHER requirement ever stated success criteria, so B8 could not dispatch under the success-criteria-before-dispatch gate — this was the real reason it stayed stranded, not just missing brief capacity. Both now carry measurable criteria. Frontend absence re-confirmed 2026-07-28 by two independent probes before briefing: (1) no file under src/frontend/hooks/ references sort_by, sort_order or min_rating; (2) src/frontend/components/TripDetail/TripItemsSection.tsx contains no sort, filter or rating control. Backend surface confirmed present at src/backend/routes/items.ts:38."
     },
     {
       "id": "BRD-AD07",
@@ -2057,9 +2057,9 @@
       "status": "pending",
       "owner": "backend",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["TR-13"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Searching 'United States' or 'USA' returns no results even when a trip has a US place, unless the country string literally appears in the trip title. Search should match against place/country data, not just the trip title."
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Searching 'United States' or 'USA' returns no results even when a trip has a US place, unless the country string literally appears in the trip title. Search should match against place/country data, not just the trip title. SIZED + BRD GATE CLEARED 2026-07-28 (BRD v3.12, brief B4): smaller than the plan's 'sizing unknown' note suggested. Search is client-side in filterAndSortTrips (src/frontend/components/TripList/TripList.tsx), not server-side — GET /api/trips takes only status/category_id/activity_id/country query params (src/backend/routes/trips.ts:115) and the repository has no LIKE/search path. The country names are ALREADY in the list payload: TripSummary.countries[] is {country_code, name}[] (src/frontend/types/api.ts:204), and filterAndSortTrips simply never reads it — it matches trip name and city name only. TR-13 amended to cover country names because the fix would otherwise ship behaviour outside its stated scope. Note the PO's 'USA' example: TR-13 deliberately requires full-country-name matching only, NOT ISO codes or informal abbreviations — an alias list is a separate decision, not this fix."
     },
     {
       "id": "BUG-53",
@@ -2090,9 +2090,9 @@
       "status": "pending",
       "owner": "backend",
       "priority": "P2",
-      "brdRefs": [],
+      "brdRefs": ["GE-15"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Entering a city name doesn't auto-fill its country/state fields — likely the geocode/lookup path isn't wired to populate those fields on selection."
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Entering a city name doesn't auto-fill its country/state fields — likely the geocode/lookup path isn't wired to populate those fields on selection. RECLASSIFIED AS A REGRESSION 2026-07-28 (PO): 'country and state/region as that's how it was working previously'. This is NOT an unbuilt feature — the brief leads with diagnosing what broke it (git history over the geocode/city-selection path), not building it from scratch. BRD gate cleared at v3.12: GE-15 already covered the country half and was extended to cover region/state where GE-03 has the Region tier enabled. VERIFICATION CONSTRAINT (ENV-01): Nominatim is firewall-blocked in this devcontainer, so the live geocode path CANNOT be exercised here — the brief requires a stubbed/fixture geocode response, and any agent claim that the path 'works' or 'is broken' based on a live call is unreliable by construction."
     },
     {
       "id": "BUG-56",
