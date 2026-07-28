@@ -27,6 +27,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Item, TripDetail as TripDetailType, TripPlace } from '../../../types/api';
 import { apiDelete, apiPatch } from '../../../utils/apiClient';
@@ -44,10 +45,20 @@ vi.mock('../../../utils/apiClient', async (importOriginal) => {
   return { ...actual, apiPatch: vi.fn(), apiDelete: vi.fn() };
 });
 
-vi.mock('../../../hooks/useItems', () => ({
-  useTripLevelItems: () => ({ data: [], isLoading: false, error: null }),
-  useDeleteItem: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
-}));
+// Partial mock via importOriginal, NOT a total replacement. TripDetail renders
+// PlaceSection, which consumes other exports of this module (e.g. B8's
+// DEFAULT_RATING_SORT_FILTER / applyRatingSortFilter for IT-08). A total mock
+// silently drops those, and the failure surfaces as an unrelated render crash
+// inside PlaceSection rather than as a missing mock — which is exactly how this
+// broke main: B7 and B8 were each green alone and red once merged together.
+vi.mock('../../../hooks/useItems', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../hooks/useItems')>();
+  return {
+    ...actual,
+    useTripLevelItems: () => ({ data: [], isLoading: false, error: null }),
+    useDeleteItem: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
+  };
+});
 
 vi.mock('../../../hooks/usePlaces', () => ({
   useRemovePlace: () => ({ mutate: vi.fn(), isPending: false, error: null, reset: vi.fn() }),
@@ -136,8 +147,14 @@ function makeTrip(overrides: Partial<TripDetailType> = {}): TripDetailType {
 
 function renderTrip(trip: TripDetailType) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // MemoryRouter is required because TripDetail renders PlaceSection, which
+  // links each city to /cities/:id (IT-09). Router context is not optional
+  // scaffolding here — without it react-router throws on a null context and
+  // the failure reads as an unrelated destructuring error.
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    </MemoryRouter>
   );
   return render(<TripDetail trip={trip} />, { wrapper });
 }

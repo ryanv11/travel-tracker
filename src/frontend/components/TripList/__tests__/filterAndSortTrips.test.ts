@@ -18,6 +18,7 @@ function makeTrip(
     city_name?: string;
     region_iso?: string | null;
   }> = [],
+  countries: { country_code: string; name: string }[] = [],
 ): TripSummary {
   return {
     id,
@@ -31,7 +32,7 @@ function makeTrip(
     categories: [],
     companions: [],
     activities: [],
-    countries: [],
+    countries,
     places: places.map((p, i) => ({
       id: i + 1,
       city_id: p.city_id,
@@ -193,6 +194,89 @@ describe('filterAndSortTrips — city-name search (TR-13)', () => {
     const result = filterAndSortTrips(tripsWithCityNames, 'Spring', 'date_desc', null, null, null);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(10);
+  });
+});
+
+describe('filterAndSortTrips — country-name search (TR-13, BUG-52)', () => {
+  const tripsWithCountries: TripSummary[] = [
+    makeTrip(
+      30,
+      'Pacific Northwest Loop',
+      '2024-05-01',
+      [{ city_id: 300, country_code: 'US', city_name: 'Seattle' }],
+      [{ country_code: 'US', name: 'United States' }],
+    ),
+    makeTrip(
+      31,
+      'Iberian Escape',
+      '2024-06-01',
+      [{ city_id: 301, country_code: 'ES', city_name: 'Madrid' }],
+      [{ country_code: 'ES', name: 'Spain' }],
+    ),
+    makeTrip(
+      32,
+      'North American Grand Tour',
+      '2024-07-01',
+      [
+        { city_id: 302, country_code: 'US', city_name: 'Boston' },
+        { city_id: 303, country_code: 'CA', city_name: 'Toronto' },
+      ],
+      [
+        { country_code: 'US', name: 'United States' },
+        { country_code: 'CA', name: 'Canada' },
+      ],
+    ),
+  ];
+
+  it('returns a trip whose only US place is a city, when searching the full country name', () => {
+    // Binding TR-13 success criterion: a trip whose only US place is "Seattle" is
+    // returned when searching "United States".
+    const result = filterAndSortTrips(
+      tripsWithCountries,
+      'United States',
+      'date_desc',
+      null,
+      null,
+      null,
+    );
+    expect(result.map((t) => t.id).sort()).toEqual([30, 32]);
+  });
+
+  it('country-name search is case-insensitive', () => {
+    const result = filterAndSortTrips(tripsWithCountries, 'spain', 'date_desc', null, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(31);
+  });
+
+  it('matches on substring of the country name', () => {
+    const result = filterAndSortTrips(tripsWithCountries, 'Unit', 'date_desc', null, null, null);
+    expect(result.map((t) => t.id).sort()).toEqual([30, 32]);
+  });
+
+  it('returns no trip that does not visit the searched country', () => {
+    const result = filterAndSortTrips(tripsWithCountries, 'Canada', 'date_desc', null, null, null);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(32);
+  });
+
+  it('does NOT match on ISO country code (TR-13 deliberately excludes code matching)', () => {
+    const result = filterAndSortTrips(tripsWithCountries, 'US', 'date_desc', null, null, null);
+    expect(result).toHaveLength(0);
+  });
+
+  it('does NOT match on informal abbreviation (TR-13 deliberately excludes abbreviation matching)', () => {
+    const result = filterAndSortTrips(tripsWithCountries, 'USA', 'date_desc', null, null, null);
+    expect(result).toHaveLength(0);
+  });
+
+  it('trip-name and city-name matching continue to work unchanged alongside country matching', () => {
+    const byName = filterAndSortTrips(tripsWithCountries, 'Iberian', 'date_desc', null, null, null);
+    expect(byName).toHaveLength(1);
+    expect(byName[0].id).toBe(31);
+
+    const byCity = filterAndSortTrips(tripsWithCountries, 'Toronto', 'date_desc', null, null, null);
+    expect(byCity).toHaveLength(1);
+    expect(byCity[0].id).toBe(32);
   });
 });
 

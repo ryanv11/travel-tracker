@@ -87,6 +87,65 @@ will hit confusing missing-module errors that look like a worktree-isolation bug
 aren't. Run `npm install` inside the worktree before anything else that needs
 `node_modules`, same as a fresh clone would.
 
+### Classify a defect before briefing it: regression, deployment, or gap (mandatory, OP-32)
+
+Adopted 2026-07-28 on PO direction, after BUG-55 was briefed as a missing feature when the
+feature was fully built and the real fault was a CSP misconfiguration.
+
+**Every defect is one of three classes, and the class determines the first action:**
+
+| Class | Meaning | First action | Implies |
+|---|---|---|---|
+| **Regression** | It worked before; code changed and broke it | Find *what broke it* — git history over the failing path | A **missing test**, always. The fix is incomplete without one |
+| **Deployment/config** | The code is correct; the environment, build, or config is wrong | Do **not** touch application logic. Diff the environments | An **environment-parity gap** (see below) |
+| **Gap / enhancement** | It was never built | Build it | A BRD home and success criteria are required first |
+
+Getting the class wrong invalidates the entire brief. BUG-55 was briefed as a gap; it was a
+deployment defect, and the brief would have had an agent rebuild working code — then "verify"
+it against a local environment where it already worked.
+
+**The rules:**
+
+1. **Classify before briefing, and state the class in the brief.** An unclassified item is
+   not dispatchable.
+2. **"It used to work" is decisive evidence and must be asked for.** It converts a gap into a
+   regression or a deployment defect instantly. The PO logging UAT feedback is not expected to
+   classify it — *the COO must ask* when the tracker note doesn't say.
+3. **A tracker note guessing at cause is not a classification.** BUG-55's note said *"likely
+   the geocode/lookup path isn't wired"* — an unverified single-probe absence claim (see the
+   negative-findings rule below) that sat for a week and was disproved by one grep. Re-probe
+   before inheriting it into a brief.
+4. **Never widen the class silently.** If a fix turns out to span two classes, say so and
+   re-scope rather than absorbing it.
+
+### Deployment shakedown before UAT (mandatory, OP-32)
+
+UAT run against a build nobody has verified produces **false product bugs** — defects logged
+against the product that are really environment faults. This has now cost the project twice:
+the BRD-NF09 deploy shakedown (D-06) and BUG-55.
+
+**Before a UAT round on deployed code, run a deployment shakedown** confirming the deployed
+build behaves like `main`: the app loads, the browser console and network tab are clean, and
+each externally-dependent surface is exercised once. Anything failing there is a **deployment
+defect**, logged as such — not as a product bug.
+
+**Environment parity is the durable half of this.** A shakedown catches instances; parity
+closes classes. The standing rule:
+
+> **Enumerate every way the test environment differs from production, and treat each
+> difference as an untested surface.** Any defect class that lives inside a difference is
+> invisible to CI by construction — no amount of test-writing inside the wrong environment
+> finds it.
+
+The known differences are tracked as **QUAL-18** (single-origin E2E topology), **QUAL-19**
+(CSP allowlist contract test) and **QUAL-20** (post-deploy smoke check). The worked example,
+kept because it explains the shape better than the rule does: production serves the frontend
+document from Express with helmet's CSP applied (`src/backend/server.ts:233`, gated on
+`NODE_ENV=production`), but E2E serves it from `vite preview` on a *different port*
+(`playwright.config.ts` `webServer`), so the document under test carries **no CSP header at
+all**. Every `connect-src` violation is therefore unobservable in CI. The test suite was not
+weak — the environment could not express the failure.
+
 ### Negative findings need two probes (mandatory)
 Adopted 2026-07-28 after three confidently-stated false premises came out of one wave of
 Architect work (Wave 0), each caught only because someone later re-ran the probe:

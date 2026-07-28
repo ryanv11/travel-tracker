@@ -15,49 +15,14 @@
  *   Cross-user isolation: two users, distinct lists, no cross-visibility
  *   Duplicate name allowed across users, rejected within one user
  *
- * Uses an in-memory libSQL database per test (full isolation).
+ * Uses an in-memory libSQL database per test (full isolation), schema
+ * derived from the real migrations via createTestDb() (QUAL-17 — see
+ * repositories/__tests__/test-db.ts).
  */
 
-import { createClient } from '@libsql/client';
-import { drizzle } from 'drizzle-orm/libsql';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
-
-// ----------------------------------------------------------------
-// In-memory DB factory — only the tables the companions router touches.
-// ----------------------------------------------------------------
-
-async function createTestDb() {
-  const client = createClient({ url: ':memory:' });
-  await client.execute('PRAGMA foreign_keys = ON;');
-
-  const ddlStatements = [
-    `CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY NOT NULL,
-      clerk_id TEXT NOT NULL UNIQUE,
-      email TEXT NOT NULL,
-      is_owner INTEGER DEFAULT 0 NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS companions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      is_active INTEGER DEFAULT 1 NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      UNIQUE (user_id, name),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`,
-  ];
-
-  for (const sql of ddlStatements) {
-    await client.execute(sql);
-  }
-
-  return drizzle(client, { schema });
-}
+import { createTestDb, type TestDb } from '../../repositories/__tests__/test-db.js';
 
 // ----------------------------------------------------------------
 // Test user constants
@@ -70,7 +35,7 @@ const USER_B_ID = 'companions-user-b-0000-0000-0000-000000000000';
 // Module mocks
 // ----------------------------------------------------------------
 
-let testDb: Awaited<ReturnType<typeof createTestDb>> | null = null;
+let testDb: TestDb | null = null;
 let mockUserId = USER_A_ID;
 let mockIsOwner = 0; // deliberately non-owner by default — proves requireAuth is the only gate
 
@@ -119,11 +84,7 @@ const supertest = (await import('supertest')).default;
 // Seed helpers
 // ----------------------------------------------------------------
 
-async function seedUser(
-  db: Awaited<ReturnType<typeof createTestDb>>,
-  userId: string,
-  clerkId: string,
-) {
+async function seedUser(db: TestDb, userId: string, clerkId: string) {
   const now = Date.now();
   await db
     .insert(schema.users)

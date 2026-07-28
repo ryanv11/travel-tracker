@@ -1,3 +1,43 @@
+BACKEND CONTEXT — 2026-07-28 (B4 thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: B4 brief (BUG-52, BUG-56, QUAL-02 findings 1-2, QUAL-17),
+  this thread. Branch fix/b4-search-and-test-schema, issue #315.
+  1. BUG-52 (TR-13, BRD v3.12): filterAndSortTrips
+     (src/frontend/components/TripList/TripList.tsx) now also matches on
+     TripSummary.countries[].name — full-name-only per TR-13's binding
+     success criteria (no ISO code, no abbreviation). Frontend-only;
+     countries[] was already in the payload, no backend change.
+  2. BUG-56: new src/frontend/utils/textFormat.ts (capitalizeFirst),
+     wired into AddPlaceFlow.tsx's new-city-form City Name field.
+  3. QUAL-02 findings 1-2: category_id/country filter tests strengthened
+     3-trip seeding (repo + route level); added a repository-level
+     activity_id filter test (previously zero coverage anywhere despite
+     findAll() implementing it); added a route-level GET /api/trips
+     sort-order test. Findings 3-4 stay backlog per brief.
+  4. QUAL-17: all 15 hand-rolled-DDL backend test files (13 routes,
+     2 services) now derive schema from repositories/__tests__/test-db.ts
+     (QUAL-03's migration-derived helper). No hand-written CREATE TABLE
+     remains in any backend test file. 2 genuine schema-drift bugs found
+     and fixed en route (trips.delete.test.ts's invalid 'completed' trip
+     status, cities.carry-forward.test.ts's invalid 'skipped' item
+     status) — same class as QUAL-03's 'booked' finding, both silently
+     passed for the file's life because the old hand-written DDL carried
+     no CHECK constraints. Drift-detection re-demonstrated at the
+     route/service level this time (not just repository): a temporary
+     DROP COLUMN on migration 0013 made companions.test.ts fail 14/14 at
+     migration-apply time; reverted cleanly (git diff on the migration
+     is empty).
+  Full detail: jobs/backend/park-docs/20260728-BACKEND-b4-park.txt.
+  No routes or repositories production code touched — security checklist
+  N/A this thread (frontend fix + backend test-file changes only).
+ACTIVE TASKS: None — PR to be opened this thread, awaiting CI + COO
+  review/merge.
+PENDING MESSAGES TO COO: completion report in jobs/COO/inbox/ (this
+  thread). tracker.json is COO-maintained (CLAUDE.md) — BUG-52, BUG-56,
+  QUAL-02, QUAL-17 entries need updating on merge; not touched by this
+  thread.
+
+=== PRIOR STATUS: B6 brief (issue #300, PR #306) ===
 BACKEND CONTEXT — 2026-07-28 (B6 thread)
 PROJECT: Travel Tracker
 CURRENT STATUS: B6 brief (BUG-57/IT-11, BRD-DP06, BUG-44, BRD-IT10), this thread.

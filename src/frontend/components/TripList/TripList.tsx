@@ -6,7 +6,8 @@
  * existing unit tests, and exports it for use by TripsLayout.
  *
  * Server-side filters: status, category, activity (TR-10)
- * Client-side: name search (TR-09), sort by date or name (TR-09)
+ * Client-side: name, city name and country name search (TR-09, TR-13), sort by
+ *   date or name (TR-09)
  * URL-param map filters: ?country=XX, ?region=XX-YY, ?city=NNN (MP-03, GE-09)
  */
 import type { TripSummary } from '../../types/api';
@@ -36,13 +37,16 @@ export function filterAndSortTrips(
     result = result.filter((t) => t.places.some((p) => p.city.country_code === countryFilter));
   }
 
-  // Search by trip name or any city name within the trip's places (TR-13)
+  // Search by trip name, any city name within the trip's places, or any country
+  // the trip visits (TR-13). Country matching is full-name only — no ISO code or
+  // abbreviation matching, per TR-13's binding success criteria (BRD v3.12).
   if (searchText.trim()) {
     const q = searchText.trim().toLowerCase();
     result = result.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
-        t.places.some((p) => p.city.name.toLowerCase().includes(q)),
+        t.places.some((p) => p.city.name.toLowerCase().includes(q)) ||
+        t.countries.some((c) => c.name.toLowerCase().includes(q)),
     );
   }
 
