@@ -51,6 +51,59 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-07-28 (Wave 1 sub-wave A — AWAITING PO, not yet tested)
+
+**Scope:** Seven items shipped by Wave 1 sub-wave A, all flipped to `done_pending_uat` and
+awaiting a PO pass. This block is a COO-raised checklist, not a completed test session —
+the verdict line stays blank until you run it.
+**Build:** main @ ac8281e
+**Verdict:** _(pending — PO to fill in)_
+
+#### To verify
+
+- [ ] **BUG-49** — zoom in far enough for state/region shading to activate. City markers
+      should stay visible *on top of* the shading, not disappear behind it. (PR #301)
+
+- [ ] **BUG-62** — sign in as a **non-owner** account. The Admin nav link should now be
+      visible, `/admin` should load, and you should see **only** the Companions and Map
+      Shading tabs. Categories, Activities and Countries must not appear at all. As the
+      owner, all five tabs should still be there. (PR #303)
+      *This is the one that most needs real eyes — the whole change is about what a
+      non-owner sees, and no automated test confirms it reads right.*
+
+- [ ] **BUG-51** — rename a companion in the admin panel who is attached to **two or more**
+      trips. Every trip should show the new name immediately, with no need to open and
+      re-save any trip. Also check create and deactivate. (PR #302 + #308)
+
+- [ ] **BUG-44** — a car rental item should show its pickup location as subtext under the
+      provider, the same way a flight shows airline + flight number. (PR #306)
+
+- [ ] **BUG-57 / IT-11 + BRD-DP06** — open a trip whose dates are **not** in the current
+      month and add an item. The date picker should open on the trip's start date, not
+      today. Enter a flight departure date — arrival should populate to the same day. Edit
+      either date by hand, save, reopen: your edit must survive. Adding the **first** place
+      to a trip should inherit the trip's date range; a second place should not. (PR #306)
+
+- [ ] **BRD-IT10** — add a Google Maps URL to an item. A "View map" link should appear on
+      the item card and open in a new tab. An item with no URL should show no link. A
+      non-`https://` URL should be rejected. (PR #306)
+
+#### Open question for the PO (raised by the agent, deliberately not decided)
+
+- [ ] **Hotel checkout / car-rental dropoff currently default from the trip's END date.**
+      IT-11's text only says date(s) default "to the start of that range" and names just
+      the flight departure→arrival cascade explicitly. Defaulting the *second* date of a
+      two-date item to the trip end is a reasonable generalisation but goes beyond the
+      literal success criteria. Confirm or reject — it's a default value, trivially
+      changed either way.
+
+#### Known cosmetic issue, logged not fixed
+
+- [ ] `zMapUrl`'s https check is case-sensitive, so an uppercase `HTTPS://` URL is
+      rejected. Fails **closed**, so it's a UX wart rather than a security gap. Noted in
+      BRD-IT10's tracker entry for whoever next touches that file.
+
+
 ### UAT Session — 2026-07-26 (PHASE-4 formal close — QA & Documentation)
 
 **Scope:** Phase 4 phase-completion gate. Not a fresh test pass — this records the PO's
