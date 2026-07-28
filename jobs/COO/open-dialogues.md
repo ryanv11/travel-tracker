@@ -150,6 +150,23 @@ complete.txt`), but neither surfaces at `/coo-startup`, which is why they are he
 
 None is urgent. All four are wording-level in the BRD — the shipped app is unaffected.
 
+> **UPDATE (2026-07-28) — item 1 is now the exception to both sentences above, and is urgent.**
+> The shipped app *is* affected. Ryan reproduced **BUG-63** on staging as a non-owner: three
+> deterministic 403s (`GET /api/admin/categories/active`, `GET /api/admin/activities/active`,
+> `POST /api/cities`) mean a non-owner **cannot add a place to a trip at all**. Raised to
+> **P1**, owner **Architect**. Item 1 called this two days early — it predicted BUG-63 could
+> not be correctly specified until SE-01/SE-03 say what the intended model is, and that is now
+> the blocking path, not a wording nicety. Items 2–4 are unchanged and remain non-urgent.
+>
+> Two further facts for whoever picks this up. First, `security.access-matrix.test.ts` asserts
+> the offending 403s as **correct** (lines ~383 and ~414), so the suite is green while
+> encoding the defect as the intended contract — the spec must move before the code, which is
+> exactly the SE-01/SE-03 decision this item describes. Second, `BRD-AD09`'s tracker note
+> independently recorded the same over-restriction (creation "more restrictive than AD-09
+> specifies, not less", parked per ADL-28 Q5); that parked gap and BUG-63 are one defect filed
+> twice. Recommended scope for the Architect pass: SE-01/SE-03 + AD-09 + BUG-63 + BUG-55
+> together, since all four are the single question of which surfaces are reachable by whom.
+
 1. **§5.11 SE-01/SE-03 — the three-role model has drifted from reality.** AD-07 and AD-08
    moved map shading and companions to per-user with `requireAuth`, and non-owner users
    create their own trips in production, but SE-03 still describes authenticated-but-
