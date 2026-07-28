@@ -2086,9 +2086,9 @@
     {
       "id": "BUG-55",
       "type": "bug",
-      "title": "City entry doesn't auto-populate country/state",
+      "title": "City entry doesn't auto-populate country/state — CSP blocks the Nominatim call (deployment defect)",
       "status": "pending",
-      "owner": "backend",
+      "owner": "architect",
       "priority": "P2",
       "brdRefs": ["GE-15"],
       "phase": 6,
@@ -2203,6 +2203,39 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "FOLLOW-UP 2026-07-27 (PR #268). The first fix left an asymmetry: branch mode got a settle window for late-registering workflows, PR mode did not, because `gh pr checks --watch` was assumed to cover it. It does not — --watch returns once the checks it already knows about finish, and this repo's push + pull_request triggers register two sets at different moments. Observed live on PR #267 in the same session: ci-wait reported PASS on 9 checks, and the rollup showed 18 moments later. Benign in that instance (the late set is the identical job matrix on the identical commit, so only flakiness could differ) but it is the same fail-open shape the fix existed to close, and it was introduced by the fix rather than pre-existing. PR mode now re-watches while the check set is still growing. Deliberately, correctness does not rest on that loop terminating at the right moment: the authoritative rollup counts anything non-terminal as not-green, so an early exit yields a FAIL, never a false PASS — the loop only avoids spurious failures. ORIGINAL FIX: RESOLVED 2026-07-27 (PR #265). Branch mode now resolves the target commit from the branch itself (`gh api repos/<repo>/commits/<branch>`) instead of from run recency, then polls until runs exist for THAT SHA (bounded, DISCOVERY_TIMEOUT=180s) and exits non-zero if none ever register — 'no evidence' is now a failure, not a pass. A settle window re-queries after the first run appears so a late-registering second workflow (CI vs Security Checks) can't be missed. TIMEOUT is now an overall budget rather than a per-run allowance. CORRECTION to the original triage below: PR mode WAS affected too, by the same fail-open class — `gh pr view --json statusCheckRollup` returns an empty array before any check registers, giving `length` 0 non-green and therefore PASS; separately the non-green filter excluded `conclusion == null`, so checks still queued were silently ignored. Both fixed: zero checks is now a hard failure, and a still-pending check counts as not-green. Also found while fixing: `gh api` ignores `--jq` on an error response and writes the raw error JSON body to stdout with a non-zero exit, so a resolved SHA that is merely non-empty can actually be an error blob — guards now validate the 40-hex SHA shape rather than non-emptiness. Verified with 7 tests incl. a forced-unregistered-commit harness proving fail-closed in both modes, and a structural check that the old script contained zero branch-tip lookups. ORIGINAL TRIAGE: GitHub issue #263. Found live 2026-07-26 during the QUAL-06 close-out. In branch mode, scripts/ci-wait.sh:79 resolves its target by taking `gh run list --branch <b> --limit 1 --json headSha` — i.e. whatever the LATEST RUN happens to be — then waits only for runs whose headSha matches that. Called immediately after a merge, before GitHub has registered workflow runs for the new commit, the latest run is still the PREVIOUS commit's, which is already complete and green. It prints 'PASS — all runs green for main @ <old sha>' and exits 0 without ever waiting for the commit the caller cares about. Observed exactly this: returned PASS @ 89ad005 seconds after merging PR #262, while main was actually at 1b84557 with both CI and Security Checks still in_progress. Re-running ~30s later correctly waited and passed @ 1b84557. Severity is P1 because this is the enforcement mechanism for CLAUDE.md's MANDATORY post-merge verification ('a green PR does not guarantee a green main', BUG-24) — the one check standing between a squash-merge race and an unnoticed red main. It fails open: a genuinely red main would be reported green if the check is run promptly after merging, which is exactly when the procedure says to run it. Caught here only because the printed SHA was read rather than just the PASS. Fix direction: branch mode should take the expected SHA rather than inferring it — e.g. accept an optional SHA argument, or derive `git rev-parse origin/<branch>` after a fetch — and POLL UNTIL RUNS EXIST for that SHA (with a timeout) instead of treating 'no runs yet' as 'use the latest run'. Note ci-wait.sh:89 already has a 'No runs found for the latest commit' branch, so the not-yet-registered case is partly anticipated; the defect is that the SHA itself is inferred from run history rather than from the branch tip. PR-mode (`ci-wait.sh pr <n>`) is not affected — it resolves runs from the PR, not from run recency."
+    },
+    {
+      "id": "BUG-65",
+      "type": "bug",
+      "title": "A review_pending trip has no delete affordance — TR-14 is unreachable in that state",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["TR-14"],
+      "phase": 6,
+      "notes": "Found 2026-07-28 by the B7 agent (issue #316, PR #319) while implementing BUG-50, and flagged rather than fixed because the brief's file-scope anchors named only TripDetail.tsx and MobileTripDetailView.tsx. Correct call — expanding into a third file unilaterally is what OP-28 exists to discourage — but the gap is real and TR-14 is not fully satisfied while it stands. A trip in review_pending renders src/frontend/components/PostTripReview/ReviewPanel.tsx instead of TripDetail/MobileTripDetailView, and ReviewPanel has no Delete affordance, so such a trip cannot be deleted without first moving it to another status. TR-14 says deletion is 'reachable from the trip detail view' and does not carve out a status where it is unreachable. Note this is NOT the same as TR-14's deliberate Locked-trip carve-out, which is a specified refusal with a directing message; review_pending is simply an unhandled surface. Small fix: same controller wiring B7 already built, applied to ReviewPanel. Verify at the same time whether the desktop and mobile review surfaces both need it."
+    },
+    {
+      "id": "BUG-66",
+      "type": "bug",
+      "title": "ReviewPanel's forward Lock path repeats BUG-58's onClose()-after-mutation pattern",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["TR-11"],
+      "phase": 6,
+      "notes": "Found 2026-07-28 by the B7 agent (issue #316, PR #319) while fixing BUG-58, and correctly left alone: BUG-58 is scoped to BACKWARD status transitions and this is the forward one, so fixing it would have been unbriefed scope. BUG-58's root cause was ReviewPanel.handleReturnToPlanning calling onClose() immediately after its status mutation — onClose is wired to navigate('/trips') one level up, so the trip's :id was dropped and selection cleared in the same click that changed status. The forward Lock path in the same component has the identical shape. Whether it produces the same visible defect is UNVERIFIED — it was not reproduced, only spotted by inspection, and locking may coincidentally be a case where returning to the list is acceptable or even desired. That product question is the first thing to settle; if deselection on Lock is unwanted, the fix is the same one-line removal B7 applied to the backward path. Do not assume symmetry with BUG-58 without checking the intended behaviour."
+    },
+    {
+      "id": "BUG-67",
+      "type": "bug",
+      "title": "Locked-trip delete refusal is decided from client-held status, not re-checked at confirm time",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": ["TR-14"],
+      "phase": 6,
+      "notes": "Found 2026-07-28 by the B7 agent (issue #316, PR #319), flagged not fixed. B7's locked-trip handling branches on the client's cached trip.status when the confirm dialog is actioned, so a trip locked by another session (or another tab) after the dialog opened would be offered a delete the client believes is permitted. NOT A SECURITY HOLE and the priority reflects that: the backend is authoritative and tripsRouter.delete('/:id') returns 403 on a locked trip regardless of what the client thinks (src/backend/routes/trips.ts:429). The user-visible consequence is a raw failure instead of TR-14's specified 'refused with a message directing the user to unlock'. Low real-world likelihood in a single-user app today, but it becomes materially more likely under the shared/multi-user trip direction (FUTURE-03, tracker BUG-42 / the shared trip model), which is why it is recorded rather than dismissed. Fix direction: treat the 403 as the source of truth and render the unlock-directing message from the failed response, rather than pre-deciding from cached status."
     },
     {
       "id": "DEP-03",
@@ -2329,6 +2362,50 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "Found 2026-07-28 by the B9 agent (issue #291, PR #292) while doing QUAL-03, and independently re-counted by the COO before logging. QUAL-03 made src/backend/repositories/__tests__/test-db.ts migration-derived, but 15 OTHER test files never used test-db.ts at all — they each hand-write the same 21-table DDL inline: 13 under src/backend/routes/__tests__/ (cities.get-by-id, companions, places, items.rating-sort-filter, qa-backend-fixes, items, trips.crud, owner-access, map, trip-countries, trips.delete, cities.carry-forward, security.access-matrix) and 2 under src/backend/services/__tests__/ (shading.trip-countries, shading.user-scope). COUNT CORRECTION: the agent's report said 14 (12 routes + 2 services); the actual figure is 15 (13 + 2), verified by 'grep -rl \"CREATE TABLE\" src/backend' minus test-db.ts and the 6 migration .sql files. Cited because the sizing matters. CONSEQUENCE — this narrows what B9 actually unblocked: REPOSITORY tests are now drift-safe, ROUTE tests are not, so the B9 report's claim that 'every other Wave 1 backend brief's tests are now trustworthy' is true only of the repository layer. Any Wave 1 backend brief whose verification rests on route tests is still verifying against a hand-maintained schema copy. The exposure is the same one QUAL-03 described and is 15x larger by file count. Note the concrete evidence this class of bug is real and not theoretical: QUAL-03's fix immediately surfaced 8 uses of an item status ('booked') that has never been valid against chk_items_status, silently green for the life of that file because the hand-written DDL carried no CHECK constraint. Success criteria: the 15 files derive their schema from the same migration-driven helper as test-db.ts; no hand-written CREATE TABLE remains in any backend test file; a deliberate migration change is detectable by route-level tests as well as repository tests; backend suite stays green with no material runtime regression. DONE 2026-07-28 (brief B4, issue #315, PR #320). All 15 files now derive their schema from test-db.ts's migration-driven helper; ~2650 lines of duplicated DDL removed. No UAT needed — test-infrastructure only, no user-visible behaviour. THIS CHORE PAID FOR ITSELF, which is worth recording against the instinct to defer test hygiene: it surfaced TWO further genuine schema-drift bugs that had been silently green for the life of their files — an invalid 'completed' trip status in trips.delete.test.ts and an invalid 'skipped' item status in cities.carry-forward.test.ts, both impossible under the real CHECK constraints. That is the same class as QUAL-03's 'booked' finding, bringing the running total to three real defects found purely by making test schemas migration-derived. The agent also PROVED drift detection now works at route level rather than asserting it: a temporary migration DROP COLUMN produced 14/14 test failures, then a clean revert. Residual: QUAL-18 is the analogous gap one layer up (the E2E environment cannot express CSP failures) and is NOT closed by this."
+    },
+    {
+      "id": "QUAL-18",
+      "type": "chore",
+      "title": "E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test",
+      "status": "pending",
+      "owner": "qa",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-28 while root-causing BUG-55, on the PO's question 'should we be mirroring staging/production more closely for these tests?'. THE ANSWER IS YES AND THIS IS THE SPECIFIC GAP. Two independent probes: (1) playwright.config.ts webServer runs the frontend as 'vite preview --port 5173' with baseURL http://localhost:5173, while the backend runs separately on :3001; (2) src/backend/server.ts:233 mounts express.static(DIST_DIR) gated on NODE_ENV=production AND dist/ existing. So PRODUCTION is single-origin — Express serves the frontend document with helmet's CSP applied to it — while E2E is TWO-origin, and the document under test is served by vite preview, which sets no CSP header at all. Consequence: every Content-Security-Policy violation, including the connect-src omission that caused BUG-55, is UNOBSERVABLE in CI by construction. This is not a weak test suite; the test environment cannot express the failure. Fix: make the E2E webServer serve the built frontend through Express in production mode (single origin, helmet applied), matching prod topology. Note CI also sets GEOCODING_ENABLED=false, a second layer of the same blind spot. Success criteria: the E2E suite loads the app from the same Express process that applies helmet; a deliberately-removed connect-src origin causes an E2E failure rather than passing silently; the suite stays green and does not materially slow down."
+    },
+    {
+      "id": "QUAL-19",
+      "type": "chore",
+      "title": "No test asserts that external origins the frontend fetches are present in the CSP allowlist",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Companion to QUAL-18, from the same BUG-55 root-cause pass 2026-07-28. QUAL-18 closes the class at runtime; this closes it statically and far more cheaply. The defect shape: src/frontend/hooks/useCities.ts:14 fetches https://nominatim.openstreetmap.org from the BROWSER, but that origin is absent from helmet's connectSrc at src/backend/server.ts:128-130 — nothing anywhere asserts the two lists agree. Proposed: a unit test that enumerates external origins referenced in frontend source and asserts each appears in the CSP directive that governs it (connectSrc for fetch/XHR, imgSrc for images, scriptSrc for scripts). No network, no browser, runs in milliseconds. ALSO IN SCOPE, same file, found in the same probe: useCities.ts:47 sets a 'User-Agent' header on a browser fetch(), which is a FORBIDDEN HEADER NAME — browsers silently drop it, so the app is anonymous against Nominatim's usage policy and exposed to throttling. Together these two facts argue the Nominatim call belongs behind a backend proxy route rather than a widened CSP allowlist; that is a SEC-01 decision and needs the Architect pass tracked on BUG-55, not an implementation brief. Success criteria: adding a frontend fetch to an un-allowlisted origin fails a test; the test names the offending origin and the directive it belongs in."
+    },
+    {
+      "id": "QUAL-20",
+      "type": "chore",
+      "title": "No post-deploy smoke check — nothing verifies the deployed build behaves like main",
+      "status": "pending",
+      "owner": "qa",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Third of the three environment-parity items from the BUG-55 root-cause pass 2026-07-28; implements the mechanical half of OP-32's deployment-shakedown rule. Today a green CI run says the code is correct in CI's environment, and nothing at all says the DEPLOYED artifact works — which is exactly the gap BUG-55 and the BRD-NF09 shakedown (open-dialogues D-06) both fell into. Proposed: a smoke check against the deployed URL after a staging deploy — app loads, no console errors, no CSP violations, each externally-dependent surface exercised once. IMPORTANT CONSTRAINT AND WHY THIS IS NOT BLOCKED: this devcontainer's firewall cannot reach the app's public Railway domain (D-06, still-open request), but a GitHub Action runner has no such restriction — so this belongs in CI, not in a COO-run script, and D-06 does not gate it. Deliberately scoped as a smoke check, not a full E2E run against prod: it answers 'is the deployed thing broken' cheaply and often. Success criteria: a staging deploy that serves a CSP-broken or otherwise non-functional build fails the check; a healthy deploy passes without manual steps; the failure output names what broke."
+    },
+    {
+      "id": "OP-32",
+      "type": "chore",
+      "title": "Defect taxonomy (regression / deployment / gap) + deployment shakedown before UAT",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Adopted 2026-07-28 on PO direction ('adopt now'), recorded in CLAUDE.md. Trigger: BUG-55 was briefed as a missing feature when the feature was fully built and the fault was a CSP misconfiguration — the brief would have had an agent rebuild working code and then verify it in an environment where it already worked. The PO's framing: 'this time is on me as I labelled them all UAT feedback' — the COO's assessment is that labelling was NOT the primary failure. BUG-55's tracker note had asserted 'likely the geocode/lookup path isn't wired' since 2026-07-21, an unverified single-probe absence claim that the existing negative-findings rule already covered and that one grep disproves. The rule existed; it was not applied. Two parts adopted: (1) a three-class defect taxonomy where the class determines the first action, with 'it used to work' called out as decisive evidence the COO must ASK for rather than expect the PO to volunteer; (2) a deployment shakedown before any UAT round on deployed code, plus the standing environment-parity principle — enumerate every difference between the test environment and production and treat each as an untested surface. Adopted immediately rather than logged to open-dialogues per the D-03 precedent because, unlike D-03, this has two independent incidents behind it (BRD-NF09 / D-06 and BUG-55) and a demonstrated cost. Mechanical follow-through tracked as QUAL-18/19/20."
     },
     {
       "id": "DEP-04",
