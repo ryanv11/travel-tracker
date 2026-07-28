@@ -1,5 +1,5 @@
 BACKEND completion report
-Tracker: BUG-57, BRD-DP06, BUG-44, BRD-IT10 · GitHub issue #300 · PR: (see below)
+Tracker: BUG-57, BRD-DP06, BUG-44, BRD-IT10 · GitHub issue #300 · PR #306
 BRD: §5.5 IT-10/IT-11 · §5.x DP-06 · §5.16 WP-05
 Branch: feat/b6-item-dates-and-map-url
 
@@ -38,8 +38,10 @@ SECURITY CHECKLIST (routes modified: POST/PATCH /api/trips/:tripId/items)
    text field on items, not a new FK) — the .notNull()-on-FK rule doesn't
    apply here. No new FK column was added.
 
-CI: (placeholder — updated once the PR is opened and scripts/ci-wait.sh
-confirms green; see the housekeeping commit that follows this one.)
+CI: scripts/ci-wait.sh pr 306 — PASS, all 18 checks green @ 5057a1c
+(Type Check, Biome, Backend/Frontend/Contract/E2E Tests, Static Analysis,
+Dependency Scan, Secret Scanning — each runs twice per the known accepted
+push+pull_request duplicate-trigger behaviour, CLAUDE.md).
 
 OPEN ISSUES / BLOCKERS
 - QUAL-17 (hand-rolled route-test DDL, not drift-safe) is NOT resolved by
