@@ -51,8 +51,10 @@ VERIFICATION
 - Contract tests not run: no routes touched, and this worktree has no
   .env.local for a live dev:api server.
 
-CI: gh pr checks pending — will confirm green before considering this
-thread done; see below.
+CI: gh pr checks 320 — all 18 checks green (9 unique checks x 2 runs,
+the known push+pull_request duplicate trigger — project_ci_duplicate
+_trigger_accepted.md, not a problem). scripts/ci-wait.sh PASS.
+PR: https://github.com/ryanv11/travel-tracker/pull/320
 
 OPEN ISSUES / BLOCKERS
 None blocking. Two things worth COO's attention, not urgent:
