@@ -15,13 +15,34 @@
  *
  * Shows city name, country, activity tags, date range, and a list of ItemCards.
  * Contains the "Add Item" button and the "Remove" button (both hidden when trip is locked).
+ *
+ * IT-08: this is the item list view that actually carries rated items —
+ * restaurants, hotels, and experiences all attach to a place, and this is
+ * where they render (see TripItemsSection.tsx's module doc for why *that*
+ * sibling view deliberately carries no rating controls: it's restricted to
+ * Flight/Car Rental, neither of which is ever rateable). Sort/filter state
+ * is local component state, not part of a query key — see B8's completion
+ * report for the reasoning (place.items arrives pre-loaded, nested inside
+ * the trip detail fetch, which has no sort_by/min_rating support). Being
+ * local state also gives IT-08's "does not leak between trips" for free:
+ * navigating to a different trip mounts a fresh PlaceSection per place with
+ * fresh state, it isn't carried over.
+ *
+ * The city name links to /cities/:id (IT-09's cross-trip view, CityItemsPage).
  */
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  applyRatingSortFilter,
+  DEFAULT_RATING_SORT_FILTER,
+  type RatingSortFilterState,
+} from '../../hooks/useItems';
 import { useRemovePlace } from '../../hooks/usePlaces';
 import type { Item, TripPlace } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
 import { resolvePlaceDateRange } from '../../utils/resolvePlaceDateRange';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { RatingSortFilterControls } from '../shared/RatingSortFilterControls';
 import { ItemCard } from './ItemCard';
 import { ItemForm } from './ItemForm';
 import { PlaceDateForm } from './PlaceDateForm';
@@ -70,6 +91,11 @@ export function PlaceSection({
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [showEditDates, setShowEditDates] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  // IT-08: local, per-place — see module doc for why this is client state
+  // rather than a query param.
+  const [ratingSortFilter, setRatingSortFilter] = useState<RatingSortFilterState>(
+    DEFAULT_RATING_SORT_FILTER,
+  );
 
   const removePlace = useRemovePlace();
 
@@ -113,10 +139,15 @@ export function PlaceSection({
       {/* Section header */}
       <div className="bg-wp-bg-subtle px-[18px] py-4 flex justify-between items-start gap-2 flex-wrap">
         <div className="min-w-0">
-          {/* D-04: City name + full country name from API (issue #5) */}
-          <span className="font-display font-semibold text-[17px] max-md:text-[16px] text-wp-ink">
+          {/* D-04: City name + full country name from API (issue #5).
+              IT-09: links to the cross-trip rated-items view for this city. */}
+          <Link
+            to={`/cities/${place.city.id}`}
+            state={{ cityName: place.city.name, countryName: place.city.country_name }}
+            className="font-display font-semibold text-[17px] max-md:text-[16px] text-wp-ink hover:text-wp-primary hover:underline no-underline"
+          >
             {place.city.name}
-          </span>
+          </Link>
 
           {/* D-03/UX-02: Country name · date range on single subtitle line */}
           <p className="mt-0.5 font-ui text-[12px] text-wp-ink-muted">
@@ -203,15 +234,39 @@ export function PlaceSection({
             No items yet. {!isLocked && 'Add one with "+ Add Item".'}
           </p>
         )}
-        {place.items.map((item) => (
-          <ItemCard
-            key={item.id}
-            item={item}
-            tripId={tripId}
-            isLocked={isLocked}
-            onEdit={handleEditItem}
+
+        {/* IT-08: sort/filter controls — only worth showing once there's something
+            to sort/filter. */}
+        {place.items.length > 0 && (
+          <RatingSortFilterControls
+            sortOrder={ratingSortFilter.sortOrder}
+            minRating={ratingSortFilter.minRating}
+            onSortOrderChange={(sortOrder) =>
+              setRatingSortFilter((prev) => ({ ...prev, sortOrder }))
+            }
+            onMinRatingChange={(minRating) =>
+              setRatingSortFilter((prev) => ({ ...prev, minRating }))
+            }
           />
-        ))}
+        )}
+
+        {(() => {
+          const displayedItems = applyRatingSortFilter(place.items, ratingSortFilter);
+          if (place.items.length > 0 && displayedItems.length === 0) {
+            return (
+              <p className="font-ui text-wp-ink-faint text-xs m-0">No items match this filter.</p>
+            );
+          }
+          return displayedItems.map((item) => (
+            <ItemCard
+              key={item.id}
+              item={item}
+              tripId={tripId}
+              isLocked={isLocked}
+              onEdit={handleEditItem}
+            />
+          ));
+        })()}
       </div>
 
       {/* Add item modal */}

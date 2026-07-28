@@ -4,8 +4,9 @@
  * City search, creation, and the carry-forward candidates endpoint.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CarryForwardCandidate, City } from '../types/api';
+import type { CarryForwardCandidate, City, CityItem } from '../types/api';
 import { apiGet, apiPost } from '../utils/apiClient';
+import type { RatingSortOrder } from './useItems';
 
 // ============================================================
 // NOMINATIM GEOCODING (GE-15 — country auto-populate)
@@ -90,6 +91,39 @@ export function useCarryForwardCandidates(cityId: number | undefined) {
   return useQuery({
     queryKey: ['cities', cityId, 'carry-forward'],
     queryFn: () => apiGet<CarryForwardCandidate[]>(`/api/cities/${cityId}/carry-forward`),
+    enabled: cityId !== undefined,
+  });
+}
+
+/**
+ * Fetches completed, rated items across every trip that visited a city
+ * (GET /api/cities/:id/items) — IT-09.
+ *
+ * Unlike useTripLevelItems/PlaceSection's client-side sort/filter (that data
+ * arrives pre-loaded nested in the trip detail fetch, which has no sort/filter
+ * query params), this is a dedicated flat endpoint built for exactly this —
+ * sortOrder/minRating are passed straight through as sort_by=rating,
+ * sort_order and min_rating query params, so the sort/filter is server-side
+ * here. The route already defaults to rating DESC unfiltered with no params,
+ * matching IT-08's "clearing returns to default order" behaviour for free.
+ *
+ * @param cityId - City to fetch cross-trip items for. Pass undefined to disable the query.
+ * @param params - Optional rating sort direction and minimum-rating filter.
+ * @returns React Query result containing CityItem[].
+ */
+export function useCityItems(
+  cityId: number | undefined,
+  params: { sortOrder?: RatingSortOrder; minRating?: number | null } = {},
+) {
+  const { sortOrder, minRating } = params;
+  return useQuery({
+    queryKey: ['cities', cityId, 'items', sortOrder ?? null, minRating ?? null],
+    queryFn: () => {
+      const qs = new URLSearchParams({ sort_by: 'rating' });
+      if (sortOrder) qs.set('sort_order', sortOrder);
+      if (minRating != null) qs.set('min_rating', String(minRating));
+      return apiGet<CityItem[]>(`/api/cities/${cityId}/items?${qs.toString()}`);
+    },
     enabled: cityId !== undefined,
   });
 }
