@@ -1,0 +1,138 @@
+COO SESSION PARK — 2026-07-28 ~1700 UTC (Wave 1 sub-wave A complete; three new guardrails)
+================================================================================
+
+## Session summary
+Picked up from the 2026-07-28 ~1427 close. Dispatched and merged all of Wave 1 sub-wave A,
+closed a P1 the wave surfaced, and adopted three PO-directed process guardrails — all
+hook-backed rather than written-only. 7 PRs merged, main verified green after every one.
+
+| PR | What |
+|---|---|
+| #301 | B1 — BUG-49 map marker z-order (beforeId pin) |
+| #302 | B3 — BUG-51 backend investigation + regression test |
+| #303 | B2 — BUG-62 per-tab admin gating; AD-09 premise corrected |
+| #306 | B6 — item date defaults, car-rental subtext, item map URL (IT-10) |
+| #308 | BUG-51 real fix — trips cache invalidation |
+| #310 | OP-28/29/30 — three guardrails |
+| #309 | OP-31 (renumbered) — GitHub App log, inherited from the other COO session |
+
+### 1. Wave 1 sub-wave A — DONE (B1, B2, B3, B6; B9 was already done)
+All four dispatched worktree-isolated, all merged, main green after each. Sub-wave B
+(B4, B5, B7, B8) is untouched and remains the obvious next block.
+
+Two agents did materially better than their brief asked:
+
+- **B3 (BUG-51) refused the brief's framing and was right to.** It was briefed as a backend
+  bug. It is not: `tripRepository.getAssociations()` always LEFT JOINs `companions.name`
+  live and no denormalised copy exists anywhere (two independent probes). The real cause was
+  frontend cache invalidation — the three companion mutations in `useAdmin.ts` invalidated
+  only `['admin','companions']`, never `['trips']`, against a 5-minute global `staleTime`.
+  COO verified this independently before acting and found a corroborating detail the agent
+  missed: `useAdmin.ts:237` already cross-invalidates `['map','shading']` from the countries
+  mutation, so the companion mutations were the outlier, not a design choice. Fixed in #308.
+- **B2 (BUG-62) caught a false premise in its own brief** — see §2.
+
+### 2. THE BRIEF I WROTE CONTAINED A FALSE PREMISE (read this one)
+Brief B2 asserted "AD-09's owner-only deactivation is not enforced on the backend today" and
+bundled a go-enforce-it backend task on it. **False.** `adminRouter.use(requireOwner)` at
+`src/backend/routes/admin.ts:105` registers BEFORE the categories/activities sub-routers at
+`:232-233`; `security.access-matrix.test.ts` already had passing non-owner-403 tests. The
+claim came from `backlog-clearance-plan.md` §7 and the COO propagated it into the brief
+without re-probing. Verified personally afterward: the router ordering is exactly as the
+agent reported.
+
+This is the SECOND time the COO half of the negative-findings rule has failed the same way
+(the first was `router.delete`, already recorded in CLAUDE.md). It was caught only because
+the brief instructed the agent to double-probe, and it did — three probes, no code written,
+tracker note corrected instead.
+
+The real AD-09 gap is the INVERSE of what was briefed: category/activity *creation* is also
+behind `requireOwner`, which is MORE restrictive than AD-09's "any user can add custom
+entries". Scoped as ADL-28 Question 5, deliberately not touched.
+
+### 3. Three guardrails adopted, all hook-backed (PR #310)
+- **OP-28 — no wholesale rewrites of shared records.** Trigger: B1 and B2 ran concurrently
+  and BOTH rewrote `jobs/frontend/context/current.txt` in full; each silently dropped the
+  other's record and it surfaced only as a merge conflict. RECURRENCE — Wave 0 saw the same
+  file collide in 3 of 4 agents and the fix identified then was never adopted.
+  PO wanted a blanket "never fully rewrite anything" and invited calibration. Adopted split:
+  shared records (`jobs/**`, tracker.json, BRD, ADL log, `.planning/**`, CLAUDE.md) are
+  append/amend-only — Edit not Write; source-code rewrites stay allowed but must be DECLARED
+  in the completion report. New `.claude/hooks/no-wholesale-rewrite.sh`, warn-only, 6 tests.
+  **Root cause also fixed:** all 8 role prompts said "Update context/current.txt with current
+  state" — that instruction was itself producing the rewrites. Now "APPEND a new dated entry".
+- **OP-29 — negative findings bind every role, COO included.** Two fixes: the written rule
+  now says no role is exempt and that a claim inherited from an existing project doc is NOT
+  pre-verified (age is not evidence); and the OP-26 hook's COO-shaped hole is closed. It
+  matched only `Write|Edit`, but the COO doesn't write briefs to files — it writes them into
+  GitHub issue bodies via Bash, so the highest-leverage place for a false absence was the one
+  place the hook couldn't see. Now also scans `gh issue create`/`gh pr create` bodies.
+  **Pattern set widened, found by testing not assumption:** the original regex missed BOTH
+  phrasings that actually caused this project's false premises — "is not enforced" and
+  "there is no X". Both now covered and regression-tested.
+- **OP-30 — scanner suppressions need COO sign-off.** B2 hit a genuine Gitleaks false
+  positive on text it had just written and resolved it by adding `.gitleaks.toml`. The config
+  is KEPT (useDefault=true, exact-string allowlist, not a path/file exemption). The precedent
+  was governed instead: reword your own text first; never add or widen a suppression without
+  sign-off; pre-existing annotated `nosemgrep`s unaffected.
+
+### 4. Concurrent COO session — collided, then stood down
+A second COO session ran most of this session in parallel on OP-25 hygiene. Three collisions
+actually fired, not hypothetical:
+1. **`/workspace` HEAD.** At startup this session found HEAD on a stale merged branch and
+   moved it to main; later the other session had HEAD on ITS branch. Nothing was lost (all
+   commits were on origin) but this is the OP-19 failure mode one level up — concurrent COOs,
+   not concurrent agents.
+2. **OP-28 allocated twice.** Both sessions independently took OP-28 on the same day. Mine
+   reached main first (#310) and is immutable there, so theirs was renumbered to **OP-31** at
+   merge time, with OP-25's blocked-on references updated to match. Resolution recorded in
+   OP-31's own note so the renumber isn't mysterious later.
+3. The other session also made an accidental direct-to-main commit (their PR #307 captured it).
+
+Ryan asked which session should stop; the other one stood down and handed its open PR to this
+session, which merged it as #309 after the renumber. **Nothing is stranded** — zero open PRs,
+only `main` locally, no worktrees.
+
+## State of play
+- **main** green @ ac8281e. Clean tree, only `main` locally, no worktrees, zero open PRs.
+- **production** @ 1a4f84f — unchanged. Promotion is owed at some point but nothing this
+  session demanded it; sub-wave A is user-visible behaviour that has not had PO UAT yet.
+- **BRD v3.11**, header and changelog match. No BRD change this session — IT-10, IT-11 and
+  DP-06 all already had BRD homes and success criteria from the v3.8 gate.
+- **Tracker:** 145 done / 40 pending / 7 done_pending_uat / 4 partial / 9 deferred / 2 closed.
+- **Wave 1 sub-wave A COMPLETE.** Sub-wave B (B4, B5, B7, B8) unstarted.
+- **Wave 2 still gated** on the §8b BRD bump.
+
+## Suggested next actions
+1. **PO UAT on the seven `done_pending_uat` items** — a checklist block was added to
+   `jobs/PO/uat-log.md` (2026-07-28 session). BUG-62 most needs real eyes: the whole change is
+   about what a non-owner sees and no automated test confirms it reads right.
+2. **Two decisions inside that UAT block**, both deliberately not made unilaterally:
+   hotel-checkout/car-dropoff defaulting from trip END date (beyond IT-11's literal criteria),
+   and `zMapUrl`'s case-sensitive https check rejecting `HTTPS://` (fails closed, cosmetic).
+3. **Dispatch sub-wave B — B4, B5, B7, B8.** B7 is frontend-only, re-sized per §6.2; B3/B4
+   still need the QUAL-17 caveat (route tests verify against a hand-maintained schema copy).
+4. **QUAL-17** — 15 files. B6 had to hand-patch `map_url TEXT,` into 12 of them, so the cost
+   is now demonstrated rather than predicted. Good ride-along with a backend brief.
+5. **Wave 2 BRD gate (§8b)** — FL-06, CR-03, DP-07, DP-08, TR-16. Verify which IDs are free
+   first. Plus BUG-47 needs a BRD home or an explicit spec-only decision.
+6. **OP-31** — GitHub App for scheduled-routine write access. Architect design pass, deferred
+   by PO, not urgent. Until it lands the OP-25 routines can detect problems but cannot report
+   them.
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — D-04 through D-12. One new entry added this session
+(D-13, concurrent COO sessions). Nothing else changed there.
+
+## Restart preview
+Shown to Ryan before this doc was written.
+**Captured:** 7 merged PRs; OP-28/29/30 adopted + OP-31 renumbered; 2 new hooks; CLAUDE.md +
+all 8 role prompts updated; BUG-44/49/51/57/62 + BRD-DP06/IT10 → done_pending_uat; BUG-49
+brdRefs backfilled to MP-02; BUG-51 owner corrected; issue cross-refs backfilled; UAT
+checklist block; 5 inbox reports triaged; D-13 logged; 4 memory entries.
+**Captured, not actioned:** sub-wave B (B4/B5/B7/B8); Wave 2 §8b gate; QUAL-17; QUAL-16;
+40 pending incl. BUG-50/BUG-63; D-04–D-12; OP-15, OQ-03, DEP-03, QUAL-02/04/07; production
+promotion.
+**Not captured:** nothing outstanding — the two product decisions surfaced this session were
+written into the UAT log rather than left in conversation, and the concurrent-COO problem
+went to D-13.

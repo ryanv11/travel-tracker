@@ -25,6 +25,49 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-13: Two concurrent COO sessions collided three times in one day — does this need a rule, or was standing one down enough?
+**Raised:** 2026-07-28
+
+Two COO sessions ran in parallel for most of 2026-07-28 (this one on Wave 1 dispatch, the
+other on OP-25 scheduled-health-check hygiene). The previous park doc had already flagged
+the risk — "BOTH sessions can write tracker.json, MEMORY.md and open-dialogues.md… worth a
+rule if concurrent COO sessions become normal rather than a one-off." It became real.
+
+Three collisions actually fired:
+
+1. **Shared `/workspace` HEAD.** Both sessions operate in the *same* working tree — the
+   thing `isolation: "worktree"` was adopted to prevent for agents has no equivalent for
+   COOs. At startup this session found HEAD on a stale (already-merged) branch and moved it
+   to `main`; later the other session had HEAD on its own branch, and this session had to do
+   its guardrail work in a scratch worktree specifically to avoid moving HEAD under it.
+   Nothing was lost — every commit was already on origin — but this is the OP-19 failure
+   mode one level up.
+2. **`OP-28` allocated twice, independently, on the same day.** This session used it for the
+   no-wholesale-rewrite rule; the other for GitHub App setup. Mine reached `main` first
+   (PR #310) and became immutable, so theirs was renumbered to **OP-31** when its PR was
+   merged. Cheap this time because one was still unmerged; had both landed, the tracker would
+   have carried two `OP-28` entries with nothing flagging it.
+3. **An accidental direct-to-main commit** on the other session's side (captured after the
+   fact by its PR #307), against a standing rule that COOs never commit directly to main.
+
+**Resolved for the day, not structurally.** Ryan asked whether one session should stop; the
+other stood down and handed over its open PR, which this session merged after the renumber.
+Zero open PRs and a clean tree at close.
+
+The open question is whether concurrent COO sessions should be **supported** or **prevented**:
+
+- *Prevent* — simplest, and arguably correct: the COO role is a serialisation point by design
+  (it reviews and merges serially anyway, per the clearance plan's own reasoning about why
+  Wave 1 runs in sub-waves). A second COO buys parallelism the merge queue can't use.
+- *Support* — needs at minimum: ID pre-allocation for tracker entries (the pattern already
+  proven for concurrent ADL numbers in Wave 0), and a convention that each COO session works
+  in its own worktree rather than sharing `/workspace`.
+
+Not decided — raised for Ryan. The precedent question is D-03's: is one day of contained
+collisions enough signal to add a standing rule, or does it only matter if it recurs? Note
+this one differs from D-03 in that it fired *three distinct ways* in a single day, and one of
+them (duplicate tracker IDs) would have been silent rather than caught.
+
 ### D-12: Four BRD contradictions surfaced by the QUAL-05 sweep that need a PO (and in one case Architect) decision
 **Raised:** 2026-07-26
 
