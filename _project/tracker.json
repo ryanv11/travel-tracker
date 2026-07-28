@@ -2004,7 +2004,7 @@
       "priority": "P1",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Renaming a companion in the admin panel updated correctly on one trip automatically, but a second trip (companion role 'partner', renamed to Aisling) kept showing the old value until that trip was opened, edited, and saved. Suggests inconsistent propagation/derivation of companion name depending on how the trip stores/displays the reference — data-integrity concern, needs investigation."
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Renaming a companion in the admin panel updated correctly on one trip automatically, but a second trip (companion role 'partner', renamed to Aisling) kept showing the old value until that trip was opened, edited, and saved. Suggests inconsistent propagation/derivation of companion name depending on how the trip stores/displays the reference — data-integrity concern, needs investigation. Root cause investigated and split: backend confirmed correct (issue #299, PR #302 — tripRepository.getAssociations() always LEFT JOINs companions.name live, no denormalised copy). Frontend fix (issue #305): useCreateCompanion/useUpdateCompanion/useDeleteCompanion in src/frontend/hooks/useAdmin.ts invalidated only ['admin','companions'], never ['trips'], so a fresh 5-minute-staleTime trips query kept serving the stale name. Fixed by cross-invalidating ['trips'] in all three mutations, matching the existing ['map','shading'] precedent at useAdmin.ts:237. Status left 'pending' — COO flips to 'done' at merge."
     },
     {
       "id": "BUG-52",

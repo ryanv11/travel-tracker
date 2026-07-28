@@ -1,0 +1,129 @@
+FRONTEND PARK DOC — BUG-51 trips cache invalidation
+Date: 2026-07-28
+Branch: fix/bug51-trips-cache-invalidation
+GitHub issue: #305 (follow-up to #299 / PR #302)
+Tracker: BUG-51 (P1, data integrity)
+
+SCOPE
+  Small, tightly-scoped follow-up brief. Backend half of BUG-51 was already
+  closed by PR #302 (issue #299) — that PR established the root cause and
+  added a backend regression test proving tripRepository.getAssociations()
+  always LEFT JOINs companions.name live, with no denormalised copy anywhere
+  in the schema or migrations. Two independent probes in #302, re-verified
+  by the COO. This brief explicitly did NOT re-investigate that finding —
+  instructed not to, and had no reason to doubt it.
+
+  This thread closes the frontend half: useCreateCompanion,
+  useUpdateCompanion and useDeleteCompanion in
+  src/frontend/hooks/useAdmin.ts invalidated only ['admin','companions'] on
+  success, never ['trips']. Against the global 5-minute staleTime configured
+  at src/frontend/main.tsx:32, any trip whose ['trips'] query was still
+  fresh at companion-rename time kept serving the stale name until
+  something else forced a refetch — which is exactly the originally
+  reported symptom, including why opening the affected trip didn't fix it
+  but saving it did (useUpdateTrip already invalidates ['trips']).
+
+ROOT CAUSE — NOT RE-INVESTIGATED
+  Per the brief and CLAUDE.md's negative-findings rule, the "backend has no
+  denormalised copy" claim was already established by two independent
+  probes in #302 and re-verified by the COO before this brief was written.
+  I did not re-probe it. I did independently confirm the frontend half of
+  the claim by reading src/frontend/hooks/useAdmin.ts directly (all three
+  companion mutations, lines ~150-182 before the fix) and
+  src/frontend/main.tsx:32 (staleTime: 5 * 60 * 1000) myself — this is a
+  positive finding (the missing invalidation is directly visible in the
+  diff), not a negative one, so it doesn't need the two-probe treatment.
+
+FIX
+  src/frontend/hooks/useAdmin.ts: added
+    void qc.invalidateQueries({ queryKey: ['trips'] });
+  immediately after the existing
+    void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
+  in useCreateCompanion, useUpdateCompanion, and useDeleteCompanion (the
+  brief's "useDeactivateCompanion" refers to this function — the actual
+  export name in the file is useDeleteCompanion, a soft-delete via
+  apiDelete('/api/companions/:id'); confirmed this is the only
+  deactivation-shaped companion mutation in the file, so no ambiguity).
+  Each site got a one-line comment pointing at BUG-51 and the LEFT JOIN
+  root cause for future readers.
+
+  Pattern mirrors the existing precedent already in the same file at
+  useUpdateCountry (useAdmin.ts:237), which cross-invalidates
+  ['map','shading'] from a countries mutation for the same reason (a
+  derived/joined view elsewhere in the app needs a nudge that this
+  mutation's write affects it too).
+
+  No backend change. No other mutations in useAdmin.ts touched. No
+  refactor of the file — this was flagged explicitly in the brief as
+  three-lines-plus-test scope, and that's what shipped.
+
+TEST
+  New file src/frontend/hooks/__tests__/useAdmin.companions.test.tsx (3
+  tests), modeled directly on the existing
+  src/frontend/hooks/__tests__/useGeocodeRetryQueue.test.tsx pattern (the
+  only other hooks-directory test in the repo): apiClient mocked via
+  vi.mock with the real ApiError class spread through, each test gets its
+  own QueryClient + QueryClientProvider wrapper via a local
+  renderWithClient() helper, and asserts on a vi.spyOn(qc,
+  'invalidateQueries') call list rather than inspecting cache state
+  indirectly. Each of the three tests mutates, waits for isSuccess, then
+  asserts invalidateSpy was called with both { queryKey: ['admin',
+  'companions'] } and { queryKey: ['trips'] }.
+
+  This satisfies the brief's explicit success criterion: "A frontend test
+  asserts each of the three mutations invalidates both ['admin',
+  'companions'] and ['trips']."
+
+VERIFICATION
+  npm run check (biome, clean — 180 files, no fixes needed)
+  npm run type:check:all (frontend + backend, clean)
+  npm run test:backend (584 passed / 1 skipped — unaffected, no backend
+    files touched by this change)
+  npm run test:frontend (161 passed — includes the 3 new BUG-51 tests;
+    baseline was 156 before BUG-62/#303 merged in ahead of this branch,
+    which added its own tests, so 161 = that new baseline + 3 mine + 2
+    net from unrelated file changes; exact accounting not re-derived,
+    the important fact is 161/161 green, 0 failed)
+  npm run status:check (STATUS.md in sync, no regeneration needed)
+  Full /pre-push checklist run before pushing — see completion report for
+  outcome and PR/CI status.
+
+  Not run: manual browser/Clerk check (same sandbox limitation as every
+  prior Frontend thread — no real Clerk publishable key, firewall doesn't
+  reach Clerk's hosted sign-in) and Playwright e2e (not required by this
+  brief's success criteria, and the fix is a two-line cache-key addition
+  covered directly and completely by the new unit tests — running the full
+  e2e suite for a change this narrow would not add confidence beyond what
+  the unit tests already establish).
+
+SCOPE DISCIPLINE — WHAT WAS DELIBERATELY NOT DONE
+  Did not refactor useAdmin.ts's shared CRUD-factory-shaped duplication
+  (categories/activities/companions each hand-roll near-identical
+  create/update/delete hooks) even though it was directly visible while
+  making this edit — out of scope per the brief, not touched.
+  Did not touch categories, activities, or countries mutations.
+  Did not add e2e coverage beyond what the brief's success criteria state.
+  Did not change the tracker entry's "owner" field (left as "backend" even
+  though the fix landed in frontend) or its brdRefs (empty, unchanged) —
+  reassigning ownership or backfilling a BRD cross-reference (DP-03 is the
+  closest candidate: "trip detail header shows... the names of companions
+  on the trip") felt like tracker-taxonomy judgment calls above this
+  brief's scope, not a compelled part of the fix. Flagging both to COO
+  below rather than deciding unilaterally.
+
+FINDINGS TO FLAG (not fixed, per brief's "report it, don't fix it")
+  None found beyond the two scope-discipline notes above. No BRD/API
+  contract mismatch encountered. No other cache-invalidation gaps noticed
+  in useAdmin.ts's non-companion mutations during this read, but that was
+  not audited exhaustively — only the three companion mutations named in
+  the brief were reviewed line-by-line; the categories/activities/
+  countries mutations were skimmed for the same shape as prior art, not
+  independently audited for their own possible staleness bugs.
+
+NEXT STEPS (when resumed)
+  COO: review PR (branch fix/bug51-trips-cache-invalidation, see completion
+  report for PR # and CI status), merge via /coo-merge-and-close, flip
+  BUG-51 status to "done" in tracker.json at merge time. Consider (COO's
+  call, not blocking): whether BUG-51's brdRefs should point at DP-03, and
+  whether "owner" should flip to "frontend" now that the fix landed there —
+  both left as-is in this thread, noted above.
