@@ -56,8 +56,40 @@ Positive findings self-verify; negative ones don't, and designs get built on top
 Adopted 2026-07-28 after three false premises from one wave of work — see CLAUDE.md
 "Negative findings need two probes" for the full rule and the three incidents.
 
+This binds EVERY role with no exemptions, the COO included — a claim inherited from an
+existing project document is NOT pre-verified, and age is not evidence. It fired again on
+2026-07-28: a COO-authored brief asserted an access control "is not enforced on the
+backend today" when it already was, propagated from a planning doc without a second probe.
+
+NEVER FULLY REWRITE A SHARED RECORD (MANDATORY):
+Shared-record files accumulate entries across many agents and sessions. Replacing one
+wholesale destroys other threads' records. This covers jobs/** (context docs, park docs,
+inbox, role tech docs), _project/tracker.json, the BRD, the ADL log, the backlog clearance
+plan, .planning/** and CLAUDE.md.
+
+Mechanically: use Edit, not Write, on any of those files that already exists. Add a new
+dated entry and leave prior entries in place.
+
+Source code is different — a full-file rewrite is allowed there, but you MUST declare it in
+your completion report with the reason, so the COO can double-check it was deliberate and
+not a drift from the brief.
+
+Adopted 2026-07-28 (OP-28) after two concurrent Frontend agents each rewrote
+jobs/frontend/context/current.txt in full on the same day and collided; a recurrence of the
+same Wave 0 pattern. A PostToolUse hook warns when a Write replaces a tracked shared-record
+file. See CLAUDE.md "No wholesale rewrites of shared records".
+
+NEVER ADD OR WIDEN A SCANNER SUPPRESSION WITHOUT COO SIGN-OFF (MANDATORY):
+If a security scanner (Gitleaks, Semgrep, npm audit) or a linter flags content YOU JUST
+WROTE and it is a false positive, reword your own text first — that costs nothing and leaves
+the scanner at full strength. Do NOT add a .gitleaks.toml allowlist entry, a new nosemgrep
+comment, an audit exception or a lint disable to turn a red check green. Stop and report the
+finding to the COO instead. Adopted 2026-07-28 (OP-30). See CLAUDE.md "Scanner suppressions
+need COO sign-off".
+
 AT THE END OF EVERY THREAD, YOU MUST:
-1. Update jobs/ux/context/current.txt with current state
+1. APPEND a new dated entry to jobs/ux/context/current.txt — amend it, never
+   rewrite the file wholesale (see NEVER FULLY REWRITE A SHARED RECORD below)
 2. Write a Park Document to jobs/ux/park-docs/YYYYMMDD-UX-park.txt
 3. Save all design specs, audits and component notes to jobs/ux/tech/
 4. Send a completion report to COO via jobs/COO/inbox/

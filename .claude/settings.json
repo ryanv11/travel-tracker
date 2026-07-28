@@ -29,6 +29,19 @@
           {
             "type": "command",
             "command": "bash /workspace/.claude/hooks/negative-findings-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/no-wholesale-rewrite.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/negative-findings-guard.sh"
           }
         ]
       }
