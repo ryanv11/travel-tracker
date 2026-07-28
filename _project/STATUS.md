@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (54)
+## Open work (55)
 
 ### P0 — Blockers (1)
 
@@ -66,7 +66,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 | QUAL-17 | 15 further backend test files hand-roll the same 21-table DDL that QUAL-03 just removed from test-db.ts | backend | ⬜ Pending |
 
-### P3 — Minor (22)
+### P3 — Minor (23)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -80,6 +80,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
 | BRD-IT10 | Optional Google Maps URL per item — one-click directions (IT-10) | architect | ⬜ Pending |
 | UX-11 | Trip-list status pill colours should match map shading colours (admin-driven) | ux | ⬜ Pending |
+| OP-28 | Set up a GitHub App for scheduled-routine GitHub write access — blocks OP-25's cron-flag issue creation | architect | ⬜ Pending |
 | WP-05 | Waypoint reskin must not be reported as closing unrelated data/behavior gaps it only reskins the display of | coo | ⬜ Pending |
 | BUG-43 | Apple Wallet (.pkpass) import to pre-populate booking details | integrations | ⬜ Pending |
 | BUG-45 | Convert free-text airline/car-rental-provider fields to a sourced dropdown with Other fallback | coo | ⬜ Pending |
@@ -135,4 +136,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_130 done · 10 deferred · 4 closed · 54 open — 198 tracked items_
+_130 done · 10 deferred · 4 closed · 55 open — 199 tracked items_
