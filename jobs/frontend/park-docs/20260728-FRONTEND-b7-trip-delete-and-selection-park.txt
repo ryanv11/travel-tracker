@@ -249,3 +249,30 @@ NEXT STEPS (when resumed)
   report for PR # and CI status), consider the three flagged findings above
   for possible follow-up tracker entries, merge via /coo-merge-and-close
   when CI is green, flip BUG-50/BUG-58 status to "done" at merge.
+
+ADDENDUM — CI E2E failure found and fixed after initial push
+  First push (commit f3a7bf8) went green on every check except E2E Tests:
+  src/e2e/places-items.spec.ts's "delete item with confirmation" failed —
+  its own item-level Delete button lookup, `getByRole('button', { name:
+  'Delete' }).first()`, started matching the NEW trip-level "Delete Trip"
+  button too (Playwright's default `name` match is substring, not exact,
+  and "Delete Trip" contains "Delete"; the trip-level button also renders
+  earlier in the DOM, above Places/Items, so `.first()` picked the wrong
+  element and the item's own confirm dialog never opened). Fixed by adding
+  `exact: true` to that one lookup (commit ddfe3ad) — the item's own button
+  has no aria-label, so its accessible name is exactly "Delete", which
+  `exact: true` isolates cleanly from "Delete Trip". Verified the fix
+  properly rather than just re-pushing and hoping: reproduced locally
+  (created a throwaway .env.local with DB_TYPE=sqlite, since this worktree
+  doesn't have one and Playwright's webServer needs it; deleted it again
+  before finishing, it's gitignored so it was never at risk of being
+  committed), ran the full Playwright suite (52/52 green) plus the specific
+  previously-failing test individually, then re-pushed. Also grepped every
+  e2e spec file for other `name: 'Delete'`-shaped matches before declaring
+  this fixed (not just the one that failed) — two others exist
+  (trips-crud.spec.ts, trips-mobile.spec.ts's bulk-delete tests) but both
+  run against /trips with no trip selected, where TripDetail/
+  MobileTripDetailView never mounts, so the new button was never in scope
+  for those and they were unaffected (confirmed green both before and after
+  this fix). scripts/ci-wait.sh pr 319 reported PASS — all 18 checks green
+  — on the second push.
