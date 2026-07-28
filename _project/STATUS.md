@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup complete, PRs #259-#262: three orphaned/frozen docs deleted, security-backlog H2/M3 closed, COO persona+standards migrated into /coo-startup. BUG-64 logged: ci-wait.sh branch mode can PASS against the previous commit)_
+_Tracker last updated: 2026-07-28 (QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (55)
+## Open work (54)
 
 ### P0 — Blockers (1)
 
@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-50 | No way to delete an entire trip | frontend | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (30)
+### P2 — Important (29)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -63,7 +63,6 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
-| QUAL-09 | BRD IT-03 lists item status 'Shortlisted' but it was never implemented | fullstack | ⬜ Pending |
 | QUAL-11 | Assert PRAGMA foreign_keys=1 at startup, and confirm FK enforcement on the remote Turso path | backend | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 
@@ -100,7 +99,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `███████████████░░░░░` 42/57 | 42 | 15 | 4 |
+| bug | `███████████████░░░░░` 43/57 | 43 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `████████░░░░░░░░░░░░` 9/22 | 9 | 13 | 0 |
 
@@ -117,7 +116,7 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 | NR-13 | Global settings risk control — owner/admin only for destructive changes | architect |
 | UX-05 | Photos — full implementation | frontend |
 | ENV-01 | Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall | coo |
-| BRD-PL0104 | Planning core — idea pool → shortlist → booked across all item types (PL-01–04) | fullstack |
+| BRD-PL0104 | Planning core — idea pool → booked across all item types (PL-01–04) | fullstack |
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack |
 
 </details>
@@ -135,4 +134,4 @@ _Tracker last updated: 2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup com
 
 ---
 
-_123 done · 10 deferred · 3 closed · 55 open — 191 tracked items_
+_124 done · 10 deferred · 3 closed · 54 open — 191 tracked items_

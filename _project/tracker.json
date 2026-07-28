@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-26 (QUAL-05 sweep + QUAL-06 doc-state cleanup complete, PRs #259-#262: three orphaned/frozen docs deleted, security-backlog H2/M3 closed, COO persona+standards migrated into /coo-startup. BUG-64 logged: ci-wait.sh branch mode can PASS against the previous commit)"
+    "updated": "2026-07-28 (QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)"
   },
   "items": [
 
@@ -1512,13 +1512,13 @@
     {
       "id": "BRD-PL0104",
       "type": "feature",
-      "title": "Planning core — idea pool → shortlist → booked across all item types (PL-01–04)",
+      "title": "Planning core — idea pool → booked across all item types (PL-01–04)",
       "status": "deferred",
       "owner": "fullstack",
       "priority": "P2",
       "brdRefs": ["PL-01", "PL-02", "PL-03", "PL-04"],
       "phase": 6,
-      "notes": "BRD v3.0 §5.12. New Shortlisted item status (IT-03 amended), quick-capture ideas for every item type, planning view grouped by stage, rapid brainstorm entry. Was held for Scotland dogfood findings — those landed 2026-07-21 (this session's general UAT feedback, BUG-40–58/OQ-06). DEPRIORITIZED 2026-07-21 (PO): PO wants the UAT-driven fixes/changes made before doing more dogfood-style testing that would inform this feature's design, so this stays deferred (priority P1→P2) until that batch is worked through. Not blocked on anything technical — resume when PO says the dogfood findings are ready to build from."
+      "notes": "BRD v3.0 §5.12, as amended by v3.11. SCOPE REDUCED 2026-07-28 (QUAL-09, PO): the Shortlisted status this entry originally carried is REMOVED from the BRD, not built — the planning loop is two-stage (Consider -> Confirmed), so PL-02 is a single promote/demote transition and PL-03 groups by two stages. No migration and no new enum value are in scope. Remaining scope: quick-capture ideas for every item type, planning view grouped by stage, rapid brainstorm entry. Was held for Scotland dogfood findings — those landed 2026-07-21 (this session's general UAT feedback, BUG-40–58/OQ-06). DEPRIORITIZED 2026-07-21 (PO): PO wants the UAT-driven fixes/changes made before doing more dogfood-style testing that would inform this feature's design, so this stays deferred (priority P1→P2) until that batch is worked through. Not blocked on anything technical — resume when PO says the dogfood findings are ready to build from."
     },
     {
       "id": "BRD-PL05",
@@ -2147,12 +2147,12 @@
       "id": "QUAL-09",
       "type": "bug",
       "title": "BRD IT-03 lists item status 'Shortlisted' but it was never implemented",
-      "status": "pending",
-      "owner": "fullstack",
+      "status": "done",
+      "owner": "coo",
       "priority": "P2",
-      "brdRefs": ["IT-03", "PL-02"],
+      "brdRefs": ["IT-03", "PL-02", "PL-03", "PL-06"],
       "phase": 6,
-      "notes": "Found 2026-07-27 by ADL-42/S2 (issue #272) while reading the item status model. BRD IT-03 and §4 Definitions both list 'Shortlisted', added in the v3.0 planning-first rewrite, but chk_items_status in src/backend/db/schema.ts omits it and the string 'shortlisted' appears nowhere in src/. This is a requirement gap, not a doc nit: §5.12 PL-02 specifies promote/demote across Consider -> Shortlisted -> Confirmed, and PL-03's planning view groups by idea pool / shortlist / booked. Both are unimplementable while the status does not exist, so the middle of the documented planning loop is currently missing. Needs a decision on which is authoritative — implement the status, or amend the BRD — before either PL-02 or PL-03 is briefed. Success criteria: BRD and chk_items_status agree; if implemented, a migration adds the value and PL-02's transitions work end to end."
+      "notes": "Found 2026-07-27 by ADL-42/S2 (issue #272) while reading the item status model. BRD IT-03 and §4 Definitions both list 'Shortlisted', added in the v3.0 planning-first rewrite, but chk_items_status in src/backend/db/schema.ts omits it and the string 'shortlisted' appears nowhere in src/. This is a requirement gap, not a doc nit: §5.12 PL-02 specifies promote/demote across Consider -> Shortlisted -> Confirmed, and PL-03's planning view groups by idea pool / shortlist / booked. Both are unimplementable while the status does not exist, so the middle of the documented planning loop is currently missing. Needs a decision on which is authoritative — implement the status, or amend the BRD — before either PL-02 or PL-03 is briefed. RESOLVED 2026-07-28 by BRD v3.11 — PO chose amend-the-BRD, not build-the-status: 'Considering is doing enough work here, and I'm unlikely to add enough items to a trip that I need to narrow down from that. Confirmed vs Considering is enough.' Shortlisted removed from IT-03 and the §4 definition (struck through + SUPERSEDED stamp); planning loop is now two-stage (idea pool -> booked) across §4, §5.12 PL-02/PL-03/PL-06 and the §1/§2 narrative. Success criteria met: BRD and chk_items_status now agree. ZERO code change — the schema was already correct and needed no migration. Closure stamps also applied to ADL-42 §7 + its open-items list, the ADL log's ADL-42 drift note, backlog-clearance-plan §8b and STATUS.md. PL-02 and PL-03 are now unblocked for briefing."
     },
     {
       "id": "QUAL-10",
