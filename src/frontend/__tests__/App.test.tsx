@@ -1,20 +1,25 @@
 /**
- * Component tests for App owner-gating (BUG-26 / SE-02).
+ * Component tests for App navigation and routing (BUG-62).
+ *
+ * BUG-62 reverses part of BUG-26's contract: the Admin nav link and the
+ * `/admin` route are no longer owner-gated at this level. AD-08 made
+ * companions (and, per ADL-28, map shading) usable by any authenticated
+ * user, so page-level `RequireOwner` gating over the whole /admin route was
+ * wrong — owner-only tabs (categories, activities, countries) are now gated
+ * per-tab inside AdminPanel.tsx instead (see
+ * src/frontend/components/Admin/__tests__/AdminPanel.test.tsx for that
+ * coverage). App no longer calls useMe() at all — the Admin link and route
+ * behave identically to Map/Trips regardless of owner status.
  *
  * Mocks:
- *   - useMe() from hooks/useMe — controls identity loading/owner state
  *   - useGeocodeRetryQueue() — inert (no pending geocodes)
  *   - @clerk/react UserButton — rendered as a stub
  *   - Page components (MapPage, AdminPage, TripDetailPage, TripsLayout) —
  *     lightweight stubs so App renders without MapLibre/query wiring
  *
  * Covers:
- *   - Admin nav link shown for owner
- *   - Admin nav link hidden for non-owner
- *   - Admin nav link hidden while identity is loading (no flash)
- *   - Direct /admin navigation as non-owner renders not-authorised, not the panel
- *   - Direct /admin navigation as owner renders the admin panel
- *   - Direct /admin navigation while loading renders neither (blank, no flash)
+ *   - Admin nav link is always shown, same as Map/Trips
+ *   - Direct /admin navigation always renders AdminPage (no page-level guard)
  *
  * Source: src/frontend/App.tsx
  */
@@ -23,17 +28,10 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
-import type { Me } from '../types/api';
 
 // ----------------------------------------------------------------
 // Mocks
 // ----------------------------------------------------------------
-
-const mockUseMe = vi.fn<() => { data: Me | undefined; isPending: boolean }>();
-
-vi.mock('../hooks/useMe', () => ({
-  useMe: () => mockUseMe(),
-}));
 
 vi.mock('../hooks/useGeocodeRetryQueue', () => ({
   useGeocodeRetryQueue: () => ({ pendingCount: 0, retryAll: vi.fn(), dismiss: vi.fn() }),
@@ -63,9 +61,6 @@ vi.mock('../components/TripList/TripsLayout', () => ({
 // Fixtures / helpers
 // ----------------------------------------------------------------
 
-const OWNER: Me = { id: 'user-a', email: 'owner@example.com', isOwner: 1 };
-const NON_OWNER: Me = { id: 'user-b', email: 'guest@example.com', isOwner: 0 };
-
 function renderApp(initialPath = '/map') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -79,56 +74,26 @@ beforeEach(() => {
 });
 
 // ----------------------------------------------------------------
-// Admin nav link visibility
+// Admin nav link visibility (BUG-62)
 // ----------------------------------------------------------------
 
-describe('Admin nav link (BUG-26)', () => {
-  it('is shown for the owner', () => {
-    mockUseMe.mockReturnValue({ data: OWNER, isPending: false });
+describe('Admin nav link (BUG-62)', () => {
+  it('is shown, same as Map and Trips', () => {
     renderApp();
     expect(screen.getByRole('link', { name: 'Admin' })).toBeInTheDocument();
-  });
-
-  it('is hidden for a non-owner', () => {
-    mockUseMe.mockReturnValue({ data: NON_OWNER, isPending: false });
-    renderApp();
-    expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
-    // Sanity: the rest of the nav is intact
     expect(screen.getByRole('link', { name: 'Map' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Trips' })).toBeInTheDocument();
-  });
-
-  it('is hidden while identity is loading (no flash)', () => {
-    mockUseMe.mockReturnValue({ data: undefined, isPending: true });
-    renderApp();
-    expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
   });
 });
 
 // ----------------------------------------------------------------
-// /admin route guard
+// /admin route (BUG-62)
 // ----------------------------------------------------------------
 
-describe('/admin route guard (BUG-26)', () => {
-  it('renders the admin panel for the owner', () => {
-    mockUseMe.mockReturnValue({ data: OWNER, isPending: false });
+describe('/admin route (BUG-62)', () => {
+  it('renders the admin panel on direct navigation, with no page-level owner guard', () => {
     renderApp('/admin');
     expect(screen.getByTestId('admin-page')).toBeInTheDocument();
-    expect(screen.queryByText('Not authorised')).not.toBeInTheDocument();
-  });
-
-  it('renders not-authorised (never the panel) for a non-owner on direct navigation', () => {
-    mockUseMe.mockReturnValue({ data: NON_OWNER, isPending: false });
-    renderApp('/admin');
-    expect(screen.queryByTestId('admin-page')).not.toBeInTheDocument();
-    expect(screen.getByText('Not authorised')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to the map' })).toBeInTheDocument();
-  });
-
-  it('renders neither panel nor message while identity is loading (no flash)', () => {
-    mockUseMe.mockReturnValue({ data: undefined, isPending: true });
-    renderApp('/admin');
-    expect(screen.queryByTestId('admin-page')).not.toBeInTheDocument();
     expect(screen.queryByText('Not authorised')).not.toBeInTheDocument();
   });
 });
