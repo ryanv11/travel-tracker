@@ -378,6 +378,23 @@ describe('GET /api/trips', () => {
 
     expect(res.body).toHaveProperty('error');
   });
+
+  it('returns trips ordered by start_date descending (QUAL-02 finding 2)', async () => {
+    // Seeded out of order so a passing test can't be explained by
+    // insertion-order coincidence.
+    const db = testDb!;
+    await seedTrip(db, { name: 'Middle Trip', startDate: '2026-03-01' });
+    await seedTrip(db, { name: 'Earliest Trip', startDate: '2026-01-01' });
+    await seedTrip(db, { name: 'Latest Trip', startDate: '2026-06-01' });
+
+    const res = await supertest(app).get('/api/trips').expect(200);
+
+    expect(res.body.map((t: { name: string }) => t.name)).toEqual([
+      'Latest Trip',
+      'Middle Trip',
+      'Earliest Trip',
+    ]);
+  });
 });
 
 // ----------------------------------------------------------------

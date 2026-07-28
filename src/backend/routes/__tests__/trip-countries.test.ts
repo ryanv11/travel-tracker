@@ -419,12 +419,17 @@ describe('GET /api/trips?country=XX — country filter', () => {
     testDb = null;
   });
 
-  it('returns only the trip that has JP in trip_countries, not the one without', async () => {
+  it('returns only the trip that has JP in trip_countries, not a DE trip or a countryless trip', async () => {
+    // QUAL-02 finding 1: seed 3 trips (target country + a DIFFERENT country +
+    // none at all) so an inverted or no-op filter cannot pass by returning
+    // length 1 via the wrong trip.
     const db = testDb!;
     const jpTrip = await seedTrip(db, { name: 'Japan Trip' });
+    const deTrip = await seedTrip(db, { name: 'Germany Trip' });
     await seedTrip(db, { name: 'Other Trip' }); // no countries
 
     await db.insert(schema.tripCountries).values({ tripId: jpTrip.id, countryCode: 'JP' });
+    await db.insert(schema.tripCountries).values({ tripId: deTrip.id, countryCode: 'DE' });
 
     const res = await supertest(app).get('/api/trips?country=JP').expect(200);
 

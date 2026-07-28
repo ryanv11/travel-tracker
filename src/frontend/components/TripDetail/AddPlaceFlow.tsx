@@ -22,6 +22,7 @@ import { useAddPlace } from '../../hooks/usePlaces';
 import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
 import type { City } from '../../types/api';
 import { resolveDefaultDate } from '../../utils/dateDefaults';
+import { capitalizeFirst } from '../../utils/textFormat';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { ErrorMessage } from '../shared/ErrorMessage';
 
@@ -191,7 +192,7 @@ export function AddPlaceFlow({
    *  auto-populate the country and region fields (GE-15, UX-04). */
   const handleOpenNewCityForm = (cityName: string) => {
     setShowNewCityForm(true);
-    setNewCityName(cityName);
+    setNewCityName(capitalizeFirst(cityName));
     setNewCityCountryCode('');
     setNewCityRegionId(null);
     setAutoRegionIso(null);
@@ -357,7 +358,7 @@ export function AddPlaceFlow({
               <input
                 className={inputClass}
                 value={newCityName}
-                onChange={(e) => setNewCityName(e.target.value)}
+                onChange={(e) => setNewCityName(capitalizeFirst(e.target.value))}
                 required
               />
             </div>
