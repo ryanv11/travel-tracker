@@ -39,7 +39,12 @@ items that share their code surface.
 |---|---|---|
 | Briefable immediately | 13 | BUG-06, 37, 44, 48, 49, 50, 51, 52, 55, 56, 57, 58, 62 |
 | Blocked on scoping | 11 | OQ-05, OQ-06, BUG-40, 41, 42, 45, 46, 47, 53, 54, UX-11 |
-| Not schedulable | 2 | BUG-63 (unreproducible), BUG-43 (research spike, PO-flagged aspirational) |
+| Not schedulable | 1 | BUG-43 (research spike, PO-flagged aspirational) |
+
+> UPDATED (2026-07-28) — **BUG-63 is no longer unreproducible and has left this row.** Ryan
+> reproduced it on staging as a non-owner and captured the browser console this row was
+> waiting for. It is now **P1**, owned by **Architect**, and blocked on an access-matrix
+> decision rather than on evidence — see its tracker note and D-12 item 1.
 | Features riding along | 7 | BRD-DP06, BRD-AD09, BRD-IT10, QUAL-02 (subset), QUAL-03, WP-05, BRD-IT0809 |
 
 ---
@@ -133,8 +138,16 @@ brief's tests trustworthy, and it clears OP-15 prerequisite (a).
 | BUG-54 | S4 — stays parked unless the spec makes it free |
 | OP-15 skills design pass | B9 (QUAL-03) |
 
-**Parked, not scheduled:** BUG-63 (no reproduction — needs a captured network response),
-BUG-43 (research spike, PO-flagged aspirational).
+**Parked, not scheduled:** BUG-43 (research spike, PO-flagged aspirational).
+
+> UPDATED (2026-07-28) — **BUG-63 unparked.** The captured network response this entry
+> required arrived: three deterministic 403s (`GET /api/admin/categories/active`,
+> `GET /api/admin/activities/active`, `POST /api/cities`) while a non-owner adds a place on
+> staging. Root cause is the BUG-61/ADL-38 read/write split never having been extended past
+> countries+regions. Raised to **P1** — a non-owner cannot add a place at all. Next step is an
+> **Architect** access-matrix pass (bundled with BUG-55 and D-12 item 1), **not** a Backend
+> brief: `security.access-matrix.test.ts` currently asserts those 403s as correct, so the spec
+> moves before the code.
 
 ---
 
