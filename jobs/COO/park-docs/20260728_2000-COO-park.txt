@@ -1,0 +1,149 @@
+COO SESSION PARK — 2026-07-28 ~2000 UTC (Wave 1 sub-wave B complete; OP-32 adopted; a red main)
+================================================================================
+
+## Session summary
+Picked up from the 2026-07-28 ~1700 close. Cleared the sub-wave B dispatch gate, dispatched
+and merged all of Wave 1 sub-wave B, adopted a PO-directed process rule, and fixed a red main
+caused by two individually-green PRs. 9 PRs merged, main verified green after every one.
+
+| PR | What |
+|---|---|
+| #312 | BRD v3.12 — sub-wave B dispatch gate (TR-13, GE-15, IT-08/09) |
+| #313 | AD-09 false premise corrected at its SOURCE document |
+| #314 | OP-32 — defect taxonomy + deployment shakedown |
+| #318 | B8 — item rating sort/filter + a new city-items page |
+| #319 | B7 — trip delete (BUG-50, the last open P1) + selection persistence |
+| #320 | B4 — country search, city capitalisation, QUAL-02 (1-2), QUAL-17 |
+| #321 | BUG-65/66/67 logged from B7's flagged findings |
+| #322 | RED MAIN FIX — B7+B8 semantic merge conflict |
+| #323 | B4 tracker sync (the agent never flipped its own entries) |
+
+### 1. BUG-55 IS A DEPLOYMENT DEFECT, NOT A PRODUCT BUG (read this one)
+The single most valuable finding of the session, and it came from a PO remark, not from
+process. The brief for B4 was about to have an agent BUILD city country/state autopopulation.
+Ryan said "country and state/region as that's how it was working previously" — one sentence
+that reclassified the whole item. Re-probing on that basis found:
+
+- The feature is FULLY BUILT. `AddPlaceFlow.tsx:183-208` auto-populates country AND region.
+- `useCities.ts:46` — the BROWSER fetches `nominatim.openstreetmap.org` directly.
+- `server.ts:128-130` — helmet's CSP `connectSrc` is `[self, *.maptiler.com, CLERK_ORIGIN]`.
+  Nominatim is absent. So the call is CSP-blocked in any served environment, and
+  `AddPlaceFlow.tsx:206`'s bare `.catch()` swallows it with no feedback and no logging.
+- It works under the Vite dev server, which applies no such CSP. Hence "working previously,"
+  and hence no test caught it: every test runs the dev/jsdom path.
+
+Second defect found in the same function: `useCities.ts:47` sets a `User-Agent` header on a
+browser `fetch()` — a FORBIDDEN HEADER NAME, silently dropped, leaving the app anonymous
+against Nominatim's usage policy. Both point at a backend proxy rather than a widened
+allowlist, which is a SEC-01 call. BUG-55 was PULLED from B4 and re-owned to Architect.
+
+**The COO's own failure here, recorded deliberately:** BUG-55's tracker note had said "likely
+the geocode/lookup path isn't wired" since 2026-07-21 — an unverified single-probe absence
+claim already covered by the negative-findings rule, disproved by one grep. Ryan generously
+offered that the fault was his for labelling UAT feedback without distinguishing bug from
+feature request. It wasn't the primary cause. The rule existed and was not applied.
+
+### 2. OP-32 adopted (PR #314) — two rules, on PO direction "adopt now"
+- **Defect taxonomy: regression / deployment-config / gap.** The class determines the first
+  action (find what broke it / don't touch the code / build it), so the wrong class invalidates
+  the entire brief. "It used to work" is decisive evidence and the COO must ASK for it rather
+  than expect the PO to volunteer it. An unclassified item is not dispatchable.
+- **Deployment shakedown before UAT**, plus the durable half: enumerate every difference
+  between the test environment and production and treat each as an untested surface.
+  Adopted immediately rather than parked per the D-03 precedent, because unlike D-03 this had
+  two independent incidents (BRD-NF09/D-06 and BUG-55) and a demonstrated cost.
+
+### 3. THE ANSWER TO "BAD TESTS OR BAD ENVIRONMENT?" — it's the environment, specifically
+Ryan asked whether we should mirror staging/prod more closely, since the suite passed when it
+should have failed. It is the environment, and the difference is nameable in one line:
+
+**Production is single-origin; E2E is two-origin.**
+- Prod: `server.ts:233` mounts `express.static(DIST_DIR)` under `NODE_ENV=production`, so
+  Express serves the frontend DOCUMENT and helmet's CSP applies to it.
+- E2E: `playwright.config.ts` serves the frontend from `vite preview --port 5173` with Express
+  separately on `:3001`. The document under test carries NO CSP header at all.
+
+CSP binds the document's origin, so nothing is ever blocked in E2E. That entire defect class is
+invisible by construction — no amount of test-writing inside that environment finds it. CI also
+sets `GEOCODING_ENABLED=false`, a second layer of the same blind spot.
+
+Tracked as QUAL-18 (P1, single-origin E2E topology), QUAL-19 (static CSP-allowlist contract
+test — CHEAPEST, ~1hr, would have caught BUG-55 on its own, do this first), QUAL-20 (post-deploy
+smoke check — belongs in CI, where D-06's firewall limitation does NOT apply).
+
+### 4. Sub-wave B shipped, and two agents beat their briefs
+- **B7 DISPROVED the COO's hypothesis.** The brief said a regression was likely because BUG-58
+  was logged the same day the WP-03/WP-04 reskin merged. Two independent probes (`git log
+  --follow`, plus a full diff against pre-#208 files) showed the mechanism byte-identical.
+  Classified as a GAP. Real cause: `ReviewPanel.tsx`'s "Return to Planning" called `onClose()`
+  after its mutation, navigating away in the same click that changed status. OP-32 working
+  against the COO, which is the point of it.
+- **B8 CONTRADICTED its brief's file scope, correctly.** The COO named `TripItemsSection.tsx`
+  as the surface; the agent probed and found that file only renders Flight/Car Rental, neither
+  ever rateable, so a control there would have been decorative. Moved to `PlaceSection.tsx` and
+  documented why. It also built a net-new `/cities/:id` page because IT-09 had no frontend at
+  all — justified, since the success criteria the COO wrote that morning require that view.
+- **QUAL-17 paid for itself.** Briefed as a ride-along chore, it found TWO more genuine
+  schema-drift bugs (invalid `'completed'` trip status, invalid `'skipped'` item status), both
+  silently green for the life of their files. With QUAL-03's `'booked'` that is three real
+  defects from making test schemas migration-derived. Drift detection was PROVEN, not asserted:
+  a temporary DROP COLUMN produced 14/14 failures, then a clean revert.
+
+### 5. MAIN WENT RED from two green PRs (PR #322) — BUG-24's class, new mechanism
+B8 (#318) and B7 (#319) were each 18/18 green, had no textual conflict, and were partitioned by
+file surface exactly as the plan intends. They broke only combined, because B7's CI ran against
+a base predating B8. Two layers:
+1. B7's `TripDetail.test.tsx` used a TOTAL `vi.mock` of `hooks/useItems`, listing only the
+   exports that existed when it branched. B8 added `DEFAULT_RATING_SORT_FILTER`, which
+   `PlaceSection` consumes — absent under a total mock, so `PlaceSection` threw.
+2. Fixing that let `PlaceSection` genuinely mount, exposing that B8's new per-city `Link` needs
+   router context the test never provided.
+Fixed with a partial mock via `importOriginal` + `MemoryRouter`. `MobileTripDetailView.test.tsx`
+carried the identical latent pattern and was fixed preventively — it passes today only because
+no test there mounts a place.
+
+**The plan's conflict analysis reasons about FILE OVERLAP; this was a shared-module contract.**
+Cheap prevention (applied by hand to B4 and it worked): update each subsequent PR's branch
+against current main and re-run CI before merging. Raised as D-15, not adopted unilaterally.
+
+## State of play
+- **main** green @ `1f4f535`. Clean tree, only `main` locally, no worktrees, zero open PRs.
+- **production** @ `1a4f84f` — unchanged. Two un-UAT'd waves now sit between it and main.
+- **BRD v3.12**, header and changelog match. Four amendments, no new IDs: TR-13 (country
+  search), GE-15 (region autopopulate), IT-08 + IT-09 (success criteria that had never existed
+  — the actual reason B8 sat stranded four months, not missing capacity).
+- **Tracker:** 216 items — 140 done / 44 pending / 12 done_pending_uat / 4 partial / 9 deferred.
+- **WAVE 1 IS COMPLETE.** Both sub-waves shipped. BUG-50 was the last open P1.
+
+## Suggested next actions
+1. **PO UAT on 12 `done_pending_uat` items** — checklists for both sub-waves are in
+   `jobs/PO/uat-log.md`. Two things need real eyes most: **BUG-62** (what a non-owner sees) and
+   **B8's brand-new `/cities/:id` page, which has NO UX SPEC** — an implementation agent
+   designed that screen. Note BUG-50 passing does NOT close TR-14 (see BUG-65).
+2. **QUAL-19 first, not QUAL-18.** A static test asserting frontend fetch origins appear in the
+   CSP allowlist is ~1hr, needs no ADL, and fails loudly the moment someone adds a new external
+   call. QUAL-18 is the bigger structural fix; QUAL-19 buys most of the protection immediately.
+3. **BUG-55 needs an Architect pass** — backend proxy vs. widened CSP allowlist, a SEC-01 call.
+   Until it lands, city autopopulation is broken in every deployed environment.
+4. **Wave 2 §8b BRD gate** — FL-06, CR-03, DP-07, DP-08, TR-16. Verify which IDs are actually
+   free first. Plus BUG-47 needs a BRD home or an explicit spec-only decision.
+5. **D-14** — whether trip search should match "USA"/"US". Ryan's original report gave both
+   "United States" and "USA"; only the first works. COO recommendation and the three-tier cost
+   analysis are in the dialogue entry. Needs a small TR-13 amendment if adopted.
+6. **BUG-65** (review_pending trips can't be deleted) closes out TR-14 properly. Small.
+7. **Production promotion** is owed at some point, but not before UAT on two waves.
+
+## Open threads
+See `jobs/COO/open-dialogues.md` — D-04 through D-15. Two new this session: **D-14** (country
+search ISO tiers) and **D-15** (green-PR-on-stale-base, plus B4's agent merging without
+updating its own tracker entries — one miss, flagged to watch rather than ruled on).
+
+## Restart preview
+Shown to Ryan before this doc was written; he confirmed no changes.
+**Captured:** 9 merged PRs; OP-32 adopted; BRD v3.12; new OP-32/QUAL-18/19/20/BUG-65/66/67;
+BUG-50/52/56/58 + BRD-IT0809 -> done_pending_uat; QUAL-17 done; QUAL-02 partial; BUG-55
+reclassified to Architect; 2 memory entries; sub-wave B UAT checklist; D-14 and D-15.
+**Captured, not actioned:** BUG-55 Architect dispatch; QUAL-18/19/20; Wave 2 §8b gate;
+production promotion; ~38 other pending items; D-04-D-13.
+**Not captured:** nothing — both process observations went to open-dialogues rather than
+staying in conversation, and the new-page UX concern went into the UAT log.
