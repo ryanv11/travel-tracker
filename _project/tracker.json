@@ -1763,6 +1763,50 @@
       "notes": "ADL-40 (2026-07-26). Trigger: production deploys blocked outright — `Security Checks` failed on production@299ab5c (run 30210259329) on GHSA-v422-hmwv-36x6 (body-parser, HIGH), and Railway gates prod deploys on CI green. Root cause is NOT the promotion: `npm audit` queries the advisory DB at run time, so the identical tree passed on main 2026-07-24 and failed on production 2026-07-26 (verified — `git diff 299ab5c 3889436 -- package-lock.json package.json` is empty; only drift-ledger/STATUS.md/tracker.json/park-doc changed between them). Deployability had become a function of the calendar. Fix: security.yml push trigger `branches: [\"**\"]` → `branches-ignore: [\"production\"]`; ci.yml deliberately unchanged and still gates prod. Does not weaken security — check runs attach to a commit SHA not a branch, and production is only ever fast-forwarded from main, so every promoted SHA already carries this workflow's green statuses; the re-run is skipped, the verdict is frozen at the point it was earned. Detection unchanged on PRs and main (how DEP-01/DEP-02 were both found). Residual accepted gap: a direct push to production bypassing main would be unscanned — contained by process (CLAUDE.md: production is ff-only, agents never touch it). Alternative of removing Railway's CI gate entirely rejected by PO. Deferred idea, not adopted: a scheduled nightly audit on main that opens an issue, which would also catch advisories landing against an unchanged main between PRs. Production promoted to ce5dbd5 same session, CI + Security Checks both green, deploy gate reopened. security-backlog.md bumped to v1.3 with a pointer section, same PR."
     },
     {
+      "id": "OP-24",
+      "type": "operational",
+      "title": "COO autonomy on pre-cleared mechanical work — milestone-level, not per-item confirmation",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "PO direction 2026-07-28, in a conversation about COO independence: presenting already-cleared work (a brief whose BRD gate + success criteria are recorded, a green PR) as a 'suggested next action' and waiting was unnecessary caution, not a real permission gate. Adopted: default to milestone-level autonomy — execute pre-cleared steps within a milestone without a per-step ask, stop and report at the next natural boundary (a wave finishing, a PR merged, a gate reached) so the PO can still close a session at a natural break. Explicit 'keep going' chains past a boundary; explicit ask for tighter check-ins drops back to narrating each step. Recorded in CLAUDE.md 'COO operating mode'. Exact verbal-cue mechanism still settling in practice, not fixed. See feedback_coo_autonomy_toggle memory."
+    },
+    {
+      "id": "OP-25",
+      "type": "operational",
+      "title": "Scheduled cloud health-check routines (daily CI/drift, weekly doc-lifecycle) + cron-flag surfacing in /coo-startup",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "PO direction 2026-07-28: in-session autonomy shouldn't just trade for out-of-session manual digging — checks need to self-review and surface, not require the PO to go looking. Design: two cloud routines (RemoteTrigger/CCR, isolated environment with their own git checkout of ryanv11/travel-tracker, read-only — never commit code or open a PR). Daily 15:00 UTC (8am PT): main CI health, hook canary, drift-ledger subagent_stop gaps, stale open PRs. Weekly Monday 15:00 UTC: merged-commit-vs-status-doc consistency + BRD coverage for new requirement IDs, per CLAUDE.md's Document Lifecycle rule. Both models Haiku 4.5 per existing COO-lane background-task tiering. Silent when clean; opens a single GitHub issue labeled `cron-flag` only on a real finding, and that finding still has to clear the negative-findings two-probe rule before the routine states it as fact. `/coo-startup` step 1 (new) checks `gh issue list --label cron-flag --state open` every session as the guaranteed catch, independent of whether the PO noticed the GitHub notification. Label created (`cron-flag`, repo ryanv11/travel-tracker). coo-startup skill updated (this session). Routines themselves: creation via RemoteTrigger in progress this session — flip to done once both are live and confirmed."
+    },
+    {
+      "id": "OP-26",
+      "type": "operational",
+      "title": "Negative-findings two-probe rule hook-enforced (warn, not block)",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "PO direction 2026-07-28, extending the negative-findings rule (CLAUDE.md, adopted same day after 3 false absence claims in Wave 0): local-environment quirks in this project (firewall allowlist, patched drizzle-kit, remote libSQL transport) make a single negative probe disproportionately likely to be an environment artifact, not a true absence — the rule needs mechanical enforcement, not reliance on an agent remembering it mid-task. Implemented: `.claude/hooks/negative-findings-guard.sh`, a PostToolUse hook (Write|Edit matcher) scanning new writes under `jobs/**` and `_project/tracker.json` for absence-language patterns without an adjacent UNVERIFIED/second-probe marker. Warn-only by design (regex on natural language false-positives, e.g. an agent quoting the rule itself verbatim) — outputs a reminder, never blocks. Wired into `.claude/settings.json` alongside typecheck.sh/drift-ledger.sh. Canary added to `/coo-startup` step 0. Tested against 5 cases (in-scope absence w/o marker warns, in-scope w/ marker silent, out-of-scope file silent, clean content silent, tracker.json absence w/o marker warns) — all passed. Revisit block-vs-warn once real false-positive rate is known from use."
+    },
+    {
+      "id": "OP-27",
+      "type": "operational",
+      "title": "Architect fresh-eyes review — mandatory fresh-subagent re-review before an ADL is cited elsewhere",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "PO direction 2026-07-28, specifying the exact mechanism: dispatch the spec-writing Architect brief, let that subagent close out fully, then dispatch a second, freshly-context Architect agent given only the spec and instructed to critique/stress-test it, not confirm it — never the same agent re-checking its own work in the same thread. Modeled on the Wave 0 precedent (ADL-41 §7.2.1's false FK-enforcement claim, caught only because the re-dispatched review agent was told to critique rather than rubber-stamp). Applies to every Architect deliverable that will be cited elsewhere (an ADL feeding a BRD bump or an implementation brief) — not gated to a stakes threshold, since ADLs are exactly the artifact everything downstream trusts without re-verifying. Recorded in CLAUDE.md 'Recording decisions' section, following '### Recording decisions'. See feedback_architect_fresh_eyes_review memory."
+    },
+    {
       "id": "WP-01",
       "type": "feature",
       "title": "Product rename to \"Waypoint\" (in-app UI only)",

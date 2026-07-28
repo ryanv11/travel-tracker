@@ -105,6 +105,11 @@ echo '{"tool_input":{"file_path":"/workspace/src/backend/server.ts"}}' \
   | bash /workspace/.claude/hooks/typecheck.sh >/dev/null
 after=$(wc -l < /workspace/.claude/hooks/typecheck-perf.log)
 [ "$after" -gt "$before" ] && echo "typecheck hook OK" || echo "FAIL: typecheck hook broken"
+
+# negative-findings guard (OP-26) must warn on an in-scope absence claim with no pairing marker
+echo '{"tool_input":{"file_path":"/workspace/jobs/COO/canary-test.md","content":"This route does not exist anywhere in the codebase."}}' \
+  | bash /workspace/.claude/hooks/negative-findings-guard.sh | grep -q "negative-findings-guard" \
+  && echo "negative-findings guard OK" || echo "FAIL: negative-findings guard broken"
 ```
 
 Any FAIL → fix the hook before doing anything else this session. Secondary tell for the
@@ -112,7 +117,30 @@ drift ledger: an editing session that produced zero new ledger entries means the
 PostToolUse hooks are silently broken — investigate before trusting this session's
 typecheck feedback.
 
-### 1. Main CI health check
+### 1. Scheduled health-check flags
+
+Adopted 2026-07-28 alongside the daily/weekly cloud health-check routines (see
+`project_scheduled_health_checks` memory). Those routines run unattended between
+sessions and only take a visible action when they find a real problem — they open a
+GitHub issue labeled `cron-flag` and otherwise stay silent. This step is the guaranteed
+catch for that signal, independent of whether the PO happened to notice the GitHub
+notification:
+
+```bash
+gh issue list --repo ryanv11/travel-tracker --label cron-flag --state open \
+  --json number,title,createdAt --jq '.[] | "\(.number)\t\(.createdAt)\t\(.title)"'
+```
+
+- Any open `cron-flag` issue → surface it in the pickup summary alongside the main CI
+  check, before other work starts. Triage like any other finding — per CLAUDE.md's
+  negative-findings rule, a routine's claim that something is broken/missing still needs
+  its own two-probe verification before you act on it, the routine having flagged it is
+  not itself the second probe.
+- Once triaged (fixed, tracked, or dismissed as a false positive), close the issue so it
+  doesn't resurface at the next pickup.
+- None open → note "no scheduled-check flags" and move on.
+
+### 2. Main CI health check
 
 ```bash
 gh run list --repo ryanv11/travel-tracker --branch main --limit 6 \
@@ -128,7 +156,7 @@ gh run list --repo ryanv11/travel-tracker --branch main --limit 6 \
 - Known-red jobs with an open tracked issue (e.g. DEP-01/#98 npm audit) →
   note them in the pickup summary; everything else must be green.
 
-### 2. UAT check
+### 3. UAT check
 
 Read the UAT Log above. For each open session:
 - **PARTIAL or FAIL verdict** → surface to user before proceeding
@@ -137,7 +165,7 @@ Read the UAT Log above. For each open session:
 
 If all sessions are closed and all findings are `[x]`, UAT is clean.
 
-### 3. Drift ledger audit
+### 4. Drift ledger audit
 
 Find the last `"action":"reviewed"` entry. Scan forward to the end.
 
@@ -153,7 +181,7 @@ echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"action\":\"reviewed\"}" >> /w
 
 If no `subagent_stop` entries since last `reviewed`, write the sentinel immediately.
 
-### 4. BRD coverage check
+### 5. BRD coverage check
 
 Scan the most recent park doc and any unread inbox items for Architect deliverables or
 agent specs produced since the last session. For each one, ask: do the requirements it
@@ -167,7 +195,7 @@ introduced have entries in `_project/travel-tracker-BRD.md`?
 
 If nothing new was specced last session, note "BRD coverage clean" and move on.
 
-### 5. Document lifecycle spot-check
+### 6. Document lifecycle spot-check
 
 Per the Document lifecycle rule in CLAUDE.md: for each PR merged since the last session
 (`git log --oneline` since the last park doc / reviewed sentinel), ask — did it change a
@@ -183,10 +211,10 @@ section)?
 
 If no merged PRs since last session, note "lifecycle clean" and move on.
 
-### 6. Park doc
+### 7. Park doc
 
 Summarise from the most recent park doc: what was completed, current state, suggested next actions.
 
-### 7. Report to user
+### 8. Report to user
 
-Give a concise pickup summary: main CI status, UAT status, ledger status, BRD coverage status, lifecycle status, state of play, suggested next.
+Give a concise pickup summary: scheduled-check flag status, main CI status, UAT status, ledger status, BRD coverage status, lifecycle status, state of play, suggested next.

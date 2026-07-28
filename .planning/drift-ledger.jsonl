@@ -1804,3 +1804,7 @@
 {"ts":"2026-07-28T14:28:58Z","action":"edit","file":"/workspace/CLAUDE.md"}
 {"ts":"2026-07-28T14:29:30Z","action":"write","file":"/workspace/.claude/hooks/negative-findings-guard.sh"}
 {"ts":"2026-07-28T14:29:35Z","action":"edit","file":"/workspace/.claude/hooks/negative-findings-guard.sh"}
+{"ts":"2026-07-28T14:29:54Z","action":"edit","file":"/workspace/.claude/settings.json"}
+{"ts":"2026-07-28T14:30:06Z","action":"edit","file":"/workspace/.claude/skills/coo-startup/SKILL.md"}
+{"ts":"2026-07-28T14:30:53Z","action":"edit","file":"/workspace/_project/tracker.json"}
+{"ts":"2026-07-28T14:35:30Z","action":"edit","file":"/workspace/.planning/drift-ledger.jsonl"}
