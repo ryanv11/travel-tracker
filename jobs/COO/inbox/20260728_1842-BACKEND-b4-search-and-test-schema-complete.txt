@@ -1,6 +1,31 @@
 Tracker: BUG-52, BUG-56, QUAL-02 (findings 1-2), QUAL-17 · GitHub issue #315 · BRD §5.1 TR-13
 Branch: fix/b4-search-and-test-schema
 
+*** URGENT, UNRELATED TO THIS BRIEF: MAIN IS CURRENTLY RED ***
+main's own post-merge CI (push trigger 30388898419, no PR involved) has
+Frontend Tests FAILING: "[vitest] No 'DEFAULT_RATING_SORT_FILTER' export
+is defined on the '../../../hooks/useItems' mock" in
+TripDetail.test.tsx. Root cause: two Frontend PRs merged close together
+today collided — #318 (IT-08/IT-09 rating sort/filter) added
+DEFAULT_RATING_SORT_FILTER usage to PlaceSection.tsx; #319 (BUG-50/BUG-58
+trip delete) added TripDetail.test.tsx, which renders TripDetail →
+PlaceSection but mocks useItems without that export. Neither PR was
+individually broken; the collision only shows up once both are on main
+together. Verified two ways: (1) main's own push-triggered CI job log
+shows the identical error, (2) reproduced locally after `git merge
+origin/main` into this branch — `npm run test:frontend` fails the same
+test, same error, 227/228 passing. Per CLAUDE.md "Red main is fixed
+immediately, never left unowned" — this is surfacing now because it
+first hit MY branch's own PR CI after merging main in, not because this
+thread caused it (confirmed: my own commit before the merge, 122d07c,
+had Frontend Tests fully green — 190/190 — before main's new commits
+existed). Not fixed here: TripDetail.test.tsx and PlaceSection.tsx are
+Frontend-owned files outside this brief's scope, and per the pre-push
+skill's "blocked-by-another-team exception," documenting and pushing
+rather than reaching into another role's files is the right call. My own
+PR #320 will show Frontend Tests red until this is fixed on main — not a
+defect in this brief's diff.
+
 WHAT WAS BUILT
 1. BUG-52: filterAndSortTrips now matches country names (full name only, per
    TR-13's binding exclusion of ISO codes/abbreviations) — frontend-only,
@@ -51,9 +76,16 @@ VERIFICATION
 - Contract tests not run: no routes touched, and this worktree has no
   .env.local for a live dev:api server.
 
-CI: gh pr checks 320 — all 18 checks green (9 unique checks x 2 runs,
-the known push+pull_request duplicate trigger — project_ci_duplicate
-_trigger_accepted.md, not a problem). scripts/ci-wait.sh PASS.
+CI: PR #320's own diff is clean — all 18 checks (9 unique x 2, known
+duplicate trigger) were green at commit 122d07c, BEFORE merging main in.
+After `git merge origin/main` (needed to pick up two Frontend PRs that
+landed mid-session — #318, #319), Frontend Tests now fails on PR #320
+too, purely because it inherited main's red Frontend Tests (see URGENT
+banner above) — not a regression from anything in this branch's own
+diff. Backend Tests, Type Check, Biome, Contract Tests, E2E Tests,
+Secret Scanning, Static Analysis, Dependency Scan all still pass on the
+merged branch. Re-check PR #320 once main's Frontend Tests are fixed —
+expect full green with no further action needed here.
 PR: https://github.com/ryanv11/travel-tracker/pull/320
 
 OPEN ISSUES / BLOCKERS

@@ -154,6 +154,29 @@ still apply to QUAL-18 (E2E via vite preview, no CSP under test) and to
 nothing else in backend scope. Not re-verified this thread (out of
 scope); flagging only that the QUAL-17 half of the caveat is now closed.
 
+=== UNRELATED FINDING: MAIN IS RED (Frontend Tests) ===
+Discovered while re-checking PR #320's CI after merging origin/main in
+(needed to pick up two Frontend PRs — #318, #319 — that landed on main
+mid-session). main's own post-merge CI (push trigger, run 30388898419,
+no PR involved) has Frontend Tests failing: "[vitest] No
+'DEFAULT_RATING_SORT_FILTER' export is defined on the '../../../hooks/
+useItems' mock" in TripDetail.test.tsx, thrown from PlaceSection.tsx:97.
+Root cause: #318 (IT-08/IT-09) added a DEFAULT_RATING_SORT_FILTER import
+to PlaceSection.tsx; #319 (BUG-50/BUG-58) added TripDetail.test.tsx
+(renders TripDetail -> PlaceSection) with a useItems mock that predates
+that export. Neither PR was broken alone; only the combination on main
+is. Verified two ways (main's own CI log; reproduced locally via
+`npm run test:frontend` after merging main into this branch — 227/228
+passing, same single failure). NOT fixed here — TripDetail.test.tsx and
+PlaceSection.tsx are Frontend-owned files outside this brief's scope;
+flagged prominently in the completion report per CLAUDE.md's "red main
+fixed immediately, never left unowned" and the pre-push skill's
+blocked-by-another-team exception (document + push, don't hold for
+another team). PR #320 itself is otherwise fully green (17/18 checks;
+the only red one is this inherited Frontend Tests failure, confirmed via
+scripts/ci-wait.sh — Backend Tests, Type Check, Biome, Contract Tests,
+E2E Tests, Secret Scanning, Static Analysis, Dependency Scan all pass).
+
 === OPEN ISSUES / NOT DONE ===
 - QUAL-02 findings 3-4 remain backlog, per brief.
 - BUG-55 remains routed to Architect, per brief (not touched, not
