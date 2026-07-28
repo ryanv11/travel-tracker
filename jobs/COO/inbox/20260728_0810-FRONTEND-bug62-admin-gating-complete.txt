@@ -1,0 +1,80 @@
+FRONTEND COMPLETION REPORT
+
+Tracker: BUG-62, BRD-AD09 · GitHub #298 (PR: see below) · BRD §5.10 AD-08/AD-09
+Branch: fix/bug62-admin-per-tab-gating
+
+WHAT WAS BUILT
+Moved admin gating from page-level `RequireOwner` (App.tsx) to per-tab gating
+inside AdminPanel.tsx: Companions and Map Shading are now open to any
+authenticated user (AD-08/AD-07); Categories, Activities, and Countries stay
+owner-only. App.test.tsx's BUG-26 assertions rewritten to match; new
+AdminPanel.test.tsx covers the per-tab contract directly.
+
+BRD-AD09's bundled backend task ("enforce owner-only deactivation — not
+enforced today") was checked before building anything and found FALSE — it's
+already enforced. No backend code changed. Full detail below.
+
+ACCEPTANCE CRITERIA
+- Admin nav link + /admin route open to any authenticated user: PASS
+- Companions tab reachable/usable by any authenticated user: PASS
+- Map Shading tab reachable/usable by any authenticated user: PASS (tab
+  existed at implementation time — the brief's contingency for this applies)
+- Categories/Activities/Countries tabs stay owner-only (hidden + double-
+  guarded on render): PASS
+- App.test.tsx BUG-26 assertions updated to reflect the reversed contract: PASS
+- Security checklist (routes modified: none — see below): N/A, no backend
+  routes touched
+- BRD-AD09 backend deactivation enforcement: ALREADY TRUE — see flag below,
+  not something this PR changed
+
+SECURITY CHECKLIST
+No backend routes were added or modified in this PR — the security checklist
+in the brief doesn't apply to any code change here. For completeness, the
+route this brief's BRD-AD09 half was about (`adminRouter` categories/
+activities PATCH/DELETE) was verified, not modified: (a) requireOwner is
+applied at router level, before those sub-routers mount; (b) every query in
+createAdminListRouter operates on the whole table, not user-scoped, which is
+correct for AD-09 (categories/activities are global, not per-user, data —
+userId scoping doesn't apply here by design); (c) no new FK columns added.
+
+CI: gh pr checks <PR#> — pending, PR being opened now (see next message /
+follow-up if not included below)
+
+FLAG FOR COO — BRD-AD09 backend premise was wrong
+GitHub #298 bundled BUG-62 with a backend task on the stated premise that
+"owner-only deactivation [of categories/activities] is not enforced on the
+backend today." Verified with three independent probes before writing any
+code (per the negative-findings rule): (1) code read — admin.ts's
+`adminRouter.use(requireOwner)` registers before the categories/activities
+sub-routers mount, so PATCH/DELETE (deactivation) are owner-gated; (2) the
+existing `security.access-matrix.test.ts` suite already has passing
+non-owner-403 tests for exactly this; (3) ran that suite live — 7/7 passed.
+Deactivation IS enforced. tracker.json's BRD-AD09 note (stale since a
+2026-03-23 backfill, likely written just ahead of the actual implementation
+and never re-checked) is corrected in this PR.
+
+The real remaining AD-09 gap is the opposite of what was reported: creation
+(POST) is ALSO owner-gated today, when AD-09's text says "any user can add
+custom entries." That's over-restrictive, not under-enforced — a
+product/architecture scope question, not a security fix, and already
+correctly scoped as a separate future brief in ADL-28 Question 5. Not
+touched here; flagging so it doesn't get re-reported as the same "not
+enforced" bug.
+
+BRD DRIFT (flagging only, not fixing, per brief instruction)
+BRD §5.11 SE-01/SE-03 still describe the pre-AD-07/08 three-role model that
+this PR's BUG-62 fix is a further live symptom of (ADL-28's own "SE-03 scope
+clarification" section already documents the narrowing this PR's frontend
+change makes real end-to-end). Not editing those BRD lines — routes through
+D-12 item 1 per the brief.
+
+OPEN ISSUES OR BLOCKERS: none
+
+WHAT IS NOW UNBLOCKED
+- Non-owner authenticated users can reach and use Companions + Map Shading
+  in the real UI, closing the last piece of AD-07/AD-08's frontend rollout
+  (FLAG-AD08-1 from the 2026-07-23 park doc is resolved).
+- BRD-AD09's tracker note no longer misdirects a future brief toward
+  re-fixing enforcement that already exists.
+
+Full detail: jobs/frontend/park-docs/20260728-FRONTEND-bug62-admin-gating-park.txt
