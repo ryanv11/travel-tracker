@@ -160,13 +160,16 @@ the user DB row).
 > SUPERSEDED IN PART (2026-07-28) by ADL-46 — retained for history. Routes leaving the owner-only
 > list below, in two steps:
 >
-> - **ADL-46 Phase 1:** `GET /api/admin/categories/active` and `GET /api/admin/activities/active`
+> *(Both steps ship in a single release — PO ruling 2026-07-28. They are build stages, not
+> separate deliveries.)*
+>
+> - **ADL-46 stage S1:** `GET /api/admin/categories/active` and `GET /api/admin/activities/active`
 >   (global seeded reference data the trip/place forms cannot render without — the same tier as the
 >   country/region reads ADL-38 opened, which ADL-38's own text already identified and did not act
 >   on), plus `POST /api/cities`, permitted for any authenticated user **only** via the constrained
 >   find-or-create path, never as general row creation. `PATCH /api/cities/:id` — catalogue
 >   curation — stays owner-only, and that is precisely what makes opening creation acceptable.
-> - **ADL-46 Phase 3:** `trip_categories` and `activities` become **per-user** (PO decision) and
+> - **ADL-46 stage S3:** `trip_categories` and `activities` become **per-user** (PO decision) and
 >   leave `/api/admin/*` altogether for `/api/categories` and `/api/activities` — the same move
 >   ADL-28 made for companions. Every category/activity route in the list below therefore ceases to
 >   exist rather than changing gate.

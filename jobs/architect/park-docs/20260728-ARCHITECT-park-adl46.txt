@@ -265,3 +265,87 @@ Every absence claim in the deliverable carries two probes that fail differently,
  * ODbL attribution notice (6.5) — verify the single probe first.
  * Explicitly-shared collaborators (SE-01's third role) — still Phase 3+, still not operative.
  * Nothing in this thread is blocked on anything else.
+
+================================================================================
+11. AMENDMENT ROUND 2 (2026-07-28, same thread) — PO RULED ON ALL THREE FLAGGED ITEMS
+================================================================================
+Sections 5.1, 5.2 and 8.2 above are SUPERSEDED by this section. Kept for history because
+the reasoning is why the rulings went the way they did.
+
+11.1 Q-A DEACTIVATION SCOPE — CONFIRMED as I read it.
+     A user deactivates entries in their OWN list; the owner's retained authority covers
+     GLOBAL reference data only (countries, regions, the city catalogue). The AD-03
+     argument was decisive — "deactivate items in any structured list" is unsatisfiable
+     for a non-owner under the alternative. AD-09's proposed text stands UNCHANGED.
+     Noted for the record: the ambiguity originated in the COO's compression of the PO
+     direction, not in the PO's own wording. Refusing to resolve it silently was correct.
+
+11.2 Q-B PENDING-CITY CONTAINMENT — ADOPTED exactly as specified.
+     created_by_user_id nullable FK, ON DELETE SET NULL, plus the search clause. Put to
+     the PO alongside the rejected alternative AND my own stated low confidence; the
+     SELF-MAINTAINING property decided it (junk never resolves, so it never goes global,
+     with no moderation queue). GE-16 as written stands. Section 5.1's framing of this as
+     "the weakest thing in the deliverable / a PO-confirmable question" is withdrawn — it
+     is settled, and the OP-27 reviewer should NOT be aimed here.
+
+11.3 D9 SEQUENCING — OVERRIDDEN. One release, not four dispatches.
+     I recommended four phases with the migration third; the COO backed that and the PO
+     overrode it. Rationale: fewer UAT rounds, no half-migrated intermediate state, one
+     review. Reasonable at two users. The tradeoff was put to the PO explicitly, INCLUDING
+     that BUG-63 stays live until the whole thing ships. Not re-argued.
+
+     What I changed in the spec:
+      - The four phases survive as INTERNAL BUILD ORDER (S1-S4) and dependency constraints,
+        not dispatch rounds. The dependency reasoning that produced the split is still
+        correct and still governs what gets built first.
+      - TWO ORDERINGS ARE NOW LOAD-BEARING AND EASIER TO VIOLATE. In four dispatches they
+        were obvious; inside one release someone can breach them silently:
+          (a) S3 DELETES the admin-router carve-out S1 adds. Leave it in and temporary
+              scaffolding reaches production as a permanent misnomer.
+          (b) S4's containment is meaningless without S2's resolve-then-create promoting
+              rows — shipping the column and the search clause without S2 would strand
+              every pending city as permanently creator-private.
+        Both are written into ADL-46 section 9.1 and OP-06 section 2.1's banner.
+      - Section 5.2's Phase 1/2 validation gap IS NOW MOOT and I said so rather than
+        leaving the caveat standing. Shipping together means there is no window where
+        POST /api/cities is open without resolve-then-create behind it. The override
+        REMOVED that weakness rather than answering it — recorded as an improvement on my
+        recommendation, not a concession.
+      - S4 is firmly in scope; "most likely to be dropped on review" is withdrawn.
+      - S1-alone-clears-the-P1 is retained as an EMERGENCY FALLBACK, explicitly not the
+        plan, in case the PO ever needs to unblock BUG-63 ahead of the release.
+
+11.4 SECTION 13 RE-AIMED. Both previously-flagged weak points are closed, so the OP-27
+     reviewer needs a new target. The register now points at:
+       (1) S3's migration EXECUTION — specifically, does it preserve `id`? If not,
+           trip_categories_map mappings die silently. Risk ROSE when phasing collapsed: a
+           migration problem now surfaces alongside four other changes, not on its own.
+       (2) Section 3.3's data assumption — the ONLY genuinely unverified premise left, and
+           the only place where being wrong CORRUPTS DATA rather than costing a re-run.
+           If the reviewer checks one factual claim, it should be this one.
+       (3) S4's newly load-bearing dependency on S2 (11.3b above).
+       (4) D5's resolve-then-create IMPLEMENTATION — step 4a, the second find-or-create
+           pass against the canonical name, is the part that does the real work and the
+           easiest to omit silently.
+
+11.5 LINE-CITATION SWEEP. The COO caught one bad cite and asked me to spot-check the rest;
+     I swept all of them, since the briefs depend on them.
+     CORRECTED: cities.ts:211 -> :223 (citiesRouter.patch) + :225 (requireOwner);
+       admin.ts:113-131 -> 117-131; admin.ts:36-58 -> 34-58; useCities.ts:14 -> :15 and
+       UA header :47 -> :48; server.ts:47 is the IMPORT, invocation :325, setInterval :330;
+       geocoding.service.ts:148-192 -> fn at :152; cities.ts:69-86 -> 68-88, :120-146 ->
+       123-147, :160-170 -> :167, :37-66 -> 39-66; AddPlaceFlow.tsx:183-208 -> 193-208.
+     VERIFIED CORRECT: admin.ts 105/133/232/233/61/78; schema.ts 93/106/126/141/157/273;
+       seed.ts 44,50; useAdmin.ts 31/34/85/88; TripForm.tsx 60/62; useCities.ts 37-60/151;
+       geocoding.service.ts 16/17; README.md:18; access-matrix test 383/414/444/457.
+
+11.6 THE STALE SKIP IS WORSE THAN I FIRST WROTE. BUG-22 is `done` in the tracker, so the
+     owner-only assertion on PATCH /api/cities/:id HAS NOT RUN since BUG-22 merged. That
+     is a live security-coverage hole, not a tidy-up — and it is the one assertion
+     protecting the premise that makes opening city creation acceptable. Section 8.1
+     reframed as a coverage regression.
+
+11.7 MY CORRECTION OF THE COO'S PREMISE was independently re-verified and accepted, and
+     the COO supplied the precise invocation lines now cited. Section 10.1 stays as a
+     record of a corrected premise. This is the two-probe rule working UPWARD against the
+     COO, which is exactly what it is for.

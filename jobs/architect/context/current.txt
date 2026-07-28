@@ -456,3 +456,51 @@ ENV NOTE (ENV-01, re-probed here rather than inherited): Nominatim is unreachabl
   network being down, which is the shape of the earlier false "firewall reaches no Turso
   host" claim. The D7 proxy must be verified against a mocked upstream locally and confirmed
   on staging.
+
+--- ADL-46 AMENDMENT ROUND 2 (2026-07-28, same thread) — PO ruled on all three flagged items ---
+  Q-A DEACTIVATION SCOPE: CONFIRMED as I read it. A user deactivates entries in their OWN list;
+      the owner's retained authority is over GLOBAL reference data only. AD-03 was the deciding
+      argument. §6.3's AD-09 text stands unchanged. (The ambiguity was the COO's compression of
+      the direction, not the PO's wording.)
+  Q-B PENDING-CITY CONTAINMENT: ADOPTED exactly as specified. created_by_user_id nullable FK,
+      ON DELETE SET NULL, plus the search clause. The self-maintaining property decided it.
+      GE-16 as written stands. No longer my "weakest call" — it is settled.
+  D9  SEQUENCING: OVERRIDDEN. PO ships ALL of it as ONE release, not four dispatches. COO
+      recommended my phasing and was overruled; tradeoff was put to the PO explicitly including
+      that BUG-63 stays live until the whole thing ships. Reasonable at two users. Not re-argued.
+      Rewrote §9: the four phases survive as INTERNAL BUILD ORDER (S1-S4) + dependency
+      constraints, not dispatch rounds. Two orderings are load-bearing and now easier to violate:
+      S3 DELETES the carve-out S1 adds, and S4's containment is meaningless without S2's
+      resolve-then-create promoting rows.
+      GOOD CONSEQUENCE: the Phase 1/2 validation gap I flagged as one of my two weakest points
+      NO LONGER EXISTS — shipping together means there is no window where POST /api/cities is
+      open without resolve-then-create behind it. The override removed the weakness rather than
+      answering it. Recorded as an improvement on my recommendation, not a concession.
+      S1-alone-clears-the-P1 retained as an EMERGENCY FALLBACK, explicitly not the plan.
+
+  §13 RE-AIMED for the OP-27 reviewer. Both previously-flagged weak points are closed, so the
+  register now points at: (1) S3's migration EXECUTION — does it preserve `id`? if not,
+  trip_categories_map mappings die silently; (2) §3.3's data assumption, the only genuinely
+  unverified premise left and the only place where being wrong CORRUPTS DATA rather than costing
+  a re-run; (3) S4's newly load-bearing dependency on S2.
+
+  LINE-CITATION SWEEP (COO caught one, I swept the rest — briefs depend on these):
+    CORRECTED: cities.ts:211 -> 223 (`citiesRouter.patch(`) + :225 (`requireOwner`)
+               admin.ts:113-131 -> 117-131 (serializeAdminItem)
+               admin.ts:36-58 -> 34-58 (FAIL-CLOSED block)
+               useCities.ts:14 -> :15 (NOMINATIM_BASE); UA header :47 -> :48
+               server.ts:47 is the IMPORT; invocation is :325, setInterval :330
+               geocoding.service.ts:148-192 -> fn at :152, doc comment :149
+               cities.ts:69-86 -> 68-88; :120-146 -> 123-147; :160-170 -> :167; :37-66 -> 39-66
+               AddPlaceFlow.tsx:183-208 -> 193-208
+    VERIFIED CORRECT: admin.ts:105/133/232/233/61/78, schema.ts:93/106/126/141/157/273,
+               seed.ts:44,50, useAdmin.ts:31/34/85/88, TripForm.tsx:60/62, useCities.ts:37-60/151,
+               geocoding.service.ts:16/17, README.md:18, access-matrix test 383/414/444/457.
+  UPGRADED FINDING: the stale it.skip is worse than "tidy-up". BUG-22 is `done` in the tracker,
+  so that owner-only assertion on PATCH /api/cities/:id HAS NOT RUN since it merged — a live
+  security-coverage hole, and it is the one assertion protecting the premise that makes opening
+  city creation acceptable. Reframed in §8.1 as a coverage regression.
+
+  MY CORRECTION OF THE COO'S PREMISE (retry path is server-side) was independently re-verified
+  and accepted; §10.1 kept as a record of a corrected premise. This is the two-probe rule working
+  upward against the COO, which is what it is for.

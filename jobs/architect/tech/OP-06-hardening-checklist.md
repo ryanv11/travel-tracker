@@ -134,11 +134,15 @@ Unauthenticated requests are rejected before this matrix applies (see §3).
 > **This subsection is the live access matrix.** §2 above is retained for history under its
 > existing supersession stamp. Appended — not a rewrite — per OP-28.
 >
-> **Status: SPEC. Nothing below is implemented yet.** Rows marked **⚠P1** land in ADL-46 Phase 1
-> (no schema change); rows marked **⚠P3** / **⚠P4** land in later phases (see ADL-46 §9). Until
-> Phase 1 merges, those routes still return 403 to a non-owner and `security.access-matrix.test.ts`
-> still asserts that 403 as correct. Flip each marker in the PR that implements it
-> (document-lifecycle rule 1).
+> **Status: SPEC. Nothing below is implemented yet.** Per the PO ruling of 2026-07-28, **all of it
+> ships as one release**; the ⚠S1/⚠S2/⚠S3/⚠S4 tags below are the *internal build order* within that
+> release (ADL-46 §9.1), not separate deliveries. Until it merges, the affected routes still return
+> 403 to a non-owner and `security.access-matrix.test.ts` still asserts that 403 as correct. Flip the
+> markers in the implementing PR (document-lifecycle rule 1).
+>
+> **Two ordering constraints are load-bearing even though everything ships together:** S3 *deletes*
+> the `/api/admin/*` carve-out S1 adds, and S4's containment is meaningless without S2's
+> resolve-then-create promoting rows. See ADL-46 §9.1.
 
 **Access is determined by resource *tier* × operation, not by role alone** (ADL-46 D1). The
 three-role framing in §2 above asks only "who is the caller?" and has nowhere to put the answer
@@ -151,11 +155,11 @@ Read: `requireAuth`. Write: `requireOwner`, except an explicitly specified const
 |---|---|---|---|
 | `GET /api/admin/countries` | Read | **Read (200)** | ADL-38 (BUG-61) — shipped |
 | `GET /api/admin/countries/:code/regions` | Read | **Read (200)** | ADL-38 — shipped |
-| `GET /api/admin/categories/active` | Read | **Read (200)** ⚠P1 | ADL-46 D2 — feeds `TripForm.tsx:60`. **Temporary** — Phase 3 moves this resource to tier 2 and deletes the route |
-| `GET /api/admin/activities/active` | Read | **Read (200)** ⚠P1 | ADL-46 D2 — feeds `TripForm.tsx:62`. Same: temporary |
-| `GET /api/cities` (search) | Read | Read (200) | already ungated — `cities.ts:37`. **⚠P4** adds `WHERE geocode_status='resolved' OR created_by_user_id = :me` (ADL-46 §4.4) |
+| `GET /api/admin/categories/active` | Read | **Read (200)** ⚠S1 | ADL-46 D2 — feeds `TripForm.tsx:60`. **Temporary scaffolding** — S3 moves this resource to tier 2 and deletes the route in the same release |
+| `GET /api/admin/activities/active` | Read | **Read (200)** ⚠S1 | ADL-46 D2 — feeds `TripForm.tsx:62`. Same: temporary |
+| `GET /api/cities` (search) | Read | Read (200) | already ungated — `cities.ts:39-66`. **⚠S4** adds `WHERE geocode_status='resolved' OR created_by_user_id = :me` (ADL-46 §4.4) |
 | `GET /api/cities/:id` | Read | Read (200) | BUG-29 — geocode-status polling |
-| `POST /api/cities` | Write | **Write (201/200)** ⚠P1 | ADL-46 D4/D5, proposed GE-16. **Permitted only via the constrained find-or-create** (`cities.ts:120-146`): coordinates never client-supplied, country and region validated, duplicates impossible. Not general row creation. **⚠P2** adds resolve-then-create so the row is built from the geocoder's canonical response |
+| `POST /api/cities` | Write | **Write (201/200)** ⚠S1 | ADL-46 D4/D5, GE-16 (PO-confirmed). **Permitted only via the constrained find-or-create** (`cities.ts:123-147`): coordinates never client-supplied, country and region validated, duplicates impossible. Not general row creation. **⚠S2** adds resolve-then-create so the row is built from the geocoder's canonical response |
 
 **Tier 2 — per-user data.** `requireAuth` + `userId` scoping, both directions. No cross-user
 visibility; ownership failures are opaque (404, not 403 — SE-05).
@@ -165,16 +169,16 @@ visibility; ownership failures are opaque (404, not 403 — SE-05).
 | Trips / places / items | Full CRUD (own) | Full CRUD (own) | SE-02; other users' rows → 404 |
 | Companions | Full CRUD (own) | Full CRUD (own) | AD-08 / ADL-28 — shipped |
 | Map shading + shading config | Read/Update (own) | Read/Update (own) | AD-07 / ADL-28 — shipped |
-| **Trip categories** — `/api/categories` | Full CRUD (own) | Full CRUD (own) ⚠P3 | AD-09 as amended. Moves off `/api/admin/*` exactly as ADL-28 moved companions. Lazy-seeded from the global defaults on first access |
-| **Activities** — `/api/activities` | Full CRUD (own) | Full CRUD (own) ⚠P3 | Same |
+| **Trip categories** — `/api/categories` | Full CRUD (own) | Full CRUD (own) ⚠S3 | AD-09 as amended. Moves off `/api/admin/*` exactly as ADL-28 moved companions. Lazy-seeded from the global defaults on first access |
+| **Activities** — `/api/activities` | Full CRUD (own) | Full CRUD (own) ⚠S3 | Same |
 
 **Tier 3 — instance administration.** `requireOwner`. **This is the default for any route whose
 tier is not stated.**
 
 | Resource / route | Owner | Authenticated non-owner |
 |---|---|---|
-| `GET /api/admin/categories`, `/activities` (unfiltered, incl. inactive) | Read | **403** — *route removed at Phase 3* |
-| `POST`/`PATCH`/`DELETE` `/api/admin/categories`, `/activities` | Write | **403** — *route removed at Phase 3* |
+| `GET /api/admin/categories`, `/activities` (unfiltered, incl. inactive) | Read | **403** — *route removed at S3* |
+| `POST`/`PATCH`/`DELETE` `/api/admin/categories`, `/activities` | Write | **403** — *route removed at S3* |
 | `PATCH /api/admin/countries/:code` | Update | **403** |
 | `POST`/`PATCH` `/api/admin/countries/:code/regions[/:id]` | Write | **403** |
 | `PATCH /api/cities/:id` (catalogue curation) | Update | **403** |
