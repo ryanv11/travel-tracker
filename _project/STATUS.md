@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (55)
+## Open work (58)
 
 ### P0 — Blockers (1)
 
@@ -25,14 +25,15 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (2)
+### P1 — Critical (3)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BUG-50 | No way to delete an entire trip | frontend | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
+| QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (29)
+### P2 — Important (31)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -57,7 +58,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-49 | City markers render behind state shading layer | frontend | done_pending_uat |
 | BUG-52 | Trip search doesn't match on country name | backend | ⬜ Pending |
 | BUG-53 | Trip list place display: show state (not country) under city, surface country separately | ux | ⬜ Pending |
-| BUG-55 | City entry doesn't auto-populate country/state | backend | ⬜ Pending |
+| BUG-55 | City entry doesn't auto-populate country/state — CSP blocks the Nominatim call (deployment defect) | architect | ⬜ Pending |
 | BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | done_pending_uat |
 | BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | done_pending_uat |
@@ -65,6 +66,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 | QUAL-17 | 15 further backend test files hand-roll the same 21-table DDL that QUAL-03 just removed from test-db.ts | backend | ⬜ Pending |
+| QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
+| QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | ⬜ Pending |
 
 ### P3 — Minor (23)
 
@@ -102,7 +105,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 44/58 | 44 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `██████████░░░░░░░░░░` 11/23 | 11 | 12 | 1 |
+| chore | `█████████░░░░░░░░░░░` 12/27 | 12 | 15 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -136,4 +139,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_133 done · 10 deferred · 4 closed · 55 open — 202 tracked items_
+_134 done · 10 deferred · 4 closed · 58 open — 206 tracked items_
