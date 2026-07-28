@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (61)
+## Open work (60)
 
 ### P0 — Blockers (1)
 
@@ -33,7 +33,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (33)
+### P2 — Important (32)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -56,7 +56,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-46 | Activities selector missing from trip create flow (only present on edit) | frontend | ⬜ Pending |
 | BUG-48 | Country→state map shading zoom threshold too high / laggy | frontend | ⬜ Pending |
 | BUG-49 | City markers render behind state shading layer | frontend | done_pending_uat |
-| BUG-52 | Trip search doesn't match on country name | backend | ⬜ Pending |
+| BUG-52 | Trip search doesn't match on country name | frontend | done_pending_uat |
 | BUG-53 | Trip list place display: show state (not country) under city, surface country separately | ux | ⬜ Pending |
 | BUG-55 | City entry doesn't auto-populate country/state — CSP blocks the Nominatim call (deployment defect) | architect | ⬜ Pending |
 | BUG-57 | Intelligent date defaults across item entry, keyed off the trip's date range | fullstack | done_pending_uat |
@@ -67,7 +67,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-66 | ReviewPanel's forward Lock path repeats BUG-58's onClose()-after-mutation pattern | frontend | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
-| QUAL-17 | 15 further backend test files hand-roll the same 21-table DDL that QUAL-03 just removed from test-db.ts | backend | ⬜ Pending |
 | QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
 | QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | ⬜ Pending |
 
@@ -79,7 +78,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | BUG-37 | Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked' | frontend | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
-| QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ⬜ Pending |
+| QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ◐ Partial |
 | QUAL-04 | Dead code and one stale source comment left by the WP reskin and the ADL-28 companions migration | frontend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
 | BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
@@ -91,7 +90,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-45 | Convert free-text airline/car-rental-provider fields to a sourced dropdown with Other fallback | coo | ⬜ Pending |
 | BUG-47 | Auto-populate activities from trip/place content instead of manual pre-selection | architect | ⬜ Pending |
 | BUG-54 | Category/activity color customization | ux | ⬜ Pending |
-| BUG-56 | City name not auto-capitalized on entry | frontend | ⬜ Pending |
+| BUG-56 | City name not auto-capitalized on entry | frontend | done_pending_uat |
 | QUAL-07 | Standing docs-vs-code audit — recurring Docs brief to catch prose/reality drift before someone trips over it | docs | ⬜ Pending |
 | BUG-67 | Locked-trip delete refusal is decided from client-held status, not re-checked at confirm time | frontend | ⬜ Pending |
 | DEP-03 | GitHub Actions pinned to v4 target Node.js 20 — deprecated, force-run on Node 24 | unassigned | ⬜ Pending |
@@ -108,7 +107,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `██████████████░░░░░░` 44/61 | 44 | 17 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `█████████░░░░░░░░░░░` 12/27 | 12 | 15 | 1 |
+| chore | `██████████▓░░░░░░░░░` 13/27 | 13 | 14 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -142,4 +141,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_134 done · 10 deferred · 4 closed · 61 open — 209 tracked items_
+_135 done · 10 deferred · 4 closed · 60 open — 209 tracked items_
