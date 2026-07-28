@@ -1,0 +1,111 @@
+PARK DOCUMENT — FRONTEND — BUG-49 map marker z-order — 2026-07-28
+
+BRIEF
+  B1, Wave 1 sub-wave A of jobs/COO/backlog-clearance-plan.md. GitHub issue
+  #296, tracker BUG-49 (P2). File surface: src/frontend/components/Map/* —
+  z-order/layer ordering only. Out of scope: REGION_ZOOM_THRESHOLD and the
+  region-shading geometry payload (BUG-48/ADL-44, clearance-plan §6.1).
+
+SYMPTOM
+  When region/state shading activates on the map (user zooms past
+  REGION_ZOOM_THRESHOLD and region data loads), city tag markers render
+  visually behind the shading fill layer instead of staying on top.
+
+INVESTIGATION
+  Read all four Map/* source files (MapView.tsx, CountryLayer.tsx,
+  RegionLayer.tsx, CityMarkers.tsx). All three shading/marker layers are
+  native MapLibre GL layers rendered through react-map-gl's <Source>/<Layer>
+  components — not HTML DOM markers — so MapLibre's internal style-stack
+  paint order governs on-screen z-order, not React/JSX sibling order.
+
+  MapView.tsx's JSX renders CountryLayer, then conditionally RegionLayer,
+  then CityMarkers — CityMarkers textually last, which reads as "on top" at
+  a glance. But CountryLayer and CityMarkers both mount *unconditionally* on
+  MapView's very first render (JSX order matches mount order there, so
+  MapLibre's addLayer calls happen countries-line, countries-fill,
+  city-markers — correct paint order, city markers on top). RegionLayer only
+  mounts *conditionally*, later, once zoom crosses the threshold and region
+  data has arrived from the API — by which point city-markers is already an
+  established layer in the style.
+
+  Confirmed via direct source read (not just the react-map-gl public API
+  docs, since this package re-exports through a vendored @vis.gl/react-maplibre
+  layer): node_modules/@vis.gl/react-maplibre/src/components/layer.ts's
+  createLayer() calls `map.addLayer(options, props.beforeId)`. MapLibre's
+  addLayer signature is `addLayer(layer, beforeId?)` — omitting beforeId
+  always inserts at the very top of the style stack, regardless of when
+  other layers were added or what order they appear in JSX. RegionLayer's
+  regionFillLayer object had no beforeId, so its conditional/late mount put
+  'regions-fill' above the already-existing 'city-markers' layer — the exact
+  reported symptom.
+
+FIX
+  Single change: src/frontend/components/Map/RegionLayer.tsx's
+  regionFillLayer object now sets `beforeId: 'city-markers'`. The Layer
+  component (same source file) applies beforeId on both initial mount
+  (`map.addLayer(options, props.beforeId)`) and on any subsequent prop
+  update (`map.moveLayer(id, beforeId)` in updateLayer()), so this holds
+  regardless of how many times RegionLayer mounts/unmounts as the user pans,
+  zooms, or switches visible country. Exported `regionFillLayer` (was
+  module-private) so the new unit test can assert on the layer config
+  directly without mocking a full MapLibre map instance.
+
+  Left CountryLayer untouched — its two layers ('countries-line',
+  'countries-fill') mount unconditionally before city-markers on every
+  MapView render, so they were never at risk of this bug and adding a
+  beforeId there would be defensive-but-unnecessary scope creep against a
+  brief explicitly limited to z-order.
+
+  Also fixed src/frontend/components/Map/MapView.tsx:6 — doc comment said
+  "Region shading loaded lazily at zoom >= 4" while REGION_ZOOM_THRESHOLD
+  (line 28) is 3. Brief called this out explicitly as in-scope per CLAUDE.md's
+  document lifecycle rule ("if this PR touches the file"). One-line fix.
+
+  Did NOT touch REGION_ZOOM_THRESHOLD's value or the region-shading GeoJSON
+  payload (39 MB) — that's BUG-48/ADL-44, a separate and larger piece of
+  work per the brief and clearance-plan §6.1.
+
+TESTS
+  New: src/frontend/components/Map/__tests__/RegionLayer.test.ts — 2 tests:
+    - regionFillLayer.beforeId === 'city-markers'
+    - regionFillLayer.id === 'regions-fill' (sanity: the id the beforeId of
+      other future layers would need to reference stays stable)
+  No existing test file covered RegionLayer or MapView before this change
+  (only CityMarkers.test.ts and MapLegend.test.tsx existed in
+  Map/__tests__/). Did not attempt to add a full MapView integration test
+  mocking MapLibre's Map instance — out of scope for a P2 z-order bugfix and
+  the existing test suite doesn't have that scaffolding; the layer-config
+  assertion is the right-sized regression test for "this specific layer
+  stays pinned below city-markers."
+
+VERIFICATION RUN
+  npm install (fresh worktree, no node_modules inherited)
+  npm run type:check — clean, no errors
+  npm run test:frontend -- --run src/frontend/components/Map — 3 files,
+    11 tests passed (9 pre-existing + 2 new)
+  /pre-push skill run before push — see completion report for full checklist
+    outcome and PR/CI status (this park doc was written before that final
+    step; completion report is authoritative for final CI state)
+
+NEGATIVE-FINDINGS COMPLIANCE
+  This brief's core deliverable is fundamentally a positive finding (the
+  beforeId mechanism exists and works, confirmed by reading the actual
+  library source) rather than a claim that something is absent — no
+  UNVERIFIED marker needed. The one adjacent negative-shaped statement ("no
+  existing test file covered RegionLayer or MapView") is established by two
+  independent probes that could fail differently: `ls
+  src/frontend/components/Map/__tests__/` (listing) AND `find ... -iname
+  "*MapView*" -o -iname "*RegionLayer*"` (targeted glob search across the
+  whole src/frontend tree, not just the __tests__ subfolder) — both returned
+  the same two pre-existing test files and no others.
+
+NOT DONE / OUT OF SCOPE (confirmed correctly excluded, not overlooked)
+  - REGION_ZOOM_THRESHOLD value — BUG-48/ADL-44
+  - Region-shading geometry payload size/format — BUG-48/ADL-44
+  - CountryLayer beforeId — not needed, already correctly ordered
+
+WHAT'S NOW UNBLOCKED
+  BUG-49 ready for COO PR review + merge. No other backlog item in Wave 1A
+  depends on this one landing first (per clearance-plan's file-surface
+  partitioning, B1 only touches Map/* and no other Wave 1A brief shares that
+  surface).

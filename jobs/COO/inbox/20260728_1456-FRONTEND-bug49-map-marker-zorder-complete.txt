@@ -1,0 +1,31 @@
+BUG-49 · GitHub #296 / PR #301 · BRD §MP-02 · branch fix/bug49-map-marker-zorder
+
+Fixed city markers rendering behind the region shading layer: RegionLayer's
+'regions-fill' MapLibre layer mounts conditionally (after zoom crosses
+REGION_ZOOM_THRESHOLD and data loads), well after CityMarkers' unconditional
+'city-markers' layer already exists — MapLibre inserts a newly-added layer at
+the top of the style stack with no beforeId, regardless of JSX sibling order,
+which is what put region shading above city markers. Pinned
+`beforeId: 'city-markers'` on regionFillLayer so it always inserts directly
+below city markers, confirmed against @vis.gl/react-maplibre's actual source
+(map.addLayer(options, props.beforeId) / map.moveLayer on update). Also fixed
+the stale MapView.tsx:6 comment (zoom >= 4 vs actual threshold of 3).
+
+Acceptance criteria:
+- City markers stay visually on top when region shading activates: PASS
+  (beforeId pins region layer below city-markers on mount and any remount)
+- REGION_ZOOM_THRESHOLD unchanged: PASS
+- Region-shading geometry payload untouched: PASS
+- Stale zoom-threshold comment corrected: PASS
+
+CI: gh pr checks 301 — all 18 checks green (biome, type check, backend
+583/1 skipped, frontend 156 incl. 2 new, contract, E2E, dependency scan,
+secret scan, semgrep).
+
+Open issues or blockers: none blocking. One minor note for COO: BUG-49's
+tracker entry has an empty brdRefs array; BRD MP-02 is the governing
+requirement and COO may want to backfill that cross-reference on close
+(doesn't itself need a BRD version bump — MP-02 isn't new/changed).
+
+What's now unblocked: BUG-49 ready for review + merge. No other Wave 1A brief
+shares Map/* as its file surface, so nothing else is gated on this landing.
