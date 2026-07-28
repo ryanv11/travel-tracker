@@ -20,6 +20,14 @@
  * (unfiltered) rather than the nested GET /api/trips/:id response — the
  * latter currently drops trip-level items from its `places[].items` shape
  * entirely (see useItems.ts for the flagged backend contract gap).
+ *
+ * IT-08 (B8, rating sort/filter): deliberately NOT added here. IT-08's own
+ * text scopes rating to "restaurants, hotels, and experiences" — Flight and
+ * Car Rental (this section's only item types) never carry a rating column
+ * (ItemCard's hasRating check excludes both), so a sort-by-rating or
+ * min-rating-filter control here could never affect anything it renders.
+ * The rating controls live in PlaceSection.tsx, where the rateable types
+ * actually render.
  */
 import { useState } from 'react';
 import { useTripLevelItems } from '../../hooks/useItems';

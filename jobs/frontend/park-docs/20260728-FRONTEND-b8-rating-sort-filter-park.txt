@@ -1,0 +1,203 @@
+PARK DOCUMENT — FRONTEND — B8 rating sort/filter (IT-08/IT-09) — 2026-07-28
+
+BRIEF
+  B8, Wave 1 sub-wave B of jobs/COO/backlog-clearance-plan.md §4. GitHub
+  issue #317, tracker BRD-IT0809 (P2). Build frontend rating sort/filter
+  controls for item list views — backend (PR #90, March 2026) already
+  supports sort_by=rating, sort_order, min_rating on both
+  GET /api/trips/:tripId/items and GET /api/cities/:id/items. Stated file
+  surface: TripItemsSection.tsx + useItems.ts. Boundary: stay off
+  TripDetail.tsx/MobileTripDetailView.tsx/Trips layout files (B7),
+  TripList.tsx/backend route tests (B4).
+
+BRD SUCCESS CRITERIA (v3.12, read first per the brief)
+  IT-08: sort ascending/descending visibly changes order; min-rating filter
+  of N shows only items rated N+; unrated items excluded by the filter
+  rather than sorted as zero; clearing sort/filter restores default order;
+  state doesn't leak between trips.
+  IT-09: city view spans every trip that visited the city, not just the
+  most recent; sort/filter there behaves identically to trip-level; each
+  item stays attributable to its trip.
+
+FINDING 1 — the brief's stated file surface doesn't carry rateable items
+  TripItemsSection.tsx renders only Flight and Car Rental items (its own
+  module doc says so, and it's hard-restricted via TRIP_LEVEL_ITEM_TYPES).
+  ItemCard.tsx's hasRating check is
+  `item_type === 'restaurant' || 'hotel' || 'experience'` — neither Flight
+  nor Car Rental is ever in that set. A rating sort/filter control in
+  TripItemsSection.tsx could therefore never affect anything it renders.
+  The item types IT-08 actually names ("Completed restaurants, hotels, and
+  experiences") render in PlaceSection.tsx, which the brief didn't name but
+  also didn't exclude (B7 owns TripDetail.tsx/MobileTripDetailView.tsx, the
+  two parents that render PlaceSection — not PlaceSection.tsx itself).
+  Built the controls there instead. TripItemsSection.tsx got a module-doc
+  comment explaining the exclusion, no functional change — flagged per the
+  brief's own "if a view is impractical to cover, say which and why, don't
+  silently cover a subset" instruction, and per role protocol (raise
+  brief/reality mismatches rather than silently building the wrong thing).
+
+FINDING 2 — IT-09 had no frontend surface at all
+  Two independent probes, run before writing any code:
+  1. Repo-wide grep across src/frontend for any reference to
+     "cities/:id/items", "useCities", "CityDetail" — the only hit was the
+     CityItem type declaration's own comment in types/api.ts
+     ("// CITY ITEMS (GET /api/cities/:id/items)"). No hook, no component.
+  2. Read useCities.ts in full — exports useCitySearch, lookupCityCountry,
+     useCarryForwardCandidates, useCreateCity. No query function for city
+     items.
+  Also checked App.tsx's route table directly: /, /map, /trips, /trips/:id,
+  /admin. No /cities/* route existed. So this wasn't a component missing a
+  feature — it was zero surface: no hook, no page, no route, no nav entry
+  point anywhere in the product. Since IT-09's success criteria require
+  this view to exist and behave correctly, built it net-new:
+    - useCityItems() in useCities.ts — server-side sort/filter via the
+      endpoint's own sort_by/sort_order/min_rating query params
+    - CityItemsPage.tsx — new page rendering the cross-trip item list,
+      each row attributed to its trip_name/trip_start_date
+    - /cities/:id route in App.tsx
+    - entry point: the city name in PlaceSection.tsx is now a <Link> to it
+  This is real new-page/routing scope beyond "add controls to two existing
+  files," reported explicitly here and in the completion report rather than
+  silently expanded into or silently dropped.
+
+ENUMERATED ITEM LIST VIEWS (IT-08 "all item list views" — full sweep)
+  PlaceSection.tsx (desktop + mobile — same component, both TripDetail.tsx
+    and MobileTripDetailView.tsx call it identically) — CONTROLS ADDED.
+    Only place restaurant/hotel/experience items render.
+  TripItemsSection.tsx — CONTROLS NOT ADDED (documented). Flight/Car Rental
+    only, neither ever rateable.
+  CityItemsPage.tsx (new) — CONTROLS ADDED. IT-09's cross-trip view.
+  ReviewPanel.tsx / ReviewItemRow.tsx (post-trip review, RV-01..04) —
+    CONTROLS NOT ADDED. This is the flow where ratings get *assigned*
+    (status -> completed reveals a live RatingStars input), not a browse/
+    list view of already-rated items — sorting by a rating that's actively
+    being entered mid-flow isn't meaningful, and BUG-05's existing "Mark all
+    Completed" bulk action already operates on all items uniformly
+    regardless of rating. Read both files in full to confirm before
+    excluding.
+  Admin tabs (CategoryTab/ActivityTab/CompanionTab) — not item lists, ruled
+    out on inspection (they list categories/activities/companions, not
+    trip items).
+  CarryForwardModal.tsx — lists CarryForwardCandidate[], a different shape
+    with no rating field at all (status is always 'next_time'); not an
+    item-with-rating list view.
+
+DESIGN DECISION — client-side (PlaceSection) vs. server-side (CityItemsPage)
+  PlaceSection's place.items arrives pre-loaded, nested inside the trip
+  detail fetch (GET /api/trips/:id via TripDetail's own data flow). Grepped
+  src/backend/routes/trips.ts's buildTripResponse for sort_by/min_rating —
+  no match; that nested endpoint has no sort/filter query support at all
+  (only the flat /api/trips/:tripId/items and /api/cities/:id/items
+  endpoints do, per items.ts:38 and cities.ts:329). Two options: (a)
+  restructure PlaceSection to fetch its own items per-place via the flat
+  endpoint with query params, or (b) sort/filter client-side over the data
+  already in hand. Chose (b): applyRatingSortFilter() in useItems.ts is a
+  pure function over Item[], used as local component state in PlaceSection
+  (useState<RatingSortFilterState>, reset to DEFAULT_RATING_SORT_FILTER).
+  Reasoning: (a) would touch TripDetail's data-fetching architecture, which
+  concurrent brief B7 is actively working in the same window — real
+  collision risk for no user-visible benefit, since items are already
+  loaded and (b) needs no extra network round-trip per sort/filter toggle.
+  (b) also gives IT-08's "state does not leak between trips" for free:
+  place.id differs across trips, so switching trips fully remounts each
+  PlaceSection with fresh local state — no explicit reset logic needed.
+  CityItemsPage, by contrast, calls GET /api/cities/:id/items directly (a
+  dedicated flat endpoint, no nested-response constraint) — sort/filter
+  there is real server-side query params via useCityItems, which already
+  matches the endpoint's own default behaviour (rating DESC, unfiltered,
+  when no params given).
+  Both surfaces share one RatingSortFilterControls component (new,
+  src/frontend/components/shared/) so the control shape/labels are
+  identical regardless of which side does the actual sorting — satisfies
+  IT-09's "behaves identically to the trip-level view."
+
+UNRATED-ITEM SEMANTICS (matched to backend, verified by reading it)
+  Read src/backend/routes/items-helper.ts and cities.ts in full: both
+  filter with `effectiveRating != null && effectiveRating >= minRating`
+  (never coerces null to 0), and default sort on ties/no-sort-param falls
+  back predictably. applyRatingSortFilter() mirrors this: minRating filter
+  excludes any item with rating === null outright; sortOrder places
+  rating === null items last regardless of asc/desc direction (matching
+  the flat items endpoint's own "nulls last" test,
+  src/backend/routes/__tests__/items.rating-sort-filter.test.ts).
+
+TESTS
+  New: src/frontend/hooks/__tests__/useItems.rating-sort-filter.test.ts (6
+    tests) — applyRatingSortFilter pure-function coverage: default is a
+    no-op, asc/desc changes order, min-rating filter, unrated-excluded, no
+    mutation of input.
+  New: src/frontend/hooks/__tests__/useCities.city-items.test.tsx (3 tests)
+    — useCityItems query disabled when cityId undefined; default query
+    string is sort_by=rating only; sort_order/min_rating pass through when
+    set.
+  New: src/frontend/pages/__tests__/CityItemsPage.test.tsx (5 tests) —
+    renders items attributed to trip, falls back to generic heading with no
+    router state, empty state, loading state, error state.
+  Updated: src/frontend/components/TripDetail/__tests__/PlaceSection.test.tsx
+    — added a renderPlaceSection() helper wrapping render() in MemoryRouter
+    (PlaceSection's city name is now a <Link>, which throws
+    "useHref() may be used only in the context of a <Router>" without one —
+    all 7 pre-existing tests updated to use the wrapper, none of their
+    assertions changed), plus 7 new tests: no controls when no items,
+    min-rating filter excludes unrated, min-rating filter shows N+ only,
+    sort changes order both directions, Clear restores default + hides
+    itself, distinct "no items match this filter" empty state, city-name
+    link href.
+  Also widened that file's useItems.js mock from a hand-written stub to
+  vi.importActual + override, so applyRatingSortFilter/
+  DEFAULT_RATING_SORT_FILTER (imported by PlaceSection from the same
+  module) resolve to their real implementations under the mock rather than
+  undefined.
+  No backend files touched — test:backend run anyway to confirm (599/599
+  passing, unaffected).
+
+VERIFICATION RUN
+  npm install (fresh worktree, no node_modules inherited)
+  npm run type:check:all — clean
+  npm run test:frontend — 195/195 passing (21 new/updated)
+  npm run test:backend — 599/599 passing, 1 skipped (pre-existing, unrelated)
+  npm run check (Biome CI — lint + format + organizeImports) — clean after
+    two rounds: `biome format --write` for the raw formatting diffs,
+    `biome check --write` separately for import-order (organizeImports is
+    part of `biome ci` but not plain `biome lint`/`biome format` — caught
+    this only by running the actual `npm run check` script, not the two
+    pieces separately)
+  npm run status:check — failed after the tracker.json status-field edit
+    (expected — STATUS.md is generated); ran `npm run status`, regenerated,
+    committed alongside per the pre-push skill's instruction
+  /pre-push skill run in full before push
+  PR #318: 18/18 CI checks green (scripts/ci-wait.sh pr 318)
+
+NEGATIVE-FINDINGS COMPLIANCE
+  Two negative claims made in this thread, both backed by two independent
+  probes per CLAUDE.md's rule:
+  1. "TripItemsSection.tsx never renders rateable items" — probe A: read
+     TripItemsSection.tsx's own module doc and TRIP_LEVEL_ITEM_TYPES
+     constant (Flight/Car Rental only). Probe B: read ItemCard.tsx's
+     hasRating boolean expression directly (restaurant/hotel/experience
+     only) — a different file, different mechanism, same conclusion.
+  2. "IT-09 has no frontend surface" — probe A: repo-wide grep for any
+     reference to the endpoint/hook/component. Probe B: read useCities.ts
+     in full (not just grepped) to confirm no query function exists, plus
+     a direct read of App.tsx's route table confirming no /cities/* route.
+     Grep alone (probe A) could in principle miss a differently-named
+     wrapper; the full-file read and the route-table read are independent
+     checks that would have caught that.
+
+NOT DONE / OUT OF SCOPE (confirmed correctly excluded, not overlooked)
+  - TripItemsSection.tsx sort/filter controls — never rateable, see above
+  - ReviewPanel/ReviewItemRow.tsx sort/filter — data-entry flow, not a
+    browse/list view, see above
+  - Restructuring TripDetail's nested-fetch data flow to support
+    server-side sort/filter for PlaceSection — deliberately avoided, see
+    design decision above; B7 owns that file surface concurrently
+  - A city-name-based search/entry point into CityItemsPage other than the
+    PlaceSection link — no BRD requirement calls for one; flagged as an
+    open item for COO in case a second entry point gets added later without
+    a city-name fetch to back it
+
+WHAT'S NOW UNBLOCKED
+  BRD-IT0809 ready for COO PR review + merge, then PO UAT (mandatory gate —
+  tracker set to done_pending_uat, not done). Suggest UAT specifically
+  exercise the net-new IT-09 CityItemsPage path, since it's the one part of
+  this brief with no prior implementation to regression-test against.

@@ -20,9 +20,18 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Item, TripPlace } from '../../../types/api.js';
 import { PlaceSection } from '../PlaceSection.js';
+
+// PlaceSection's city name is a <Link> (IT-09) — needs a Router context, or
+// react-router throws "useHref() may be used only in the context of a
+// <Router> component" for every render below.
+function renderPlaceSection(ui: ReactElement) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>);
+}
 
 // ----------------------------------------------------------------
 // Mock hooks
@@ -41,10 +50,19 @@ vi.mock('../../../hooks/usePlaces.js', () => ({
 }));
 
 // ItemCard (rendered per item) depends on useDeleteItem — stub it so tests that
-// include items don't need a real QueryClient wired up.
-vi.mock('../../../hooks/useItems.js', () => ({
-  useDeleteItem: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
-}));
+// include items don't need a real QueryClient wired up. applyRatingSortFilter/
+// DEFAULT_RATING_SORT_FILTER (IT-08) are pure helpers PlaceSection imports
+// from the same module — re-exported via requireActual so this mock doesn't
+// have to hand-reimplement their logic.
+vi.mock('../../../hooks/useItems.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../hooks/useItems.js')>(
+    '../../../hooks/useItems.js',
+  );
+  return {
+    ...actual,
+    useDeleteItem: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
+  };
+});
 
 // ----------------------------------------------------------------
 // Test data builders
@@ -127,18 +145,18 @@ describe('PlaceSection — remove place (BUG-32)', () => {
   });
 
   it('hides the Remove button when the trip is locked', () => {
-    render(<PlaceSection place={makePlace([])} isLocked={true} {...defaultProps} />);
+    renderPlaceSection(<PlaceSection place={makePlace([])} isLocked={true} {...defaultProps} />);
     expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
   });
 
   it('shows the Remove button when the trip is unlocked', () => {
-    render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
+    renderPlaceSection(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
     // Dialog is unmounted until opened, so this is the only "Remove"-named button here.
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
   });
 
   it('opens a confirmation dialog on click, without mentioning items when there are none', async () => {
-    render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
+    renderPlaceSection(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     expect(screen.getByText('Remove Lisbon?')).toBeInTheDocument();
@@ -149,14 +167,14 @@ describe('PlaceSection — remove place (BUG-32)', () => {
 
   it('mentions the item count in the confirmation message when the place has items', async () => {
     const place = makePlace([makeItem({ id: 1 }), makeItem({ id: 2 })]);
-    render(<PlaceSection place={place} isLocked={false} {...defaultProps} />);
+    renderPlaceSection(<PlaceSection place={place} isLocked={false} {...defaultProps} />);
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     expect(screen.getByText(/along with the 2 items logged under it/)).toBeInTheDocument();
   });
 
   it('cancel closes the dialog without calling the mutation', async () => {
-    render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
+    renderPlaceSection(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
@@ -165,7 +183,7 @@ describe('PlaceSection — remove place (BUG-32)', () => {
   });
 
   it('confirm calls the mutation with tripId and placeId', async () => {
-    render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
+    renderPlaceSection(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     // Two "Remove" buttons now exist (row button + dialog confirm) — the dialog's
@@ -181,12 +199,105 @@ describe('PlaceSection — remove place (BUG-32)', () => {
 
   it('keeps the dialog open and shows the error when the mutation fails', async () => {
     mockRemovePlace.error = new Error('Internal server error');
-    render(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
+    renderPlaceSection(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     await waitFor(() => {
       expect(screen.getByText('Internal server error')).toBeInTheDocument();
     });
     expect(screen.getByText('Remove Lisbon?')).toBeInTheDocument();
+  });
+});
+
+describe('PlaceSection — rating sort/filter (IT-08)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRemovePlace.isPending = false;
+    mockRemovePlace.error = null;
+  });
+
+  function makeRatedPlace() {
+    return makePlace([
+      makeItem({ id: 1, name: 'Low Rated', rating: 2 }),
+      makeItem({ id: 2, name: 'High Rated', rating: 5 }),
+      makeItem({ id: 3, name: 'Unrated', rating: null }),
+    ]);
+  }
+
+  it('shows no sort/filter controls when the place has no items', () => {
+    renderPlaceSection(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
+    expect(screen.queryByLabelText('Sort by rating')).not.toBeInTheDocument();
+  });
+
+  it('a minimum-rating filter excludes unrated items rather than treating them as zero', async () => {
+    renderPlaceSection(
+      <PlaceSection place={makeRatedPlace()} isLocked={false} {...defaultProps} />,
+    );
+
+    await userEvent.selectOptions(screen.getByLabelText('Minimum rating filter'), '1');
+
+    expect(screen.getByText('Low Rated')).toBeInTheDocument();
+    expect(screen.getByText('High Rated')).toBeInTheDocument();
+    expect(screen.queryByText('Unrated')).not.toBeInTheDocument();
+  });
+
+  it('a minimum-rating filter of N shows only items rated N or above', async () => {
+    renderPlaceSection(
+      <PlaceSection place={makeRatedPlace()} isLocked={false} {...defaultProps} />,
+    );
+
+    await userEvent.selectOptions(screen.getByLabelText('Minimum rating filter'), '4');
+
+    expect(screen.queryByText('Low Rated')).not.toBeInTheDocument();
+    expect(screen.getByText('High Rated')).toBeInTheDocument();
+  });
+
+  it('sorting by rating visibly changes the order (descending then ascending)', async () => {
+    renderPlaceSection(
+      <PlaceSection place={makeRatedPlace()} isLocked={false} {...defaultProps} />,
+    );
+    const getLabels = () => screen.getAllByText(/Rated$/).map((el) => el.textContent);
+
+    await userEvent.selectOptions(screen.getByLabelText('Sort by rating'), 'desc');
+    expect(getLabels()).toEqual(['High Rated', 'Low Rated']);
+
+    await userEvent.selectOptions(screen.getByLabelText('Sort by rating'), 'asc');
+    expect(getLabels()).toEqual(['Low Rated', 'High Rated']);
+  });
+
+  it('clearing sort and filter returns the list to its default order', async () => {
+    renderPlaceSection(
+      <PlaceSection place={makeRatedPlace()} isLocked={false} {...defaultProps} />,
+    );
+
+    await userEvent.selectOptions(screen.getByLabelText('Sort by rating'), 'desc');
+    await userEvent.selectOptions(screen.getByLabelText('Minimum rating filter'), '4');
+    expect(screen.queryByText('Unrated')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+    // Back to the place.items array's own order — all three items visible again.
+    expect(screen.getByText('Low Rated')).toBeInTheDocument();
+    expect(screen.getByText('High Rated')).toBeInTheDocument();
+    expect(screen.getByText('Unrated')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
+  });
+
+  it('shows a distinct empty state when a filter matches no items (vs. no items at all)', async () => {
+    const place = makePlace([
+      makeItem({ id: 1, name: 'Low Rated', rating: 2 }),
+      makeItem({ id: 2, name: 'Unrated', rating: null }),
+    ]);
+    renderPlaceSection(<PlaceSection place={place} isLocked={false} {...defaultProps} />);
+
+    // Nothing in this place is rated highly enough for a 5+ filter to match.
+    await userEvent.selectOptions(screen.getByLabelText('Minimum rating filter'), '5');
+
+    expect(screen.getByText('No items match this filter.')).toBeInTheDocument();
+  });
+
+  it('links the city name to its cross-trip city-items view (IT-09)', () => {
+    renderPlaceSection(<PlaceSection place={makePlace([])} isLocked={false} {...defaultProps} />);
+    expect(screen.getByRole('link', { name: 'Lisbon' })).toHaveAttribute('href', '/cities/5');
   });
 });

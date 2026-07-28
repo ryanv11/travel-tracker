@@ -16,6 +16,7 @@ import { LocationPinIcon } from './components/icons';
 import { TripsLayout } from './components/TripList/TripsLayout';
 import { useGeocodeRetryQueue } from './hooks/useGeocodeRetryQueue';
 import { AdminPage } from './pages/AdminPage';
+import { CityItemsPage } from './pages/CityItemsPage';
 import { MapPage } from './pages/MapPage';
 import { TripDetailPage } from './pages/TripDetailPage';
 
@@ -143,6 +144,10 @@ export function App() {
             />
             <Route path=":id" element={<TripDetailPage />} />
           </Route>
+
+          {/* IT-09: cross-trip rated-items view for one city, reached from the
+              city-name link in PlaceSection.tsx. */}
+          <Route path="/cities/:id" element={<CityItemsPage />} />
 
           {/* BUG-62: /admin is reachable by any authenticated user — AdminPanel.tsx
               gates individual owner-only tabs internally (categories, activities,

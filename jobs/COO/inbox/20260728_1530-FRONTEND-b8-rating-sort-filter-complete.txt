@@ -1,0 +1,52 @@
+BRD-IT0809 · GitHub #317 / PR #318 · BRD §5.5 IT-08, IT-09 (v3.12) · branch feat/b8-item-rating-sort-filter
+
+Built rating sort/filter for item list views: client-side controls in
+PlaceSection.tsx (the view that actually carries restaurant/hotel/experience
+items — see scope note below), plus a net-new CityItemsPage.tsx/route/hook
+for IT-09's cross-trip city view, which had zero frontend surface before this
+PR (confirmed by two probes: a repo-wide grep found only the CityItem type
+declaration; reading useCities.ts in full and App.tsx's route table confirmed
+no hook, page, or route existed).
+
+SCOPE NOTE: the brief named TripItemsSection.tsx + useItems.ts as "your
+surface." Two probes (TripItemsSection's own module doc restricting it to
+Flight/Car Rental; ItemCard's hasRating check) confirmed those item types
+are never rateable, so controls there would be dead UI. Built them in
+PlaceSection.tsx instead — not B7-owned (B7 owns TripDetail.tsx/
+MobileTripDetailView.tsx, the parents that render it, not the component
+itself). useItems.ts still gained the shared sort/filter logic as named.
+TripItemsSection.tsx left functionally unchanged with an explanatory comment.
+Full enumeration of all item list views (4 total, 2 with controls added, 2
+explicitly excluded with reasoning) is in the PR description and park doc.
+
+Acceptance criteria (IT-08/IT-09):
+- Sort asc/desc visibly changes order: PASS (applyRatingSortFilter tests +
+  PlaceSection interaction tests)
+- Min-rating filter of N shows only items rated N+: PASS
+- Unrated items excluded by filter, not sorted as zero: PASS
+- Clearing sort/filter restores default order: PASS (Clear button, tested)
+- Sort/filter state doesn't leak between trips: PASS (local component state,
+  remounts fresh per trip — see park doc for reasoning)
+- City view spans every trip that visited the city, item stays attributable:
+  PASS (trip_name/trip_start_date badge per row)
+- City-level sort/filter behaves identically to trip-level: PASS (shared
+  RatingSortFilterControls component, same semantics both sides)
+
+CI: gh pr checks 318 — all 18 checks green (biome incl. organizeImports,
+type check, backend 599/1 skipped unaffected, frontend 195 incl. 21 new,
+contract, E2E, dependency scan, secret scan, semgrep).
+
+Open issues or blockers: none blocking. Two notes for COO/PO:
+1. CityItemsPage's heading (city/country name) comes from router
+   location.state passed by PlaceSection's link, not a fetched city record —
+   a direct/refreshed visit falls back to a generic "This city" heading.
+   Fine for the only entry point that exists today; worth knowing if a
+   second entry point gets added later.
+2. Tracker BRD-IT0809 set to done_pending_uat (not done) per the mandatory
+   UAT gate — suggest UAT specifically exercise the net-new IT-09 page,
+   since it's the one part of this brief with no prior implementation to
+   regression-test against.
+
+What's now unblocked: BRD-IT0809 ready for PR review + merge, then PO UAT to
+close the tracker entry. No other Wave 1B brief shares PlaceSection.tsx,
+useItems.ts, useCities.ts, App.tsx, or the new files as its file surface.
