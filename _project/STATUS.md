@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (54)
+## Open work (53)
 
 ### P0 — Blockers (1)
 
@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-50 | No way to delete an entire trip | frontend | ⬜ Pending |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | backend | ⬜ Pending |
 
-### P2 — Important (29)
+### P2 — Important (28)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -47,7 +47,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BRD-MB0102 | Mobile reference mode — bookings readable + directions links on phone (MB-01–02) | frontend | ⬜ Pending |
 | BRD-DP06 | First place added to a trip inherits the trip's date range (DP-06) | fullstack | ⬜ Pending |
 | OQ-03 | Approximate/partial dates for shell trips — year-only or month-only, and their effect on shading and ordering | architect | ⬜ Pending |
-| OP-25 | Scheduled cloud health-check routines (daily CI/drift, weekly doc-lifecycle) + cron-flag surfacing in /coo-startup | coo | ⬜ Pending |
 | BUG-40 | Place deletion should prompt (delete all / move to trip-level / cancel) when the place has items | fullstack | ⬜ Pending |
 | BUG-41 | Multi-leg / connecting flights within a single booking | database | ⬜ Pending |
 | BUG-42 | Multiple companions/seats per booking item | database | ⬜ Pending |
@@ -135,4 +134,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_130 done · 10 deferred · 4 closed · 54 open — 198 tracked items_
+_131 done · 10 deferred · 4 closed · 53 open — 198 tracked items_
