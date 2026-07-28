@@ -1,0 +1,108 @@
+Tracker: BUG-52, BUG-56, QUAL-02 (findings 1-2), QUAL-17 · GitHub issue #315 · BRD §5.1 TR-13
+Branch: fix/b4-search-and-test-schema
+
+*** URGENT, UNRELATED TO THIS BRIEF: MAIN IS CURRENTLY RED ***
+main's own post-merge CI (push trigger 30388898419, no PR involved) has
+Frontend Tests FAILING: "[vitest] No 'DEFAULT_RATING_SORT_FILTER' export
+is defined on the '../../../hooks/useItems' mock" in
+TripDetail.test.tsx. Root cause: two Frontend PRs merged close together
+today collided — #318 (IT-08/IT-09 rating sort/filter) added
+DEFAULT_RATING_SORT_FILTER usage to PlaceSection.tsx; #319 (BUG-50/BUG-58
+trip delete) added TripDetail.test.tsx, which renders TripDetail →
+PlaceSection but mocks useItems without that export. Neither PR was
+individually broken; the collision only shows up once both are on main
+together. Verified two ways: (1) main's own push-triggered CI job log
+shows the identical error, (2) reproduced locally after `git merge
+origin/main` into this branch — `npm run test:frontend` fails the same
+test, same error, 227/228 passing. Per CLAUDE.md "Red main is fixed
+immediately, never left unowned" — this is surfacing now because it
+first hit MY branch's own PR CI after merging main in, not because this
+thread caused it (confirmed: my own commit before the merge, 122d07c,
+had Frontend Tests fully green — 190/190 — before main's new commits
+existed). Not fixed here: TripDetail.test.tsx and PlaceSection.tsx are
+Frontend-owned files outside this brief's scope, and per the pre-push
+skill's "blocked-by-another-team exception," documenting and pushing
+rather than reaching into another role's files is the right call. My own
+PR #320 will show Frontend Tests red until this is fixed on main — not a
+defect in this brief's diff.
+
+WHAT WAS BUILT
+1. BUG-52: filterAndSortTrips now matches country names (full name only, per
+   TR-13's binding exclusion of ISO codes/abbreviations) — frontend-only,
+   countries[] was already in the payload.
+2. BUG-56: city-name input in AddPlaceFlow's new-city form auto-capitalises
+   the first letter (new src/frontend/utils/textFormat.ts).
+3. QUAL-02 findings 1-2: filter tests (category_id, country, and a newly
+   added activity_id test) strengthened to 3-trip seeding at repo + route
+   level; added a route-level GET /api/trips sort-order test. Findings 3-4
+   untouched, per brief.
+4. QUAL-17: all 15 hand-rolled-DDL backend test files (13 routes, 2
+   services) now derive schema from the migration-driven test-db.ts
+   helper. No hand-written CREATE TABLE remains in any backend test file.
+
+ACCEPTANCE CRITERIA
+- TR-13 success criteria (US-only-place trip found by "United States";
+  no false positives; existing name/city matching unchanged; case-
+  insensitive substring): PASS — new tests in filterAndSortTrips.test.ts.
+- TR-13 explicitly excludes ISO code / abbreviation matching: PASS —
+  negative tests assert "US" and "USA" do NOT match.
+- BUG-56 cosmetic capitalisation, no broader normalisation: PASS.
+- QUAL-02 finding 1 (filter-inversion detectable): PASS — 3-trip pattern
+  applied to category_id, country (repo + route), and activity_id (new).
+- QUAL-02 finding 2 (sort-order tested): PASS — route-level test added.
+- QUAL-17 (no hand-written CREATE TABLE remains; drift detectable at
+  route level): PASS — verified live (see below).
+- QUAL-17 stop condition did NOT fire. Two one-line schema-drift fixes
+  were needed (invalid enum literals in 2 of 15 files — 'completed' trip
+  status, 'skipped' item status — same class as QUAL-03's 'booked'
+  finding), well short of "more than a handful of tests needing real
+  logic changes."
+
+SECURITY CHECKLIST
+N/A — no routes or repositories added or modified. This brief touched
+frontend components/utils and backend TEST files only.
+
+VERIFICATION
+- test:backend 601 passed | 1 skipped (unchanged count vs main, no tests
+  lost; several new tests added and offsetting file-internal changes).
+- test:frontend 190 passed.
+- type:check:all clean. biome check clean (one auto-fix pass, formatting
+  only).
+- Drift detection re-verified at the route/service level (not just
+  repository, which is all QUAL-03 demonstrated): temporarily dropped a
+  column via a migration edit, confirmed companions.test.ts failed
+  14/14 at migration-apply time, reverted cleanly (empty git diff on the
+  migration file).
+- Contract tests not run: no routes touched, and this worktree has no
+  .env.local for a live dev:api server.
+
+CI: PR #320's own diff is clean — all 18 checks (9 unique x 2, known
+duplicate trigger) were green at commit 122d07c, BEFORE merging main in.
+After `git merge origin/main` (needed to pick up two Frontend PRs that
+landed mid-session — #318, #319), Frontend Tests now fails on PR #320
+too, purely because it inherited main's red Frontend Tests (see URGENT
+banner above) — not a regression from anything in this branch's own
+diff. Backend Tests, Type Check, Biome, Contract Tests, E2E Tests,
+Secret Scanning, Static Analysis, Dependency Scan all still pass on the
+merged branch. Re-check PR #320 once main's Frontend Tests are fixed —
+expect full green with no further action needed here.
+PR: https://github.com/ryanv11/travel-tracker/pull/320
+
+OPEN ISSUES / BLOCKERS
+None blocking. Two things worth COO's attention, not urgent:
+1. 12 of the 15 converted files carried a stale map_shading_config DDL
+   with no user_id column (pre-dates ADL-28's per-user shading model) —
+   dead weight, never queried by those files' tests, silently corrected
+   by the schema swap with zero behavioural impact. No action needed,
+   flagging only as evidence the duplication was real and stale.
+2. tracker.json is COO-maintained per CLAUDE.md — not touched this
+   thread. BUG-52, BUG-56, QUAL-02, QUAL-17 entries need status flips on
+   merge.
+
+WHAT IS NOW UNBLOCKED
+- QUAL-17's caveat (route tests verify against a hand-maintained schema
+  copy, not the real one) is closed — any future Wave 1 brief whose
+  verification rests on these 15 route/service test files can now treat
+  that as trustworthy, matching what QUAL-03 already established for
+  repository tests.
+- Full detail in jobs/backend/park-docs/20260728-BACKEND-b4-park.txt.

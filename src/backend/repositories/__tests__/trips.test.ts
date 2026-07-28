@@ -105,27 +105,69 @@ describe('tripRepository.findAll', () => {
   });
 
   it('filters by category_id', async () => {
+    // QUAL-02 finding 1: seed 3 trips (target + a DIFFERENT category + none at
+    // all) so an inverted or no-op filter cannot pass by returning length 1
+    // via the wrong trip.
     const db = testDb!;
     const trip = await seedTrip(db, { name: 'Categorised Trip' });
+    const otherCatTrip = await seedTrip(db, { name: 'Differently Categorised Trip' });
     await seedTrip(db, { name: 'Uncategorised Trip' });
 
-    const [cat] = await db
+    const [cat, otherCat] = await db
       .insert(schema.tripCategories)
-      .values({ name: 'Adventure', isActive: 1 })
+      .values([
+        { name: 'Adventure', isActive: 1 },
+        { name: 'Relaxation', isActive: 1 },
+      ])
       .returning();
     await db.insert(schema.tripCategoriesMap).values({ tripId: trip.id, categoryId: cat.id });
+    await db
+      .insert(schema.tripCategoriesMap)
+      .values({ tripId: otherCatTrip.id, categoryId: otherCat.id });
 
     const result = await tripRepository.findAll(TEST_USER_ID, { category_id: cat.id });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(trip.id);
   });
 
+  it('filters by activity_id', async () => {
+    // QUAL-02 finding 1: same 3-trip inversion-proofing as category_id and
+    // country below. activity_id filtering had NO test coverage at all
+    // before this — findAll() implements it (src/backend/repositories/
+    // trips.ts:79-86) but nothing exercised it, at repository or route level.
+    const db = testDb!;
+    const trip = await seedTrip(db, { name: 'Hiking Trip' });
+    const otherActTrip = await seedTrip(db, { name: 'Differently Active Trip' });
+    await seedTrip(db, { name: 'No-activity Trip' });
+
+    const [act, otherAct] = await db
+      .insert(schema.activities)
+      .values([
+        { name: 'Hiking', isActive: 1 },
+        { name: 'Museums', isActive: 1 },
+      ])
+      .returning();
+    await db.insert(schema.tripActivitiesMap).values({ tripId: trip.id, activityId: act.id });
+    await db
+      .insert(schema.tripActivitiesMap)
+      .values({ tripId: otherActTrip.id, activityId: otherAct.id });
+
+    const result = await tripRepository.findAll(TEST_USER_ID, { activity_id: act.id });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(trip.id);
+  });
+
   it('filters by country via trip_countries junction', async () => {
+    // QUAL-02 finding 1: seed 3 trips (target country + a DIFFERENT country +
+    // none at all).
     const db = testDb!;
     await seedCountry(db, 'JP', 'Japan');
+    await seedCountry(db, 'DE', 'Germany');
     const jpTrip = await seedTrip(db, { name: 'Japan Trip' });
+    const deTrip = await seedTrip(db, { name: 'Germany Trip' });
     await seedTrip(db, { name: 'Other Trip' });
     await db.insert(schema.tripCountries).values({ tripId: jpTrip.id, countryCode: 'JP' });
+    await db.insert(schema.tripCountries).values({ tripId: deTrip.id, countryCode: 'DE' });
 
     const result = await tripRepository.findAll(TEST_USER_ID, { country: 'JP' });
     expect(result).toHaveLength(1);
