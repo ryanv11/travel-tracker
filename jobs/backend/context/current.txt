@@ -1,4 +1,4 @@
-BACKEND CONTEXT — 2026-07-28
+BACKEND CONTEXT — 2026-07-28 (B6 thread)
 PROJECT: Travel Tracker
 CURRENT STATUS: B6 brief (BUG-57/IT-11, BRD-DP06, BUG-44, BRD-IT10), this thread.
   1. Fullstack brief on branch feat/b6-item-dates-and-map-url (issue #300):
@@ -44,5 +44,81 @@ OPEN ISSUES:
     itself is addressed.
   - Checkout/dropoff date-default generalisation (see park doc) — flagged
     for QA/PO confirmation, not blocking.
+  - (carried) BUG-51: fix lives in src/frontend/hooks/useAdmin.ts, not
+    backend — see PRIOR STATUS below and
+    jobs/backend/park-docs/20260728-BACKEND-bug51-park.txt for the exact
+    three-line change recommended (qc.invalidateQueries({ queryKey:
+    ['trips'] }) added to three companion mutations). Needs a Frontend
+    brief; BUG-51 stays open until that lands.
+  - (carried from B9) 14 test files beyond test-db.ts's 7 consumers hand-roll
+    their own copy of the same 21-table DDL. Same drift risk as QUAL-03
+    described, at larger scale — this B6 thread patched 12 of them (the
+    ones with an `items` table) for map_url only; the underlying dedup fix
+    is still not done. Recommend COO size as its own QUAL item.
 LAST PARK DOC: jobs/backend/park-docs/20260728-BACKEND-b6-park.txt
-  (see also 20260728-BACKEND-b9-park.txt for prior thread)
+  (see also 20260728-BACKEND-bug51-park.txt and
+  20260728-BACKEND-b9-park.txt for prior threads)
+
+=== PRIOR STATUS: B3 brief (BUG-51, GitHub #299) ===
+Investigation-led brief: companion rename in admin panel not propagating to
+all trips consistently. Root cause is NOT in the backend — confirmed via
+two independent probes (grep + full manual read of schema.ts and
+repositories/trips.ts) that no denormalised companion name exists anywhere
+and both trip list/detail routes always LEFT JOIN companions.name live, no
+caching. Root cause is a frontend React Query cache-invalidation gap:
+src/frontend/hooks/useAdmin.ts's companion mutations (create/update/
+deactivate) only invalidate ['admin','companions'], never ['trips'], and
+main.tsx sets a 5-minute global staleTime, so any trip whose query was
+still fresh at rename time keeps serving the stale name until its own
+mutation (e.g. saving the trip) forces an invalidation. Full trace in
+jobs/backend/park-docs/20260728-BACKEND-bug51-park.txt.
+No backend production code changed (no schema change needed either, so
+nothing escalated to Architect). Added one repository-level regression
+test (src/backend/repositories/__tests__/trips.test.ts) locking in that a
+companion rename is visible on the very next tripRepository.getAssociations
+call with no trip write required — full suite: 584 passed | 1 skipped.
+Recommended to COO: a Frontend brief to add
+qc.invalidateQueries({ queryKey: ['trips'] }) to the three companion
+mutations in useAdmin.ts. BUG-51 stays open until that lands.
+
+=== PRIOR STATUS: B9 brief (QUAL-03 + QUAL-11) ===
+  1. QUAL-03/QUAL-11 (branch chore/b9-migration-driven-test-schema, issue #291):
+     - src/backend/repositories/__tests__/test-db.ts rewritten: no more
+       hand-written 21-table DDL. Now applies the real migrations
+       (src/backend/migrations/*.sql) via drizzle-orm's libsql migrator to a
+       template :memory: DB ONCE per module instance (Vitest isolate:true
+       default ⇒ effectively once per test file), snapshots the schema from
+       sqlite_master, and replays that cached snapshot into a fresh
+       :memory: DB per createTestDb() call via client.batch(). Exported API
+       (createTestDb, TestDb, TEST_USER_ID, OTHER_USER_ID, seedTestUser,
+       seedTrip, seedCountry, seedCity, seedCompanion) is unchanged — all 7
+       consumers needed no changes.
+     - This immediately surfaced real pre-existing drift: items.test.ts used
+       status: 'booked' in 8 places, which has never been valid against the
+       real chk_items_status CHECK constraint (schema.ts:497-500 —
+       consider/confirmed/completed/cancelled/next_time) and appears nowhere
+       in application code. Only the old hand-written DDL (no CHECK at all)
+       let it silently pass. Fixed by replacing with 'confirmed' — preserves
+       every test's actual intent (a non-default status for filter/update
+       assertions).
+     - src/backend/services/startup.service.ts: added
+       assertForeignKeysEnabled() — reads (never sets) PRAGMA foreign_keys on
+       the real application connection, throws if not exactly 1. No-op for
+       DB_TYPE=postgres. Wired into server.ts's startup() right after getDb().
+       Covered by new src/backend/services/__tests__/startup.service.test.ts
+       (3 tests: resolves at 1, throws when flipped OFF on a real connection,
+       no-ops for postgres).
+     - jobs/architect/tech/ADL-41-trip-place-identity.md §7.2.1: stamped
+       residual gap 1 IMPLEMENTED, citing this brief.
+     - Drift-detection demonstrated live: temporarily appended
+       `ALTER TABLE companions DROP COLUMN is_active;` to migrations/0012,
+       all 17 companions.test.ts tests failed, reverted via `git checkout --`,
+       re-ran green. See completion report for full detail.
+     - Backend suite: 583 passed (580 baseline + 3 new tests), 1 skipped.
+       Duration ~6.7-6.9s before and after — no material regression.
+     - Found but OUT OF SCOPE: 14 other test files (routes/__tests__/*,
+       services/__tests__/shading.*.test.ts) independently hand-roll the
+       SAME 21-table DDL rather than importing test-db.ts — the brief's "7
+       files consume test-db.ts" undercounts the total duplication. Same
+       staleness risk, not touched this thread; flagged to COO as a
+       follow-up-sized finding.

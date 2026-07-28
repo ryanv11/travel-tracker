@@ -1,0 +1,107 @@
+BACKEND PARK DOC — 2026-07-28
+BRIEF: B3 (backlog-clearance-plan.md, Wave 1 sub-wave A) — BUG-51 / GitHub #299
+BRANCH: fix/bug51-companion-name-propagation
+
+TASK
+Investigation-led: renaming a companion in the admin panel propagated to one
+trip automatically but a second trip (companion role `partner`, renamed to
+Aisling) kept showing the stale name until that trip was opened, edited and
+saved. Establish root cause before proposing a fix.
+
+INVESTIGATION
+
+1. Schema check (probe 1: grep). Grepped the whole repo for
+   `companion_name`/`companionName` and any denormalised text column —
+   nothing. Grepped migrations/*.sql for `companion` — only `companions` and
+   `trip_companions_map` (a plain id/id junction table, no name column).
+
+2. Schema check (probe 2: manual read). Read schema.ts's `companions` table
+   (line 176) and `tripCompanionsMap` (line 293) in full — the junction table
+   has only `tripId`/`companionId`, no copied name anywhere. Two independent
+   probes (grep + full manual read) agree: no denormalised companion name
+   exists anywhere in the database. This satisfies the CLAUDE.md
+   negative-findings rule.
+
+3. Read path check. `tripRepository.getAssociations(tripId)`
+   (repositories/trips.ts:209-229) does a LEFT JOIN against `companions.name`
+   on every call — no caching. `buildTripResponse()` (routes/trips.ts:60)
+   calls `getAssociations` fresh for both `GET /api/trips` (list) and
+   `GET /api/trips/:id` (detail) — same function, same live join, no second
+   read path on the backend.
+
+4. Backend caching sweep (probe 1: grep for "cache" across src/backend).
+   Three hits: middleware/auth.ts (jose's internal JWKS cache — unrelated),
+   routes/map.ts + services/shading.service.ts (per-user in-memory shading
+   config cache, ADL-28 R2 — unrelated to companions/trips, and already
+   correctly invalidated via `invalidateConfigCache(userId)` on write).
+   Probe 2: read all three hits in context — confirmed none touch
+   companions or trips. No backend-side cache explains the staleness.
+
+5. Write path check. `companionRepository.update()`
+   (repositories/companions.ts:60-77) is a plain UPDATE scoped to
+   `(id, userId)` — no side effects, no other table touched.
+   `PATCH /api/companions/:id` (routes/companions.ts:88-105) calls it
+   directly. Nothing here could leave one trip correct and another stale.
+
+ROOT CAUSE (frontend, not backend)
+`src/frontend/hooks/useAdmin.ts` — `useUpdateCompanion` (and
+`useCreateCompanion`/`useDeactivateCompanion`) only invalidate the
+`['admin', 'companions']` React Query key on success. They never invalidate
+`['trips']`. `src/frontend/main.tsx:32` sets a global default
+`staleTime: 5 * 60 * 1000` (5 minutes) on the QueryClient. Consequence:
+
+- A trip whose `['trips']`/`['trips', id]` query had already expired past the
+  5-minute staleTime (or was never cached) refetches on next mount and shows
+  the correct, live-joined name — this is the trip that "propagated
+  automatically."
+- A trip whose query was still within the 5-minute freshness window keeps
+  serving the cached (stale) response and does NOT refetch on mount — this is
+  the trip that stayed wrong. The only thing that fixed it was opening the
+  trip AND saving it, because `useUpdateTrip`'s onSuccess
+  (hooks/useTrips.ts:101-102) is the mutation that actually invalidates
+  `['trips']` and `['trips', id]` — merely viewing the trip does not, since
+  refetch-on-mount only fires once data is stale.
+
+This matches the reported symptom exactly, including why "just opening" the
+second trip did not fix it (still within the 5-min window) but editing and
+saving did (its own mutation forces the invalidation the companion mutation
+never issued).
+
+Confirmed the render path has no frontend denormalisation either:
+`TripDetail.tsx:71` renders `trip.companions.map((c) => c.name)` straight
+from the `GET /api/trips/:id` response — same source of truth as the backend
+join, so once React Query refetches, the correct name always appears.
+
+WHAT WAS CHANGED (backend)
+No production code change — the backend was already correct on `main`, and
+the fix (adding `qc.invalidateQueries({ queryKey: ['trips'] })` to the three
+companion mutations in useAdmin.ts) is frontend-hooks work, outside Backend
+Engineer's territory (src/frontend/) and outside this brief's mandate — no
+schema change either, so nothing to stop-and-escalate to Architect for.
+
+Added one repository-level regression test (QUAL-17-compliant — asserts
+directly against `tripRepository.getAssociations`, not a hand-rolled-DDL
+route test): `src/backend/repositories/__tests__/trips.test.ts` —
+"reflects a companion rename immediately, with no trip write required".
+Seeds one companion shared by two trips, renames it via
+`companionRepository.update`, and asserts both trips' `getAssociations()`
+reflect the new name on the very next call, with neither trip written to.
+Locks in "backend never denormalises this" as a permanent regression guard.
+
+RECOMMENDATION TO COO
+Open a Frontend brief citing this investigation: add
+`qc.invalidateQueries({ queryKey: ['trips'] })` to `useCreateCompanion`,
+`useUpdateCompanion`, and `useDeactivateCompanion` in
+`src/frontend/hooks/useAdmin.ts`, mirroring the pattern already used by
+`useTrips.ts`'s own mutations (e.g. useUpdateTrip lines 101-102). Small,
+well-scoped, no schema/backend involvement.
+
+TEST RESULTS
+- New test: 1/1 pass in isolation.
+- Full backend suite: 584 passed | 1 skipped (583 baseline + 1 new) — no
+  regressions.
+- type:check:backend: clean.
+
+OPEN ISSUES
+- BUG-51 stays open until the frontend fix above lands — this thread only
+  closes out the backend investigation + regression test.
