@@ -130,6 +130,26 @@ the verdict line stays blank until you run it.
       owner, all five tabs should still be there. (PR #303)
       *This is the one that most needs real eyes — the whole change is about what a
       non-owner sees, and no automated test confirms it reads right.*
+      **This item is still testable — the blocker below does not affect it.**
+
+> **BLOCKER for the rest of the non-owner pass (added 2026-07-28, BUG-63).**
+> Ryan reproduced BUG-63 on staging while testing as a non-owner and captured the console.
+> A non-owner **cannot add a place to a trip at all**: `GET /api/admin/categories/active`,
+> `GET /api/admin/activities/active` and `POST /api/cities` all return **403**, because each
+> sits behind an owner gate (`admin.ts:105` router-level `requireOwner`; `cities.ts:91`).
+> The tracker's previous 401/mobile/token-refresh theory is **wrong and superseded** — it is a
+> literal 403, on desktop, fully deterministic.
+>
+> **Run the remaining checklist items as the OWNER.** The non-owner pass is limited to the
+> BUG-62 tab-visibility check above, which is the actual BUG-62 acceptance criterion anyway.
+> BUG-63 is now **P1**, owned by Architect (it is an access-matrix change, not a code fix —
+> `security.access-matrix.test.ts` currently asserts those 403s as *correct*, so the spec has
+> to change before the code can).
+>
+> The same console capture also **confirmed BUG-55 live** (Nominatim CSP-blocked, quoted
+> verbatim) and surfaced **BUG-68** (Clerk's telemetry endpoint CSP-blocked — console noise,
+> no functional impact). All three came out of one console check, which is precisely the
+> deployment shakedown OP-32 mandates.
 
 - [ ] **BUG-51** — rename a companion in the admin panel who is attached to **two or more**
       trips. Every trip should show the new name immediately, with no need to open and
