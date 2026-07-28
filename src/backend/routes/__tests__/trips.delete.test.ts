@@ -162,6 +162,7 @@ async function createTestDb() {
       item_type TEXT NOT NULL,
       status TEXT DEFAULT 'consider' NOT NULL,
       notes TEXT,
+      map_url TEXT,
       is_carried_forward INTEGER DEFAULT 0 NOT NULL,
       carried_from_item_id INTEGER,
       user_id TEXT,

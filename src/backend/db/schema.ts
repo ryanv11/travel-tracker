@@ -462,6 +462,9 @@ export const items = sqliteTable(
     itemType: text('item_type').notNull(),
     status: text('status').notNull().default('consider'),
     notes: text('notes'), // General notes — applies to all item types (IT-04)
+    // Optional map/directions link — applies to all item types (IT-10, ADL-45 D1/D2).
+    // Nullable, no default, no DB length CHECK (Zod-only cap, ADL-45 D3).
+    mapUrl: text('map_url'),
     // Boolean flag — allows simple WHERE is_carried_forward = 1 queries
     isCarriedForward: integer('is_carried_forward').notNull().default(0),
     // Self-referential FK — preserves lineage to the source item (ADL-13)

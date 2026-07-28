@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { zItemStatus, zItemType, zOptionalString, zRating } from './common.js';
+import { zItemStatus, zItemType, zMapUrl, zOptionalString, zRating } from './common.js';
 
 /** Fields shared by all item types */
 const itemBase = {
@@ -12,6 +12,8 @@ const itemBase = {
   item_type: zItemType,
   status: zItemStatus.optional(),
   notes: zOptionalString,
+  // Optional map/directions link — base-table field, applies to all item types (IT-10, ADL-45).
+  map_url: zMapUrl,
   is_carried_forward: z.boolean().optional(),
   carried_from_item_id: z.number().int().positive().nullable().optional(),
 };
@@ -67,6 +69,9 @@ export const CreateItemSchema = z.object({ ...itemBase, ...extensionFields }).re
 export const UpdateItemSchema = z.object({
   status: zItemStatus.optional(),
   notes: zOptionalString,
+  // itemBase isn't spread here (trip_place_id/item_type/carry-forward fields aren't
+  // patchable) — map_url is added explicitly since it, like notes, is patchable (ADL-45).
+  map_url: zMapUrl,
   ...extensionFields,
 });
 

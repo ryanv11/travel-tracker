@@ -16,6 +16,7 @@ import {
   zIsoDate,
   zItemStatus,
   zItemType,
+  zMapUrl,
   zName,
   zOptionalString,
   zRating,
@@ -269,6 +270,63 @@ describe('zOptionalString', () => {
   });
   it('rejects a whitespace-only string', () => {
     fails(zOptionalString, '   ');
+  });
+});
+
+// ----------------------------------------------------------------
+// zMapUrl (IT-10, ADL-45)
+// ----------------------------------------------------------------
+
+describe('zMapUrl', () => {
+  it('accepts undefined (optional field)', () => {
+    expect(passes(zMapUrl, undefined)).toBeUndefined();
+  });
+
+  it('accepts a well-formed https:// URL', () => {
+    const url = 'https://maps.google.com/?q=Paris';
+    expect(passes(zMapUrl, url)).toBe(url);
+  });
+
+  it('accepts a non-Google https:// host (ADL-45 D4: no host allowlist)', () => {
+    const url = 'https://maps.apple.com/?q=Paris';
+    expect(passes(zMapUrl, url)).toBe(url);
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(passes(zMapUrl, '  https://maps.google.com/  ')).toBe('https://maps.google.com/');
+  });
+
+  it('rejects http:// (ADL-45 D5: https:// only)', () => {
+    fails(zMapUrl, 'http://maps.google.com/');
+  });
+
+  it('rejects file:// (ADL-45 D5: narrower than the frontend sanitiser default)', () => {
+    fails(zMapUrl, 'file:///Users/alice/map.html');
+  });
+
+  it('rejects javascript: scheme', () => {
+    fails(zMapUrl, 'javascript:alert(1)');
+  });
+
+  it('rejects an empty string', () => {
+    fails(zMapUrl, '');
+  });
+
+  it('rejects a malformed URL', () => {
+    fails(zMapUrl, 'not a url');
+  });
+
+  it('accepts a URL of exactly 2048 characters (ADL-45 D3)', () => {
+    const padding = 'a'.repeat(2048 - 'https://maps.google.com/?q='.length);
+    const url = `https://maps.google.com/?q=${padding}`;
+    expect(url.length).toBe(2048);
+    expect(passes(zMapUrl, url)).toBe(url);
+  });
+
+  it('rejects a URL longer than 2048 characters', () => {
+    const padding = 'a'.repeat(2048 - 'https://maps.google.com/?q='.length + 1);
+    const url = `https://maps.google.com/?q=${padding}`;
+    fails(zMapUrl, url);
   });
 });
 

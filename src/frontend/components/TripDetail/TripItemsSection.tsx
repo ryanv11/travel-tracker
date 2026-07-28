@@ -33,6 +33,10 @@ interface TripItemsSectionProps {
   tripId: number;
   /** When true, all edit/delete/add controls are hidden. */
   isLocked: boolean;
+  /** Trip start date (YYYY-MM-DD) — seeds new-item date defaults (BUG-57/IT-11). */
+  tripStartDate: string;
+  /** Trip end date (YYYY-MM-DD) — seeds new-item "end" date defaults (IT-11). */
+  tripEndDate: string;
 }
 
 /** Item types offered at trip level — see module doc for rationale. */
@@ -45,7 +49,12 @@ const TRIP_LEVEL_ITEM_TYPES: ItemType[] = ['flight', 'car_rental'];
  * @param tripId - Parent trip ID for item queries/mutations.
  * @param isLocked - When true, hides all write controls.
  */
-export function TripItemsSection({ tripId, isLocked }: TripItemsSectionProps) {
+export function TripItemsSection({
+  tripId,
+  isLocked,
+  tripStartDate,
+  tripEndDate,
+}: TripItemsSectionProps) {
   const { data: items = [], isLoading, error } = useTripLevelItems(tripId);
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -108,6 +117,8 @@ export function TripItemsSection({ tripId, isLocked }: TripItemsSectionProps) {
           tripId={tripId}
           tripPlaceId={null}
           allowedTypes={TRIP_LEVEL_ITEM_TYPES}
+          tripStartDate={tripStartDate}
+          tripEndDate={tripEndDate}
           onClose={handleCloseForm}
         />
       )}
@@ -119,6 +130,8 @@ export function TripItemsSection({ tripId, isLocked }: TripItemsSectionProps) {
           tripPlaceId={null}
           existingItem={editingItem}
           allowedTypes={TRIP_LEVEL_ITEM_TYPES}
+          tripStartDate={tripStartDate}
+          tripEndDate={tripEndDate}
           onClose={handleCloseForm}
         />
       )}

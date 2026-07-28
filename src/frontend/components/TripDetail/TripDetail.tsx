@@ -186,7 +186,12 @@ export function TripDetail({ trip }: TripDetailProps) {
           {/* Trip-level items (BUG-36/IT-01/C3) — flights and car rentals that
               aren't tied to a specific place. Rendered above Places since
               transport typically bookends the trip. */}
-          <TripItemsSection tripId={trip.id} isLocked={c.isLocked} />
+          <TripItemsSection
+            tripId={trip.id}
+            isLocked={c.isLocked}
+            tripStartDate={trip.start_date}
+            tripEndDate={trip.end_date}
+          />
 
           {/* Places — sorted by arrived_on ascending, nulls last (UX-02 / ADL-24) */}
           <div className="mb-4">
@@ -226,7 +231,15 @@ export function TripDetail({ trip }: TripDetailProps) {
 
       {/* Modals */}
       {c.showEdit && <TripForm existingTrip={trip} onClose={() => c.setShowEdit(false)} />}
-      {c.showAddPlace && <AddPlaceFlow tripId={trip.id} onClose={c.handleAddPlaceClose} />}
+      {c.showAddPlace && (
+        <AddPlaceFlow
+          tripId={trip.id}
+          onClose={c.handleAddPlaceClose}
+          tripStartDate={trip.start_date}
+          tripEndDate={trip.end_date}
+          isFirstPlace={trip.places.length === 0}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={c.confirmLock}
