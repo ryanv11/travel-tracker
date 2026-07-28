@@ -13,13 +13,68 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { count } from 'drizzle-orm';
+import { count, sql } from 'drizzle-orm';
 import { activities, countries, getDb, regions, tripCategories } from '../db/index.js';
 
 // Re-import seed data from the DATABASE seed script to avoid duplication
 import { ACTIVITIES, TRIP_CATEGORIES } from '../db/seed-data.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ----------------------------------------------------------------
+// FK enforcement assertion (QUAL-11, ADL-41 §7.2.1 decision 9)
+// ----------------------------------------------------------------
+
+/**
+ * Asserts — does NOT set — that foreign-key enforcement is active on the
+ * real application connection, and fails loudly at boot if it is not.
+ *
+ * Every declared ON DELETE CASCADE / SET NULL in schema.ts (trips → items,
+ * trips → trip_places, items.carried_from_item_id, etc. — see ADL-41 §7) is
+ * only enforced because `@libsql/client` currently enables FK enforcement by
+ * default. That is a driver default nothing in this repo states, tests, or
+ * would notice changing — a future major-version bump could silently flip
+ * it, and the symptom would be silent orphaning in production discovered
+ * months later.
+ *
+ * Per ADL-41 §7.2/§7.2.1: the fix is NOT to issue `PRAGMA foreign_keys=ON`
+ * at connect. On the remote libsql:// HTTP transport each statement is
+ * independently dispatched, so a PRAGMA set once at connect time has no
+ * reliable session to persist into — it would look like a fix and guarantee
+ * nothing. Instead this reads the actual per-statement enforcement state,
+ * which is correct on both the embedded and remote transports because it
+ * reflects the condition every real cascade executes under.
+ *
+ * Postgres (DB_TYPE=postgres) always enforces declared FK constraints —
+ * there is no PRAGMA equivalent and no driver-default risk — so this is a
+ * deliberate no-op there.
+ *
+ * @throws {Error} if DB_TYPE=sqlite and PRAGMA foreign_keys does not return 1.
+ */
+export async function assertForeignKeysEnabled(): Promise<void> {
+  if (process.env.DB_TYPE !== 'sqlite') {
+    console.info(
+      '[STARTUP] FK enforcement check skipped — DB_TYPE=postgres always enforces declared FKs',
+    );
+    return;
+  }
+
+  const db = getDb();
+  const row = await db.get<{ foreign_keys: number }>(sql`PRAGMA foreign_keys`);
+  const value = row?.foreign_keys;
+
+  if (value !== 1) {
+    throw new Error(
+      `[STARTUP] FATAL: PRAGMA foreign_keys returned ${JSON.stringify(value)}, expected 1. ` +
+        'Foreign-key enforcement is OFF on the application connection — every declared ' +
+        'ON DELETE CASCADE / SET NULL in schema.ts (see ADL-41 §7) would silently stop ' +
+        'firing, orphaning child rows instead of cascading. Refusing to start. See ADL-41 ' +
+        '§7.2.1 decision 9.',
+    );
+  }
+
+  console.info('[STARTUP] FK enforcement: OK (PRAGMA foreign_keys = 1)');
+}
 
 // ----------------------------------------------------------------
 // Admin data seed

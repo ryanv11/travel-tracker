@@ -98,13 +98,13 @@ describe('itemRepository.create', () => {
     const item = await itemRepository.create(
       TEST_USER_ID,
       trip.id,
-      { itemType: 'flight', status: 'booked' },
+      { itemType: 'flight', status: 'confirmed' },
       { airline: 'Air France', flight_number: 'AF001' },
     );
 
     expect(item).toHaveProperty('id');
     expect(item.item_type).toBe('flight');
-    expect(item.status).toBe('booked');
+    expect(item.status).toBe('confirmed');
     expect(item.airline).toBe('Air France');
     expect(item.flight_number).toBe('AF001');
     expect(item.is_carried_forward).toBe(false);
@@ -237,7 +237,7 @@ describe('itemRepository.findByTrip', () => {
     await itemRepository.create(
       TEST_USER_ID,
       trip.id,
-      { itemType: 'flight', status: 'booked' },
+      { itemType: 'flight', status: 'confirmed' },
       {},
     );
     await itemRepository.create(
@@ -247,9 +247,9 @@ describe('itemRepository.findByTrip', () => {
       {},
     );
 
-    const result = await itemRepository.findByTrip(TEST_USER_ID, trip.id, { status: 'booked' });
+    const result = await itemRepository.findByTrip(TEST_USER_ID, trip.id, { status: 'confirmed' });
     expect(result).toHaveLength(1);
-    expect(result[0].status).toBe('booked');
+    expect(result[0].status).toBe('confirmed');
   });
 
   it('filters by placeId', async () => {
@@ -381,13 +381,13 @@ describe('itemRepository.update', () => {
       TEST_USER_ID,
       trip.id,
       item.id as number,
-      { status: 'booked' },
+      { status: 'confirmed' },
       {},
       'flight',
     );
 
     expect(result).not.toBeNull();
-    expect(result!.status).toBe('booked');
+    expect(result!.status).toBe('confirmed');
   });
 
   it('updates notes field', async () => {
@@ -441,7 +441,7 @@ describe('itemRepository.update', () => {
       TEST_USER_ID,
       trip.id,
       item.id as number,
-      { status: 'booked' },
+      { status: 'confirmed' },
       {},
       'flight',
     );

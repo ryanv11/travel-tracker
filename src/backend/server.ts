@@ -11,12 +11,14 @@
  *   7. global error handler — LAST (SEC-06)
  *
  * Startup sequence on launch:
- *   1. getDb()                  — verify DB connection
- *   2. seedAdminData()          — trip_categories, activities, companions, map_shading_config
- *   3. seedCountries()          — countries table from data/countries.json
- *   4. seedRegions()            — regions table from data/regions.json
- *   5. processQueue()           — resolve any pending city geocoding
- *   6. schedule processQueue every 15 minutes
+ *   1. getDb()                       — verify DB connection
+ *   2. assertForeignKeysEnabled()    — QUAL-11/ADL-41 §7.2.1: fail loudly if
+ *                                      PRAGMA foreign_keys != 1 (DB_TYPE=sqlite only)
+ *   3. seedAdminData()               — trip_categories, activities, companions, map_shading_config
+ *   4. seedCountries()               — countries table from data/countries.json
+ *   5. seedRegions()                 — regions table from data/regions.json
+ *   6. processQueue()                — resolve any pending city geocoding
+ *   7. schedule processQueue every 15 minutes
  */
 
 import 'dotenv/config';
@@ -43,7 +45,12 @@ import { mapRouter } from './routes/map.js';
 import { meRouter } from './routes/me.js';
 import { tripsRouter } from './routes/trips.js';
 import { processQueue } from './services/geocoding.service.js';
-import { seedAdminData, seedCountries, seedRegions } from './services/startup.service.js';
+import {
+  assertForeignKeysEnabled,
+  seedAdminData,
+  seedCountries,
+  seedRegions,
+} from './services/startup.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -270,16 +277,20 @@ async function startup(): Promise<void> {
   const db = getDb();
   console.info('[STARTUP] Database connection: OK');
 
-  // 2. Seed admin data (trip_categories, activities, companions, map_shading_config)
+  // 2. Assert FK enforcement is active (QUAL-11 / ADL-41 §7.2.1 decision 9) —
+  // read-only check, fails loudly rather than allowing silent orphaning.
+  await assertForeignKeysEnabled();
+
+  // 3. Seed admin data (trip_categories, activities, companions, map_shading_config)
   await seedAdminData();
 
-  // 3. Seed countries if empty
+  // 4. Seed countries if empty
   await seedCountries();
 
-  // 4. Seed regions if empty (US, AU, CA — Correction 2)
+  // 5. Seed regions if empty (US, AU, CA — Correction 2)
   await seedRegions();
 
-  // 4b. Seed bypass test user when BYPASS_AUTH=true (contract test / CI environment).
+  // 5b. Seed bypass test user when BYPASS_AUTH=true (contract test / CI environment).
   // The bypass auth middleware sets req.user.id to a fixed UUID without creating a DB row.
   // Since trips/items/places now have FK to users.id (ADL-18), the test user must exist.
   // We insert with the same fixed ID used by the bypass middleware in auth.ts.
@@ -299,7 +310,7 @@ async function startup(): Promise<void> {
     console.info('[STARTUP] Bypass test user seeded (BYPASS_AUTH=true)');
   }
 
-  // 4c. ADL-27: Reconciliation pass — set is_owner flag from OWNER_CLERK_ID env var.
+  // 5c. ADL-27: Reconciliation pass — set is_owner flag from OWNER_CLERK_ID env var.
   // This corrects any drift (manual DB edits, test data from BYPASS_AUTH sessions,
   // or OWNER_CLERK_ID changes after initial deployment).
   // The primary assignment is in findOrCreateByClerkId (handles fresh-DB case).
@@ -310,12 +321,12 @@ async function startup(): Promise<void> {
     console.warn('[SECURITY] OWNER_CLERK_ID is not set — no admin owner configured.');
   }
 
-  // 5. Process any pending geocoding (offline-safe — GE-12)
+  // 6. Process any pending geocoding (offline-safe — GE-12)
   processQueue().catch((err: unknown) => {
     console.error('[STARTUP] Geocoding queue error:', (err as Error).message);
   });
 
-  // 6. Schedule geocoding queue every 15 minutes
+  // 7. Schedule geocoding queue every 15 minutes
   setInterval(
     () => {
       processQueue().catch((err: unknown) => {
