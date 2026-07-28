@@ -1,204 +1,95 @@
 /**
  * Shared in-memory test database factory for repository tests.
  *
- * Creates a fresh libSQL :memory: database with the full schema applied.
- * Each test should call createTestDb() in beforeEach for full isolation.
+ * QUAL-03: this used to hand-write all 21 tables as literal DDL, duplicating
+ * db/schema.ts. A migration could change the real schema while every
+ * repository test kept passing green against the stale hand-written copy —
+ * the tests could not detect the drift.
+ *
+ * Now migration-driven: the REAL migrations (src/backend/migrations/*.sql)
+ * are applied once per worker (via drizzle-orm's libsql migrator, the same
+ * programmatic path drizzle-kit's own migrate command wraps) to a template
+ * in-memory database. The resulting schema is captured as a DDL snapshot
+ * (`SELECT sql FROM sqlite_master`, in creation order) and cached at module
+ * scope. Every createTestDb() call replays that cached snapshot into a fresh
+ * :memory: database via a single client.batch() — no per-test migration
+ * replay, so suite time is not affected by the number of migration files.
+ * The snapshot itself is only ever built once (first createTestDb() call
+ * within this module instance — Vitest's default `isolate: true` gives each
+ * test file its own module registry, so in practice this is "once per test
+ * file", not once per test).
+ *
+ * Because the snapshot is derived from applying the real migrations, a
+ * migration/schema change that isn't reflected in the applied SQL now shows
+ * up as a genuine repository-test failure instead of passing silently
+ * against a stale hand-written copy.
+ *
+ * Each test should still call createTestDb() in beforeEach for full
+ * per-test isolation (a fresh :memory: database) — only the *schema build*
+ * is shared, never the data.
  */
 
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { migrate } from 'drizzle-orm/libsql/migrator';
 import * as schema from '../../db/schema.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const MIGRATIONS_FOLDER = join(__dirname, '../../migrations');
+
+// ----------------------------------------------------------------
+// Schema snapshot — built once per module instance, reused by every
+// createTestDb() call thereafter.
+// ----------------------------------------------------------------
+
+let cachedDdlPromise: Promise<string[]> | null = null;
+
+/**
+ * Applies the real migrations to a throwaway template :memory: database and
+ * returns the resulting schema as an ordered list of DDL statements
+ * (CREATE TABLE / CREATE INDEX / …), lifted straight from sqlite_master.
+ *
+ * Excludes drizzle's own `__drizzle_migrations` bookkeeping table and
+ * SQLite's internal `sqlite_%` objects — neither is part of the application
+ * schema tests should see.
+ *
+ * Cached at module scope: only the first call in a given module instance
+ * pays the migration-replay cost. Every subsequent call (including from
+ * concurrent createTestDb() invocations) awaits the same in-flight promise.
+ */
+function getSchemaDdl(): Promise<string[]> {
+  if (!cachedDdlPromise) {
+    cachedDdlPromise = (async () => {
+      const templateClient = createClient({ url: ':memory:' });
+      try {
+        const templateDb = drizzle(templateClient, { schema });
+        await migrate(templateDb, { migrationsFolder: MIGRATIONS_FOLDER });
+
+        const { rows } = await templateClient.execute(
+          `SELECT sql FROM sqlite_master
+           WHERE sql IS NOT NULL
+             AND name NOT LIKE 'sqlite_%'
+             AND name != '__drizzle_migrations'
+           ORDER BY rowid`,
+        );
+        return rows.map((row) => row.sql as string);
+      } finally {
+        templateClient.close();
+      }
+    })();
+  }
+  return cachedDdlPromise;
+}
 
 export async function createTestDb() {
   const client = createClient({ url: ':memory:' });
 
   await client.execute('PRAGMA foreign_keys = ON;');
 
-  const ddlStatements = [
-    `CREATE TABLE IF NOT EXISTS countries (
-      country_code TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      region_tier_enabled INTEGER DEFAULT 0 NOT NULL,
-      region_tier_label TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS regions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      country_code TEXT NOT NULL,
-      name TEXT NOT NULL,
-      iso_3166_2 TEXT NOT NULL DEFAULT 'XX-UNKNOWN',
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (country_code) REFERENCES countries(country_code)
-    )`,
-    `CREATE TABLE IF NOT EXISTS cities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      country_code TEXT NOT NULL,
-      region_id INTEGER,
-      name TEXT NOT NULL,
-      latitude REAL,
-      longitude REAL,
-      geocode_status TEXT DEFAULT 'pending' NOT NULL,
-      geocode_attempted_at TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (country_code) REFERENCES countries(country_code),
-      FOREIGN KEY (region_id) REFERENCES regions(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY NOT NULL,
-      clerk_id TEXT NOT NULL UNIQUE,
-      email TEXT NOT NULL,
-      is_owner INTEGER DEFAULT 0 NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS trips (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      name TEXT NOT NULL,
-      start_date TEXT NOT NULL,
-      end_date TEXT NOT NULL,
-      status TEXT DEFAULT 'planning' NOT NULL,
-      photo_album_ref TEXT,
-      user_id TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      name TEXT NOT NULL UNIQUE,
-      is_active INTEGER DEFAULT 1 NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_categories_map (
-      trip_id INTEGER NOT NULL,
-      category_id INTEGER NOT NULL,
-      PRIMARY KEY (trip_id, category_id),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (category_id) REFERENCES trip_categories(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS companions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      is_active INTEGER DEFAULT 1 NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      UNIQUE (user_id, name),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_companions_map (
-      trip_id INTEGER NOT NULL,
-      companion_id INTEGER NOT NULL,
-      PRIMARY KEY (trip_id, companion_id),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (companion_id) REFERENCES companions(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS activities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      name TEXT NOT NULL UNIQUE,
-      is_active INTEGER DEFAULT 1 NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_activities_map (
-      trip_id INTEGER NOT NULL,
-      activity_id INTEGER NOT NULL,
-      PRIMARY KEY (trip_id, activity_id),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (activity_id) REFERENCES activities(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_places (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      trip_id INTEGER NOT NULL,
-      city_id INTEGER NOT NULL,
-      user_id TEXT,
-      arrived_on TEXT,
-      departed_on TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (city_id) REFERENCES cities(id),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_place_activities_map (
-      trip_place_id INTEGER NOT NULL,
-      activity_id INTEGER NOT NULL,
-      PRIMARY KEY (trip_place_id, activity_id),
-      FOREIGN KEY (trip_place_id) REFERENCES trip_places(id) ON DELETE CASCADE,
-      FOREIGN KEY (activity_id) REFERENCES activities(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_countries (
-      trip_id INTEGER NOT NULL,
-      country_code TEXT NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      PRIMARY KEY (trip_id, country_code),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (country_code) REFERENCES countries(country_code) ON DELETE RESTRICT
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_trip_countries_country ON trip_countries (country_code)`,
-    `CREATE TABLE IF NOT EXISTS items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      trip_id INTEGER NOT NULL,
-      trip_place_id INTEGER,
-      item_type TEXT NOT NULL,
-      status TEXT DEFAULT 'consider' NOT NULL,
-      notes TEXT,
-      is_carried_forward INTEGER DEFAULT 0 NOT NULL,
-      carried_from_item_id INTEGER,
-      user_id TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (trip_place_id) REFERENCES trip_places(id),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_flights (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      airline TEXT, flight_number TEXT, departure_airport TEXT, arrival_airport TEXT,
-      departure_datetime TEXT, arrival_datetime TEXT, booking_reference TEXT, seat TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_hotels (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      property_name TEXT, address TEXT, check_in_date TEXT, check_out_date TEXT,
-      booking_reference TEXT, confirmation_number TEXT, rating INTEGER, post_visit_notes TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_car_rentals (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      provider TEXT, pickup_location TEXT, dropoff_location TEXT,
-      pickup_datetime TEXT, dropoff_datetime TEXT, booking_reference TEXT, vehicle_class TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_restaurants (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      name TEXT, neighbourhood_area TEXT, cuisine_type TEXT, source TEXT,
-      rating INTEGER, post_visit_notes TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_experiences (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      rating INTEGER, post_visit_notes TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS map_shading_config (
-      state_key TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      display_name TEXT NOT NULL,
-      color_hex TEXT NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      PRIMARY KEY (state_key, user_id),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`,
-  ];
-
-  for (const sql of ddlStatements) {
-    await client.execute(sql);
-  }
+  const ddlStatements = await getSchemaDdl();
+  await client.batch(ddlStatements, 'write');
 
   return drizzle(client, { schema });
 }

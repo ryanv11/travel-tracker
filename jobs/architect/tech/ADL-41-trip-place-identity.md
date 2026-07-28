@@ -460,8 +460,20 @@ The draft's instinct was right about one thing: the guarantee is currently **imp
 rests on a driver default that nothing in this repo states, tests, or would notice changing.
 Two residual gaps:
 
-1. A `@libsql/client` major bump could flip the default and nothing would fail loudly. The
-   symptom would be silent orphaning in production, discovered months later.
+1. ~~A `@libsql/client` major bump could flip the default and nothing would fail loudly. The
+   symptom would be silent orphaning in production, discovered months later.~~
+   > **IMPLEMENTED (2026-07-28) — Backend, QUAL-11 (#291).** The startup assertion this
+   > section calls for now exists: `assertForeignKeysEnabled()` in
+   > `src/backend/services/startup.service.ts`, wired into `server.ts`'s startup sequence
+   > right after `getDb()`. It reads (never sets) `PRAGMA foreign_keys` on the real
+   > application connection and throws — refusing to boot — if it is not exactly `1`; a
+   > no-op for `DB_TYPE=postgres`, which always enforces declared FKs. Covered by
+   > `src/backend/services/__tests__/startup.service.test.ts` (resolves at 1, throws when
+   > flipped OFF on a real connection, no-ops for postgres). This gap is now closed on both
+   > transports: embedded (this test) and remote (gap 2's VERIFIED entry below) — the
+   > residual on gap 2 (read vs. behavioural write test) still applies to the *verification*
+   > probe, not to this boot-time guard, which runs against the real production connection
+   > every time the process starts.
 2. ~~**The remote Turso (`libsql://`) path is unverified.** Production runs on
    `TURSO_DATABASE_URL`; this environment's firewall reaches no Turso host, so the probes
    above cover the embedded driver only.~~
