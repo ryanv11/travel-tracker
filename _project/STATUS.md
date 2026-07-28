@@ -3,7 +3,7 @@
 > **Generated** from `_project/tracker.json` — do not edit by hand.
 > Regenerate with `npm run status`. Staleness is gated by `npm run status:check` (pre-push).
 
-_Tracker last updated: 2026-07-28 (QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)_
+_Tracker last updated: 2026-07-28 (QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)_
 
 ## Phases
 
@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (QUAL-09 resolved by BRD v3.11 — PO removed 
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (54)
+## Open work (53)
 
 ### P0 — Blockers (1)
 
@@ -63,10 +63,10 @@ _Tracker last updated: 2026-07-28 (QUAL-09 resolved by BRD v3.11 — PO removed 
 | BUG-62 | Admin panel is still fully owner-gated at the page/nav level — non-owner users can't reach the Companions tab even after AD-08 made companions per-user | frontend | ⬜ Pending |
 | BUG-63 | Non-owner blocked from creating a trip with a "forbidden" error on mobile — not currently reproducible | unassigned | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
-| QUAL-11 | Assert PRAGMA foreign_keys=1 at startup, and confirm FK enforcement on the remote Turso path | backend | ⬜ Pending |
+| QUAL-11 | Assert PRAGMA foreign_keys=1 at startup (remote Turso path verified 2026-07-28) | backend | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 
-### P3 — Minor (22)
+### P3 — Minor (21)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -91,7 +91,6 @@ _Tracker last updated: 2026-07-28 (QUAL-09 resolved by BRD v3.11 — PO removed 
 | QUAL-10 | jobs/database/tech/schema.ts is an unmaintained copy of the real schema | docs | ⬜ Pending |
 | QUAL-13 | Stale unread COO->Architect inbox messages from March 2026 | coo | ⬜ Pending |
 | QUAL-14 | MapView.tsx comment documents zoom >= 4 while the constant is 3 | frontend | ⬜ Pending |
-| DEP-04 | Semgrep job pulls semgrep/semgrep:latest unpinned from Docker Hub | unassigned | ⬜ Pending |
 
 ## Coverage by type
 
@@ -101,7 +100,7 @@ _Tracker last updated: 2026-07-28 (QUAL-09 resolved by BRD v3.11 — PO removed 
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 43/57 | 43 | 14 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `████████░░░░░░░░░░░░` 9/22 | 9 | 13 | 0 |
+| chore | `█████████░░░░░░░░░░░` 9/21 | 9 | 12 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -122,16 +121,17 @@ _Tracker last updated: 2026-07-28 (QUAL-09 resolved by BRD v3.11 — PO removed 
 </details>
 
 <details>
-<summary>Closed without change (3)</summary>
+<summary>Closed without change (4)</summary>
 
 | ID | Title | Resolution |
 |---|---|---|
 | BUG-38 | SQLite foreign_keys pragma never enabled — declared cascade FKs not actually enforced | not-a-bug |
 | BUG-17 | BUG-A untracked — trips.ts comment references unlogged issue | not-a-bug |
 | OQ-06 | Adopt a systematic subdivision reference list (ISO 3166-2) instead of ad hoc per-country region seeding | closed |
+| DEP-04 | Semgrep job pulls semgrep/semgrep:latest unpinned from Docker Hub | closed |
 
 </details>
 
 ---
 
-_124 done · 10 deferred · 3 closed · 54 open — 191 tracked items_
+_124 done · 10 deferred · 4 closed · 53 open — 191 tracked items_

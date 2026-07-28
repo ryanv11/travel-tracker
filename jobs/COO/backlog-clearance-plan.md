@@ -85,7 +85,7 @@ and the conflict pairs below must not run concurrently.
 | B6 | fullstack | BUG-44, 57 **+ BRD-DP06 + BRD-IT10** | `ItemForm.tsx`, `ItemCard.tsx` |
 | B7 | fullstack | BUG-50 | new `DELETE /api/trips/:id`, `TripDetail` header, `ConfirmDialog` |
 | B8 | frontend | **BRD-IT0809** | item-list sort/filter UI |
-| B9 | backend | **QUAL-03** | `test-db.ts` migration-driven schema |
+| B9 | backend | **QUAL-03 + QUAL-11** | `test-db.ts` migration-driven schema; `db/index.ts` FK startup assertion |
 
 **Conflict pairs — must be split across sub-waves:**
 
@@ -97,6 +97,14 @@ Suggested split — **sub-wave A:** B1, B2, B3, B6, B9 · **sub-wave B:** B4, B5
 
 **B9 is worth running first or early** regardless of sub-wave: it makes every other backend
 brief's tests trustworthy, and it clears OP-15 prerequisite (a).
+
+> **QUAL-11 added to B9, 2026-07-28 (PO).** The FK startup assertion from ADL-41 §7.2.1 —
+> ~15 lines plus a test in `src/backend/db/index.ts`, no file overlap with any other brief.
+> Rides along rather than dispatching separately. **Brief it as an assertion, not a setter:**
+> issuing `PRAGMA foreign_keys=ON` at connect looks like a fix and guarantees nothing, because
+> each statement is independently dispatched on the remote HTTP transport (ADL-41 §7.2).
+> QUAL-11's other half — whether the remote Turso path enforces FKs — is **already answered**
+> (staging returns `1`; ADL-41 §7.2 residual gap 2 is stamped VERIFIED) and is not brief scope.
 
 ---
 
