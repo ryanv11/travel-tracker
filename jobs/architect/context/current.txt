@@ -329,3 +329,59 @@ OPEN / HANDOFF
      real call site — see FINDING above.
   5. Nothing in this ADL touches ADL-41/ADL-43/ADL-44 stubs or ADL-42's completed entry —
      verified untouched after edit (grep confirms all five headers intact and distinct).
+
+================================================================================
+2026-07-28 — ADL-46 OP-27 FRESH-EYES REVIEW (branch chore/adl46-review)
+================================================================================
+Second, independently dispatched Architect. Reviewed ADL-46 (PR #327,
+chore/adl46-access-model) under the OP-27 rule — instructed to critique, not confirm.
+Deliverable: jobs/architect/tech/ADL-46-review.md. ADL-46 itself was NOT edited.
+
+VERDICT: sound with named corrections — 2 blocking, 8 further findings, 3 preferences.
+
+The two blocking ones, both found by re-derivation rather than by checking the author:
+  F1. trip_place_activities_map (schema.ts:376-387) is a THIRD junction table the spec
+      never names; §3.3 wrongly says trip_activities_map covers trip AND place level.
+      Consequences: the blocking pre-migration check queries the wrong table set (the
+      COO's live staging/prod probe inherited the same gap and returned a false zero);
+      §9.3's ownership remediation misses POST /api/trips/:t/places/:p/activities
+      (places.ts:242-280), which inserts a caller-supplied activity_id unvalidated; §8
+      has no place-level assertion. Reproduced on a scratch DB.
+  F2. `npm run db:generate` for the per-user change emits DROP INDEX + ALTER TABLE ADD
+      COLUMN NOT NULL REFERENCES, which CANNOT be applied ("Cannot add a NOT NULL column
+      with default value NULL"). §9.3's stated reason for hand-writing (UNIQUE(name)
+      can't be ALTERed) is the wrong mechanism — the unique is a standalone index. The
+      correct instruction is to discard the generated file entirely.
+
+WHAT WAS VERIFIED SOUND (so it is not re-checked): §13's headline question — the S3
+migration DOES preserve id. Hand-wrote the 12-step recreation, executed it against a
+scratch DB built from the real migration chain: ids preserved, trip_categories_map
+intact, PRAGMA foreign_key_check clean, sqlite_sequence carried. Validated SQL is
+appended to the review doc. Also verified: FK enforcement ON at runtime; FK disabling
+during migrate works on BOTH transports (sqlite3.js:105 pragma-before-BEGIN;
+http.js:123 disableForeignKeys=true) so remote Turso is safe; §8's must-not-change 403s
+survive S3 because requireOwner is router-level middleware; §3.1's Express fall-through;
+§10.1; CreateCitySchema already .strict(); Option B rejection reasoning correct.
+
+METHOD NOTE worth keeping: the two blocking findings both came from *executing* the
+thing rather than reading it. drizzle-kit's actual output contradicted a plausible,
+carefully-written premise about SQLite ALTER TABLE limits; nothing short of running
+db:generate would have caught it. Where a spec asserts what a tool will emit, run it.
+
+HANDOFF:
+  1. COO: F1 and F2 must be fixed before the DATABASE brief is written; F3-F7 before the
+     BACKEND brief. F8/F9/F10 are COO-applicable directly.
+  2. COO: three live-data queries are given verbatim in the review's "What I could not
+     verify" section — run against BOTH staging and production. This worktree has no
+     Turso access.
+  3. Recommended beyond the queries: make the migration self-verifying with a
+     RAISE(ABORT) cross-user assertion, since a point-in-time count cannot cover the
+     window between probe and deploy. SQL given in the review.
+  4. Not re-probed, deliberately: §4.6's ODbL finding — the spec already marks it
+     single-probe and names its own blind spot. I agree with that self-assessment.
+  5. PO constraint received mid-review (both DBs hold disposable test data): reweighted
+     away from data-preservation. F10 downgraded Medium -> Low; F1's data-disposition half
+     downgraded, but F1 stays BLOCKING on the unvalidated write path, which is structural.
+     One finding got STRONGER under the constraint: F3's NULL-creator hole is regenerated
+     permanently by cities.createdByUserId's ON DELETE SET NULL, so it is a rule defect on
+     future data, not a legacy artefact. Recoverable is not the same as correct.
