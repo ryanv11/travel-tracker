@@ -387,6 +387,40 @@ describe('tripRepository.getAssociations', () => {
     expect(result.companions).toHaveLength(1);
     expect(result.companions[0].name).toBe('Alice');
   });
+
+  // BUG-51 regression: a companion rename must be reflected immediately on
+  // every trip that references it, with no extra step (e.g. re-saving the
+  // trip) required. getAssociations() always LEFT JOINs live against
+  // companions.name — there is no denormalised/copied name anywhere in the
+  // trip read path, so a rename is visible on the very next read.
+  it('reflects a companion rename immediately, with no trip write required', async () => {
+    const db = testDb!;
+    const tripA = await seedTrip(db);
+    const tripB = await seedTrip(db);
+    const [comp] = await db
+      .insert(schema.companions)
+      .values({ userId: TEST_USER_ID, name: 'Partner', isActive: 1 })
+      .returning();
+    await db.insert(schema.tripCompanionsMap).values([
+      { tripId: tripA.id, companionId: comp.id },
+      { tripId: tripB.id, companionId: comp.id },
+    ]);
+
+    // Sanity: both trips see the pre-rename name.
+    expect((await tripRepository.getAssociations(tripA.id)).companions[0].name).toBe('Partner');
+    expect((await tripRepository.getAssociations(tripB.id)).companions[0].name).toBe('Partner');
+
+    // Rename via companionRepository, exactly as the PATCH /api/companions/:id
+    // route does. Neither trip is touched.
+    const { companionRepository } = await import('../companions.js');
+    await companionRepository.update(TEST_USER_ID, comp.id, { name: 'Aisling' });
+
+    const resultA = await tripRepository.getAssociations(tripA.id);
+    const resultB = await tripRepository.getAssociations(tripB.id);
+
+    expect(resultA.companions[0].name).toBe('Aisling');
+    expect(resultB.companions[0].name).toBe('Aisling');
+  });
 });
 
 // ----------------------------------------------------------------

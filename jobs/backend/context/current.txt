@@ -1,6 +1,27 @@
-BACKEND CONTEXT — 2026-07-28
+BACKEND CONTEXT — 2026-07-28 (B3 / BUG-51 thread)
 PROJECT: Travel Tracker
-CURRENT STATUS: B9 brief (QUAL-03 + QUAL-11), this thread.
+CURRENT STATUS: B3 brief (BUG-51, GitHub #299), this thread.
+  Investigation-led brief: companion rename in admin panel not propagating to
+  all trips consistently. Root cause is NOT in the backend — confirmed via
+  two independent probes (grep + full manual read of schema.ts and
+  repositories/trips.ts) that no denormalised companion name exists anywhere
+  and both trip list/detail routes always LEFT JOIN companions.name live, no
+  caching. Root cause is a frontend React Query cache-invalidation gap:
+  src/frontend/hooks/useAdmin.ts's companion mutations (create/update/
+  deactivate) only invalidate ['admin','companions'], never ['trips'], and
+  main.tsx sets a 5-minute global staleTime, so any trip whose query was
+  still fresh at rename time keeps serving the stale name until its own
+  mutation (e.g. saving the trip) forces an invalidation. Full trace in
+  jobs/backend/park-docs/20260728-BACKEND-bug51-park.txt.
+  No backend production code changed (no schema change needed either, so
+  nothing escalated to Architect). Added one repository-level regression
+  test (src/backend/repositories/__tests__/trips.test.ts) locking in that a
+  companion rename is visible on the very next tripRepository.getAssociations
+  call with no trip write required — full suite: 584 passed | 1 skipped.
+  Recommended to COO: a Frontend brief to add
+  qc.invalidateQueries({ queryKey: ['trips'] }) to the three companion
+  mutations in useAdmin.ts. BUG-51 stays open until that lands.
+PRIOR STATUS: B9 brief (QUAL-03 + QUAL-11).
   1. QUAL-03/QUAL-11 (branch chore/b9-migration-driven-test-schema, issue #291):
      - src/backend/repositories/__tests__/test-db.ts rewritten: no more
        hand-written 21-table DDL. Now applies the real migrations
@@ -41,16 +62,21 @@ CURRENT STATUS: B9 brief (QUAL-03 + QUAL-11), this thread.
        files consume test-db.ts" undercounts the total duplication. Same
        staleness risk, not touched this thread; flagged to COO as a
        follow-up-sized finding.
-ACTIVE TASKS: None — PR to be opened this thread, awaiting CI + COO review/merge.
-PENDING MESSAGES TO COO: 20260728_[time]-BACKEND-b9-qual03-qual11-complete.txt (to send)
+ACTIVE TASKS: None — BUG-51 PR to be opened this thread, awaiting CI +
+  COO review/merge. Note: this PR does not close BUG-51 by itself — it only
+  lands the backend regression test; the actual fix is the recommended
+  Frontend brief above.
+PENDING MESSAGES TO COO: 20260728_[time]-BACKEND-bug51-investigation-complete.txt (to send)
 OPEN ISSUES:
-  - 14 test files beyond test-db.ts's 7 consumers hand-roll their own copy of
-    the same 21-table DDL (routes/__tests__/*.test.ts,
+  - BUG-51: fix lives in src/frontend/hooks/useAdmin.ts, not backend — see
+    CURRENT STATUS above and the park doc for the exact three-line change
+    recommended. Needs a Frontend brief.
+  - (carried from B9) 14 test files beyond test-db.ts's 7 consumers hand-roll
+    their own copy of the same 21-table DDL (routes/__tests__/*.test.ts,
     services/__tests__/shading.trip-countries.test.ts,
     services/__tests__/shading.user-scope.test.ts). Same drift risk as
-    QUAL-03 described, at larger scale. Sizing a fix: likely a bigger lift
-    than B9 (touches more files, some may have per-test seed helpers beyond
-    what test-db.ts exports) — recommend COO size as its own QUAL item rather
-    than folding into this brief's scope.
-LAST PARK DOC: jobs/backend/park-docs/20260728-BACKEND-b9-park.txt
-  (see also 20260723-BACKEND-ad07-ad08-park.txt for prior thread)
+    QUAL-03 described, at larger scale. Not touched this thread either;
+    still recommend COO size as its own QUAL item.
+LAST PARK DOC: jobs/backend/park-docs/20260728-BACKEND-bug51-park.txt
+  (see also 20260728-BACKEND-b9-park.txt and
+  20260723-BACKEND-ad07-ad08-park.txt for prior threads)

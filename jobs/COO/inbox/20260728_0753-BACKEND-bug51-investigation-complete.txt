@@ -1,0 +1,47 @@
+BUG-51 · GitHub #299 · BRD: n/a (bug fix) · Branch: fix/bug51-companion-name-propagation
+
+WHAT WAS BUILT
+Investigation-led brief. Root cause is NOT in the backend: no denormalised
+companion name exists anywhere (two independent probes — grep across repo +
+migrations, and full manual read of schema.ts + repositories/trips.ts), and
+both GET /api/trips and GET /api/trips/:id call the same
+tripRepository.getAssociations(), which always LEFT JOINs companions.name
+live, no caching. Root cause is frontend: src/frontend/hooks/useAdmin.ts's
+companion mutations (create/update/deactivate) invalidate only
+['admin','companions'], never ['trips']; main.tsx sets a global 5-minute
+staleTime, so a trip whose query cache was still fresh at rename time keeps
+serving the stale name until its own mutation (e.g. saving the trip) forces
+a refetch. Matches the reported symptom exactly, including why the second
+trip needed to be opened AND saved, not just opened.
+
+No backend production code changed. No schema change involved, so nothing
+escalated to Architect. Added one repository-level regression test locking
+in that a companion rename is visible on the next tripRepository read with
+no trip write required.
+
+ACCEPTANCE CRITERIA
+- Root cause established before any fix attempted: PASS
+- Two-probe negative-findings rule followed for "no backend denormalisation": PASS
+- No route added/modified: N/A (see below)
+- Regression coverage added at repository layer (QUAL-17-compliant, not a route test): PASS
+- If schema change needed, stop and report: N/A — none needed
+
+SECURITY CHECKLIST
+No routes were added or modified this thread. N/A.
+
+CI: gh pr checks <PR#> — see below, PR not yet opened as of this report;
+will confirm green before considering thread complete.
+
+OPEN ISSUES / BLOCKERS
+- BUG-51 is NOT closed by this PR. The actual fix is frontend-only:
+  add qc.invalidateQueries({ queryKey: ['trips'] }) to useCreateCompanion,
+  useUpdateCompanion, and useDeactivateCompanion in
+  src/frontend/hooks/useAdmin.ts (mirrors the pattern useTrips.ts's own
+  mutations already use). Recommend COO dispatch a small Frontend brief
+  citing this investigation and jobs/backend/park-docs/20260728-BACKEND-bug51-park.txt.
+
+WHAT IS NOW UNBLOCKED
+- A Frontend brief for BUG-51 can be dispatched immediately — root cause,
+  exact file, and exact fix are documented; no further investigation needed.
+
+Full trace: jobs/backend/park-docs/20260728-BACKEND-bug51-park.txt
