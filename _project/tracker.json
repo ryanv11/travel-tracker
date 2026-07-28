@@ -2,7 +2,7 @@
   "meta": {
     "project": "Travel Tracker",
     "version": "1.0",
-    "updated": "2026-07-28 (negative-findings guard adopted into CLAUDE.md + all 8 role system prompts; QUAL-15 fixed — every role prompt's mandatory init step pointed at a nonexistent BRD path; QUAL-16 logged. QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)"
+    "updated": "2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292; QUAL-17 logged: 15 more test files hand-roll the same DDL, so route tests are not yet drift-safe. Negative-findings guard adopted into CLAUDE.md + all 8 role system prompts; QUAL-15 fixed — every role prompt's mandatory init step pointed at a nonexistent BRD path; QUAL-16 logged. QUAL-11 remote-Turso half verified against staging + assertion assigned to B9; DEP-04 closed as leave-as-is with the analysis recorded. QUAL-09 resolved by BRD v3.11 — PO removed the never-implemented Shortlisted item status rather than building it; planning loop is two-stage, PL-02/PL-03 unblocked, zero code change. Previous: 2026-07-27 Wave 0 complete 6/6, ADL-41-45 + UX trip-list spec merged (PRs #278, #281-285), BRD v3.8-v3.10, QUAL-08..14 and DEP-04 logged)"
   },
   "items": [
 
@@ -1120,12 +1120,12 @@
       "id": "QUAL-03",
       "type": "chore",
       "title": "test-db.ts hand-mirrors 21 CREATE TABLE statements — silent schema-drift risk in every repository test",
-      "status": "pending",
+      "status": "done",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Logged 2026-07-26 (COO) during the OP-15 prerequisite audit. Was previously untracked — it existed only as a sub-bullet inside OP-15's notes ('Q22 test-DDL consolidation'), so deferring OP-15 would have buried it. src/backend/repositories/__tests__/test-db.ts imports db/schema.ts for Drizzle typing but then hand-writes all 21 tables as literal DDL. A migration can therefore change the real schema while every repository test keeps passing green against the stale copy — the tests would not detect the drift. Same family as the stale local dev.db that caused a false alarm during the 2026-07-26 BUG-63 investigation (companions missing user_id post-migration 0012). Count has grown from the 13 recorded in OP-15's notes to 21, so this is actively worsening. Fix direction: drop the hand-written DDL and apply the real migrations to the in-memory libSQL DB (migrate(db, { migrationsFolder: 'src/backend/migrations' })) so the test schema is identical to production's by construction. IMPLEMENTATION CAVEAT for the brief: createTestDb() runs in beforeEach across ~580 backend tests, so replaying 12+ migration files per test may hurt suite time — build the schema once and clone per test rather than re-migrating. Also clears OP-15 prerequisite (a); sequence this BEFORE the OP-15 skills design pass. Scheduled as batch B9 in jobs/COO/backlog-clearance-plan.md."
+      "notes": "Logged 2026-07-26 (COO) during the OP-15 prerequisite audit. Was previously untracked — it existed only as a sub-bullet inside OP-15's notes ('Q22 test-DDL consolidation'), so deferring OP-15 would have buried it. src/backend/repositories/__tests__/test-db.ts imports db/schema.ts for Drizzle typing but then hand-writes all 21 tables as literal DDL. A migration can therefore change the real schema while every repository test keeps passing green against the stale copy — the tests would not detect the drift. Same family as the stale local dev.db that caused a false alarm during the 2026-07-26 BUG-63 investigation (companions missing user_id post-migration 0012). Count has grown from the 13 recorded in OP-15's notes to 21, so this is actively worsening. Fix direction: drop the hand-written DDL and apply the real migrations to the in-memory libSQL DB (migrate(db, { migrationsFolder: 'src/backend/migrations' })) so the test schema is identical to production's by construction. IMPLEMENTATION CAVEAT for the brief: createTestDb() runs in beforeEach across ~580 backend tests, so replaying 12+ migration files per test may hurt suite time — build the schema once and clone per test rather than re-migrating. Also clears OP-15 prerequisite (a); sequence this BEFORE the OP-15 skills design pass. Scheduled as batch B9 in jobs/COO/backlog-clearance-plan.md. DONE 2026-07-28 — B9, issue #291, PR #292. test-db.ts now applies the real migrations to a throwaway template :memory: DB, lifts the resulting DDL from sqlite_master (excluding __drizzle_migrations and sqlite_% internals), caches it at module scope, and replays it per test via client.batch() — so the schema is migration-derived by construction while paying the migration cost once, not per test. Suite runtime 6.75s -> 6.91s, noise-level. Drift detection DEMONSTRATED, not just asserted: adding a DROP COLUMN to migration 0012 made all 17 companions tests fail; before this change that same edit had zero effect on any repository test. Verified independently by COO against the diff. FOUND EN ROUTE: items.test.ts used status 'booked' in 8 places — never valid against chk_items_status and absent from all application code; the old CHECK-free hand-written DDL had masked it for the life of the file. Corrected to 'confirmed'. SCOPE LIMIT — see QUAL-17: this fixed test-db.ts only, and 15 further test files hand-roll the same DDL independently, so route-level tests are NOT yet drift-safe."
     },
     {
       "id": "QUAL-04",
@@ -2169,7 +2169,7 @@
       "id": "QUAL-11",
       "type": "chore",
       "title": "Assert PRAGMA foreign_keys=1 at startup (remote Turso path verified 2026-07-28)",
-      "status": "pending",
+      "status": "done",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": [],
@@ -2230,6 +2230,17 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "Found 2026-07-28 alongside QUAL-15, while sweeping the same init lists for broken paths. NOT broken — flagged, not fixed, because resolving it needs a judgment call rather than a correction. All 8 role prompts say 'Read _shared/frameworks.txt' as init step 1, and TWO different files answer to that name: /_shared/frameworks.txt (8397 bytes, 'SHARED FRAMEWORKS' — the 30 numbered binding standards covering coding, communication, quality, security SEC rules 19-22, spec review 23-24, and bug classification 25-30) and /jobs/_shared/frameworks.txt (1562 bytes, 'TRAVEL TRACKER — SHARED TECH STACK' — languages, frameworks, versions, env vars). They are not duplicates of each other; they are unrelated documents that collide on filename. From the repo root, which is where a worktree-isolated agent starts, the bare path resolves to the 30-standards doc — which is probably the intended one, since /coo-startup references 'Shared Standards 23/24' as living in _shared/frameworks.txt. So current behaviour is likely correct and no agent is reading nothing. But an agent reading the prompt from jobs/<role>/ could reasonably resolve it the other way, and the tech-stack doc is genuinely useful at init too. Success criteria: init step 1 names its target(s) by explicit path from the repo root — probably both files, since both are relevant — so there is no resolution ambiguity; consider renaming one file if the collision is worth removing outright."
+    },
+    {
+      "id": "QUAL-17",
+      "type": "chore",
+      "title": "15 further backend test files hand-roll the same 21-table DDL that QUAL-03 just removed from test-db.ts",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-07-28 by the B9 agent (issue #291, PR #292) while doing QUAL-03, and independently re-counted by the COO before logging. QUAL-03 made src/backend/repositories/__tests__/test-db.ts migration-derived, but 15 OTHER test files never used test-db.ts at all — they each hand-write the same 21-table DDL inline: 13 under src/backend/routes/__tests__/ (cities.get-by-id, companions, places, items.rating-sort-filter, qa-backend-fixes, items, trips.crud, owner-access, map, trip-countries, trips.delete, cities.carry-forward, security.access-matrix) and 2 under src/backend/services/__tests__/ (shading.trip-countries, shading.user-scope). COUNT CORRECTION: the agent's report said 14 (12 routes + 2 services); the actual figure is 15 (13 + 2), verified by 'grep -rl \"CREATE TABLE\" src/backend' minus test-db.ts and the 6 migration .sql files. Cited because the sizing matters. CONSEQUENCE — this narrows what B9 actually unblocked: REPOSITORY tests are now drift-safe, ROUTE tests are not, so the B9 report's claim that 'every other Wave 1 backend brief's tests are now trustworthy' is true only of the repository layer. Any Wave 1 backend brief whose verification rests on route tests is still verifying against a hand-maintained schema copy. The exposure is the same one QUAL-03 described and is 15x larger by file count. Note the concrete evidence this class of bug is real and not theoretical: QUAL-03's fix immediately surfaced 8 uses of an item status ('booked') that has never been valid against chk_items_status, silently green for the life of that file because the hand-written DDL carried no CHECK constraint. Success criteria: the 15 files derive their schema from the same migration-driven helper as test-db.ts; no hand-written CREATE TABLE remains in any backend test file; a deliberate migration change is detectable by route-level tests as well as repository tests; backend suite stays green with no material runtime regression."
     },
     {
       "id": "DEP-04",
