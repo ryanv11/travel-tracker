@@ -1,0 +1,74 @@
+Tracker: BUG-52, BUG-56, QUAL-02 (findings 1-2), QUAL-17 · GitHub issue #315 · BRD §5.1 TR-13
+Branch: fix/b4-search-and-test-schema
+
+WHAT WAS BUILT
+1. BUG-52: filterAndSortTrips now matches country names (full name only, per
+   TR-13's binding exclusion of ISO codes/abbreviations) — frontend-only,
+   countries[] was already in the payload.
+2. BUG-56: city-name input in AddPlaceFlow's new-city form auto-capitalises
+   the first letter (new src/frontend/utils/textFormat.ts).
+3. QUAL-02 findings 1-2: filter tests (category_id, country, and a newly
+   added activity_id test) strengthened to 3-trip seeding at repo + route
+   level; added a route-level GET /api/trips sort-order test. Findings 3-4
+   untouched, per brief.
+4. QUAL-17: all 15 hand-rolled-DDL backend test files (13 routes, 2
+   services) now derive schema from the migration-driven test-db.ts
+   helper. No hand-written CREATE TABLE remains in any backend test file.
+
+ACCEPTANCE CRITERIA
+- TR-13 success criteria (US-only-place trip found by "United States";
+  no false positives; existing name/city matching unchanged; case-
+  insensitive substring): PASS — new tests in filterAndSortTrips.test.ts.
+- TR-13 explicitly excludes ISO code / abbreviation matching: PASS —
+  negative tests assert "US" and "USA" do NOT match.
+- BUG-56 cosmetic capitalisation, no broader normalisation: PASS.
+- QUAL-02 finding 1 (filter-inversion detectable): PASS — 3-trip pattern
+  applied to category_id, country (repo + route), and activity_id (new).
+- QUAL-02 finding 2 (sort-order tested): PASS — route-level test added.
+- QUAL-17 (no hand-written CREATE TABLE remains; drift detectable at
+  route level): PASS — verified live (see below).
+- QUAL-17 stop condition did NOT fire. Two one-line schema-drift fixes
+  were needed (invalid enum literals in 2 of 15 files — 'completed' trip
+  status, 'skipped' item status — same class as QUAL-03's 'booked'
+  finding), well short of "more than a handful of tests needing real
+  logic changes."
+
+SECURITY CHECKLIST
+N/A — no routes or repositories added or modified. This brief touched
+frontend components/utils and backend TEST files only.
+
+VERIFICATION
+- test:backend 601 passed | 1 skipped (unchanged count vs main, no tests
+  lost; several new tests added and offsetting file-internal changes).
+- test:frontend 190 passed.
+- type:check:all clean. biome check clean (one auto-fix pass, formatting
+  only).
+- Drift detection re-verified at the route/service level (not just
+  repository, which is all QUAL-03 demonstrated): temporarily dropped a
+  column via a migration edit, confirmed companions.test.ts failed
+  14/14 at migration-apply time, reverted cleanly (empty git diff on the
+  migration file).
+- Contract tests not run: no routes touched, and this worktree has no
+  .env.local for a live dev:api server.
+
+CI: gh pr checks pending — will confirm green before considering this
+thread done; see below.
+
+OPEN ISSUES / BLOCKERS
+None blocking. Two things worth COO's attention, not urgent:
+1. 12 of the 15 converted files carried a stale map_shading_config DDL
+   with no user_id column (pre-dates ADL-28's per-user shading model) —
+   dead weight, never queried by those files' tests, silently corrected
+   by the schema swap with zero behavioural impact. No action needed,
+   flagging only as evidence the duplication was real and stale.
+2. tracker.json is COO-maintained per CLAUDE.md — not touched this
+   thread. BUG-52, BUG-56, QUAL-02, QUAL-17 entries need status flips on
+   merge.
+
+WHAT IS NOW UNBLOCKED
+- QUAL-17's caveat (route tests verify against a hand-maintained schema
+  copy, not the real one) is closed — any future Wave 1 brief whose
+  verification rests on these 15 route/service test files can now treat
+  that as trustworthy, matching what QUAL-03 already established for
+  repository tests.
+- Full detail in jobs/backend/park-docs/20260728-BACKEND-b4-park.txt.

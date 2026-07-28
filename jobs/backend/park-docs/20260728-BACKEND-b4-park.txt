@@ -1,0 +1,164 @@
+BACKEND PARK DOC — 2026-07-28 (B4 thread)
+PROJECT: Travel Tracker
+BRIEF: B4 — backlog-clearance-plan §4, Wave 1 sub-wave B
+BRANCH: fix/b4-search-and-test-schema
+ISSUE: #315
+
+=== SCOPE ===
+BUG-52 (TR-13 country search), BUG-56 (city capitalisation), QUAL-02
+findings 1-2 (filter-inversion + sort-order test strength), QUAL-17
+(migration-derived route/service test schema). BUG-55 explicitly out of
+scope (removed from brief, routed to Architect).
+
+=== BUG-52 — trip search matches country names ===
+Confirmed both of the brief's anchors on read before touching code:
+  1. GET /api/trips only takes status/category_id/activity_id/country —
+     src/backend/routes/trips.ts:115-124. No LIKE/search path in
+     tripRepository (grep across src/backend/repositories/trips.ts empty).
+  2. TripSummary.countries[] already {country_code, name}[] in the payload
+     — src/frontend/types/api.ts:204, populated from tripRepository.getCountries
+     (trip_countries junction, ordered by name) at routes/trips.ts:70-102/
+     189-262.
+Fix: one added clause in filterAndSortTrips (src/frontend/components/
+TripList/TripList.tsx) — `t.countries.some((c) => c.name.toLowerCase()
+.includes(q))`, additive to the existing trip-name/city-name checks. No
+backend change; no new search endpoint (per brief's explicit instruction).
+BRD §5.1 TR-13 (v3.12) success criteria all covered by new tests in
+filterAndSortTrips.test.ts's new "country-name search (TR-13, BUG-52)"
+describe block: US-only-place trip found by "United States"; no-match
+trip excluded; substring + case-insensitive; explicit negative tests for
+ISO code ("US") and informal abbreviation ("USA") NOT matching, per TR-13's
+deliberate exclusion; existing trip-name/city-name matching unchanged
+(regression-checked in the same block).
+
+=== BUG-56 — city name auto-capitalisation ===
+New src/frontend/utils/textFormat.ts: capitalizeFirst(value) — pure,
+minimal, deliberately not a general normalisation utility (says so in its
+own doc comment, per the brief's "do not let this expand" instruction).
+Wired into AddPlaceFlow.tsx's City Name field at both write sites: the
+onChange handler on the "add new city" form input, and the initial
+newCityName set in handleOpenNewCityForm (pre-filled from the search
+query when a user clicks "+ Add new: ..."). 9 unit tests in
+textFormat.test.ts, including edge cases (empty string, leading digit,
+leading apostrophe, hyphenated names, unicode).
+
+=== QUAL-02 findings 1-2 ===
+Finding 1 (filter-inversion): strengthened at both layers that actually
+have filter tests —
+  - Repository level (src/backend/repositories/__tests__/trips.test.ts,
+    already migration-safe from QUAL-03/B9): category_id and country
+    filter tests changed from 2-trip to 3-trip seeding (target + a
+    DIFFERENTLY-matching trip + a non-matching trip), asserting the exact
+    trip returned. ADDED a repository-level activity_id filter test —
+    this had ZERO coverage anywhere (repo or route) despite findAll()
+    implementing it at trips.ts:79-86; two probes confirmed the gap
+    (grep across all __tests__ for "activity_id:" + reading findAll's
+    source). Named explicitly in the finding's "category/activity/country"
+    triad, so in scope.
+  - Route level (trip-countries.test.ts): country filter test upgraded
+    to the same 3-trip pattern.
+Finding 2 (sort-order): GET /api/trips had NO route-level sort-order
+assertion (repository level already had one from QUAL-01). Added to
+trips.crud.test.ts's existing 'GET /api/trips' describe block: 3 trips
+seeded out of insertion order, asserts response array order matches
+start_date descending.
+Findings 3 and 4 (response-shape depth, cross-trip item isolation) left
+untouched per the brief's explicit "stay in the backlog. Do not do them."
+
+=== QUAL-17 — migration-derived schema in route/service tests ===
+All 15 files converted (13 routes/__tests__, 2 services/__tests__) —
+full list: cities.get-by-id, companions, places, items.rating-sort-filter,
+qa-backend-fixes, items, trips.crud, owner-access, map, trip-countries,
+trips.delete, cities.carry-forward, security.access-matrix (routes) +
+shading.trip-countries, shading.user-scope (services). Each now imports
+createTestDb/TestDb from repositories/__tests__/test-db.ts (QUAL-03's
+migration-derived helper) instead of hand-writing its own copy of the
+21-table DDL. `grep -rl "CREATE TABLE" src/backend/routes/__tests__/*.ts
+src/backend/services/__tests__/*.ts` returns nothing post-change.
+2647 lines of duplicated DDL removed net.
+
+Sequencing followed the brief exactly: tasks 1-3 (BUG-52, BUG-56, QUAL-02)
+committed first (commit 7f65e24), QUAL-17 as its own commit (4a0c5af),
+plus a small formatting-only commit (42de2e7) from /pre-push's biome check.
+
+STOP CONDITION — did NOT fire, but came close enough to log carefully:
+Two of the 15 files hit genuine schema drift when swapped onto the real
+migrations, same class as QUAL-03's 'booked' finding (a status literal
+that was never valid against a CHECK constraint, silently accepted for
+the file's whole life because the hand-written DDL carried none):
+  1. trips.delete.test.ts — a trip seeded with status 'completed'.
+     chk_trips_status has only ever allowed planning/active/
+     review_pending/locked (schema.ts:263-265). Fixed by changing to
+     'planning' — status was incidental to that test's actual intent
+     (carry-forward orphaning on trip delete), which is unaffected.
+  2. cities.carry-forward.test.ts — an item seeded with status 'skipped'
+     inside a loop asserting "every non-next_time status is excluded".
+     chk_items_status has only ever allowed consider/confirmed/completed/
+     cancelled/next_time (schema.ts:501-502). Fixed by changing to
+     'cancelled' — preserves the loop's intent exactly (cancelled is a
+     non-next_time status not otherwise covered in that loop).
+Both are one-line fixes with no logic change and no change to what the
+test verifies — squarely "mechanical" per the brief's stop-condition
+language, not the "more than a handful of tests needing real logic
+changes" that would have required stopping. Reporting both explicitly
+per the brief's instruction ("expect more of that; report it rather than
+quietly fixing it") — QUAL-03/QUAL-17's premise that this class of drift
+was real and not theoretical is now confirmed a third and fourth time.
+
+SEPARATELY FOUND, LEFT AS-IS (zero behavioural impact): 12 of the 15
+files' old hand-rolled map_shading_config DDL had NO user_id column at
+all (single-column PK on state_key) — it pre-dates ADL-28's per-user
+shading model and was carried forward unmaintained since. Confirmed via
+two probes that none of those 12 files' actual test bodies ever query
+schema.mapShadingConfig (grep for both `mapShadingConfig)` insert/select
+usage and a full manual read of items.test.ts) — it was dead weight in
+the DDL block, not exercised. The migration-derived schema swap silently
+corrects it with no test code change required.
+
+DRIFT-DETECTION DEMONSTRATED at the route/service level, not just
+repository level (QUAL-03 only demonstrated the latter). Temporarily
+appended `ALTER TABLE companions DROP COLUMN is_active;` to migration
+0013 (with a `--> statement-breakpoint` marker matching drizzle-kit's own
+multi-statement convention — a same-line append without the marker
+silently no-ops on libSQL's single-prepare semantics, which is itself
+worth remembering for next time). Ran companions.test.ts: 14/14 failed —
+the migration itself failed to APPLY (a leftover UNIQUE index still
+referenced the dropped column), which is actually a stronger signal than
+a runtime query failure would have been. Reverted via Write back to the
+single original line; `git diff` on the migration file is empty,
+confirming a clean revert with nothing bleeding into the pushed branch.
+
+=== VERIFICATION ===
+- npm run test:backend: 601 passed | 1 skipped (same count as main —
+  no tests lost, no new failures; +7 new tests: activity_id filter,
+  3x strengthened filter tests are same-count replacements not additions,
+  sort-order test, +9 country-search tests in filterAndSortTrips, +9
+  capitalizeFirst tests — net addition is more than 7, exact delta not
+  hand-counted since file-level pass/fail is what matters here)
+- npm run test:frontend: 190 passed
+- npm run type:check:all: clean
+- npm run check (biome): clean after one auto-fix pass
+- npm run status:check: STATUS.md up to date, no regen needed
+- Contract tests NOT run — this brief touches no backend routes/API
+  contracts (confirmed true by the security checklist below), and this
+  fresh worktree has no .env.local for a live dev:api server. Noting per
+  the brief's "verification caveat" instruction rather than silently
+  omitting.
+
+=== VERIFICATION CAVAT CARRIED FORWARD PER BRIEF (QUAL-17/QUAL-18) ===
+Route tests now verify against the SAME schema as repository tests
+(migration-derived, real), so the caveat the brief asked me to carry —
+"until QUAL-17 lands, route tests verify against a hand-maintained copy"
+— no longer applies to any of the 15 files this thread touched. It does
+still apply to QUAL-18 (E2E via vite preview, no CSP under test) and to
+nothing else in backend scope. Not re-verified this thread (out of
+scope); flagging only that the QUAL-17 half of the caveat is now closed.
+
+=== OPEN ISSUES / NOT DONE ===
+- QUAL-02 findings 3-4 remain backlog, per brief.
+- BUG-55 remains routed to Architect, per brief (not touched, not
+  investigated further this thread).
+- No security checklist items apply — no route added or modified this
+  thread (frontend-only fix + backend TEST files only, no
+  src/backend/routes/*.ts or src/backend/repositories/*.ts production
+  code changed).
