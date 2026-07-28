@@ -2976,6 +2976,9 @@ an item status, but `chk_items_status` (`src/backend/db/schema.ts:499`) permits 
 nowhere in `src/`. It was added to the BRD and never implemented; its home is the
 deprioritized planning-core tracker entry. ADL-42 does not rebuild the `items` table so it
 neither depends on nor resolves this.
+> **RESOLVED (2026-07-28) — BRD v3.11 (QUAL-09).** PO direction: `Shortlisted` is removed
+> from the BRD rather than added to the schema. Consider vs Confirmed is the whole planning
+> loop. `chk_items_status` stands unchanged; no migration owed.
 
 **COO action required before any brief dispatches** (CLAUDE.md BRD gate): **FL-01 is
 superseded** — "Each flight is logged as an individual leg" is the exact model this replaces —

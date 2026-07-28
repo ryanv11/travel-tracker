@@ -1,6 +1,6 @@
 # Business Requirements Document
 ## Travel Tracker Application
-**Version:** 3.10
+**Version:** 3.11
 **Date:** July 2026
 **Author:** Claude (BSA/COO) / Ryan V (Product Owner)
 **Status:** Approved
@@ -14,7 +14,7 @@ emails; ideas for what to do live nowhere; and once a trip is over there is no s
 way to look back on it. This creates three gaps:
 
 - No single place where a trip comes together — booked items entered once, then a space to
-  brainstorm and shortlist everything else
+  brainstorm everything else
 - No visual record of countries, regions and cities visited
 - No quick way to pull up recommendations when a friend asks ("you've been to Japan —
   where should we go?")
@@ -26,7 +26,7 @@ way to look back on it. This creates three gaps:
 The product identity, in priority order (PO direction 2026-07-18):
 
 1. **Plan** *(primary)* — the app is where trips get planned: booked items captured early,
-   then an idea pool that gets shortlisted and promoted as the trip firms up. Planning is
+   then an idea pool that gets confirmed as the trip firms up. Planning is
    eventually collaborative (trip companions co-plan, Phase 3).
 2. **Look back** *(major)* — past trips become memories: the shaded map, stats and
    patterns, and shareable recommendations pulled from real trip history.
@@ -59,15 +59,17 @@ retained for history)
 **Item Status:**
 - **Consider** — an idea: something being researched or thought about. Any item type
   (including hotels, flights, car rentals) can exist as a Consider item with minimal detail
-- **Shortlisted** — promoted from the idea pool: a keeper the traveller intends to do or
-  book *(added in v3.0)*
+- ~~**Shortlisted** — promoted from the idea pool: a keeper the traveller intends to do or
+  book *(added in v3.0)*~~ **SUPERSEDED (2026-07-28) by v3.11 — retained for history.**
+  Specified in v3.0, never implemented; removed on PO direction (QUAL-09): Consider carries
+  the "researching it" meaning on its own, and a two-stage loop is sufficient at this trip size.
 - **Confirmed** — booked or committed to
 - **Completed** — actually happened (set during post-trip review)
 - **Cancelled** — was confirmed but did not happen
 - **Next time** — not done this trip but flagged for a future visit
 
-**Planning stages:** the three pre-trip statuses map to the planning loop — the **idea
-pool** (Consider), the **shortlist** (Shortlisted), and **booked** (Confirmed).
+**Planning stages:** the two pre-trip statuses map to the planning loop — the **idea
+pool** (Consider) and **booked** (Confirmed).
 
 **Shell Trip:** a historic trip recorded with minimal detail — name, dates, and places
 only, no items required. Shell trips are first-class trips: they count toward map shading
@@ -152,7 +154,7 @@ and stats. They exist so travel history can be backfilled quickly *(added in v3.
 |----|-------------|
 | IT-01 | User can log items against a trip or a specific place within a trip |
 | IT-02 | Item types: Restaurant, Hotel, Flight, Car Rental, Experience, Note |
-| IT-03 | All items carry a status: Consider, Shortlisted, Confirmed, Completed, Cancelled, Next time *(Shortlisted added in v3.0 — see §5.12)* |
+| IT-03 | All items carry a status: Consider, Confirmed, Completed, Cancelled, Next time *(v3.11: Shortlisted removed — specified in v3.0, never implemented, dropped on PO direction; this list now matches `chk_items_status` in `src/backend/db/schema.ts`)* |
 | IT-04 | Notes can be added to all item types |
 | IT-05 | Items can be updated at any time during Planning or Active status |
 | IT-06 | During post-trip review, user can bulk-update item statuses to reflect what actually happened |
@@ -273,7 +275,7 @@ and stats. They exist so travel history can be backfilled quickly *(added in v3.
 
 ### 5.12 Planning (v3.0 — core loop)
 
-The planning loop is **idea pool → shortlist → booked**, applying to every item type —
+The planning loop is **idea pool → booked**, applying to every item type —
 a hotel or car rental is an idea until it's booked, exactly like a restaurant or activity.
 Day-by-day scheduling is a secondary layer for region-sequential trips (e.g. Japan, where
 places can't be revisited after moving on), not a requirement for every trip.
@@ -281,11 +283,11 @@ places can't be revisited after moving on), not a requirement for every trip.
 | ID | Requirement | Success criteria |
 |----|-------------|------------------|
 | PL-01 | Any item type can be created as a quick-capture idea (status Consider) with minimal fields — name and type are sufficient; booking fields are not required until Confirmed | An idea for a restaurant, hotel, or activity can be added to a trip in one short interaction with no booking details |
-| PL-02 | Items can be promoted (Consider → Shortlisted → Confirmed) or demoted without re-entering data; existing field values are preserved across transitions | Promoting/demoting an item is a single action from any item list; no data loss on transition |
-| PL-03 | Trip detail provides a planning view grouping items by planning stage — idea pool, shortlist, booked — across all item types | For a trip in Planning status, the user can see at a glance what's booked, what's shortlisted, and what's still just an idea |
+| PL-02 | Items can be promoted (Consider → Confirmed) or demoted without re-entering data; existing field values are preserved across transitions | Promoting/demoting an item is a single action from any item list; no data loss on transition |
+| PL-03 | Trip detail provides a planning view grouping items by planning stage — idea pool, booked — across all item types | For a trip in Planning status, the user can see at a glance what's booked and what's still just an idea |
 | PL-04 | The planning view supports brainstorming: adding several ideas in quick succession without leaving the view | Five ideas can be captured in under a minute without navigating away |
 | PL-05 | *(Phase 2)* Items and places can optionally be assigned to days — a day-by-day itinerary layer for region-sequential trips. Unassigned items remain in the pool; day assignment is never mandatory | A Japan-style trip can show items per day per region; a weekend trip can ignore the layer entirely |
-| PL-06 | *(Phase 3)* Trip companions can contribute to the idea pool and shortlist on shared trips (co-planning — see §9 companion model) | A companion on a shared trip can add and promote ideas under their own identity |
+| PL-06 | *(Phase 3)* Trip companions can contribute to the idea pool on shared trips (co-planning — see §9 companion model) | A companion on a shared trip can add and promote ideas under their own identity |
 
 ### 5.13 Looking Back (v3.0)
 
@@ -472,5 +474,6 @@ The following examples illustrate the intended use of the notes field across ite
 | 3.8 | July 2026 | COO / Ryan V (PO) | **Wave 1 dispatch gate** (`jobs/COO/backlog-clearance-plan.md` §8.1) — one bump covering the three backlog items that introduce behaviour with no BRD home, so none of them dispatches without success criteria. Added TR-14 (delete an entire trip: explicit confirmation naming what is lost, Locked trips refused, no orphaned dependents; scope-noted as hard deletion that must not foreclose the Phase 2 archive direction tracked as NR-12) — from BUG-50, the backlog's oldest open P1. Added TR-15 (removing a place that has items prompts delete-all / reassign-to-trip-level / cancel instead of silently reassigning; supersedes the behaviour shipped for BUG-32) — from BUG-40. Added IT-11 (item date fields default from the trip's date range rather than today; flight arrival defaults to departure date; user edits never re-defaulted over) — from BUG-57, noted as sharing one code path with DP-06 and therefore implemented alongside it. No existing requirement's meaning changed. Per the BRD→tracker rule, the three new IDs are tracked by the existing BUG-50/BUG-40/BUG-57 entries via their `brdRefs` rather than by duplicate feature items |
 | 3.9 | July 2026 | COO / Ryan V (PO) | **ADL-42 BRD gate** — the bump the Architect's Wave 0 brief S2 handed back (issue #272, PR #278); no brief could dispatch from ADL-42 without it. Four changes, all consequences of one decision: a flight booking is one item carrying legs, and travellers are recorded per leg. **FL-01 rewritten and stamped SUPERSEDED** — "each flight is logged as an individual leg" is exactly the one-item-per-leg model ADL-42 replaces; it forced a connecting itinerary on a single booking reference to become two unrelated items with two independent statuses. Original text retained in the stamp per the document-lifecycle rule. **FL-02 split** into booking-level fields (booking reference, notes) and per-leg fields (airline, flight number, airports, datetimes), with **`seat` removed entirely** — it is no longer a flight field. **FL-03 clarified**: status is held at booking level; legs carry no independent status (ADL-42 D8 — a PNR is confirmed or cancelled as a unit, and per-leg status has no correct aggregate). **Added FL-05** (explicit user-controlled leg ordering, not inferred from departure times) with success criteria — the BRD home for BUG-41. **Added IT-12** (travellers and seats per item, per leg for flights) with success criteria — the BRD home for BUG-42. IT-12 is placed in §5.5 rather than the flights section deliberately: ADL-42 D13 opens travellers to all item types while legs stay flight-only. Its criteria call out the two cases most likely to be got wrong — a companion travelling only some legs, and the owning user as a traveller without being added to the companion list (`companions` is a list of *other* people, so the old single `seat` column was implicitly the user's own). Per the BRD→tracker rule, FL-05 and IT-12 are tracked by the existing BUG-41/BUG-42 entries via `brdRefs`, not duplicate feature items |
 | 3.10 | July 2026 | Architect / Ryan V (PO) | **Resolved OQ-05 (ADL-41)** — trip-place identity moves to **one row per visit**; `uniq_trip_places_trip_city` is dropped and a `trip_places` row now means "a stay in a city", not "a city on the trip". Resolution and its four knock-ons recorded in §10: map shading needs no change (every aggregate already counts `DISTINCT trips.id`); DP-05 ordering moves from a client-side sort to a persisted `sort_order` assigned at write time, partially superseding ADL-24 §4.1/§4.2; DP-06 fires only on the empty-trip → first-place transition, so a revisit never inherits trip dates; item attachment is structurally unchanged — an item belongs to exactly one visit, with no implicit re-parenting. No requirement text changed and no new requirement IDs added — this bump exists because §10 changed, per the three-places rule. Follows the v3.2 precedent (Architect-authored bump resolving an open question, PO approval via merge). Same-PR correction worth recording: the analysis this ADL reviewed asserted `PRAGMA foreign_keys` was off at runtime and that no trip DELETE route existed — **both false**, verified against the installed libSQL client and `src/backend/routes/trips.ts:429`; TR-14's remaining scope is frontend-only |
+| 3.11 | July 2026 | COO / Ryan V (PO) | **Removed the `Shortlisted` item status (QUAL-09).** PO direction 2026-07-28: *"Considering is doing enough work here, and I'm unlikely to add enough items to a trip that I need to narrow down from that. Confirmed vs Considering is enough."* `Shortlisted` was added in v3.0 and **never implemented** — `chk_items_status` in `src/backend/db/schema.ts:499` has only `consider, confirmed, completed, cancelled, next_time`, and the string `shortlisted` appears nowhere in `src/`. The drift was found by ADL-42 (issue #272) and flagged rather than fixed, because BRD-vs-code disagreement on a requirement is a PO call, not a doc nit. This bump resolves it in favour of the code. Changes: **IT-03** drops `Shortlisted` from the status list; the **§4 Item Status** definition is struck through and stamped SUPERSEDED (text retained per the document-lifecycle rule); **§4 Planning stages** goes from three pre-trip statuses to two (idea pool → booked); **PL-02** promotion path becomes Consider → Confirmed; **PL-03**'s planning view groups by two stages, not three, with success criteria reworded to match; **PL-06** drops "and shortlist". §1 and §2 narrative de-shortlisted for consistency. No code change is required — this bump makes the BRD describe what already ships. Unblocks PL-02 and PL-03 for briefing, which QUAL-09 was holding |
 
 *Document status: Approved. This document is the authoritative requirements reference for all team members. Changes must be approved by the product owner and recorded in the change log.*

@@ -364,6 +364,12 @@ does not rebuild the `items` table, so it neither depends on nor resolves this �
 future migration that rebuilds that CHECK must handle it. Recorded so it is not rediscovered
 a third time.
 
+> **RESOLVED (2026-07-28) by BRD v3.11 (QUAL-09).** The PO decided in favour of the code:
+> `Shortlisted` is removed from the BRD, not added to the schema. `chk_items_status` is
+> correct as written and needs no migration — the caveat above about a future CHECK rebuild
+> no longer applies. Flagging this rather than silently "fixing" it was the right call: the
+> resolution was a product decision, not a doc correction. Raising it is what got it decided.
+
 ---
 
 ## 8. D9–D13 — remaining rulings
@@ -503,7 +509,8 @@ recorded so it is a known constraint rather than a shipped bug.
   is a user-mapping step, not a stored field.
 - **Item cost** (D9) — needs a BRD requirement first.
 - **Per-leg disruption/cancellation marker** (D8) — deferred until the PO asks.
-- **The `shortlisted` status gap** (§7) — belongs to the planning-core work.
+- ~~**The `shortlisted` status gap** (§7) — belongs to the planning-core work.~~
+  **CLOSED 2026-07-28 — BRD v3.11 removed the status; no code change owed.**
 - **Timezone-aware datetimes** (§9) — depends on airport reference data (ADL-43).
 - **Sharing / co-planning (PL-06, NF-07)** — `item_travellers` names companions, which is not
   the same as granting them access. Access remains out of scope and this design does not

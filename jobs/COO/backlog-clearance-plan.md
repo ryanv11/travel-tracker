@@ -204,9 +204,13 @@ Also owed at the same time, and easy to miss because they aren't new IDs:
 - **BUG-47** (activity auto-population) — S4 designed it as *suggestion-based*, modelled on
   IT-07's carry-forward pattern, deliberately not silent-write. Needs a BRD home or an
   explicit decision that it stays a spec-only idea.
-- **QUAL-09** must be resolved *before* PL-02/PL-03 are briefed — BRD IT-03 lists item status
+- ~~**QUAL-09** must be resolved *before* PL-02/PL-03 are briefed — BRD IT-03 lists item status
   `Shortlisted`, which was never implemented. Either build it or amend the BRD; briefing the
-  planning loop while its middle stage doesn't exist would produce an unbuildable brief.
+  planning loop while its middle stage doesn't exist would produce an unbuildable brief.~~
+  **CLEARED 2026-07-28 — BRD v3.11.** PO chose amend-the-BRD: `Shortlisted` is removed, the
+  planning loop is two-stage (Consider → Confirmed). PL-02 and PL-03 are now briefable as
+  written; neither needs a middle stage built first. No code change was required — the schema
+  was already correct.
 - **B7 (BUG-50) is frontend-only** — see §6.2's correction. Re-size before dispatch.
 
 The Wave 1 gates above stay cleared; this does not reopen them. Wave 1 (§4) is dispatchable
