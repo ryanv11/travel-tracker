@@ -1,0 +1,251 @@
+FRONTEND PARK DOC — B7: BUG-50 trip delete affordance + BUG-58 backward-status selection
+Date: 2026-07-28
+Branch: fix/b7-trip-delete-and-selection
+GitHub issue: #316 (brief B7, B5 folded in — Wave 1 sub-wave B)
+Tracker: BUG-50 (P1, TR-14), BUG-58 (P2, TR-11)
+
+SCOPE
+  Two independent bugs sharing one code path (trip-level actions in the
+  detail view / their effect on selection). B5's other two items (BUG-06
+  deferred, BUG-37 backlog) were explicitly out of scope per the brief and
+  not touched.
+
+  Concurrent briefs: B8 owns TripItemsSection.tsx/useItems.ts, B4 owns
+  TripList.tsx's filterAndSortTrips + backend route tests. Confirmed via
+  `git diff --stat` before committing that neither file was touched.
+
+BUG-50 / TR-14 — DELETE AFFORDANCE
+  Anchors from the brief, confirmed before building (not re-probed, brief
+  states these were already double-probed): tripsRouter.delete('/:id')
+  exists at src/backend/routes/trips.ts:429, userId-scoped, 403s on locked
+  trips, cascades; useDeleteTrip already exists (useTrips.ts:168) and is
+  wired to bulk delete in both list layouts; ConfirmDialog exists in
+  components/shared/. Frontend-only — no backend route added.
+
+  Design decisions made during implementation, in order of how load-bearing
+  they are:
+
+  1. Delete logic lives in useTripDetailController.ts (shared by
+     TripDetail.tsx and MobileTripDetailView.tsx already, for status/lock/
+     unlock), not duplicated in each component. Added state (confirmDelete),
+     the useDeleteTrip() mutation, and three handlers: handleDeleteClick
+     (opens the dialog, resets any stale mutation error — same precedent as
+     PlaceSection's handleOpenRemoveConfirm), handleDeleteConfirm (the real
+     delete: mutateAsync then navigate('/trips', { replace: true }) —
+     mirrors the exact call shape already used by both layouts' bulk-delete
+     "if the currently viewed trip was deleted, navigate away" branch), and
+     handleDeleteDialogConfirm (the dialog's actual onConfirm — branches on
+     isLocked before deciding whether to call handleDeleteConfirm at all).
+
+  2. Locked-trip handling: TR-14 says "not deletable without unlocking
+     first" AND "attempting to delete a Locked trip is refused with a
+     message directing the user to unlock" — both must be true at once,
+     which rules out simply hiding the button (Edit's pattern) since a
+     hidden button can't be "attempted." Decision: the Delete button stays
+     visible/reachable even when locked (documented as a deliberate
+     exception in TripDetail.tsx's module doc, next to the general "hide
+     write controls when locked" rule). Clicking it always opens
+     ConfirmDialog; when isLocked, the dialog's copy switches to "This trip
+     is locked... Unlock this trip first" with confirmLabel "Unlock Trip",
+     and clicking that button doesn't call the delete mutation at all — it
+     closes confirmDelete and opens confirmUnlock, i.e. routes straight into
+     the pre-existing unlock flow. This was a deliberate choice over letting
+     the click hit the real API and surface the backend's LockError message
+     ("Trip is locked", not directive) — client-side short-circuit avoids
+     duplicating the lock/unlock RULE (which decision requires no backend
+     round-trip since trip.status is already known) while still being more
+     actionable than a bare error string. Flagging this as a design call
+     worth a second look: it does mean a genuinely stale client (trip
+     status changed server-side between page load and click) would show
+     "locked" copy even after a real unlock elsewhere, until the next
+     query refetch — a narrow edge case, not exercised by tests, not
+     believed to be a regression risk given the existing 5-minute staleTime
+     and this UI's general refetch-on-focus behavior, but noted rather than
+     silently assumed fine.
+
+  3. Confirmation copy: computed in each component (TripDetail.tsx /
+     MobileTripDetailView.tsx), not the shared hook — deliberately, since
+     hooks/logic vs. presentation-text felt like the right split, and the
+     two components' copy is currently identical (kept simple rather than
+     centralizing text into the hook prematurely). Names trip name, place
+     count, item count; branches to a shorter message when placeCount is 0.
+     Pattern lifted directly from PlaceSection's remove-place dialog
+     (place.items.length > 0 branch).
+
+  4. New TrashIcon.tsx (not pre-existing) — the bulk-delete action bar uses
+     a bare text label, no icon existed for this. Added to the icons
+     barrel, icons.test.tsx's ALL_ICONS array and count assertion updated
+     (13 -> 14) since that test enumerates every icon by name.
+
+  5. Accessible naming: the desktop button and the dialog's confirm button
+     for the SAME action ("Delete Trip") share their accessible name once
+     the dialog opens — same collision shape as ReviewPanel's pre-existing
+     "Return to Planning" trigger-vs-confirm-button pattern. Gave both
+     desktop and mobile trigger buttons aria-label="Delete Trip" (desktop's
+     visible "Delete" text is aria-hidden, matching how the icon is already
+     aria-hidden) for a consistent, unambiguous accessible name across
+     breakpoints — tests disambiguate the two same-named buttons via
+     getAllByRole()[1], same technique already used for Lock/Return-to-
+     Planning in ReviewPanel.test.tsx.
+
+  KNOWN GAP, surfaced not fixed: a review_pending trip renders
+  ReviewPanel.tsx (via TripDetailPage's status branch / MobileTripsLayout's
+  renderDetailContent), not TripDetail.tsx/MobileTripDetailView.tsx — so it
+  currently has NO delete affordance at all. The brief's own anchors ("grep
+  across TripDetail.tsx and MobileTripDetailView.tsx returns nothing")
+  scoped the probe to exactly those two files, and TR-14's "reachable from
+  the trip detail view" doesn't explicitly settle whether ReviewPanel counts
+  as part of "the trip detail view" for this purpose. Did not expand into
+  ReviewPanel.tsx unilaterally — flagged to COO in the completion report and
+  tracker note instead.
+
+BUG-58 — CLASSIFICATION (the brief's mandatory first task)
+  Two independent probes, per CLAUDE.md's negative-findings rule (this is
+  a "was X changed by Y" question, same shape as an absence claim):
+
+  Probe 1 (git log): `git log --oneline --all --follow` on
+  TripDetailPage.tsx (last touched at 77a415b, the Tailwind migration —
+  nothing after), ReviewPanel.tsx (last touched at a60ec17, "BUG-03/04/05
+  fixes" — nothing after, meaning BUG-04's Return-to-Planning handler and
+  its onClose() call are original to that commit), and the pre-208
+  TripDetail.tsx's handleUnlockConfirm (same file history — see probe 2).
+  None show a commit from b1559cd (#208, WP-03/WP-04).
+
+  Probe 2 (full diff): pulled the pre-208 versions of TripDetail.tsx and
+  TripsLayout.tsx (via `git show 13fdcbe:...`, the commit immediately before
+  #208) and read them side by side against the current files. The unlock
+  handler (`await unlockTrip.mutateAsync(trip.id); setConfirmUnlock(false);`
+  — no navigate call) and the layouts' navigate-on-filter-clear/bulk-delete
+  logic are functionally identical pre/post #208; only styling/tokens
+  changed in the reskin, confirming the doc comment's own claim ("skin +
+  stepper pass, not a layout rebuild").
+
+  CONCLUSION: GAP, not a regression. #208 shipped the same day BUG-58 was
+  logged in UAT, but that was coincidental — it was the first UAT pass to
+  exercise the reskinned Trips flow end-to-end at all, not evidence #208
+  broke anything. Per the brief's own instruction ("if it never worked, say
+  so and treat it as a gap"), no "test that would have caught the
+  regression" obligation applies — ordinary test coverage was still added.
+
+BUG-58 — ROOT CAUSE AND FIX
+  The only user-reachable backward transition in the status workflow is
+  "Return to Planning" (review_pending -> planning, BUG-04's fix) inside
+  ReviewPanel.tsx. Its handler, handleReturnToPlanning, called onClose()
+  unconditionally right after the status mutation resolved. onClose is
+  wired one level up: TripDetailPage passes `() => navigate('/trips')` and
+  MobileTripsLayout passes `handleBack` (`() => navigate('/trips')`) — both
+  drop the trip's :id from the route, clearing selection in the exact same
+  click that changes status. This is a precise match for the bug report:
+  "Moving a trip backward... clears the selection entirely."
+
+  The OTHER backward transition — Unlock (locked -> review_pending, in
+  useTripDetailController) — never called onClose() to begin with and was
+  already correct per the brief's own "Expected: the trip stays selected"
+  description. Confirmed this with a new test
+  (useTripDetailController.test.tsx: "handleUnlockConfirm ... does not
+  navigate") rather than relying on inspection alone, since the brief
+  explicitly says "Verify the actual mechanism before fixing it; that
+  hypothesis is mine, not established" about its OWN filter-drop hypothesis
+  — worth the same discipline toward my own read of the code.
+
+  Fix: removed the onClose() call from handleReturnToPlanning. The status
+  mutation invalidates ['trips'] and ['trips', tripId] (useUpdateTripStatus,
+  unchanged), which is sufficient — once trip.status flips to 'planning',
+  TripDetailPage/MobileTripsLayout's own status branch stops rendering
+  ReviewPanel for this :id and renders TripDetail/MobileTripDetailView
+  instead, no navigation needed, same trip still selected.
+
+  Deliberately NOT touched: ReviewPanel's handleLock (forward,
+  review_pending -> locked) has the exact same onClose()-after-mutation
+  shape. This is very likely the same underlying design mistake, but it's a
+  FORWARD transition, was not the bug as filed ("moves backward"), and
+  fixing it wasn't asked for. Flagged to COO in the completion report and
+  tracker note as a related-but-separate possible follow-up rather than
+  silently expanding this brief's scope.
+
+  Also confirmed (brief's own instruction): "make sure your BUG-58 fix
+  doesn't break [BUG-50's] deleting the selected trip obviously should
+  clear selection" — handleDeleteConfirm's navigate('/trips', {replace:
+  true}) call is untouched by the BUG-58 fix (different file, different
+  handler), and TripDetail.test.tsx/MobileTripDetailView.test.tsx both
+  assert the post-delete navigate still fires.
+
+TESTS ADDED
+  src/frontend/components/TripDetail/__tests__/useTripDetailController.test.tsx
+    (5): delete-click opens dialog; unlocked delete calls the API then
+    navigates; locked delete never calls the API/never navigates; locked
+    delete opens confirmUnlock instead; Unlock itself never navigates
+    (BUG-58 guard on the already-correct path).
+  src/frontend/components/TripDetail/__tests__/TripDetail.test.tsx (5):
+    button present/reachable; visible when locked (Edit isn't); confirm
+    copy names trip/places/items; unlocked delete -> API -> navigate;
+    locked delete refused with directing message, routes to Unlock dialog.
+  src/frontend/components/TripDetail/__tests__/MobileTripDetailView.test.tsx
+    (4): same shape as desktop, mobile markup.
+  src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
+    (+2): BUG-58 regression — Return to Planning calls the status mutation
+    but NOT onClose; the confirm dialog still gates the mutation (doesn't
+    fire on the first click).
+  src/frontend/components/icons/__tests__/icons.test.tsx: updated for the
+    14th icon (TrashIcon), count assertion and doc comment both bumped.
+
+  Deliberately NOT added: a test asserting handleDeleteClick's
+  deleteTrip.reset() actually clears a stale error from a PRIOR failed
+  attempt. Tried it, hit an unhandled-promise-rejection risk — the
+  production code (matching the existing handleLockConfirm/
+  handleUnlockConfirm pattern already in this file) calls its async handler
+  via `void handleDeleteConfirm()`, so a rejected mutateAsync inside it
+  becomes an unhandled rejection with no way for a test to attach a .catch
+  without a code change I wasn't asked to make. Removed the test rather than
+  risk flaking CI; the reset() call itself is a one-line, low-risk precedent
+  match (PlaceSection's handleOpenRemoveConfirm does the identical thing).
+
+VERIFICATION
+  npm run check (biome) — found import-order + formatting issues in the two
+    new test files/the controller on first pass, fixed via
+    `npx biome check --write`, re-ran clean (186 files).
+  npm run type:check:all — clean, frontend + backend.
+  npm run test:backend — 599 passed / 1 skipped, unaffected (no backend
+    files touched).
+  npm run test:frontend — 191 passed (0 failed), includes all new tests.
+  npm run status:check — failed until `npm run status` was re-run after the
+    tracker.json edits (BUG-50/BUG-58 flipped to done_pending_uat); clean
+    after regeneration.
+  Not run: manual browser/Clerk check (same sandbox limitation as every
+  prior Frontend thread) and Playwright e2e (not required by the brief's
+  success criteria; QUAL-18 caveat in the brief notes E2E wouldn't exercise
+  anything CSP-relevant here anyway, and this change has neither a CSP nor
+  network-topology dimension).
+
+SCOPE DISCIPLINE — WHAT WAS DELIBERATELY NOT DONE
+  Did not touch TripItemsSection.tsx, useItems.ts (B8's), TripList.tsx's
+  filterAndSortTrips, or backend route tests (B4's) — confirmed via
+  `git diff --stat` against main before committing.
+  Did not add a backend route or touch src/backend/ at all, per the brief.
+  Did not fix ReviewPanel's forward Lock path's identical
+  onClose()-after-mutation pattern (out of BUG-58's filed scope).
+  Did not add a Delete affordance to ReviewPanel.tsx for review_pending
+  trips (brief's file-scope anchors didn't cover it; flagged instead).
+  Did not touch BUG-06 or BUG-37 (B5's other two items, explicitly out of
+  scope per the brief).
+  Did not resurrect or expand any archive-state UI for TR-14's Phase 2 NR-12
+  direction — hard-delete only, as scoped, no archive affordance added or
+  implied by the button placement/dialog structure.
+
+FINDINGS TO FLAG (not fixed, per project convention — report, don't
+unilaterally fix beyond brief scope)
+  1. review_pending trips have no delete affordance at all (see BUG-50
+     section above) — TR-14 gap, not decided whether ReviewPanel needs one.
+  2. ReviewPanel's forward Lock action shares BUG-58's exact
+     onClose()-after-mutation-success pattern; likely the same underlying
+     mistake, not filed, not fixed here.
+  3. Locked-trip delete-dialog copy is computed from the client's currently-
+     held trip.status at dialog-open time, not re-verified against the
+     server at confirm time (see BUG-50 design-decision #2) — narrow edge
+     case, not believed risky, noted rather than silently assumed fine.
+
+NEXT STEPS (when resumed)
+  COO: review PR (branch fix/b7-trip-delete-and-selection, see completion
+  report for PR # and CI status), consider the three flagged findings above
+  for possible follow-up tracker entries, merge via /coo-merge-and-close
+  when CI is green, flip BUG-50/BUG-58 status to "done" at merge.
