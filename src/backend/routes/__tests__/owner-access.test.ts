@@ -21,223 +21,21 @@
  *   - Non-owner tests: req.user.isOwner = 0 → expect 403 Forbidden
  *   - Owner tests:     req.user.isOwner = 1 → expect 200/201 (success)
  *
- * Uses an in-memory libSQL database per test (full isolation).
+ * Uses an in-memory libSQL database per test (full isolation), schema
+ * derived from the real migrations via createTestDb() (QUAL-17 — see
+ * repositories/__tests__/test-db.ts).
  */
 
-import { createClient } from '@libsql/client';
 import { eq } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/libsql';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
-
-// ----------------------------------------------------------------
-// In-memory DB factory
-// ----------------------------------------------------------------
-
-async function createTestDb() {
-  const client = createClient({ url: ':memory:' });
-  await client.execute('PRAGMA foreign_keys = ON;');
-
-  const ddlStatements = [
-    `CREATE TABLE IF NOT EXISTS countries (
-      country_code TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      region_tier_enabled INTEGER DEFAULT 0 NOT NULL,
-      region_tier_label TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS regions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      country_code TEXT NOT NULL,
-      name TEXT NOT NULL,
-      iso_3166_2 TEXT NOT NULL DEFAULT 'XX-UNKNOWN',
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (country_code) REFERENCES countries(country_code)
-    )`,
-    `CREATE TABLE IF NOT EXISTS cities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      country_code TEXT NOT NULL,
-      region_id INTEGER,
-      name TEXT NOT NULL,
-      latitude REAL,
-      longitude REAL,
-      geocode_status TEXT DEFAULT 'pending' NOT NULL,
-      geocode_attempted_at TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (country_code) REFERENCES countries(country_code),
-      FOREIGN KEY (region_id) REFERENCES regions(id)
-    )`,
-    // BUG-33 (migration 0010, merged): mirrors uniq_cities_name_country_ci so the
-    // BUG-33 find-or-create tests below exercise the same constraint production has.
-    `CREATE UNIQUE INDEX IF NOT EXISTS uniq_cities_name_country_ci
-      ON cities (name COLLATE NOCASE, country_code)`,
-    `CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY NOT NULL,
-      clerk_id TEXT NOT NULL UNIQUE,
-      email TEXT NOT NULL,
-      is_owner INTEGER DEFAULT 0 NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS trips (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      name TEXT NOT NULL,
-      start_date TEXT NOT NULL,
-      end_date TEXT NOT NULL,
-      status TEXT DEFAULT 'planning' NOT NULL,
-      photo_album_ref TEXT,
-      user_id TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      name TEXT NOT NULL UNIQUE,
-      is_active INTEGER DEFAULT 1 NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_categories_map (
-      trip_id INTEGER NOT NULL,
-      category_id INTEGER NOT NULL,
-      PRIMARY KEY (trip_id, category_id),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (category_id) REFERENCES trip_categories(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS companions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      is_active INTEGER DEFAULT 1 NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      UNIQUE (user_id, name),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_companions_map (
-      trip_id INTEGER NOT NULL,
-      companion_id INTEGER NOT NULL,
-      PRIMARY KEY (trip_id, companion_id),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (companion_id) REFERENCES companions(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS activities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      name TEXT NOT NULL UNIQUE,
-      is_active INTEGER DEFAULT 1 NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_activities_map (
-      trip_id INTEGER NOT NULL,
-      activity_id INTEGER NOT NULL,
-      PRIMARY KEY (trip_id, activity_id),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (activity_id) REFERENCES activities(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_places (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      trip_id INTEGER NOT NULL,
-      city_id INTEGER NOT NULL,
-      user_id TEXT,
-      arrived_on TEXT,
-      departed_on TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (city_id) REFERENCES cities(id),
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      UNIQUE(trip_id, city_id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_place_activities_map (
-      trip_place_id INTEGER NOT NULL,
-      activity_id INTEGER NOT NULL,
-      PRIMARY KEY (trip_place_id, activity_id),
-      FOREIGN KEY (trip_place_id) REFERENCES trip_places(id) ON DELETE CASCADE,
-      FOREIGN KEY (activity_id) REFERENCES activities(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS trip_countries (
-      trip_id INTEGER NOT NULL,
-      country_code TEXT NOT NULL,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      PRIMARY KEY (trip_id, country_code),
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (country_code) REFERENCES countries(country_code) ON DELETE RESTRICT
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_trip_countries_country ON trip_countries (country_code)`,
-    `CREATE TABLE IF NOT EXISTS items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      trip_id INTEGER NOT NULL,
-      trip_place_id INTEGER,
-      item_type TEXT NOT NULL,
-      status TEXT DEFAULT 'consider' NOT NULL,
-      notes TEXT,
-      map_url TEXT,
-      is_carried_forward INTEGER DEFAULT 0 NOT NULL,
-      carried_from_item_id INTEGER,
-      user_id TEXT,
-      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-      FOREIGN KEY (trip_place_id) REFERENCES trip_places(id),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_flights (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      airline TEXT, flight_number TEXT, departure_airport TEXT, arrival_airport TEXT,
-      departure_datetime TEXT, arrival_datetime TEXT, booking_reference TEXT, seat TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_hotels (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      property_name TEXT, address TEXT, check_in_date TEXT, check_out_date TEXT,
-      booking_reference TEXT, confirmation_number TEXT, rating INTEGER, post_visit_notes TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_car_rentals (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      provider TEXT, pickup_location TEXT, dropoff_location TEXT,
-      pickup_datetime TEXT, dropoff_datetime TEXT, booking_reference TEXT, vehicle_class TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_restaurants (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      name TEXT, neighbourhood_area TEXT, cuisine_type TEXT, source TEXT,
-      rating INTEGER, post_visit_notes TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS item_experiences (
-      item_id INTEGER PRIMARY KEY NOT NULL,
-      rating INTEGER, post_visit_notes TEXT,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS map_shading_config (
-      state_key TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      display_name TEXT NOT NULL,
-      color_hex TEXT NOT NULL,
-      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
-      PRIMARY KEY (state_key, user_id),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`,
-  ];
-
-  for (const sql of ddlStatements) {
-    await client.execute(sql);
-  }
-
-  return drizzle(client, { schema });
-}
+import { createTestDb, type TestDb } from '../../repositories/__tests__/test-db.js';
 
 // ----------------------------------------------------------------
 // Module mocks
 // ----------------------------------------------------------------
 
-let testDb: Awaited<ReturnType<typeof createTestDb>> | null = null;
+let testDb: TestDb | null = null;
 
 // Controls what isOwner value the mock requireAuth sets on req.user
 let mockIsOwner = 0;
@@ -290,7 +88,7 @@ const supertest = (await import('supertest')).default;
 
 const TEST_USER_ID = 'test-user-id';
 
-async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>, isOwner = 0) {
+async function seedTestUser(db: TestDb, isOwner = 0) {
   const now = Date.now();
   await db
     .insert(schema.users)
@@ -306,7 +104,7 @@ async function seedTestUser(db: Awaited<ReturnType<typeof createTestDb>>, isOwne
 }
 
 async function seedCountry(
-  db: Awaited<ReturnType<typeof createTestDb>>,
+  db: TestDb,
   countryCode = 'US',
   name = 'United States',
 ) {
