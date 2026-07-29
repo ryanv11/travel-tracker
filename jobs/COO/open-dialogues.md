@@ -427,6 +427,56 @@ devcontainer.json passthrough actually has something to forward; (b) bake the
 credential-helper-bridge trick into container startup so it's automatic rather than an
 ad-hoc COO workaround each session. Not yet decided which, if either, Ryan wants.
 
+### D-16: OP-27 says who reviews and when, but not that the spec's own open questions must be closed first
+**Raised:** 2026-07-28
+
+**Trigger, and it was a PO correction of the COO.** Having dispatched the ADL-46 spec brief
+(issue #326), the COO announced it would dispatch the OP-27 fresh-eyes reviewer as soon as the
+authoring Architect closed out. Ryan stopped it: *"before dispatching the second architect,
+let's make sure there aren't any outstanding questions or concerns from the first."*
+
+He was right, and OP-27 as written does not say this. It specifies **who** reviews (a second,
+freshly dispatched Architect) and **when** relative to the author (after it closes out fully,
+so context is genuinely fresh), but says nothing about the spec's own flagged-open items being
+resolved first.
+
+**Why it matters.** ADL-46 shipped with three items the author had deliberately flagged rather
+than guessed: a deactivation-scope ambiguity, the pending-city containment rule, and its own
+phasing recommendation. Dispatched immediately, the reviewer would have spent its pass
+rediscovering questions the author had already surfaced — and worse, reviewing a **D9 the PO
+then overrode**, since Ryan chose one-release delivery over the author's phased dispatch. The
+whole value of fresh eyes is catching what *nobody* saw; spending it on known gaps is waste.
+
+What actually happened instead: the three items went to the PO, all three were decided, the
+authoring Architect amended the spec, and only then was the reviewer dispatched — against a
+settled plan, with its §13 confidence register **re-aimed** at what remained genuinely
+uncertain. Two of the author's originally-weakest points had been closed by the PO decisions,
+so the register would otherwise have pointed the reviewer at resolved questions.
+
+**Proposed amendment to OP-27**, not adopted, for Ryan to accept or reject:
+
+> Before dispatching the fresh-eyes reviewer, resolve the authoring agent's own flagged open
+> questions — PO decisions taken, spec amended. The reviewer receives a settled spec, so its
+> pass is spent on blind spots rather than on gaps the author already identified.
+
+**COO recommendation: adopt.** It is one sentence, it cost nothing to follow, and the failure
+it prevents is silent — a review that comes back clean because it spent itself on the wrong
+target looks identical to a review that genuinely found nothing. Same family as OP-27 itself.
+Counter-argument worth stating: it adds a PO round-trip before every review, which on a spec
+with no open questions is pure latency — so the rule should read "resolve **if any**", not
+"always pause".
+
+**Related, recorded here so it survives the session boundary rather than being lost:
+BUG-63 has no time pressure.** Ryan, 2026-07-28: *"i've told my friend i'll let him know when
+he can test again there is no rush."* BUG-63 stays **P1 on severity** — core function is
+completely broken for every non-owner — but there is **no urgency**, and a future session
+should not read "P1 + a blocked external user" and panic-dispatch a narrow fix around the
+ADL-46 migration. The PO explicitly chose all-in-one delivery knowing the P1 stays live for
+the whole build. **This belongs in BUG-63's tracker note and is parked here only because
+PR #327 has that same `notes` field open on another branch** — a separate edit would have
+guaranteed a merge conflict on one JSON string (the D-13 failure shape). Fold it into the
+tracker once #327 merges, then strike this paragraph.
+
 ## Resolved
 
 ### D-03: OP-21 process-kill guardrail (proposed, dropped)
