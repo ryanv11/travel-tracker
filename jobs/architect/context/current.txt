@@ -504,3 +504,63 @@ ENV NOTE (ENV-01, re-probed here rather than inherited): Nominatim is unreachabl
   MY CORRECTION OF THE COO'S PREMISE (retry path is server-side) was independently re-verified
   and accepted; §10.1 kept as a record of a corrected premise. This is the two-probe rule working
   upward against the COO, which is what it is for.
+
+--- ADL-46 AMENDMENT ROUND 3 (2026-07-29) — OP-27 FRESH-EYES REVIEW FOLDED IN ---
+Review: jobs/architect/tech/ADL-46-review.md (branch chore/adl46-review, PR #328).
+VERDICT: sound with named corrections. 2 blocking + 8 further. ALL TEN ACCEPTED — I pushed
+back on nothing. Every finding verified against source myself before folding it in.
+
+THE HEADLINE, AND IT IS LOAD-BEARING: the reviewer tried to break D1, D3, D4, D5 and D7 —
+including hunting specifically for a reason to prefer the Option B I rejected — and would
+not change any of them. The ACCESS MODEL IS RIGHT. Every finding was coverage or execution.
+
+BOTH OF MY OWN NAMED REVIEW TARGETS RESOLVED DIFFERENTLY THAN I PREDICTED. This is the part
+worth carrying forward:
+  * "Does the S3 migration preserve id?" — SOUND. The reviewer did not argue it, he HAND-WROTE
+    the recreation from 0012_grey_ultimates.sql and RAN it against a scratch DB built from the
+    real migration chain: id preserved, trip_categories_map intact, foreign_key_check clean, FK
+    re-bound correctly after RENAME, on BOTH libSQL transports including remote Turso. I aimed
+    at the right area and the wrong question — the migration risk was real but sat in the ROUTE
+    TO the shape (F2), not the shape.
+  * "section 3.3's data assumption is the only place where being wrong corrupts data" — the
+    ASSUMPTION was fine; the TABLE SET under it was wrong (F1). A correct answer to the wrong
+    query.
+
+BLOCKING FINDINGS (both re-verified by me before amending):
+  F1 THIRD JUNCTION TABLE. I wrote that trip_activities_map covered "both trip and place
+     level". FALSE — place-level activities live in trip_place_activities_map
+     (schema.ts:376-387) and join via trip_places, NOT trips. My probe: grep for activity_id
+     across schema.ts returns TWO distinct junction tables (:320 trip, :382 place). The error
+     propagated into the pre-migration check (false zero, reproduced on a scratch DB), the
+     test list, AND the COO's live-data query which inherited my two-table set. The half that
+     survives disposable data: POST /api/trips/:t/places/:p/activities
+     (routes/places.ts:242-280) validates the PLACE then inserts a caller-supplied activity_id
+     with NO check on the activity at all (:274-276). Confirmed by reading the handler.
+  F2 db:generate EMITS AN UNAPPLIABLE MIGRATION. "Cannot add a NOT NULL column with default
+     value NULL" — SQLite's NOT NULL and REFERENCES requirements are mutually exclusive. AND
+     my stated reason for hand-writing was the wrong mechanism: name.unique() is a STANDALONE
+     INDEX here, which drizzle drops happily. My probe: 0000_open_electro.sql:10,171 create
+     activities_name_unique / trip_categories_name_unique as CREATE UNIQUE INDEX. Instruction
+     corrected to DISCARD the generated file, not review it.
+
+NON-BLOCKING, ALL ACCEPTED: F3 (containment clause had no IS NULL branch — a pending row with
+no known creator was invisible to EVERYONE permanently, and ON DELETE SET NULL regenerates
+that condition on every user deletion, so it is a rule defect not a legacy artefact); F4 (D7's
+"reuse the existing limiter" premise is FALSE — a sleep in one loop, resolveCity unthrottled
+from POST /api/cities, TWO requests per call; the release must BUILD the chokepoint); F5 ->
+new decision D10 (geocode_attempts + give-up rule, rides the same S4 ALTER TABLE); F6 (section
+8 covered 1 of 4 test files that break at S3); F7 (lazy-seed trigger unspecified — the obvious
+row-count implementation silently denies defaults to a user who WRITES before READING); F8
+(new proxy route missing from OP-06 section 2.1, contradicting SE-01's own success criteria);
+F9 (multi-owner CROSS JOIN LIMIT 1 picks arbitrarily); F10 (no revert posture documented).
+Preferences P1 (D5 sizing), P2 (a test case), P3 (OP-06 overstated "duplicates impossible")
+also folded in.
+
+METHODOLOGICAL LESSON I RECORDED IN section 13, because it generalises: the negative-findings
+rule catches "X does not exist". It does NOT catch "X exists and there are three of them."
+ENUMERATIONS DESERVE THE SAME TWO-PROBE TREATMENT AS ABSENCES. The cheap second probe here was
+one grep for activity_id across the schema — which is exactly what caught it on re-verification.
+
+CAUGHT BY /pre-push, WORTH NOTING: my first tracker.json edit added a stray closing quote
+mid-string and broke the JSON. status:check failed loudly, I fixed it, diff is still exactly
+3 lines. The JSONC-edit-in-place rule held; the gate is what caught the slip.

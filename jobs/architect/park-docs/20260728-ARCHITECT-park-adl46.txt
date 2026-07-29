@@ -349,3 +349,123 @@ the reasoning is why the rulings went the way they did.
      the COO supplied the precise invocation lines now cited. Section 10.1 stays as a
      record of a corrected premise. This is the two-probe rule working UPWARD against the
      COO, which is exactly what it is for.
+
+================================================================================
+12. AMENDMENT ROUND 3 (2026-07-29) — OP-27 FRESH-EYES REVIEW FOLDED IN
+================================================================================
+Review: jobs/architect/tech/ADL-46-review.md (chore/adl46-review, PR #328).
+Verdict: SOUND WITH NAMED CORRECTIONS — 2 blocking, 8 further. All ten accepted; I
+pushed back on nothing. Every finding re-verified against source before folding in.
+Sections 11.4's review targets are superseded by 12.2 below.
+
+12.1 THE HEADLINE. The reviewer attempted to break D1's tier rule, D3's per-user
+     Option A (including hunting specifically for a reason to prefer the Option B I
+     rejected, and finding none), D4's curation/creation split, D5 and D7 — and
+     WOULD NOT CHANGE ANY OF THEM. The access model is right. Every finding was
+     coverage or execution detail. That is the load-bearing result and it should be
+     stated before the defect list, not after it.
+
+12.2 BOTH OF MY NAMED REVIEW TARGETS RESOLVED DIFFERENTLY THAN I PREDICTED.
+     This is the most useful thing to carry out of this thread.
+      (a) "Does the S3 migration preserve id?" — SOUND. Not argued: the reviewer
+          hand-wrote the twelve-step recreation from 0012_grey_ultimates.sql and
+          EXECUTED it against a scratch DB built from the real migration chain with a
+          trip_categories_map row present. id preserved, mapping intact,
+          PRAGMA foreign_key_check clean, child FK correctly re-bound after RENAME.
+          Also confirmed FK-disabling works on BOTH libSQL transports including
+          remote Turso — which matters because prod is Turso and PRAGMA foreign_keys
+          is a no-op inside a transaction. I aimed at the right AREA and the wrong
+          QUESTION: the migration risk was real but sat in the ROUTE TO the shape.
+      (b) "Section 3.3's data assumption is the only place where being wrong corrupts
+          data" — the assumption was fine; the TABLE SET beneath it was wrong. I asked
+          whether the count was trustworthy and never asked whether the query
+          enumerated the right tables. A correct answer to the wrong query.
+
+12.3 F1 (BLOCKING) — A THIRD JUNCTION TABLE I NEVER NAMED.
+     I asserted trip_activities_map covered "both trip and place level". FALSE.
+     Place-level activities live in trip_place_activities_map (schema.ts:376-387) and
+     join via trip_places, NOT trips. My own re-probe: grep for activity_id across
+     schema.ts returns TWO distinct junction tables (:320 trip-level, :382
+     place-level). Three consequences, and the error had propagated into all of them:
+       - the pre-migration check was unreachable from that table (FALSE ZERO,
+         reproduced by the reviewer on a scratch DB);
+       - the COO's live-data query INHERITED my two-table set, so its clean zero is
+         evidence about trip-level mappings only;
+       - no test covered the place path.
+     THE DURABLE HALF, and why this stayed blocking under disposable data:
+     POST /api/trips/:t/places/:p/activities (routes/places.ts:242-280) validates the
+     PLACE belongs to the caller (:255-256) and then inserts the caller-supplied
+     activity_id with NO check on the activity at all (:274-276). I read the handler
+     and confirmed it. SQLite cannot express the constraint — the FK targets
+     activities.id, which has no user dimension — which is exactly why ADL-28 put
+     companion validation in application code. Now an explicit task (section 9.2 #6)
+     with a matching 400 assertion (section 8).
+
+12.4 F2 (BLOCKING) — THE GENERATED MIGRATION CANNOT BE APPLIED.
+     npm run db:generate emits DROP INDEX + ALTER TABLE ADD COLUMN user_id text NOT
+     NULL REFERENCES users(id), which fails outright: "Cannot add a NOT NULL column
+     with default value NULL". SQLite requires a non-NULL default for NOT NULL and a
+     NULL default for REFERENCES under FK enforcement — mutually exclusive.
+     AND my stated reason for hand-writing was the wrong mechanism: I said
+     UNIQUE(name) can't be done via ALTER TABLE, but name.unique() is realised here as
+     a STANDALONE INDEX which drizzle drops happily. My probe:
+     0000_open_electro.sql:10,171 create activities_name_unique and
+     trip_categories_name_unique as CREATE UNIQUE INDEX statements.
+     Corrected instruction: DISCARD the generated file rather than review it; there is
+     no __new_ scaffold to hand-edit. Hand-write from 0012_grey_ultimates.sql, and the
+     ADL-15 warning is re-pointed at the HAND-WRITTEN recreation (FK re-binding, id
+     preservation, PRAGMA bracketing) rather than at a generate step that never
+     reaches table recreation. The reviewer's validated, executed SQL is appended to
+     the review document — the Database brief starts from that.
+
+12.5 NON-BLOCKING, ALL ACCEPTED.
+     F3 the containment clause had no IS NULL branch — a row that is pending AND has a
+        NULL creator satisfied neither disjunct and was invisible to EVERYONE
+        permanently, including its creator. I reasoned carefully about NULL semantics
+        for the COLUMN and then wrote a query with no NULL branch. Durable, not
+        legacy: ON DELETE SET NULL regenerates the condition on every user deletion.
+        Fix adopted, and I recorded a second-order consequence the review did not
+        raise: treating NULL as global means a deleted user's unresolved cities get
+        PROMOTED to globally visible. Correct call (a row with no known creator can't
+        be contained to anyone) but a real trade, so stated rather than silent; D10's
+        give-up rule bounds the junk.
+     F4 D7's rate-limit evidence was wrong and I had DECLINED TO BUILD A LIMITER
+        BECAUSE OF IT. There is no limiter object: REQUEST_DELAY_MS is a sleep inside
+        processQueue's for-loop; resolveCity is unthrottled from POST /api/cities; and
+        each resolveCity makes TWO requests (isOnline HEAD + search GET). The release
+        adds two more call sites behind one User-Agent and one IP, so a violation now
+        blocks THE APPLICATION. Section 5.1.1 now requires building the chokepoint.
+        The DECISION was not disputed — the forbidden-User-Agent argument carries it.
+     F5 -> new decision D10. Opening city creation makes the retry queue unbounded: no
+        counter, no backoff, no terminal state, and the CHECK constraint forbids a
+        third 'failed' state. COO decided: add geocode_attempts to the SAME S4 ALTER
+        TABLE (nearly free now, a whole second cities migration if deferred).
+     F6 section 8 covered 1 of 4 test files. The other three break when S3 removes the
+        routes — including owner-access.test.ts's OWNER 200/201 assertions, which
+        become 404. Enumerated in new section 8.2.
+     F7 lazy-seed trigger unspecified. The obvious zero-row implementation silently
+        denies the defaults to a user whose FIRST action is a write — breaking AD-09's
+        first success criterion for exactly the user who engaged first. Now specified:
+        seed on identity, not row count; keep onConflictDoNothing (the load-bearing
+        detail the reviewer noted I had not named).
+     F8 the proxy route was missing from OP-06 section 2.1 — contradicting SE-01's own
+        success criterion that every /api/* route is classifiable into one tier.
+     F9 multi-owner CROSS JOIN LIMIT 1 picks arbitrarily. Added to the pre-check.
+     F10 no revert posture documented. Forward-fix only; the S1-alone lever EXPIRES AT
+        MERGE. Low severity, one paragraph, and it expires when data stops being
+        disposable.
+     P1/P2/P3 (sizing, a missing test case, OP-06 overstating "duplicates impossible")
+        also folded in.
+
+12.6 METHODOLOGICAL LESSON, recorded in section 13 because it generalises past this
+     ADL. The negative-findings rule catches "X does not exist." It does NOT catch
+     "X exists and there are three of them." ENUMERATIONS DESERVE THE SAME TWO-PROBE
+     TREATMENT AS ABSENCES. My failure mode was not insufficient caution — it was a
+     wrong premise inherited from my own section 3.3 and then reused, unexamined, in
+     three downstream places. The cheap second probe was one grep for activity_id
+     across the schema.
+
+12.7 CAUGHT BY /pre-push. My first tracker.json edit this round added a stray closing
+     quote mid-string and broke the JSON; status:check failed loudly and I fixed it.
+     Diff is still exactly 3 lines, structure intact. Worth recording as evidence the
+     JSONC-edit-in-place discipline plus the gate together do their job.

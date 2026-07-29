@@ -64,12 +64,14 @@ longer exists** (§9.1).
 | D7 | BUG-55 — proxy or CSP allowlist | **Backend proxy route.** `User-Agent` is a forbidden header in browser `fetch()`, so the direct call can never be policy-compliant; a compliant client already exists server-side | **High** |
 | D8 | General CSP posture | **Closed, per-entry-justified register; proxy or disable by default.** Third-party SDK egress in scope for QUAL-19 | **Medium-High** |
 | D9 | Sequencing | **One release.** Four stages remain as internal build order and dependency constraints, not four dispatch rounds | **High** *(PO-decided — §0.1)* |
+| D10 | Geocode retry bound | **Add `cities.geocode_attempts` + a give-up rule in the same S4 migration.** Opening city creation makes a previously-bounded retry queue unbounded | **High** *(COO-decided after OP-27 review F5 — §4.4.1)* |
 
-**Where to aim, for the OP-27 reviewer:** **not** at D5 or D9 — both were flagged as weakest in the
-first draft and both are now closed by PO ruling (§0.1). Aim instead at **D3's migration execution**
-(does S3 preserve `id`?) and at **§3.3's data assumption**, the one genuinely unverified premise
-left and the only place where being wrong corrupts data rather than costing a re-run. Full register
-in §13.
+**Review status (2026-07-29).** The OP-27 fresh-eyes review is complete —
+`jobs/architect/tech/ADL-46-review.md`. Verdict: **sound with named corrections.** The reviewer tried
+to break D1, D3, D4, D5 and D7 and could not; **all ten findings were accepted and are folded in**,
+marked inline as `CORRECTED` / `ADDED`. The two blocking ones were F1 (a third junction table this
+spec never named) and F2 (the generated migration cannot be applied). §13 carries the post-review
+register.
 
 ---
 
@@ -241,6 +243,38 @@ existing users. Both are irrelevant at this scale and both are already accepted 
 defaults on first access, no manual setup required." Reuse that mechanism and read the defaults from
 the same constants `src/backend/db/seed.ts:44,50` uses, so there remains one source for the list.
 
+#### 3.2.1 The seed trigger predicate — specified, not left to the implementer (OP-27 review F7)
+
+> **ADDED (2026-07-29).** The first draft said "reuse AD-07's mechanism" without stating the
+> trigger. The reviewer showed the obvious implementation **breaks AD-09's first success criterion**.
+> Leaving this to the implementer is not acceptable, so it is specified here.
+
+**The concurrency half of the precedent is sound and should be copied literally.**
+`shadingConfigRepository.seedDefaults` (`src/backend/repositories/shadingConfig.ts:94-108`) uses
+`.onConflictDoNothing()`, so two simultaneous first requests from a new user cannot double-seed —
+and that guarantee survives the change from `UNIQUE(name)` to `UNIQUE(user_id, name)`, because the
+composite index becomes the conflict target. **`onConflictDoNothing` is the load-bearing detail; an
+implementer reusing "the pattern" loosely could drop it.** Do not.
+
+**The trigger is where the precedent does not transfer.** shadingConfig seeds when the user has zero
+rows, which is safe *there* because shading config has no user-create path — the six rows are fixed
+constants users only ever update. Categories and activities are different: `POST /api/categories` is
+a first-class user action. So a brand-new user whose **first** action is adding "Diving" now has one
+row, the zero-row test is false, and **they never receive the defaults** — silently and permanently,
+for exactly the user who engaged with the feature first. AD-09's first success criterion fails.
+
+A cheaper variant of the same bug: a predicate counting *active* rows re-seeds everything for a user
+who deactivates all their entries, which reads as "deleted items keep coming back."
+
+**Decision — seed on identity, not on row count.** Seed at user creation
+(`findOrCreateByClerkId`), with a reconciliation pass carrying a marker such as
+`users.lists_seeded_at` for users who predate the change. This is immune to both variants because it
+never asks "how many rows does this user have."
+
+**If a row-count trigger is preferred for symmetry with shading config**, it must (a) count **all**
+rows, not active ones, and (b) fire before *any* categories/activities handler, read **or write** —
+not only the read path. Either design is acceptable; the Backend brief must state which it used.
+
 **Routes move out of `/api/admin/*`.** Exactly as ADL-28 moved companions to `/api/companions`
 (`requireAuth`, userId-scoped), categories and activities move to `/api/categories` and
 `/api/activities`. This is not cosmetic — leaving a tier-2 resource on an owner-gated admin router
@@ -249,14 +283,50 @@ place invites the next recurrence.
 
 ### 3.3 D3 — the complication ADL-28 had to solve, and so does this
 
-`trip_categories_map` (`schema.ts:273-285`) FKs `category_id → trip_categories.id`, and
-`trip_activities_map` does the same for activities at both trip and place level (TR-04). Once
-categories are per-user, **a trip may reference a category belonging to a different user.**
+> **CORRECTED (2026-07-29) — OP-27 review F1.** The first draft of this section said
+> "`trip_activities_map` does the same for activities at both trip and place level." **That was
+> false**, and the error propagated into §8, §9.3's pre-migration check and the COO's live-data
+> query, all of which inherited a two-table set. Place-level activities live in a **third, separate
+> table**. Re-verified independently before amending: `schema.ts:376-387` defines
+> `tripPlaceActivitiesMap`, and a grep for `activity_id` across the schema returns **two** distinct
+> junction tables (`:320` trip-level, `:382` place-level).
+
+**There are three junction tables, and they do not share a join path.** This matters more than it
+looks: the third one is unreachable from a query rooted at `trips`.
+
+| Junction table | Schema | FK to per-user table | Joins to a user via |
+|---|---|---|---|
+| `trip_categories_map` | `:273-285` | `category_id → trip_categories.id` | `trips.user_id` |
+| `trip_activities_map` | `:314-325` | `activity_id → activities.id` | `trips.user_id` |
+| **`trip_place_activities_map`** | **`:376-387`** | `activity_id → activities.id` | **`trip_places.user_id`** — *not* `trips` |
+
+Once categories and activities are per-user, **a trip or a place may reference a row belonging to a
+different user.**
 
 ADL-28 hit this exactly and solved it: `tripRepository.replaceAssociations` gained a `userId`
 parameter and validates companion ownership before inserting, rejecting cross-user IDs with a 400
-(AD-08's stated success criteria). **The same validation must be added for `category_id` and
-`activity_id`.** This is prior art to reuse, not a new design.
+(AD-08's stated success criteria). Verified still true today — that function validates **only**
+companions (`src/backend/repositories/trips.ts:250-257`), with no equivalent on the `categoryIds`
+or `activityIds` branches. **The same validation must be added for `category_id` and `activity_id`.**
+
+**But `replaceAssociations` does not cover the place-level path, and that is a live hole in the
+access model rather than a migration concern.** Place activities are inserted by
+`POST /api/trips/:tripId/places/:placeId/activities` (`src/backend/routes/places.ts:242-280`), which
+validates that the *place* belongs to the caller (`:255-256`) and then inserts the caller-supplied
+`activity_id` **with no check on the activity at all** (`:274-276`). I confirmed the handler by
+reading it end to end; the reviewer confirmed the consequence by executing it against a migrated
+scratch DB, where the database accepted a non-owner's place tagged with the owner's activity.
+
+SQLite cannot express this constraint — the FK targets `activities.id`, which has no user dimension.
+That is precisely why ADL-28 put companion validation in application code, and the same reasoning
+carries here. **This survives the disposable-data constraint**: it is a permanent gap in the write
+path, not a property of today's rows.
+
+**Adjacent, lower severity, same root — flagged so it is a deliberate decision rather than an
+oversight:** the read joins at `src/backend/repositories/places.ts:91` and
+`src/backend/routes/trips.ts:210` left-join `activities` on id alone. Once rows are per-user those
+become cross-user reads for any pre-existing mapping. Harmless once the write path above is closed,
+but the Backend brief should note it rather than discover it.
 
 **How much existing data is affected — a strong inference that must still be checked against real
 data before the migration runs.** Because `GET /api/admin/categories/active` has 403'd for
@@ -267,11 +337,24 @@ CROSS JOIN-to-owner backfill nearly a no-op outside the owner's own trips.
 **I am not asserting that as fact, and the Database brief must not either.** It is an inference from
 the UI path, and it has one real blind spot: `POST`/`PATCH /api/trips` accepts `category_ids` and
 `activity_ids` directly and is gated only by `requireAuth`, so a non-owner *could* have assigned them
-by calling the API outside the UI. **Required before migrating:** query staging for
-`trip_categories_map`/`trip_activities_map` rows joined to trips whose `user_id` is not the owner. If
-any exist, they need an explicit disposition (most likely: seed that user's own copy and re-point the
-mapping) rather than being silently re-pointed at the owner's rows. Verifiable via
-`scripts/agent-diagnostics/turso-query.mjs`, which reaches staging.
+by calling the API outside the UI. `POST /api/trips/:t/places/:p/activities` is the same shape.
+
+> **CORRECTED (2026-07-29) — OP-27 review F1(a).** The pre-migration check as first written
+> enumerated only `trip_categories_map` and `trip_activities_map`, both joined via `trips`.
+> **`trip_place_activities_map` joins via `trip_places`, so it is unreachable from that query
+> shape** — the check returns a clean zero while cross-user place-level rows exist. The reviewer
+> reproduced exactly that on a scratch DB. The COO's live-data probe inherited the same two-table
+> set from this section, so its zero is trustworthy for trip-level mappings and is **not evidence
+> about place-level ones.** The corrected three-query check is in §9.3.
+
+**A count is the wrong instrument anyway, and the single-release decision is why.** A zero today is
+not a zero when the migration runs — all three write paths above accept IDs under `requireAuth`
+alone, so rows can appear between the probe and the deploy. The CROSS JOIN backfill is a no-op for
+junction rows either way; the risk is not that the migration corrupts them but that it **silently
+legitimises a cross-user reference.** So the check is necessary but not sufficient, and §9.3 also
+requires a **post-migration assertion inside the migration file** that aborts if any junction row
+crosses a user boundary. That converts a point-in-time query into a run-time invariant. A failed
+migration is recoverable; a silently wrong one is the thing §13 was worried about.
 
 ### 3.4 D3 — I withdraw my draft position, and why the PO's is better
 
@@ -386,7 +469,39 @@ POST /api/cities  { name, country_code, region_id? }   [requireAuth]
 **Decision.** A city row is **globally visible once `geocode_status = 'resolved'`**. While `'pending'`
 it is visible only in its creator's own searches. Requires one new column,
 `cities.createdByUserId` (nullable FK → `users.id`, `ON DELETE SET NULL`), and one clause in the
-`GET /api/cities` search: `WHERE geocode_status = 'resolved' OR created_by_user_id = :me`.
+`GET /api/cities` search:
+
+```sql
+WHERE geocode_status = 'resolved'
+   OR created_by_user_id = :me
+   OR created_by_user_id IS NULL   -- no known creator: seeded, pre-column, or creator deleted
+```
+
+> **CORRECTED (2026-07-29) — OP-27 review F3.** The first draft omitted the `IS NULL` branch. A row
+> that is `pending` **and** has a NULL creator satisfies neither of the first two disjuncts and
+> becomes **invisible to every user, permanently — including whoever created it.** I reasoned
+> carefully about NULL semantics for the *column* in the paragraph below and then wrote a query with
+> no NULL branch; nothing catches it at review time because the migration adds no backfill, so there
+> is nothing to look at.
+>
+> **This is a rule defect, not a legacy-data artefact, and that is what makes it durable.**
+> `ON DELETE SET NULL` means NULL is not a one-off value that drains away after the migration —
+> **every user deletion regenerates the condition**, on data created long after this ships. The two
+> choices the paragraph below reasons about most carefully — nullable column, `SET NULL` rather than
+> cascade — combine into a permanent failure the clause had no branch for. It survives the
+> disposable-data constraint intact.
+>
+> **A second-order consequence of the fix, stated because it is a real trade and not free:** treating
+> NULL as global means a deleted user's *unresolved* cities are promoted from creator-private to
+> globally visible. That is the correct call — a row with no known creator cannot be contained to
+> anyone, and the only alternative is the invisible-forever behaviour being fixed — but it does mean
+> user deletion can surface junk. D10's give-up rule bounds how much junk can accumulate, and the
+> owner can curate via `PATCH`. Accepted deliberately rather than unnoticed.
+
+**Deliberately uncontained: `GET /api/cities/:id`** (`cities.ts:195-217`) carries no containment
+clause and should not. GE-16 scopes containment to *search*, and by-id fetch is how the geocode
+retry queue polls status (BUG-29) — containing it would break that. Stated because it was previously
+unstated.
 
 **Reasoning.**
 
@@ -417,6 +532,41 @@ change, and at two users the junk volume is near zero. Containment won because i
 **self-maintaining** — junk never resolves, so it never goes global, with no moderation queue and no
 owner intervention — and it makes the global namespace trustworthy by construction rather than by
 someone remembering to tidy it. The PO cited the self-maintaining property as the deciding factor.
+
+### 4.4.1 D10 — the retry queue needs a give-up rule, and S4 is the cheap moment (OP-27 review F5)
+
+**Decision: add `cities.geocode_attempts integer NOT NULL DEFAULT 0` alongside `created_by_user_id`
+in S4, plus a give-up rule in `processQueue`. COO-decided 2026-07-28; do it now, not later.**
+
+**The consequence the first draft missed.** §4.4's containment is self-maintaining *because* junk
+never resolves — that is correct, and it is the right reason to adopt it. The flip side was never
+stated: **a row that never resolves is re-attempted every fifteen minutes, forever.** `processQueue`
+(`geocoding.service.ts:152-193`) selects every `pending` row ordered by `geocodeAttemptedAt` and
+re-attempts all of them, with no attempt counter, no backoff and no terminal state.
+
+Today that is bounded because only the owner can create cities. **D4 removes the bound.** Every typo
+and every unresolvable name any authenticated user submits becomes a permanent line item costing
+**two** HTTP requests (the `isOnline()` HEAD probe plus the search GET — see D7/§5.1) against a
+1 req/s budget, every fifteen minutes, indefinitely. Combined with the egress contention in §5.1, the
+fifteen-minute queue alone can starve the interactive proxy.
+
+**Why now rather than later:** S4 already performs an `ALTER TABLE cities ADD COLUMN`, so a second
+column is nearly free. Deferring costs an entire second `cities` migration.
+
+**Implementation notes for the Database and Backend briefs:**
+- `geocode_attempts integer NOT NULL DEFAULT 0` — a plain `ADD COLUMN`, no backfill, same S4
+  migration as `created_by_user_id`.
+- Increment on each attempt in `resolveCity`; stop selecting rows at or above the cap in
+  `processQueue`. Suggested cap **5**, tunable — the Backend brief may pick a different N and say so.
+- **A row that has given up stays fully usable and creator-private.** It is not deleted, its places
+  keep working, and it never becomes globally visible (it never resolved). Give-up bounds *retry
+  cost*, not the user's ability to use their own city.
+- **The `CHECK` constraint blocks a terminal status value.**
+  `check('chk_cities_geocode_status', … IN ('pending','resolved'))` (`schema.ts:116`) forbids a third
+  state, so if the brief prefers an explicit `'failed'` status over an attempts threshold, **the
+  CHECK constraint must be amended in the same migration** — and amending a CHECK in SQLite is a
+  table recreation, which is materially more expensive than the counter. **The counter is
+  recommended precisely because it avoids that.** Cover whichever route is chosen in the migration.
 
 ### 4.5 Rejected alternatives
 
@@ -468,14 +618,15 @@ Recorded so this ADL builds on ADL-43 rather than quietly diverging from it.
   a **forbidden header name** — silently dropped. Widening the CSP unblocks a call that stays
   permanently anonymous and exposed to throttling. Structural, not fixable in place, and sufficient
   on its own to decide this.
-- **The compliant client already exists server-side.** `geocoding.service.ts` sets
-  `TravelTracker/1.0 (personal-use-app)` (`:16`), enforces a 1.1 s delay above the 1 req/s limit
-  (`:17`), never re-queries a resolved city (ADL-10), and handles offline gracefully (GE-12). The
-  frontend hook is a **non-compliant duplicate of a compliant client we already own.** The proxy is
-  consolidation, not new capability.
+- **A correctly-identified client already exists server-side.** `geocoding.service.ts` sets
+  `TravelTracker/1.0 (personal-use-app)` (`:16`), never re-queries a resolved city (ADL-10), and
+  handles offline gracefully (GE-12). The frontend hook duplicates it without the `User-Agent` the
+  browser refuses to send. **Note the narrowed claim** — see the correction below; the server client
+  is compliant on *identification*, not on *rate*.
 - **Rate limiting is only enforceable at a server-side chokepoint.** Nominatim's 1 req/s is a
   per-application limit; N browsers issuing uncoordinated lookups is N× the rate with no mechanism to
-  throttle it. The limit becomes unenforceable by construction with more than one user.
+  throttle it. The limit becomes unenforceable by construction with more than one user. **The
+  chokepoint does not exist yet and this release must build it** — see below.
 - **It removes the CSP dependency entirely**, making the fix immune to the QUAL-18 environment-parity
   gap — a proxied call cannot regress in an environment whose CSP differs from CI's, because there is
   no cross-origin call left to block.
@@ -489,10 +640,47 @@ Recorded so this ADL builds on ADL-43 rather than quietly diverging from it.
   strictly non-blocking for the rest of the flow (`AddPlaceFlow.tsx:200-208`): a geocoder timeout must
   never prevent city creation (GE-12). D5's 4c branch is that guarantee.
 - The backend inherits caching and rate-limit responsibility. Recommend an in-process cache keyed on
-  the normalised query — city→country is effectively static — plus reuse of the existing 1.1 s delay
-  discipline rather than a second, competing limiter.
-- Small abuse surface: an authenticated user can drive lookups. `requireAuth` plus the shared rate
-  limit bounds it; no separate throttle needed at this scale, but the brief should note it.
+  the normalised query — city→country is effectively static.
+- Small abuse surface: an authenticated user can drive lookups. `requireAuth` bounds who, the
+  chokepoint below bounds how fast.
+
+#### 5.1.1 CORRECTION — there is no limiter to reuse, and this release must build one (F4)
+
+> **CORRECTED (2026-07-29) — OP-27 review F4. The *decision* is unchanged and the reviewer did not
+> dispute it**; the forbidden-`User-Agent` argument carries D7 on its own. What was wrong is the
+> supporting evidence, and the first draft then declined to build a limiter *because of* that
+> evidence — recommending "reuse of the existing 1.1 s delay discipline rather than a second,
+> competing limiter." **There is nothing to reuse.**
+
+Three facts from `src/backend/services/geocoding.service.ts`, which I re-read to confirm:
+
+1. **`REQUEST_DELAY_MS` (`:17`) is a `sleep()` inside `processQueue`'s `for` loop (`:183-190`) — not
+   a limiter object.** It is private to one function and cannot be called from anywhere else.
+2. **`resolveCity` is exported and called fire-and-forget from `POST /api/cities` (`cities.ts:167`).
+   That path is not rate-limited at all today.**
+3. **Each `resolveCity` makes *two* Nominatim requests** — the `isOnline()` HEAD probe (`:85` →
+   `:32-46`) and the search GET (`:105`). So even `processQueue` issues roughly two requests per
+   1.1 s, already above the 1 req/s policy the ADL-10 comment claims compliance with.
+
+**After this release there are three uncoordinated call sites** against one rate-limited third party:
+the fifteen-minute queue, resolve-then-create on every `POST /api/cities`, and the new
+user-interactive proxy behind `AddPlaceFlow`'s type-ahead. And they now share one `User-Agent` and
+one egress IP — which is exactly the accountability D7 wants, but it also means **a policy violation
+now blocks the application rather than an anonymous browser.** Consolidating egress without building
+the chokepoint strictly increases rate-limit exposure.
+
+**Required of the Backend brief — build the chokepoint:**
+
+- **A single serialized queue through which *all* Nominatim egress passes** — `processQueue`,
+  resolve-then-create, and the proxy route alike. One module owning the delay, not three callers
+  each sleeping independently.
+- **Either drop `isOnline()` from the per-city path or count it against the budget.** A HEAD probe
+  before every search doubles the request rate to establish something the search itself would reveal.
+  Dropping it is preferred; the failure it guards against is already handled by the `catch`.
+- **Interactive requests must not be starved by the batch queue.** D10's give-up rule bounds queue
+  size; the brief should also confirm a user-facing lookup is not stuck behind a long batch run.
+- **If the chokepoint is not built, say so explicitly and record the accepted risk** rather than
+  inheriting "no new limiter needed" from a premise that is not true.
 
 **Verification constraint (ENV-01), probed here rather than inherited.** From this worktree,
 `curl https://nominatim.openstreetmap.org/search?…` fails with **exit 7** while
@@ -552,13 +740,22 @@ bump.
 
 ### 6.3 AD-09 — replace in full
 
-> | AD-09 | **Trip categories and activities are per-user lists.** Each user's list is seeded automatically from the global defaults on first access, so it is never blank on first login, after which the user may add, rename and deactivate their own entries (AD-03). A user's entries are visible only to that user and never appear in another user's pickers. Entries are never hard-deleted, only deactivated (AD-06). Countries are **not** per-user and remain owner-configured (SE-03). *(v3.13: replaces "global seeded defaults shared across all users. Any user can add custom entries… only deactivated by the app owner", which contradicted SE-03 on the same routes and was never implemented. Follows the AD-07/AD-08 per-user pattern — see ADL-46 §3.2 and ADL-28.)* **Success criteria:** a user signing in for the first time sees the full default category and activity lists with no manual setup; a category added by one user is absent from another user's pickers; two users can each hold a category of the same name without a uniqueness conflict; deactivating an entry hides it from that user's entry forms while preserving it on their existing records, and affects no other user; existing global entries are assigned to the app owner during migration; assigning a category or activity belonging to another user to a trip is rejected with a 400. |
+> | AD-09 | **Trip categories and activities are per-user lists.** Each user's list is seeded automatically from the global defaults on first access, so it is never blank on first login, after which the user may add, rename and deactivate their own entries (AD-03). A user's entries are visible only to that user and never appear in another user's pickers. Entries are never hard-deleted, only deactivated (AD-06). Countries are **not** per-user and remain owner-configured (SE-03). *(v3.13: replaces "global seeded defaults shared across all users. Any user can add custom entries… only deactivated by the app owner", which contradicted SE-03 on the same routes and was never implemented. Follows the AD-07/AD-08 per-user pattern — see ADL-46 §3.2 and ADL-28.)* **Success criteria:** a user signing in for the first time sees the full default category and activity lists with no manual setup; a category added by one user is absent from another user's pickers; two users can each hold a category of the same name without a uniqueness conflict; deactivating an entry hides it from that user's entry forms while preserving it on their existing records, and affects no other user; existing global entries are assigned to the app owner during migration; assigning a category or activity belonging to another user **to a trip or to a place** is rejected with a 400. |
+
+*(F1 amendment, 2026-07-29: the last criterion previously said "to a trip." Place-level activities
+travel a separate route and a separate junction table — `POST /api/trips/:t/places/:p/activities` →
+`trip_place_activities_map` — so a trip-only criterion would have left the place path untested and
+unenforced. See §3.3.)*
 
 ### 6.4 GE-16 — new ID, **flagged not invented**, and **blocking**
 
 Without it the cities decision has no BRD home and the Backend brief's BRD gate is not cleared.
 
-> | GE-16 | Any authenticated user can add a city that is not yet in the shared catalogue, while logging a trip, through the constrained find-or-create path only. The city name is resolved against the geocoding service and the record is created from the service's canonical response where one is available; where it is not (offline, or no match — GE-12), the record is created from the user's text and marked pending, remains usable immediately, and is promoted automatically when background resolution succeeds. A pending record is visible only to the user who created it; a resolved record is visible to all users. Coordinates are never client-supplied. Correcting, re-pointing or deactivating an existing city record remains an owner operation (SE-03). **Success criteria:** an authenticated non-owner can add a place in a city not yet in the catalogue, in one uninterrupted flow, with no 403 and with no dependency on the geocoding service being reachable; submitting a name that resolves to an existing city — in any casing, or as a near-miss the geocoder canonicalises — returns the existing record and creates no new row; a request supplying latitude or longitude is rejected; a pending city created by one user does not appear in another user's city search until it resolves; city PATCH and DELETE still return 403 for a non-owner. |
+> | GE-16 | Any authenticated user can add a city that is not yet in the shared catalogue, while logging a trip, through the constrained find-or-create path only. The city name is resolved against the geocoding service and the record is created from the service's canonical response where one is available; where it is not (offline, or no match — GE-12), the record is created from the user's text and marked pending, remains usable immediately, and is promoted automatically when background resolution succeeds. A pending record is visible only to the user who created it; a resolved record is visible to all users. Coordinates are never client-supplied. Correcting, re-pointing or deactivating an existing city record remains an owner operation (SE-03). **Success criteria:** an authenticated non-owner can add a place in a city not yet in the catalogue, in one uninterrupted flow, with no 403 and with no dependency on the geocoding service being reachable; submitting a name that resolves to an existing city — in any casing, or as a near-miss the geocoder canonicalises — returns the existing record and creates no new row; a request supplying latitude or longitude is rejected; a pending city created by one user does not appear in another user's city search until it resolves; **a pending city with no recorded creator remains visible to all users**; city PATCH and DELETE still return 403 for a non-owner. |
+
+*(F3 amendment, 2026-07-29: the "no recorded creator" criterion is new. It is phrased that way
+rather than "predates the column" deliberately — `ON DELETE SET NULL` means a creator can become
+unrecorded at any future point, so this is a permanent rule, not a migration-window one. See §4.4.)*
 
 ### 6.5 Open-question closure (required by `/record-decision`)
 
@@ -599,6 +796,8 @@ appearing to weaken a security test on their own initiative.
 | 3 | 444 | `POST /api/cities → 403` | `→ 201` for a new city as a non-owner | **Move**, same |
 | 4 | — | *(absent)* | `POST /api/cities` with an existing name in different casing, as a non-owner `→ 200` **and the `cities` row count unchanged** | **Add** — this is what makes D4 safe rather than merely permitted |
 | 5 | 457 | `it.skip('PATCH /api/cities/1 → 403 …')` | `→ 403`, unskipped | **Unskip** — §8.1 |
+| 6 | — | *(absent)* | Non-owner B posts a city name matching **another user's pending** city → `200`, existing row, no new row | **Add** — §4.3 step 2 keeps pass 1 uncreator-scoped, so B's *search* shows nothing while B's *POST* returns A's row. That is correct (`uniq_cities_name_country_ci` is global; creator-scoping pass 1 would collide with the unique index and surface as a constraint error) but it was nowhere stated. OP-27 review P2 |
+| 7 | — | *(absent)* | A `pending` city with `created_by_user_id IS NULL` appears in **every** user's search | **Add** — the regression test for F3. Note CI sets `GEOCODING_ENABLED=false`, so *every* city is pending there; a naive fixture test passes while the real environment loses rows |
 
 **Must NOT change at S1/S2, and the brief should re-confirm them explicitly** — they are the
 fail-closed half, and a careless "open the admin router" fix breaks them:
@@ -610,9 +809,38 @@ opens it to an anonymous caller.
 
 **S3** additionally: rows 1 and 2 above are **deleted, not edited** — those routes cease to
 exist. They are replaced by `GET /api/categories`, `GET /api/activities` (→ 200, own list) and the
-per-user isolation assertions AD-09's success criteria require (user A's custom entry absent from
-user B's list; cross-user `category_id` on a trip → 400), following the shape of the existing
-companions isolation tests in Part C.
+per-user isolation assertions AD-09's success criteria require, following the shape of the existing
+companions isolation tests in Part C:
+
+- user A's custom entry is absent from user B's list;
+- a cross-user `category_id` on `POST`/`PATCH /api/trips` → **400**;
+- **a cross-user `activity_id` on `POST /api/trips/:t/places/:p/activities` → 400** — the F1(c)
+  assertion. Without it nothing in CI catches the unvalidated place-level write path, which is the
+  half of F1 that survives the disposable-data constraint.
+
+### 8.2 Three further test files break at S3 — enumerated so no brief has to discover them (F6)
+
+> **ADDED (2026-07-29) — OP-27 review F6.** Deliverable #4 of brief #326 exists so the Backend brief
+> *"inherits authority for the change"* rather than appearing to weaken security tests on its own
+> initiative. The first draft delivered that for `security.access-matrix.test.ts` **and only that
+> file.** Three others assert on the same routes and break when S3 removes them. Verified
+> independently: `grep -rln` for the route strings across `src/` and `tests/` returns exactly these
+> four backend/contract files (plus `useAdmin.ts` on the frontend side).
+>
+> This is the situation OP-30 was adopted after — an implementation agent facing a red check its
+> brief did not authorise it to touch. Under a single release the surface is **four files at once.**
+
+| File | Assertions | Why it breaks at S3 | Intended |
+|---|---|---|---|
+| `src/backend/routes/__tests__/owner-access.test.ts` | `:129,137` non-owner → 403; **`:147,155` owner → 200/201** | routes removed — the *owner* assertions become 404 | Re-point at `/api/categories` + `/api/activities`; owner and non-owner both → 200 on their own lists |
+| `src/backend/routes/__tests__/qa-backend-fixes.test.ts` | `:210,228,244,284` — snake_case shape, `/active` filtering, POST, soft-delete | routes removed | Re-point at the new paths; the shape and soft-delete contracts are unchanged and must still hold per-user |
+| `tests/contract/places.contract.test.ts` | `:318,386` — `GET /api/admin/activities` → 200 | routes removed; **contract suite, not unit** — needs a running backend | Re-point at `GET /api/activities` |
+
+**Verified counterpoint, recorded because it reads like a fifth break and is not.** §8's "must NOT
+change" rows (`GET/POST/PATCH/DELETE /api/admin/categories → 403`) **do** survive S3.
+`adminRouter.use(requireOwner)` (`admin.ts:105`) is router-level middleware, not per-route: once the
+sub-router mounts at `:232-233` are removed, a non-owner still reaches `requireOwner` and still gets
+403. An *owner* gets 404. Leaving those assertions alone is correct.
 
 ### 8.1 A stale skip found en route — in scope, and it is a live security-coverage hole
 
@@ -677,6 +905,31 @@ schema change, no migration and no dependency on the geocoder. That was the find
 to surface, it is true, and it stays on the record in case the PO ever needs to unblock BUG-63 ahead
 of the full release. **It is not what is being built.**
 
+### 9.1.1 Revert posture — forward-fix only, and the fallback expires at merge (OP-27 review F10)
+
+> **ADDED (2026-07-29).** The first draft covered forward migration only and said nothing about
+> recovery. Low severity under the PO's disposable-data constraint — the recovery path is "reseed" —
+> but the *documentation* gap is real, and it costs a paragraph. **It also expires on its own: this
+> is only cheap while the data is disposable, and the release ships into a future where it is not.**
+
+**There is no down-migration convention in this project.** Two probes that fail differently:
+`src/backend/migrations/` contains only forward `NNNN_*.sql` files plus `meta/`, and a grep for
+`rollback|down.sql|revert` across `src/backend/migrations/` and `scripts/` returns nothing. That is
+a pre-existing convention, not something ADL-46 introduced.
+
+**But §9.1's single-release decision plus the `production` fast-forward promotion model makes
+"revert the merge" the natural incident response — and after S3 has run, it produces a state worse
+than the bug it fixes.** Reverting the code while leaving the migrated schema in place means:
+
+- `admin.ts:172-175` inserts `{ name, createdAt, updatedAt }` only. Against the migrated table,
+  `user_id NOT NULL` with no default → **every category/activity creation fails at the DB.**
+- `admin.ts:141` does `db.select().from(table)` unfiltered → **the owner's admin panel shows every
+  user's categories.**
+
+**The posture, stated so nobody discovers it during an incident: forward-fix only. There is no
+code-level revert once the migration has run.** The emergency lever is shipping **S1 alone, before
+the release** — and that lever **expires at merge.** After that, a defect is fixed forward.
+
 ### 9.2 Backend brief — stages S1, S2 and the backend half of S3/S4
 
 **One release does not mean one brief.** The Backend and Database briefs are still separately
@@ -704,8 +957,28 @@ PO-confirmed as of §0.1; it needs applying, not deciding.)*
    §4.3's five-step flow. **Step 4a — the second find-or-create pass against the canonical name — is
    the part that does the real work and is easy to omit.** Frontend repoints `lookupCityCountry`
    (`useCities.ts:37-60`) at the proxy and deletes the forbidden `User-Agent` header (`:48`).
-5. **S3/S4 backend** — see §9.3.
-6. **Tests** per §8, including the §8.1 unskip, which is a live coverage hole rather than a tidy-up.
+5. **S2** — build the **egress chokepoint** per §5.1.1. This is not optional and not "reuse what's
+   there": there is no limiter object today, and this release adds two more call sites. If it is not
+   built, say so explicitly and record the accepted risk.
+6. **S3 — close the place-level write path (OP-27 review F1(b)).** Add activity-ownership validation
+   to `POST /api/trips/:tripId/places/:placeId/activities` (`src/backend/routes/places.ts:242-280`),
+   rejecting a cross-user `activity_id` with **400** — the same contract `replaceAssociations` uses
+   for companions. Today that handler validates the *place* (`:255-256`) and inserts the
+   caller-supplied `activity_id` with no check on the activity at all (`:274-276`). SQLite cannot
+   express this constraint, so it must live in application code. **Also** extend
+   `replaceAssociations` itself for `category_id`/`activity_id`, and note the read joins at
+   `repositories/places.ts:91` and `routes/trips.ts:210` (§3.3).
+7. **S3/S4 backend** — see §9.3.
+8. **Tests** per §8 **and §8.2**, including the §8.1 unskip (a live coverage hole, not a tidy-up) and
+   the place-level 400 assertion. **Four test files change, not one** — §8.2 enumerates them.
+
+**Sizing note for whoever writes this brief (OP-27 review P1).** §4.3 calls resolve-then-create "the
+only genuinely new thing is ordering the resolve before the insert", and §5.1 calls the proxy
+"consolidation, not new capability." Both are true about the *design* and optimistic about the
+*work*. Two things do not exist yet: `resolveCity` requests `addressdetails=0` and reads only
+`lat`/`lon` (`geocoding.service.ts:102`, `:122-123`), so **canonical-name and region-ISO extraction
+have to be written**; and there is **no name→result function that works without a `cities` row**,
+which both the proxy and D5 step 3 need. Not a design error — a sizing correction.
 
 **Security checklist** (mandatory, per CLAUDE.md):
 - **One new route** — the geocoding proxy (S2). It requires `requireAuth`; it is a first-party egress
@@ -747,47 +1020,149 @@ written by the owning user.)*
 
 **Two migrations, not one.** S3 rebuilds `trip_categories` and `activities`; **S4 adds
 `cities.created_by_user_id`** (nullable, FK → `users.id`, `ON DELETE SET NULL` — see §9.2's security
-checklist for why both properties are deliberate). S4 is a plain `ALTER TABLE ADD COLUMN` with no
-backfill and no table rebuild, so it is cheap and independent of S3's rebuilds.
+checklist for why both properties are deliberate) **and `cities.geocode_attempts` (D10, §4.4.1)**.
+S4 is plain `ALTER TABLE ADD COLUMN` with no backfill and no table rebuild — cheap, and independent
+of S3's rebuilds.
 
-**S3 migration shape** — follow ADL-28 Question 3 as prior art; do not redesign it. Two files, one
-per table, each a SQLite table recreation (`UNIQUE(name)` → `UNIQUE(user_id, name)` cannot be done
-with `ALTER TABLE`):
+#### 9.3.1 The generated migration is unusable — discard it, do not review it (OP-27 review F2)
 
-1. `CREATE TABLE trip_categories_new` with `user_id text NOT NULL REFERENCES users(id) ON DELETE
+> **CORRECTED (2026-07-29). This is the blocking execution error in the first draft**, and it would
+> have sent the Database engineer down a path that dead-ends.
+
+The first draft said the recreation is needed because `UNIQUE(name)` → `UNIQUE(user_id, name)`
+"cannot be done with `ALTER TABLE`", and told the engineer to *"review the generated SQL by hand
+before applying."* **Both halves are wrong about what actually happens.**
+
+**The stated mechanism is not the mechanism.** `name text NOT NULL .unique()` is realised in this
+schema as a **standalone unique index**, not an inline table constraint — I confirmed this
+independently: `src/backend/migrations/0000_open_electro.sql:10,171` create
+`activities_name_unique` and `trip_categories_name_unique` as `CREATE UNIQUE INDEX` statements. So
+drizzle drops them with `DROP INDEX` and never needs a rebuild for that reason.
+
+**The real blocker is different and fatal.** The reviewer applied the per-user schema and ran
+`npx drizzle-kit generate`, which emitted no recreation at all — just
+`DROP INDEX` / `ALTER TABLE … ADD user_id text NOT NULL REFERENCES users(id)` / two `CREATE INDEX`.
+Applying that file fails outright:
+
+```
+$ npx drizzle-kit migrate
+Error: Cannot add a NOT NULL column with default value NULL
+```
+
+SQLite requires a non-NULL default when adding a `NOT NULL` column **and** a NULL default when
+adding a column with a `REFERENCES` clause under FK enforcement. Those requirements are mutually
+exclusive, so `ADD COLUMN user_id text NOT NULL REFERENCES users(id)` can **never** be applied — on
+an empty table or a full one.
+
+**Corrected instruction: run `db:generate`, then DISCARD the generated file entirely and hand-write
+the twelve-step recreation**, using `src/backend/migrations/0012_grey_ultimates.sql` (companions +
+shading config) as the template. There is no `__new_` scaffold to edit — the generator does not
+produce one. **A validated, executed version of this migration is appended to
+`jobs/architect/tech/ADL-46-review.md`**; start from that rather than from a description, and
+re-confirm column order and exact `CHECK` text against `schema.ts` at implementation time.
+
+**Re-pointed ADL-15 warning.** The first draft aimed drizzle-kit's four patched table-recreation bugs
+at a generate step that never reaches table recreation. The real risk surface is the **hand-written**
+recreation: FK re-binding on `RENAME`, `id` preservation, and `PRAGMA` bracketing. `db:push` remains
+forbidden (ADL-15); `db:generate` is still run, but only to confirm drizzle's view of the schema
+delta — its output is not what ships.
+
+**S3 migration shape — the shape itself is verified sound.** Follow ADL-28 Question 3 as prior art;
+do not redesign it. Two files, one per table, each a SQLite table recreation:
+
+1. `CREATE TABLE __new_trip_categories` with `user_id text NOT NULL REFERENCES users(id) ON DELETE
    CASCADE`, `UNIQUE(user_id, name)`, and the existing `CHECK(is_active IN (0,1))`.
 2. `INSERT INTO … SELECT … CROSS JOIN (SELECT id FROM users WHERE is_owner = 1 LIMIT 1)` —
-   **preserving `id`**, which is essential: `trip_categories_map.category_id` FKs to it and existing
-   mappings must survive. ADL-28's companions migration preserves `id` for the same reason.
-3. `DROP TABLE` / `RENAME` / recreate `idx_*_user`.
+   **preserving `id`**, essential because `trip_categories_map.category_id` FKs to it.
+3. `DROP TABLE` / `RENAME` / recreate `uniq_*_user_name` and `idx_*_user`.
 4. Same again for `activities`.
 
-**Carries ADL-28's documented caveat:** if no `is_owner = 1` row exists at migration time (fresh dev
-DB) the CROSS JOIN inserts 0 rows and existing global entries are abandoned. Acceptable and already
-accepted for companions; the lazy seed covers the fresh-DB case.
+> **This shape was executed, not reasoned about.** The OP-27 reviewer hand-wrote it and ran it via
+> `drizzle-kit migrate` against a scratch DB built from the full real migration chain with a
+> `trip_categories_map` row present: **`id` preserved, `trip_categories_map` intact,
+> `PRAGMA foreign_key_check` clean**, and the child FK correctly re-bound to the renamed table.
+> That was §13's headline question and the answer is **sound.** Also confirmed by the reviewer:
+> FK-disabling works on **both** libSQL transports including remote Turso, which matters because
+> `PRAGMA foreign_keys` is a no-op inside a transaction and production is Turso.
 
-**Blocking pre-migration check — §3.3.** Query staging for `trip_categories_map` /
-`trip_activities_map` rows whose trip belongs to a non-owner, via
-`scripts/agent-diagnostics/turso-query.mjs`. The strong expectation is zero (the picker has always
-403'd for non-owners) **but that is an inference from the UI path with a known blind spot** — the
-trips API accepts `category_ids` directly under `requireAuth` alone. If any rows exist they need an
-explicit disposition, not a silent re-point to the owner.
+**Two caveats on the CROSS JOIN, both of which the pre-migration check must cover:**
 
-**Workflow:** `npm run db:generate` then `npm run db:migrate`. **`db:push` is forbidden (ADL-15).**
-Review the generated SQL by hand before applying — drizzle-kit's four patched bugs are specifically
-around table recreation, which is exactly what S3's two migrations are. S4's `ADD COLUMN` does not
-touch that risk surface.
+- **Zero owners** (ADL-28's documented case): if no `is_owner = 1` row exists — a fresh dev DB — the
+  CROSS JOIN inserts 0 rows and existing global entries are abandoned. Accepted, already accepted
+  for companions, and the lazy seed covers it.
+- **More than one owner (OP-27 review F9):** `LIMIT 1` with no `ORDER BY` picks an **arbitrary**
+  user, and every global category silently lands on whichever row SQLite returned first. The first
+  draft carried ADL-28's zero-owner caveat but not this symmetric one.
 
-**Also in S3, Backend side:** lazy seed on first access (reusing `db/seed.ts:44,50`'s constants, so
-there stays one source for the default list); routes move to `/api/categories` + `/api/activities`
-with `requireAuth` + userId scoping; **S1's admin-router carve-out is deleted in this same release —
-do not leave scaffolding behind**; `tripRepository.replaceAssociations` validates that `category_id`
-and `activity_id` belong to the requesting user, rejecting cross-user IDs with 400 — the same
-validation ADL-28 added for companions.
+#### 9.3.2 Blocking pre-migration check — three queries, not one (F1(a), F9)
 
-**Also in S4, Backend side:** the city-search clause
-`WHERE geocode_status = 'resolved' OR created_by_user_id = :me` on `GET /api/cities`
-(`cities.ts:39-66`), and setting `createdByUserId` on insert in `POST /api/cities`.
+> **CORRECTED (2026-07-29).** The first draft's check enumerated only the two junction tables that
+> join via `trips`. **`trip_place_activities_map` joins via `trip_places` and is unreachable from
+> that query shape**, so the check returned a clean zero while cross-user rows existed — reproduced
+> by the reviewer on a scratch DB. The COO's live-data probe inherited the same omission.
+
+Run all three via `scripts/agent-diagnostics/turso-query.mjs`, against **both staging and
+production** — same environment-parity reasoning as the original trip-level probe:
+
+```sql
+-- 1. Trip-level mappings on non-owner trips. Expect 0. (Already run — clean.)
+SELECT COUNT(*) FROM trip_categories_map m
+  JOIN trips t ON t.id = m.trip_id JOIN users u ON u.id = t.user_id
+ WHERE u.is_owner = 0;
+-- …and the trip_activities_map equivalent.
+
+-- 2. F1(a): PLACE-level mappings — the table the first check omitted. Expect 0.
+SELECT COUNT(*) FROM trip_place_activities_map m
+  JOIN trip_places p ON p.id = m.trip_place_id
+  JOIN users u ON u.id = p.user_id
+ WHERE u.is_owner = 0;
+
+-- 3. F9: the CROSS JOIN's assumption. MUST be exactly 1.
+SELECT COUNT(*) FROM users WHERE is_owner = 1;
+```
+
+If (2) is non-zero, those rows need an explicit disposition — not a silent re-point. If (3) is not
+exactly 1, **stop**: the backfill is non-deterministic and the migration must not run.
+
+#### 9.3.3 Make the migration self-verifying — the check is necessary but not sufficient
+
+A count is point-in-time; the migration runs later, and all three write paths accept IDs under
+`requireAuth` alone (§3.3). The CROSS JOIN backfill re-points nothing in the junction tables, so the
+risk is not corruption but **silently legitimising a cross-user reference.** Add a post-migration
+assertion **in the same migration file**, after the recreations:
+
+```sql
+-- Fails the migration if any junction row now crosses a user boundary.
+SELECT RAISE(ABORT, 'cross-user category/activity mapping present — see ADL-46 §3.3')
+  WHERE EXISTS (
+    SELECT 1 FROM trip_categories_map m
+      JOIN trips t ON t.id = m.trip_id
+      JOIN trip_categories c ON c.id = m.category_id
+     WHERE c.user_id <> t.user_id
+  );
+```
+
+plus the two equivalents — `trip_activities_map` (join via `trips`) and **`trip_place_activities_map`
+(join via `trip_places`)**. This converts "query staging first" from a point-in-time check into a
+run-time invariant, which is what the single-release decision actually requires. **A failed migration
+is recoverable; a silently wrong one is the thing §13 was worried about.**
+
+**Workflow:** `npm run db:generate` (then discard, per §9.3.1) and `npm run db:migrate`.
+**`db:push` is forbidden (ADL-15).**
+
+**Also in S3, Backend side:** the lazy seed **per §3.2.1's specified predicate** — seed on identity,
+not row count, reusing `db/seed.ts:44,50`'s constants and keeping `onConflictDoNothing`; routes move
+to `/api/categories` + `/api/activities` with `requireAuth` + userId scoping; **S1's admin-router
+carve-out is deleted in this same release — do not leave scaffolding behind**;
+`tripRepository.replaceAssociations` validates `category_id`/`activity_id` ownership (400 on
+cross-user); **and the place-level write path is closed** per §9.2 task 6 — that is the F1(b) half
+and it is the one that outlives the current table contents.
+
+**Also in S4, Backend side:** the city-search clause on `GET /api/cities` (`cities.ts:39-66`) —
+`WHERE geocode_status = 'resolved' OR created_by_user_id = :me OR created_by_user_id IS NULL`,
+**including the `IS NULL` branch** (§4.4, F3); setting `createdByUserId` on insert in
+`POST /api/cities`; and D10's attempt counter + give-up rule in `processQueue` (§4.4.1).
+`GET /api/cities/:id` stays deliberately uncontained.
 
 ### 9.4 Out of scope for this release
 
@@ -885,40 +1260,69 @@ Genuinely still open:
 
 ---
 
-## 13. Confidence register — for the OP-27 fresh-eyes reviewer
+## 13. Confidence register — post-review state (2026-07-29)
 
-**The two items this section previously named as weakest are both closed** (§0.1) — do not spend the
-review there:
+> The OP-27 fresh-eyes review is complete (`jobs/architect/tech/ADL-46-review.md`). **All ten
+> findings accepted and folded in.** This section is rewritten to the post-review state; the
+> pre-review targets are kept struck-through because *how they resolved* is the useful part.
 
-- ~~D5's containment rule (§4.4)~~ — **PO-adopted as specified.** Settled, not open.
-- ~~D9's Phase 1/2 validation gap (§9.1)~~ — **moot.** The single-release decision means there is no
-  window in which city creation is open without resolve-then-create behind it. The weakness was
-  removed rather than answered.
+**How my own named targets resolved — both differently than I expected, and that is the lesson:**
 
-**Aim here instead:**
+- ~~**"Does the S3 migration preserve `id`?"**~~ — **SOUND, and settled by execution rather than
+  argument.** The reviewer hand-wrote the recreation from `0012_grey_ultimates.sql` and *ran* it
+  against a scratch DB built from the real migration chain: `id` preserved, `trip_categories_map`
+  intact, `foreign_key_check` clean, FK correctly re-bound after `RENAME`, on both libSQL transports
+  including remote Turso. **I aimed the reviewer at the right area and the wrong question** — the
+  migration risk was real but sat in the *route to* the shape (F2), not the shape.
+- ~~**"§3.3's data assumption is the only place where being wrong corrupts data"**~~ — **the
+  assumption was fine; the *table set* underneath it was wrong** (F1). I asked the reviewer to check
+  whether the count was trustworthy and never asked whether the query enumerated the right tables. It
+  did not — `trip_place_activities_map` joins via `trip_places` and was invisible to the check, and
+  the COO's live probe inherited the omission. **A correct answer to the wrong query.**
 
-- **D3's migration execution (§3.2, §9.3) — now the highest residual risk, and it rose when phasing
-  collapsed.** The *decision* is the PO's and well-precedented (High); my uncertainty is the
-  execution. Two table recreations must meet drizzle-kit's patched bug surface (ADL-15), and they now
-  land in the same release as everything else rather than in an isolated round — so a migration
-  problem surfaces alongside four other changes instead of on its own. **Concretely worth checking:
-  does the S3 migration preserve `id`?** If not, `trip_categories_map` mappings die silently.
-- **The §3.3 data assumption — the one genuinely unverified premise left.** I expect no non-owner
-  holds category/activity assignments, but that is an inference from the UI path with a named blind
-  spot (`POST /api/trips` accepts `category_ids` under `requireAuth` alone). §9.3 makes querying
-  staging a blocking pre-migration step. **If the reviewer checks one factual claim, make it this
-  one** — it is the only place where being wrong corrupts data rather than costing a re-run.
-- **D8's third-party register (§5.2) — Medium-High.** Hand-maintained, and it will rot. I have no
-  better mechanism to propose and am not confident none exists.
-- **S4's dependency on S2 (§9.1 constraint 2)** — newly load-bearing under one-release sequencing.
-  Shipping `createdByUserId` and the search clause without resolve-then-create would strand every
-  pending city as permanently creator-private. In four dispatches the ordering was obvious; in one
-  release it is an internal constraint someone can accidentally violate.
-- **D1, D2, D4, D5, D6, D7 — High.** D2 and D7 are near-mechanical given ADL-38's precedent and the
-  existing server-side geocoder. D1, D4 and D6 are largely descriptive of where the product already
-  is, plus explicit PO direction. D5 is High on the decision (PO-confirmed) and Medium on the
-  resolve-then-create *implementation* — specifically step 4a, the second find-or-create pass against
-  the canonical name, which is the part that does the real work and the easiest to omit silently.
+**Residual risk, highest first:**
+
+- **The place-level write path (F1(b)) — highest, and it is not a migration risk at all.**
+  `POST /api/trips/:t/places/:p/activities` inserts a caller-supplied `activity_id` with no
+  validation, and SQLite cannot express the constraint. This is a permanent hole in the access model
+  that **survives the disposable-data constraint** — today's rows being throwaway does not make an
+  unvalidated write path acceptable. Closed by §9.2 task 6; the assertion that keeps it closed is in
+  §8.
+- **The egress chokepoint (F4) — it does not exist and this release triples the call sites.** I
+  asserted a reusable limiter and there is only a `sleep` in one loop; `resolveCity` is unthrottled
+  from `POST /api/cities` and makes *two* requests per call. Consolidating egress behind one
+  `User-Agent` and one IP without building the chokepoint means a policy violation now blocks the
+  application. §5.1.1.
+- **The migration's *route*, not its shape (F2).** `db:generate` emits an unapplicable file and
+  produces no scaffold to edit. The hand-written recreation is the risk surface, not the generator.
+- **D8's third-party CSP register (§5.2) — Medium-High.** Hand-maintained, and it will rot. I have
+  no better mechanism to propose and am not confident none exists. **Unchanged by the review.**
+- **S4's dependency on S2 (§9.1 constraint 2)** — load-bearing under one-release sequencing and easy
+  to violate silently.
+- **D1, D2, D3, D4, D5, D6, D7, D9 — High.** The reviewer attempted to break D1's tier rule, D3's
+  Option A (including looking specifically for a reason to prefer the rejected Option B and finding
+  none), D4's curation/creation split, D5 and D7, and **would not change any of them.** The access
+  model is not in question; every finding was coverage or execution.
+
+**Verified by the reviewer, so not worth re-checking:** the §3.1 Express fall-through mechanism
+including the sub-router case §13 previously flagged as newly assumed; §8's "must NOT change" 403
+rows surviving S3 (router-level middleware, so a non-owner still 403s once the mounts are removed);
+§8.1's stale `it.skip` and its corrected citation; §10.1's server-side retry path; GE-16's
+"latitude/longitude rejected" criterion already satisfied by the `.strict()` schema — **no work
+needed there, and the brief should not build it**; and that cities are not seeded at startup.
+
+**Still genuinely unverified, with the blind spot named:**
+
+1. **Whether live data trips F1(a) or F3.** Both the reviewer's statements and mine are *structural*,
+   derived from schema and code, not from production counts — the reviewer had no DB credentials.
+   §9.3.2's three queries close it and are blocking. **Do not treat a structural argument as a count.**
+2. **Live Nominatim behaviour (F4, D10).** The firewall blocks it, so request-rate consequences are
+   inference from reading `geocoding.service.ts`. The code-level facts are solid; the operational
+   consequence is not measured.
+3. **§4.6's ODbL finding** — still a single probe (`README.md` only), still marked as such. The
+   reviewer deliberately did not re-probe it and agreed with the self-assessment.
+
+**Premises a later reader should re-probe rather than trust:**
 
 **Premises a reviewer should re-probe rather than trust:**
 
@@ -928,14 +1332,27 @@ review there:
    shape and contains no `userId`. They fail differently: (a) misses a column added by migration but
    not the schema file; (b) misses a column present but deliberately unserialized.
 2. **Verified, two probes:** the geocode retry path is server-side — §10.1.
-3. **Inference, NOT verified — and §9.3 makes checking it a blocking step:** that no non-owner holds
+3. **Inference, NOT verified — and §9.3.2 makes checking it blocking:** that no non-owner holds
    category or activity assignments today. Basis is the UI path (the picker has always 403'd). Blind
-   spot named: `POST /api/trips` accepts `category_ids` under `requireAuth` alone, so a direct API
-   call could have created them. **Query staging before migrating.**
+   spot named: all three write paths accept IDs under `requireAuth` alone, so a direct API call could
+   have created them. **Query staging AND production before migrating — all three queries, including
+   the place-level one the first draft omitted.** §9.3.3's in-migration assertion is the backstop,
+   because a count is point-in-time and the migration runs later.
 4. **Single probe, flagged as such:** that the README carries no ODbL/OSM attribution (§4.6). I
    grepped `README.md` only; `LICENSE`, a UI footer, or the map attribution control could carry it.
-   Verify before raising the item.
-5. **Assumed standard behaviour, asserted by test rather than trusted:** that Express falls through
-   to the parent stack when a mounted sub-router matches no route — the mechanism §3.1 depends on.
-   ADL-38 already relies on it for the country reads, but §3.1 mounts a *sub-router* above the guard
-   rather than a bare route, which is new. §8's must-not-change list covers it deliberately.
+   Verify before raising the item. *(The reviewer deliberately did not re-probe this and agreed with
+   the self-assessment — so it remains single-probe, not double-probed by proxy.)*
+5. ~~**Express sub-router fall-through**~~ — **VERIFIED by the reviewer**, including the specific
+   case flagged here as newly assumed: a sub-router mounted above the guard exposing only
+   `GET /active` lets `GET /categories`, all writes and every unmatched method fall through to
+   `requireOwner`. §8's must-not-change list still asserts it, which is correct belt-and-braces.
+
+**A methodological note worth keeping, because it generalises past this ADL.** Both of my named
+review targets were *areas* worth looking at and *questions* that missed. The migration question was
+answerable only by running it — which the reviewer did and I could not have, since I wrote no code —
+and the data question was well-posed against a table set I had already got wrong three sections
+earlier. **The failure mode was not insufficient caution; it was a wrong premise inherited from my
+own §3.3 and then reused, unexamined, in three downstream places.** The negative-findings rule
+catches "X does not exist." It does not catch "X exists and there are three of them." Enumerations
+deserve the same two-probe treatment as absences — and the cheap second probe here was one grep for
+`activity_id` across the schema, which is exactly what caught it on re-verification.

@@ -3558,8 +3558,65 @@ consequence six days later.
    ships), and S4's containment is meaningless without S2 promoting rows. Retained as an emergency
    fallback rather than the plan: **S1 alone would clear the P1 with no schema change.**
 
+10. **D10 — the geocode retry queue needs a give-up rule** *(added after OP-27 review; COO-decided)*.
+    Opening city creation converts a bounded retry queue into an unbounded one: `processQueue` has no
+    attempt counter, no backoff and no terminal state, and the `CHECK` constraint actively forbids a
+    third `'failed'` status. Every unresolvable name becomes a permanent line item costing **two**
+    Nominatim requests against a 1 req/s budget every fifteen minutes, forever. Add
+    `cities.geocode_attempts integer NOT NULL DEFAULT 0` in the **same S4 `ALTER TABLE`** as
+    `created_by_user_id` — nearly free now, a whole second `cities` migration if deferred — plus a
+    give-up rule that keeps the row usable and creator-private.
+
 **Alternatives considered:** see standalone §3.2 (the rejected nullable-`user_id` model), §4.5
 (four rejected city models) and §13 (confidence register).
+
+**OP-27 fresh-eyes review — completed 2026-07-29, `jobs/architect/tech/ADL-46-review.md` (PR #328).**
+Verdict: **sound with named corrections.** The reviewer attempted to break D1, D3, D4, D5 and D7 —
+including looking specifically for a reason to prefer the Option B this ADL rejected — and **would
+not change any of those decisions.** Every finding was coverage or execution, not architecture.
+**All ten findings accepted and folded into the spec**, marked inline. The two blocking ones:
+
+- **F1 — a third junction table this ADL never named.** §3.3 claimed `trip_activities_map` covered
+  "both trip and place level"; **false** — place-level activities live in `trip_place_activities_map`
+  (`schema.ts:376-387`) and join via `trip_places`, not `trips`. The error propagated into the
+  pre-migration check (which returned a **false zero**, reproduced on a scratch DB), the test list,
+  and the COO's own live-data query, which inherited the two-table set. The durable half is a **write
+  path with no validation at all**: `POST /api/trips/:t/places/:p/activities`
+  (`routes/places.ts:242-280`) validates the place and then inserts a caller-supplied `activity_id`
+  unchecked — a permanent hole in the access model that survives the disposable-data constraint.
+- **F2 — `db:generate` emits a migration that cannot be applied.** It produces
+  `ALTER TABLE … ADD COLUMN user_id text NOT NULL REFERENCES users(id)`, which fails with *"Cannot
+  add a NOT NULL column with default value NULL"* — SQLite's NOT-NULL and REFERENCES requirements are
+  mutually exclusive. This ADL's stated reason for hand-writing was also the wrong mechanism:
+  `name.unique()` is a **standalone index** here (`0000_open_electro.sql:10,171`), which drizzle
+  drops happily. Corrected instruction: **discard the generated file, do not review it**; hand-write
+  from `0012_grey_ultimates.sql`, and re-point the ADL-15 warning at the hand-written recreation.
+
+**The reviewer executed rather than argued the highest-risk item, and it came out sound.** §13's
+headline question — does the S3 migration preserve `id`? — was answered by hand-writing the
+recreation and running it via `drizzle-kit migrate` against a scratch DB built from the real
+migration chain: **`id` preserved, `trip_categories_map` intact, `PRAGMA foreign_key_check` clean**,
+FK correctly re-bound after `RENAME`, and FK-disabling confirmed working on **both** libSQL
+transports including remote Turso. The validated SQL is appended to the review document.
+
+**Both of this ADL's own named review targets resolved differently than predicted**, which is the
+methodological lesson worth keeping: the migration question was answerable only by *running* it, and
+the data-assumption question was well-posed against a **table set that was already wrong three
+sections earlier**. A correct answer to the wrong query. The negative-findings rule catches "X does
+not exist"; it does not catch "X exists and there are three of them" — **enumerations deserve the
+same two-probe treatment as absences**, and the cheap second probe here was one grep for
+`activity_id` across the schema.
+
+**Non-blocking findings, all accepted:** F3 (the containment clause had no `IS NULL` branch, so a
+pending row with no known creator was invisible to everyone permanently — durable, because
+`ON DELETE SET NULL` regenerates the condition on every user deletion); F4 (D7's "reuse the existing
+limiter" premise is false — there is only a `sleep` in one loop, `resolveCity` is unthrottled from
+`POST /api/cities`, and each call makes two requests; the release must **build** the chokepoint);
+F5 (→ D10 above); F6 (§8 covered 1 of 4 test files that break at S3); F7 (the lazy-seed trigger was
+unspecified and the obvious row-count implementation silently denies defaults to a user who writes
+before reading); F8 (the new proxy route was missing from the OP-06 matrix, contradicting SE-01's own
+success criteria); F9 (multi-owner `CROSS JOIN … LIMIT 1` picks arbitrarily); F10 (no revert posture
+documented — Low under disposable data, but the lever expires at merge).
 
 **PO rulings closing the three items this ADL flagged (2026-07-28, standalone §0.1).** Two confirmed
 the Architect's recommendation, one overrode it — recorded because the ADL was written with all three
@@ -3601,7 +3658,8 @@ is what makes it a usable emergency fallback if the P1 ever needs unblocking ahe
 **The Database brief covers S3 and S4:** S3 is two SQLite table recreations (`UNIQUE(name)` →
 `UNIQUE(user_id, name)` cannot be done with `ALTER TABLE`), following ADL-28 Question 3 as prior
 art — **preserving `id` through the CROSS JOIN**, which is essential because `trip_categories_map`
-FKs to it and existing mappings must survive; S4 is a single nullable `ADD COLUMN` with no backfill.
+FKs to it and existing mappings must survive; S4 is **two** nullable/defaulted `ADD COLUMN`s with no
+backfill (`created_by_user_id` and, per D10, `geocode_attempts`).
 `db:generate`/`db:migrate` only; **`db:push` forbidden (ADL-15)**, and the generated SQL must be
 hand-reviewed because drizzle-kit's four patched bugs are specifically around table recreation — S3's
 exact shape. S3 also adds the ADL-28-shaped ownership validation to
