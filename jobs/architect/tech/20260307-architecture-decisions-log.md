@@ -3558,14 +3558,50 @@ consequence six days later.
    ships), and S4's containment is meaningless without S2 promoting rows. Retained as an emergency
    fallback rather than the plan: **S1 alone would clear the P1 with no schema change.**
 
-10. **D10 — the geocode retry queue needs a give-up rule** *(added after OP-27 review; COO-decided)*.
-    Opening city creation converts a bounded retry queue into an unbounded one: `processQueue` has no
-    attempt counter, no backoff and no terminal state, and the `CHECK` constraint actively forbids a
-    third `'failed'` status. Every unresolvable name becomes a permanent line item costing **two**
-    Nominatim requests against a 1 req/s budget every fifteen minutes, forever. Add
-    `cities.geocode_attempts integer NOT NULL DEFAULT 0` in the **same S4 `ALTER TABLE`** as
-    `created_by_user_id` — nearly free now, a whole second `cities` migration if deferred — plus a
-    give-up rule that keeps the row usable and creator-private.
+10. **D10 — classify the geocode failure, don't just count it** *(added after OP-27 review F5;
+    refined by PO direction)*. Opening city creation converts a bounded retry queue into an unbounded
+    one — `processQueue` has no attempt counter, no backoff and no terminal state. The COO's first
+    instruction was a count-cap; **the PO refined it and the refinement is better**: *"retry when
+    there is an integration error or something recoverable. A response where the lookup returned no
+    match shouldn't ever be re-tried."* A pure cap still burns N attempts on every `"asdf"`.
+    **Adopted: two classes, two mechanisms.** *Terminal* — the geocoder answered 200 with an empty
+    result set — sets a new `geocode_status = 'unresolvable'` on the **first** attempt and is never
+    retried. *Recoverable* — unreachable, 4xx/5xx, network exception — stays `'pending'` and
+    increments `geocode_attempts` to a cap. **The distinction already exists in the code and is
+    discarded**: `resolveCity` has four distinct failure branches (`geocoding.service.ts:85`,
+    `:107-110`, `:115-119`, `:137-140`) that all `return false`, and the terminal one even carries
+    the comment *"leave as pending, will retry on next queue run"*. Rejected a boolean flag and an
+    attempts-sentinel: `geocodeStatus` **is** the state machine (§4.5 rejects a second one on the
+    same grounds), and only a status value lets the partial index
+    `idx_cities_geocode WHERE geocode_status = 'pending'` stop indexing dead rows.
+    `isOnline()`-false and `GEOCODING_ENABLED=false` must **not** increment — they are global
+    conditions, and counting them would burn every city's budget in one offline weekend.
+    **Cost: amending the CHECK constraint is a table recreation, so S4 stops being a cheap
+    `ADD COLUMN` and this release now carries three recreations, not two.**
+11. **D11 — the correction path for a mistyped city lives at the *place* level** *(PO-directed;
+    mechanism chosen here)*. §4.4's containment plus D10's terminal state together **create a trap
+    this release did not previously have**: a user who types `"Denvr"` owns a row that is invisible,
+    never retried, and — today — uneditable and undeletable by them (`PATCH /api/cities/:id` is
+    owner-only and accepts only `region_id`; there is no `DELETE` route at all, verified by four
+    independent probes; and `trip_places.cityId` is `.notNull()` with no `onDelete`, so the row
+    cannot be deleted while the place exists). **Decision: make `city_id` updatable on a place**, so
+    correcting a typo means re-pointing your own place through the existing find-or-create flow.
+    Chosen over opening `PATCH /api/cities` to the creator because it has **no uniqueness-collision
+    case** (correcting `"Denvr"`→`"Denver"` when `"Denver"` exists violates
+    `uniq_cities_name_country_ci`, and the natural repair *is* re-pointing), it **preserves the
+    place's items and activity tags** (both hang off `trip_place_id`), and it **never writes to a
+    shared global row** — which matters because a pending city is genuinely shared: a second user
+    posting the same name gets the first user's row back (OP-27 review P2).
+    **Delete-and-re-add, the PO's accepted fallback, already works and needs no build**
+    (`places.ts:112` plus the ordinary create flow). Deferred: orphan cleanup on place removal —
+    right shape, but **`BUG-40`/`TR-15` is actively redesigning place deletion** with a three-way
+    prompt, so briefing it now would design against a flow about to change; and creator
+    `PATCH /api/cities/:id` + re-resolve. **Not built:** a public `DELETE /api/cities/:id`, and
+    **never** `ON DELETE CASCADE` on `trip_places.cityId`.
+    **Framing correction recorded in D1:** this is a **provisional visibility state, not a tier
+    transition.** A city is tier-1 global reference data for its whole life — global uniqueness from
+    creation, shareable while pending, surviving its creator — and write access never leaves the
+    owner. D1 deliberately does not gain a lifetime-varying tier.
 
 **Alternatives considered:** see standalone §3.2 (the rejected nullable-`user_id` model), §4.5
 (four rejected city models) and §13 (confidence register).

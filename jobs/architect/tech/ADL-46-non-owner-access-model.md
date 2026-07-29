@@ -64,7 +64,9 @@ longer exists** (§9.1).
 | D7 | BUG-55 — proxy or CSP allowlist | **Backend proxy route.** `User-Agent` is a forbidden header in browser `fetch()`, so the direct call can never be policy-compliant; a compliant client already exists server-side | **High** |
 | D8 | General CSP posture | **Closed, per-entry-justified register; proxy or disable by default.** Third-party SDK egress in scope for QUAL-19 | **Medium-High** |
 | D9 | Sequencing | **One release.** Four stages remain as internal build order and dependency constraints, not four dispatch rounds | **High** *(PO-decided — §0.1)* |
-| D10 | Geocode retry bound | **Add `cities.geocode_attempts` + a give-up rule in the same S4 migration.** Opening city creation makes a previously-bounded retry queue unbounded | **High** *(COO-decided after OP-27 review F5 — §4.4.1)* |
+| D10 | Geocode retry bound | **Classify the failure, don't just count it.** A geocoder "no match" is terminal on the first attempt (new `geocode_status = 'unresolvable'`); everything else is recoverable and retried to a cap via `geocode_attempts`. Makes S4 a table recreation | **High** *(PO-directed, §4.4.1)* |
+| D11 | Correcting a mistyped city | **Make `city_id` updatable on a place** — the correction happens at the place level, not by opening writes on shared city rows. Creator PATCH and DELETE on cities are deferred | **Medium-High** *(PO-directed; mechanism is mine — §4.4.2)* |
+| D12 | Wrong geocoder matches | **Constrain the lookup by the country and region the user already confirmed; user selection always beats the lookup; unresolved ambiguity creates `pending` rather than guessing.** `resolved` explicitly does not mean *verified* | **Medium** *(PO-raised gap — §4.3.1)* |
 
 **Review status (2026-07-29).** The OP-27 fresh-eyes review is complete —
 `jobs/architect/tech/ADL-46-review.md`. Verdict: **sound with named corrections.** The reviewer tried
@@ -170,6 +172,16 @@ gate. Role alone does not.
 **Note the tier boundary that actually bites:** tier-1 write is not uniformly owner-only. Cities have
 a legitimate non-owner constrained write (D4); countries and regions do not. The discriminator is
 §4.2.
+
+**A city's *visibility* varies over its life; its *tier* does not.** Worth stating because it was
+proposed as a tier transition and it is not one. An unresolved city is creator-private in search
+(§4.4) and becomes globally visible on resolution — but it is **tier-1 global reference data
+throughout**: its uniqueness constraint is global from the moment it is created, two users can hold
+places on the same unresolved row (OP-27 review P2), it survives its creator (`ON DELETE SET NULL`),
+and **write access never leaves the owner** (§4.4.2 puts the user's correction path at the *place*
+level for exactly this reason). So this is a **provisional visibility state, not a per-user tier** —
+and D1 deliberately does **not** gain a lifetime-varying tier, which would be the first in the model
+and the kind of thing that gets implemented inconsistently.
 
 ---
 
@@ -458,6 +470,95 @@ POST /api/cities  { name, country_code, region_id? }   [requireAuth]
   (`cities.ts:167`), so the row is always created from user text even when the service could have
   given a canonical one. Resolve-then-create is strictly better data for the same number of calls.
 
+### 4.3.1 D12 — wrong matches: the failure D5 introduces, and the minimum that makes it safe
+
+> **PO question (2026-07-29):** *"how does the state/country lookup work in this use case when the
+> city being matched isn't correct?"* **A real gap.** §4.4's containment protects against cities that
+> **never** resolve. It does nothing about cities that resolve to the **wrong place** — and that case
+> is both more likely and more damaging, because a wrong match is `'resolved'`, so it bypasses
+> containment and enters the shared catalogue as authoritative on first write.
+
+**Why D5 raises the stakes.** Today `lookupCityCountry` sends the raw user string with `limit=1` and
+returns `data[0]` unconditionally, but it is **advisory** — it pre-fills form fields the user sees and
+confirms. A wrong match is a wrong *default*. D5 builds the stored record from the canonical response,
+which is a much stronger commitment.
+
+**One mitigation already exists and it is the load-bearing one — D11, for a reason I did not
+originally give.** The COO's framing assumed the creator loses correction rights once a row is
+`'resolved'`, which would mean a user can fix the case they *notice* (blank fields) and not the case
+they *don't* (confidently wrong) — an ugly inversion. **That inversion does not exist in this
+design.** §4.4.2 puts correction at the *place* level: `PATCH /api/trips/:t/places/:p` with `city_id`
+is gated on **place ownership only** and does not care what status the city has. So re-pointing works
+identically for a wrong match and a no-match. Rejecting the tier-transition framing (§2) turns out to
+have bought this for free.
+
+**What re-pointing does not fix, stated plainly.** The wrong row stays in the global catalogue with
+wrong coordinates. And it is **unrepairable by anyone today**: `PatchCitySchema` accepts only
+`region_id`, so not even the owner can correct coordinates.
+
+**The deeper constraint, which is pre-existing and which D5 makes visible.**
+`uniq_cities_name_country_ci` is on **`(name COLLATE NOCASE, country_code)` — region is not in the
+key** (`schema.ts:126`). So the catalogue **cannot represent Springfield, Illinois and Springfield,
+Missouri at the same time.** Whichever lands first owns the name for that country, and every later
+user typing "Springfield" gets it back from find-or-create. This is BUG-33's constraint, not
+something ADL-46 introduces, but resolve-then-create makes collisions *more* likely by canonicalising
+variants onto one name. **Flagged, not fixed here** — see below.
+
+#### The minimum that makes this release safe
+
+**Decision: use the structured data the user has already given us, and never let the lookup overrule
+it.** The insight is that D5's resolve step runs *after* the user has confirmed country and region —
+`CreateCitySchema` already **requires `country_code`** and accepts `region_id` — while
+`resolveCity` today sends a bare `q` string with the country *name* appended and no filter
+(`geocoding.service.ts:97-103`). **The backend already holds the disambiguating data and does not use
+it.**
+
+1. **Constrain the lookup by country.** Pass Nominatim's `countrycodes=` filter from the request's
+   validated `country_code` rather than hoping the free-text query lands in the right country. This
+   alone removes the London-UK-vs-Ontario and Cambridge-UK-vs-Massachusetts classes entirely.
+2. **Disambiguate by region where the user gave one.** Request `limit>1` with `addressdetails=1`, and
+   where `region_id` is set, prefer the result whose subdivision matches. Springfield + US + Missouri
+   is unambiguous even though Springfield + US is not.
+3. **User selection is authoritative — answering the second question directly.** The lookup may
+   supply **coordinates and a canonical name**; it may **never override the `country_code` or
+   `region_id` the request carried.** If they disagree, the user's values stand and the record is
+   created from them. Rationale: the user has ground truth about where they went, the geocoder has a
+   ranked guess, and `country_code` has already been validated against our own `countries` table. A
+   silent overwrite of an explicit user choice is the worst available outcome.
+4. **Ambiguity that survives 1–3 does not resolve.** If the country- and region-constrained lookup
+   still returns multiple comparable candidates, **create from the user's text as `'pending'`** rather
+   than picking first. That routes it into containment — creator-private, correctable, no global
+   write — instead of guessing. Note this is deliberately *narrow*: without step 1 a plain
+   ambiguity-block would leave "London" permanently unresolved, which is why constraining comes first.
+
+That is four small changes inside one handler, no schema change, and no new UI.
+
+#### What I am explicitly *not* doing in this release, and the residual risk
+
+- **No fourth status, and `'resolved'` keeps both meanings.** The COO asked whether *"the geocoder
+  answered"* and *"this row is fit for the shared catalogue"* need separating. **They do not, here** —
+  separating them requires a verification *actor*, and at two users there isn't one; it would be a
+  status nobody ever transitions. **The honest position, recorded in GE-16: `resolved` means the
+  geocoder returned a match, not that the match is correct.**
+- **No interactive disambiguation UI.** Step 4 degrades to pending instead. A "did you mean
+  Springfield, Illinois or Springfield, Missouri?" picker is better UX and is genuinely its own piece
+  of work — frontend flow, backend candidate endpoint, and it interacts with GE-14's search-first
+  design. **Follow-on.**
+- **No fix for the same-name collision.** Widening the unique key to include `region_id` does not
+  work as-is: `region_id` is frequently NULL and **NULLs are distinct in a SQLite unique index**, so
+  it would permit true duplicates — the exact defect BUG-33 closed. Needs its own design.
+  **Follow-on.**
+- **Owner repair of coordinates is now clearly needed** and folds into the already-deferred creator
+  `PATCH /api/cities/:id` work (§4.4.2): that route should gain the ability to correct coordinates or
+  force a re-resolve. Today nobody can.
+
+**Accepted residual risk, stated so it is a decision rather than an oversight:** a confidently-wrong
+match that survives country and region constraints will enter the global catalogue with wrong
+coordinates, and until the deferred owner-repair path exists, nobody can fix that row. The user's own
+experience *is* repairable — they re-point their place (D11) — and the wrong row is a real place with
+a real name, not corrupt data. **At two users, with steps 1–4 in place, I judge that acceptable for
+this release.** It should not survive the app having many users.
+
 ### 4.4 D5's containment rule — ADOPTED (PO-confirmed)
 
 > **CONFIRMED (2026-07-28) by PO ruling — see §0.1.** This was flagged in the first draft as the
@@ -550,23 +651,226 @@ and every unresolvable name any authenticated user submits becomes a permanent l
 1 req/s budget, every fifteen minutes, indefinitely. Combined with the egress contention in §5.1, the
 fifteen-minute queue alone can starve the interactive proxy.
 
-**Why now rather than later:** S4 already performs an `ALTER TABLE cities ADD COLUMN`, so a second
-column is nearly free. Deferring costs an entire second `cities` migration.
+**Why now rather than later:** S4 already touches `cities`, and deferring costs an entire second
+`cities` migration.
 
-**Implementation notes for the Database and Backend briefs:**
-- `geocode_attempts integer NOT NULL DEFAULT 0` — a plain `ADD COLUMN`, no backfill, same S4
-  migration as `created_by_user_id`.
-- Increment on each attempt in `resolveCity`; stop selecting rows at or above the cap in
-  `processQueue`. Suggested cap **5**, tunable — the Backend brief may pick a different N and say so.
-- **A row that has given up stays fully usable and creator-private.** It is not deleted, its places
-  keep working, and it never becomes globally visible (it never resolved). Give-up bounds *retry
-  cost*, not the user's ability to use their own city.
-- **The `CHECK` constraint blocks a terminal status value.**
-  `check('chk_cities_geocode_status', … IN ('pending','resolved'))` (`schema.ts:116`) forbids a third
-  state, so if the brief prefers an explicit `'failed'` status over an attempts threshold, **the
-  CHECK constraint must be amended in the same migration** — and amending a CHECK in SQLite is a
-  table recreation, which is materially more expensive than the counter. **The counter is
-  recommended precisely because it avoids that.** Cover whichever route is chosen in the migration.
+#### D10 refined by PO direction (2026-07-29) — classify the failure, don't just count it
+
+> The COO's original instruction was "add an attempts counter, give up after N." **The PO refined it
+> and the refinement is a real improvement:** *"We want to retry when there is an integration error
+> or something recoverable. A response where the lookup returned no match shouldn't ever be
+> re-tried."* Explicit latitude was given on mechanism — *"either a retry cap or consuming the
+> responses."* **I am adopting both, because they address different failure classes.**
+
+A pure count-cap treats every failure alike and still burns N attempts on every `"asdf"`. Classifying
+the response makes junk **terminal on the first attempt**, which is strictly better and is what makes
+§4.4's containment cheap rather than merely bounded.
+
+**Two failure classes, two mechanisms:**
+
+| Class | Examples | Mechanism |
+|---|---|---|
+| **Terminal** — the geocoder answered, and the answer was *no match* | HTTP 200 with an empty result array | **Never retried. Not once.** `geocode_status → 'unresolvable'` on the first occurrence |
+| **Recoverable** — the question was never actually answered | network error, timeout, 5xx, 429, host unreachable | Stays `'pending'`; `geocode_attempts` increments; retried until a cap |
+
+**The distinction already exists in the code and is thrown away — this is a positive finding, not an
+absence.** `resolveCity` has **four** distinct failure branches and all four `return false` leaving
+the row `'pending'`:
+
+| Branch | Line | Class |
+|---|---|---|
+| `isOnline()` false — host unreachable | `:85` | recoverable, **and global, not per-city** |
+| `!resp.ok` — HTTP 4xx/5xx | `:107-110` | recoverable |
+| **`!data.length` — 200 OK, empty result set** | **`:115-119`** | **TERMINAL** |
+| `catch` — network/parse exception | `:137-140` | recoverable |
+
+The `!data.length` branch even carries the comment *"No results — leave as pending, will retry on
+next queue run"* — the behaviour the PO is correcting is deliberate and documented. **The information
+is available at the branch point; only the persistence is missing**, so the fix is a few lines.
+
+**Decision — add a third `geocode_status` value, `'unresolvable'`, and keep the counter as a safety
+net for the recoverable class.**
+
+- `geocode_status`: `'pending' | 'resolved' | 'unresolvable'` — the CHECK constraint amended.
+- `geocode_attempts integer NOT NULL DEFAULT 0` — incremented **only** on recoverable failures.
+- Queue predicate: `WHERE geocode_status = 'pending' AND geocode_attempts < CAP`. Suggested cap
+  **5**, tunable; the Backend brief may pick another N and say so.
+- **`isOnline()` false and `GEOCODING_ENABLED=false` must NOT increment `geocode_attempts`.** Those
+  are *global* conditions, not per-city failures — otherwise one offline weekend silently burns every
+  pending city's entire retry budget. `processQueue` already returns early on both, but `resolveCity`
+  is also called directly from `POST /api/cities` (`cities.ts:167`), and that path must not increment
+  either.
+- Cap-exhausted rows stay `'pending'`, not `'unresolvable'` — "we gave up asking" and "the geocoder
+  told us there is nothing" are different facts, and the PO's direction is precisely about not
+  conflating them.
+
+**Why a status value and not a boolean flag or a sentinel count.** Considered and rejected:
+
+- **A separate `geocode_unresolvable` boolean.** Rejected for the same reason §4.5 rejects a
+  `city_suggestions` table: *`geocodeStatus` already **is** this state machine, and a second one is
+  duplicate machinery.* Consistency with my own rejection matters. It also breaks the index below.
+- **Encoding terminal as `geocode_attempts = CAP` on the first no-match.** Clever, needs no CHECK
+  change, and **loses exactly the semantic distinction the PO drew** — afterwards you cannot tell a
+  genuinely-unknown place from one that had five bad nights. Rejected.
+- **The decisive practical argument:** the partial index
+  `idx_cities_geocode ON geocode_status WHERE geocode_status = 'pending'` (`schema.ts:115`)
+  **automatically stops indexing terminal rows only if terminal is a status value.** With a flag or a
+  sentinel, every dead row stays in the queue index forever — which is the cost D10 exists to remove.
+
+**Cost change, stated plainly because it is material.** S4 was "a plain `ALTER TABLE ADD COLUMN`,
+cheap and independent of S3's rebuilds." **That is no longer true.** Amending a CHECK constraint in
+SQLite is a table recreation, so **S4 now needs the same 12-step recreation shape as S3** — see
+§9.3.4 for the full cost and what the recreation must reproduce.
+
+### 4.4.2 D11 — the correction path, and why I am putting it at the place level (PO direction, 2026-07-29)
+
+> **PO direction:** *"make sure the user has a way to delete it themselves. If they made a typo for
+> example, they shouldn't be stuck with it permanently — they should be able to edit with an
+> integration retry on save, or delete and add a new row."*
+>
+> **He is right and this release is what creates the trap.** Before it, only the owner could create
+> cities and no row was ever terminal. §4.4's containment plus D10's terminal state together mean a
+> user who types `"Denvr"` owns a row that is invisible to everyone, never retried, and — today —
+> uneditable and undeletable by them. **A release that creates a trap must ship its escape.**
+
+**Facts established first, because they narrow the design sharply.** Three verified independently:
+
+1. **`PATCH /api/cities/:id` is owner-only** (`cities.ts:223-225`), and its schema accepts **only**
+   `region_id` — `PatchCitySchema` is `.strict()` with one field (`cities.schemas.ts:28-33`), and the
+   handler writes only that field. So it cannot repair a name even for the owner.
+2. **There is no `DELETE` route on cities.** My probe: `citiesRouter.(get|post|patch|delete)` returns
+   six routes — four GET, one POST, one PATCH, no DELETE. The COO independently ran three further
+   probes with the same result. Delete is **net-new work**, not a permission change.
+3. **`trip_places.cityId` is `.notNull()` with no `onDelete`** (`schema.ts:349-351`) — NO ACTION, and
+   FK enforcement is on by default in `@libsql/client`. **A city cannot be deleted while any place
+   references it**, and in the typo scenario the place always exists, because the user typos the city
+   *while adding a place*. **Delete does not solve the reported case.**
+
+**And one more that reshapes the answer:** `city_id` is **create-only** on places.
+`CreatePlaceSchema` takes `city_id`; `UpdatePlaceDatesSchema` is `.strict()` and accepts only dates
+(`places.schemas.ts:20-36`). So a place cannot be re-pointed either. The user's *only* current escape
+is `DELETE /api/trips/:t/places/:p` (`places.ts:112`) and re-add — **which destroys the place's items
+and its activity tags**, since both hang off `trip_place_id`.
+
+#### The decision — make `city_id` updatable on a place. That is the correction path.
+
+**Primary mechanism: `PATCH /api/trips/:tripId/places/:placeId` accepts `city_id`.** Correcting a
+typo becomes *"this place is in the wrong city"* — the user re-selects through the existing
+AddPlaceFlow search, which already does find-or-create and resolve-then-create.
+
+**Why this rather than opening `PATCH /api/cities` to the creator**, which is what the direction's
+wording most literally suggests:
+
+- **It has no unsolvable collision case.** Editing the *city row* from `"Denvr"` to `"Denver"` when
+  `"Denver"` already exists violates `uniq_cities_name_country_ci`. The natural repair — re-point this
+  user's places to the existing row — **is exactly the operation being proposed here**, so the
+  city-edit path needs it anyway. Re-pointing gets it for free through find-or-create.
+- **It preserves the user's work.** Delete-and-re-add loses items and activity tags; re-pointing keeps
+  them, because they hang off `trip_place_id`, which does not change.
+- **It never writes to a shared global row.** A pending city is *not* private, despite being
+  creator-private in search: the OP-27 review's P2 established that user B posting the same name gets
+  **user A's pending row back** (200, no new row), because the unique index is global. So a
+  creator-edit path can silently mutate a city another user's place already depends on. Re-pointing
+  cannot — it touches only the caller's own `trip_places` row.
+- **It keeps D1 clean.** No new write delegation on tier-1 data, so no first-of-its-kind
+  lifetime-varying tier (see below).
+- **It is small**: one schema field, one branch in an existing handler whose ownership check already
+  passes.
+
+**The typo'd row is then orphaned** — invisible to everyone (creator-private + never resolves) and
+referenced by nothing. Harmless clutter. It is also now *deletable*, because the FK no longer blocks
+it, which is what makes the secondary mechanism viable later.
+
+#### Secondary — delete-and-re-add, which the PO accepted and which already works
+
+> **PO, closing the question:** *"edit and re-send is a more natural user process. However, delete
+> and re-add isn't entirely unacceptable as presumably the user would catch the error right after
+> saving it and so the trip place would be mostly empty."* Both confirmed: edit is primary, delete is
+> an acceptable fallback.
+
+**The delete-and-re-add path requires no work at all — it already functions today.**
+`DELETE /api/trips/:tripId/places/:placeId` exists (`places.ts:112`), and re-adding a place with a
+corrected city is the ordinary create flow. The PO's reasoning is what makes it acceptable: a typo is
+caught immediately after saving, so the discarded `trip_place` is nearly empty. **Nothing needs
+building for this path.** It is worth stating explicitly, because it was framed as blocked and it is
+not.
+
+**What is actually left over is one orphaned city row, and it is harmless.** After the user corrects
+by either route, the typo'd city is: invisible to every user (creator-private and never resolves);
+**not in the geocode queue** (terminal, per D10); **not in the partial index**, since
+`idx_cities_geocode` covers only `geocode_status = 'pending'`; and referenced by nothing. It consumes
+one row and one slot in a global unique namespace, for a name nobody wants. **Cleaning it up is
+hygiene, not a fix.**
+
+#### On the place-removal cleanup hook — right shape, wrong release
+
+The COO proposed cleaning the city up as a side effect of place removal, rather than adding a public
+`DELETE /api/cities` route, and invited disagreement. **I agree the shape is right and recommend
+deferring it anyway.** Three reasons:
+
+1. **It buys nothing user-visible.** Per the paragraph above, the orphan is inert. This is tidiness,
+   competing for room in a release already carrying three migrations, a route relocation and a proxy.
+2. **`BUG-40` / `TR-15` is actively redesigning the exact flow it would hook into.** Verified: BUG-40
+   is `pending`, gated on ADL-41, and replaces today's silent item-reassignment with a three-way
+   prompt — *delete all / move to trip-level / cancel*. Two of those three branches do not delete the
+   place at all. **A cleanup hook written now would be designed against a flow that is about to
+   change, and would then constrain BUG-40's design or be rewritten by it.**
+3. **Side-effect deletion of a shared-table row is a surprising primitive** to introduce implicitly,
+   and its predicate has to stay exactly right forever. Note that "unreferenced" is genuinely
+   load-bearing rather than obviously true: the OP-27 review's P2 established that a second user can
+   hold a place on the *same* pending row via find-or-create, so the check is real work, not a
+   formality.
+
+**Disposition — so whoever picks it up inherits the design rather than re-deriving it.** If cleanup
+is wanted, do it as the COO proposed — a hook inside place removal, **not** a public
+`DELETE /api/cities` route — and brief it **with or after BUG-40, never before.** The predicate must
+be all four of: the city is `pending` or `unresolvable` (**never** `resolved`); `created_by_user_id`
+equals the caller; **no** `trip_places` row references it after the deletion; and the branch of
+BUG-40's prompt actually removed the place. **Explicitly do not** add `ON DELETE CASCADE` to
+`trip_places.cityId` to make this easier — a city deletion silently destroying trip places would be
+far worse than the defect being fixed. I agree with the COO on that without reservation.
+
+#### Also deferred: creator `PATCH /api/cities/:id` + re-resolve on save
+
+A genuine improvement — it repairs the *shared* row, so a corrected name becomes globally useful
+instead of leaving an orphan — but it needs the uniqueness-collision path, a cross-user-reference
+guard, and a write delegation on tier-1 data. **Defer to an immediate follow-on**, now that
+re-pointing has removed the urgency.
+
+#### This is not a tier transition — a correction to the framing offered
+
+The COO proposed that a city is *per-user data while unresolved and global reference data once
+resolved*, with resolution as the tier transition, and asked whether that should be stated in D1.
+**I do not think it should, and the P2 finding is why:** a pending city is already *shared* — two
+users can hold places on the same pending row, and its uniqueness constraint is global throughout.
+It is not per-user data at any point.
+
+**The accurate framing: a city is tier-1 global reference data for its whole life, with a
+*provisional visibility state* while unresolved.** What changes at resolution is who can *see* it in
+search, not who owns it or who may write it. Write access stays with the owner throughout — which is
+exactly why the correction path lives at the place level. Stating this as a tier transition would
+introduce the first lifetime-varying tier into D1 to describe something that is really a visibility
+rule, and the COO is right that such a thing gets implemented inconsistently — which is the argument
+for *not* creating one.
+
+#### Scope verdict — asked for plainly, so stated plainly
+
+**The place-level correction path belongs in this release.** It is small, it is the escape for a trap
+**this release introduces**, and shipping D10's terminal state without it would knowingly ship the
+defect Ryan named. **Everything else defers**, and the net in-release cost is smaller than it first
+looked:
+
+| Mechanism | Verdict | Cost |
+|---|---|---|
+| **Edit — re-point a place to another city** | **In release.** PO-confirmed as the natural process | One schema field + one handler branch |
+| **Delete-and-re-add** | **In release by default — already works** | **Zero.** `places.ts:112` plus the ordinary create flow |
+| Orphan cleanup on place removal | Defer — brief with/after BUG-40 | — |
+| Creator `PATCH /api/cities/:id` | Defer — immediate follow-on | — |
+| `DELETE /api/cities/:id` | **Do not build** — superseded by the cleanup hook shape | — |
+
+So against a release already carrying three migrations, a route relocation and a proxy, the
+correction path adds **one schema field and one handler branch**. Both PO-named mechanisms are
+available to the user on merge.
 
 ### 4.5 Rejected alternatives
 
@@ -751,7 +1055,21 @@ unenforced. See §3.3.)*
 
 Without it the cities decision has no BRD home and the Backend brief's BRD gate is not cleared.
 
-> | GE-16 | Any authenticated user can add a city that is not yet in the shared catalogue, while logging a trip, through the constrained find-or-create path only. The city name is resolved against the geocoding service and the record is created from the service's canonical response where one is available; where it is not (offline, or no match — GE-12), the record is created from the user's text and marked pending, remains usable immediately, and is promoted automatically when background resolution succeeds. A pending record is visible only to the user who created it; a resolved record is visible to all users. Coordinates are never client-supplied. Correcting, re-pointing or deactivating an existing city record remains an owner operation (SE-03). **Success criteria:** an authenticated non-owner can add a place in a city not yet in the catalogue, in one uninterrupted flow, with no 403 and with no dependency on the geocoding service being reachable; submitting a name that resolves to an existing city — in any casing, or as a near-miss the geocoder canonicalises — returns the existing record and creates no new row; a request supplying latitude or longitude is rejected; a pending city created by one user does not appear in another user's city search until it resolves; **a pending city with no recorded creator remains visible to all users**; city PATCH and DELETE still return 403 for a non-owner. |
+> | GE-16 | Any authenticated user can add a city that is not yet in the shared catalogue, while logging a trip, through the constrained find-or-create path only. The city name is resolved against the geocoding service and the record is created from the service's canonical response where one is available. Coordinates are never client-supplied. A city record has **three end states**: *resolved* — the geocoder matched it; the record carries coordinates and is visible to all users. *Pending* — the question has not yet been answered (offline, service error, or not yet attempted — GE-12); the record is usable immediately, visible only to its creator, and retried in the background until it resolves or a retry cap is reached. *Unresolvable* — the geocoder answered and reported **no match**; the record is usable and visible only to its creator, and **is never retried**, because the answer will not change. A record whose creator is not recorded is treated as having no creator and is visible to all users. **The user who created a place can correct it at any time by re-pointing that place to a different city**, which runs the normal find-or-create and resolution path; correcting, re-pointing or deactivating a *shared city record itself* remains an owner operation (SE-03). **Success criteria:** an authenticated non-owner can add a place in a city not yet in the catalogue, in one uninterrupted flow, with no 403 and with no dependency on the geocoding service being reachable; submitting a name that resolves to an existing city — in any casing, or as a near-miss the geocoder canonicalises — returns the existing record and creates no new row; a request supplying latitude or longitude is rejected; a pending or unresolvable city created by one user does not appear in another user's city search; **a pending city with no recorded creator remains visible to all users**; **a city the geocoder reports no match for is never re-queried, and one whose lookup failed for any other reason is retried until a stated cap**; **a user who mistypes a city name can correct the affected place without losing that place's items or activity tags, and without owner intervention**; **the country and region a user explicitly selected are never overwritten by the geocoding lookup**; **a lookup that remains ambiguous after being constrained by the selected country and region creates a pending record rather than choosing a candidate**; city PATCH and DELETE still return 403 for a non-owner. **Note: *resolved* means the geocoding service returned a match, not that the match has been verified as correct.** |
+
+*(D12 amendment, 2026-07-29: the three added criteria and the closing note answer a gap the PO
+raised — containment covers cities that never resolve and says nothing about cities that resolve to
+the *wrong* place, which is likelier and worse because `resolved` goes global immediately. The
+"never overwritten" criterion settles who wins when the user's selection and the lookup disagree:
+the user. See §4.3.1, which also records the accepted residual risk and the two follow-ons.)*
+
+*(D10/D11 amendment, 2026-07-29: the "promoted automatically when background resolution succeeds"
+clause described only two end states and said nothing about the never-succeeds case. Three are now
+named, and the retry rule distinguishes an unanswered question from an answered "no" — a no-match is
+terminal on the first attempt, per PO direction. The correction criterion is new: containment plus a
+terminal state would otherwise trap a user on their own typo, and the "without losing items or
+activity tags" wording is deliberate — the only escape available today is deleting and re-adding the
+place, which destroys both. See §4.4.1 and §4.4.2.)*
 
 *(F3 amendment, 2026-07-29: the "no recorded creator" criterion is new. It is phrased that way
 rather than "predates the column" deliberately — `ON DELETE SET NULL` means a creator can become
@@ -957,6 +1275,12 @@ PO-confirmed as of §0.1; it needs applying, not deciding.)*
    §4.3's five-step flow. **Step 4a — the second find-or-create pass against the canonical name — is
    the part that does the real work and is easy to omit.** Frontend repoints `lookupCityCountry`
    (`useCities.ts:37-60`) at the proxy and deletes the forbidden `User-Agent` header (`:48`).
+   **Apply D12's four rules to the resolve step (§4.3.1):** pass Nominatim's `countrycodes=` filter
+   from the request's validated `country_code`; use `region_id` to disambiguate where present; **never
+   overwrite a user-supplied `country_code` or `region_id` from the lookup**; and create `'pending'`
+   rather than guessing when ambiguity survives both constraints. `resolveCity` currently sends a bare
+   `q` string with no filter (`geocoding.service.ts:97-103`) — the disambiguating data is already in
+   the request and simply unused.
 5. **S2** — build the **egress chokepoint** per §5.1.1. This is not optional and not "reuse what's
    there": there is no limiter object today, and this release adds two more call sites. If it is not
    built, say so explicitly and record the accepted risk.
@@ -968,9 +1292,23 @@ PO-confirmed as of §0.1; it needs applying, not deciding.)*
    express this constraint, so it must live in application code. **Also** extend
    `replaceAssociations` itself for `category_id`/`activity_id`, and note the read joins at
    `repositories/places.ts:91` and `routes/trips.ts:210` (§3.3).
-7. **S3/S4 backend** — see §9.3.
-8. **Tests** per §8 **and §8.2**, including the §8.1 unskip (a live coverage hole, not a tidy-up) and
-   the place-level 400 assertion. **Four test files change, not one** — §8.2 enumerates them.
+7. **S4 — D10's failure classification (§4.4.1).** In `resolveCity`, the `!data.length` branch
+   (`geocoding.service.ts:115-119`) sets `geocode_status = 'unresolvable'` instead of leaving the row
+   pending; the three recoverable branches (`:85`, `:107-110`, `:137-140`) increment
+   `geocode_attempts`. **`isOnline()`-false and `GEOCODING_ENABLED=false` must not increment** — they
+   are global conditions, not per-city failures. `processQueue`'s predicate becomes
+   `geocode_status = 'pending' AND geocode_attempts < CAP`.
+8. **S4 — D11's correction path (§4.4.2).** `UpdatePlaceDatesSchema` (`places.schemas.ts:29-36`)
+   gains `city_id`, and `PATCH /api/trips/:tripId/places/:placeId` applies it. Ownership is already
+   validated on the place, so this adds no new access surface; validate that the target city exists.
+   **This is the escape for a trap this release creates — it is not optional.**
+9. **S3/S4 backend** — see §9.3.
+10. **Tests** per §8 **and §8.2**, including the §8.1 unskip (a live coverage hole, not a tidy-up) and
+    the place-level 400 assertion. **Four test files change, not one** — §8.2 enumerates them. Add
+    for D10/D11: a no-match response marks the row `'unresolvable'` and `processQueue` never
+    re-selects it; a recoverable failure leaves it `'pending'` with an incremented count; an offline
+    run increments nothing; and re-pointing a place to another city **preserves its items and
+    activity tags**.
 
 **Sizing note for whoever writes this brief (OP-27 review P1).** §4.3 calls resolve-then-create "the
 only genuinely new thing is ordering the resolve before the insert", and §5.1 calls the proxy
@@ -1147,6 +1485,43 @@ plus the two equivalents — `trip_activities_map` (join via `trips`) and **`tri
 run-time invariant, which is what the single-release decision actually requires. **A failed migration
 is recoverable; a silently wrong one is the thing §13 was worried about.**
 
+#### 9.3.4 S4 is no longer a cheap `ADD COLUMN` — D10 makes it a third table recreation
+
+> **COST CHANGE, stated plainly because the COO asked whether it was material. It is.**
+
+S4 was specified as "a plain `ALTER TABLE cities ADD COLUMN`, no backfill, no table rebuild — cheap
+and independent of S3's rebuilds." **D10's third `geocode_status` value invalidates that.** Amending
+`chk_cities_geocode_status` requires a table recreation in SQLite; there is no `ALTER CONSTRAINT`.
+
+**So this release now carries three table recreations, not two.** Honest framing of what that does
+and does not cost:
+
+- **It is the same shape three times, not a new risk class.** The reviewer has executed and validated
+  the 12-step pattern, and its SQL is appended to `ADL-46-review.md`.
+- **`cities` has only one inbound FK** — `trip_places.cityId` (`schema.ts:349-351`), `.notNull()`,
+  no `onDelete`. Smaller blast radius than it looks; there is one child relationship to re-bind, and
+  the reviewer's validated template covers exactly that step.
+- **But `cities` is the fiddliest of the three tables to reproduce**, and this is the part to watch.
+  The recreation must reproduce, exactly:
+  - `idx_cities_geocode` — a **partial index**, `ON geocode_status WHERE geocode_status = 'pending'`
+    (`schema.ts:115`). *Bonus: once `'unresolvable'` exists, this index automatically stops indexing
+    terminal rows — the queue scan stays tight for free. That is D10's practical payoff and it only
+    works because terminal is a status value.*
+  - `uniq_cities_name_country_ci` — an **expression index**, `ON (name COLLATE NOCASE, country_code)`
+    (`schema.ts:126`). Getting the collation wrong silently breaks BUG-33's find-or-create.
+  - `idx_cities_country`, `idx_cities_region`, and the amended CHECK.
+- **Relevant but not new:** partial-index `WHERE` clauses and duplicate `CREATE INDEX` are two of the
+  four drizzle-kit bugs ADL-15 patches. Because §9.3.1 discards the generated file and hand-writes,
+  the migration itself does not depend on drizzle-kit's introspection — but this is the table that
+  most exercises that surface, so **hand-verify both index definitions against `schema.ts` rather
+  than trusting any generated output.**
+
+**If the COO wants to avoid a third recreation**, the fallback is a boolean `geocode_unresolvable`
+column instead of a status value — a plain `ADD COLUMN`. §4.4.1 rejects it (duplicate state machine,
+and terminal rows stay in the queue index forever), but the trade is real and this is where it would
+be made. **My recommendation is to take the recreation**: the pattern is validated, it is the last
+cheap moment to fix the state machine, and the alternative permanently forks it.
+
 **Workflow:** `npm run db:generate` (then discard, per §9.3.1) and `npm run db:migrate`.
 **`db:push` is forbidden (ADL-15).**
 
@@ -1295,6 +1670,14 @@ Genuinely still open:
   application. §5.1.1.
 - **The migration's *route*, not its shape (F2).** `db:generate` emits an unapplicable file and
   produces no scaffold to edit. The hand-written recreation is the risk surface, not the generator.
+  **And there are now three recreations, not two** — D10's third `geocode_status` value forces a
+  `cities` rebuild (§9.3.4). `cities` is the fiddliest of the three to reproduce: a **partial index**
+  and an **expression index** (`COLLATE NOCASE`), which are two of the four drizzle-kit bug classes
+  ADL-15 patches. Hand-verify both against `schema.ts`.
+- **D10's attempt-increment scope (§4.4.1) — small but easy to get silently wrong.** If
+  `isOnline()`-false or `GEOCODING_ENABLED=false` increments `geocode_attempts`, one offline weekend
+  burns every pending city's retry budget and they all fall out of the queue permanently. The queue
+  already returns early on both, but `resolveCity` is *also* called directly from `POST /api/cities`.
 - **D8's third-party CSP register (§5.2) — Medium-High.** Hand-maintained, and it will rot. I have
   no better mechanism to propose and am not confident none exists. **Unchanged by the review.**
 - **S4's dependency on S2 (§9.1 constraint 2)** — load-bearing under one-release sequencing and easy
