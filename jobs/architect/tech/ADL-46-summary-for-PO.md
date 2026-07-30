@@ -30,6 +30,8 @@ spec settles the underlying question so there isn't a fourth.
 | Only you can add a city | Anyone can, while logging a trip — but only through the "search first, create if missing" path, never as a free-for-all |
 | Country/region auto-fill is silently broken in the deployed app | Fixed — it moves to the server, where it can identify itself properly to the map service |
 | A city you mistype is stuck | You can correct the place by pointing it at the right city, keeping its items and notes |
+| **Only one "Springfield" can exist per country** | **Springfield, Illinois and Springfield, Missouri can both exist** |
+| A city name matching several places picks one silently | **You're asked which one**, using the region dropdown that's already on the form |
 
 Countries stay yours alone. So does correcting or removing a city from the shared list.
 
@@ -60,23 +62,58 @@ itself to OpenStreetMap the way their rules require — a browser silently strip
 setup is anonymous against a service that asks us not to be, and it's blocked in the deployed app
 anyway.
 
+**6. When a city name matches more than one place, we ask you which.** Your question, and you said
+either answer was workable. I chose asking, for three reasons. The duplicate-names change makes
+guessing worse — a wrong guess now creates a second plausible-looking entry instead of harmlessly
+colliding with the first. Asking is also the cheapest possible fix for the stale-entry problem, since
+an entry that's never created needs no cleanup tool. And it keeps a city's name, region and
+coordinates consistent, because they all come from the one option you picked. **It costs almost
+nothing to build**: the form already has a region dropdown that the app already fills in for you —
+when there's more than one candidate, that dropdown offers the choices instead of pre-picking one. No
+new screen, no extra step, and if you ignore it the city is still created. **If the release needs to
+get smaller, this is the first thing I'd cut** — reverting to "take the top answer" — and §4 says what
+that costs.
+
 ---
+
+## 3a. Your three points from the review — what changed
+
+**"I don't want to be architecting based on the current user base."** Taken, and it was a fair hit.
+I'd been justifying several decisions with "fine at two users", which optimises for today and bills
+later. I went back through every one. Two became real fixes (below); the rest became follow-ons **with
+a trigger** rather than vague "laters". One thing I deliberately did *not* re-weigh: where a decision
+rests on the *data* in staging and production being disposable, that's a fact about today's database,
+not a guess about user numbers — so those stay as they were.
+
+**"Duplicate city names across regions."** **Fixed, in this release.** A city's identity becomes name
++ country + region. The trap you'd expect is real and I've guarded it: the region field is often
+empty, and databases treat "empty" as never equal to "empty", so the obvious version of this change
+would have let *unlimited* duplicates in for countries that don't use regions — the exact bug that
+was fixed in July. The fix collapses "no region" to a single fixed value so those countries keep
+today's protection precisely. **It needs no new database migration** — it fits inside one already
+planned — **and it can't break existing data**, because the new rule is strictly looser than the old
+one, so nothing currently stored can violate it.
+
+**"What happens when multiple results are found?"** **You're asked.** Details and reasoning in §3
+below.
 
 ## 4. Trade-offs you should know about — and where to push back
 
-**The one I'd challenge if I were you.** *A wrong match can still get into the shared list, and right
-now nobody can fix it.* If someone adds "Springfield" and the service picks the Illinois one when
-they meant Missouri, that entry becomes everyone's Springfield with the wrong coordinates. I've made
-this much less likely — the lookup is now restricted to the country and region the user already
-picked — but not impossible. The affected user can fix *their own* trip. Nobody can fix the shared
-entry, because there's no screen for editing a city's coordinates. **I judged that acceptable for two
-people and said so explicitly rather than hiding it. It stops being acceptable if the app grows.** If
-you want the repair tool now rather than later, that's a reasonable call and it's the change I'd
-expect you to ask for.
+**The one I'd challenge if I were you.** *A wrong entry can still reach the shared list, and nobody
+can currently fix it.* Asking you to choose (decision 6) prevents most of these, and the lookup is now
+restricted to the country and region already selected — so what's left is the case where the service
+returns exactly one answer and it's wrong. You can always fix *your own* trip. **Nobody can fix the
+shared entry, because there's no screen for editing a city.** That's a real gap and I'm no longer
+excusing it with "there are only two of us": it's recorded as work that must land **before anyone
+beyond your friend uses the app**. If you'd rather have that tool now, that's a reasonable call.
 
-**Related, and genuinely a limitation rather than a bug:** the app can only hold *one* "Springfield"
-per country. That's been true since a fix in July and isn't something this release causes — but this
-release makes it easier to notice. Fixing it properly is its own piece of work.
+**Worth knowing: most "wrong" leftovers aren't actually wrong.** You asked what happens to the stale
+shared entry after you fix your own list. Usually: Springfield, Illinois is a *real city with correct
+coordinates* that nobody has visited yet — no different from a city that shipped with the app and
+nobody's been to. It stays, and that's correct. The genuine problem case is narrower: an entry whose
+name and coordinates disagree. Nothing currently cleans those up and nothing can repair them — that's
+the gap above, and it's what the repair tool closes. When it's built it should **hide** entries rather
+than delete them, so it can never break someone else's saved trip.
 
 **Everything ships at once.** You chose this over four separate releases. It means one round of
 testing instead of four, but it also means **the friend's bug stays broken until the whole thing is
@@ -87,9 +124,18 @@ change — but it only works *before* the release goes out, not after.
 problems get fixed forward. That's normal for this project, but it's worth knowing given everything
 lands together. It matters less right now because the data in both environments is disposable.
 
-**Two small things deliberately left out**, so you can object if you disagree: cleaning up the
-leftover entry after someone corrects a typo (it's invisible and harmless, and it collides with a
-place-deletion change already queued), and a "did you mean X or Y?" picker for ambiguous city names.
+**The size, said plainly.** This latest round added the duplicate-names fix and the "ask which one"
+behaviour. Neither adds a database migration and neither can damage existing data — but the release
+is now fourteen decisions, three database rebuilds, a new server route, per-user lists and a small new
+interaction. **That's a lot for one round.** I'm not recommending splitting it, because the pieces
+genuinely depend on each other now, and splitting would reintroduce the half-finished states you chose
+to avoid. But the four-stage breakdown still exists in the spec if you want it, and §4 names the first
+thing I'd cut.
+
+**One thing deliberately left out**, so you can object: cleaning up the leftover entry after someone
+corrects a typo. It's invisible and harmless, and it collides with a place-deletion change already
+queued (the delete/move/cancel prompt) — building it now would mean designing against a screen that's
+about to change.
 
 ---
 

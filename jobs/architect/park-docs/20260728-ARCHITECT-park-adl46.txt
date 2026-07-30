@@ -604,3 +604,104 @@ Nothing lost. Sections 5.x and 11.x above remain superseded as already noted.
      I would push back if I were you" pointing at D12's residual risk. Also states the
      scope growth honestly and notes the four-stage breakdown still exists inside the spec
      if the release now feels too big.
+
+--- ADL-46 AMENDMENT ROUND 5 (2026-07-30) — PO REVIEW: FRAMING CORRECTION + D13/D14 ---
+
+THE FRAMING CORRECTION, AND IT IS THE IMPORTANT PART.
+  PO: "I don't want to be architecting based on the current user base."
+  I had adopted "acceptable at two users" from the COO and used it to justify at least four
+  judgements. It optimises for today and bills a future this project's own iOS/multi-user
+  direction says is coming. Every such justification re-weighed; each is now either a real
+  fix or an explicit follow-on WITH A TRIGGER, never "fine for now". Recorded as section 0.2
+  with a table of where I used it and what each became.
+  ONE DELIBERATE EXCEPTION, so the re-weighting is honest rather than reflexive: the
+  DISPOSABLE-DATA constraint is a fact about today's database contents, not an assumption
+  about eventual user count. The downgrades it justified (F10 revert posture, F1's
+  data-disposition half) stand. I said so explicitly rather than sweeping everything.
+
+D13 — CITY IDENTITY (PO pulled into scope; I had deferred it, which was the mistake in its
+  purest form). Identity becomes (name COLLATE NOCASE, country_code, COALESCE(region_id, 0)).
+  THE SENTINEL IS THE WHOLE DESIGN. region_id is nullable and SQLite treats NULLs as distinct
+  in a unique index, so the naive UNIQUE(name, country, region_id) permits UNLIMITED
+  duplicates for every non-region-tier country — re-opening BUG-33. COALESCE collapses NULL
+  to 0; 0 is safe because regions.id is AUTOINCREMENT, which starts at 1 and never issues 0
+  (verified, not assumed).
+  TWO PROPERTIES THAT MAKE IT MUCH SAFER THAN IT SOUNDS, both worth carrying forward:
+    1. The new key is STRICTLY MORE PERMISSIVE than the one it replaces — adding a column to
+       a unique key can only permit more rows — so NO EXISTING ROW CAN VIOLATE IT. No
+       backfill, no conflict handling, no data risk in the migration.
+    2. region_id MUST be NULL when region_tier_enabled=0 (cities.ts:106-108), so for those
+       countries COALESCE is invariantly 0 and the index degenerates to today's
+       (name, country_code). The BUG-33 guarantee is preserved EXACTLY where it matters.
+  THE RISKY HALF IS THE LOOKUP, NOT THE INDEX — and I said so in section 13, because the
+  reviewer will otherwise aim at the DDL. cities.ts:126-130 becomes three steps: exact match
+  on the region key; then WILDCARD-UPGRADE — if the request carries a region and a row exists
+  with the same name/country and region IS NULL, ADOPT it by setting its region rather than
+  inserting; then insert. A region-less row is an UNDER-SPECIFIED record, not a different
+  city. Omit that middle step and the system starts creating duplicates — BUG-33 through the
+  front door.
+  THE REVERSE CASE HAS NO SAFE AUTOMATIC ANSWER: no region supplied while several same-name
+  rows exist. Routed to D14 rather than guessed. Where exactly one row matches name+country
+  and no region is given, return it — today's behaviour, no regression.
+  MIGRATION COST: ABSORBED. The index change lands inside the cities recreation D10 already
+  forces. No fourth migration.
+
+D14 — MULTI-RESULT: ASK, THROUGH THE CONTROL THAT ALREADY EXISTS. Zero candidates create
+  pending; exactly one is accepted; two or more populate the region selector AddPlaceFlow
+  ALREADY renders and UX-04 ALREADY auto-populates, labelled by region name.
+  WHY ASK RATHER THAN BEST-MATCH (PO permitted either, so the choice needed justifying):
+    1. D13 CHANGES THE CONSEQUENCE OF GUESSING. Before D13 a wrong pick collided with the
+       existing row and was absorbed; now duplicates across regions are LEGAL, so a wrong
+       auto-pick silently creates a second plausible entry. The failure got quieter and more
+       permanent at exactly the moment we made duplicates possible.
+    2. It is the CHEAPEST FIX for the stale-entry problem — an entry never created needs no
+       repair tool, no cleanup rule, no owner intervention.
+    3. It keeps name, region and coordinates INTERNALLY CONSISTENT, because all three come
+       from one chosen candidate. Auto-picking while the user separately sets the region can
+       produce a row whose region says Missouri and whose coordinates say Illinois.
+  WHY THIS IS NOT THE DISAMBIGUATION FLOW I DECLINED LAST ROUND: the user is ALREADY being
+  asked for the region. The control is on screen. Multiple candidates populate its options
+  instead of pre-selecting one. No new component, no modal, no extra step.
+  "AMBIGUOUS" = more than one settlement-type candidate after the country constraint.
+  DELIBERATELY NO confidence threshold — that is a number nobody can justify and everybody
+  re-tunes. GE-12 not regressed: declining, dismissing or being offline all still create a
+  usable pending record. Auto-accept documented as the first thing to cut if the release must
+  shrink, with its cost stated.
+
+ITEM 3 — STALE SHARED ENTRY LIFECYCLE (section 4.4.3). The PO inferred the consequence
+  himself and was right. Walked it in full rather than sizing it away:
+    - MOST LEFTOVERS ARE NOT DEFECTS. A wrongly-matched Springfield IL is a REAL CITY WITH
+      CORRECT COORDINATES that nobody has visited yet — indistinguishable from a seeded entry
+      nobody has visited. It stays, and that is right. Not "there'll only be a few" — it is
+      simply correct catalogue content.
+    - Unresolved + creator-owned + unreferenced -> the deferred place-removal hook.
+    - THE GENUINE GAP: the internally-wrong RESOLVED row. My deferred cleanup rule was scoped
+      to unresolved creator-owned rows, so it collects neither, and nobody can repair it
+      because PatchCitySchema accepts only region_id.
+  CLOSED BY an owner catalogue-repair surface, deferred WITH A TRIGGER (before a third
+  account exists — an event, not a date, and not a user count used as an excuse). Specified
+  so it is inheritable: extend PatchCitySchema to name/region plus a force-re-resolve; removal
+  is a SOFT delete (is_active, matching AD-06) so it can NEVER orphan a trip place via the
+  trip_places.cityId FK; do NOT add ON DELETE CASCADE. The column is deliberately NOT added
+  now despite the table being open — an is_active nobody sets or reads is speculative
+  generality, and adding it later is a plain ADD COLUMN. Contrast D10's CHECK amendment,
+  which genuinely WAS a fix-it-while-the-table-is-open case.
+  This is also what would make a fourth "verified" status meaningful — the argument against
+  one is SEQUENCING (no actor can perform the transition yet), not headcount. Reframed.
+
+SIZE STATEMENT (section 9.1.0) — not absorbed silently, per standing instruction.
+  ADDED: D13, D14, plus prose. NOT ADDED: no new migration (D13 absorbed by the cities
+  recreation), no data risk (strictly-more-permissive key), no new component (D14 reuses the
+  region selector). RISK MOVED: it is no longer the migration — the reviewer executed that
+  shape — it is D13's three-step lookup.
+  HONEST TOTAL: fourteen decisions, three table recreations, a new route, a route relocation,
+  per-user lists, an egress chokepoint, a small new interaction. That IS a lot for one round.
+  NOT recommending a split — the pieces are now interlocked (D13 raises D14's stakes, D14
+  shrinks 4.4.3's gap, D10 forces the recreation that absorbs D13) and splitting reintroduces
+  the intermediate states the single-release decision existed to avoid. But the four-stage
+  breakdown is intact and named, and D14's auto-accept fallback is named as the first cut.
+
+PO SUMMARY UPDATED — it carried the two-users framing that item 0 rejects. Added a section
+  answering the three review points in his own terms, rewrote the trade-offs section, added
+  the duplicate-names and ask-which-one rows to the what-changes table, and replaced the
+  "acceptable for two people" paragraph with the triggered follow-on.

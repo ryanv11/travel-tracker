@@ -3630,6 +3630,59 @@ consequence six days later.
     **One inversion the COO feared does not exist**, and D11 is why: the correction path is at the
     *place* level and is gated on place ownership only, so it works identically for a wrong match and
     a no-match. Rejecting the tier-transition framing bought that for free.
+13. **D13 — a city's identity is `(name, country_code, COALESCE(region_id, 0))`** *(PO pulled into
+    scope 2026-07-30: "the unique cities name without a region is the exact example of something
+    that'll become a headache later")*. The catalogue must hold Springfield IL **and** Springfield MO.
+    **The naive widening re-opens BUG-33**: `cities.region_id` is nullable and SQLite treats NULLs as
+    distinct in a unique index, so `UNIQUE(name, country_code, region_id)` would permit unlimited
+    duplicates for every non-region-tier country. **The `COALESCE(region_id, 0)` sentinel is what
+    prevents that** — `0` is safe because `regions.id` is `AUTOINCREMENT`, which starts at 1 and never
+    issues 0. Two properties make this far safer than it sounds: the new key is **strictly more
+    permissive** than the one it replaces, so no existing row can violate it (no backfill, no
+    conflict handling); and `region_id` *must* be NULL when `region_tier_enabled = 0`
+    (`cities.ts:106-108`), so for those countries the expression is invariantly `0` and the index
+    degenerates to today's `(name, country_code)` — **the BUG-33 guarantee is preserved exactly where
+    it matters.** **The risky half is not the index, it is the lookup:** `cities.ts:126-130` must
+    become a three-step find-or-create — exact match on the region key, then **wildcard-upgrade** a
+    region-less row (adopt it by setting its region) rather than inserting a duplicate, then insert.
+    Omitting the middle step re-creates BUG-33 through the front door. The reverse case — no region
+    supplied while several same-name rows exist — has no safe automatic answer and is routed to D14.
+    **Migration cost: absorbed.** The index change lands inside the `cities` recreation D10 already
+    forces; no fourth migration.
+14. **D14 — multiple geocoder candidates: ask, through the region control that already exists**
+    *(PO-raised 2026-07-30; both answers were explicitly permitted, the choice is the Architect's)*.
+    Zero candidates create `pending`; exactly one is accepted; **two or more populate the region
+    selector `AddPlaceFlow` already renders** (labelled by region name) instead of one being chosen
+    silently. Chosen over "take the best match" for three reasons: **D13 changes the consequence of
+    guessing** — duplicate names across regions are now legal, so a wrong pick creates a plausible
+    second entry rather than colliding with the first; it is **the cheapest fix for the stale-entry
+    problem**, since an entry never created needs no repair tool; and it keeps **name, region and
+    coordinates internally consistent**, because all three come from one chosen candidate. "Ambiguous"
+    is defined as *more than one settlement-type candidate after the country constraint* —
+    deliberately no confidence threshold, because that is a number nobody can justify and everybody
+    re-tunes. **GE-12 is not regressed:** declining, dismissing, or being offline all still create a
+    usable `pending` record. The smaller alternative (auto-accept the top candidate) is recorded as
+    the first thing to cut if the release must shrink.
+
+**Framing correction adopted 2026-07-30 (PO: *"I don't want to be architecting based on the current
+user base"*).** "Acceptable at two users" had been used to justify at least four judgements in this
+ADL; the justification is withdrawn wherever it appeared. Each was re-weighed to either a real fix
+(D13, D14) or an explicit follow-on **with a trigger** — the owner catalogue-repair surface, tracked
+to land *before a third account exists*. Note one deliberate exception: the **disposable-data**
+constraint is a fact about today's database contents rather than an assumption about eventual user
+count, so the downgrades it justified (F10's revert posture, F1's data-disposition half) stand.
+
+**Stale-entry lifecycle answered in full (§4.4.3)**, since the PO asked what happens to a shared
+entry after a user corrects their own list. **Most leftovers are not defects:** a wrongly-matched
+Springfield IL is a *real city with correct coordinates* that nobody has visited yet —
+indistinguishable from a seeded entry nobody has visited yet — so it stays, and that is right.
+Unresolved creator-owned orphans are collected by the deferred place-removal hook. **The genuine gap
+is the internally-wrong resolved row**, which nothing collects and nobody can repair
+(`PatchCitySchema` accepts only `region_id`). D14 prevents most of these at source; the remainder
+needs the owner repair surface, specified in §4.4.3 as a **soft delete (`is_active`, matching AD-06)
+rather than a hard one**, so it can never orphan a trip place via the `trip_places.cityId` FK. The
+column is deliberately **not** added now despite the table being open — an `is_active` nobody sets or
+reads is speculative generality, and adding it later is a plain `ADD COLUMN`.
 
 **Alternatives considered:** see standalone §3.2 (the rejected nullable-`user_id` model), §4.5
 (four rejected city models) and §13 (confidence register).

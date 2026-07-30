@@ -1,0 +1,75 @@
+ADL-46 AMENDMENT R5 · issue #326 · PR #327 (open, do not merge) · chore/adl46-access-model
+PO review round: framing correction + items 1-3. Adds D13 and D14. Fifth follow-up.
+
+THE FRAMING CORRECTION IS THE IMPORTANT PART, and it lands on me too — I adopted
+"acceptable at two users" from you without challenging it and used it to justify four
+judgements. All withdrawn. Each re-weighed to either a real fix (D13, D14) or an explicit
+follow-on WITH A TRIGGER. Recorded as ADL-46 section 0.2 with a table showing where I used
+it and what each became, so the correction is auditable rather than just asserted.
+
+ONE PLACE I DID NOT RE-WEIGH, and I want this visible rather than buried: the
+DISPOSABLE-DATA constraint is a fact about today's database contents, not an assumption
+about eventual user count. The downgrades it justified — F10's revert posture and F1's
+data-disposition half — stand. Re-weighing those too would have been reflexive rather than
+correct.
+
+ITEM 1 (city uniqueness) — FIXED IN SCOPE. D13: identity becomes
+(name COLLATE NOCASE, country_code, COALESCE(region_id, 0)).
+  - The COALESCE sentinel is the whole design. You flagged the NULL trap and you were right;
+    0 is safe because regions.id is AUTOINCREMENT, which starts at 1. Verified, not assumed.
+  - TWO PROPERTIES WORTH KNOWING, both good: the new key is STRICTLY MORE PERMISSIVE than the
+    old one, so NO EXISTING ROW CAN VIOLATE IT — no backfill, no conflict handling, no data
+    risk. And region_id MUST be NULL for non-region-tier countries, so the index degenerates
+    to today's (name, country_code) exactly where the BUG-33 guarantee matters.
+  - MIGRATION COST: ABSORBED by the cities recreation D10 already forces. No fourth migration.
+  - THE RISK MOVED, and the briefs need to know: it is NOT the index, it is the LOOKUP.
+    cities.ts:126-130 becomes three steps, and the middle one — wildcard-upgrade a region-less
+    row rather than duplicating it — is the one that re-creates BUG-33 if omitted.
+
+ITEM 2 (multi-result) — DECIDED: ASK. Zero candidates create pending, one is accepted, two or
+more populate the region selector AddPlaceFlow ALREADY renders and UX-04 ALREADY fills in.
+  WHY, since you gave me both options: (1) D13 changes the consequence of guessing — duplicates
+  across regions are now legal, so a wrong auto-pick creates a plausible SECOND entry instead
+  of colliding with the first; the failure got quieter at exactly the moment we made it
+  possible. (2) It is the cheapest fix for item 3 — an entry never created needs no repair
+  tool. (3) It keeps name, region and coordinates consistent, because all three come from one
+  chosen candidate.
+  THIS IS NOT THE PICKER I DECLINED LAST ROUND. The user is already being asked for the region;
+  the control is on screen. Candidates populate its options instead of pre-selecting one. No
+  new component. "Ambiguous" = more than one settlement-type candidate after the country
+  constraint — deliberately no confidence threshold, because that is a number nobody can
+  justify and everybody re-tunes. Auto-accept is documented as the first thing to cut.
+
+ITEM 3 (stale shared entry) — WALKED IN FULL, section 4.4.3, and the answer is better than
+expected. MOST LEFTOVERS ARE NOT DEFECTS: a wrongly-matched Springfield IL is a REAL CITY WITH
+CORRECT COORDINATES nobody has visited yet — indistinguishable from a seeded entry nobody has
+visited. It stays, and that is correct, not tolerated.
+  THE GENUINE GAP is narrower: the internally-wrong RESOLVED row. My deferred cleanup rule
+  covered unresolved creator-owned rows, so it collects neither, and PatchCitySchema accepts
+  only region_id so nobody can repair it. Stated plainly and closed by the owner repair
+  surface, deferred WITH THE TRIGGER YOU AGREED (before a third account exists — an event, not
+  a date). Specified so it is inheritable: soft delete via is_active matching AD-06, so it can
+  NEVER orphan a trip place through the FK. The column is deliberately NOT added now despite
+  the table being open — an is_active nobody sets or reads is speculative generality, and
+  adding it later is a plain ADD COLUMN. That is the opposite call to D10's CHECK amendment,
+  and the difference is that D10 genuinely could not be done cheaply later.
+
+SIZE AND RISK, stated not absorbed (section 9.1.0): D13 and D14 add NO new migration, NO data
+risk and NO new component. But the honest total is now fourteen decisions, three table
+recreations, a new route, a route relocation, per-user lists, a chokepoint and a small new
+interaction. THAT IS A LOT FOR ONE ROUND. I am not recommending a split — the pieces are
+interlocked now (D13 raises D14's stakes, D14 shrinks 4.4.3's gap, D10 forces the recreation
+that absorbs D13) and splitting reintroduces the intermediate states the single-release
+decision existed to avoid. The four-stage breakdown is intact if the PO wants it.
+
+PUSHED BACK ON: nothing in this round — all three items were correct and item 1 was a fair
+hit on a deferral I should not have made. The only thing I declined to do is re-weigh the
+disposable-data downgrades, explained above.
+
+PO SUMMARY UPDATED as instructed — it carried the two-users framing. New section answering
+your three points in the PO's own terms, rewritten trade-offs, two new rows in the
+what-changes table, and the size statement made legible.
+
+CI: PR #327 green. Documentation only; no code changed.
+BLOCKING, unchanged: BRD v3.13 including GE-16, then two briefs, Database first. Still
+unowned: the S3 frontend piece. DO NOT MERGE — PO signs off first.
