@@ -1,0 +1,73 @@
+ADL-46 AMENDMENT R4 · issue #326 · PR #327 (open, do not merge) · chore/adl46-access-model
+Folds in the three PO direction rounds — decisions D10, D11, D12. Fourth and final follow-up.
+Interrupted mid-round by an API error; COO's WIP commit 21fbc93 preserved it, resumed, finished.
+
+PO-FACING SUMMARY DELIVERED AS ASKED: jobs/architect/tech/ADL-46-summary-for-PO.md
+That is the artefact the PO review should run on — you were right that 1000 lines of ADL is
+not reviewable by the person deciding. It leads with what changes for a user, then five
+decisions, then the trade-offs, and ends by naming where I would push back if I were them.
+
+PER-DECISION VERDICT
+ D10 Classify geocode failures: no-match TERMINAL, errors retry to a cap    ADOPTED  High
+ D11 Correction path — city_id updatable on a PLACE, not city writes        ADOPTED  Med-High
+ D12 Constrain lookup by user's country/region; user selection always wins  ADOPTED  Medium
+
+WHAT I PUSHED BACK ON — three things, all with reasoning in the spec:
+
+1. THE TIER-TRANSITION FRAMING. You proposed a city is per-user data while unresolved and
+   global reference data once resolved. I disagreed and D1 does not gain a lifetime-varying
+   tier. A pending city is ALREADY shared — the review's own P2 finding shows a second user
+   posting the same name gets the first user's row back — it is globally unique from
+   creation, and it survives its creator. It is tier-1 throughout with a PROVISIONAL
+   VISIBILITY STATE. What changes at resolution is who can SEE it, not who owns it. Your
+   instinct that a lifetime-varying tier gets implemented inconsistently is exactly the
+   argument for not creating one.
+
+2. THE ORPHAN-CLEANUP HOOK — shape agreed, timing disagreed. A hook inside place removal is
+   right and a public DELETE /api/cities is wrong; no argument there. But the orphan is INERT
+   (invisible, not in the geocode queue, not in the partial index, referenced by nothing), so
+   cleanup is hygiene rather than a fix — and BUG-40/TR-15 is ACTIVELY redesigning place
+   deletion with a three-way prompt, two of whose branches don't delete the place at all.
+   Briefing it now designs against a flow about to change. Deferred WITH the full predicate
+   written down so whoever picks it up inherits the design rather than re-deriving it.
+
+3. "DELETE AND RE-ADD IS BLOCKED" — it isn't. placesRouter.delete exists (places.ts:112) and
+   re-adding is the ordinary create flow, so the PO's accepted fallback needs ZERO build. It
+   had been framed as needing work and does not.
+
+THE COST CHANGE YOU ASKED ME TO FLAG: YES, MATERIAL. D10's third geocode_status value means
+amending a CHECK constraint, which in SQLite is a table recreation. S4 stops being a cheap
+ADD COLUMN and THE RELEASE NOW CARRIES THREE RECREATIONS, NOT TWO. cities is the fiddliest of
+the three to reproduce — a partial index and a COLLATE NOCASE expression index, two of the
+four drizzle-kit bug classes ADL-15 patches. Mitigating: only one inbound FK, and the
+reviewer's validated template covers the child re-bind. I stated the cheaper fallback (a
+boolean column) and recommended against it — geocodeStatus IS the state machine, and only a
+status value lets the partial index stop indexing dead rows.
+
+TWO FINDINGS WORTH YOUR ATTENTION BEYOND THE THREE ROUNDS:
+
+ * D10 was nearly free because the distinction ALREADY EXISTS AND IS DISCARDED. resolveCity
+   has four distinct failure branches and all four return false leaving the row pending; the
+   terminal one even carries the comment "leave as pending, will retry on next queue run".
+   Information available at the branch point, only persistence missing.
+ * D12 is cheap for the same shape of reason: CreateCitySchema already REQUIRES country_code
+   and accepts region_id, while resolveCity sends a bare query string with no filter. THE
+   BACKEND ALREADY HOLDS THE DISAMBIGUATING ANSWER AND DOESN'T USE IT.
+
+ACCEPTED RESIDUAL RISK — the one thing in this spec I most expect the PO to challenge, and I
+have pointed them at it deliberately in the summary. A confidently-wrong geocoder match that
+survives the country and region constraints enters the shared catalogue with wrong
+coordinates and is UNREPAIRABLE BY ANYONE today, because PatchCitySchema accepts only
+region_id. The affected user's own experience IS repairable (D11), and the row is a real place
+rather than corrupt data. I judged it acceptable at two users and said so explicitly rather
+than hiding it. It should not survive the app having many users.
+
+ALSO SURFACED, PRE-EXISTING, NOT FIXED: uniq_cities_name_country_ci has no region in the key,
+so the catalogue cannot hold Springfield IL and Springfield MO at once. Widening it naively
+re-opens BUG-33 (NULLs are distinct in a SQLite unique index). Its own design job.
+
+CI: PR #327 green. Documentation only; no code changed by this thread.
+
+BLOCKING ON YOU, unchanged: apply the section 6 BRD amendments as v3.13 including GE-16, then
+two briefs, Database first. Still unowned: the S3 frontend piece (AdminPanel ownerOnly flags).
+DO NOT MERGE — PO is reviewing the spec personally first, and I agree given how it has grown.

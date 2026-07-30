@@ -329,3 +329,404 @@ OPEN / HANDOFF
      real call site — see FINDING above.
   5. Nothing in this ADL touches ADL-41/ADL-43/ADL-44 stubs or ADL-42's completed entry —
      verified untouched after edit (grep confirms all five headers intact and distinct).
+
+================================================================================
+2026-07-28 — ADL-46: non-owner access model (tier x role) + external egress policy
+Branch: chore/adl46-access-model · GitHub issue #326 · PR: see park doc
+Tracker: BUG-63 (P1), BUG-55, BRD-AD09, D-12 item 1, QUAL-19
+================================================================================
+
+PO DIRECTION ARRIVED MID-TASK and superseded parts of issue #326 — recorded because it
+changed the outcome. The PO decided AD-09 outright: categories/activities become PER-USER,
+lazy-seeded from the global defaults; countries stay owner-only. That REVERSED my draft D3
+(which kept creation owner-only and deferred per-user entries). My draft objection — any
+user writing irreversibly into every other user's GLOBAL pickers — is entirely dissolved by
+the per-user model, so I withdrew it; the PO's answer is better. The PO also split city
+creation out of SE-03 and directed that Q3 (cities) and Q5 (BUG-55) be answered together.
+The decisions below are the POST-direction set.
+
+WHAT THIS THREAD DECIDED (spec only — no code changed, no schema, no migration):
+  D1 Access is determined by resource TIER x operation, not role alone. Three tiers:
+     global reference data / per-user data / instance administration. Unstated tier
+     defaults to instance administration. This is the load-bearing decision — the others
+     are applications of it. URL prefix is NOT a tier.
+  D2 Non-owner READ of /api/admin/{categories,activities}/active opens (requireAuth) as
+     Phase 1 — EXPLICITLY TEMPORARY scaffolding that Phase 3 deletes.
+  D3 Categories/activities become PER-USER (PO-decided): userId NOT NULL FK, UNIQUE
+     (user_id, name), owner backfill, lazy seed on first access, routes move to
+     /api/categories + /api/activities. ADL-28's companions pattern verbatim. Rejected a
+     nullable-user_id "NULL = shared default" model — it can't express AD-03/AD-06
+     per-user, and SQLite treats NULLs as distinct in a unique index so a user could
+     silently duplicate a global default.
+  D4 City CURATION splits from city CREATION (PO-directed). Owner curates the catalogue;
+     any authenticated user creates on demand. SE-03 had bundled two verbs under one word.
+  D5 City creation validated by RESOLVE-THEN-CREATE: build the row from the geocoder's
+     canonical response and re-run find-or-create against THAT name (converges "Denverr",
+     "denver co", diacritics — which COLLATE NOCASE alone cannot). Unresolvable input still
+     creates (GE-12) as pending and stays creator-private until it resolves; the existing
+     15-min server queue promotes it automatically, so junk that never resolves never goes
+     global. Costs one nullable cities.created_by_user_id + one WHERE clause.
+  D6 SE-01 and SE-03 rewritten. SE-03 retains NONE of its original five clauses.
+  D7 BUG-55 -> backend proxy route, NOT a widened CSP allowlist. Same route serves D5.
+  D8 CSP allowlist is a closed per-entry-justified register; proxy or disable by default.
+  D9 FOUR PHASES, not one change. Phase 1 (no schema) FULLY clears the P1.
+
+DELIVERABLES:
+  jobs/architect/tech/ADL-46-non-owner-access-model.md        (full spec, all 5 deliverables)
+  jobs/architect/tech/20260307-architecture-decisions-log.md  (ADL-46 log entry appended)
+  jobs/architect/tech/OP-06-hardening-checklist.md            (new §2.1 = live access matrix)
+  jobs/architect/tech/ADL-27-admin-role-model.md              (supersession stamp added)
+  jobs/architect/tech/ADL-28-per-user-shading-companions.md   (Question 5 stamped superseded)
+
+THE FINDING THAT REFRAMED THE BRIEF — worth carrying forward:
+  BUG-63 is not a forgotten gate. SE-03 and AD-09 CONTRADICT EACH OTHER in the BRD on the
+  same routes; the code implements SE-03 faithfully. SE-03 was also already stale in 2 of
+  its 5 clauses (AD-07/AD-08 moved shading + companions to per-user and nobody updated it).
+  And ADL-38 explicitly named categories/activities as "the same data tier" as the
+  countries/regions it opened — and stopped one step short. BUG-63 is the predictable
+  consequence six days later. That is why D1 (a rule that classifies FUTURE routes) matters
+  more than the three gates it happens to fix.
+
+TWO QUESTIONS ONLY THE PO CAN CLOSE — flagged, not guessed:
+  Q-A. The direction says what stays owner-only is "countries, the curated global city
+       catalogue, AND DEACTIVATION." Deactivation OF WHAT is ambiguous once lists are
+       per-user. My interpretation, which §6.3's AD-09 text is written to: a user
+       deactivates entries in their OWN list (otherwise AD-03 "add, edit, rename, or
+       deactivate items in any structured list" is unsatisfiable for a non-owner), and the
+       owner's retained authority is over GLOBAL data. If the PO meant the owner retains
+       deactivation over users' personal lists, §6.3 is wrong and must change BEFORE the
+       Backend brief. One line closes it.
+  Q-B. Pending-city containment (§4.4) — is "auto create goes global but validated" read as
+       "global WHEN validated" (mine: pending is creator-private, promoted automatically by
+       the existing 15-min queue) or "global immediately, owner curates after" (simpler, no
+       column, no query change)? Mine costs one nullable column + one WHERE clause. Both
+       are defensible readings of the direction.
+
+HANDOFF TO COO:
+  1. BRD v3.13 amendment text is written verbatim in ADL-46 §6 — I did NOT edit the BRD.
+     Covers SE-01, SE-03, AD-09. ONE NEW ID FLAGGED NOT INVENTED: GE-16 (city
+     create-on-demand) — BLOCKING, the cities task has no BRD home without it. (My draft
+     had also proposed a deferred AD-10 to hold per-user entries; the PO's direction
+     promotes that capability into AD-09 itself, so AD-10 is no longer needed.)
+  2. Close D-12 item 1 in jobs/COO/open-dialogues.md — answered by D1/D6. Items 2-4 stay open.
+  3. TWO briefs are owed, not one. Backend Phase 1 (ADL-46 §9.2) and Database Phase 3
+     (§9.3). Do not dispatch either before the BRD gate above. Phase 1 alone FULLY clears
+     the P1 with no schema change — that separability is the finding worth acting on.
+  4. Get Q-A and Q-B above answered before the Phase 1 brief goes out (Q-A gates Phase 3's
+     access rule; Q-B gates whether Phase 4 exists at all).
+  5. Raise a small tracker item for the ODbL/OSM attribution notice (§4.6) — ADL-43 §6.2
+     established attribution is a real obligation and README names Nominatim without one.
+     SINGLE-PROBE finding, marked as such: I grepped README.md only, so verify before acting.
+  6. OP-27: this deliverable needs a fresh Architect reviewer. ADL-46 §13 names where to
+     aim — D5's containment rule (§4.4) and D9's Phase 1/2 gap (§9.1) are the two weakest
+     calls and I said so deliberately.
+  7. BUG-62 is NOT re-opened, but Phase 3 does change it: AdminPanel's ownerOnly flags for
+     Categories/Activities stop being correct once those lists are per-user. Flagged per
+     the brief's instruction, not acted on.
+
+FINDINGS EN ROUTE (not fixed — spec-only scope):
+  1. STALE SKIP suppressing a live assertion: security.access-matrix.test.ts:457
+     it.skip('PATCH /api/cities/1 -> 403') waits on BUG-22, which HAS merged —
+     requireOwner is present at cities.ts:211. Unskip it; D4 makes it load-bearing
+     (city CURATION staying owner-only is what makes opening city CREATION acceptable).
+     In scope for the Phase 1 Backend brief.
+  2. A PREMISE IN THE DIRECTION IS WRONG, AND CORRECTING IT SHRINKS THE WORK. The direction
+     says the pending/resolve machinery "is currently driven from the browser." It is not.
+     Two probes: useGeocodeRetryQueue.ts's only network call is apiGet('/api/cities/:id'),
+     and its own comment says "polling is read-only (BUG-29) — the backend re-runs geocoding
+     itself every 15 minutes"; and processQueue (geocoding.service.ts:148-192) is invoked
+     from server.ts:47. The ONLY browser-driven geocoding is lookupCityCountry — the BUG-55
+     path, nothing else. So Phase 2 replaces one function, not a subsystem.
+  3. Phase 3's migration must PRESERVE `id` through the CROSS JOIN — trip_categories_map
+     FKs to trip_categories.id and existing mappings must survive. ADL-28's companions
+     migration does exactly this; the Database brief must not re-derive it.
+  4. BLOCKING pre-migration check for Phase 3: query staging for category/activity mappings
+     on non-owner trips. Expected zero (the picker has always 403'd) but that is an
+     INFERENCE with a named blind spot — POST /api/trips accepts category_ids under
+     requireAuth alone, so a direct API call could have created them. Do not migrate on the
+     inference alone.
+  5. /api/admin/{categories,activities}/active is a misnomer for the Phase 1 window — an
+     "admin" URL any authenticated user reads. Deliberately accepted because Phase 3 moves
+     the resource to /api/categories + /api/activities and deletes the carve-out entirely.
+     Scaffolding, not design — and the FAIL-CLOSED comment must say so.
+
+ENV NOTE (ENV-01, re-probed here rather than inherited): Nominatim is unreachable from this
+  devcontainer — curl exits 7 while api.github.com returns 200 FROM THE SAME SHELL as a
+  control. The control is the point: without it, exit 7 is equally consistent with the
+  network being down, which is the shape of the earlier false "firewall reaches no Turso
+  host" claim. The D7 proxy must be verified against a mocked upstream locally and confirmed
+  on staging.
+
+--- ADL-46 AMENDMENT ROUND 2 (2026-07-28, same thread) — PO ruled on all three flagged items ---
+  Q-A DEACTIVATION SCOPE: CONFIRMED as I read it. A user deactivates entries in their OWN list;
+      the owner's retained authority is over GLOBAL reference data only. AD-03 was the deciding
+      argument. §6.3's AD-09 text stands unchanged. (The ambiguity was the COO's compression of
+      the direction, not the PO's wording.)
+  Q-B PENDING-CITY CONTAINMENT: ADOPTED exactly as specified. created_by_user_id nullable FK,
+      ON DELETE SET NULL, plus the search clause. The self-maintaining property decided it.
+      GE-16 as written stands. No longer my "weakest call" — it is settled.
+  D9  SEQUENCING: OVERRIDDEN. PO ships ALL of it as ONE release, not four dispatches. COO
+      recommended my phasing and was overruled; tradeoff was put to the PO explicitly including
+      that BUG-63 stays live until the whole thing ships. Reasonable at two users. Not re-argued.
+      Rewrote §9: the four phases survive as INTERNAL BUILD ORDER (S1-S4) + dependency
+      constraints, not dispatch rounds. Two orderings are load-bearing and now easier to violate:
+      S3 DELETES the carve-out S1 adds, and S4's containment is meaningless without S2's
+      resolve-then-create promoting rows.
+      GOOD CONSEQUENCE: the Phase 1/2 validation gap I flagged as one of my two weakest points
+      NO LONGER EXISTS — shipping together means there is no window where POST /api/cities is
+      open without resolve-then-create behind it. The override removed the weakness rather than
+      answering it. Recorded as an improvement on my recommendation, not a concession.
+      S1-alone-clears-the-P1 retained as an EMERGENCY FALLBACK, explicitly not the plan.
+
+  §13 RE-AIMED for the OP-27 reviewer. Both previously-flagged weak points are closed, so the
+  register now points at: (1) S3's migration EXECUTION — does it preserve `id`? if not,
+  trip_categories_map mappings die silently; (2) §3.3's data assumption, the only genuinely
+  unverified premise left and the only place where being wrong CORRUPTS DATA rather than costing
+  a re-run; (3) S4's newly load-bearing dependency on S2.
+
+  LINE-CITATION SWEEP (COO caught one, I swept the rest — briefs depend on these):
+    CORRECTED: cities.ts:211 -> 223 (`citiesRouter.patch(`) + :225 (`requireOwner`)
+               admin.ts:113-131 -> 117-131 (serializeAdminItem)
+               admin.ts:36-58 -> 34-58 (FAIL-CLOSED block)
+               useCities.ts:14 -> :15 (NOMINATIM_BASE); UA header :47 -> :48
+               server.ts:47 is the IMPORT; invocation is :325, setInterval :330
+               geocoding.service.ts:148-192 -> fn at :152, doc comment :149
+               cities.ts:69-86 -> 68-88; :120-146 -> 123-147; :160-170 -> :167; :37-66 -> 39-66
+               AddPlaceFlow.tsx:183-208 -> 193-208
+    VERIFIED CORRECT: admin.ts:105/133/232/233/61/78, schema.ts:93/106/126/141/157/273,
+               seed.ts:44,50, useAdmin.ts:31/34/85/88, TripForm.tsx:60/62, useCities.ts:37-60/151,
+               geocoding.service.ts:16/17, README.md:18, access-matrix test 383/414/444/457.
+  UPGRADED FINDING: the stale it.skip is worse than "tidy-up". BUG-22 is `done` in the tracker,
+  so that owner-only assertion on PATCH /api/cities/:id HAS NOT RUN since it merged — a live
+  security-coverage hole, and it is the one assertion protecting the premise that makes opening
+  city creation acceptable. Reframed in §8.1 as a coverage regression.
+
+  MY CORRECTION OF THE COO'S PREMISE (retry path is server-side) was independently re-verified
+  and accepted; §10.1 kept as a record of a corrected premise. This is the two-probe rule working
+  upward against the COO, which is what it is for.
+
+--- ADL-46 AMENDMENT ROUND 3 (2026-07-29) — OP-27 FRESH-EYES REVIEW FOLDED IN ---
+Review: jobs/architect/tech/ADL-46-review.md (branch chore/adl46-review, PR #328).
+VERDICT: sound with named corrections. 2 blocking + 8 further. ALL TEN ACCEPTED — I pushed
+back on nothing. Every finding verified against source myself before folding it in.
+
+THE HEADLINE, AND IT IS LOAD-BEARING: the reviewer tried to break D1, D3, D4, D5 and D7 —
+including hunting specifically for a reason to prefer the Option B I rejected — and would
+not change any of them. The ACCESS MODEL IS RIGHT. Every finding was coverage or execution.
+
+BOTH OF MY OWN NAMED REVIEW TARGETS RESOLVED DIFFERENTLY THAN I PREDICTED. This is the part
+worth carrying forward:
+  * "Does the S3 migration preserve id?" — SOUND. The reviewer did not argue it, he HAND-WROTE
+    the recreation from 0012_grey_ultimates.sql and RAN it against a scratch DB built from the
+    real migration chain: id preserved, trip_categories_map intact, foreign_key_check clean, FK
+    re-bound correctly after RENAME, on BOTH libSQL transports including remote Turso. I aimed
+    at the right area and the wrong question — the migration risk was real but sat in the ROUTE
+    TO the shape (F2), not the shape.
+  * "section 3.3's data assumption is the only place where being wrong corrupts data" — the
+    ASSUMPTION was fine; the TABLE SET under it was wrong (F1). A correct answer to the wrong
+    query.
+
+BLOCKING FINDINGS (both re-verified by me before amending):
+  F1 THIRD JUNCTION TABLE. I wrote that trip_activities_map covered "both trip and place
+     level". FALSE — place-level activities live in trip_place_activities_map
+     (schema.ts:376-387) and join via trip_places, NOT trips. My probe: grep for activity_id
+     across schema.ts returns TWO distinct junction tables (:320 trip, :382 place). The error
+     propagated into the pre-migration check (false zero, reproduced on a scratch DB), the
+     test list, AND the COO's live-data query which inherited my two-table set. The half that
+     survives disposable data: POST /api/trips/:t/places/:p/activities
+     (routes/places.ts:242-280) validates the PLACE then inserts a caller-supplied activity_id
+     with NO check on the activity at all (:274-276). Confirmed by reading the handler.
+  F2 db:generate EMITS AN UNAPPLIABLE MIGRATION. "Cannot add a NOT NULL column with default
+     value NULL" — SQLite's NOT NULL and REFERENCES requirements are mutually exclusive. AND
+     my stated reason for hand-writing was the wrong mechanism: name.unique() is a STANDALONE
+     INDEX here, which drizzle drops happily. My probe: 0000_open_electro.sql:10,171 create
+     activities_name_unique / trip_categories_name_unique as CREATE UNIQUE INDEX. Instruction
+     corrected to DISCARD the generated file, not review it.
+
+NON-BLOCKING, ALL ACCEPTED: F3 (containment clause had no IS NULL branch — a pending row with
+no known creator was invisible to EVERYONE permanently, and ON DELETE SET NULL regenerates
+that condition on every user deletion, so it is a rule defect not a legacy artefact); F4 (D7's
+"reuse the existing limiter" premise is FALSE — a sleep in one loop, resolveCity unthrottled
+from POST /api/cities, TWO requests per call; the release must BUILD the chokepoint); F5 ->
+new decision D10 (geocode_attempts + give-up rule, rides the same S4 ALTER TABLE); F6 (section
+8 covered 1 of 4 test files that break at S3); F7 (lazy-seed trigger unspecified — the obvious
+row-count implementation silently denies defaults to a user who WRITES before READING); F8
+(new proxy route missing from OP-06 section 2.1, contradicting SE-01's own success criteria);
+F9 (multi-owner CROSS JOIN LIMIT 1 picks arbitrarily); F10 (no revert posture documented).
+Preferences P1 (D5 sizing), P2 (a test case), P3 (OP-06 overstated "duplicates impossible")
+also folded in.
+
+METHODOLOGICAL LESSON I RECORDED IN section 13, because it generalises: the negative-findings
+rule catches "X does not exist". It does NOT catch "X exists and there are three of them."
+ENUMERATIONS DESERVE THE SAME TWO-PROBE TREATMENT AS ABSENCES. The cheap second probe here was
+one grep for activity_id across the schema — which is exactly what caught it on re-verification.
+
+CAUGHT BY /pre-push, WORTH NOTING: my first tracker.json edit added a stray closing quote
+mid-string and broke the JSON. status:check failed loudly, I fixed it, diff is still exactly
+3 lines. The JSONC-edit-in-place rule held; the gate is what caught the slip.
+
+--- ADL-46 AMENDMENT ROUND 4 (2026-07-29/30) — THREE PO DIRECTION ROUNDS, D10-D12 ---
+NOTE: I was interrupted mid-round by an API error; the COO committed my in-flight work as
+21fbc93 (WIP marker, content unchanged) to protect it. Resumed and finished. No loss.
+
+D10 GEOCODE FAILURE CLASSIFICATION (PO refined the COO's count-cap instruction, and the
+  refinement is better). Two classes: a NO-MATCH response is TERMINAL on the first attempt
+  (new geocode_status 'unresolvable'); only recoverable failures retry, to a cap via a new
+  geocode_attempts column. KEY FINDING: the distinction ALREADY EXISTS in resolveCity's four
+  failure branches (:85, :107-110, :115-119, :137-140) and is DISCARDED — all four return
+  false and leave the row pending, and the terminal branch even carries the comment "leave as
+  pending, will retry on next queue run". Information available at the branch point, only
+  persistence missing, so the fix is a few lines. Rejected a boolean flag and an
+  attempts-sentinel: geocodeStatus IS the state machine (4.5 rejects a second one on the same
+  grounds) and only a status value lets the partial index stop indexing dead rows.
+  COST CHANGE, REPORTED AS ASKED: amending the CHECK is a SQLite table recreation, so S4 stops
+  being a cheap ADD COLUMN and the release now carries THREE recreations, not two. cities is
+  the fiddliest to reproduce — a partial index and a COLLATE NOCASE expression index, two of
+  the four drizzle-kit bug classes ADL-15 patches.
+
+D11 CORRECTION PATH — I PUT IT AT THE PLACE LEVEL, not the city level. The release CREATES
+  the trap (containment + terminal = a mistyped city is invisible, never retried, uneditable),
+  so it must ship the escape. Decision: make city_id updatable on a place. Chosen over opening
+  PATCH /api/cities to the creator because: no uniqueness-collision case (correcting
+  Denvr->Denver when Denver exists violates the unique index, and the natural repair IS
+  re-pointing); it PRESERVES the place's items and activity tags (both hang off trip_place_id,
+  which delete-and-re-add destroys); and it never writes to a shared row — pending cities ARE
+  shared (review P2: user B posting the same name gets user A's row back).
+  Delete-and-re-add ALREADY WORKS and needs zero build — worth saying, it was framed as blocked.
+  DEFERRED with reasoning: orphan cleanup (agreed the COO's place-removal-hook shape is right,
+  disagreed on timing — BUG-40/TR-15 is actively redesigning place deletion with a three-way
+  prompt, two branches of which don't delete the place; briefing now designs against a flow
+  about to change) and creator PATCH.
+  FRAMING PUSHBACK: the COO proposed a city is per-user data while unresolved and global once
+  resolved, a tier transition. I disagreed. A pending city is already SHARED and globally
+  unique from creation, and survives its creator. It is tier-1 throughout with a PROVISIONAL
+  VISIBILITY STATE. D1 deliberately does not gain a lifetime-varying tier.
+
+D12 WRONG MATCHES (PO-raised gap, and a real one). Containment gates on 'pending', so it does
+  nothing about a city that resolves to the WRONG place — likelier and worse, because
+  'resolved' bypasses containment and goes global as authoritative on first write.
+  MINIMUM ADOPTED, cheap because the data is already there: CreateCitySchema already REQUIRES
+  country_code and accepts region_id, while resolveCity sends a bare q string with no filter
+  (:97-103) — THE BACKEND ALREADY HOLDS THE DISAMBIGUATING ANSWER AND DOESN'T USE IT. Four
+  rules: countrycodes= filter; region disambiguation; USER SELECTION IS NEVER OVERWRITTEN by
+  the lookup (answering the who-wins question — the user has ground truth, the geocoder has a
+  ranked guess); surviving ambiguity creates 'pending' rather than guessing.
+  DECLINED to add a fourth status: separating "answered" from "verified" needs a verification
+  ACTOR and there isn't one at two users. GE-16 now records that 'resolved' means a match was
+  returned, NOT verified correct — the honest in-release answer the COO explicitly permitted.
+  THE COO'S FEARED INVERSION DOESN'T EXIST, and D11 is why: the correction path is gated on
+  PLACE ownership only, so it works identically for a wrong match and a no-match. Rejecting
+  the tier-transition framing bought that for free.
+  ACCEPTED RESIDUAL RISK, stated as a decision not an oversight: a confidently-wrong match is
+  currently unrepairable by ANYONE (PatchCitySchema accepts only region_id). Acceptable at two
+  users; should not survive many. This is the judgement call I'd expect the PO to challenge.
+  SURFACED, PRE-EXISTING, NOT FIXED: uniq_cities_name_country_ci has NO region in the key, so
+  the catalogue cannot hold Springfield IL and Springfield MO at once. Widening it naively
+  re-opens BUG-33 (NULLs are distinct in a SQLite unique index). Its own design job.
+
+NEW DELIVERABLE: jobs/architect/tech/ADL-46-summary-for-PO.md — plain-language summary aimed
+  at the PO, who is reviewing the spec personally before merge. The COO was right that this is
+  the artefact the review will actually run on; 1000 lines of ADL is not reviewable by the
+  person deciding. Leads with what changes for a user, then five decisions, then the
+  trade-offs with an explicit "here is where I'd push back if I were you".
+
+--- ADL-46 AMENDMENT ROUND 5 (2026-07-30) — PO REVIEW: FRAMING CORRECTION + D13/D14 ---
+
+THE FRAMING CORRECTION, AND IT IS THE IMPORTANT PART.
+  PO: "I don't want to be architecting based on the current user base."
+  I had adopted "acceptable at two users" from the COO and used it to justify at least four
+  judgements. It optimises for today and bills a future this project's own iOS/multi-user
+  direction says is coming. Every such justification re-weighed; each is now either a real
+  fix or an explicit follow-on WITH A TRIGGER, never "fine for now". Recorded as section 0.2
+  with a table of where I used it and what each became.
+  ONE DELIBERATE EXCEPTION, so the re-weighting is honest rather than reflexive: the
+  DISPOSABLE-DATA constraint is a fact about today's database contents, not an assumption
+  about eventual user count. The downgrades it justified (F10 revert posture, F1's
+  data-disposition half) stand. I said so explicitly rather than sweeping everything.
+
+D13 — CITY IDENTITY (PO pulled into scope; I had deferred it, which was the mistake in its
+  purest form). Identity becomes (name COLLATE NOCASE, country_code, COALESCE(region_id, 0)).
+  THE SENTINEL IS THE WHOLE DESIGN. region_id is nullable and SQLite treats NULLs as distinct
+  in a unique index, so the naive UNIQUE(name, country, region_id) permits UNLIMITED
+  duplicates for every non-region-tier country — re-opening BUG-33. COALESCE collapses NULL
+  to 0; 0 is safe because regions.id is AUTOINCREMENT, which starts at 1 and never issues 0
+  (verified, not assumed).
+  TWO PROPERTIES THAT MAKE IT MUCH SAFER THAN IT SOUNDS, both worth carrying forward:
+    1. The new key is STRICTLY MORE PERMISSIVE than the one it replaces — adding a column to
+       a unique key can only permit more rows — so NO EXISTING ROW CAN VIOLATE IT. No
+       backfill, no conflict handling, no data risk in the migration.
+    2. region_id MUST be NULL when region_tier_enabled=0 (cities.ts:106-108), so for those
+       countries COALESCE is invariantly 0 and the index degenerates to today's
+       (name, country_code). The BUG-33 guarantee is preserved EXACTLY where it matters.
+  THE RISKY HALF IS THE LOOKUP, NOT THE INDEX — and I said so in section 13, because the
+  reviewer will otherwise aim at the DDL. cities.ts:126-130 becomes three steps: exact match
+  on the region key; then WILDCARD-UPGRADE — if the request carries a region and a row exists
+  with the same name/country and region IS NULL, ADOPT it by setting its region rather than
+  inserting; then insert. A region-less row is an UNDER-SPECIFIED record, not a different
+  city. Omit that middle step and the system starts creating duplicates — BUG-33 through the
+  front door.
+  THE REVERSE CASE HAS NO SAFE AUTOMATIC ANSWER: no region supplied while several same-name
+  rows exist. Routed to D14 rather than guessed. Where exactly one row matches name+country
+  and no region is given, return it — today's behaviour, no regression.
+  MIGRATION COST: ABSORBED. The index change lands inside the cities recreation D10 already
+  forces. No fourth migration.
+
+D14 — MULTI-RESULT: ASK, THROUGH THE CONTROL THAT ALREADY EXISTS. Zero candidates create
+  pending; exactly one is accepted; two or more populate the region selector AddPlaceFlow
+  ALREADY renders and UX-04 ALREADY auto-populates, labelled by region name.
+  WHY ASK RATHER THAN BEST-MATCH (PO permitted either, so the choice needed justifying):
+    1. D13 CHANGES THE CONSEQUENCE OF GUESSING. Before D13 a wrong pick collided with the
+       existing row and was absorbed; now duplicates across regions are LEGAL, so a wrong
+       auto-pick silently creates a second plausible entry. The failure got quieter and more
+       permanent at exactly the moment we made duplicates possible.
+    2. It is the CHEAPEST FIX for the stale-entry problem — an entry never created needs no
+       repair tool, no cleanup rule, no owner intervention.
+    3. It keeps name, region and coordinates INTERNALLY CONSISTENT, because all three come
+       from one chosen candidate. Auto-picking while the user separately sets the region can
+       produce a row whose region says Missouri and whose coordinates say Illinois.
+  WHY THIS IS NOT THE DISAMBIGUATION FLOW I DECLINED LAST ROUND: the user is ALREADY being
+  asked for the region. The control is on screen. Multiple candidates populate its options
+  instead of pre-selecting one. No new component, no modal, no extra step.
+  "AMBIGUOUS" = more than one settlement-type candidate after the country constraint.
+  DELIBERATELY NO confidence threshold — that is a number nobody can justify and everybody
+  re-tunes. GE-12 not regressed: declining, dismissing or being offline all still create a
+  usable pending record. Auto-accept documented as the first thing to cut if the release must
+  shrink, with its cost stated.
+
+ITEM 3 — STALE SHARED ENTRY LIFECYCLE (section 4.4.3). The PO inferred the consequence
+  himself and was right. Walked it in full rather than sizing it away:
+    - MOST LEFTOVERS ARE NOT DEFECTS. A wrongly-matched Springfield IL is a REAL CITY WITH
+      CORRECT COORDINATES that nobody has visited yet — indistinguishable from a seeded entry
+      nobody has visited. It stays, and that is right. Not "there'll only be a few" — it is
+      simply correct catalogue content.
+    - Unresolved + creator-owned + unreferenced -> the deferred place-removal hook.
+    - THE GENUINE GAP: the internally-wrong RESOLVED row. My deferred cleanup rule was scoped
+      to unresolved creator-owned rows, so it collects neither, and nobody can repair it
+      because PatchCitySchema accepts only region_id.
+  CLOSED BY an owner catalogue-repair surface, deferred WITH A TRIGGER (before a third
+  account exists — an event, not a date, and not a user count used as an excuse). Specified
+  so it is inheritable: extend PatchCitySchema to name/region plus a force-re-resolve; removal
+  is a SOFT delete (is_active, matching AD-06) so it can NEVER orphan a trip place via the
+  trip_places.cityId FK; do NOT add ON DELETE CASCADE. The column is deliberately NOT added
+  now despite the table being open — an is_active nobody sets or reads is speculative
+  generality, and adding it later is a plain ADD COLUMN. Contrast D10's CHECK amendment,
+  which genuinely WAS a fix-it-while-the-table-is-open case.
+  This is also what would make a fourth "verified" status meaningful — the argument against
+  one is SEQUENCING (no actor can perform the transition yet), not headcount. Reframed.
+
+SIZE STATEMENT (section 9.1.0) — not absorbed silently, per standing instruction.
+  ADDED: D13, D14, plus prose. NOT ADDED: no new migration (D13 absorbed by the cities
+  recreation), no data risk (strictly-more-permissive key), no new component (D14 reuses the
+  region selector). RISK MOVED: it is no longer the migration — the reviewer executed that
+  shape — it is D13's three-step lookup.
+  HONEST TOTAL: fourteen decisions, three table recreations, a new route, a route relocation,
+  per-user lists, an egress chokepoint, a small new interaction. That IS a lot for one round.
+  NOT recommending a split — the pieces are now interlocked (D13 raises D14's stakes, D14
+  shrinks 4.4.3's gap, D10 forces the recreation that absorbs D13) and splitting reintroduces
+  the intermediate states the single-release decision existed to avoid. But the four-stage
+  breakdown is intact and named, and D14's auto-accept fallback is named as the first cut.
+
+PO SUMMARY UPDATED — it carried the two-users framing that item 0 rejects. Added a section
+  answering the three review points in his own terms, rewrote the trade-offs section, added
+  the duplicate-names and ask-which-one rows to the what-changes table, and replaced the
+  "acceptable for two people" paragraph with the triggered follow-on.
