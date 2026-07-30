@@ -3602,6 +3602,34 @@ consequence six days later.
     transition.** A city is tier-1 global reference data for its whole life — global uniqueness from
     creation, shareable while pending, surviving its creator — and write access never leaves the
     owner. D1 deliberately does not gain a lifetime-varying tier.
+12. **D12 — wrong geocoder matches: constrain the lookup, and let the user's selection win**
+    *(PO-raised gap)*. D5's containment (§4.4) gates on `pending`, so it protects against cities that
+    **never** resolve and does nothing about cities that resolve to the **wrong place** — likelier and
+    worse, because `resolved` bypasses containment and enters the shared catalogue as authoritative on
+    first write. **The minimum adopted, and it is cheap because the data is already there:**
+    `CreateCitySchema` already *requires* `country_code` and accepts `region_id`, while `resolveCity`
+    sends a bare `q` string with no filter (`geocoding.service.ts:97-103`) — **the backend already
+    holds the disambiguating answer and does not use it.** Four rules: pass Nominatim's
+    `countrycodes=` filter from the validated `country_code` (this alone removes the
+    London-UK-vs-Ontario class); disambiguate by `region_id` where present; **an explicit user
+    selection is never overwritten by the lookup** — the lookup may supply coordinates and a canonical
+    name only; and ambiguity surviving both constraints creates `'pending'` rather than guessing.
+    **Deliberately not done:** no fourth status — separating *"the geocoder answered"* from *"this row
+    is fit for the catalogue"* needs a verification **actor**, and at two users there isn't one, so
+    **`resolved` explicitly means "a match was returned", not "verified correct"**, recorded in
+    GE-16. No interactive disambiguation UI (its own piece of work, and the release is already large).
+    **Pre-existing constraint surfaced, not fixed:** `uniq_cities_name_country_ci` is on
+    `(name, country_code)` with **no region** (`schema.ts:126`), so the catalogue cannot hold
+    Springfield IL *and* Springfield MO — widening the key does not work as-is, because `region_id`
+    is often NULL and NULLs are distinct in a SQLite unique index, which is the exact defect BUG-33
+    closed. Follow-on. **Accepted residual risk:** a confidently-wrong match surviving both
+    constraints enters the catalogue with wrong coordinates and is currently unrepairable by anyone
+    (`PatchCitySchema` accepts only `region_id`) — the user's own experience *is* repairable via D11,
+    and owner coordinate-repair folds into the already-deferred creator-PATCH work. Judged acceptable
+    at two users; should not survive many.
+    **One inversion the COO feared does not exist**, and D11 is why: the correction path is at the
+    *place* level and is gated on place ownership only, so it works identically for a wrong match and
+    a no-match. Rejecting the tier-transition framing bought that for free.
 
 **Alternatives considered:** see standalone §3.2 (the rejected nullable-`user_id` model), §4.5
 (four rejected city models) and §13 (confidence register).

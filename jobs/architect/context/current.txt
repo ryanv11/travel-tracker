@@ -564,3 +564,68 @@ one grep for activity_id across the schema — which is exactly what caught it o
 CAUGHT BY /pre-push, WORTH NOTING: my first tracker.json edit added a stray closing quote
 mid-string and broke the JSON. status:check failed loudly, I fixed it, diff is still exactly
 3 lines. The JSONC-edit-in-place rule held; the gate is what caught the slip.
+
+--- ADL-46 AMENDMENT ROUND 4 (2026-07-29/30) — THREE PO DIRECTION ROUNDS, D10-D12 ---
+NOTE: I was interrupted mid-round by an API error; the COO committed my in-flight work as
+21fbc93 (WIP marker, content unchanged) to protect it. Resumed and finished. No loss.
+
+D10 GEOCODE FAILURE CLASSIFICATION (PO refined the COO's count-cap instruction, and the
+  refinement is better). Two classes: a NO-MATCH response is TERMINAL on the first attempt
+  (new geocode_status 'unresolvable'); only recoverable failures retry, to a cap via a new
+  geocode_attempts column. KEY FINDING: the distinction ALREADY EXISTS in resolveCity's four
+  failure branches (:85, :107-110, :115-119, :137-140) and is DISCARDED — all four return
+  false and leave the row pending, and the terminal branch even carries the comment "leave as
+  pending, will retry on next queue run". Information available at the branch point, only
+  persistence missing, so the fix is a few lines. Rejected a boolean flag and an
+  attempts-sentinel: geocodeStatus IS the state machine (4.5 rejects a second one on the same
+  grounds) and only a status value lets the partial index stop indexing dead rows.
+  COST CHANGE, REPORTED AS ASKED: amending the CHECK is a SQLite table recreation, so S4 stops
+  being a cheap ADD COLUMN and the release now carries THREE recreations, not two. cities is
+  the fiddliest to reproduce — a partial index and a COLLATE NOCASE expression index, two of
+  the four drizzle-kit bug classes ADL-15 patches.
+
+D11 CORRECTION PATH — I PUT IT AT THE PLACE LEVEL, not the city level. The release CREATES
+  the trap (containment + terminal = a mistyped city is invisible, never retried, uneditable),
+  so it must ship the escape. Decision: make city_id updatable on a place. Chosen over opening
+  PATCH /api/cities to the creator because: no uniqueness-collision case (correcting
+  Denvr->Denver when Denver exists violates the unique index, and the natural repair IS
+  re-pointing); it PRESERVES the place's items and activity tags (both hang off trip_place_id,
+  which delete-and-re-add destroys); and it never writes to a shared row — pending cities ARE
+  shared (review P2: user B posting the same name gets user A's row back).
+  Delete-and-re-add ALREADY WORKS and needs zero build — worth saying, it was framed as blocked.
+  DEFERRED with reasoning: orphan cleanup (agreed the COO's place-removal-hook shape is right,
+  disagreed on timing — BUG-40/TR-15 is actively redesigning place deletion with a three-way
+  prompt, two branches of which don't delete the place; briefing now designs against a flow
+  about to change) and creator PATCH.
+  FRAMING PUSHBACK: the COO proposed a city is per-user data while unresolved and global once
+  resolved, a tier transition. I disagreed. A pending city is already SHARED and globally
+  unique from creation, and survives its creator. It is tier-1 throughout with a PROVISIONAL
+  VISIBILITY STATE. D1 deliberately does not gain a lifetime-varying tier.
+
+D12 WRONG MATCHES (PO-raised gap, and a real one). Containment gates on 'pending', so it does
+  nothing about a city that resolves to the WRONG place — likelier and worse, because
+  'resolved' bypasses containment and goes global as authoritative on first write.
+  MINIMUM ADOPTED, cheap because the data is already there: CreateCitySchema already REQUIRES
+  country_code and accepts region_id, while resolveCity sends a bare q string with no filter
+  (:97-103) — THE BACKEND ALREADY HOLDS THE DISAMBIGUATING ANSWER AND DOESN'T USE IT. Four
+  rules: countrycodes= filter; region disambiguation; USER SELECTION IS NEVER OVERWRITTEN by
+  the lookup (answering the who-wins question — the user has ground truth, the geocoder has a
+  ranked guess); surviving ambiguity creates 'pending' rather than guessing.
+  DECLINED to add a fourth status: separating "answered" from "verified" needs a verification
+  ACTOR and there isn't one at two users. GE-16 now records that 'resolved' means a match was
+  returned, NOT verified correct — the honest in-release answer the COO explicitly permitted.
+  THE COO'S FEARED INVERSION DOESN'T EXIST, and D11 is why: the correction path is gated on
+  PLACE ownership only, so it works identically for a wrong match and a no-match. Rejecting
+  the tier-transition framing bought that for free.
+  ACCEPTED RESIDUAL RISK, stated as a decision not an oversight: a confidently-wrong match is
+  currently unrepairable by ANYONE (PatchCitySchema accepts only region_id). Acceptable at two
+  users; should not survive many. This is the judgement call I'd expect the PO to challenge.
+  SURFACED, PRE-EXISTING, NOT FIXED: uniq_cities_name_country_ci has NO region in the key, so
+  the catalogue cannot hold Springfield IL and Springfield MO at once. Widening it naively
+  re-opens BUG-33 (NULLs are distinct in a SQLite unique index). Its own design job.
+
+NEW DELIVERABLE: jobs/architect/tech/ADL-46-summary-for-PO.md — plain-language summary aimed
+  at the PO, who is reviewing the spec personally before merge. The COO was right that this is
+  the artefact the review will actually run on; 1000 lines of ADL is not reviewable by the
+  person deciding. Leads with what changes for a user, then five decisions, then the
+  trade-offs with an explicit "here is where I'd push back if I were you".

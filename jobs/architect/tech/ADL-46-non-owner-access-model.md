@@ -1678,6 +1678,16 @@ Genuinely still open:
   `isOnline()`-false or `GEOCODING_ENABLED=false` increments `geocode_attempts`, one offline weekend
   burns every pending city's retry budget and they all fall out of the queue permanently. The queue
   already returns early on both, but `resolveCity` is *also* called directly from `POST /api/cities`.
+- **D12's accepted residual risk (§4.3.1) — the one place this release knowingly leaves a hole.** A
+  confidently-wrong geocoder match that survives the country and region constraints enters the shared
+  catalogue with wrong coordinates, and **nobody can repair that row today** — `PatchCitySchema`
+  accepts only `region_id`. The *user's* experience is repairable (D11 re-points their place), and the
+  row is a real place rather than corrupt data, so I judged it acceptable at two users. **It should
+  not survive the app having many users**, and the owner coordinate-repair path is the deferred work
+  that closes it. If the PO disagrees with one judgement call in this spec, I would expect it here.
+- **The same-name collision (§4.3.1) — pre-existing, surfaced, deliberately not fixed.**
+  `uniq_cities_name_country_ci` has no region in the key, so one Springfield per country. Widening it
+  naively re-opens BUG-33. Its own design job.
 - **D8's third-party CSP register (§5.2) — Medium-High.** Hand-maintained, and it will rot. I have
   no better mechanism to propose and am not confident none exists. **Unchanged by the review.**
 - **S4's dependency on S2 (§9.1 constraint 2)** — load-bearing under one-release sequencing and easy
