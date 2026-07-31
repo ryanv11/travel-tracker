@@ -1,0 +1,67 @@
+ADL-46 AMENDMENT · GitHub issue #326 · PR #327 (kept open) · Branch chore/adl46-access-model
+Follow-up to 20260728_1500-ARCHITECT-adl46-access-model-complete.txt — read that first.
+
+WHAT CHANGED
+All three flagged items are closed. Two confirmed my recommendation, one overrode it. The
+spec now reflects the settled plan and carries no superseded recommendations, so the OP-27
+reviewer can be dispatched against it.
+
+PER-ITEM VERDICT
+ Q-A deactivation scope      CONFIRMED as I read it — AD-09 text unchanged
+ Q-B pending-city containment ADOPTED as specified — GE-16 stands as written
+ D9  sequencing               OVERRIDDEN — one release, not four dispatches
+ §10.1 premise correction     ACCEPTED by COO on independent re-verification
+
+ON THE OVERRIDE — not re-argued, and one thing improved because of it. The four phases
+survive as internal build order S1-S4 plus dependency constraints. TWO ORDERINGS ARE NOW
+LOAD-BEARING AND EASIER TO VIOLATE, because inside one release nobody trips over them:
+  (a) S3 DELETES the admin-router carve-out S1 adds. Leave it in and temporary scaffolding
+      reaches production as a permanent misnomer.
+  (b) S4's city containment is meaningless without S2's resolve-then-create promoting rows;
+      shipping the column and search clause without S2 strands every pending city as
+      permanently creator-private.
+Both are written into ADL-46 §9.1 and OP-06 §2.1's banner so the briefs inherit them.
+
+GENUINE IMPROVEMENT ON MY RECOMMENDATION: the Phase 1/2 validation gap I flagged as one of
+my two weakest points NO LONGER EXISTS. Shipping together means there is no window where
+POST /api/cities is open without resolve-then-create behind it. The override removed the
+weakness rather than answering it, and I have said so in the spec rather than leaving the
+caveat standing. S1-alone-clears-the-P1 is retained as an EMERGENCY FALLBACK, explicitly
+not the plan.
+
+§13 RE-AIMED FOR THE OP-27 REVIEWER — this is the part worth passing on. Both previously
+flagged weak points are now closed, so the register points somewhere new:
+  1. S3's migration EXECUTION — does it preserve `id`? If not, trip_categories_map
+     mappings die silently. This risk ROSE when phasing collapsed: a migration problem now
+     surfaces alongside four other changes instead of on its own.
+  2. §3.3's data assumption — the only genuinely unverified premise left, and the only
+     place where being wrong CORRUPTS DATA rather than costing a re-run. If the reviewer
+     checks one factual claim, make it this one.
+  3. S4's new dependency on S2, and D5's step 4a (the second find-or-create pass against
+     the canonical name — the part that does the real work, easiest to omit silently).
+
+YOUR LINE-CITE CATCH WAS RIGHT, AND THE FINDING IS BIGGER THAN I WROTE. cities.ts:211 was
+wrong (223 for citiesRouter.patch, 225 for requireOwner) — fixed. And since BUG-22 is
+`done` in the tracker, that owner-only assertion on PATCH /api/cities/:id HAS NOT RUN since
+it merged. That is a live security-coverage hole, not a tidy-up, and it is the one
+assertion protecting the premise that makes opening city creation acceptable. §8.1 reframed
+accordingly.
+
+I SWEPT THE REST AS ASKED. Eleven cites corrected (full list in the park doc §11.5 and
+context doc), roughly twenty verified correct. Notable: server.ts:47 is the IMPORT of
+processQueue — the invocation is :325 and the 15-minute setInterval is :330, so your
+numbers were the right ones and mine were imprecise.
+
+CI: PR #327 green (documentation only, no code changed).
+
+NO NEW QUESTIONS. The D9 rewrite surfaced no dependency problem that one-release sequencing
+breaks — the two constraints above are real but they are ordering rules inside the release,
+not blockers, and both are now documented where the briefs will see them.
+
+STILL BLOCKING ON YOU (unchanged from the first report): apply the §6 BRD amendments as
+v3.13 including GE-16, which is now PO-confirmed and needs applying rather than deciding.
+Two briefs still owed — Backend (§9.2) and Database (§9.3), sequenced Database first.
+One release does not mean one brief.
+
+ALSO STILL OPEN: the S3 frontend piece (AdminPanel ownerOnly flags once categories and
+activities are per-user) needs an owner — it is in this release, not a follow-up.

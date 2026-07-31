@@ -157,6 +157,31 @@ the user DB row).
 
 ### Routes to protect with requireOwner
 
+> SUPERSEDED IN PART (2026-07-28) by ADL-46 — retained for history. Routes leaving the owner-only
+> list below, in two steps:
+>
+> *(Both steps ship in a single release — PO ruling 2026-07-28. They are build stages, not
+> separate deliveries.)*
+>
+> - **ADL-46 stage S1:** `GET /api/admin/categories/active` and `GET /api/admin/activities/active`
+>   (global seeded reference data the trip/place forms cannot render without — the same tier as the
+>   country/region reads ADL-38 opened, which ADL-38's own text already identified and did not act
+>   on), plus `POST /api/cities`, permitted for any authenticated user **only** via the constrained
+>   find-or-create path, never as general row creation. `PATCH /api/cities/:id` — catalogue
+>   curation — stays owner-only, and that is precisely what makes opening creation acceptable.
+> - **ADL-46 stage S3:** `trip_categories` and `activities` become **per-user** (PO decision) and
+>   leave `/api/admin/*` altogether for `/api/categories` and `/api/activities` — the same move
+>   ADL-28 made for companions. Every category/activity route in the list below therefore ceases to
+>   exist rather than changing gate.
+>
+> ADL-46 also replaces this ADL's implicit role-only model with a **resource-tier × operation** rule
+> — see `ADL-46-non-owner-access-model.md` §2 and the live matrix at
+> `OP-06-hardening-checklist.md` §2.1. The router-level guard, the fail-closed default, and the
+> owner-only status of every remaining write route are unchanged. ADL-46 **is** the "explicit
+> security assessment" this section's closing paragraph requires before any read route opens — the
+> requirement is satisfied, not relaxed. Note this stamp records a *decision*; every route named
+> above is still owner-gated in code until the ADL-46 briefs merge.
+
 > SUPERSEDED IN PART (2026-07-22) by ADL-38 — the two country/region READ routes
 > (`GET /api/admin/countries` and `GET /api/admin/countries/:code/regions`) are no longer
 > owner-gated; they require only `requireAuth` because countries/regions are global,
