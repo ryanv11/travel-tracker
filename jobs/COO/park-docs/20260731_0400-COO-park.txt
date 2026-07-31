@@ -1,0 +1,107 @@
+COO SESSION PARK — 2026-07-30/31 (ADL-46 release kicked off: integration branch + DB stage landed;
+expand/contract adopted; ATDD-first on trial)
+================================================================================
+
+## Session summary
+Picked up clean (all startup checks green). Merged the two outstanding ADL-46 doc PRs, applied the
+BRD v3.13 requirements gate, then began the ADL-46 implementation release: dispatched and landed the
+Database stage, and set up the delivery mechanism (integration branch) after a release-strategy
+discussion with the PO. Two process decisions came out of that discussion — one adopted, one on
+trial.
+
+| PR | What | State |
+|---|---|---|
+| #328 | OP-27 fresh-eyes review doc | MERGED to main (rebased, conflict on architect/context resolved) |
+| #331 | BRD v3.13 — ADL-46 access model (SE-01/SE-03/AD-09 + GE-16) | MERGED to main |
+| #333 | ADL-46 S3+S4 schema + migrations (DB stage) | MERGED to **integration branch**, not main |
+| (this) chore/session-close-adl46-db | ADL-47, D-17, CLAUDE.md, inbox, park doc | OPEN — the close-out PR |
+
+main green @ a1fab06. Integration branch release/adl46-access-model @ f7042b5 (carries the DB stage).
+
+## 1. The ADL-46 release is now in flight — delivery model matters, read this
+ADL-46 ships as ONE release (PO decision, §9.1) across three stages: Database → Backend → Frontend.
+The DB stage (#333) is *red by design* — making categories/activities `user_id NOT NULL` breaks every
+backend insert site until the Backend stage catches up (4 CI jobs fail: Type Check, Backend Tests,
+Contract, E2E). Merging that to main would break staging.
+
+**Resolution (ADL-47): integration branch.** `release/adl46-access-model` off main; each stage merges
+into it (red is fine on the integration branch — it is NOT main); one final PR → main when the whole
+release is green. main never red. Backend and Frontend agents branch off the integration branch, not
+main. DO NOT merge any single stage to main on its own.
+
+## 2. Database stage — done and verified (PR #333, on integration branch)
+Dispatched to the Database agent on Opus (data migration = "wrong answer costs a migration" tier).
+Delivered: schema.ts + migrations 0014 (S3: per-user trip_categories/activities) + 0015 (S4: cities
+created_by_user_id, geocode_attempts, amended geocode_status CHECK, D13 identity index). Verified
+against artifacts, not just self-report:
+  - id-preserving recreations validated on a scratch DB from the real chain: ids preserved, all THREE
+    junction tables survive, foreign_key_check clean.
+  - Pre-migration check (§9.3.2, three-query version) ran CLEAN against BOTH staging AND production:
+    0 cross-user rows, exactly 1 owner each → CROSS JOIN backfill is deterministic (F9 satisfied).
+  - D13 identity index behaves (same-name/diff-region allowed; same-region / case-fold / both-null
+    rejected).
+  - The 4 red CI jobs are expected/out-of-scope (Backend-stage work), single root cause.
+
+TWO things the agent surfaced, both real:
+  a) **ADL-46 §9.3.3's assertion SQL was invalid.** `SELECT RAISE(ABORT,...) WHERE EXISTS(...)` only
+     works inside a trigger body in SQLite/libSQL — it would never have run. The review appendix
+     *described* it in a comment and never executed it, so it passed OP-27 review. Agent replaced it
+     with a scratch-table-named-CHECK construct that genuinely aborts+rolls back, verified firing.
+     Sound fix. → PROCESS NOTE for OP-27: a review that "executes" a migration can still miss a block
+     it only described. "Executed" ≠ "executed every block". Candidate D-entry next session.
+  b) The real release risk is NOT the DDL (validated) — it is **D13's three-step find-or-create
+     wildcard-upgrade** (Backend stage). Get it wrong → silently recreates BUG-33 duplicate cities.
+     Weight the Backend brief's review there.
+
+## 3. Process decisions (the discussion half of the session)
+**ADL-47 — expand/contract ADOPTED as the default for breaking migrations.** Each step
+additive+backward-compatible and independently green. never-red-main was questioned and KEPT (it
+protects the staging auto-deploy); clarified that it governs main, not integration branches. NOT
+retrofitted to ADL-46 (validated migrations + disposable data + manual prod promotion make the
+payoff ~nil today). CLAUDE.md schema section now points at it.
+
+**D-17 — ATDD-first ON TRIAL this release (open-dialogues.md).** QA writes red acceptance tests from
+BRD success criteria before the implementer builds — independent spec, breaks the implementer's
+closed code+test loop. Trigger keyed off **Architect involvement** (PO's cost insight — the rule
+lives in the Architect prompt if promoted, loaded only when the Architect runs). One trigger
+consciously dropped: complex frontend/behavioural work that never reaches the Architect (visible in
+UAT, not silent-costly). Verdict condition, placement design, and the wanted hook-backstop are all in
+D-17 — read it before promoting. NOT plumbed during the trial.
+
+## State of play
+- main green @ a1fab06. Integration branch release/adl46-access-model @ f7042b5 (DB stage in).
+- Local branches: main, release/adl46-access-model, chore/session-close-adl46-db (this PR). No
+  worktrees (agent's cleaned up).
+- BRD v3.13 on main; ADL-46 = design of record; ADL-47 adopted; D-17 on trial.
+- production @ 1a4f84f — unchanged, still behind main.
+- tracker: BRD-GE16 is `pending` on main, `in_progress` on the integration branch (correct — release
+  work's tracker state lives on the integration branch until it merges to main).
+
+## Suggested next actions (in order)
+1. **Merge this close-out PR**, verify main green.
+2. **Dispatch QA-first (the ATDD trial run)** off release/adl46-access-model: red tests for the
+   intended access-matrix rows (ADL-46 §8), the D13 find-or-create invariants, and per-user
+   category/activity route contracts. This is the trial — judge it by the D-17 verdict condition.
+3. **Dispatch the Backend brief** off the integration branch, GATED behind QA's red tests. Implements
+   S1 (open the two /active reads, drop requireOwner from POST /api/cities, §8 test flips + the §8.1
+   unskip), S2 (geocoding proxy for BUG-55, resolve-then-create), S3 backend half (lazy seed, route
+   moves to /api/categories + /api/activities, replaceAssociations ownership validation, DELETE S1's
+   carve-out, close the place-level write path — F1(b)), S4 backend half (city-search containment
+   incl. the IS NULL branch, createdByUserId on insert, D10 give-up rule). The D13 wildcard-upgrade
+   middle step is the trap — call it out in the brief. Backend = Opus-worthy? It's access + the D13
+   risk; likely yes.
+4. **Frontend brief** off the integration branch (D14 candidate handling reuses the region selector;
+   D11 place city_id correction). S3 frontend AdminPanel ownerOnly flags already shipped (#298).
+5. **Final release PR** integration branch → main once all green; then PO UAT on the whole release
+   (BUG-63/61/62 + BUG-55 + per-user behaviour), then fast-forward to production.
+6. **Report the ATDD trial verdict** at release close (D-17 condition).
+7. Standing follow-ons unchanged: city repair tool (triggered: before a 3rd account), BUG-68 (Clerk
+   telemetry CSP), D-14 (USA/US search), IT-11 second-date defaults.
+
+## Open threads
+See jobs/COO/open-dialogues.md — D-04 through D-17. New this session: **D-17 (ATDD trial)**. Still
+relevant: D-14 (USA/US search, COO recommends ISO tier-2), D-16 (OP-27 sequencing, recommends adopt;
+its BUG-63 no-urgency note can now fold into the tracker and the paragraph struck — #327 merged).
+
+## Restart preview
+Shown to Ryan before this doc was finalised.
