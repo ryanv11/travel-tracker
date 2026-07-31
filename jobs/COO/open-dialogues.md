@@ -167,6 +167,14 @@ None is urgent. All four are wording-level in the BRD — the shipped app is una
 > twice. Recommended scope for the Architect pass: SE-01/SE-03 + AD-09 + BUG-63 + BUG-55
 > together, since all four are the single question of which surfaces are reachable by whom.
 
+> **RESOLVED (2026-07-30) — item 1 only, by ADL-46 → BRD v3.13.** SE-01 rewritten to a
+> resource-tier × role model, SE-03 rescoped to instance administration (country/region config
+> + shared-catalogue curation), AD-09 rewritten to per-user lists, and GE-16 added for
+> constrained city find-or-create. This is the SE-01/SE-03/AD-09 decision item 1 said BUG-62/63
+> were blocked on. Spec merged as PR #327 (+ OP-27 review #328); BRD gate applied in the v3.13
+> bump. Item 1 is closed here; **items 2–4 remain open and unchanged.** The code has not shipped
+> yet — GE-16/BRD tracker work and the Database → Backend → Frontend briefs are the remaining path.
+
 1. **§5.11 SE-01/SE-03 — the three-role model has drifted from reality.** AD-07 and AD-08
    moved map shading and companions to per-user with `requireAuth`, and non-owner users
    create their own trips in production, but SE-03 still describes authenticated-but-
