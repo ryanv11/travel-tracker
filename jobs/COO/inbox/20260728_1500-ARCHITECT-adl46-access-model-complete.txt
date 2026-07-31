@@ -1,0 +1,70 @@
+ADL-46 · GitHub issue #326 · BRD §5.10 AD-09, §5.11 SE-01/SE-03, §5.2 GE-16 (new)
+Branch: chore/adl46-access-model · Tracker: BUG-63 (P1), BUG-55, BRD-AD09, D-12 item 1
+
+WHAT WAS DECIDED
+Access is determined by resource TIER x operation, not role alone. BUG-63 was not a missing
+gate — SE-03 and AD-09 contradict each other in the BRD and the code implements SE-03; SE-03
+was already stale in 2 of its 5 clauses, and after this ADL retains none of them. Spec only:
+no code, schema or migration changed.
+
+PER-DECISION VERDICT
+ D1 Tier x operation access rule (the load-bearing one)              ADOPTED   High
+ D2 Open the two /active reads — temporary, Phase 3 deletes it       ADOPTED   High
+ D3 Categories/activities become PER-USER (PO-decided)               ADOPTED   High
+ D4 City curation splits from city creation (PO-directed)            ADOPTED   High
+ D5 Resolve-then-create + pending-city containment                   ADOPTED   Medium
+ D6 SE-01/SE-03 rewritten (proposed text, COO applies)               ADOPTED   High
+ D7 BUG-55 -> backend proxy, not a widened CSP                       ADOPTED   High
+ D8 CSP allowlist = closed per-entry-justified register              ADOPTED   Medium-High
+ D9 Four phases; Phase 1 alone fully clears the P1                   ADOPTED   Medium-High
+ (draft D3 "keep creation owner-only, defer per-user"                WITHDRAWN — see below)
+ (proposed AD-10 to hold deferred per-user entries                   NOT NEEDED — folded into AD-09)
+
+DIRECTION HANDLING — the PO direction arrived mid-task and reversed my draft D3. I had kept
+creation owner-only and deferred per-user entries; my objection was that AD-09's literal text
+let any user write irreversibly into every other user's GLOBAL pickers. That objection is
+entirely dissolved by the per-user model and I withdrew it. Recorded in ADL-46 §0 and §3.4 so
+the OP-27 reviewer sees the trail rather than a silently-changed position.
+
+ONE PREMISE IN THE DIRECTION IS WRONG, AND CORRECTING IT SHRINKS THE WORK: the pending/resolve
+machinery is NOT browser-driven. Two probes — useGeocodeRetryQueue.ts's only call is
+apiGet('/api/cities/:id') ("polling is read-only, BUG-29"), and processQueue
+(geocoding.service.ts:148-192) runs from server.ts:47 every 15 min. The only browser-driven
+geocoding is lookupCityCountry, the BUG-55 path. Phase 2 replaces one function, not a subsystem.
+
+CI: no code commit — documentation only. PR CI green (see PR body).
+
+DECLARED PER OP-28: I rewrote two files I authored earlier in this same uncommitted session
+(the standalone ADL-46 doc and my own park doc) after the direction landed, rather than
+amending them, because the direction changed their conclusions rather than adding to them. No
+pre-existing record was touched by those rewrites. Every genuinely shared record —
+the ADL log, OP-06, ADL-27, ADL-28, context/current.txt — was amended with Edit, append-only.
+
+BLOCKERS / OPEN — two PO questions, both cheap, both gate downstream work:
+ Q-A "deactivation" in the direction is ambiguous once lists are per-user. My reading (which
+     the proposed AD-09 text is written to): a user deactivates their OWN entries, or AD-03
+     is unsatisfiable for a non-owner; the owner keeps it over GLOBAL data. If the PO meant
+     otherwise, the AD-09 text must change BEFORE the Phase 3 brief.
+ Q-B Pending-city containment: "global WHEN validated" (mine — costs one nullable column and
+     one WHERE clause, self-maintaining via the existing 15-min queue) vs "global immediately,
+     owner curates after" (simpler). Determines whether Phase 4 exists. Both readings of the
+     direction are defensible; I did not settle it unilaterally.
+Also BLOCKING: GE-16 must be accepted into the BRD or the cities task has no BRD home.
+
+WHAT IS NOW UNBLOCKED
+ * Backend Phase 1 brief (ADL-46 §9.2) — clears BUG-63 (P1) with NO schema change. That
+   separability is the finding worth acting on: the P1 does not wait on the per-user migration.
+ * Backend Phase 2 (BUG-55 proxy) — carries the ENV-01 constraint (Nominatim unreachable from
+   the devcontainer; re-probed with a control, verify on staging).
+ * Database Phase 3 (AD-09 per-user) — ADL-28 is prior art; migration must preserve `id`
+   through the CROSS JOIN or trip_categories_map mappings die. Blocking pre-check: query
+   staging for category/activity mappings on non-owner trips — I expect zero but that is an
+   INFERENCE with a named blind spot, not a verified fact.
+ * QUAL-19 — D8 answers the posture question, including that third-party SDK egress is in scope.
+ * D-12 item 1 — resolved, ready to close.
+
+FLAGGED, NOT ACTED ON: a stale it.skip at security.access-matrix.test.ts:457 suppressing a live
+PATCH /api/cities/1 -> 403 assertion (BUG-22 has merged; the guard is at cities.ts:211) — in
+scope for Phase 1. And a possible ODbL/OSM attribution gap per ADL-43 §6.2 — SINGLE PROBE
+(README.md only), marked unverified, verify before raising. BUG-62 not re-opened, but Phase 3
+does change its ownerOnly tab flags.

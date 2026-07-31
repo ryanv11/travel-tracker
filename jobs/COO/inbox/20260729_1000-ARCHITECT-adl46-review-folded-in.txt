@@ -1,0 +1,60 @@
+ADL-46 AMENDMENT R3 · issue #326 · PR #327 (kept open) · Branch chore/adl46-access-model
+Folds in the OP-27 review (jobs/architect/tech/ADL-46-review.md, PR #328).
+Third follow-up — see the 1500 and 1730 reports of 2026-07-28 for rounds 1 and 2.
+
+DISPOSITION: ALL TEN FINDINGS ACCEPTED. I pushed back on NOTHING. Every finding was
+re-verified against source by me before folding it in, rather than inherited.
+
+LEAD WITH THIS, because it is the load-bearing result: the reviewer attempted to break
+D1, D3, D4, D5 and D7 — including hunting specifically for a reason to prefer the Option B
+I rejected, and finding none — and would not change any of them. THE ACCESS MODEL IS RIGHT.
+Every finding was coverage or execution detail.
+
+BOTH OF MY OWN NAMED REVIEW TARGETS RESOLVED DIFFERENTLY THAN I PREDICTED, and that is the
+most useful thing to come out of this round:
+  * "Does the S3 migration preserve id?" — SOUND, and settled by EXECUTION rather than
+    argument. I aimed at the right area and the wrong question; the migration risk was real
+    but sat in the ROUTE TO the shape (F2), not the shape.
+  * "Section 3.3's data assumption is the only place where being wrong corrupts data" — the
+    assumption was fine, the TABLE SET beneath it was wrong (F1). A correct answer to the
+    wrong query.
+
+VERIFIED MYSELF BEFORE ACCEPTING (two blocking):
+  F1 grep for activity_id across schema.ts returns TWO distinct junction tables — :320
+     trip-level, :382 place-level. trip_place_activities_map (schema.ts:376-387) joins via
+     trip_places, not trips. And I read routes/places.ts:242-280: it validates the PLACE and
+     inserts the caller-supplied activity_id with no check on the activity at all. Confirmed.
+  F2 0000_open_electro.sql:10,171 create activities_name_unique and
+     trip_categories_name_unique as CREATE UNIQUE INDEX — standalone indexes, so my stated
+     mechanism was wrong and drizzle drops them happily. Confirmed.
+
+ONE THING I ADDED THAT THE REVIEW DID NOT RAISE. F3's fix (treat NULL creator as global) has
+a second-order consequence: a deleted user's UNRESOLVED cities get promoted from
+creator-private to globally visible. It is still the right call — a row with no known creator
+cannot be contained to anyone, and the alternative is the invisible-forever bug being fixed —
+but it is a real trade, so I stated it in section 4.4 rather than leaving it silent. D10's
+give-up rule bounds how much junk can accumulate.
+
+METHODOLOGICAL LESSON, recorded in section 13 because it generalises past this ADL:
+THE NEGATIVE-FINDINGS RULE CATCHES "X DOES NOT EXIST". IT DOES NOT CATCH "X EXISTS AND THERE
+ARE THREE OF THEM." Enumerations deserve the same two-probe treatment as absences. My failure
+mode was not insufficient caution — it was a wrong premise inherited from my own section 3.3
+and reused, unexamined, in three downstream places, one of which was your live-data query.
+The cheap second probe was one grep. Worth considering whether this belongs in CLAUDE.md
+alongside the existing rule; I have not proposed that unilaterally.
+
+CI: PR #327 green. Documentation only, no code changed.
+
+CAUGHT BY /pre-push, reported because gates only earn trust when their catches are visible:
+my first tracker.json edit added a stray closing quote mid-string and broke the JSON.
+status:check failed loudly, I fixed it, diff is still exactly 3 lines and structure intact.
+
+NOTHING NEW BLOCKING ON YOU beyond what the 1730 report already listed: apply the section 6
+BRD amendments as v3.13 including GE-16, and dispatch two briefs (Database first). Both now
+carry materially more detail — the Database brief in particular should start from the
+reviewer's validated SQL rather than from a description, and its pre-migration check is now
+THREE queries against BOTH staging and production, plus an in-migration RAISE(ABORT)
+assertion so a point-in-time count becomes a run-time invariant.
+
+STILL UNOWNED, unchanged and worth a decision before dispatch: the S3 frontend piece
+(AdminPanel ownerOnly flags once categories/activities are per-user). It is in this release.

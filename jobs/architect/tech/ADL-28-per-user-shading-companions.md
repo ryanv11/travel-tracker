@@ -408,6 +408,17 @@ under `requireOwner`. Companions route is extracted.
 
 ## Question 5: AD-09 interaction
 
+> SUPERSEDED (2026-07-28) by ADL-46 — retained for history. This section correctly scoped
+> `trip_categories`/`activities` **out** of ADL-28 and predicted that opening them "is a separate
+> brief." That brief is ADL-46 (GitHub #326), raised by BUG-63 after the owner gate on
+> `GET /api/admin/{categories,activities}/active` was found to block a non-owner from adding a place
+> to a trip at all. **The answer is not "open creation to non-owners" as AD-09's old text implied,
+> but per-user lists** — a `userId NOT NULL` FK, `UNIQUE(user_id, name)`, owner backfill and lazy
+> seed from the global defaults, i.e. **this ADL's own companions pattern (Question 2 and Question 3)
+> applied to two more tables.** ADL-46 §9.3 uses this document as prior art rather than redesigning
+> it. The statement below that the two tables "retain their current schema… and their current access
+> control" is therefore no longer true as of ADL-46. Original text retained.
+
 AD-09 states: "Trip categories and activities are global seeded defaults shared across all
 users. Any user can add custom entries. Entries cannot be deleted — only deactivated by the
 app owner."
