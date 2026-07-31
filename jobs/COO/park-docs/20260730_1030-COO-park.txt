@@ -1,0 +1,100 @@
+COO SESSION PARK — 2026-07-30 ~1030 UTC (ADL-46 access model approved & merged; BUG-63 P1 root-caused)
+================================================================================
+
+## Session summary
+A single long thread spanning 2026-07-28 → 30 (paused twice for tokens / spotty wifi,
+resumed cleanly each time). One deliverable dominated: the ADL-46 per-user access model,
+from a live BUG-63 reproduction through spec, PO direction across five rounds, an OP-27
+independent review, and PO final approval. 3 PRs merged, main verified green after each.
+
+| PR | What |
+|---|---|
+| #325 | BUG-63 reproduced + root-caused (P2→P1); BUG-55 confirmed live; BUG-68 logged; QUAL-19 revised |
+| #329 | D-16 (OP-27 sequencing gap) + BUG-63 no-urgency note |
+| #327 | ADL-46 — per-user access model spec, APPROVED & MERGED |
+| #328 | OP-27 fresh-eyes review doc — STILL OPEN, now conflicts with main (see below) |
+
+## 1. BUG-63 — the P1, reproduced and root-caused (read this)
+Ryan reproduced it on staging as a non-owner and captured the console. The 2026-07-26
+working theory (401 / mobile / Clerk token refresh) was WRONG and is superseded: literal
+403, desktop, deterministic. A non-owner cannot add a place to a trip AT ALL — three
+owner-gated routes in one action:
+  - GET /api/admin/categories/active  (admin.ts:105 requireOwner, sub-router at :232)
+  - GET /api/admin/activities/active  (same)
+  - POST /api/cities                  (explicit requireOwner, cities.ts:91)
+
+NOT a forgotten gate. SE-03 (BRD:268) names "city creation" as owner-only admin; AD-09
+(BRD:258) says "any user can add custom entries". The two requirements CONTRADICT, the code
+follows SE-03, and BUG-61/62/63 are one root cause with three IDs. Classified GAP (OP-32).
+
+## 2. ADL-46 — approved and merged (the session's main output)
+Access is determined by RESOURCE TIER × OPERATION, not role. The nine→fourteen decisions,
+after five rounds of PO direction:
+  - Categories/activities → per-user, lazy-seeded from global defaults (reuses ADL-28)
+  - City creation splits from curation; any auth'd user creates via constrained find-or-create
+  - Resolve-then-create: backend builds the row from the geocoder's canonical response
+  - Containment: pending cities are creator-private, go global on resolution (self-maintaining)
+  - Retry: recoverable errors retried w/ cap; a no-match is TERMINAL, never retried (needs
+    chk_cities_geocode_status amended → 3rd table recreation)
+  - Correction path: edit-with-re-resolve primary; discard-place fallback (no new API surface)
+  - BUG-55 → backend geocoding proxy, not a widened CSP (User-Agent is a forbidden fetch header)
+  - D13: city identity = (name COLLATE NOCASE, country_code, COALESCE(region_id,0)) — allows
+    Springfield IL + Springfield MO; strictly more permissive so NO backfill/data risk
+  - D14: multi-result → ASK (populate the region selector AddPlaceFlow already renders)
+
+PO FRAMING CORRECTION worth carrying: "I don't want to be architecting based on the current
+user base." I had used "acceptable at two users" to justify four judgements; all withdrawn.
+Written to memory (feedback_dont_architect_for_current_user_base.md) — it originated with the
+COO, not the agent, and propagated into the agent's deliverable.
+
+## 3. OP-27 review did its job — twice over
+The fresh reviewer TRIED to break the core design and could not, then found 10 issues (all
+accepted), 2 blocking, both from EXECUTING not reading:
+  - F1: trip_place_activities_map is a THIRD junction table the spec (and the COO's own
+    live-data probe) missed — a real unvalidated write path at places.ts:242-280.
+  - F2: `npm run db:generate` emits a migration that cannot be applied; instruction is now
+    "discard and hand-write", with the reviewer's validated SQL.
+It also verified the id-preserving migration by RUNNING it against the real schema chain.
+Three genuine defects also came from Ryan/COO asking plain questions (SE-03/AD-09
+contradiction, the typo trap, the wrong-match gap) — as much yield as the formal review.
+
+## State of play
+- main green @ 4ad7715. Clean tree, only `main` + chore/adl46-review (open PR #328) locally.
+- No worktrees, hooks healthy (93 drift entries this session).
+- ADL-46 is the DESIGN OF RECORD, PO-approved via merge (v3.2/v3.10 precedent). NO code,
+  schema, migration or BRD change yet — spec only.
+- Tracker unchanged this session beyond #325's edits; statuses accurate. STATUS.md in sync.
+- production @ 1a4f84f — unchanged, still two un-UAT'd waves behind main.
+
+## Suggested next actions (in order)
+1. **Merge PR #328 first.** It's the OP-27 review doc, docs-only, findings already in the
+   merged spec. It CONFLICTS (both #327 and #328 touched the ADL log) — rebase against main
+   per D-15, re-run CI, then merge. Deliberately deferred from this session to save tokens.
+2. **BRD v3.13** — apply SE-01/SE-03/AD-09 rewrites + add GE-16, text is verbatim in
+   ADL-46 §6. Per BRD→tracker rule, GE-16 needs a tracker entry with success criteria (also
+   in §6). Load /record-decision for the bump.
+3. **Dispatch the Database brief FIRST** (ADL-46 §9.3 — two SQLite table recreations for
+   per-user categories/activities, plus the cities recreation absorbing D10/D13/retry), then
+   Backend, then Frontend. The S3 frontend piece (AdminPanel ownerOnly flags) is UNOWNED.
+   IMPLEMENTER TRAP to put in the brief: the find-or-create MIDDLE STEP (wildcard-upgrade a
+   region-less row rather than duplicate it) is what re-creates BUG-33 if omitted.
+4. **City repair tool** — tracked follow-on with a TRIGGER: build before the app goes to
+   anyone beyond the one friend. Fixes the internally-wrong resolved-row gap; soft-delete
+   (is_active) so it can never orphan a trip place. Column deliberately NOT added now.
+5. **PO UAT** on 12 done_pending_uat items (checklists in jobs/PO/uat-log.md) — BUG-63 now
+   blocks the non-owner pass beyond BUG-62's tab check until ADL-46 ships.
+6. **BUG-68** (Clerk telemetry CSP noise) — small standalone frontend fix, no Architect needed.
+
+## Open threads
+See jobs/COO/open-dialogues.md — D-04 through D-16. Relevant this session: D-14 (USA/US
+search, undecided, COO recommends adding ISO tier-2), D-16 (OP-27 sequencing, COO recommends
+adopt). IT-11 second-date defaults still awaiting a PO confirm/reject in the UAT log.
+
+## Restart preview
+Shown to Ryan before this doc; confirmed "all good", no changes requested.
+**Captured (new):** #325/#329/#327 merged; ADL-46 approved; BUG-63 P1; BUG-55 confirmed;
+BUG-68/D-16 logged; 2 memory entries; #328 open.
+**Captured, not actioned:** BRD v3.13 + GE-16; the three ADL-46 briefs; city repair tool;
+D-14/IT-11/BUG-68; 12 UAT items + backlog.
+**Not captured:** nothing — BUG-33 trap and ADL-46 approval both live in merged artifacts
+or this doc.
