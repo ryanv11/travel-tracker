@@ -1,0 +1,148 @@
+ARCHITECT PARK DOCUMENT — 2026-07-28
+Thread: ADL-46 OP-27 fresh-eyes review (second, independently dispatched Architect)
+Branch: chore/adl46-review   ·   Reviews: PR #327 / chore/adl46-access-model   ·   Issue #326
+Deliverable: jobs/architect/tech/ADL-46-review.md
+
+================================================================================
+1. WHAT THIS THREAD WAS
+================================================================================
+Dispatched under CLAUDE.md's OP-27 rule as an independent reviewer of ADL-46
+(941 lines), written by a different Architect. Explicit instruction: critique and
+stress-test, do not confirm. I did not edit ADL-46 — it is another agent's
+deliverable and OP-28 governs it. The review is a separate document for the COO
+to adjudicate.
+
+Four PO decisions were declared settled and out of scope to relitigate:
+per-user categories/activities; user-scoped deactivation; creator-private pending
+cities; and shipping all of it as ONE release. I have not re-argued any of them.
+Where I name a consequence one of them produces, it is flagged as a consequence,
+not as an objection.
+
+================================================================================
+2. VERDICT
+================================================================================
+SOUND WITH NAMED CORRECTIONS. Two blocking findings, eight further, three
+preferences kept explicitly separate from defects.
+
+The access model itself is correct and I would not change any of its decisions.
+D1's tier x operation rule, D3's Option A, D4's curation/creation split, D5's
+resolve-then-create and D7's proxy all hold up. The defects are in coverage and
+execution detail.
+
+BLOCKING BEFORE THE DATABASE BRIEF:
+  F1  trip_place_activities_map (schema.ts:376-387) is a third junction table the
+      spec never names. Section 3.3 wrongly says trip_activities_map covers both
+      trip and place level. Three consequences: the blocking pre-migration check
+      queries the wrong table set; the ownership remediation misses
+      POST /api/trips/:t/places/:p/activities (places.ts:242-280), which inserts a
+      caller-supplied activity_id with no validation; section 8 has no place-level
+      test. Reproduced.
+  F2  npm run db:generate for this change emits DROP INDEX + ALTER TABLE ADD
+      COLUMN NOT NULL REFERENCES, which CANNOT be applied. Section 9.3's stated
+      reason for hand-writing is also the wrong mechanism. Reproduced.
+
+BEFORE THE BACKEND BRIEF: F3 (containment clause has no NULL-creator branch),
+F4 (rate-limit chokepoint asserted but not built), F5 (unbounded geocode queue),
+F6 (section 8 covers 1 of 4 affected test files), F7 (lazy-seed trigger).
+COO-APPLICABLE: F8, F9, F10.
+
+================================================================================
+3. THE METHOD NOTE THAT IS WORTH KEEPING
+================================================================================
+Both blocking findings came from EXECUTING rather than reading.
+
+F2 in particular: section 9.3's premise ("UNIQUE(name) -> UNIQUE(user_id, name)
+cannot be done with ALTER TABLE, so this is a table recreation") is plausible,
+carefully written, and consistent with SQLite's documented limits. It is still
+wrong for this schema, because the unique is realised as a standalone index.
+Nothing short of running db:generate would have caught it — and the generated
+file then failed to apply at all. Rule worth carrying: WHERE A SPEC ASSERTS WHAT
+A TOOL WILL EMIT, RUN THE TOOL.
+
+Second, smaller: the review target the author named as highest-risk (the section
+3.3 data assumption) was sound, and the target they named as settled-and-safe
+(the migration shape) was where the real error sat — one step upstream of where
+they were looking. Aiming a review at the author's own confidence register is
+useful but not sufficient.
+
+================================================================================
+4. VERIFIED SOUND — DO NOT RE-CHECK
+================================================================================
+- Section 13's headline question: THE S3 MIGRATION DOES PRESERVE id. Not checked
+  arithmetically — I hand-wrote the 12-step recreation following
+  0012_grey_ultimates.sql and executed it against a scratch DB built from the
+  full real migration chain with junction rows present. ids preserved,
+  trip_categories_map intact, PRAGMA foreign_key_check clean, sqlite_sequence
+  carried, child FK clause correctly re-bound after RENAME. Validated SQL is
+  appended to the review document.
+- FK enforcement is ON at runtime (PRAGMA foreign_keys -> 1). Re-verified rather
+  than inherited from CLAUDE.md.
+- FK disabling during migrate works on BOTH transports, so remote Turso is safe:
+  local @libsql/client sqlite3.js:105 issues the pragma BEFORE BEGIN; remote
+  http.js:123 passes disableForeignKeys=true to executeHranaBatch.
+- Section 8's "must NOT change" 403 rows DO survive S3 — requireOwner at
+  admin.ts:105 is router-level middleware, so an unmounted path still 403s a
+  non-owner. Checked specifically because it reads like an omission.
+- Section 3.1's Express fall-through; section 10.1's server-side geocode claim;
+  CreateCitySchema already .strict() so GE-16's coordinate criterion is met;
+  section 3.2's Option B rejection reasoning (SQLite NULLs distinct in a unique
+  index) — all correct.
+- The COO's live-data query logic is sound FOR THE TABLES IT COVERS
+  (trips.userId notNull, users.isOwner notNull), so the trip-level zero is
+  trustworthy. It is not evidence about place-level — that is F1(a).
+
+================================================================================
+5. UNVERIFIED — BLIND SPOTS NAMED
+================================================================================
+- No Turso access from this worktree (firewall; turso-query.mjs is the allowlisted
+  path and I did not have the environment). F1(a) and F3 blast-radius claims are
+  STRUCTURAL, derived from schema and code, not from production counts. Three
+  queries to close it are given verbatim in the review, to be run against BOTH
+  staging and production.
+- Live Nominatim behaviour unobservable (firewall allows GitHub/npm/Anthropic
+  only). F4 and F5's code-level facts are solid — one sleep in one loop private to
+  processQueue, two HTTP requests per resolveCity, no give-up rule — but the
+  operational consequence is inference, not measurement.
+- Section 4.6's ODbL finding deliberately not re-probed; the spec already marks it
+  single-probe and names its own blind spot, and I agree with that self-assessment.
+- Frontend S3 scope (section 11) reviewed only far enough to confirm it is
+  honestly declared as undesigned. It is a scope question for the COO.
+
+================================================================================
+6. PO CONSTRAINT RECEIVED MID-THREAD, AND HOW I REWEIGHTED
+================================================================================
+Both staging and production hold disposable test data; nothing needs preserving.
+Reweighted away from data-preservation and rollback mechanics:
+  - F10 downgraded Medium -> Low. Kept only because the documentation gap costs a
+    paragraph, not because the risk is significant.
+  - F1's data-disposition half downgraded. F1 STAYS BLOCKING on F1(b), the
+    unvalidated write path, which is a permanent hole in the access model rather
+    than a property of today's rows.
+  - The migration self-verification recommendation is retained but re-framed: it
+    is about not silently legitimising a cross-user reference, not about
+    protecting rows.
+One finding got STRONGER under the constraint, and it is the one to carry forward:
+  - F3's NULL-creator hole is NOT a legacy artefact. cities.createdByUserId is
+    ON DELETE SET NULL — deliberately and correctly so — which means every user
+    deletion regenerates NULL creators on data created AFTER this ships. Any of
+    those still pending become invisible to everyone, permanently. The two choices
+    section 4.4 reasons about most carefully combine into a failure its query has
+    no branch for.
+General principle applied throughout: recoverable is not the same as correct, and
+the design ships into a future where the data stops being disposable.
+
+================================================================================
+7. HANDOFF
+================================================================================
+1. COO: F1 and F2 gate the DATABASE brief. F3-F7 gate the BACKEND brief. F8/F9/F10
+   are directly applicable.
+2. COO: run the three live-data queries (review, "What I could not verify") against
+   BOTH environments.
+3. Recommended beyond those queries: make the migration self-verifying with a
+   RAISE(ABORT) cross-user assertion — a point-in-time count cannot cover the window
+   between probe and deploy, since POST/PATCH /api/trips and the place-activities
+   route both accept ids under requireAuth alone. SQL given in the review.
+4. Do NOT merge PR #327 as-is. Do not merge this PR either — COO reviews and merges.
+5. If the COO wants a second opinion on any single finding, F4 is the one I hold
+   most weakly: the code-level facts are certain but the operational conclusion is
+   inference from a network I cannot reach.

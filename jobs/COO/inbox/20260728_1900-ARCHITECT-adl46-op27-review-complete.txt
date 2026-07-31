@@ -1,0 +1,67 @@
+ADL-46 OP-27 FRESH-EYES REVIEW — COMPLETE
+Reviews: PR #327 / chore/adl46-access-model · Issue #326 · BRD SE-01/SE-03/AD-09/GE-16
+Branch: chore/adl46-review · Deliverable: jobs/architect/tech/ADL-46-review.md
+
+VERDICT: sound with named corrections. 2 blocking, 8 further, 3 preferences kept
+separate from defects. The access model itself is correct — I would change none of
+D1/D3/D4/D5/D7. The defects are coverage and execution detail.
+
+BLOCKING BEFORE THE DATABASE BRIEF
+- F1  trip_place_activities_map (schema.ts:376-387) is a THIRD junction table ADL-46
+      never names; §3.3 wrongly says trip_activities_map covers trip AND place level.
+      (a) the blocking pre-migration check — and your live-data query — target the
+      wrong table set; reproduced a false zero on a scratch DB. (b) §9.3's ownership
+      fix misses POST /api/trips/:t/places/:p/activities (places.ts:242-280), which
+      inserts a caller-supplied activity_id unvalidated; DB accepted a cross-user tag
+      post-migration. (c) §8 has no place-level assertion. (b) is why this is blocking.
+- F2  `npm run db:generate` emits DROP INDEX + ALTER TABLE ADD COLUMN NOT NULL
+      REFERENCES, which CANNOT be applied ("Cannot add a NOT NULL column with default
+      value NULL"). §9.3's stated reason for hand-writing is also the wrong mechanism —
+      the unique is a standalone index, not a table constraint. Correct instruction:
+      discard the generated file entirely and hand-write the recreation.
+
+BEFORE THE BACKEND BRIEF
+- F3  §4.4's clause has no NULL-creator branch. Not just legacy: ON DELETE SET NULL
+      regenerates it on future data, so every deleted user's pending cities vanish for
+      everyone, permanently. Fix is one disjunct.
+- F4  D7's "reuse the existing 1.1s limiter" — there is no limiter to reuse (a sleep in
+      processQueue's loop), resolveCity from POST /api/cities is unthrottled, and each
+      call makes two Nominatim requests. Decision still right; the evidence and the
+      resulting "no limiter needed" are not.
+- F5  Opening city creation makes the 15-minute retry queue unbounded — no attempt
+      counter, and the CHECK constraint forbids a terminal state. Nearly free to fix
+      while S4's ALTER TABLE is already open.
+- F6  §8 covers 1 of 4 test files. Also breaking: owner-access.test.ts:129-158,
+      qa-backend-fixes.test.ts:210-297, tests/contract/places.contract.test.ts:318,386.
+- F7  Lazy-seed trigger unspecified; a zero-row trigger breaks AD-09's first success
+      criterion for a user who writes before reading. (Concurrency itself is fine —
+      shadingConfig's onConflictDoNothing covers it and survives the composite index.)
+- F8/F9/F10 COO-applicable: proxy route absent from OP-06 §2.1; CROSS JOIN LIMIT 1
+      picks an arbitrary owner if is_owner=1 count > 1; no revert story (downgraded).
+
+VERIFIED SOUND — do not re-check: §13's headline question. The S3 migration DOES
+preserve id. I hand-wrote and EXECUTED the recreation against a scratch DB from the
+real migration chain — ids preserved, trip_categories_map intact, foreign_key_check
+clean, sqlite_sequence carried. Validated SQL appended to the review. Also verified:
+FK enforcement on at runtime; FK disabling works on BOTH transports so remote Turso is
+safe; §8's must-not-change 403s survive S3 (requireOwner is router-level); §3.1's
+fall-through; §10.1; CreateCitySchema already .strict().
+
+CI: green — no source files changed; docs-only branch. Confirmed via scripts/ci-wait.sh.
+
+YOUR TWO MESSAGES, ANSWERED
+1. Your query logic is sound for the tables it covers (trips.userId notNull,
+   users.isOwner notNull) — the trip-level zero is trustworthy. It is not evidence
+   about place-level; that is F1(a). Three queries to close the gap are given verbatim
+   in the review, to run against BOTH environments.
+2. Zero-today is NOT sufficient, and I do not think a re-count fixes it. Recommend
+   making the migration self-verifying with a RAISE(ABORT) cross-user assertion — SQL
+   in the review. Rows can appear between probe and deploy via three routes gated only
+   by requireAuth.
+3. Disposable-data constraint applied: F10 downgraded, F1's data half downgraded, F1
+   stays blocking on the structural half. F3 got STRONGER — see above.
+
+BLOCKERS: none for me. Do not merge #327 as-is; do not merge this PR either.
+
+UNBLOCKED: nothing until the COO adjudicates. Once F1/F2 are folded into ADL-46 the
+Database brief can be written; F3-F7 gate the Backend brief.
