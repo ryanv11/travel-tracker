@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (61)
+## Open work (62)
 
 ### P0 — Blockers (1)
 
@@ -25,10 +25,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (4)
+### P1 — Critical (5)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
+| BRD-GE16 | Any authenticated user can add a city via constrained find-or-create (GE-16) | backend | ⬜ Pending |
 | BUG-50 | No way to delete an entire trip | frontend | done_pending_uat |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
@@ -104,7 +105,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `███████████▓░░░░░░░░` 29/54 | 29 | 25 | 3 |
+| feature | `███████████▓░░░░░░░░` 29/55 | 29 | 26 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `██████████████░░░░░░` 44/62 | 44 | 18 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
@@ -142,4 +143,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_135 done · 10 deferred · 4 closed · 61 open — 210 tracked items_
+_135 done · 10 deferred · 4 closed · 62 open — 211 tracked items_
