@@ -29,7 +29,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
-| BRD-GE16 | Any authenticated user can add a city via constrained find-or-create (GE-16) | backend | ⬜ Pending |
+| BRD-GE16 | Any authenticated user can add a city via constrained find-or-create (GE-16) | backend | 🔄 In progress |
 | BUG-50 | No way to delete an entire trip | frontend | done_pending_uat |
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
