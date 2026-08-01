@@ -117,9 +117,19 @@ function serializeCity(row: {
  *            different city — specialising it prevents the duplicate that naively
  *            adding `AND COALESCE(region_id,0)=…` would create (the BUG-33 class).
  *
- * The reverse ambiguity (no region requested, ≥2 same-name rows exist) is left to
- * the caller: it falls through to null here and the caller creates a 'pending'
- * row rather than guessing which region the user meant (§4.2.1 / D14).
+ *   Step 2b (reverse, NO region requested) — collapse to (name, country_code)
+ *            regardless of region. This is the "today's behaviour" case the old
+ *            `(name, country_code)` unique index enforced, which §4.2.1 requires
+ *            we preserve:
+ *              • exactly ONE row matches → return it (single-match, NO regression);
+ *              • TWO OR MORE match → return null; the caller creates a 'pending'
+ *                row and leaves D14 disambiguation to the frontend, rather than
+ *                silently picking one (§4.2.1 / D14, QA B4).
+ *            Without this, a region-tier country holding exactly one *regioned*
+ *            match (e.g. only "Springfield, IL") would miss step 1 (its
+ *            COALESCE(region_id,0) ≠ 0), skip step 2 (no region requested), and
+ *            the caller would INSERT a second, region-less duplicate — the BUG-33
+ *            class arriving through the reverse door.
  */
 async function findOrUpgradeCity(
   db: ReturnType<typeof getDb>,
@@ -165,7 +175,21 @@ async function findOrUpgradeCity(
         .returning();
       return upgraded[0];
     }
+    // Has-region path ends here: step 1 + step 2 are authoritative for a
+    // region-bearing request. Do NOT fall through to the reverse branch below.
+    return null;
   }
+
+  // Step 2b — reverse single-match (only when NO region was requested). Match on
+  // (name, country_code) regardless of region; exactly one → return it (the
+  // no-regression case §4.2.1 mandates), two or more → null (ambiguous → caller
+  // creates pending, D14 disambiguates).
+  const sameName = await db
+    .select()
+    .from(cities)
+    .where(and(eq(cities.countryCode, countryCode), sql`${cities.name} = ${name} COLLATE NOCASE`))
+    .limit(2);
+  if (sameName.length === 1) return sameName[0];
 
   return null;
 }
