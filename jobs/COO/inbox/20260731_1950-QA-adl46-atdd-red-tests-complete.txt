@@ -1,0 +1,75 @@
+QA COMPLETION REPORT — ADL-46 ATDD trial (RED acceptance tests)
+
+Tracker: BUG-63 / ADL-46 / open-dialogues D-17 (ATDD trial)
+GitHub PR: #<see gh pr create output below> — targets release/adl46-access-model (NOT main)
+BRD: ADL-46 §7/§8/§4.2.1/§4.4 (SE-01/SE-03/AD-09/GE-16)
+Branch: test/adl46-atdd
+
+WHAT WAS TESTED
+  Authored independent RED acceptance tests against the ADL-46 spec, before
+  the Backend stage implements it. New file
+  src/backend/routes/__tests__/adl46-access-model.test.ts, 32 assertions
+  across three groups (access matrix / D13 find-or-create / GE-16
+  containment), plus a one-line unskip of the §8.1 coverage-hole regression
+  in security.access-matrix.test.ts. No production code touched.
+
+PASS/FAIL PER GROUP (counts = new assertions; "already-green" = deliberate
+regression guards/anchors, not misses — see tech/ doc for the full table)
+  Group A (access matrix, 12): 8 red-for-the-right-reason, 4 already-green
+  Group B (D13 find-or-create, 6): 4 red-for-the-right-reason, 2 already-green
+  Group C (GE-16 containment, 6 incl. 1 bonus): 2 red-for-the-right-reason, 4 already-green
+
+  Total: 14/32 red-for-the-right-reason (clean assertion mismatches, zero
+  exceptions, zero DB errors — confirmed not blocked by the DB-stage
+  breakage). 0 blocked. Full suite baseline: 34 pre-existing DB-stage
+  failures (trips.test.ts, lock-matrix.test.ts, owner-access.test.ts,
+  qa-backend-fixes.test.ts) untouched, not mine.
+
+JUDGEMENT CALLS FLAGGED (ATDD trial ask)
+  1. Group B tests run as OWNER not non-owner — isolates D13's find-or-create
+     correctness from D4's access-model change, since POST /api/cities is
+     still requireOwner on this branch and a non-owner would fail at the
+     auth gate before reaching the logic under test. B6 is the explicit
+     non-owner exception per ADL-46 §8 row 4.
+  2. B4 (ambiguous no-region, two existing regioned rows) — ADL-46 states
+     this case has "no safe automatic answer" and defers the mechanism to
+     D14, without committing to a status code/response shape at this
+     route's contract level. Encoded only the two invariants the spec text
+     commits to (no silent pick, no duplicate) rather than presuming one.
+  3. The §8-row-6/OP-27-P2 test (non-owner POST hits another user's pending
+     row) isn't in the brief's explicit bullet list; added to Group C as a
+     labeled bonus since it sits at the find-or-create/containment seam.
+
+BUG FOUND: spec gap in ADL-46's own change inventory (severity: process, not
+a code defect)
+  owner-access.test.ts's HC-06 block (lines 168-190: "POST /api/cities → 403
+  for non-owner" / "→ 201 for owner") directly contradicts the ADL-46 D4 end
+  state, and is NOT in ADL-46 §8.2's list of what breaks in that file — §8.2
+  only credits the file's HC-04/categories block. Same file §8.2 already
+  lists, incomplete inventory of what breaks within it. Verified via the
+  same grep §8.2 itself describes running. Not fixed by me (out of scope,
+  "don't touch existing assertions" + it's genuinely Backend's edit to make
+  under §8's authority-transfer framing) — flagging so the S1 Backend brief
+  inherits a complete list and doesn't hit an unauthorised red check
+  (OP-30 precedent: an implementation agent facing a red security test its
+  brief didn't authorise it to touch). Full writeup:
+  jobs/qa/tech/20260731-adl46-atdd-red-tests.md
+
+CI
+  npm run check            → clean
+  npm run type:check:all   → 20 pre-existing errors, zero new from my changes
+  npm run test:backend     → 48 failed / 586 passed; 14 mine (by design), 34
+                              pre-existing (not mine, not fixed, per brief)
+  npm run test:frontend    → 228/228 passed, untouched
+  npm run status:check     → up to date
+  gh pr checks: red CI on this PR is expected and is the acceptance
+  criterion for the trial, not a defect — confirm via scripts/ci-wait.sh once
+  the PR is open; do not chase these red per the brief.
+
+OPEN ISSUES / BLOCKERS
+  None for this thread. For the next stage: Backend inherits this test file
+  plus the §8.2 file list PLUS the owner-access.test.ts HC-06 gap above as
+  its definition-of-done.
+
+Full detail: jobs/qa/tech/20260731-adl46-atdd-red-tests.md
+Park doc: jobs/qa/park-docs/20260731-QA-park.txt
