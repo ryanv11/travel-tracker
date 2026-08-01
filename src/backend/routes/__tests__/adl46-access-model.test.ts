@@ -796,8 +796,16 @@ describe('BUG-72 — GET /api/cities region enrichment', () => {
     expect(res.body).toHaveLength(2);
     expect(res.body).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'Springville', region_name: 'Illinois', region_iso: 'US-IL' }),
-        expect.objectContaining({ name: 'Springville Heights', region_name: null, region_iso: null }),
+        expect.objectContaining({
+          name: 'Springville',
+          region_name: 'Illinois',
+          region_iso: 'US-IL',
+        }),
+        expect.objectContaining({
+          name: 'Springville Heights',
+          region_name: null,
+          region_iso: null,
+        }),
       ]),
     );
   });
