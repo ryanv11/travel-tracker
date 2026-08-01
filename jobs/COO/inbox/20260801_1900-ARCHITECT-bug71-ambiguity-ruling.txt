@@ -2,7 +2,7 @@ TO: COO
 FROM: Architect
 RE: BUG-71 (P1) — ruling on the ambiguity-discriminator mechanism
 
-Tracker: BUG-71 · GitHub issue: NONE EXISTS YET (see blockers) · PR: #353
+Tracker: BUG-71 · GitHub issue: NONE EXISTS YET (see blockers) · PR: #355
 BRD: GE-16 (violated) · GE-15 (needs amendment) · Branch: chore/bug71-ambiguity-ruling
 Deliverable: jobs/architect/tech/20260801-BUG71-discovery-ambiguity-ruling.md
 
@@ -46,7 +46,7 @@ Option (c)/D-19 does NOT cost additional requests — countrycodes takes a comma
 and nominatimSearch passes params verbatim. The reason to defer it is behavioural, not
 egress. Worth fixing in D-19's entry.
 
-CI: PR #353 green (docs-only change; scripts/ci-wait.sh pr 353 passed).
+CI: PR #355 green (docs-only change; scripts/ci-wait.sh pr 355 passed).
 
 UNBLOCKED
 Backend brief is dispatchable now — §4 specifies the algorithm, §9 the test obligations
