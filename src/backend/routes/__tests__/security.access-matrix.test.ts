@@ -450,11 +450,15 @@ describe('Part B — Non-owner authenticated user receives 403 on owner-only rou
     expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
 
-  // PATCH /api/cities/:id — BUG-22 (GitHub issue #91) is being fixed concurrently.
-  // requireOwner is missing on PATCH /api/cities/:id in current main.
-  // This test is skipped until fix/bug22-cities-patch-owner is merged.
-  // Once BUG-22 merges, remove the .skip and the test should pass (returns 403).
-  it.skip('PATCH /api/cities/1 → 403 (BUG-22: requireOwner missing on PATCH /api/cities/:id — unskip after BUG-22 merge)', async () => {
+  // PATCH /api/cities/:id — BUG-22 (GitHub issue #91) merged and the requireOwner
+  // guard has been present ever since (src/backend/routes/cities.ts:225), but this
+  // assertion stayed skipped and unrun the whole time (ADL-46 §8.1 — a live
+  // security-coverage hole found en route to the ADL-46 spec, not introduced by
+  // it). Unskipped here as part of the ADL-46 QA ATDD pass: city curation staying
+  // owner-only is the premise D4 relies on to make city CREATION safe to open to
+  // non-owners, so the one assertion protecting that premise should not be the
+  // one silently switched off.
+  it('PATCH /api/cities/1 → 403 (ADL-46 §8.1: unskipped — coverage hole, guard already present)', async () => {
     const res = await supertest(app).patch('/api/cities/1').send({ region_id: null });
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'Forbidden' });
