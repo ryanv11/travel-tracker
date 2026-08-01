@@ -1,0 +1,60 @@
+BUG-73 · GitHub #352 / PR #354 · BRD §GE-15, §GE-16 · Branch fix/bug73-geocode-failure-visible
+
+WHAT WAS BUILT
+GET /api/geocode bypassed React Query entirely (lookupCityCountry is a plain
+async function), so the QueryClient's retry:3 default never applied to it —
+a transient failure rendered identically to "found nothing" and "never ran"
+(no signal at all). Added an explicit retry (3 attempts, 250ms backoff)
+inside lookupCityCountry itself, and a `failed: boolean` discriminator on
+its resolved value so retries-exhausted is now distinguishable from a
+genuine no-match. AddPlaceFlow shows a non-blocking failure banner with a
+manual Retry action once retries are exhausted; manual entry stays fully
+usable throughout.
+
+ACCEPTANCE CRITERIA
+1. Transient failure retried before any error shown — PASS
+2. Test proves retry actually happens (2 failures then success → populated
+   result) — PASS
+3. Non-blocking visible failure message once retries exhausted — PASS
+4. Manual-entry fallback works in every failure case — PASS
+5. Three outcomes distinguishable; found-nothing never renders as failure — PASS
+6. Failure state clears on a subsequent successful lookup (Retry action) — PASS
+7. test:frontend green, type:check:all clean, biome clean — PASS
+
+CI: gh pr checks 354 — 18/18 green (scripts/ci-wait.sh pr 354 confirmed PASS)
+
+MECHANISM CHOSEN: retry inside the existing plain function (not useMutation
+or useQuery+enabled). Reasoning in the PR description and park doc — smallest
+blast radius, keeps lookupCityCountry's call site/never-throws contract
+unchanged, and avoids restructuring AddPlaceFlow.tsx or its D14 test mock
+while BUG-71 is in flight on the same file/component.
+
+BOUNDARIES RESPECTED
+- AddPlaceFlow.tsx:250-263 (D14 ambiguity computation) + setAutoRegionIso:
+  verified byte-for-byte unchanged via `git diff origin/main` — the block
+  does not appear in the diff at all, only lines above/below it were added.
+- City search dropdown label (BUG-72): untouched.
+- No backend files touched.
+
+DECLARED SOURCE CHANGES
+- src/frontend/hooks/useCities.ts: lookupCityCountry's return type gained a
+  `failed` field and its implementation now retries internally — a scoped
+  behavior change to an existing exported function (not a full-file
+  rewrite), required directly by the brief's success criterion 5
+  (distinguishability). Existing tests updated to match; the pre-existing
+  "silent-failure contract" test now documents the retries-exhausted case
+  instead of a single-attempt failure.
+- No full-file rewrites of any source file.
+
+OPEN ISSUES / BLOCKERS
+None. One non-blocking note for later: the 250ms×3 backoff is untuned
+against real Nominatim/proxy latency (this devcontainer can't reach either
+to observe it) — constants are isolated at the top of useCities.ts if a
+tune is ever needed.
+
+WHAT'S NOW UNBLOCKED
+BUG-73 closed pending merge. A transient geocode failure now self-heals
+silently in the common case and is visible + recoverable in the remainder.
+No other in-flight thread depends on this; BUG-71/BUG-72 unaffected.
+
+Full detail: jobs/frontend/park-docs/20260801-FRONTEND-bug73-geocode-retry-park.txt

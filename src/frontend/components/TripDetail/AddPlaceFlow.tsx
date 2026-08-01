@@ -71,6 +71,12 @@ export function AddPlaceFlow({
   // guessed for. null means "no ambiguity — show the full country region list".
   const [candidateRegionIsos, setCandidateRegionIsos] = useState<string[] | null>(null);
   const [countryLookupPending, setCountryLookupPending] = useState(false);
+  // BUG-73: true only when the geocode lookup exhausted its retries without a
+  // successful response — distinct from a successful lookup that legitimately
+  // found nothing (which leaves this false and the country field simply
+  // unpopulated, same as before). Never blocks the form; manual entry stays
+  // available in every case (GE-15/GE-16 contract).
+  const [geocodeLookupFailed, setGeocodeLookupFailed] = useState(false);
   const [addedPlaceId, setAddedPlaceId] = useState<number | null>(null);
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
   const [showCarryForward, setShowCarryForward] = useState(false);
@@ -236,10 +242,19 @@ export function AddPlaceFlow({
     setNewCityRegionId(null);
     setAutoRegionIso(null);
     setCandidateRegionIsos(null);
+    setGeocodeLookupFailed(false);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
       lookupCityCountry(cityName.trim())
-        .then(({ countryCode, regionIso, candidates }) => {
+        .then(({ countryCode, regionIso, candidates, failed }) => {
+          // BUG-73: a failed lookup (retries exhausted) never reaches the D14
+          // disambiguation logic below — there's no country/candidates to
+          // reason about, and this is the surfaced-to-the-user failure state.
+          if (failed) {
+            setGeocodeLookupFailed(true);
+            setCountryLookupPending(false);
+            return;
+          }
           if (countryCode) setNewCityCountryCode(countryCode);
 
           // D14: collect the distinct region_iso values among candidates that
@@ -265,7 +280,14 @@ export function AddPlaceFlow({
           }
           setCountryLookupPending(false);
         })
-        .catch(() => setCountryLookupPending(false));
+        // BUG-73: lookupCityCountry resolves rather than throws on a failed
+        // lookup (see its doc comment) — this catch is a defensive fallback
+        // for an unexpected rejection, kept consistent with the same failure
+        // state so an unforeseen throw doesn't regress to the old silent gap.
+        .catch(() => {
+          setGeocodeLookupFailed(true);
+          setCountryLookupPending(false);
+        });
     }
   };
 
@@ -450,6 +472,22 @@ export function AddPlaceFlow({
                   </option>
                 ))}
               </select>
+              {/* BUG-73: non-blocking, visible failure state — retries are
+                  already exhausted by the time this renders (lookupCityCountry
+                  handles retry internally). The form stays fully usable;
+                  country/region can still be picked manually below. */}
+              {geocodeLookupFailed && (
+                <div className="mt-2 px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs flex items-center justify-between gap-2">
+                  <span>Automatic lookup failed — you can select country and region manually.</span>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenNewCityForm(newCityName)}
+                    className="shrink-0 text-teal-700 font-semibold underline hover:text-teal-800 cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Region dropdown — shown only when country has region_tier_enabled */}

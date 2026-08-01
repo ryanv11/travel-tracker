@@ -19,6 +19,42 @@ import type { RatingSortOrder } from './useItems';
 // ============================================================
 
 /**
+ * BUG-73: `retry: 3` on the QueryClient (main.tsx) governs `useQuery` hooks
+ * only — this call is a plain async function, not a query, so it inherits
+ * none of that policy. Retry has to be implemented explicitly here. Same
+ * attempt count as the query default (3 retries → 4 total attempts); a short
+ * fixed backoff is used rather than the query default's exponential curve
+ * (up to ~7s across 3 retries) because this blocks a foreground modal's
+ * auto-populate state, not a background refetch.
+ */
+const GEOCODE_RETRY_ATTEMPTS = 3;
+const GEOCODE_RETRY_DELAY_MS = 250;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Calls GET /api/geocode, retrying transient failures up to
+ * GEOCODE_RETRY_ATTEMPTS times before rethrowing the last error.
+ */
+async function fetchGeocodeResultWithRetry(cityName: string): Promise<GeocodeResult> {
+  const params = new URLSearchParams({ q: cityName });
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= GEOCODE_RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await apiGet<GeocodeResult>(`/api/geocode?${params}`);
+    } catch (err) {
+      lastError = err;
+      if (attempt < GEOCODE_RETRY_ATTEMPTS) {
+        await delay(GEOCODE_RETRY_DELAY_MS);
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Looks up a city name via the backend geocode proxy (GET /api/geocode) and
  * returns the top candidate's ISO 3166-1 alpha-2 country code and ISO 3166-2
  * subdivision code, plus the full candidate list for D14 ambiguity handling.
@@ -30,29 +66,37 @@ import type { RatingSortOrder } from './useItems';
  * identifying UA Nominatim's usage policy requires. The proxy owns egress now.
  *
  * Used by AddPlaceFlow to auto-populate the country and region fields (GE-15, UX-04).
- * Fire-and-forget style — errors are silently swallowed (same contract as
- * before the D7 repoint) so the user can still select the country/region
- * manually if lookup fails.
+ * BUG-73: a transient failure is retried (see fetchGeocodeResultWithRetry)
+ * before being reported. This function itself still never throws — the
+ * caller keeps its manual-entry fallback with no try/catch required — but
+ * unlike the pre-BUG-73 contract, a lookup that fails after retries are
+ * exhausted is now distinguishable from one that succeeded and legitimately
+ * found nothing: `failed: true` vs `failed: false` with null fields. Callers
+ * that only care about "did it resolve" can keep ignoring `failed`; the
+ * caller that needs to be honest with the user in AddPlaceFlow.tsx now checks it.
  *
  * @param cityName - The city name to look up.
  * @returns Upper-cased country code (e.g. "FR"), region ISO (e.g. "US-CA"),
- *   both nullable, and the full candidate list (empty on any failure).
+ *   both nullable, the full candidate list (empty on any failure), and
+ *   `failed` — true only when retries were exhausted without a successful
+ *   response (never true for a successful "no match" response).
  */
 export async function lookupCityCountry(cityName: string): Promise<{
   countryCode: string | null;
   regionIso: string | null;
   candidates: GeocodeCandidate[];
+  failed: boolean;
 }> {
   try {
-    const params = new URLSearchParams({ q: cityName });
-    const result = await apiGet<GeocodeResult>(`/api/geocode?${params}`);
+    const result = await fetchGeocodeResultWithRetry(cityName);
     return {
       countryCode: result.country_code?.toUpperCase() ?? null,
       regionIso: result.region_iso ?? null,
       candidates: result.candidates,
+      failed: false,
     };
   } catch {
-    return { countryCode: null, regionIso: null, candidates: [] };
+    return { countryCode: null, regionIso: null, candidates: [], failed: true };
   }
 }
 
