@@ -1,7 +1,7 @@
 BACKEND COMPLETION REPORT
 
 Tracker: BUG-72 (P2) · GitHub issue #351 · BRD GE-16 · Branch: fix/bug72-city-search-region
-PR: (to be filled after `gh pr create` — see below)
+PR: #353
 
 WHAT WAS BUILT
 GET /api/cities now LEFT JOINs `regions` and returns `region_name` /
@@ -33,8 +33,7 @@ SECURITY CHECKLIST (route modified)
    park doc.
 3. No new user-referencing FK columns — no schema change in this brief.
 
-CI: PR not yet opened — opening now, will run scripts/ci-wait.sh and report
-back before considering the thread done.
+CI: PASS — 18/18 checks green on PR #353 (scripts/ci-wait.sh pr 353).
 
 DECLARED FULL-FILE REWRITES: none — all edits, no source file replaced.
 
