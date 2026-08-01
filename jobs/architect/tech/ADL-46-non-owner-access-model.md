@@ -1396,6 +1396,18 @@ change" rows (`GET/POST/PATCH/DELETE /api/admin/categories → 403`) **do** surv
 sub-router mounts at `:232-233` are removed, a non-owner still reaches `requireOwner` and still gets
 403. An *owner* gets 404. Leaving those assertions alone is correct.
 
+> **AMENDED (2026-07-31) — ATDD trial (D-17) caught an incomplete inventory in this section.** The
+> QA-first red-test run found a **fourth** breaking block this table missed: `owner-access.test.ts`'s
+> **HC-06** block (`POST /api/cities → 403 for non-owner` / `→ 201 for owner`, ~`:168-190`) directly
+> contradicts D4's end state and breaks at **S1**, not S3 — S1 drops `requireOwner` from
+> `POST /api/cities`, so the `→ 403 for non-owner` assertion must become `→ 201`. This row is the
+> `owner-access.test.ts` **cities** block; the table above inventories only that file's
+> **categories/activities** block (`:129,137` / `:147,155`). Verified by the same route-string grep §8.2
+> itself prescribes. **The Backend brief must carry this** so the S1 implementer changes it under this
+> spec's authority rather than hitting an unauthorised red security check mid-task (OP-30). Intended:
+> non-owner → 201, owner → 201, both on `POST /api/cities`; the BUG-33 find-or-create block below HC-06
+> is unchanged.
+
 ### 8.1 A stale skip found en route — in scope, and it is a live security-coverage hole
 
 Line 457 skips `PATCH /api/cities/1 → 403` with a comment saying `requireOwner` "is missing on
