@@ -208,3 +208,111 @@ describe('AddPlaceFlow — ADL-46 D14 region selector narrowing', () => {
     expect(screen.queryByRole('option', { name: 'Texas' })).not.toBeInTheDocument();
   });
 });
+
+/**
+ * ADL-46 F1/F2 ruling (2026-08-01) §2.2/§4 — frontend/backend parity contract.
+ *
+ * The ruling states this is byte-for-byte the same rule the backend's
+ * classifyCandidates step 4 computes (distinct non-null region_iso among
+ * same-country candidates, ambiguous when > 1) — "any future change to step 4
+ * changes both sides or neither." These tests reuse the same fixture shapes as
+ * the backend's classifyCandidates table-driven tests
+ * (geocoding.service.test.ts) so a divergence between the two shows up here.
+ *
+ * The requested-region case (backend classifyCandidates step 3) has no
+ * frontend counterpart by design — the frontend has no selected region yet at
+ * lookup time, per the ruling — so only step 4 (no region requested) is
+ * exercised here.
+ */
+describe('AddPlaceFlow — ADL-46 F1/F2 parity: distinct-region computation matches classifyCandidates step 4', () => {
+  beforeEach(() => {
+    mockLookupCityCountry.mockReset();
+  });
+
+  it('REGRESSION FIXTURE PARITY: two candidates sharing ONE region are NOT flagged ambiguous (matches backend classifyCandidates ok verdict)', async () => {
+    // Same shape as geocoding.service.test.ts's §4.1 regression fixture: two
+    // Nominatim hits for one city at different granularities, one region.
+    countryRegionsFixture = [
+      ...seededRegionsNoOverlap,
+      {
+        id: 5,
+        country_code: 'US',
+        name: 'Colorado',
+        iso_3166_2: 'US-CO',
+        created_at: '',
+        updated_at: '',
+      },
+    ];
+    mockLookupCityCountry.mockResolvedValue({
+      countryCode: 'US',
+      regionIso: 'US-CO',
+      candidates: [
+        {
+          name: 'Denver',
+          display_name: 'Denver, Colorado, USA',
+          country_code: 'US',
+          region_iso: 'US-CO',
+          latitude: 39.74,
+          longitude: -104.98,
+        },
+        {
+          name: 'Denver',
+          display_name: 'Denver County, Colorado, USA',
+          country_code: 'US',
+          region_iso: 'US-CO',
+          latitude: 39.74,
+          longitude: -104.98,
+        },
+      ],
+    });
+    const user = userEvent.setup();
+
+    render(
+      <AddPlaceFlow
+        tripId={1}
+        onClose={vi.fn()}
+        tripStartDate="2026-01-01"
+        tripEndDate="2026-01-10"
+        isFirstPlace={false}
+      />,
+    );
+
+    await openNewCityForm(user, 'Denver');
+
+    // Auto-selection ran (proves the ambiguous branch was NOT taken) — the
+    // region <select> shows Colorado selected, not the "no selection" state.
+    await waitFor(() => {
+      const regionSelect = screen
+        .getByRole('option', { name: 'Colorado' })
+        .closest('select') as HTMLSelectElement;
+      expect(regionSelect.value).not.toBe('');
+    });
+    expect(screen.queryByText(/multiple matches found, please choose/i)).not.toBeInTheDocument();
+  });
+
+  it('two distinct regions with no seeded overlap still surface the ambiguous hint (matches backend multi-region verdict)', async () => {
+    countryRegionsFixture = seededRegionsNoOverlap;
+    mockLookupCityCountry.mockResolvedValue({
+      countryCode: 'US',
+      regionIso: 'US-IL',
+      candidates: springfieldCandidates(),
+    });
+    const user = userEvent.setup();
+
+    render(
+      <AddPlaceFlow
+        tripId={1}
+        onClose={vi.fn()}
+        tripStartDate="2026-01-01"
+        tripEndDate="2026-01-10"
+        isFirstPlace={false}
+      />,
+    );
+
+    await openNewCityForm(user, 'Springfield');
+
+    await waitFor(() => {
+      expect(screen.getByText(/multiple matches found, please choose/i)).toBeInTheDocument();
+    });
+  });
+});
