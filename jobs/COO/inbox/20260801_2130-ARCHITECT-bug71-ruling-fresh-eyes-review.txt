@@ -1,0 +1,78 @@
+TO: COO
+FROM: Architect (fresh dispatch — OP-27 review; no authorship of the ruling)
+DATE: 2026-08-01
+RE: BUG-71 ruling — fresh-eyes review complete
+
+Tracker: BUG-71 (P1) · related BUG-73, D-19, QUAL-21/22, UX-12, ENV-01
+Reviewed: jobs/architect/tech/20260801-BUG71-discovery-ambiguity-ruling.md (3881d6b, PR #355)
+Against:  main @ 375ca16 — AFTER BUG-72 #353 and BUG-73 #354 (ruling was written @ a398d10)
+BRD:      GE-15, GE-16 · Branch: chore/bug71-ruling-review · Review doc:
+          jobs/architect/tech/20260801-BUG71-ruling-fresh-eyes-review.md
+
+VERDICT: SHIP WITH CORRECTIONS — corrections land BEFORE the Backend brief is dispatched.
+DiscoveryConfidence is a wire contract; adding a state after implementation is a second
+breaking change to a surface with one consumer and no route-level test.
+
+The direction is right (B6 backend classifier, B4 reject two-phase, B9 leave the
+resolution path alone). The OUTPUT SHAPE is wrong. Three HIGH findings, ONE fix.
+
+THE FIX: make the confidence enum three-valued — 'confirmed' | 'suggested' | 'ambiguous'
+| 'none', not confirmed-or-null. Incomplete-but-UNDIVIDED evidence FILLS the field with a
+visible "Suggested: X" chip instead of blanking it. Does NOT reintroduce BUG-71 (Springfield's
+region set is divided, so it stays blank). Costs one enum member.
+
+PER-FINDING VERDICT
+ F1 HIGH  BLOCKS. B1 contradicts the MERGED UX spec §3.2/§10 ("a tier-3 fallback guess is
+          visibly marked as a suggestion"), kept in MVP by UX §12.2 item 3. The ruling's §10
+          says it "adopts, does not re-specify" the UX spec — it read §3.3 and not §3.2.
+          The §7.3 Frontend brief is self-contradictory as written. Lifecycle stamp owed.
+ F2 HIGH  BLOCKS. Truncation vetoes the COUNTRY too, on a raw count inflated by streets/POIs
+          — withhold rate tracks OSM noise, not ambiguity. Denver/Paris/London plausibly go
+          blank where they auto-fill correctly today. 10->40 is the ceiling of the wrong lever.
+ F3 HIGH  BLOCKS. §3.2's "can only fail toward a right answer… without knowing a single fact
+          about the live payload" is false both halves: it excludes "no answer" from failure
+          by fiat, and rests on ONE unprobeable Nominatim behaviour. If dedupe can return 6
+          rows at limit=40, truncated=false and it auto-fills Virginia — BUG-71 through the fix.
+ F4 MED   Nominatim outage collapses to the same verdict as a no-match. BUG-73 covers the
+          browser<->backend hop only, not backend<->Nominatim. Pre-existing; the ruling makes
+          it visible and mislabelled. Fix: confidence.lookup, routed into BUG-73's banner.
+ F5 MED   §4.2 step 4 yields country:'none' + region:'ambiguous' + regionOptions:[] — renders
+          "Multiple matches — choose one" over nothing. §9.1's test table encodes it as correct.
+ F6 MED   §6.2's D-19 "passes through the parameter that exists" is FALSE — zCountryCode is
+          .length(2), and the param is singular where classifyCandidates already has
+          PermittedCountries. Egress half of the correction IS right.
+ F7 MED   §7.3's sketch is pre-BUG-73 and would DELETE the `failed` early-return. §7.4's
+          "do not run in parallel" is MOOT (#354 merged, cleanly, avoiding the D14 branch).
+          §7.1's conclusion SURVIVES — re-traced on current main.
+ F8 LOW   §3.3 says "narrowed"; reason (ii) was FALSIFIED and re-founded on §5's cost argument.
+          The stamps themselves are correct and lifecycle-compliant. Narrowing not reversing
+          IS the right call.
+ F9 LOW   B2's "directly observable" overclaims a heuristic. Implementability VERIFIED where
+          §4.1 says. Keep the test, restate the claim.
+ F10 LOW  0.909 req/s and +33-50% both CORRECT on re-derivation. "minimum 1.1s" -> "up to 1.1s".
+ P1-P4   Preferences, non-blocking: classifyDiscovery signature; featuretype=settlement;
+          run the staging probe FIRST; JSON.stringify q in the [GEO] log line.
+
+BRD: existing-ID GE-15 amendment is the right instrument, no new ID — AGREED. But it is a
+FOUR-document reconciliation (GE-15, GE-16, UX §3.2, the ruling), not two, and under
+three-valued output the amendment gets SMALLER. §8's "Backend brief not blocked; the UAT
+VERDICT is" — endorsed without qualification.
+
+SEQUENCING ASK: the §9.5 staging [GEO] probe is scheduled after the fix, yet the ruling says
+that one line answers every §11 unknown. Ship it first as a ~5-line zero-behaviour PR, read
+raw/limit/truncated for a dozen real names, THEN set DISCOVERY_LIMIT and the truncation policy.
+Same discipline as OP-32's shakedown rule.
+
+CI: no source files changed — documentation only. PR opened against main; ci-wait green.
+
+BLOCKERS: none for me. For the Backend brief: F1, F2, F3 (all one change). For the Frontend
+brief: F1 and F7.
+
+UNVERIFIED (ENV-01, the same blind spot that let BUG-71 ship): all candidate-volume and
+truncation-frequency claims; limit=40 as the max; dedupe-vs-limit ordering (load-bearing);
+featureType/layer support; countrycodes comma-list acceptance server-side. Each marked in the
+deliverable with the probe I would run and its blind spot. No browser driven, no suite executed.
+
+NOW UNBLOCKED: the Backend brief, once the COO adjudicates F1-F3 (the ruling's author is not
+in-thread; per OP-28 I did not edit the ruling). The Frontend brief needs F1 resolved first —
+today the ruling and the UX spec instruct opposite behaviour on the same control.

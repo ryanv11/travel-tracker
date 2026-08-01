@@ -987,3 +987,90 @@ ALSO FOUND: there is NO backend test for GET /api/geocode (two probes — repo-w
   for *geocode* finds nothing under src/backend/**/__tests__). BUG-71 is the third defect to
   ship through the QUAL-21 class. QUAL-22 is directly aggravated — NominatimSearchResult
   gains `truncated`, so every stale geocoding mock is now stale in a second way.
+
+================================================================================
+2026-08-01 — ARCHITECT (fresh dispatch) — OP-27 FRESH-EYES REVIEW of the BUG-71 ruling
+Branch: chore/bug71-ruling-review · Deliverable:
+  jobs/architect/tech/20260801-BUG71-ruling-fresh-eyes-review.md
+Reviewed against main @ 375ca16 (i.e. AFTER BUG-72 #353 and BUG-73 #354; the ruling was
+written against a398d10). I did not author the ruling and did not edit it (OP-28).
+
+VERDICT: SHIP WITH CORRECTIONS — corrections must land BEFORE the Backend brief is
+dispatched, because they change DiscoveryConfidence, which is a wire contract.
+
+The ruling's direction is right: move the discovery ambiguity decision out of a React
+component into the backend (B6), reject two-phase (B4), leave the resolution path alone
+(B9 — its "refusing to guess is free where there is a control to ask through, expensive
+where there is not" asymmetry is the strongest reasoning in the document). The OUTPUT
+SHAPE is what is wrong.
+
+THREE HIGH FINDINGS, all fixed by ONE change (make the confidence enum three-valued —
+add 'suggested' between 'confirmed' and 'ambiguous'):
+  F1 The ruling's "confirmed or null" CONTRADICTS the merged UX spec §3.2/§10, whose
+     stated success criterion is that a tier-3 fallback country guess is "visibly marked
+     as a suggestion" — and UX §12.2 item 3 keeps it explicitly IN MVP scope. The
+     ruling's own §10 table claims it "adopts, does not re-specify" the UX spec; it
+     defers to §3.3 (region) and never reads §3.2 (country). Lifecycle rule 2 stamp on
+     the UX spec is also outstanding. This makes the §7.3 Frontend brief self-
+     contradictory as written.
+  F2 `truncated` vetoes the COUNTRY as well as the region, and truncation is measured on
+     a RAW page that counts streets/POIs/hotels — so the withhold rate is driven by OSM
+     noise density, not by name ambiguity. Categories worked through in §3.1 of the
+     review: Denver / Paris / London plausibly go blank where they auto-fill correctly
+     today. limit 10→40 moves the threshold and is the CEILING of the wrong lever
+     (frequencies UNVERIFIED, ENV-01; the MECHANISM is verified and is monotonic in name
+     commonality). Better lever, marked UNVERIFIED with a named probe: featuretype=
+     settlement / layer=address on the discovery call only — free, same request.
+  F3 §3.2's "the rule can only fail toward a right answer… without knowing a single fact
+     about the live payload" is FALSE on both halves. It excludes "no answer" from the
+     definition of failure by fiat, and it rests on exactly one unprobeable Nominatim
+     behaviour (that the server returns >= limit rows whenever more exist). If dedupe or
+     an importance cutoff can return 6 rows at limit=40 while the index holds hundreds,
+     truncated=false and the rule auto-fills Virginia — BUG-71 through the fix meant to
+     prevent it.
+
+MEDIUM:
+  F4 status:'error'/'disabled' is collapsed into the same verdict as a genuine no-match,
+     so a Nominatim outage renders "We couldn't confirm this automatically" instead of
+     BUG-73's Retry banner. BUG-73 covers the browser↔backend hop only, NOT the
+     backend↔Nominatim hop — pre-existing, but the ruling makes it user-visible and had
+     the one chance to expose it in `confidence` and didn't.
+  F5 §4.2 step 4 yields country:'none' + region:'ambiguous' + regionOptions:[] for an
+     all-unattributed set, and §7.3's mapping then renders "Multiple matches — choose
+     one" over nothing. §9.1's test table would encode the wrong behaviour as correct.
+  F6 §6.2's "D-19 passes the trip's set through the parameter that exists" is FALSE.
+     zCountryCode is .length(2) (common.ts:34) so a comma list 400s at the route, and
+     requestedCountryCode:string|null is singular where classifyCandidates ALREADY has
+     PermittedCountries = ReadonlySet<string>, introduced 24h earlier for exactly D-19.
+     The param also conflates eligibility with confirmed-by-fiat, which diverge under a
+     multi-country set. The EGRESS half of the correction is verified correct.
+  F7 §7.3's code sketch is pre-BUG-73 and would DELETE the `failed` early-return
+     (:253-257). All §7 line refs ~15 lines stale (they were accurate at a398d10 —
+     verified via git show). §7.4's "BUG-73 open, do not run in parallel" is MOOT: #354
+     merged and its test file deliberately avoids the D14 branch. §7.1's conclusion
+     SURVIVES — re-traced branch by branch on current main.
+
+LOW: F8 §3.3 calls §2.2's reason (ii) "narrowed" when it was FALSIFIED and the
+resolution-path acceptance silently re-founded on §5's cost argument (the stamps
+themselves are well-formed and lifecycle-compliant — only the word is wrong).
+F9 B2's "directly observable" overclaims a heuristic (implementability VERIFIED at
+nominatim-client.ts:136-143; it is still the best available proxy — restate, don't
+redesign). F10 0.909 req/s ceiling and +33-50% are BOTH CORRECT on re-derivation;
+"minimum 1.1s" should be "up to 1.1s" (the wait is 1100 − elapsed).
+
+BRD (§10 of the review): existing-ID GE-15 amendment is the right instrument and no new
+ID is needed — AGREED. But the reconciliation is FOUR documents (GE-15, GE-16, UX §3.2,
+the ruling), not two, and under three-valued output the amendment GETS SMALLER: only the
+genuinely-divided case concedes to GE-16. §8's "the Backend brief is not blocked on this;
+the UAT VERDICT is" is endorsed without qualification.
+
+SEQUENCING (P3): the §9.5 staging [GEO] probe is scheduled AFTER the fix, yet the ruling
+says that one line answers every §11 unknown. Ship the log line first (~5 lines, zero
+behaviour change), read raw/limit/truncated for a dozen real names, THEN set
+DISCOVERY_LIMIT and the truncation policy. Same discipline as OP-32's shakedown rule.
+
+UNVERIFIED (ENV-01 — no live Nominatim; same blind spot that let BUG-71 ship): all
+candidate-volume/truncation-frequency numbers; limit=40 as the max; dedupe-vs-limit
+ordering (the load-bearing one); featureType/layer support; countrycodes comma-list
+acceptance server-side (the code-side pass-through IS verified). No browser driven, no
+suite executed.
