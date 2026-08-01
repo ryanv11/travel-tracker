@@ -520,6 +520,19 @@ arriving through the front door.
    different city — specialising it is correct and prevents the duplicate.
 3. **Insert** only if both miss.
 
+> **AMENDED (2026-08-01) — step 2 gains a predicate.** See
+> `jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md` §3 (ruling R1), raised as **F2** by the OP-27
+> fresh-eyes review of the assembled release. As written above, step 2 lets any authenticated user
+> mutate a **`resolved`, globally-visible** row — or another creator's private one — on a
+> `requireAuth` path, which contradicts §4.4.2's own reasoning and SE-03/GE-16's owner-only
+> curation rule. Step 2 is now restricted to rows where
+> `geocode_status IN ('pending','unresolvable')` **and**
+> `created_by_user_id = <caller> OR created_by_user_id IS NULL`; on a successful upgrade
+> `geocode_attempts` resets to 0 and a `'pending'` row is re-resolved. **Steps 1 and 2b are
+> unchanged and must stay creator- and status-blind** — the unique index is global, so a filtered
+> step 1 would miss and then collide on insert. The duplicate class the restriction admits is
+> bounded at one row and analysed in the ruling §3.2; the text above otherwise stands.
+
 **And the reverse case, which has no safe automatic answer.** If the request carries *no* region
 while two or more rows share that name and country (e.g. Springfield IL and MO both exist), we cannot
 tell which the user means. Returning the first is exactly the silent-wrong-entry failure this whole
@@ -704,6 +717,37 @@ filter to settlement-type results (Nominatim `class=place`, `type` in city/town/
 cutoff is a number nobody can justify and everybody re-tunes. If the Backend brief finds the filter
 leaves common cities ambiguous in practice (e.g. a capital plus its suburbs) it *may* add a dominance
 rule, but **must state it explicitly** rather than leaving it implicit.
+
+> **AMENDED (2026-08-01) — "more than one remaining candidate" is replaced as the discriminator, and
+> D14 is extended to the background path.** See `jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md`
+> §2 (rulings R2/R3/R4), raised as **F1 (HIGH)** by the OP-27 fresh-eyes review of the assembled
+> release. Three things this section left unstated or got wrong:
+>
+> 1. **The count is the wrong discriminator.** Nominatim returns one real city at several
+>    administrative granularities (`city` + `municipality`, both surviving `SETTLEMENT_TYPES`), so
+>    counting hits marks nearly every city ambiguous. **Ambiguous now means the eligible candidates
+>    carry more than one distinct non-null `region_iso`** — the region set, because the region
+>    selector is the control D14 asks through. Country eligibility is expressed as a **set** of
+>    permitted country codes (empty = unconstrained) so the trip-declared-countries follow-on does
+>    not have to unpick it. This is deliberately identical to the rule the frontend already computes
+>    (`AddPlaceFlow.tsx:250-263`); parity between the two sides is a contract, not a coincidence.
+> 2. **This section never said what the *queue* does**, and the implementation resolved the silence
+>    in favour of the pre-existing `candidates[0]` auto-pick (`pickBest`), which undid D14 within
+>    about a second of a user declining to choose. `resolveCity` now runs the **same** classifier —
+>    one function, two callers, `pickBest` deleted — and an ambiguous verdict leaves the row
+>    `pending` with no coordinates, consuming the existing `geocode_attempts` budget so it is
+>    bounded rather than retried forever. It is **never** marked `unresolvable`: GE-16 reserves that
+>    for a geocoder "no match", and it is terminal.
+> 3. **A row that HAS a region and no candidate matching it** must also stay `pending` — resolving
+>    it to a candidate in a different region contradicts GE-16's *"the country and region a user
+>    explicitly selected are never overwritten by the lookup"* with coordinates, even though the
+>    field itself survives.
+>
+> Step one of the direction the PO set after this release: *`resolved` should ultimately mean the
+> user's explicit selection and the geocoder independently agree; a selection the geocoder cannot
+> confirm stays `pending`.* The ruling implements that for country and region; **name
+> canonicalisation ("Roma"/"Rome") is deliberately not ruled on** and awaits the UX brief, because
+> the name sits inside D13's identity key.
 
 **Degradation is unchanged and non-blocking (GE-12).** Offline, service error, or zero candidates all
 still create a `pending` row from the user's text. **Ambiguity never blocks city creation** — if the

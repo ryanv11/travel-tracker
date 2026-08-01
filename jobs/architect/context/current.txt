@@ -786,3 +786,112 @@ PO SUMMARY UPDATED — it carried the two-users framing that item 0 rejects. Add
   answering the three review points in his own terms, rewrote the trade-offs section, added
   the duplicate-names and ask-which-one rows to the what-changes table, and replaced the
   "acceptable for two people" paragraph with the triggered follow-on.
+
+========================================================================
+2026-07-31 — OP-27 FRESH-EYES REVIEW of the ASSEMBLED ADL-46 RELEASE
+  (release/adl46-access-model @ 79ea9a4; fresh dispatch, no authorship)
+========================================================================
+DELIVERABLE: jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md
+VERDICT: SHIP WITH FOLLOW-ONS — one HIGH finding (F1) recommended fixed ON the
+  integration branch before merge, because as assembled the release violates two
+  GE-16 success criteria and cannot pass its own UAT gate as written.
+F1 (HIGH): the fire-and-forget resolveCity on POST (cities.ts:329) and the 15-min
+  queue re-ask Nominatim and auto-pick candidates[0] (pickBest, geocoding.service.ts:200-211)
+  for ambiguous no-region rows — D14's "ask, don't guess" is undone within ~1s of a
+  user declining to choose. No multi-candidate queue test exists. Needs an Architect
+  decision on queue disposition of ambiguity (leave-pending-with-increment is my lean).
+MIGRATIONS: SOUND — executed 0000-0015 through the real drizzle-kit migrate path on
+  scratch DBs, four variants. ids preserved, junctions intact, fk_check clean, all
+  indexes/CHECK reproduced, cross-user assert genuinely aborts + rolls back the whole
+  batch (verified). Live §9.3.2 pre-checks PASS on staging AND prod today (owner=1, 0s).
+  F3 (MED): zero-owner DB with data COMMITS DANGLING FKs silently (executed, reproduced);
+  multi-owner assigns silently; in-file assert blind to missing parents. F5 (LOW): the
+  in-file PRAGMA foreign_keys lines are NO-OPS — both libSQL transports disable FKs
+  around ONE deferred transaction covering ALL pending files (driver-level); comments
+  imply otherwise; running these files through any other runner changes semantics.
+F2 (MED): D13 wildcard upgrade mutates a shared (possibly resolved, other-creator) city
+  row on requireAuth — faithful to §4.2.1 but contradicts §4.4.2's own no-shared-writes
+  rationale + GE-16's owner-only curation. Needs a ruling (restrict to non-resolved rows?).
+F4 (MED): resolve-then-create 'ok' path (canonical pass 2, D12 never-overwrite) has ZERO
+  route-level test coverage — every route suite mocks resolveCityName to 'disabled'.
+QA/ATDD suite: genuinely spec-first — one commit ever, never adjusted after backend landed
+  (git-verified). Its geocoding mock silently drifted (mocks only resolveCity; Group B
+  passes because the route's try/catch swallows the TypeError). B4's honest-but-weak
+  assertion is why the D13 reverse-door escaped it. Both prior late fixes (D13 step 2b,
+  frontend region-selector collapse) verified correct WITH regression tests.
+COULD NOT VERIFY: live Nominatim (firewall), Railway rolling-deploy window length,
+  probe-to-deploy gap on owner-count (F3 rec: add owner-count column to the assert table).
+
+================================================================================
+2026-08-01 — ADL-46 F1/F2 RULING (pre-merge, integration branch release/adl46-access-model)
+================================================================================
+Narrow blocking ruling, NOT a feature design. Deliverable:
+jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md. Amends ADL-46 §4.2.1 (D13) and
+§4.3.2 (D14) plus the main ADL log entry. No schema change, no migration, no BRD bump,
+no new requirement ID. Scope boundary held: did NOT rule on trip-country-constrained
+lookups, the shortlist selector, the verification rule, or Roma/Rome canonicalisation —
+a UX brief runs first, by design, and the name sits inside D13's identity key.
+
+R2 (F1) — the discriminator is the DISTINCT REGION SET, not the candidate count.
+  Ambiguous iff the eligible candidates carry >1 distinct non-null region_iso.
+  Eligibility takes a SET of permitted country codes (empty = unconstrained) so the
+  trip-declared-countries follow-on needs no unpicking; countrycodes= already accepts a
+  comma list, so that follow-on is a two-line change at query + post-filter.
+  Byte-for-byte the rule AddPlaceFlow.tsx:250-263 already computes. Parity is a CONTRACT.
+  STRUCTURAL INSTRUCTION THAT MATTERS MOST: delete pickBest, one classifier
+  (classifyCandidates) called by BOTH resolveCityName and resolveCity. F1 exists because
+  one question had two decision procedures; a fix that leaves two will diverge again.
+
+R3 — row HAS a region, no candidate matches it → stays pending. Not unresolvable (GE-16
+  reserves that for a geocoder "no match" and makes it terminal). The region field
+  survived today; the coordinates contradicted it.
+
+R4 — ambiguity consumes the existing geocode_attempts budget. THE BUDGET IS ATTACHED TO
+  THE QUESTION: setting region_id resets it (a region constraint can collapse an
+  ambiguity); deliberately does NOT reset for unresolvable (a region cannot turn zero
+  candidates into some). That asymmetry is the whole answer to the review's
+  "ambiguous rows retry forever" objection without inventing a new status.
+
+R1 (F2) — ACCEPTED the COO's predicate, REJECTED the COO's reason for it.
+  "Deliberately the same predicate GE-16 uses for visibility" is FALSE: visibility is a
+  disjunction where `resolved` GRANTS; the upgrade predicate flips it to a BAR. An
+  implementer told "adopt a row you can see" writes the wrong SQL. Better principle, on
+  record: READ-THROUGH IS GLOBAL BECAUSE THE UNIQUE INDEX IS GLOBAL; WRITE-THROUGH IS
+  SCOPED BECAUSE NOTHING FORCES IT TO BE. Step 1 is a forced accommodation; step 2 is not.
+  Four amendments: whitelist IN ('pending','unresolvable') not <> 'resolved' (fails closed
+  against §4.4.3's contemplated 4th status); step 2 ONLY (steps 1/2b stay creator- and
+  status-blind or the insert collides on uniq_cities_name_country_region_ci); reset
+  attempts + re-fire resolveCity on a pending upgrade; declining falls through to insert.
+  Duplicate class it admits: analysed concretely, BOUNDED AT ONE ROW (the index permits at
+  most one region-less row per name+country, so step 2's limit(1) is exact and the filter
+  can exclude at most one row; fallback insert lands on a key step 1 proved vacant). Not
+  the BUG-33 class. There is NO version of adopting a resolved row a non-owner can perform
+  correctly — correcting it means rewriting shared coordinates, which is owner curation.
+
+FOUND WHILE RULING, in neither the review nor the COO's chain: THE HAPPY PATH IS ALREADY
+  BROKEN ON THE BRANCH. resolveCityName returns 'ambiguous' whenever >=2 candidates match
+  the requested region (geocoding.service.ts:99-101), and UX-04 auto-populates the region —
+  so a common city returning city+municipality hits produces a pending row TODAY. The new
+  discriminator fixes it incidentally. Invisible in CI for the same reason F1 was (review
+  F4: every route suite mocks the geocoder). FREQUENCY IS UNVERIFIED — firewall blocks live
+  Nominatim; mechanism established by reading, rate is not. Staging shakedown must exercise it.
+
+R5 — UAT consequence. Verified two ways each: shading reads country_code/region_id and
+  never geocode_status or coordinates; pins require resolved AND coords; coords and
+  'resolved' are always written together and nothing demotes a resolved row (three probes:
+  latitude write sites, geocodeStatus write sites, PatchCitySchema .strict()).
+  THE NUANCE THE COO'S FRAMING MISSED: a multi-region-ambiguous row has NO region by
+  definition, so it contributes to no REGION shading either — country shaded, region
+  unshaded, no pin. Three gaps for one place.
+  AND THE VOLUME IS NOT MONOTONIC: the happy-path case above moves the other way and is
+  the more common one. Net could plausibly be FEWER pending. Did not assert which way.
+  PO framing recorded verbatim and deliberately not solved: the user never sees
+  coordinates; a wrong pin is reported as a bug as fast as a missing one. "Stay pending"
+  is the right trade only because a wrong resolved row is shared/global/never re-queried/
+  owner-only-to-repair while a pending row stays in its creator's reach via D11 — and that
+  argument EXPIRES without an affordance, which does not exist. Premise for the UX brief.
+
+DOC-LIFECYCLE GAP NOTICED, not mine to fix here: ADL-47 (expand/contract, cited in
+  CLAUDE.md and in force on this release) has NO entry in the main ADL log — zero hits for
+  "ADL-47" in 20260307-architecture-decisions-log.md. /record-decision item 2 says the log
+  always gets the entry; standalone-only numbering has drifted before (ADL-28). Flagged to COO.

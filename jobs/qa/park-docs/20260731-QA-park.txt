@@ -1,0 +1,122 @@
+QA PARK DOCUMENT — 2026-07-31
+PROJECT: Travel Tracker
+THREAD: ADL-46 ATDD trial — RED acceptance tests (access matrix, D13, GE-16)
+
+---
+
+WORK COMPLETED THIS THREAD
+
+Authored independent RED acceptance tests against the ADL-46 spec
+(jobs/architect/tech/ADL-46-non-owner-access-model.md) BEFORE the Backend
+stage implements it, per the ATDD trial (open-dialogues D-17). This is the
+executable definition-of-done the Backend brief will be built and judged
+against. Did NOT implement any production code. Did NOT make anything green
+by design — red is the correct, expected outcome of this thread.
+
+Branch: test/adl46-atdd, off origin/release/adl46-access-model (the
+integration branch the Database stage already landed on — migrations
+0014/0015, no route code yet).
+
+Full detail: jobs/qa/tech/20260731-adl46-atdd-red-tests.md
+Completion report: jobs/COO/inbox/
+
+---
+
+FILES CHANGED
+
+New:
+  src/backend/routes/__tests__/adl46-access-model.test.ts (32 new assertions,
+    Group A/B/C per the brief)
+
+Edited (one line + comment, declared):
+  src/backend/routes/__tests__/security.access-matrix.test.ts — unskipped the
+    §8.1 coverage-hole regression (PATCH /api/cities/:id → 403 for non-owner).
+    Verified safe: 63/63 pass in that file after the change.
+
+Not touched (out of scope for this pass, Backend's job per §8/§8.2):
+  owner-access.test.ts, qa-backend-fixes.test.ts, tests/contract/places.contract.test.ts
+
+---
+
+RED BASELINE (see tech/ doc for the full per-test table)
+
+My new file: 14 failed / 18 passed (32 total). Every one of the 14 failures is
+a clean assertion mismatch (wrong status/body/row-count) — zero exceptions,
+zero DB errors. All 14 are red-for-the-right-reason, none blocked by the
+DB-stage breakage (my fixtures set userId explicitly on every
+trip_categories/activities insert).
+
+Pre-existing DB-stage breakage, confirmed NOT mine: 34 failures across
+trips.test.ts, lock-matrix.test.ts, owner-access.test.ts,
+qa-backend-fixes.test.ts — all NOT NULL constraint failures on
+trip_categories.user_id / activities.user_id, or downstream type errors from
+the same cause. Left untouched per the brief ("do not try to fix them").
+
+Some of my new assertions are already green today (fail-closed regression
+guards, the §8.1 unskip, and a few containment/find-or-create anchors that
+are vacuously true because the relevant mechanism doesn't exist yet at all).
+Each is commented in the test file and tabulated in the tech/ doc — included
+deliberately, not mistakenly, because they must STAY true after Backend
+implements this.
+
+---
+
+JUDGEMENT CALLS FLAGGED (see tech/ doc §"Judgement calls" for full reasoning)
+
+1. Group B (D13 find-or-create) tests run as OWNER, not non-owner, to isolate
+   D13's correctness from D4's access-model change — POST /api/cities is
+   still requireOwner on this branch, so a non-owner caller would fail at the
+   auth gate before ever reaching the find-or-create logic.
+2. B4 (ambiguous no-region case) — ADL-46 explicitly declines to specify a
+   status code/response shape for this case, deferring the mechanism to D14.
+   Encoded only the two invariants the spec's text commits to (no silent
+   pick, no duplicate) rather than presuming one.
+3. The §8-row-6/OP-27-P2 cross-user-pending-city test isn't in the brief's
+   explicit bullet list; added as a labeled "bonus" in Group C since it sits
+   at the seam between find-or-create and containment.
+
+---
+
+SPEC GAP FOUND (trial success condition)
+
+owner-access.test.ts's HC-06 block (lines 168-190, "POST /api/cities → 403
+for non-owner" / "→ 201 for owner") directly contradicts the ADL-46 end state
+and is NOT among the breaking assertions ADL-46 §8.2 credits to that file —
+§8.2 only names that file's HC-04 (categories) block as breaking. Same route,
+same scenario §8 row 3 already names as changing 403→201, in a file §8.2
+already lists — just an incomplete inventory of what breaks within it. Full
+writeup with the verification grep in tech/20260731-adl46-atdd-red-tests.md.
+Not fixed by me (out of scope, "don't touch existing assertions") — flagged
+so the Backend brief for S1 inherits a complete list rather than an
+incomplete one and doesn't hit an unauthorised red check (OP-30 precedent).
+
+---
+
+CI / VERIFICATION
+
+npm run check            → clean (biome --write applied to my new file once)
+npm run type:check:all   → 20 pre-existing errors, zero new from my changes
+npm run test:backend     → 48 failed / 586 passed; 14 of the 48 are mine (red
+                            by design), 34 pre-existing (not mine)
+npm run test:frontend    → 228 passed (228), untouched
+npm run status:check     → STATUS.md up to date
+
+PR opened against release/adl46-access-model (not main). CI on that PR is
+expected to be red — this is the acceptance criterion for the trial, not a
+defect. Did not merge (COO's job).
+
+---
+
+NEXT STEPS FOR WHOEVER PICKS THIS UP
+
+1. Backend stage (S1-S4 per ADL-46 §9) implements against this test file as
+   part of its definition-of-done, alongside the §8/§8.2 edits to the four
+   existing files (now five, including owner-access.test.ts's HC-06 block —
+   see spec gap above).
+2. Once Backend lands, re-run adl46-access-model.test.ts — every assertion
+   should go green, including the ones flagged "already green" here (they
+   must stay green, i.e. become genuine regression guards rather than
+   vacuous passes).
+3. The B4 ambiguous-no-region assertion may need tightening once Backend
+   picks a concrete mechanism (see judgement call #2) — loosen or tighten to
+   match rather than leaving it permissively worded forever.

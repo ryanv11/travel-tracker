@@ -1,0 +1,30 @@
+ADL-46 release review · PR: chore/adl46-release-fresh-eyes-review → release/adl46-access-model
+BRD: GE-16 / SE-01 / SE-03 / AD-09 · Reviewed: release/adl46-access-model @ 79ea9a4
+
+VERDICT: SHIP WITH FOLLOW-ONS — F1 should be fixed ON the branch before merge (the release
+as assembled violates two GE-16 success criteria, so GE-16 UAT cannot pass as written).
+
+Findings (full detail in jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md):
+- F1 HIGH: on-create fire-and-forget + 15-min queue auto-pick candidates[0] for ambiguous
+  no-region cities — D14 "ask, don't guess" undone ~1s after a user declines to choose.
+  Needs an Architect ruling on queue ambiguity disposition, then a small backend fix.
+- F2 MED: D13 wildcard upgrade mutates shared (incl. resolved, other-creator) city rows on
+  requireAuth — spec-faithful but contradicts GE-16 owner-only curation. Needs a ruling.
+- F3 MED: migration 0014's owner-count/zero-owner preconditions are manual-only; executed
+  zero-owner variant COMMITS dangling FKs silently. Mitigated: I ran §9.3.2 live on staging
+  AND prod today — all pass (owner=1, zero cross-user). Harden the assert table as follow-on.
+- F4 MED: resolve-then-create success path (canonical pass 2, D12 never-overwrite) has zero
+  route-level test coverage — all route suites mock it to 'disabled'.
+- F5/F6/F7 LOW: in-file FK PRAGMAs are no-ops (driver does it; comment fix); old-code/
+  new-schema deploy window (accepted under D9, stated); doubled egress on unhappy POSTs.
+- F8 INFO: ATDD suite is genuinely spec-first (git-verified, never adjusted post-impl);
+  its geocoding mock drifted (passes via the route's try/catch) — fix the mock.
+
+Migrations: SOUND — executed through the real migrator on seeded scratch DBs (4 variants);
+ids preserved, junctions intact, fk_check clean, indexes/CHECK exact, assert aborts and
+rolls back whole batch. Both prior late fixes (D13 reverse-door, region-selector collapse)
+verified correct with regression tests.
+
+CI: review PR checks pending at time of filing — see PR; branch itself was green at 79ea9a4.
+Could not verify: live Nominatim (firewall), Railway deploy-window length — listed in doc §5.
+Unblocked: COO merge decision on the release; F1 fix brief (backend); F2/F3 rulings.

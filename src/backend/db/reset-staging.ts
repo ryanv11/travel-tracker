@@ -60,9 +60,10 @@ import { config } from 'dotenv';
 
 config({ path: '.env.local' });
 
+import { activityRepository } from '../repositories/activities.js';
+import { tripCategoryRepository } from '../repositories/tripCategories.js';
 import { getDb } from './index.js';
 import {
-  activities,
   companions,
   itemCarRentals,
   itemExperiences,
@@ -72,7 +73,6 @@ import {
   items,
   mapShadingConfig,
   tripActivitiesMap,
-  tripCategories,
   tripCategoriesMap,
   tripCompanionsMap,
   tripCountries,
@@ -81,7 +81,6 @@ import {
   trips,
   users,
 } from './schema.js';
-import { ACTIVITIES, TRIP_CATEGORIES } from './seed-data.js';
 
 // Ordered child-before-parent. Every entry here must appear before anything
 // it references via a FK. Update this list if the schema grows new tables
@@ -165,21 +164,23 @@ async function main(): Promise<void> {
     console.log(`  ✓ cleared ${name}`);
   }
 
-  // Reseed global admin/reference lists immediately rather than waiting on
-  // the next Railway restart's idempotent startup seed. Safe to repeat —
-  // onConflictDoNothing. companions and map_shading_config are NOT reseeded
-  // here (ADL-28) — they are per-user now and self-heal on next access.
-  await db
-    .insert(tripCategories)
-    .values([...TRIP_CATEGORIES])
-    .onConflictDoNothing();
-  await db
-    .insert(activities)
-    .values([...ACTIVITIES])
-    .onConflictDoNothing();
+  // Reseed per-user admin lists immediately rather than waiting on the next
+  // Railway restart's idempotent startup reconciliation. Safe to repeat —
+  // ensureSeeded/onConflictDoNothing. ADL-46 (AD-09, D3): trip_categories and
+  // activities are per-user now, so the reseed is per-user; if the users table
+  // was cleared this is a no-op and lists self-heal on next sign-in + access.
+  // companions and map_shading_config are NOT reseeded here (ADL-28) — they are
+  // per-user and self-heal on next access.
+  const remainingUsers = await db.select({ id: users.id }).from(users);
+  for (const u of remainingUsers) {
+    await tripCategoryRepository.ensureSeeded(u.id);
+    await activityRepository.ensureSeeded(u.id);
+  }
 
   console.log('\n[RESET] Complete. Trip/user data (incl. per-user companions and');
-  console.log('[RESET] map_shading_config) cleared; global admin lists re-seeded.');
+  console.log(
+    `[RESET] map_shading_config) cleared; per-user admin lists re-seeded for ${remainingUsers.length} user(s).`,
+  );
   console.log('[RESET] countries/regions/cities were left untouched (see module docstring).');
 }
 

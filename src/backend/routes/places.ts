@@ -18,6 +18,7 @@ import { cities, getDb, items, tripPlaceActivitiesMap, tripPlaces } from '../db/
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
+import { activityRepository } from '../repositories/activities.js';
 import { placeRepository } from '../repositories/places.js';
 import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
 import { CarryForwardBodySchema } from '../validation/items.schemas.js';
@@ -137,13 +138,27 @@ placesRouter.patch(
     const placeId = parseInt(String(req.params.placeId), 10);
     if (Number.isNaN(tripId) || Number.isNaN(placeId)) throw new NotFoundError('Place');
 
-    const { arrived_on, departed_on } = req.body;
+    const { arrived_on, departed_on, city_id } = req.body;
+    const db = getDb();
 
     // Ownership + lock verified before any read/mutation (audit invariant 17)
     await placeRepository.assertWritable(userId, tripId);
 
     const existing = await placeRepository.findById(userId, placeId);
     if (!existing || existing.tripId !== tripId) throw new NotFoundError('Place');
+
+    // ADL-46 D11 (§4.4.2): re-pointing to a corrected city. Validate the target
+    // city exists (global reference data — no owner/user scoping on cities), so a
+    // bad city_id is a 404 rather than an FK error. Ownership is already enforced
+    // on the place above, so this opens no new access surface.
+    if (city_id !== undefined && city_id !== existing.cityId) {
+      const cityRows = await db
+        .select({ id: cities.id })
+        .from(cities)
+        .where(eq(cities.id, city_id))
+        .limit(1);
+      if (!cityRows.length) throw new NotFoundError('City');
+    }
 
     // BUG-28: validate effective date order against the merged result — stored
     // values fill in for omitted fields (same pattern as trips PATCH / BUG-A).
@@ -163,6 +178,7 @@ placesRouter.patch(
       placeId,
       arrived_on,
       departed_on,
+      city_id,
     );
 
     res.json({
@@ -254,6 +270,19 @@ placesRouter.post(
     // Verify place belongs to trip owned by user (ownership BEFORE lock check)
     const place = await placeRepository.findById(userId, placeId);
     if (!place || place.tripId !== tripId) throw new NotFoundError('Place');
+
+    // ADL-46 §3.3 / F1(b): activities are per-user now, and the
+    // trip_place_activities_map FK targets activities.id (no user dimension),
+    // so SQLite cannot stop a caller tagging a place with ANOTHER user's
+    // activity. Validate ownership in application code — the same 400 contract
+    // replaceAssociations uses for trip-level associations. This is the half of
+    // F1 that outlives the current table contents (a permanent write-path gap).
+    const invalidActivityIds = await activityRepository.validateOwnership(userId, [activity_id]);
+    if (invalidActivityIds.length) {
+      throw new ValidationError(
+        `Activity ID(s) not found or not owned by user: ${invalidActivityIds.join(', ')}`,
+      );
+    }
 
     // BUG-27: locked trips are read-only — activity tagging is a write
     await assertNotLocked(tripId);
