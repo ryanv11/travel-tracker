@@ -1,0 +1,147 @@
+COO SESSION PARK — 2026-08-01 (ADL-46 RELEASE SHIPPED TO MAIN; F1 caught pre-merge by a
+fresh-eyes review; UX spec written UX-first; six follow-ons tracked)
+================================================================================
+
+## Session summary
+
+Picked up a clean startup (all checks green, no cron flags, main green). Ran the ADL-46 release
+to completion: dispatched the held Frontend stage, then — on the PO's question "have you done a
+full end-to-end review and are you happy with it?" — stopped and admitted I had reviewed one
+stage of four and was reporting "green" on the strength of a park doc and CI. Dispatched an
+OP-27 fresh-eyes review of the *assembled* release. It found a HIGH defect. That call is the
+single most consequential thing in this session.
+
+| PR | What | Landed |
+|---|---|---|
+| #341 | Frontend stage — repoint admin/geocode calls, D14 candidates | integration |
+| #342 | OP-27 fresh-eyes review of the assembled release | integration |
+| #343 | Architect F1/F2 ruling (R1–R4) | integration |
+| #346 | Backend implementation of the ruling (closes #345) | integration |
+| **#348** | **THE RELEASE — integration branch → main** | **main** |
+| #344 | UX spec — city entry, disambiguation, resolution design + MVP | main |
+| #347 | Parallel session's execution queue + drift-ledger | main |
+| (this) chore/coo-session-close-adl46-release | close-out | OPEN |
+
+main green @ 645757c. Integration branch deleted (local + remote) — it served its purpose.
+No open PRs, no worktrees, one local branch.
+
+## READ THIS FIRST NEXT SESSION — the release is on main but NOT UAT'd
+
+BRD-GE16 is `done_pending_uat`. Staging auto-deploys from main (ADL-32), so this IS live on
+staging: three table rebuilds, the per-user access model, and the server-side geocoding proxy.
+**Production is still behind main** — promotion is a deliberate separate step (ADL-35).
+
+### Deployment shakedown BEFORE UAT (OP-32) — four checks, in order
+
+1. **App loads; browser console and network tab clean.** This single check found three defects
+   last time (BUG-55, BUG-63, BUG-68). Do it first.
+2. **Submit one region-tier city** (e.g. a US city with a state). THE HIGHEST-VALUE CHECK IN THIS
+   LIST: the live Nominatim egress path has never run outside a mock, because the devcontainer
+   firewall blocks it (ENV-01). Every test of it to date has been against a fake.
+3. **As a NON-OWNER, add a place to a trip end to end.** This is the root fix for BUG-61/62/63 —
+   a non-owner previously could not add a place at all. Also confirm the admin panel shows only
+   Companions and Map Shading for a non-owner, and all five tabs for the owner.
+4. **Query `cities` grouped by `geocode_status`** via `scripts/agent-diagnostics/turso-query.mjs`.
+   This settles an open question with data instead of intuition — see "the edge-case question"
+   below. There was no data before today; migration 0015 only reached main this session.
+
+### UAT expectation to state UP FRONT, or it generates false product bugs
+
+**A pending city shades its country but shows NO PIN and NO REGION SHADING.** All three states
+verified (ruling §5). This is specified behaviour, not a defect. The COO's earlier framing —
+"pending cities shade correctly" — was wrong at the region level and was corrected by the
+Architect: `getRegionShading` joins `cities.region_id = regions.id`, so a region-less row
+contributes to no region shading either.
+
+### GE-16 is PARTIALLY DELIVERED — do not close it on a clean UAT
+
+One success criterion is not met: a user who mistypes a city **cannot correct it**. The backend
+half shipped (PATCH place accepts `city_id`, preserves items and activity tags); there is no
+frontend. Tracked as UX-12. Read it the way TR-14 was read when BUG-50 shipped without the
+review_pending delete path.
+
+## What the fresh-eyes review bought (the argument for doing it again)
+
+Verdict SHIP WITH FOLLOW-ONS. **F1 (HIGH):** an ambiguous lookup was auto-resolved to
+`candidates[0]` and promoted to the globally-visible catalogue within ~1s of a user declining to
+choose — violating two GE-16 success criteria verbatim. It passed green CI *and* the 32-test ATDD
+suite written expressly for this feature. Chained with F2 it produced a permanently wrong shared
+record: "Springfield, Missouri" carrying Illinois's coordinates, never re-queried, owner-only to
+fix, pin in the wrong state.
+
+The Architect's ruling then surfaced a **fourth defect nobody had reported**: `resolveCityName`
+returned 'ambiguous' whenever 2+ candidates matched the *requested* region, which happens on the
+ordinary path (Nominatim returns one city at several granularities) — so the happy path was
+producing pending rows with no pin. Invisible in CI for the same reason as F1 (QUAL-21).
+
+**The migrations — billed as highest risk — came back sound**, and verified properly: executed
+through the real `drizzle-kit migrate` path on scratch DBs with adversarial rows, four variants,
+plus live §9.3.2 preconditions passing on staging AND production. Also exercised the cross-user
+assert block the DB stage's own reviewer had flagged as "described but unexercised."
+
+## The edge-case question (PO-raised, deliberately left open)
+
+The PO's read: this is probably edge-case territory — a user should be selecting or correcting to
+the right place most of the time. Two things support deferring:
+- The COO's sense of the problem's size was **inflated by a defect** (the happy-path regression
+  above, now fixed).
+- **Nobody can measure the real rate yet.** `geocode_status` arrived with migration 0015, which
+  only reached main today. Both "this matters" and "this is edge case" are unmeasured intuitions.
+
+Shakedown check 4 is what answers it. Full thread and deferral triggers in open-dialogues **D-19**.
+
+## Suggested next actions (in order)
+
+1. Merge this close-out PR; verify main green.
+2. **Deployment shakedown** (four checks above), then **PO UAT** on the release.
+3. **Cleanup from the review execution queue** — the PO's stated intent for next session.
+   `jobs/COO/20260731-review-execution-queue.md` (moved out of the inbox this session; it is a
+   live plan, not a completed report). Tier 1 is nine small items; item 8's D-15 half is already
+   done (see below). Assign all new IDs at execution time against the then-current tracker.
+4. **Write the D-17 ATDD formal verdict** — now due, release closed. Evidence and the honest
+   qualification are already in open-dialogues D-17. The verdict must not be a blanket
+   endorsement: the suite's *provenance* held (git-verified spec-first, never adjusted) but one
+   group was green for the wrong reason (QUAL-22).
+5. **Promote to production** when UAT passes: `git merge --ff-only origin/main` into `production`,
+   push. Manual, zero-glue (ADL-35).
+6. Six new follow-ons, none blocking: QUAL-21 (F4 coverage — becomes a *prerequisite* if D-19
+   proceeds), QUAL-22 (F8 mock drift), QUAL-23 (F3 migration preconditions), UX-12 (GE-16
+   correction UI), BUG-69 (retry queue never terminates), BUG-70 (Companion type lie).
+7. Two Wave 1 UAT sessions (sub-waves A + B) still awaiting PO testing — untouched again.
+
+## Process notes worth carrying
+
+- **D-15 CLOSED.** Branch protection on main is live and COO-verified via the API (`strict: true`,
+  9 required checks, enforce_admins, linear history). It answered the stale-base question
+  mechanically, and proved itself the same day by blocking the release PR until it was updated.
+- **Four shared-record collisions in one session**, every one of them two parties correctly
+  following OP-28. Appending to the same *location* still conflicts. The structural fix was
+  identified in Wave 0 and has now gone unadopted three times — proposal and a COO recommendation
+  in **D-20**.
+- **A negative finding carries a scope.** An Architect correctly found ADL-47 absent on the
+  integration branch; the COO "corrected" it by grepping main and was wrong. The finding was also
+  masking a real merge-blocker. Memory: `feedback_negative_probe_scope.md`.
+- **UX was dispatched BEFORE the Architect, deliberately**, on PO direction — so the data model
+  serves the ideal experience rather than the reverse. It paid: UX rejected the alias data model
+  outright, contradicted the COO on which surface to extend, and named two things not safe to cut.
+- The COO's own tracker edit went out red — STATUS.md is generated from the tracker and the
+  freshness gate caught the staleness. The same-PR doc-lifecycle rule working mechanically.
+
+## State of play
+
+- main green @ 645757c. Production behind main (unchanged, awaiting promotion).
+- BRD v3.13, unchanged this session. ADL-46 amended (2026-08-01, F1/F2 ruling); ADL-47 now on main.
+- tracker: 224 entries, no duplicate IDs, BRD-GE16 `done_pending_uat` with a partial-delivery note.
+- No open PRs besides this close-out. No worktrees. One local branch.
+
+## Open threads
+
+See `jobs/COO/open-dialogues.md` — D-01 through D-20. Updated this session: **D-17** (verdict now
+due, with the qualification), **D-15** (CLOSED). New: **D-19** (trip-country-constrained lookup,
+shortlist pattern, agreement-promotes-to-resolved, Rome/Roma answered no), **D-20** (shared-record
+append collisions).
+
+## Restart preview
+
+Shown to the PO before this doc was written; all three flagged gaps folded in on instruction
+(shakedown checklist, production promotion, the negative-probe-scope memory entry).
