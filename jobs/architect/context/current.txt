@@ -787,6 +787,41 @@ PO SUMMARY UPDATED — it carried the two-users framing that item 0 rejects. Add
   the duplicate-names and ask-which-one rows to the what-changes table, and replaced the
   "acceptable for two people" paragraph with the triggered follow-on.
 
+========================================================================
+2026-07-31 — OP-27 FRESH-EYES REVIEW of the ASSEMBLED ADL-46 RELEASE
+  (release/adl46-access-model @ 79ea9a4; fresh dispatch, no authorship)
+========================================================================
+DELIVERABLE: jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md
+VERDICT: SHIP WITH FOLLOW-ONS — one HIGH finding (F1) recommended fixed ON the
+  integration branch before merge, because as assembled the release violates two
+  GE-16 success criteria and cannot pass its own UAT gate as written.
+F1 (HIGH): the fire-and-forget resolveCity on POST (cities.ts:329) and the 15-min
+  queue re-ask Nominatim and auto-pick candidates[0] (pickBest, geocoding.service.ts:200-211)
+  for ambiguous no-region rows — D14's "ask, don't guess" is undone within ~1s of a
+  user declining to choose. No multi-candidate queue test exists. Needs an Architect
+  decision on queue disposition of ambiguity (leave-pending-with-increment is my lean).
+MIGRATIONS: SOUND — executed 0000-0015 through the real drizzle-kit migrate path on
+  scratch DBs, four variants. ids preserved, junctions intact, fk_check clean, all
+  indexes/CHECK reproduced, cross-user assert genuinely aborts + rolls back the whole
+  batch (verified). Live §9.3.2 pre-checks PASS on staging AND prod today (owner=1, 0s).
+  F3 (MED): zero-owner DB with data COMMITS DANGLING FKs silently (executed, reproduced);
+  multi-owner assigns silently; in-file assert blind to missing parents. F5 (LOW): the
+  in-file PRAGMA foreign_keys lines are NO-OPS — both libSQL transports disable FKs
+  around ONE deferred transaction covering ALL pending files (driver-level); comments
+  imply otherwise; running these files through any other runner changes semantics.
+F2 (MED): D13 wildcard upgrade mutates a shared (possibly resolved, other-creator) city
+  row on requireAuth — faithful to §4.2.1 but contradicts §4.4.2's own no-shared-writes
+  rationale + GE-16's owner-only curation. Needs a ruling (restrict to non-resolved rows?).
+F4 (MED): resolve-then-create 'ok' path (canonical pass 2, D12 never-overwrite) has ZERO
+  route-level test coverage — every route suite mocks resolveCityName to 'disabled'.
+QA/ATDD suite: genuinely spec-first — one commit ever, never adjusted after backend landed
+  (git-verified). Its geocoding mock silently drifted (mocks only resolveCity; Group B
+  passes because the route's try/catch swallows the TypeError). B4's honest-but-weak
+  assertion is why the D13 reverse-door escaped it. Both prior late fixes (D13 step 2b,
+  frontend region-selector collapse) verified correct WITH regression tests.
+COULD NOT VERIFY: live Nominatim (firewall), Railway rolling-deploy window length,
+  probe-to-deploy gap on owner-count (F3 rec: add owner-count column to the assert table).
+
 ================================================================================
 2026-08-01 — ADL-46 F1/F2 RULING (pre-merge, integration branch release/adl46-access-model)
 ================================================================================
