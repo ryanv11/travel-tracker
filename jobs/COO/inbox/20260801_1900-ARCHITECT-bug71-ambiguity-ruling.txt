@@ -1,0 +1,55 @@
+TO: COO
+FROM: Architect
+RE: BUG-71 (P1) — ruling on the ambiguity-discriminator mechanism
+
+Tracker: BUG-71 · GitHub issue: NONE EXISTS YET (see blockers) · PR: #353
+BRD: GE-16 (violated) · GE-15 (needs amendment) · Branch: chore/bug71-ambiguity-ruling
+Deliverable: jobs/architect/tech/20260801-BUG71-discovery-ambiguity-ruling.md
+
+DECIDED
+Invert the discriminator rather than feed it more evidence: auto-fill only on positive
+confirmation (complete + fully attributed + unanimous), treat thin/truncated/unattributed
+evidence as "cannot confirm". Costs ZERO additional Nominatim requests. Root cause runs
+deeper than limit:'10' — GET /api/geocode makes no ambiguity decision at all; the real
+discriminator is hand-rolled in a React component.
+
+PER-DECISION VERDICT
+ B1  Confirm-or-ask discriminator (option d)              ADOPTED
+ B2  Truncation signal (rawCount >= limitSent, raw array) ADOPTED
+ B3  (a) limit 10->40, DISCOVERY CALL ONLY                ADOPTED as enabler; REJECTED as a fix
+ B4  (b) two-phase lookup                                 REJECTED (§6.1 arithmetic)
+ B5  (c) trip-country constraint / D-19                   REJECTED as this fix; ENDORSED as destination
+ B6  classifyDiscovery in the backend; route returns verdict ADOPTED
+ B7  F1/F2 §2.2 parity contract                           SUPERSEDED (by deleting one side)
+ B8  Never narrow the selector on a truncated set         ADOPTED
+ B9  Resolution path / classifyCandidates                 UNCHANGED — instrument only, trigger in §10.3
+ B10 Frontend change required?                            YES — see below
+ B11 BRD                                                  No new ID; GE-15 amendment required
+
+FRONTEND — THE SEQUENCING ANSWER YOU ASKED FOR (§7)
+Backend change ALONE closes the GE-16 violation and is independently deployable (traced
+branch-by-branch through the unmodified AddPlaceFlow). It is NOT acceptable to stop there:
+blank country + blank state with no explanation is BUG-73's defect applied to every
+ambiguous name. Frontend brief must follow in the same release, before UAT.
+
+BLOCKERS / DECISIONS FOR YOU
+1. GE-15's success criteria ("populates both country and region/state WITHOUT FURTHER USER
+   INPUT") are FAILED by the correct behaviour. Amend before the UAT round — the Backend
+   brief is not blocked, the UAT verdict is. No new requirement ID.
+2. BUG-73 (#352, open, undispatched) rewrites lookupCityCountry — the same function and the
+   same control. Recommend merging it into the Frontend brief. Do not run in parallel.
+3. No GitHub issue exists for BUG-71 (open issues: 266, 351, 352). Cross-referencing rule
+   wants one with the tracker ID in the title.
+
+CORRECTION TO THE DISPATCH BRIEF
+Option (c)/D-19 does NOT cost additional requests — countrycodes takes a comma-joined list
+and nominatimSearch passes params verbatim. The reason to defer it is behavioural, not
+egress. Worth fixing in D-19's entry.
+
+CI: PR #353 green (docs-only change; scripts/ci-wait.sh pr 353 passed).
+
+UNBLOCKED
+Backend brief is dispatchable now — §4 specifies the algorithm, §9 the test obligations
+(incl. the first backend test for GET /api/geocode; QUAL-21 partly discharged, QUAL-22
+directly aggravated and folded in). Frontend brief follows per §7.3. D-19 gains a stated
+prerequisite rather than a competing fix.
