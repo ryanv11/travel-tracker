@@ -1,0 +1,66 @@
+BACKEND COMPLETION REPORT
+
+Tracker: BUG-72 (P2) · GitHub issue #351 · BRD GE-16 · Branch: fix/bug72-city-search-region
+PR: #353
+
+WHAT WAS BUILT
+GET /api/cities now LEFT JOINs `regions` and returns `region_name` /
+`region_iso` alongside the existing `region_id` integer, so the frontend
+can render "city, state, country" instead of a bare region_id it cannot
+resolve client-side. Backend half only, per the brief — AddPlaceFlow.tsx
+untouched.
+
+ACCEPTANCE CRITERIA
+1. Response carries region name + ISO per row — PASS
+2. NULL region_id row returns null for both, no error, not omitted — PASS
+3. Join doesn't change which rows are returned; GE-16 predicate untouched;
+   region-less row proven still returned (new test) — PASS
+4. Existing contract/route tests for GET /api/cities pass unchanged — PASS
+   (no existing test asserted an exact/closed response shape; none needed
+   updating)
+5. Serialization stays snake_case — PASS
+
+SECURITY CHECKLIST (route modified)
+1. Auth middleware unchanged — requireAuth still applies via the blanket
+   `app.use('/api/', requireAuth)` (server.ts:198), mounted ahead of
+   citiesRouter. Confirmed by reading the mount order and by the full
+   401-unauthenticated test coverage staying green.
+2. No new user-data exposure — `regions` has no userId column (schema.ts)
+   and is already served to any authenticated user via
+   GET /api/admin/countries/:cc/regions (admin.ts:86, ahead of the
+   requireOwner guard). GE-16 containment predicate (cities.ts:60-64) is
+   byte-for-byte unchanged. Two independent probes on both claims — see
+   park doc.
+3. No new user-referencing FK columns — no schema change in this brief.
+
+CI: PASS — 18/18 checks green on PR #353 (scripts/ci-wait.sh pr 353). See
+  ADDENDUM below — CI re-verified again after a post-review relocation.
+
+DECLARED FULL-FILE REWRITES: none — all edits, no source file replaced.
+
+OPEN ISSUES/BLOCKERS: none.
+
+WHAT IS NOW UNBLOCKED
+Frontend's AddPlaceFlow.tsx label-rendering brief can read
+`region_name`/`region_iso` directly off GET /api/cities rows with no
+client-side lookup needed.
+
+Full detail: jobs/backend/park-docs/20260801-BACKEND-bug72-park.txt
+
+ADDENDUM (same thread, before merge) — PR review relocation
+COO review on PR #353: implementation approved as correct with one required
+change — the 3 new tests were appended to adl46-access-model.test.ts, QA's
+frozen ATDD acceptance suite (evidence base for the unwritten D-17 trial
+verdict), damaging its spec-first provenance. Relocated the block, verbatim
+including its comment, to a new backend-owned sibling file:
+src/backend/routes/__tests__/cities.search-region-enrichment.test.ts —
+following the cities-find-or-create.test.ts precedent from the ADL-46 D13
+backend stage. Own mocks and mirrored (not imported) seedUser/seedCountry/
+seedRegion/seedCity helpers, so QA's file needed zero export changes.
+
+Verified `git diff origin/main -- adl46-access-model.test.ts` is empty —
+QA's suite is byte-for-byte unchanged. Full backend suite: 668 passed (35
+files; same total test count, tests moved not duplicated). type:check:all,
+biome check, status:check all clean. Re-pushed to PR #353; CI re-verified
+PASS — 18/18 checks green (scripts/ci-wait.sh pr 353) on the new head
+commit. Ready for merge.

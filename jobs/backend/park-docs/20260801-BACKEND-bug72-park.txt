@@ -1,0 +1,142 @@
+BACKEND PARK DOC — 2026-08-01
+BRIEF: BUG-72 (GitHub #351, P2) — BRD GE-16
+BRANCH: fix/bug72-city-search-region
+CLASS (OP-32): gap in shipped behaviour (never built), found during PO
+  deployment shakedown of the ADL-46 release.
+
+TASK
+The Add Place city autocomplete renders one line per row as
+`{city.name} {city.country_code}`, so an ambiguous city shows as
+"Springfield US" with nothing distinguishing which Springfield the user is
+selecting. PO decision: show city, state, country. This brief is the
+backend half only — extend GET /api/cities so each row carries the
+region's human-readable name and ISO code via a join on `regions`.
+Frontend's AddPlaceFlow.tsx label change is a separate, deliberately-held
+brief (OP-28 collision avoidance) — not touched here.
+
+WHAT WAS CHANGED
+
+1. src/backend/routes/cities.ts — GET /api/cities (search) handler:
+   - Added `leftJoin(regions, eq(regions.id, cities.regionId))`.
+   - Added `region_name: regions.name` and `region_iso: regions.iso3166_2`
+     to the select object, alongside the existing `region_id: cities.regionId`
+     (kept unchanged for existing consumers, per the brief).
+   - LEFT JOIN, not INNER, is the entire point: an INNER join would silently
+     drop every row with a NULL region_id (any city in a non-region-tier
+     country, or a region-tier city not yet assigned a region) out of the
+     result set entirely — a real regression indistinguishable from missing
+     data, and one that would narrow the GE-16 containment predicate
+     (cities.ts:60-64, `or(resolved, mine, creator IS NULL)`) it sits next
+     to. The containment predicate itself is untouched — same three
+     conditions, same `and(...conditions, containment)` composition, just
+     one more join upstream of it.
+   - Naming: followed the existing `region_iso` precedent already used by
+     repositories/trips.ts (`cityRegionIso: regions.iso3166_2`) and
+     routes/trips.ts / geocode.ts (`region_iso` in the response), rather
+     than the `iso_3166_2` spelling used in admin.ts/map.ts's region-listing
+     endpoints — this endpoint is city-shaped, not region-shaped, so it
+     mirrors the sibling city-with-region join in trips.ts rather than the
+     admin CRUD endpoints.
+
+2. [SUPERSEDED — see PR REVIEW UPDATE at bottom of this doc; tests moved to
+   src/backend/routes/__tests__/cities.search-region-enrichment.test.ts]
+   Originally landed as a new describe block "BUG-72 — GET /api/cities
+   region enrichment" (3 tests) appended directly in
+   adl46-access-model.test.ts, after the existing "ADL-46 Group C — pending
+   vs resolved city containment (GE-16)" block, since it shared that
+   block's seed helpers (seedCountry, seedRegion, seedCity) and that file
+   already owned GET /api/cities route-level coverage:
+   - a region-tier city (US/Colorado) carries region_id + region_name +
+     region_iso together.
+   - a region-less city (JP/Kyoto, non-region-tier country, NULL
+     region_id) still appears in results, with region_name/region_iso both
+     null — this is the success-criteria-mandated proof that the LEFT JOIN
+     does not narrow GE-16 containment. Chose a different country/geocode
+     path (JP, not reusing the existing C1/C3 pending-city fixtures) so
+     this test is a direct, single-purpose proof of the join behaviour
+     rather than riding on containment-test fixtures that exercise a
+     different axis (creator scoping).
+   - a mixed search (US/Illinois) returns one regioned row and one
+     region-less row from the same country in a single response, to catch
+     any per-row query-construction mistake that a single-row test could
+     miss.
+   All three run as an authenticated owner (mockIsOwner=1) — no access-
+   control dimension under test here, unlike Group C.
+
+3. jobs/backend/tech/20260307-api-reference.md — GET /api/cities section:
+   added region_name/region_iso to the example response (both a null-region
+   row and a Springfield/Illinois example), and a paragraph explaining why
+   and the LEFT JOIN guarantee. Also corrected geocode_status's documented
+   enum from `"failed"` to `"unresolvable"` — noticed while editing the
+   adjacent line; the real chk_cities_geocode_status CHECK constraint
+   (schema.ts) has never allowed "failed", only pending/resolved/
+   unresolvable, so the doc was already stale independent of this change.
+
+SECURITY CHECKLIST (route modified, not added)
+1. Auth middleware unchanged — GET /api/cities is still covered by the
+   blanket `app.use('/api/', requireAuth)` at server.ts:198, mounted before
+   `app.use('/api/cities', citiesRouter)` at server.ts:212. Not touched by
+   this diff. Confirmed by reading server.ts's mount order and by the full
+   adl46-access-model.test.ts suite (including its existing 401-unauthenticated
+   coverage) staying green.
+2. No new user-data exposure. `regions` (schema.ts ~line 69) has no userId /
+   createdByUserId column and is documented tier-1 global reference data —
+   confirmed by two independent probes: (a) reading the full regions table
+   definition in schema.ts, no user-referencing FK anywhere on it; (b) an
+   existing route, GET /api/admin/countries/:countryCode/regions
+   (admin.ts:86-105), already serves the same table's rows to any
+   authenticated user (registered ahead of the requireOwner guard,
+   admin.ts:56). The GE-16 containment predicate (cities.ts:60-64) is
+   unchanged byte-for-byte — same three `or()` branches, same position in
+   the `and()` call, only a join added upstream.
+3. No new user-referencing FK columns — no schema change in this brief at
+   all (no migration, no schema.ts edit).
+
+TEST RESULTS
+- New tests: 3/3 pass in isolation and in the full file (35/35 total in
+  adl46-access-model.test.ts, up from 32).
+- Full backend suite: 668 passed, no regressions.
+- Full frontend suite: 237 passed (AddPlaceFlow.tsx untouched, as instructed).
+- type:check:all: clean.
+- biome check: clean (one format-only fixup applied to the new test block
+  before the final commit — see branch history).
+- status:check: STATUS.md already in sync, no regeneration needed.
+
+DECLARED FULL-FILE REWRITES
+None. All changes are targeted edits (Edit tool) to existing files — no
+source file was replaced wholesale.
+
+OPEN ISSUES / BLOCKERS
+None. Frontend's label-rendering half (AddPlaceFlow.tsx) is unblocked by
+this PR merging — it can now read `region_name`/`region_iso` directly off
+GET /api/cities rows without a client-side lookup.
+
+PR REVIEW UPDATE (same day, before merge)
+COO review of PR #353 flagged that adl46-access-model.test.ts is QA's frozen
+ATDD acceptance spec — the evidence base for the still-unwritten D-17 trial
+verdict, which depends on the suite's provenance being auditable (written
+spec-first, never adjusted afterward). Appending ~100 lines of post-hoc
+backend regression tests to it damages exactly the property under
+evaluation. Direct precedent from the same feature: the ADL-46 D13 backend
+stage hit this and created cities-find-or-create.test.ts as an explicitly
+backend-owned regression file rather than touching QA's suite.
+
+Action taken: relocated the 3-test "BUG-72 — GET /api/cities region
+enrichment" describe block, verbatim including its explanatory comment
+block, into a new sibling file,
+src/backend/routes/__tests__/cities.search-region-enrichment.test.ts — a
+sibling rather than an extension of cities-find-or-create.test.ts because
+these are GET /api/cities (search) response-shape tests, a different route
+and a different concern from POST /api/cities find-or-create. The new
+file carries its own header comment stating its relationship to QA's
+suite (complements, does not touch), and mirrors — rather than imports —
+adl46-access-model.test.ts's seedUser/seedCountry/seedRegion/seedCity
+helpers and its mockUserId/mockIsOwner auth-mock pattern, so QA's file
+needed no export changes.
+
+Verified `git diff origin/main -- adl46-access-model.test.ts` is empty —
+QA's suite is byte-for-byte unchanged versus main. Full backend suite
+re-run: 668 passed (35 files, unchanged total test count — the 3 tests
+moved, none were added or dropped). type:check:all, biome check, and
+status:check all still clean. PR #353 pushed with this change; CI
+re-verified green before reporting back to COO.
