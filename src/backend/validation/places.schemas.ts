@@ -29,6 +29,11 @@ export const CreatePlaceSchema = z
 
 export const UpdatePlaceDatesSchema = z
   .object({
+    // ADL-46 D11 (§4.4.2): city_id makes a place re-pointable — the correction
+    // path for a mistyped/wrong city. Ownership is validated on the place, so
+    // this adds no new access surface (the target city's existence is checked
+    // in the handler).
+    city_id: z.number().int().positive().optional(),
     arrived_on: z.string().nullable().optional(),
     departed_on: z.string().nullable().optional(),
   })

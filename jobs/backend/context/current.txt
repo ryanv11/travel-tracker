@@ -1,3 +1,50 @@
+BACKEND CONTEXT — 2026-08-01 (ADL-46 F1/F2 ruling thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: implemented the Architect's F1/F2 ruling
+  (jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md, R1-R4) on the ADL-46
+  integration branch. Branch fix/adl46-f1-f2-ruling off release/adl46-access-model,
+  issue #345, PR #346, CI green (9/9).
+  1. Deleted pickBest (geocoding.service.ts). Added exported classifyCandidates
+     — the ONE shared classifier both resolveCityName (create path) and
+     resolveCity (queue/on-create) now delegate to. Ambiguous = more than one
+     distinct non-null region_iso among eligible candidates, not candidate
+     count.
+  2. Fixed a shipped regression incidentally: two same-region Nominatim hits
+     for one city at different granularities (city + municipality) were being
+     marked 'ambiguous' pre-fix (geocoding.service.ts:99-101). Demonstrated
+     failing pre-fix via `git apply -R` of a scratch diff of just the two
+     production files (never git stash — refs/stash is shared across
+     worktrees in this repo), ran the new regression test in isolation
+     (failed with "expected 'ambiguous' to be 'ok'" against the real
+     pre-existing resolveCityName call path), then re-applied the fix.
+  3. R4: an ambiguous verdict consumes geocode_attempts and never sets
+     'unresolvable'; changing region_id resets the budget.
+  4. R1/F2: findOrUpgradeCity (cities.ts) step 2's wildcard-upgrade SELECT now
+     requires geocode_status IN ('pending','unresolvable') (whitelist) AND
+     (created_by_user_id = caller OR NULL) — a resolved row stays visible
+     under GE-16 but is never upgradeable by a non-owner. Steps 1 and 2b
+     deliberately stay creator/status-blind (unconditional unique index).
+     Successful upgrade resets geocode_attempts and re-fires resolveCity
+     (never for an adopted 'unresolvable' row).
+  5. POST /api/cities step 4c skips the resolveCity fire-and-forget when
+     resolution.status === 'ambiguous' (route already holds that verdict).
+  6. All 5 ruling §4 test obligations + frontend parity test written against
+     a candidate-returning fake, not the mocked-away geocoder every existing
+     route suite uses (review finding F4): geocoding.service.test.ts
+     (classifyCandidates table-driven + resolveCity ambiguity/CAP), new
+     src/backend/routes/__tests__/cities.f1f2-ruling.test.ts (route-level
+     findOrUpgradeCity + step 2b two-or-more no-unique-violation proof), and
+     two new tests in AddPlaceFlow.test.tsx (frontend/backend parity on the
+     same fixtures).
+  7. adl46-access-model.test.ts (QA-owned, not touched): 32/32 unaffected
+     before and after. Root-caused per the brief's F8 warning: its mock only
+     exports resolveCity, not resolveCityName, so every resolveCityName call
+     in that suite throws a TypeError swallowed by the route's own try/catch
+     — pre-existing coverage gap, not caused or fixed by this change.
+  8. No migrations, no new columns, no route-gating changes. Full backend
+     (665), frontend (237), contract (115), and E2E (52) suites green; full
+     detail in jobs/COO/inbox/20260801_1300-BACKEND-adl46-f1-f2-ruling-complete.txt.
+
 BACKEND CONTEXT — 2026-07-28 (B4 thread, latest)
 PROJECT: Travel Tracker
 CURRENT STATUS: B4 brief (BUG-52, BUG-56, QUAL-02 findings 1-2, QUAL-17),

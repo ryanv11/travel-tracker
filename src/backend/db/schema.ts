@@ -102,28 +102,52 @@ export const cities = sqliteTable(
     name: text('name').notNull(),
     latitude: real('latitude'), // NULL while geocode_status = 'pending'
     longitude: real('longitude'), // NULL while geocode_status = 'pending'
-    // 'pending' = awaiting Nominatim resolution; 'resolved' = coordinates confirmed
+    // 'pending' = awaiting Nominatim resolution; 'resolved' = coordinates confirmed;
+    // 'unresolvable' = geocoder answered "no match" — terminal, never retried (ADL-46 D10)
     geocodeStatus: text('geocode_status').notNull().default('pending'),
     geocodeAttemptedAt: text('geocode_attempted_at'), // ISO 8601 timestamp of last attempt
+    // ADL-46 D10 (§4.4.1): incremented ONLY on recoverable failures (network/timeout/5xx/429).
+    // The retry queue gives up at a cap (WHERE geocode_status = 'pending' AND geocode_attempts < CAP).
+    // isOnline()-false and GEOCODING_ENABLED=false are global conditions and must NOT increment it.
+    geocodeAttempts: integer('geocode_attempts').notNull().default(0),
+    // ADL-46 D5/GE-16 (§4.4): creator of an on-demand city. DELIBERATELY NULLABLE — cities are
+    // global reference data, not user data, and seeded/pre-column rows have no creator; NULL means
+    // "no known creator (seeded, pre-column, or creator since deleted)" and is treated as global.
+    // ON DELETE SET NULL (not cascade): deleting a user must never delete shared city rows their
+    // trips and other users' trips depend on. Both properties are exceptions to the security
+    // checklist default and are intentional (ADL-46 §9.2, security checklist).
+    createdByUserId: text('created_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
   (t) => [
     index('idx_cities_country').on(t.countryCode),
     index('idx_cities_region').on(t.regionId),
-    // Partial index — only indexes pending cities, making the geocoding queue scan efficient
+    // Partial index — only indexes pending cities, making the geocoding queue scan efficient.
+    // Bonus (ADL-46 D10): 'unresolvable' rows drop out of this index automatically, keeping the
+    // queue scan tight without a separate terminal flag.
     index('idx_cities_geocode').on(t.geocodeStatus).where(sql`${t.geocodeStatus} = 'pending'`),
-    check('chk_cities_geocode_status', sql`${t.geocodeStatus} IN ('pending', 'resolved')`),
-    // BUG-33 (#157): prevents duplicate city rows for the same (name, country_code) —
-    // find-or-create logic was creating a new row instead of reusing the existing one
-    // (e.g. "Glasgow" appeared twice in the place autocomplete). COLLATE NOCASE is
-    // SQLite's built-in ASCII-only case fold (A-Z/a-z) — it resolves the real-world
-    // "Glasgow"/"glasgow" case but does not fold non-ASCII/diacritic variants; that
-    // is an accepted, documented limitation, not a silent gap (Architect-reviewed
-    // 2026-07-20). Backend's find-or-create lookup must match this collation (its own
-    // WHERE clause needs to be case-insensitive too) or it will fail to find the
-    // canonical row and attempt an insert that now throws instead of reusing it.
-    uniqueIndex('uniq_cities_name_country_ci').on(sql`${t.name} COLLATE NOCASE`, t.countryCode),
+    check(
+      'chk_cities_geocode_status',
+      sql`${t.geocodeStatus} IN ('pending', 'resolved', 'unresolvable')`,
+    ),
+    // ADL-46 D13 (§4.2.1): city identity is (name, country_code, region). Replaces BUG-33's
+    // (name, country_code) key. region_id is nullable and SQLite treats NULLs as distinct in a
+    // unique index, so a naive UNIQUE(name, country_code, region_id) would re-open BUG-33 for every
+    // non-region-tier country. COALESCE(region_id, 0) collapses NULL to a sentinel: regions.id is
+    // AUTOINCREMENT from 1 and never issues 0, so the sentinel cannot collide with a real region.
+    // The new key is strictly more permissive than the old one, so no existing row can violate it
+    // (no backfill). For non-region-tier countries region_id is invariantly NULL, so the key
+    // degenerates to (name, country_code) — today's guarantee, unchanged. COLLATE NOCASE is
+    // SQLite's ASCII-only case fold; Backend's find-or-create lookup must match this collation and
+    // the COALESCE, or it will attempt duplicate inserts.
+    uniqueIndex('uniq_cities_name_country_region_ci').on(
+      sql`${t.name} COLLATE NOCASE`,
+      t.countryCode,
+      sql`COALESCE(${t.regionId}, 0)`,
+    ),
   ],
 );
 
@@ -135,35 +159,57 @@ export const cities = sqliteTable(
 // while preserving it on existing associations.
 
 /**
- * Trip categories — user-managed list (e.g. 'Ski Trip', 'City Break').
- * Seeded with defaults on first launch (_project/seed-data.txt).
+ * Trip categories — per-user managed list (e.g. 'Ski Trip', 'City Break').
+ * ADL-46 (AD-09, D3): categories moved from a single global list to per-user
+ * lists, reusing ADL-28's companions pattern. Uniqueness is scoped to
+ * (user_id, name) — two different users may each have a 'Ski Trip' category
+ * without conflict. Cascade delete: removing a user removes their categories.
+ * Lazily seeded from the global defaults on user creation (Backend brief).
  */
 export const tripCategories = sqliteTable(
   'trip_categories',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    name: text('name').notNull().unique(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
     isActive: integer('is_active').notNull().default(1),
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
-  (t) => [check('chk_trip_categories_is_active', sql`${t.isActive} IN (0, 1)`)],
+  (t) => [
+    uniqueIndex('uniq_trip_categories_user_name').on(t.userId, t.name),
+    index('idx_trip_categories_user').on(t.userId),
+    check('chk_trip_categories_is_active', sql`${t.isActive} IN (0, 1)`),
+  ],
 );
 
 /**
- * Activities — user-managed list (e.g. 'Skiing', 'Sightseeing').
+ * Activities — per-user managed list (e.g. 'Skiing', 'Sightseeing').
  * Applied at both trip level and place level (TR-04).
+ * ADL-46 (AD-09, D3): activities moved from a single global list to per-user
+ * lists, reusing ADL-28's companions pattern. Uniqueness is scoped to
+ * (user_id, name). Cascade delete: removing a user removes their activities.
+ * Lazily seeded from the global defaults on user creation (Backend brief).
  */
 export const activities = sqliteTable(
   'activities',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    name: text('name').notNull().unique(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
     isActive: integer('is_active').notNull().default(1),
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
   },
-  (t) => [check('chk_activities_is_active', sql`${t.isActive} IN (0, 1)`)],
+  (t) => [
+    uniqueIndex('uniq_activities_user_name').on(t.userId, t.name),
+    index('idx_activities_user').on(t.userId),
+    check('chk_activities_is_active', sql`${t.isActive} IN (0, 1)`),
+  ],
 );
 
 /**

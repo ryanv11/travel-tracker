@@ -25,7 +25,9 @@ import {
 } from '../db/index.js';
 import type { Trip } from '../db/schema.js';
 import { NotFoundError, ValidationError } from '../errors.js';
+import { activityRepository } from './activities.js';
 import { companionRepository } from './companions.js';
+import { tripCategoryRepository } from './tripCategories.js';
 
 // ----------------------------------------------------------------
 // Types
@@ -232,11 +234,14 @@ export const tripRepository = {
    * Replaces all M2M associations for a trip (delete + reinsert).
    * Pass undefined for a collection to leave it unchanged.
    *
-   * ADL-28 R4: companionIds are validated against userId before insert —
-   * companions.user_id must match the trip's user_id, and SQLite cannot
-   * enforce that cross-table invariant at the schema level. Any companionId
-   * that does not belong to userId throws ValidationError (400, not 404 —
-   * the companion may genuinely exist, just under a different user).
+   * ADL-28 R4 / ADL-46 §3.3 (F1): categoryIds, companionIds and activityIds are
+   * each validated against userId before insert — the referenced row's user_id
+   * must match the trip's user_id, and SQLite cannot enforce that cross-table
+   * invariant at the schema level (the junction FK targets the id column, which
+   * has no user dimension). Any id that does not belong to userId throws
+   * ValidationError (400, not 404 — the row may genuinely exist, just under a
+   * different user). Once categories and activities became per-user (ADL-46 D3)
+   * they carry exactly the cross-user hazard companions already had.
    */
   async replaceAssociations(
     userId: string,
@@ -247,11 +252,29 @@ export const tripRepository = {
   ): Promise<void> {
     const db = getDb();
 
+    if (categoryIds?.length) {
+      const invalidIds = await tripCategoryRepository.validateOwnership(userId, categoryIds);
+      if (invalidIds.length) {
+        throw new ValidationError(
+          `Category ID(s) not found or not owned by user: ${invalidIds.join(', ')}`,
+        );
+      }
+    }
+
     if (companionIds?.length) {
       const invalidIds = await companionRepository.validateOwnership(userId, companionIds);
       if (invalidIds.length) {
         throw new ValidationError(
           `Companion ID(s) not found or not owned by user: ${invalidIds.join(', ')}`,
+        );
+      }
+    }
+
+    if (activityIds?.length) {
+      const invalidIds = await activityRepository.validateOwnership(userId, activityIds);
+      if (invalidIds.length) {
+        throw new ValidationError(
+          `Activity ID(s) not found or not owned by user: ${invalidIds.join(', ')}`,
         );
       }
     }

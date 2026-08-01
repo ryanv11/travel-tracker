@@ -1,0 +1,49 @@
+PARK DOCUMENT — Architect — 2026-07-31
+Thread: OP-27 fresh-eyes review of the assembled ADL-46 release
+Branch: chore/adl46-release-fresh-eyes-review (PR target: release/adl46-access-model)
+
+WHAT THIS THREAD WAS
+An independent critical review of release/adl46-access-model @ 79ea9a4 (DB, QA, Backend,
+Frontend stages assembled; ~50 files, +8107/-501). I authored none of it. Brief: try to
+break it, with the migrations as the top priority; do not fix anything.
+
+DELIVERABLE
+jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md — verdict, 8 findings,
+full verification record, explicit could-not-verify list.
+
+VERDICT: SHIP WITH FOLLOW-ONS. F1 recommended fixed on the branch before merge.
+
+THE ONE THING TO KNOW IF YOU READ NOTHING ELSE
+F1: POST /api/cities fires resolveCity on the freshly-created pending row (cities.ts:329)
+and the 15-minute queue does the same for every pending row; resolveCity's pickBest takes
+candidates[0] when the row has no region (geocoding.service.ts:200-211). So the D14
+"ask, don't guess" decision — and two GE-16 success criteria — are silently undone within
+about a second of a user declining to choose, whenever the geocoder is reachable. The spec
+never said what the QUEUE does with ambiguity; the implementation kept the legacy data[0]
+behaviour. The fix needs a design decision (my lean: multi-candidate-no-region leaves the
+row pending and increments the attempt counter, so the cap bounds it), not a one-liner.
+
+METHOD NOTES WORTH KEEPING (they generalise)
+- Migrations were verified by EXECUTION through the real drizzle-kit migrate path, on
+  scratch DBs seeded at the 0013 state, in four variants (clean / cross-user / zero-owner /
+  multi-owner). Reading alone would have missed that the in-file PRAGMA foreign_keys lines
+  are no-ops: BOTH libSQL transports wrap ALL pending migration files in one deferred
+  transaction with FKs disabled at the driver level (client.migrate()). Rollback-on-assert
+  is real and whole-batch; post-commit FK validation does not exist, which is why the
+  zero-owner variant commits dangling junction rows silently.
+- The §9.3.2 pre-migration checks were run LIVE against staging and production via
+  scripts/agent-diagnostics/turso-query.mjs (worktree needs /workspace/.env.agent-diagnostics
+  copied in): owner_count=1 and all three cross-user counts 0 on both, as of 2026-07-31.
+- The ATDD suite's provenance was verified with git log --follow + git diff since its
+  authoring commit (empty diff): genuinely written first, never bent to the implementation.
+- Scratch artifacts (runner config, seed/verify scripts, DBs) lived in the session
+  scratchpad, not the repo, and are disposable.
+
+OPEN ITEMS HANDED TO COO (routing, not fixing — reviewer independence)
+1. F1 fix decision + implementation (backend, small; blocks GE-16 UAT as-specified).
+2. F2 ruling: restrict D13 wildcard upgrade to non-'resolved' rows, or accept + record.
+3. F3 hardening: owner-count + orphan columns on the migration's assert table (before this
+   migration ever runs against a DB other than the two verified ones).
+4. F4: route-level tests for the resolve-then-create 'ok' path.
+5. F5: comment amendment in 0014/0015 re where FK-off actually comes from.
+6. F8.1: fix the ATDD suite's drifted geocoding mock (importOriginal spread).

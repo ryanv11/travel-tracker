@@ -143,38 +143,47 @@ describe('HC-04: Non-owner authenticated user receives 403 on admin routes', () 
   });
 });
 
-describe('HC-04: Owner user receives 200/201 on admin routes', () => {
-  it('GET /api/admin/categories → 200 for owner', async () => {
+// ADL-46 (AD-09, D3, §8.2): categories/activities are per-user now and moved
+// out of /api/admin/* to /api/categories + /api/activities (requireAuth only).
+// The owner-side "→ 200/201 on admin routes" assertions are re-pointed at the
+// new paths — owner and non-owner alike get 200/201 on their OWN lists; the
+// non-owner 403 assertions above stay (they now hit router-level requireOwner
+// before the removed routes resolve — §8.2 verified counterpoint).
+describe('HC-04: Users receive 200/201 on their own per-user category routes (ADL-46)', () => {
+  it('GET /api/categories → 200 for owner (own list)', async () => {
     mockIsOwner = 1;
     await seedTestUser(testDb!, 1);
-    const res = await supertest(app).get('/api/admin/categories');
+    const res = await supertest(app).get('/api/categories');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
 
-  it('POST /api/admin/categories → 201 for owner', async () => {
+  it('POST /api/categories → 201 for owner (own list)', async () => {
     mockIsOwner = 1;
     await seedTestUser(testDb!, 1);
-    const res = await supertest(app).post('/api/admin/categories').send({ name: 'Owner Category' });
+    const res = await supertest(app).post('/api/categories').send({ name: 'Owner Category' });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ name: 'Owner Category' });
   });
 });
 
 // ================================================================
-// HC-06: POST /api/cities requires owner
+// HC-06: POST /api/cities — creation opened to any authenticated user
+// (ADL-46 D4/§8.2, amended 2026-07-31). City CREATION is no longer owner-only;
+// city CURATION (PATCH /api/cities/:id) stays owner-only. The old "requires
+// owner" contract is inverted here under the spec's authority.
 // ================================================================
 
-describe('HC-06: POST /api/cities requires owner', () => {
-  it('POST /api/cities → 403 for non-owner', async () => {
+describe('HC-06: POST /api/cities is open to any authenticated user (ADL-46 D4)', () => {
+  it('POST /api/cities → 201 for non-owner (creation opened)', async () => {
     mockIsOwner = 0;
     await seedTestUser(testDb!, 0);
     await seedCountry(testDb!);
     const res = await supertest(app)
       .post('/api/cities')
       .send({ name: 'New City', country_code: 'US' });
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ name: 'New City', country_code: 'US' });
   });
 
   it('POST /api/cities → 201 for owner', async () => {

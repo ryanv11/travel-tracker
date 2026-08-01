@@ -108,8 +108,14 @@ async function seedLockedTripFixture(
     .values({ name: 'Berlin', countryCode: 'DE', geocodeStatus: 'resolved' })
     .returning();
 
-  const [hiking] = await db.insert(schema.activities).values({ name: 'Hiking' }).returning();
-  const [museums] = await db.insert(schema.activities).values({ name: 'Museums' }).returning();
+  const [hiking] = await db
+    .insert(schema.activities)
+    .values({ userId: TEST_USER_ID, name: 'Hiking' })
+    .returning();
+  const [museums] = await db
+    .insert(schema.activities)
+    .values({ userId: TEST_USER_ID, name: 'Museums' })
+    .returning();
 
   const [trip] = await db
     .insert(schema.trips)

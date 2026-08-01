@@ -4,58 +4,55 @@
  * City search, creation, and the carry-forward candidates endpoint.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CarryForwardCandidate, City, CityItem } from '../types/api';
+import type {
+  CarryForwardCandidate,
+  City,
+  CityItem,
+  GeocodeCandidate,
+  GeocodeResult,
+} from '../types/api';
 import { apiGet, apiPost } from '../utils/apiClient';
 import type { RatingSortOrder } from './useItems';
 
 // ============================================================
-// NOMINATIM GEOCODING (GE-15 — country auto-populate)
+// GEOCODING (ADL-46 D7/D14, GE-15 — country/region auto-populate)
 // ============================================================
 
-const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';
-const NOMINATIM_USER_AGENT = 'TravelTracker/1.0 (personal-use-app)';
-
-/** Shape of a Nominatim search result with address details. */
-interface NominatimResult {
-  address?: {
-    country_code?: string;
-    'ISO3166-2-lvl4'?: string;
-  };
-}
-
 /**
- * Looks up a city name via Nominatim and returns the ISO 3166-1 alpha-2
- * country code (upper-cased) and ISO 3166-2 subdivision code if found.
+ * Looks up a city name via the backend geocode proxy (GET /api/geocode) and
+ * returns the top candidate's ISO 3166-1 alpha-2 country code and ISO 3166-2
+ * subdivision code, plus the full candidate list for D14 ambiguity handling.
+ *
+ * ADL-46 (D7): this used to call nominatim.openstreetmap.org directly from
+ * the browser. Two independent reasons that could never work in production:
+ * CSP blocks the cross-origin fetch (BUG-55), and `User-Agent` is a forbidden
+ * header name that fetch() silently drops, so the call never carried the
+ * identifying UA Nominatim's usage policy requires. The proxy owns egress now.
  *
  * Used by AddPlaceFlow to auto-populate the country and region fields (GE-15, UX-04).
- * Fire-and-forget style — errors are silently swallowed so the user
- * can still select the country/region manually if lookup fails.
+ * Fire-and-forget style — errors are silently swallowed (same contract as
+ * before the D7 repoint) so the user can still select the country/region
+ * manually if lookup fails.
  *
  * @param cityName - The city name to look up.
- * @returns Object with upper-cased country code (e.g. "FR") and region ISO (e.g. "US-CA"), both nullable.
+ * @returns Upper-cased country code (e.g. "FR"), region ISO (e.g. "US-CA"),
+ *   both nullable, and the full candidate list (empty on any failure).
  */
-export async function lookupCityCountry(
-  cityName: string,
-): Promise<{ countryCode: string | null; regionIso: string | null }> {
+export async function lookupCityCountry(cityName: string): Promise<{
+  countryCode: string | null;
+  regionIso: string | null;
+  candidates: GeocodeCandidate[];
+}> {
   try {
-    const params = new URLSearchParams({
-      q: cityName,
-      format: 'json',
-      limit: '1',
-      addressdetails: '1',
-    });
-    const resp = await fetch(`${NOMINATIM_BASE}?${params}`, {
-      headers: { 'User-Agent': NOMINATIM_USER_AGENT },
-    });
-    if (!resp.ok) return { countryCode: null, regionIso: null };
-    const data = (await resp.json()) as NominatimResult[];
-    const item = data[0];
+    const params = new URLSearchParams({ q: cityName });
+    const result = await apiGet<GeocodeResult>(`/api/geocode?${params}`);
     return {
-      countryCode: item?.address?.country_code?.toUpperCase() ?? null,
-      regionIso: item?.address?.['ISO3166-2-lvl4'] ?? null,
+      countryCode: result.country_code?.toUpperCase() ?? null,
+      regionIso: result.region_iso ?? null,
+      candidates: result.candidates,
     };
   } catch {
-    return { countryCode: null, regionIso: null };
+    return { countryCode: null, regionIso: null, candidates: [] };
   }
 }
 

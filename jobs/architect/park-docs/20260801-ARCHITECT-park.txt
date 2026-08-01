@@ -1,0 +1,72 @@
+ARCHITECT PARK DOCUMENT — 2026-08-01
+Thread: ADL-46 F1/F2 blocking ruling (pre-merge, integration branch)
+Branch: chore/adl46-f1-f2-ruling  →  PR against release/adl46-access-model (NOT main)
+
+WHAT THIS THREAD WAS
+A narrow, blocking design ruling on three questions raised by the OP-27 fresh-eyes review
+of the assembled ADL-46 release (jobs/architect/tech/20260731-ADL46-release-fresh-eyes-
+review.md, PR #342): the F2 wildcard-upgrade predicate, the F1 ambiguity discriminator, and
+the map consequence for UAT. Explicitly NOT a feature design brief — scope discipline was
+named as the most important property of the dispatch and was held.
+
+DELIVERABLE
+jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md — five rulings (R1–R5), a test-obligation
+section, and a what-I-could-not-verify section. Actionable by a Backend agent without further
+design decisions: function names, signatures, the exact algorithm in order, and the exact SQL
+predicate are all in it.
+
+ALSO CHANGED (amend, never rewrite)
+- ADL-46-non-owner-access-model.md §4.2.1 and §4.3.2 — dated AMENDED blocks, prior text intact.
+- 20260307-architecture-decisions-log.md — dated AMENDMENT appended to the ADL-46 entry.
+- jobs/architect/context/current.txt — appended dated entry.
+No supersession stamps needed: every change is a refinement of ADL-46, not a replacement.
+No BRD change, no new requirement ID, no schema change, no migration.
+
+THE FIVE RULINGS IN ONE LINE EACH
+R1  F2 predicate: accept, with four amendments; reject the COO's stated rationale (§3.1).
+R2  Ambiguity = more than one distinct non-null region_iso among country-eligible candidates.
+R3  Region requested, no candidate matches it → stays pending, never resolved elsewhere.
+R4  Ambiguity consumes geocode_attempts; the budget belongs to the question, so region_id
+    changing resets it — and deliberately does not for unresolvable.
+R5  Map: pending shades country, not region, and shows no pin. Volume change is not monotonic.
+
+THE THREE THINGS A SUCCESSOR MOST NEEDS TO KNOW
+1. ONE CLASSIFIER, TWO CALLERS. pickBest must be deleted, not patched. F1's root cause is
+   that one question (which candidate, if any?) had two independent decision procedures.
+   Any fix that leaves two in place regresses the moment either is touched.
+2. THE HAPPY PATH IS ALREADY BROKEN ON THE BRANCH, and nobody had found it. resolveCityName
+   returns 'ambiguous' whenever two or more candidates match the REQUESTED region
+   (geocoding.service.ts:99-101). UX-04 auto-populates the region, and Nominatim returns one
+   city at several granularities, so ordinary submissions produce pending rows. The ruling
+   fixes it incidentally, but the frequency is UNVERIFIED (firewall blocks live Nominatim)
+   and must be exercised on staging. If the shakedown finds it common, this was the single
+   largest user-visible defect in the release and it was not in the review.
+3. THE COO'S PREDICATE WAS RIGHT AND ITS JUSTIFICATION WAS WRONG. "Same predicate GE-16 uses
+   for visibility" is false — `resolved` is a GRANT in the visibility disjunction and a BAR
+   in the upgrade predicate. Ratifying the reasoning would have propagated a rule that reads
+   correctly in prose and inverts in SQL. The replacement principle is on record: read-through
+   is global because the unique index is global; write-through is scoped because nothing
+   forces it to be.
+
+VERIFICATION POSTURE (negative-findings rule)
+Every negative claim in the deliverable carries two probes that could fail differently, or is
+marked UNVERIFIED with the probe and its blind spot named:
+- Shading ignores geocode_status/coordinates: read the four query builders AND a symbol grep
+  across services/ and repositories/ (zero hits in shading.service.ts).
+- Coordinates and 'resolved' always written together, nothing demotes: three probes — latitude
+  write sites, geocodeStatus write sites, PatchCitySchema .strict().
+- Unique index is unconditional (no creator/status WHERE): schema.ts:146 AND the applied DDL
+  at 0015_fluffy_payback.sql:63.
+- Live Nominatim behaviour: UNVERIFIED, firewall (GitHub/npm/Anthropic only), no probe run.
+  Named explicitly in ruling §6 with what follows from it and what does not.
+
+OPEN / HANDED BACK, NOT SOLVED
+- The UX brief owns: what the map shows for unlocated places, whether the three geocode states
+  get an affordance, and Roma/Rome canonicalisation. The ruling deliberately constrains none of
+  them — classifyCandidates takes candidates and returns a verdict; a name-agreement clause is
+  an added condition, not a rewrite.
+- Review F7 (doubled egress on the 'unresolved' create path) was NOT authorised here. The
+  ruling only removes the provably-redundant call on the 'ambiguous' path.
+- DOC-LIFECYCLE GAP flagged to COO: ADL-47 has zero occurrences in the main ADL log despite
+  being in force on this release and cited in CLAUDE.md. /record-decision item 2 requires the
+  log entry; standalone-only numbering has drifted before (ADL-28 is the precedent).
