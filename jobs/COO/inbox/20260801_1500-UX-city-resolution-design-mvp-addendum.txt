@@ -1,0 +1,49 @@
+Tracker: GE-16 · PR #344 (extended, not a new PR) · BRD §5.2 GE-16
+Branch: docs/ux-city-entry-disambiguation-spec
+
+WHAT WAS ADDED
+Two new sections appended to the same spec (jobs/ux/tech/20260801-UX-city-entry-and-
+disambiguation-spec.md), per two follow-up COO messages the same day:
+
+§11 — a single recommended resolution design (not a menu) for how a user fixes an
+unlocated place, shown as four worked flows with named examples (Springfield/no state
+chosen, offline-created Lyon, an unresolvable fictional hamlet, wrong-Rome-Georgia), per
+explicit PO instruction. Confirms the "cause must be visible" structural question with one
+refinement: visible only down to where the remedy changes (three buckets, not the backend's
+four internal dispositions). Adds a promotion rule the backend ruling doesn't itself
+provide — a `pending` row past its retry cap must read as terminal in the UI even though
+the backend never marks it `unresolvable`. Reasoned, independent agreement with rejecting
+the user-authored-pin idea (not deference) — one place named where the COO's own argument
+is weaker than stated.
+
+§12 — an MVP scope, after a second message reframed this as probably-edge-case-until-
+measured. Verified both COO-relayed claims myself: the release branch's
+UpdatePlaceDatesSchema does accept an optional city_id (confirmed independently in the
+schema file and the route), but I concluded PlaceDateForm.tsx is the WRONG surface to
+extend (genuinely dates-only, extending it is scope creep) — recommend a separate, equally
+small modal instead. MVP: standing Change City control (unconditional) + one
+undifferentiated badge, zero new hues + the cheap country-safeguard and creation-time
+messaging kept in. Everything else (bucket split, one-tap picker, map counter, Dismiss)
+deferred with concrete triggers. Two items named explicitly NOT safe to cut: the standing
+control itself, and some passive signal a location isn't confirmed.
+
+FINDINGS
+- Sourcing note resolved, not an error: the file my original §0 reported as not existing
+  (two probes) was created for real later the same day (PR #342), after my spec went out.
+  Recorded in the spec/park doc so it isn't misread as a probing failure.
+- [MINOR] bug found and flagged, not fixed: geocodeRetryQueue.ts's attemptRetry has no
+  `unresolvable` branch — polls a terminally-dead city forever on its 10-minute floor.
+
+CI
+Same PR #344 — re-verifying green after this addendum before filing this report as done.
+
+OPEN ISSUES OR BLOCKERS
+None UX-owned. One judgement call for COO: whether to brief §12 (MVP) or hold for more
+signal, given §9's now-stated position that real-world urgency is unmeasured — my
+recommendation is §12 if/when a Frontend brief is cut, per the addendum note in
+jobs/ux/context/current.txt.
+
+WHAT IS NOW UNBLOCKED
+Same as the original report, plus: a Frontend brief can now be scoped directly from §12
+(MVP) without waiting on §11's fuller data-model implications, since §12 requires no new
+backend/schema work beyond what ADL-46 D11 already specifies.
