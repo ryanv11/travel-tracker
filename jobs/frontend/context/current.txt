@@ -478,3 +478,67 @@ NEXT STEPS (when resumed)
   needed to close BRD-IT0809 per the mandatory UAT gate — suggest checking
   the two-probe-confirmed IT-09 net-new page in particular, since it's the
   one part of this brief that didn't exist in any form before today.
+
+═══════════════════════════════════════════════════════════════════════════
+
+FRONTEND CONTEXT — as of 2026-07-31 (BRD-GE16, ADL-46 Stage 4/4, GitHub #340)
+
+STATUS: feat/adl46-frontend-stage branch → PR #341 opened against
+  release/adl46-access-model (NOT main — this is the final stage of the
+  ADL-46 per-user access-model release; DB/QA/Backend stages already landed
+  on that integration branch via PR #338 etc.). CI green, 9/9 checks.
+
+  Repointed useAdmin.ts's 10 categories/activities call sites from the
+  removed /api/admin/categories|activities to the new requireAuth,
+  userId-scoped /api/categories|activities (companions/countries untouched).
+  Repointed useCities.ts's lookupCityCountry from a direct browser fetch to
+  nominatim.openstreetmap.org (CSP-blocked in prod per BUG-55, and
+  User-Agent is a forbidden fetch header so it never worked properly anyway)
+  to GET /api/geocode via apiGet — same silent-failure contract preserved.
+  Added D14 candidate disambiguation to AddPlaceFlow.tsx's EXISTING region
+  <select> (no new component/modal, per explicit brief instruction): when
+  the geocode proxy returns multiple candidates with differing region_iso
+  for the resolved country (Springfield IL vs MO), the selector narrows to
+  just those regions instead of silently auto-picking candidates[0].
+
+  Found and fixed a pre-existing type/reality mismatch while verifying
+  shapes per the brief's instruction (don't just trust the summary):
+  Category/Activity.is_active was typed `number` but both routes actually
+  serialize a real `boolean`. Pre-dates ADL-46 (same true of the old admin
+  router and of the untouched Companion type) — fixed the two frontend
+  types since I was already touching this file; Companion left alone
+  (out of scope). No runtime behavior change — all consumers do truthy
+  checks that work for 0/1 or false/true either way.
+
+  4 previously-failing src/e2e/admin.spec.ts tests now green; full E2E
+  suite 52/52 (Playwright's own summary line). test:frontend 233/233 (+5
+  new in useCities.geocode.test.tsx covering the repointed geocode path
+  incl. the silent-failure case). test:backend 650/650 unaffected (no
+  backend files touched). type:check:all and biome clean.
+
+  Worktree had no .env.local (gitignored, not inherited) — db:migrate/start
+  failed with "Invalid or missing DB_TYPE" until copied from
+  /workspace/.env.local. Local setup only, not a code issue; noting in case
+  it recurs for the next worktree-isolated agent needing to run E2E.
+
+KEY FILE LOCATIONS (changed this thread)
+  src/frontend/hooks/useAdmin.ts (10 call-site repoints)
+  src/frontend/hooks/useCities.ts (lookupCityCountry repointed to
+    GET /api/geocode, NOMINATIM_BASE/NOMINATIM_USER_AGENT deleted)
+  src/frontend/components/TripDetail/AddPlaceFlow.tsx (D14 candidate
+    narrowing on the existing region selector)
+  src/frontend/types/api.ts (GeocodeCandidate/GeocodeResult added;
+    Category/Activity.is_active number → boolean)
+  src/frontend/hooks/__tests__/useCities.geocode.test.tsx (new)
+
+OPEN FLAGS FOR COO
+  None blocking. Full detail, including the is_active type-fix rationale
+  and the environment note on Nominatim being unreachable from this
+  devcontainer (expected, verified on staging during UAT), in
+  jobs/COO/inbox/20260731_2130-FRONTEND-adl46-stage4-complete.txt.
+
+NEXT STEPS (when resumed)
+  COO: review PR #341, merge via /coo-merge-and-close when ready — this is
+  the last of the 4 ADL-46 release stages, so merging it completes the
+  release-branch work (whatever release/adl46-access-model → main promotion
+  step follows is a COO/Architect call, not decided in this brief).

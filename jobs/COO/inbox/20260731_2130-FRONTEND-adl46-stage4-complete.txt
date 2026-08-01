@@ -1,0 +1,100 @@
+FRONTEND COMPLETION REPORT
+
+Tracker: BRD-GE16 · GitHub #340 · PR #341 · BRD §GE-16 · ADL-46 §9.2 (D7, D14)
+Branch: feat/adl46-frontend-stage → release/adl46-access-model (NOT main)
+Stage 4 of 4 (final) of the ADL-46 per-user access-model release.
+
+WHAT WAS BUILT
+
+1. useAdmin.ts — repointed all 10 categories/activities call sites from the
+   removed /api/admin/categories|activities to /api/categories|activities
+   (the new requireAuth, userId-scoped routers PR #338 added). Companions and
+   Countries untouched, as instructed.
+
+2. useCities.ts — lookupCityCountry now calls GET /api/geocode via apiGet
+   instead of fetching nominatim.openstreetmap.org directly from the browser.
+   Deleted NOMINATIM_BASE / NOMINATIM_USER_AGENT. Kept the existing
+   fire-and-forget silent-failure contract ({countryCode: null, regionIso:
+   null}, now also candidates: []) so AddPlaceFlow's manual-entry fallback is
+   unaffected.
+
+3. AddPlaceFlow.tsx (D14 ambiguity) — used the EXISTING region <select>, no
+   new component/modal. When the geocode proxy returns multiple candidates
+   with differing region_iso for the resolved country (Springfield IL vs
+   Springfield MO), the selector's options are narrowed to just those
+   candidate regions instead of silently auto-picking candidates[0], with a
+   small inline hint text ("multiple matches found, please choose"). The
+   single-best-guess auto-select path is unchanged for the unambiguous case.
+
+4. types/api.ts — added GeocodeCandidate/GeocodeResult types for the new
+   endpoint response.
+
+CONTRADICTED THE BRIEF / THINGS FOUND ALONG THE WAY
+
+- Task 1 told me to verify response shapes rather than assume, and fix the
+  frontend type if it differs. It did: Category.is_active and
+  Activity.is_active were typed `number` (SQLite 0|1) but both
+  categories.ts's and activities.ts's serializers actually coerce to a real
+  boolean (`row.isActive === 1`) before the response ever goes out — and this
+  was already true of the pre-ADL-46 admin routers too (checked git history
+  at 28a24d7~1), so it's not something PR #338 introduced, just something
+  nobody had fixed. Companion has the identical mismatch (already shipped,
+  untouched here — out of scope, not touching companions per the brief).
+  Fixed Category/Activity's types to `boolean`. Confirmed no runtime
+  behavior change: every current usage is a truthy check
+  (`cat.is_active ? … : …`, `!cat.is_active`) that works identically for
+  0/1 or false/true, and no test mock uses a numeric is_active for these two
+  types (grepped — only the untouched Companion test file does).
+- Everything else in the brief (route mounts, response shapes for
+  categories/activities/geocode, the "don't build new UI" instruction, the
+  Nominatim firewall note) matched what I found on the integration branch.
+  No other contradictions.
+
+FULL-FILE REWRITES: none. All four modified files were edited in place
+(Edit tool); one new test file was created (Write, appropriate — it didn't
+exist before).
+
+TESTING / CI
+
+- src/e2e/admin.spec.ts: the 4 previously-failing tests (create category,
+  rename category via inline edit, deactivate/re-activate category, create
+  activity) now pass.
+- Full E2E suite: 52/52 passing (Playwright's own summary line: "52 passed
+  (51.3s)" — not a grep; 48 baseline + these 4).
+- npm run test:frontend: 233/233 passing (228 baseline + 5 new, all in
+  useCities.geocode.test.tsx: top-candidate success, D14 ambiguity/multiple
+  distinct region_iso, and the silent-failure-returns-nulls case).
+- npm run test:backend: 650/650 (untouched — no backend files modified).
+- npm run type:check:all: clean.
+- npm run check (biome): clean.
+- npm run status:check: STATUS.md already in sync, no regen needed.
+- /pre-push checklist: all green.
+- CI on PR #341: all 9 checks green (scripts/ci-wait.sh pr 341 → PASS) —
+  Backend Tests, Contract Tests, Dependency Vulnerability Scan, E2E Tests,
+  Type Check, Biome, Secret Scanning, Frontend Tests, Static Analysis.
+
+ENVIRONMENT NOTE (expected, not a bug)
+Live Nominatim egress is unreachable from this devcontainer (firewall
+allowlist is GitHub/npm/Anthropic only). The E2E run logs
+"[GEO] Nominatim request failed: fetch failed" repeatedly from the backend's
+pre-existing background geocoding queue on city creation — that's a
+different code path (server-side queue, not the lookupCityCountry/
+/api/geocode path this brief touches) and pre-dates this PR. No E2E spec
+exercises the "Add new city" UI that would call lookupCityCountry directly,
+so the D14/geocode-proxy path itself wasn't exercised by real network calls
+in CI either — only by the mocked apiGet unit tests. Per the brief, this
+gets verified against real Nominatim on staging during UAT.
+
+WORKTREE SETUP NOTE
+The worktree had no .env.local (gitignored, not carried over) — db:migrate/
+the backend failed to start with "Invalid or missing DB_TYPE" until I copied
+/workspace/.env.local into the worktree. Not a code change, just local setup;
+flagging in case this trips up a future worktree-isolated E2E run.
+
+OPEN ISSUES OR BLOCKERS: none. This closes the release's remaining red.
+
+WHAT IS NOW UNBLOCKED
+- ADL-46 (per-user categories/activities + geocode proxy) is fully wired
+  end-to-end: DB, QA, Backend, and now Frontend stages all landed on
+  release/adl46-access-model. Ready for COO review/merge of PR #341, then
+  whatever release-branch → main promotion step ADL-46 calls for.
