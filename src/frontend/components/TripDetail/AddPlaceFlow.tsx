@@ -108,10 +108,32 @@ export function AddPlaceFlow({
   // regions within the resolved country), narrow the existing region selector
   // to just those candidate regions rather than listing every region in the
   // country — same <select>, filtered options.
-  const regionOptions = candidateRegionIsos
+  //
+  // The narrowed set is only used when it actually presents a choice (2+
+  // matches). Nominatim's region_iso values are open-ended while the local
+  // `regions` table is a hand-curated seed known to be incomplete (BUG-30
+  // added missing UK regions after the fact; OQ-06 is the still-open
+  // question about replacing per-country hand-seeding with a systematic
+  // ISO 3166-2 list) — nothing guarantees a geocode region_iso corresponds
+  // to a seeded row, so the narrowed set matching zero or one row is
+  // expected, not exceptional. Falling back to the full list in that case
+  // (rather than leaving the user with an empty/single-option selector)
+  // avoids locking out regions that ARE seeded and legitimately choosable.
+  // Never auto-select the lone survivor either — that would reintroduce the
+  // silent guess D14 exists to prevent, now guessing from a table already
+  // known to be incomplete.
+  const narrowedRegionOptions = candidateRegionIsos
     ? countryRegions.filter((r) => candidateRegionIsos.includes(r.iso_3166_2))
     : countryRegions;
-  const regionChoiceIsAmbiguous = candidateRegionIsos !== null && regionOptions.length > 1;
+  const regionOptions =
+    candidateRegionIsos && narrowedRegionOptions.length >= 2
+      ? narrowedRegionOptions
+      : countryRegions;
+  // Reflects "the lookup detected an ambiguous city name", independent of
+  // whether the narrowing survived the intersection with seeded regions —
+  // the user should still learn the name was ambiguous even when they end
+  // up looking at the unfiltered full list.
+  const regionChoiceIsAmbiguous = candidateRegionIsos !== null;
 
   const addPlace = useAddPlace();
   const createCity = useCreateCity();
