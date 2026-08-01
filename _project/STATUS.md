@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (68)
+## Open work (72)
 
 ### P0 — Blockers (1)
 
@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (5)
+### P1 — Critical (6)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -34,8 +34,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
+| BUG-71 | Ambiguous city name silently auto-resolves and pre-fills a state — no disambiguation offered (GE-16 violation) | backend | ⬜ Pending |
 
-### P2 — Important (34)
+### P2 — Important (37)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -73,6 +74,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-21 | Resolve-then-create success path has zero route-level test coverage (review F4) | qa | ⬜ Pending |
 | QUAL-22 | QA ATDD suite's geocoding mock drifted — one group is green for the wrong reason (review F8) | qa | ⬜ Pending |
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
+| BUG-72 | City search dropdown shows name + country only — user selects a specific city blind | backend | ⬜ Pending |
+| BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | ⬜ Pending |
+| ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
 ### P3 — Minor (28)
 
@@ -113,9 +117,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `██████████▓░░░░░░░░░` 29/56 | 29 | 27 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `██████████████░░░░░░` 44/64 | 44 | 20 | 4 |
+| bug | `█████████████░░░░░░░` 44/67 | 44 | 23 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `█████████▓░░░░░░░░░░` 13/30 | 13 | 17 | 1 |
+| chore | `████████▓░░░░░░░░░░░` 13/31 | 13 | 18 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -149,4 +153,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_135 done · 10 deferred · 4 closed · 68 open — 217 tracked items_
+_135 done · 10 deferred · 4 closed · 72 open — 221 tracked items_

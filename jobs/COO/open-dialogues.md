@@ -26,8 +26,32 @@ tracker.json but also weren't safe to let vanish.
 ## Open
 
 ### D-19: Constrain city lookup by the trip's declared countries + shortlist-not-filter selection
-**Raised:** 2026-08-01 (PO) · **Status:** DESIGNED, deferred behind an MVP. Needs a BRD home
-before any brief. UX spec written and merged; Architect design not started.
+**Raised:** 2026-08-01 (PO) · **Status:** ~~DESIGNED, deferred behind an MVP~~ → **DEFERRAL
+NO LONGER JUSTIFIED (amended 2026-08-01, same day).** Needs a BRD home before any brief.
+UX spec written and merged; Architect design not started.
+
+> **AMENDMENT (2026-08-01) — the deferral rested on a premise that was disproved within hours.**
+> This was parked as "probably edge-case territory until measured," on two stated grounds: that the
+> COO's sense of the problem was inflated by a since-fixed defect, and that **nobody could measure
+> the real rate** because `geocode_status` had only just reached main. Both were fair at the time.
+>
+> What happened next: the COO queried `geocode_status` at the next session pickup and found three
+> rows, all `resolved` — no volume, so still unmeasured — and additionally read one correctly-shaped
+> `Springfield → Virginia` row as evidence the live path *worked*. The PO then ran a real browser
+> against staging and found that same row had been produced by the defect: "springfield" silently
+> auto-populates State = Virginia with **no indication another Springfield exists** (now **BUG-71**,
+> P1, with screenshot + code-read confirmation).
+>
+> **The measurement arrived by other means.** One user, the first city typed, wrong result, no
+> recourse. The unconstrained global `limit:'10'` lookup this entry exists to fix is a direct
+> contributing cause: it starves the ambiguity discriminator of the evidence it needs to fire.
+> Two lessons worth keeping separately from the decision: **a correct-looking row is not a correct
+> flow** (the COO's read was wrong, and a DB query was the wrong instrument), and **"unmeasured"
+> is not a synonym for "rare"** — it was treated as one here.
+>
+> **This does not auto-promote D-19 to a brief** — it still needs a BRD home and the PO's call on
+> scope. It does mean the *edge-case* framing should not be reused as the reason to defer it, and
+> that QUAL-21 (F4 route-level coverage), named a prerequisite if D-19 proceeds, is now live.
 
 **The problem.** Adding a place on a US trip and typing "Rome" resolves to Rome, Italy. The
 frontend calls `GET /api/geocode?q=…` with **no constraint at all**, even though the backend
