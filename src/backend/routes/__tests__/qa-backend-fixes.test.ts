@@ -198,25 +198,33 @@ describe('BUG-A: PATCH /api/trips/:id — effective date validation', () => {
 // BUG-B: Admin list endpoints return snake_case (#26)
 // ----------------------------------------------------------------
 
-describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
+// ADL-46 (AD-09, D3, §8.2): categories/activities are per-user now and moved to
+// /api/categories + /api/activities (requireAuth only, userId-scoped). The
+// snake_case / /active-filter / soft-delete contracts are unchanged and must
+// still hold per-user. Fixtures now carry userId and seed the caller so the FK
+// to users.id holds; because a pre-existing row makes ensureSeeded a no-op, the
+// per-user default lazy seed does not perturb the fixed-count assertions.
+describe('BUG-B: Per-user category/activity endpoints — snake_case serialization (ADL-46)', () => {
   beforeEach(async () => {
     testDb = await createTestDb();
+    await seedTestUser(testDb);
   });
 
   afterEach(() => {
     testDb = null;
   });
 
-  it('GET /api/admin/categories returns is_active, not isActive', async () => {
+  it('GET /api/categories returns is_active, not isActive', async () => {
     const db = testDb!;
     await db.insert(schema.tripCategories).values({
+      userId: TEST_USER_ID,
       name: 'Beach',
       isActive: 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
 
-    const res = await supertest(app).get('/api/admin/categories').expect(200);
+    const res = await supertest(app).get('/api/categories').expect(200);
 
     expect(res.body).toHaveLength(1);
     const item = res.body[0];
@@ -225,15 +233,15 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
     expect(item.is_active).toBe(true);
   });
 
-  it('GET /api/admin/categories/active returns snake_case and only active items', async () => {
+  it('GET /api/categories/active returns snake_case and only active items', async () => {
     const db = testDb!;
     const now = new Date().toISOString();
     await db.insert(schema.tripCategories).values([
-      { name: 'Active Cat', isActive: 1, createdAt: now, updatedAt: now },
-      { name: 'Inactive Cat', isActive: 0, createdAt: now, updatedAt: now },
+      { userId: TEST_USER_ID, name: 'Active Cat', isActive: 1, createdAt: now, updatedAt: now },
+      { userId: TEST_USER_ID, name: 'Inactive Cat', isActive: 0, createdAt: now, updatedAt: now },
     ]);
 
-    const res = await supertest(app).get('/api/admin/categories/active').expect(200);
+    const res = await supertest(app).get('/api/categories/active').expect(200);
 
     expect(res.body).toHaveLength(1);
     expect(res.body[0].name).toBe('Active Cat');
@@ -241,10 +249,12 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
     expect(res.body[0].is_active).toBe(true);
   });
 
-  it('POST /api/admin/activities returns snake_case', async () => {
+  it('POST /api/activities returns snake_case', async () => {
+    // A name NOT in the seeded defaults (ACTIVITIES) so the per-user lazy seed
+    // that fires on first write does not collide with it.
     const res = await supertest(app)
-      .post('/api/admin/activities')
-      .send({ name: 'Hiking' })
+      .post('/api/activities')
+      .send({ name: 'Paragliding' })
       .expect(201);
 
     expect(res.body).toHaveProperty('is_active');
@@ -281,12 +291,13 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
     expect(res.body.name).toBe('Alicia');
   });
 
-  it('DELETE /api/admin/categories/:id (soft-delete) returns snake_case', async () => {
+  it('DELETE /api/categories/:id (soft-delete) returns snake_case', async () => {
     const db = testDb!;
     const now = new Date().toISOString();
     const [inserted] = await db
       .insert(schema.tripCategories)
       .values({
+        userId: TEST_USER_ID,
         name: 'TempCat',
         isActive: 1,
         createdAt: now,
@@ -294,7 +305,7 @@ describe('BUG-B: Admin list endpoints — snake_case serialization', () => {
       })
       .returning();
 
-    const res = await supertest(app).delete(`/api/admin/categories/${inserted.id}`).expect(200);
+    const res = await supertest(app).delete(`/api/categories/${inserted.id}`).expect(200);
 
     expect(res.body).toHaveProperty('is_active');
     expect(res.body.is_active).toBe(false);
@@ -513,6 +524,7 @@ describe('SEC-03: DELETE place activity — ownership check', () => {
     const [act] = await db
       .insert(schema.activities)
       .values({
+        userId: OTHER_USER_ID,
         name: 'Hiking',
         isActive: 1,
         createdAt: now,
@@ -552,6 +564,7 @@ describe('SEC-03: DELETE place activity — ownership check', () => {
     const [act] = await db
       .insert(schema.activities)
       .values({
+        userId: TEST_USER_ID,
         name: 'Swimming',
         isActive: 1,
         createdAt: now,

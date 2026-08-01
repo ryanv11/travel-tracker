@@ -5,7 +5,7 @@
  * Geocoding is attempted immediately on city creation; failures are silent (GE-12).
  */
 
-import { and, asc, desc, eq, inArray, like, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, like, notInArray, or, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import {
   cities,
@@ -23,7 +23,7 @@ import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
-import { resolveCity } from '../services/geocoding.service.js';
+import { resolveCity, resolveCityName } from '../services/geocoding.service.js';
 import {
   CityItemsQuerySchema,
   CreateCitySchema,
@@ -41,11 +41,27 @@ citiesRouter.get(
   validateQuery(SearchCitiesQuerySchema),
   asyncHandler(async (req, res) => {
     const { q, country_code } = req.query as { q: string; country_code?: string };
+    const userId = req.user!.id;
 
     const db = getDb();
 
     const conditions = [like(cities.name, `%${q}%`)];
     if (country_code) conditions.push(eq(cities.countryCode, country_code));
+
+    // ADL-46 GE-16 / D5 containment (§4.4): a 'pending' city is visible only in
+    // its creator's own searches; it becomes globally visible once 'resolved'.
+    // The IS NULL branch (F3) is load-bearing and permanent, not a legacy
+    // artefact — ON DELETE SET NULL regenerates a NULL creator on every user
+    // deletion, so a row that is pending AND has no known creator must be global
+    // (seeded, pre-column, or creator-since-deleted), never invisible-to-everyone.
+    // 'unresolvable' rows are NOT globally visible — they were never resolved, so
+    // they stay creator-scoped (or global when the creator is NULL) exactly like
+    // 'pending'. Only 'resolved' promotes a row to the shared catalogue.
+    const containment = or(
+      eq(cities.geocodeStatus, 'resolved'),
+      eq(cities.createdByUserId, userId),
+      isNull(cities.createdByUserId),
+    );
 
     const results = await db
       .select({
@@ -58,40 +74,151 @@ citiesRouter.get(
         geocode_status: cities.geocodeStatus,
       })
       .from(cities)
-      .where(and(...conditions))
+      .where(and(...conditions, containment))
       .orderBy(cities.name);
 
     res.json(results);
   }),
 );
 
+/** Serialize a city row to the snake_case API shape. */
+function serializeCity(row: {
+  id: number;
+  name: string;
+  countryCode: string;
+  regionId: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  geocodeStatus: string;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    country_code: row.countryCode,
+    region_id: row.regionId,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    geocode_status: row.geocodeStatus,
+  };
+}
+
+/**
+ * ADL-46 D13 (§4.2.1) — the three-step find-or-create, steps 1 & 2. Returns an
+ * existing (or wildcard-upgraded) city row for (name, countryCode, regionId), or
+ * null if a genuine insert is needed. NOT creator-scoped: the unique index is
+ * global, so pass 1 must be able to return another user's pending row (OP-27 P2 /
+ * §8 row 6) rather than colliding with the index on insert.
+ *
+ *   Step 1 — exact match on (name COLLATE NOCASE, country_code, COALESCE(region_id,0)),
+ *            mirroring uniq_cities_name_country_region_ci exactly.
+ *   Step 2 — WILDCARD UPGRADE: if the request carries a region and step 1 missed,
+ *            adopt a region-less row of the same name+country by SETTING its
+ *            region_id. A region-less row is an under-specified record, not a
+ *            different city — specialising it prevents the duplicate that naively
+ *            adding `AND COALESCE(region_id,0)=…` would create (the BUG-33 class).
+ *
+ *   Step 2b (reverse, NO region requested) — collapse to (name, country_code)
+ *            regardless of region. This is the "today's behaviour" case the old
+ *            `(name, country_code)` unique index enforced, which §4.2.1 requires
+ *            we preserve:
+ *              • exactly ONE row matches → return it (single-match, NO regression);
+ *              • TWO OR MORE match → return null; the caller creates a 'pending'
+ *                row and leaves D14 disambiguation to the frontend, rather than
+ *                silently picking one (§4.2.1 / D14, QA B4).
+ *            Without this, a region-tier country holding exactly one *regioned*
+ *            match (e.g. only "Springfield, IL") would miss step 1 (its
+ *            COALESCE(region_id,0) ≠ 0), skip step 2 (no region requested), and
+ *            the caller would INSERT a second, region-less duplicate — the BUG-33
+ *            class arriving through the reverse door.
+ */
+async function findOrUpgradeCity(
+  db: ReturnType<typeof getDb>,
+  name: string,
+  countryCode: string,
+  regionId: number | null,
+) {
+  const regionKey = regionId ?? 0;
+
+  // Step 1 — exact match on the composite identity key.
+  const exact = await db
+    .select()
+    .from(cities)
+    .where(
+      and(
+        eq(cities.countryCode, countryCode),
+        sql`${cities.name} = ${name} COLLATE NOCASE`,
+        sql`COALESCE(${cities.regionId}, 0) = ${regionKey}`,
+      ),
+    )
+    .limit(1);
+  if (exact.length) return exact[0];
+
+  // Step 2 — wildcard upgrade (only when the request carries a region).
+  if (regionId != null) {
+    const regionless = await db
+      .select()
+      .from(cities)
+      .where(
+        and(
+          eq(cities.countryCode, countryCode),
+          sql`${cities.name} = ${name} COLLATE NOCASE`,
+          isNull(cities.regionId),
+        ),
+      )
+      .limit(1);
+    if (regionless.length) {
+      const now = new Date().toISOString();
+      const upgraded = await db
+        .update(cities)
+        .set({ regionId, updatedAt: now })
+        .where(eq(cities.id, regionless[0].id))
+        .returning();
+      return upgraded[0];
+    }
+    // Has-region path ends here: step 1 + step 2 are authoritative for a
+    // region-bearing request. Do NOT fall through to the reverse branch below.
+    return null;
+  }
+
+  // Step 2b — reverse single-match (only when NO region was requested). Match on
+  // (name, country_code) regardless of region; exactly one → return it (the
+  // no-regression case §4.2.1 mandates), two or more → null (ambiguous → caller
+  // creates pending, D14 disambiguates).
+  const sameName = await db
+    .select()
+    .from(cities)
+    .where(and(eq(cities.countryCode, countryCode), sql`${cities.name} = ${name} COLLATE NOCASE`))
+    .limit(2);
+  if (sameName.length === 1) return sameName[0];
+
+  return null;
+}
+
 // ----------------------------------------------------------------
 // POST /api/cities
-// ADL-27 / HC-06: owner-only (city creation pollutes the global seed)
+// ADL-46 D4/D5/GE-16: city CREATION is a constrained, service-validated
+// create-on-demand available to ANY authenticated user (requireAuth only) —
+// NOT owner-only. City CURATION (PATCH) stays owner-only (tier 1 write split,
+// §4.1). The old `requireOwner` gate conflated the two.
 //
-// BUG-33: find-or-create. GE-14 says the frontend should search before
-// offering "add new city", but that's a UX nicety, not a guarantee — a
-// case-mismatched query, a stale search-results list, or a double-submit
-// can all reach this route for a city that already exists. This handler
-// is the last line of defense against duplicate `cities` rows: it looks
-// up an existing (name, country_code) match case-insensitively before
-// ever inserting, and only inserts when genuinely not found.
+// Resolve-then-create (§4.3): the row is built from the geocoder's CANONICAL
+// response where one is available, so 'Denverr' / 'denver co' / 'DEN' converge
+// onto one row rather than only exact case-folds. D12 (§4.3.1): the lookup is
+// CONSTRAINED by the user's already-validated country (and region where given)
+// and may NEVER override them; unresolvable / offline / ambiguous input still
+// creates a 'pending' row from the user's text (GE-12 — creation never depends
+// on the geocoder), creator-private until it resolves (§4.4 containment).
 //
-// Migration 0010 (companion DB brief, merged) added
-// uniq_cities_name_country_ci — UNIQUE(name COLLATE NOCASE, country_code).
-// The lookup below matches that collation exactly (COLLATE NOCASE, not a
-// generic lower()) so it always finds the same row the DB constraint would
-// otherwise reject a duplicate of — verified empirically that SQLite/libSQL's
-// COLLATE NOCASE and lower() agree on every case (both are ASCII-only folds;
-// non-ASCII/diacritic variants are an accepted, documented limitation of the
-// index itself, not something this lookup needs to compensate for).
+// D13 (§4.2.1): identity is (name, country_code, COALESCE(region_id,0)); the
+// three-step find-or-create (findOrUpgradeCity + the reverse-ambiguity branch)
+// is what keeps this from re-opening BUG-33 by silently creating duplicates.
 // ----------------------------------------------------------------
 citiesRouter.post(
   '/',
-  requireOwner,
   validateBody(CreateCitySchema),
   asyncHandler(async (req, res) => {
     const { name, country_code, region_id } = req.body;
+    const userId = req.user!.id;
     const db = getDb();
 
     // Verify country exists
@@ -104,49 +231,82 @@ citiesRouter.post(
 
     const { regionTierEnabled } = countryRows[0];
 
-    // Correction 2: region_id is OPTIONAL even when region_tier_enabled = 1
-    // But region_id MUST be NULL when region_tier_enabled = 0
+    // region_id is OPTIONAL when region_tier_enabled = 1, but MUST be NULL when 0.
     if (regionTierEnabled === 0 && region_id != null) {
       throw new ValidationError('region_id must not be provided for countries without region tier');
     }
 
-    // If region_id is provided, verify it belongs to the country
+    // If region_id is provided, verify it belongs to the country and capture its
+    // ISO code so the geocoder lookup can be disambiguated by region (D12 step 2).
+    let regionIso: string | null = null;
     if (region_id != null) {
       const regionRows = await db
-        .select({ id: regions.id })
+        .select({ id: regions.id, iso: regions.iso3166_2 })
         .from(regions)
         .where(and(eq(regions.id, region_id), eq(regions.countryCode, country_code)))
         .limit(1);
       if (!regionRows.length) throw new NotFoundError('Region');
+      regionIso = regionRows[0].iso;
     }
 
-    // BUG-33: find-or-create — look up an existing city by (name, country_code),
-    // matching name COLLATE NOCASE to mirror uniq_cities_name_country_ci exactly.
-    // `name` arrives already whitespace-trimmed by CreateCitySchema (zod .trim()).
-    const existingRows = await db
-      .select()
-      .from(cities)
-      .where(
-        and(eq(cities.countryCode, country_code), sql`${cities.name} = ${name} COLLATE NOCASE`),
-      )
-      .limit(1);
-
-    if (existingRows.length) {
-      // Existing city found — return it as-is (200, not 201: no row was created).
-      // Deliberately does NOT overwrite region_id from the request; that's PATCH's job.
-      const existing = existingRows[0];
-      res.status(200).json({
-        id: existing.id,
-        name: existing.name,
-        country_code: existing.countryCode,
-        region_id: existing.regionId,
-        latitude: existing.latitude,
-        longitude: existing.longitude,
-        geocode_status: existing.geocodeStatus,
-      });
+    // Pass 1 (§4.3 step 2) — find-or-create against the user's submitted name.
+    const found1 = await findOrUpgradeCity(db, name, country_code, region_id ?? null);
+    if (found1) {
+      res.status(200).json(serializeCity(found1));
       return;
     }
 
+    // Resolve-then-create (§4.3 step 3) — resolve BEFORE inserting so the row is
+    // built from the canonical response. GEOCODING_ENABLED=false / offline /
+    // recoverable errors return 'disabled' → fall through to the pending insert.
+    // GE-12: city creation must NEVER depend on the geocoder — any failure in the
+    // resolve step degrades to a 'pending' row rather than failing the request.
+    let resolution: Awaited<ReturnType<typeof resolveCityName>>;
+    try {
+      resolution = await resolveCityName(name, country_code, { regionIso });
+    } catch {
+      resolution = { status: 'disabled', candidates: [] };
+    }
+
+    if (resolution.status === 'ok' && resolution.best) {
+      const canonicalName = resolution.best.name?.trim() || name;
+
+      // Pass 2 (§4.3 step 4a) — find-or-create against the CANONICAL name. This
+      // is the step that does the real convergence work and is easy to omit.
+      const found2 = await findOrUpgradeCity(db, canonicalName, country_code, region_id ?? null);
+      if (found2) {
+        res.status(200).json(serializeCity(found2));
+        return;
+      }
+
+      // Step 4b — INSERT from the canonical response. D12 rule 3: NEVER overwrite
+      // the user-supplied country_code / region_id with the lookup's — the user
+      // has ground truth about where they went; the lookup supplies only coords
+      // and the canonical name.
+      const now = new Date().toISOString();
+      const inserted = await db
+        .insert(cities)
+        .values({
+          name: canonicalName,
+          countryCode: country_code,
+          regionId: region_id ?? null,
+          latitude: resolution.best.latitude,
+          longitude: resolution.best.longitude,
+          geocodeStatus: 'resolved',
+          createdByUserId: userId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      res.status(201).json(serializeCity(inserted[0]));
+      return;
+    }
+
+    // Step 4c — unresolved / ambiguous / disabled: create a 'pending' row from the
+    // user's own text. Creator-private until it resolves (§4.4). Ambiguity never
+    // blocks creation (GE-12); the frontend's D14 candidate flow disambiguates
+    // via the region selector, after which a re-submit with a region hits the
+    // wildcard-upgrade path above.
     const now = new Date().toISOString();
     const inserted = await db
       .insert(cities)
@@ -155,6 +315,7 @@ citiesRouter.post(
         countryCode: country_code,
         regionId: region_id ?? null,
         geocodeStatus: 'pending',
+        createdByUserId: userId,
         createdAt: now,
         updatedAt: now,
       })
@@ -162,25 +323,15 @@ citiesRouter.post(
 
     const city = inserted[0];
 
-    // Attempt geocoding immediately (fire-and-forget — GE-12)
-    // resolveCity handles offline gracefully — never throws
+    // Fire-and-forget the queue re-resolution so a legitimate city created while
+    // the geocoder was unreachable is promoted to 'resolved' (and globally
+    // visible) on its own (GE-12 / §4.4). Never throws.
     resolveCity(city.id).catch(() => {
-      // Already handled internally — defensive catch
+      /* handled internally — defensive catch */
     });
 
-    // Re-fetch to get updated geocode status (may have resolved synchronously in fast environments)
     const fresh = await db.select().from(cities).where(eq(cities.id, city.id)).limit(1);
-    const result = fresh[0] ?? city;
-
-    res.status(201).json({
-      id: result.id,
-      name: result.name,
-      country_code: result.countryCode,
-      region_id: result.regionId,
-      latitude: result.latitude,
-      longitude: result.longitude,
-      geocode_status: result.geocodeStatus,
-    });
+    res.status(201).json(serializeCity(fresh[0] ?? city));
   }),
 );
 

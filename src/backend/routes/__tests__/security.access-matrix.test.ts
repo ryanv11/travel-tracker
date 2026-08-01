@@ -440,14 +440,20 @@ describe('Part B — Non-owner authenticated user receives 403 on owner-only rou
     expect(res.body).toMatchObject({ error: 'Forbidden' });
   });
 
-  // Cities — owner-only routes
-  it('POST /api/cities → 403', async () => {
+  // Cities — CREATION is no longer owner-only (ADL-46 D4/§8 row 3). City
+  // create-on-demand is available to any authenticated user; curation (PATCH,
+  // below) stays owner-only. A non-owner POST now creates a city → 201, not 403.
+  // The full find-or-create / containment behaviour is covered by the ADL-46
+  // acceptance suite (adl46-access-model.test.ts Group A/B); this assertion just
+  // confirms the access gate flipped from owner-only to requireAuth here in the
+  // access matrix.
+  it('POST /api/cities → 201 for a non-owner (ADL-46 D4: creation opened)', async () => {
     await seedCountry(testDb!);
     const res = await supertest(app)
       .post('/api/cities')
       .send({ name: 'Test City', country_code: 'US' });
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'Forbidden' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ name: 'Test City', country_code: 'US' });
   });
 
   // PATCH /api/cities/:id — BUG-22 (GitHub issue #91) merged and the requireOwner

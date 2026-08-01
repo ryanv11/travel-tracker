@@ -1,8 +1,8 @@
 /**
  * Travel Tracker — Admin Router
  *
- * Manages admin list tables (categories, activities) and country/region config.
- * All admin list items use soft-delete (is_active = 0) — never hard-delete (AD-06).
+ * Manages instance-administration config: country region-tier config and region CRUD.
+ * These are the tier-3 (instance administration) operations from ADL-46 D1.
  *
  * Auth model (BUG-61 / ADL-38): the router is owner-gated by default via a router-level
  * requireOwner guard, EXCEPT the two global reference-data GET routes (countries + regions),
@@ -12,19 +12,28 @@
  * ADL-28 (AD-08): companions used to be registered here (`/api/admin/companions`) but are
  * no longer an admin/owner-only resource — they moved to their own router at
  * `/api/companions` (requireAuth only, userId-scoped). See routes/companions.ts.
+ *
+ * ADL-46 (AD-09, D3): trip categories and activities followed the same path — they were
+ * per-user (tier 2), not instance administration, and a tier-2 resource on an owner-gated
+ * admin router was the structural error behind BUG-63. They moved to their own routers at
+ * `/api/categories` and `/api/activities` (requireAuth only, userId-scoped, lazily seeded).
+ * See routes/categories.ts and routes/activities.ts. The old admin-list CRUD factory that
+ * served both from here has been removed, NOT left as scaffolding (ADL-46 §9.1 / §9.3).
+ * Note: `GET/POST/PATCH/DELETE /api/admin/categories` (and /activities) still return 403 for
+ * a non-owner — router-level requireOwner runs before any route resolves, so a non-owner hits
+ * the guard and gets 403; an owner now gets 404 (the routes no longer exist). This is the
+ * fail-closed behaviour asserted by the access-matrix suite (ADL-46 §8.2 verified counterpoint).
  */
 
 import { and, eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { activities, countries, getDb, regions, tripCategories } from '../db/index.js';
-import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
+import { countries, getDb, regions } from '../db/index.js';
+import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody } from '../middleware/validate.js';
 import {
-  CreateAdminItemSchema,
   CreateRegionSchema,
-  UpdateAdminItemSchema,
   UpdateCountrySchema,
   UpdateRegionSchema,
 } from '../validation/admin.schemas.js';
@@ -104,135 +113,13 @@ adminRouter.get(
 // The read/write split above (BUG-61 / ADL-38) is the sole, deliberate exception.
 adminRouter.use(requireOwner);
 
-// ----------------------------------------------------------------
-// Admin list CRUD factory
-// Generates identical CRUD for categories and activities.
-// (Companions used this same factory pre-ADL-28 — see routes/companions.ts
-// for its non-owner-gated, userId-scoped replacement.)
-// ----------------------------------------------------------------
-
-type AdminTable = typeof tripCategories | typeof activities;
-
-/** Serialize a raw Drizzle admin list row to snake_case API shape. */
-function serializeAdminItem(row: {
-  id: number;
-  name: string;
-  isActive: number;
-  createdAt: string;
-  updatedAt: string;
-}) {
-  return {
-    id: row.id,
-    name: row.name,
-    is_active: row.isActive === 1,
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-  };
-}
-
-function createAdminListRouter(table: AdminTable, resourceName: string): Router {
-  const router = Router();
-
-  // GET / — all (active + inactive)
-  router.get(
-    '/',
-    asyncHandler(async (_req, res) => {
-      const db = getDb();
-      const rows = await db.select().from(table);
-      res.json(rows.map(serializeAdminItem));
-    }),
-  );
-
-  // GET /active — active only
-  router.get(
-    '/active',
-    asyncHandler(async (_req, res) => {
-      const db = getDb();
-      const rows = await db.select().from(table).where(eq(table.isActive, 1));
-      res.json(rows.map(serializeAdminItem));
-    }),
-  );
-
-  // POST / — create
-  router.post(
-    '/',
-    validateBody(CreateAdminItemSchema),
-    asyncHandler(async (req, res) => {
-      const { name } = req.body;
-      const db = getDb();
-
-      // Check uniqueness (table has UNIQUE constraint — catch the DB error too)
-      const existing = await db
-        .select({ id: table.id })
-        .from(table)
-        .where(eq(table.name, name))
-        .limit(1);
-      if (existing.length) throw new ConflictError(`${resourceName} '${name}' already exists`);
-
-      const now = new Date().toISOString();
-      const inserted = await db
-        .insert(table)
-        .values({ name, createdAt: now, updatedAt: now })
-        .returning();
-      res.status(201).json(serializeAdminItem(inserted[0]));
-    }),
-  );
-
-  // PATCH /:id — update name or is_active
-  router.patch(
-    '/:id',
-    validateBody(UpdateAdminItemSchema),
-    asyncHandler(async (req, res) => {
-      const id = parseInt(String(req.params.id), 10);
-      if (Number.isNaN(id)) throw new NotFoundError(resourceName);
-
-      const db = getDb();
-      const existing = await db.select().from(table).where(eq(table.id, id)).limit(1);
-      if (!existing.length) throw new NotFoundError(resourceName);
-
-      const { name, is_active } = req.body;
-      const now = new Date().toISOString();
-      const updates: Record<string, unknown> = { updatedAt: now };
-      if (name !== undefined) updates.name = name;
-      if (is_active !== undefined) updates.isActive = is_active ? 1 : 0;
-
-      const updated = await db.update(table).set(updates).where(eq(table.id, id)).returning();
-      res.json(serializeAdminItem(updated[0]));
-    }),
-  );
-
-  // DELETE /:id — soft-delete
-  router.delete(
-    '/:id',
-    asyncHandler(async (req, res) => {
-      const id = parseInt(String(req.params.id), 10);
-      if (Number.isNaN(id)) throw new NotFoundError(resourceName);
-
-      const db = getDb();
-      const existing = await db.select().from(table).where(eq(table.id, id)).limit(1);
-      if (!existing.length) throw new NotFoundError(resourceName);
-      if (existing[0].isActive === 0) {
-        throw new ValidationError(`${resourceName} is already inactive`);
-      }
-
-      const now = new Date().toISOString();
-      const updated = await db
-        .update(table)
-        .set({ isActive: 0, updatedAt: now })
-        .where(eq(table.id, id))
-        .returning();
-      res.json(serializeAdminItem(updated[0]));
-    }),
-  );
-
-  return router;
-}
-
-// Register admin list routers
-adminRouter.use('/categories', createAdminListRouter(tripCategories, 'Category'));
-adminRouter.use('/activities', createAdminListRouter(activities, 'Activity'));
-// Companions intentionally NOT registered here — ADL-28 (AD-08) moved them to
-// their own router at /api/companions (requireAuth only, userId-scoped).
+// Categories and activities are intentionally NOT registered here.
+// ADL-46 (AD-09, D3): they are per-user (tier 2) resources and moved to their
+// own routers at /api/categories and /api/activities (requireAuth only,
+// userId-scoped). Companions moved the same way under ADL-28 (AD-08). The old
+// admin-list CRUD factory that served categories/activities from here was
+// removed as part of this same release — no scaffolding left behind
+// (ADL-46 §9.1 ordering constraint 1, §9.3).
 
 // ----------------------------------------------------------------
 // Country admin — WRITES (owner-only; below the requireOwner guard).

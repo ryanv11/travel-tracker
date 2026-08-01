@@ -315,7 +315,7 @@ describe('POST /api/trips/:tripId/places/:placeId/activities', () => {
     placeId = placeRes.body.id;
 
     // Fetch an existing activity from the admin list
-    const activitiesRes = await api.get('/api/admin/activities').expect(200);
+    const activitiesRes = await api.get('/api/activities').expect(200);
     if (activitiesRes.body.length > 0) {
       activityId = activitiesRes.body[0].id;
     }
@@ -383,7 +383,7 @@ describe('DELETE /api/trips/:tripId/places/:placeId/activities/:activityId', () 
       .expect(201);
     placeId = placeRes.body.id;
 
-    const activitiesRes = await api.get('/api/admin/activities').expect(200);
+    const activitiesRes = await api.get('/api/activities').expect(200);
     if (activitiesRes.body.length > 0) {
       activityId = activitiesRes.body[0].id;
       // Tag it first

@@ -215,6 +215,7 @@ export const placeRepository = {
     placeId: number,
     arrivedOn?: string | null,
     departedOn?: string | null,
+    cityId?: number,
   ): Promise<TripPlace> {
     await this.assertWritable(userId, tripId);
 
@@ -231,6 +232,12 @@ export const placeRepository = {
     const updates: Partial<typeof tripPlaces.$inferInsert> = { updatedAt: now };
     if (arrivedOn !== undefined) updates.arrivedOn = arrivedOn;
     if (departedOn !== undefined) updates.departedOn = departedOn;
+    // ADL-46 D11 (§4.4.2): re-point a place to a different city — the escape
+    // hatch for a mistyped/wrong city. The correction happens at the PLACE level
+    // (place ownership already checked), never by writing to a shared city row.
+    // Items and place-level activity tags hang off trip_place_id, which does not
+    // change, so re-pointing preserves them (unlike delete-and-re-add).
+    if (cityId !== undefined) updates.cityId = cityId;
 
     const updated = await db
       .update(tripPlaces)
