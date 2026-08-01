@@ -4,6 +4,11 @@
  * Covers categories, activities, companions, and countries.
  * All three list types (categories, activities, companions) share the same
  * CRUD pattern, so helper factories are used to reduce duplication.
+ *
+ * ADL-46 (AD-09, D3): categories and activities moved off /api/admin/* to
+ * /api/categories and /api/activities (requireAuth, userId-scoped) — same
+ * response shape, per-user data — exactly as ADL-28 moved companions to
+ * /api/companions. See src/backend/routes/categories.ts / activities.ts.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Activity, Category, Companion, Country } from '../types/api';
@@ -20,7 +25,7 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '../utils/apiClient';
 export function useCategories() {
   return useQuery({
     queryKey: ['admin', 'categories'],
-    queryFn: () => apiGet<Category[]>('/api/admin/categories'),
+    queryFn: () => apiGet<Category[]>('/api/categories'),
   });
 }
 
@@ -31,7 +36,7 @@ export function useCategories() {
 export function useActiveCategories() {
   return useQuery({
     queryKey: ['admin', 'categories', 'active'],
-    queryFn: () => apiGet<Category[]>('/api/admin/categories/active'),
+    queryFn: () => apiGet<Category[]>('/api/categories/active'),
   });
 }
 
@@ -39,7 +44,7 @@ export function useActiveCategories() {
 export function useCreateCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => apiPost<Category>('/api/admin/categories', { name }),
+    mutationFn: (name: string) => apiPost<Category>('/api/categories', { name }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
     },
@@ -51,7 +56,7 @@ export function useUpdateCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
-      apiPatch<Category>(`/api/admin/categories/${id}`, data),
+      apiPatch<Category>(`/api/categories/${id}`, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
     },
@@ -62,7 +67,7 @@ export function useUpdateCategory() {
 export function useDeleteCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => apiDelete(`/api/admin/categories/${id}`),
+    mutationFn: (id: number) => apiDelete(`/api/categories/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
     },
@@ -77,7 +82,7 @@ export function useDeleteCategory() {
 export function useActivities() {
   return useQuery({
     queryKey: ['admin', 'activities'],
-    queryFn: () => apiGet<Activity[]>('/api/admin/activities'),
+    queryFn: () => apiGet<Activity[]>('/api/activities'),
   });
 }
 
@@ -85,7 +90,7 @@ export function useActivities() {
 export function useActiveActivities() {
   return useQuery({
     queryKey: ['admin', 'activities', 'active'],
-    queryFn: () => apiGet<Activity[]>('/api/admin/activities/active'),
+    queryFn: () => apiGet<Activity[]>('/api/activities/active'),
   });
 }
 
@@ -93,7 +98,7 @@ export function useActiveActivities() {
 export function useCreateActivity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => apiPost<Activity>('/api/admin/activities', { name }),
+    mutationFn: (name: string) => apiPost<Activity>('/api/activities', { name }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
     },
@@ -105,7 +110,7 @@ export function useUpdateActivity() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
-      apiPatch<Activity>(`/api/admin/activities/${id}`, data),
+      apiPatch<Activity>(`/api/activities/${id}`, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
     },
@@ -116,7 +121,7 @@ export function useUpdateActivity() {
 export function useDeleteActivity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => apiDelete(`/api/admin/activities/${id}`),
+    mutationFn: (id: number) => apiDelete(`/api/activities/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
     },
