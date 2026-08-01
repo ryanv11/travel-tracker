@@ -63,17 +63,29 @@ citiesRouter.get(
       isNull(cities.createdByUserId),
     );
 
+    // BUG-72: enrich each row with the region's human-readable name and ISO
+    // code so the frontend can render "city, state, country" instead of a
+    // bare region_id integer (which the client cannot resolve across
+    // countries — it only loads the region list for one selected country).
+    // LEFT JOIN is load-bearing, not cosmetic: an INNER join would drop every
+    // row with a NULL region_id (any city in a non-region-tier country, or a
+    // region-tier city not yet assigned one) out of search results entirely,
+    // silently narrowing the GE-16 containment result set above. region_id
+    // itself stays in the response unchanged — existing consumers depend on it.
     const results = await db
       .select({
         id: cities.id,
         name: cities.name,
         country_code: cities.countryCode,
         region_id: cities.regionId,
+        region_name: regions.name,
+        region_iso: regions.iso3166_2,
         latitude: cities.latitude,
         longitude: cities.longitude,
         geocode_status: cities.geocodeStatus,
       })
       .from(cities)
+      .leftJoin(regions, eq(regions.id, cities.regionId))
       .where(and(...conditions, containment))
       .orderBy(cities.name);
 

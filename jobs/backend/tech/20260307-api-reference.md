@@ -969,14 +969,35 @@ Search cities by name. Returns local database results only (Nominatim is not que
     "name": "Paris",
     "country_code": "FR",
     "region_id": null,
+    "region_name": null,
+    "region_iso": null,
     "latitude": 48.8566,
     "longitude": 2.3522,
+    "geocode_status": "resolved"
+  },
+  {
+    "id": 2,
+    "name": "Springfield",
+    "country_code": "US",
+    "region_id": 14,
+    "region_name": "Illinois",
+    "region_iso": "US-IL",
+    "latitude": 39.7817,
+    "longitude": -89.6501,
     "geocode_status": "resolved"
   }
 ]
 ```
 
-`geocode_status` values: `"pending"` | `"resolved"` | `"failed"`
+`geocode_status` values: `"pending"` | `"resolved"` | `"unresolvable"`
+
+`region_name` / `region_iso` (BUG-72, GitHub #351, 2026-08-01) — the joined `regions` row's
+`name` and `iso_3166_2`, added so the frontend can disambiguate same-named cities (e.g. two
+"Springfield" rows) without a client-side lookup, which cannot work across countries since the
+region list is only loaded for one selected country at a time. Both are `null` when
+`region_id` is `null` (non-region-tier country, or a region-tier city not yet assigned a
+region) — a `LEFT JOIN`, so a region-less row is never dropped from results. `region_id`
+itself is unchanged and still present for existing consumers.
 
 **Errors:**
 - `400` — `q` is missing or fewer than 2 characters
