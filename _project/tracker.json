@@ -2555,6 +2555,18 @@
     },
 
     {
+      "id": "BUG-74",
+      "type": "bug",
+      "title": "BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing'",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["GE-15", "GE-16"],
+      "phase": 6,
+      "notes": "Found by the OP-27 fresh-eyes review of the BUG-71 ruling (PR #356), against code merged the same day in PR #354. BUG-73 added retry plus a `failed` flag to lookupCityCountry so an exhausted lookup shows a banner — but that flag only trips when apiGet throws, i.e. when the browser cannot reach OUR backend. When the backend reaches Nominatim and NOMINATIM fails, src/backend/routes/geocode.ts:51 (`result.status === 'ok' ? result.candidates : []`) returns HTTP 200 with an empty candidate list and null country_code. The frontend therefore sees a successful response carrying no data, sets failed:false, and renders no banner — indistinguishable from a genuine 'no such city'. Confirmed by reading the route (single probe on the mechanism, but positive rather than negative: the ternary and the res.json shape are both directly observable at geocode.ts:48-75). This is the SAME defect class BUG-73 was raised to fix, surviving one layer down; BUG-73 is a real improvement and is not reverted, but it is a partial fix and the tracker should not read as though the class is closed. Fix direction: the proxy must distinguish 'upstream unavailable' from 'zero results' in its response contract — an explicit status field rather than an empty array carrying two meanings — and the frontend must map the former to the existing banner. NOTE the interaction flagged by the same review: the BUG-71 ruling's proposed copy would render 'we couldn't confirm this automatically' in cases where the geocoder was never asked, so the wording must be settled together with BUG-71's three-state presentation rather than independently."
+    },
+
+    {
       "id": "ENV-02",
       "type": "chore",
       "title": "Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out",
