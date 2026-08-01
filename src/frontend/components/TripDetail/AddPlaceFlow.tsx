@@ -63,6 +63,13 @@ export function AddPlaceFlow({
   const [newCityCountryCode, setNewCityCountryCode] = useState('');
   const [newCityRegionId, setNewCityRegionId] = useState<number | null>(null);
   const [autoRegionIso, setAutoRegionIso] = useState<string | null>(null);
+  // ADL-46 D14: when the geocode proxy returns multiple candidates with
+  // differing region_iso for the resolved country (e.g. Springfield IL vs
+  // Springfield MO), this narrows the existing region <select>'s options to
+  // just those candidates instead of auto-picking candidates[0] — the user
+  // chooses from the (already-present) selector rather than being silently
+  // guessed for. null means "no ambiguity — show the full country region list".
+  const [candidateRegionIsos, setCandidateRegionIsos] = useState<string[] | null>(null);
   const [countryLookupPending, setCountryLookupPending] = useState(false);
   const [addedPlaceId, setAddedPlaceId] = useState<number | null>(null);
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
@@ -96,6 +103,16 @@ export function AddPlaceFlow({
   const { data: countryRegions = [] } = useCountryRegions(
     showRegionDropdown ? newCityCountryCode : undefined,
   );
+
+  // ADL-46 D14: when the geocode lookup found an ambiguous city name (multiple
+  // regions within the resolved country), narrow the existing region selector
+  // to just those candidate regions rather than listing every region in the
+  // country — same <select>, filtered options.
+  const regionOptions = candidateRegionIsos
+    ? countryRegions.filter((r) => candidateRegionIsos.includes(r.iso_3166_2))
+    : countryRegions;
+  const regionChoiceIsAmbiguous = candidateRegionIsos !== null && regionOptions.length > 1;
+
   const addPlace = useAddPlace();
   const createCity = useCreateCity();
   const { data: carryForwardCandidates = [], isFetched: candidatesFetched } =
@@ -196,12 +213,34 @@ export function AddPlaceFlow({
     setNewCityCountryCode('');
     setNewCityRegionId(null);
     setAutoRegionIso(null);
+    setCandidateRegionIsos(null);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
       lookupCityCountry(cityName.trim())
-        .then(({ countryCode, regionIso }) => {
+        .then(({ countryCode, regionIso, candidates }) => {
           if (countryCode) setNewCityCountryCode(countryCode);
-          if (regionIso) setAutoRegionIso(regionIso);
+
+          // D14: collect the distinct region_iso values among candidates that
+          // share the resolved country. More than one means the city name is
+          // ambiguous within that country (Springfield IL vs Springfield MO) —
+          // narrow the region selector to just those instead of auto-picking
+          // the top candidate's region.
+          const sameCountryRegionIsos = countryCode
+            ? [
+                ...new Set(
+                  candidates
+                    .filter((c) => c.country_code === countryCode && c.region_iso)
+                    .map((c) => c.region_iso as string),
+                ),
+              ]
+            : [];
+
+          if (sameCountryRegionIsos.length > 1) {
+            setCandidateRegionIsos(sameCountryRegionIsos);
+            // Ambiguous — leave newCityRegionId unset so the user must choose.
+          } else if (regionIso) {
+            setAutoRegionIso(regionIso);
+          }
           setCountryLookupPending(false);
         })
         .catch(() => setCountryLookupPending(false));
@@ -376,6 +415,9 @@ export function AddPlaceFlow({
                   setNewCityCountryCode(e.target.value);
                   setNewCityRegionId(null);
                   setAutoRegionIso(null);
+                  // A manual country change invalidates any D14 candidate
+                  // narrowing computed for the previously auto-detected country.
+                  setCandidateRegionIsos(null);
                 }}
                 required
               >
@@ -393,6 +435,12 @@ export function AddPlaceFlow({
               <div className="mb-4">
                 <label className={labelClass}>
                   {regionLabel} <span className="font-normal text-gray-500">(optional)</span>
+                  {regionChoiceIsAmbiguous && (
+                    <span className="font-normal text-amber-600 text-xs">
+                      {' '}
+                      — multiple matches found, please choose
+                    </span>
+                  )}
                 </label>
                 <select
                   className={inputClass}
@@ -402,7 +450,7 @@ export function AddPlaceFlow({
                   }
                 >
                   <option value="">No {regionLabel.toLowerCase()} selected</option>
-                  {countryRegions.map((r) => (
+                  {regionOptions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
                     </option>
