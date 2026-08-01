@@ -116,8 +116,8 @@ describe('tripRepository.findAll', () => {
     const [cat, otherCat] = await db
       .insert(schema.tripCategories)
       .values([
-        { name: 'Adventure', isActive: 1 },
-        { name: 'Relaxation', isActive: 1 },
+        { userId: TEST_USER_ID, name: 'Adventure', isActive: 1 },
+        { userId: TEST_USER_ID, name: 'Relaxation', isActive: 1 },
       ])
       .returning();
     await db.insert(schema.tripCategoriesMap).values({ tripId: trip.id, categoryId: cat.id });
@@ -143,8 +143,8 @@ describe('tripRepository.findAll', () => {
     const [act, otherAct] = await db
       .insert(schema.activities)
       .values([
-        { name: 'Hiking', isActive: 1 },
-        { name: 'Museums', isActive: 1 },
+        { userId: TEST_USER_ID, name: 'Hiking', isActive: 1 },
+        { userId: TEST_USER_ID, name: 'Museums', isActive: 1 },
       ])
       .returning();
     await db.insert(schema.tripActivitiesMap).values({ tripId: trip.id, activityId: act.id });
@@ -405,7 +405,7 @@ describe('tripRepository.getAssociations', () => {
     const trip = await seedTrip(db);
     const [cat] = await db
       .insert(schema.tripCategories)
-      .values({ name: 'Beach', isActive: 1 })
+      .values({ userId: TEST_USER_ID, name: 'Beach', isActive: 1 })
       .returning();
     await db.insert(schema.tripCategoriesMap).values({ tripId: trip.id, categoryId: cat.id });
 
@@ -478,7 +478,7 @@ describe('tripRepository.replaceAssociations', () => {
     const trip = await seedTrip(db);
     const [cat] = await db
       .insert(schema.tripCategories)
-      .values({ name: 'Mountains', isActive: 1 })
+      .values({ userId: TEST_USER_ID, name: 'Mountains', isActive: 1 })
       .returning();
 
     await tripRepository.replaceAssociations(TEST_USER_ID, trip.id, [cat.id]);
@@ -493,7 +493,7 @@ describe('tripRepository.replaceAssociations', () => {
     const trip = await seedTrip(db);
     const [cat] = await db
       .insert(schema.tripCategories)
-      .values({ name: 'City', isActive: 1 })
+      .values({ userId: TEST_USER_ID, name: 'City', isActive: 1 })
       .returning();
     await db.insert(schema.tripCategoriesMap).values({ tripId: trip.id, categoryId: cat.id });
 
@@ -508,7 +508,7 @@ describe('tripRepository.replaceAssociations', () => {
     const trip = await seedTrip(db);
     const [cat] = await db
       .insert(schema.tripCategories)
-      .values({ name: 'Desert', isActive: 1 })
+      .values({ userId: TEST_USER_ID, name: 'Desert', isActive: 1 })
       .returning();
     await db.insert(schema.tripCategoriesMap).values({ tripId: trip.id, categoryId: cat.id });
 
