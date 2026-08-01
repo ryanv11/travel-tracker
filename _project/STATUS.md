@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (62)
+## Open work (68)
 
 ### P0 — Blockers (1)
 
@@ -35,7 +35,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (31)
+### P2 — Important (34)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -70,8 +70,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 | QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
 | QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | ⬜ Pending |
+| QUAL-21 | Resolve-then-create success path has zero route-level test coverage (review F4) | qa | ⬜ Pending |
+| QUAL-22 | QA ATDD suite's geocoding mock drifted — one group is green for the wrong reason (review F8) | qa | ⬜ Pending |
+| UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
 
-### P3 — Minor (25)
+### P3 — Minor (28)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -100,16 +103,19 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-13 | Stale unread COO->Architect inbox messages from March 2026 | coo | ⬜ Pending |
 | QUAL-14 | MapView.tsx comment documents zoom >= 4 while the constant is 3 | frontend | ⬜ Pending |
 | QUAL-16 | Role system prompts' 'Read _shared/frameworks.txt' init step is ambiguous — two different docs share that filename | coo | ⬜ Pending |
+| QUAL-23 | Migration 0014 preconditions are manual-only; zero-owner DB commits dangling FKs silently (review F3) | database | ⬜ Pending |
+| BUG-69 | geocodeRetryQueue polls 'unresolvable' cities forever — no terminal branch | frontend | ⬜ Pending |
+| BUG-70 | Companion.is_active typed number but serialized boolean (third instance of the class) | frontend | ⬜ Pending |
 
 ## Coverage by type
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `███████████▓░░░░░░░░` 29/55 | 29 | 26 | 3 |
+| feature | `██████████▓░░░░░░░░░` 29/56 | 29 | 27 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `██████████████░░░░░░` 44/62 | 44 | 18 | 4 |
+| bug | `██████████████░░░░░░` 44/64 | 44 | 20 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `██████████▓░░░░░░░░░` 13/27 | 13 | 14 | 1 |
+| chore | `█████████▓░░░░░░░░░░` 13/30 | 13 | 17 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -143,4 +149,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_135 done · 10 deferred · 4 closed · 62 open — 211 tracked items_
+_135 done · 10 deferred · 4 closed · 68 open — 217 tracked items_

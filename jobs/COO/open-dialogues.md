@@ -25,8 +25,142 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-19: Constrain city lookup by the trip's declared countries + shortlist-not-filter selection
+**Raised:** 2026-08-01 (PO) · **Status:** DESIGNED, deferred behind an MVP. Needs a BRD home
+before any brief. UX spec written and merged; Architect design not started.
+
+**The problem.** Adding a place on a US trip and typing "Rome" resolves to Rome, Italy. The
+frontend calls `GET /api/geocode?q=…` with **no constraint at all**, even though the backend
+proxy already accepts `country_code` and `region_iso` and implements D12's constrained resolve.
+The capability exists on both ends; nothing joins them.
+
+**What the PO proposed, across several turns:**
+1. **Trip countries constrain the suggestions.** `trip_countries` already exists as a *set*
+   (optional, many-to-many), so multi-country trips work without change. Explicitly for autofill
+   and proposed options only — never restricting what the user can pick.
+2. **Shortlist, don't filter.** Likely matches at the top of the dropdown, a separator, then the
+   complete list below — `<optgroup>` expresses this natively. This came directly from the D14
+   defect this release shipped and fixed, where a *narrowed* selector could collapse to zero
+   options. Nothing is ever removed, so that failure mode becomes unrepresentable rather than
+   handled. **This supersedes the fix landed in PR #341**, which replaces the option list rather
+   than promoting within it — safe as-is, but inconsistent with this pattern; fold in when this lands.
+3. **Agreement promotes to `resolved`.** Whatever the user selects gets geocode-checked, and only
+   if the two agree does the city enter the shared catalogue; a selection the geocoder cannot
+   confirm stays `pending`. This is a materially stronger definition than today's "the geocoder's
+   first guess", and it would let GE-16 drop its own footnote that *"resolved means the service
+   returned a match, not that the match has been verified as correct."*
+4. **Three-tier precedence** (COO, adopted by the UX spec): explicit place-level selection wins and
+   is never overwritten by geocoding (GE-16 already mandates this) > trip countries constrain when
+   no place-level choice exists > unconstrained discovery only when neither does.
+
+**What was decided against.** A user-dropped map pin — private display coordinates on the user's
+own record. Rejected on: GE-16's unqualified "coordinates are never client-supplied" would need a
+carve-out; placing a pin accurately is far more effort than a one-tap answer; and it resolves the
+user's view while leaving the catalogue record permanently unresolved, so the list starts tracking
+*places I dealt with* rather than *cities that are resolved*. UX agreed independently, on
+catalogue-drift grounds rather than deference — while noting the COO's effort argument is weakest
+for the terminal village case, where the alternative is "point at a nearby town", not one tap.
+
+**Canonicalisation (Rome vs Roma) — answered NO.** The PO raised it as genuinely open. UX rejected
+a canonical-name-plus-aliases data model as real complexity for a cosmetic want that works against
+the convergence resolve-then-create exists for. Recommended instead: a one-time disclosure ("Saved
+as 'Roma'…"), plus a cheap non-UX mitigation — set `accept-language=en` on the Nominatim request.
+**That parameter was deliberately kept out of the F1/F2 fix**: it changes which canonical names come
+back, which changes identity-key values for newly created cities, and that implication deserves
+considering with this work rather than bundling into a correctness fix.
+
+**Why deferred.** The PO's read, which the COO shares: this is probably edge-case territory — a
+user should be selecting or correcting to the right place the large majority of the time. Two
+things support that. The COO's framing of the problem's size was **inflated by a defect** (the
+happy path was producing `pending` rows because `resolveCityName` marked any two same-region
+candidates ambiguous; fixed in #346). And **nobody can measure the real rate yet** — `geocode_status`
+arrives with migration `0015`, which only reached `main` on 2026-08-01, so no production data
+exists. Both "this matters" and "this is edge case" are currently unmeasured intuitions.
+
+**What ships instead:** UX-12 — the UX spec's MVP (a standing "Change city" control plus one
+undifferentiated "Location not confirmed" badge). UX named both as *not safe to cut*.
+
+**Triggers to revisit** (from the UX spec §12, concrete by design): a non-resolved rate above ~5%
+once production data exists; a UAT or user report of a missing or wrong pin; or the ISO 3166-2
+adoption landing, which changes the region-data completeness this design has to assume.
+
+**Sequencing if picked up:** BRD home first (likely a GE-15 amendment rather than a new ID — it
+refines country autopopulate rather than adding a capability, but write it before deciding),
+then Architect data-model design against the merged UX spec, then Backend + Frontend. **QUAL-21
+becomes a prerequisite rather than a follow-on** — this change makes the untested
+resolve-then-create path primary.
+
+**Artifacts:** `jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md` (merged, PR #344) ·
+tracker UX-12, QUAL-21 · BRD GE-15/GE-16.
+
+---
+
+### D-20: Shared-record append collisions — the per-agent-region fix identified in Wave 0 and never adopted
+**Raised:** 2026-08-01 · **Status:** PROPOSED, not adopted. Recurrence count is the argument.
+
+**Four collisions in one session** (2026-08-01), on top of the documented history:
+`jobs/architect/context/current.txt` (twice — two Architect agents, then the review branch against
+the ruling branch), the ADL log (`20260307-architecture-decisions-log.md`, ADL-46 amendment vs the
+ADL-47 entry), and `.planning/drift-ledger.jsonl` (two branches appending concurrently).
+
+**The point that matters: every one of these was two parties correctly following OP-28.** The rule
+says append or amend, never wholesale replace — and all four did exactly that. Appending to the
+*same location* still conflicts. OP-28 prevents silent data loss, which was its actual purpose and
+it works; it does not prevent the conflicts, and nothing has ever claimed it would. So this is not
+a compliance problem and should not be addressed by tightening the rule.
+
+**Prior art, unactioned twice.** The Wave 0 concurrency notes (2026-07-27) recorded the same file
+colliding in 3 of 4 concurrent agents and proposed the fix: **per-thread context files
+(`context/<ID>-current.txt`) with `current.txt` as an index**, or making the park doc the only
+per-thread state since it is already uniquely named and collision-free. OP-28 (2026-07-28) then
+recorded a second occurrence. Neither adopted the structural fix. This is the third recording.
+
+**Cost so far is contained but real:** every collision has been hand-resolved by the COO mid-session,
+each costs context and carries a small chance of resolving wrongly, and the ADL-log one directly
+caused a *false negative finding* — an Architect agent correctly grepped its own branch, found no
+ADL-47, and flagged a doc-lifecycle gap that did not exist on `main`. The COO then asserted the
+agent was wrong, having probed a different branch. Neither party was careless; the file genuinely
+differed by branch.
+
+**Options, unranked pending a decision:**
+- Per-agent region files with an index (the Wave 0 proposal) — fixes context docs, not the ADL log
+  or the ledger.
+- Retire `current.txt` entirely and rely on uniquely-named park docs, which never collide.
+- Accept it and standardise the resolution instead: for genuinely append-only files (the ledger is
+  literally JSONL) a union-and-sort merge driver is mechanical and safe — the COO did this by hand
+  today and verified 2,521 lines, valid JSON, monotonic timestamps.
+
+**Recommendation (COO):** adopt the third for `.planning/drift-ledger.jsonl` immediately — a
+`.gitattributes` merge driver removes an entire class of conflict for a file with no semantic
+ordering beyond timestamp — and take the second for role context docs, since the park doc already
+does that job and `current.txt` is the file that keeps colliding. The ADL log is genuinely
+sequential and probably has to stay hand-resolved.
+
+**Trigger if not adopted now:** the next collision. There will be one.
+
+---
+
 ### D-15: A green PR earned against a stale base merged into a red main — does the merge step need a mandatory re-check?
-**Raised:** 2026-07-28
+**Raised:** 2026-07-28 · **Status: ANSWERED 2026-08-01 — mechanically, by branch protection.**
+
+> **RESOLVED.** `main` now requires branches to be **up to date before merging**
+> (`required_status_checks.strict: true`), alongside required PR, 9 required checks,
+> `enforce_admins`, linear history and no force pushes. Configured by the PO with COO guidance in
+> the parallel read-only session; **independently verified by the COO via
+> `gh api repos/ryanv11/travel-tracker/branches/main/protection`** rather than taken from the
+> write-up. `production` is deliberately left unprotected — direct fast-forward push is its
+> promotion path (ADL-35).
+>
+> This is the exact B7+B8 failure this entry described: `strict: true` forces the stale base to be
+> updated and CI re-run *before* the merge button works, so two individually-green PRs can no
+> longer compose into a red main without someone seeing a re-run first. No process rule was needed.
+>
+> **Confirmed in live use the same day** — the ADL-46 release PR (#348) was 4 commits behind `main`
+> and was blocked until updated, which also surfaced that the integration branch had never been
+> refreshed since it was cut. The cost is one `update-branch` plus a ~85s CI re-run per stale PR,
+> which is the intended trade. Remaining follow-ups from the same change are queued in
+> `jobs/COO/20260731-review-execution-queue.md` item 8 (skill-doc updates, and recording the
+> decision per `/record-decision`).
 
 Wave 1 sub-wave B produced a **red main from two individually-green PRs**. B8 (#318) and B7
 (#319) had no textual conflict, were each 18/18 green, and were partitioned by file surface
@@ -488,6 +622,32 @@ tracker once #327 merges, then strike this paragraph.
 ### D-17: ATDD-first (independent acceptance tests before implementation) — ON TRIAL this release
 **Raised:** 2026-07-30 · **Status:** TRIAL — **interim verdict POSITIVE (2026-07-31)**, pending
 release close (UAT). Promote to ADL on a positive verdict; narrow or drop on a negative one.
+
+> **RELEASE CLOSED 2026-08-01 (main @ 815b650). FORMAL VERDICT NOW DUE — not yet written.**
+> The trial's evidence is complete; what remains is writing the verdict and deciding placement.
+> Two things the close added, one supporting and one qualifying:
+>
+> **Supporting — the layered-checks argument now has three data points, not two.** Every stage of
+> this release that received an independent critical read produced a real defect that green CI did
+> not catch: D13 (backend reverse-door duplicate, COO diff-review), D14 (frontend region selector
+> collapsing to zero options, COO diff-review), and **F1** (ambiguous lookups auto-resolved to
+> `candidates[0]` and promoted to the shared catalogue — OP-27 fresh-eyes review of the assembled
+> release). F1 is the strongest single data point in the trial: it violated two GE-16 success
+> criteria verbatim, and it passed a green pipeline *and* the 32-test ATDD suite written expressly
+> for this feature. The Architect's ruling on it then surfaced a fourth defect nobody had reported
+> — `resolveCityName` marking the happy path ambiguous — which no layer had caught at all.
+>
+> **Qualifying, and the verdict must say this plainly — the ATDD suite was green for the wrong
+> reason in part.** Review F8 (now QUAL-22): the suite's geocoding mock exports only `resolveCity`,
+> not `resolveCityName`, so calls to the latter throw and the route's own `try/catch` swallows the
+> `TypeError`. Group B therefore passes without exercising what it claims to, and the same weakness
+> explains why B4's assertion was too soft to catch the D13 reverse-door. The suite's *provenance*
+> held up under scrutiny — git-verified as one commit, never adjusted after the backend landed,
+> which is the trial's central claim — but provenance is not the same as coverage, and a verdict
+> that reports only the former would be dishonest. **The honest finding is narrower than
+> "ATDD works": writing tests first prevented them being bent to fit the implementation, and that
+> is worth having; it did not by itself make them good tests.** Whatever gets promoted should carry
+> that distinction, and probably a mock-fidelity check, rather than a blanket endorsement.
 
 > **TRIAL UPDATE (2026-07-31) — QA + Backend stages run; both verdict conditions met with margin.**
 > The QA-first dispatch produced 32 red acceptance tests (access matrix / D13 / GE-16 containment);
