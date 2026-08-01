@@ -9,11 +9,20 @@ CURRENT STATUS: implemented BUG-72 (GitHub #351, BRD GE-16) — GET /api/cities
      silently dropped every NULL-region_id row from the GE-16 containment
      result set (cities.ts:60-64, unchanged). region_id itself stays in the
      response for existing consumers.
-  2. Three new tests in adl46-access-model.test.ts ("BUG-72 — GET /api/cities
-     region enrichment"): a regioned row carries name+ISO, a region-less row
-     (NULL region_id) still appears with both fields null (the GE-16
-     no-regression proof the brief asked for), and a mixed-country search
-     returns both shapes in one response.
+  2. Three new tests ("BUG-72 — GET /api/cities region enrichment"): a
+     regioned row carries name+ISO, a region-less row (NULL region_id)
+     still appears with both fields null (the GE-16 no-regression proof the
+     brief asked for), and a mixed-country search returns both shapes in
+     one response. PR REVIEW UPDATE: initially landed in
+     adl46-access-model.test.ts; COO review on PR #353 flagged that file as
+     QA's frozen ATDD acceptance suite (evidence base for the still-unwritten
+     D-17 trial verdict — provenance depends on it staying spec-first,
+     never appended to post-hoc). Relocated to a new backend-owned sibling,
+     src/backend/routes/__tests__/cities.search-region-enrichment.test.ts,
+     following the cities-find-or-create.test.ts precedent (own mocks, own
+     mirrored seedUser/seedCountry/seedRegion/seedCity helpers rather than
+     importing from QA's file). Verified `git diff origin/main --
+     adl46-access-model.test.ts` is empty — QA's suite is untouched.
   3. jobs/backend/tech/20260307-api-reference.md's GET /api/cities section
      updated with the new fields and the LEFT JOIN rationale; also corrected
      a stale geocode_status enum value ("failed" → "unresolvable", matching

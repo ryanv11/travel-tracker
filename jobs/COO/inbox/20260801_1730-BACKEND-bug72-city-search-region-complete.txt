@@ -33,7 +33,8 @@ SECURITY CHECKLIST (route modified)
    park doc.
 3. No new user-referencing FK columns — no schema change in this brief.
 
-CI: PASS — 18/18 checks green on PR #353 (scripts/ci-wait.sh pr 353).
+CI: PASS — 18/18 checks green on PR #353 (scripts/ci-wait.sh pr 353). See
+  ADDENDUM below — CI re-verified again after a post-review relocation.
 
 DECLARED FULL-FILE REWRITES: none — all edits, no source file replaced.
 
@@ -45,3 +46,21 @@ Frontend's AddPlaceFlow.tsx label-rendering brief can read
 client-side lookup needed.
 
 Full detail: jobs/backend/park-docs/20260801-BACKEND-bug72-park.txt
+
+ADDENDUM (same thread, before merge) — PR review relocation
+COO review on PR #353: implementation approved as correct with one required
+change — the 3 new tests were appended to adl46-access-model.test.ts, QA's
+frozen ATDD acceptance suite (evidence base for the unwritten D-17 trial
+verdict), damaging its spec-first provenance. Relocated the block, verbatim
+including its comment, to a new backend-owned sibling file:
+src/backend/routes/__tests__/cities.search-region-enrichment.test.ts —
+following the cities-find-or-create.test.ts precedent from the ADL-46 D13
+backend stage. Own mocks and mirrored (not imported) seedUser/seedCountry/
+seedRegion/seedCity helpers, so QA's file needed zero export changes.
+
+Verified `git diff origin/main -- adl46-access-model.test.ts` is empty —
+QA's suite is byte-for-byte unchanged. Full backend suite: 668 passed (35
+files; same total test count, tests moved not duplicated). type:check:all,
+biome check, status:check all clean. Re-pushed to PR #353; CI re-verified
+PASS — 18/18 checks green (scripts/ci-wait.sh pr 353) on the new head
+commit. Ready for merge.

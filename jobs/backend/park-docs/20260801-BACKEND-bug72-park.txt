@@ -38,12 +38,14 @@ WHAT WAS CHANGED
      mirrors the sibling city-with-region join in trips.ts rather than the
      admin CRUD endpoints.
 
-2. src/backend/routes/__tests__/adl46-access-model.test.ts — new describe
-   block "BUG-72 — GET /api/cities region enrichment" (3 tests), appended
-   after the existing "ADL-46 Group C — pending vs resolved city
-   containment (GE-16)" block since it shares that block's seed helpers
-   (seedCountry, seedRegion, seedCity) and is the file that already owns
-   GET /api/cities route-level coverage:
+2. [SUPERSEDED — see PR REVIEW UPDATE at bottom of this doc; tests moved to
+   src/backend/routes/__tests__/cities.search-region-enrichment.test.ts]
+   Originally landed as a new describe block "BUG-72 — GET /api/cities
+   region enrichment" (3 tests) appended directly in
+   adl46-access-model.test.ts, after the existing "ADL-46 Group C — pending
+   vs resolved city containment (GE-16)" block, since it shared that
+   block's seed helpers (seedCountry, seedRegion, seedCity) and that file
+   already owned GET /api/cities route-level coverage:
    - a region-tier city (US/Colorado) carries region_id + region_name +
      region_iso together.
    - a region-less city (JP/Kyoto, non-region-tier country, NULL
@@ -108,3 +110,33 @@ OPEN ISSUES / BLOCKERS
 None. Frontend's label-rendering half (AddPlaceFlow.tsx) is unblocked by
 this PR merging — it can now read `region_name`/`region_iso` directly off
 GET /api/cities rows without a client-side lookup.
+
+PR REVIEW UPDATE (same day, before merge)
+COO review of PR #353 flagged that adl46-access-model.test.ts is QA's frozen
+ATDD acceptance spec — the evidence base for the still-unwritten D-17 trial
+verdict, which depends on the suite's provenance being auditable (written
+spec-first, never adjusted afterward). Appending ~100 lines of post-hoc
+backend regression tests to it damages exactly the property under
+evaluation. Direct precedent from the same feature: the ADL-46 D13 backend
+stage hit this and created cities-find-or-create.test.ts as an explicitly
+backend-owned regression file rather than touching QA's suite.
+
+Action taken: relocated the 3-test "BUG-72 — GET /api/cities region
+enrichment" describe block, verbatim including its explanatory comment
+block, into a new sibling file,
+src/backend/routes/__tests__/cities.search-region-enrichment.test.ts — a
+sibling rather than an extension of cities-find-or-create.test.ts because
+these are GET /api/cities (search) response-shape tests, a different route
+and a different concern from POST /api/cities find-or-create. The new
+file carries its own header comment stating its relationship to QA's
+suite (complements, does not touch), and mirrors — rather than imports —
+adl46-access-model.test.ts's seedUser/seedCountry/seedRegion/seedCity
+helpers and its mockUserId/mockIsOwner auth-mock pattern, so QA's file
+needed no export changes.
+
+Verified `git diff origin/main -- adl46-access-model.test.ts` is empty —
+QA's suite is byte-for-byte unchanged versus main. Full backend suite
+re-run: 668 passed (35 files, unchanged total test count — the 3 tests
+moved, none were added or dropped). type:check:all, biome check, and
+status:check all still clean. PR #353 pushed with this change; CI
+re-verified green before reporting back to COO.
