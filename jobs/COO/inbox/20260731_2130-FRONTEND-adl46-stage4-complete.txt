@@ -98,3 +98,64 @@ WHAT IS NOW UNBLOCKED
   end-to-end: DB, QA, Backend, and now Frontend stages all landed on
   release/adl46-access-model. Ready for COO review/merge of PR #341, then
   whatever release-branch → main promotion step ADL-46 calls for.
+
+═══════════════════════════════════════════════════════════════════════════
+UPDATE 2026-07-31 (same day) — COO review defect fixed, PR #341 commit a5b9c3b
+
+COO reviewed PR #341 against the diff and found a real defect in the D14
+region-narrowing logic: candidateRegionIsos was only ever set when the
+geocode lookup itself returned 2+ distinct region_iso values, but the
+render-time intersection with the locally-seeded `regions` table (a known-
+incomplete hand-curated seed — BUG-30 backfilled missing UK regions after
+the fact, OQ-06 is the still-open question about a systematic replacement)
+could still collapse to zero or one matching row. regionOptions was the
+selector's sole data source, so a zero-match collapse left the user looking
+at an empty selector ("No <region> selected" and nothing else, not even
+regions that ARE seeded and legitimately pickable) with no discoverable way
+out short of toggling the country away and back. The ambiguity hint was
+also gated on regionOptions.length > 1, so it disappeared exactly when the
+user most needed the explanation.
+
+FIX (src/frontend/components/TripDetail/AddPlaceFlow.tsx): compute the
+candidate-narrowed set separately, and only use it when it has 2+ entries
+(i.e. actually presents a choice) — otherwise fall back to the full
+countryRegions list. The ambiguity hint now reflects "the lookup detected
+an ambiguous name" (candidateRegionIsos !== null) independent of whether
+the narrowing survived, so the user still learns the name was ambiguous
+even when shown the unfiltered list. Confirmed no auto-select was
+introduced for the single-match case — that would reintroduce the exact
+silent guess D14 exists to prevent, now guessing from a table already known
+to be incomplete.
+
+TEST GAP — answering the COO's direct question: the gap was the scenario,
+not a weak test, because there was no test at all. AddPlaceFlow had zero
+test coverage before this fix; the D14 narrowing logic shipped in the first
+commit with only hook-level tests (useCities.geocode.test.tsx), which
+mock apiGet and never render the component, so they had no way to see the
+selector collapse. Added
+src/frontend/components/TripDetail/__tests__/AddPlaceFlow.test.tsx (new)
+with two cases: candidate region ISOs matching zero seeded regions (the
+reported defect — asserts the full country list, e.g. California/Texas,
+is still offered and the hint stays visible) and matching 2+ seeded
+regions (regression guard that narrowing still works when it should).
+Verified the first case actually catches the defect by hand: reverted the
+fix locally (git apply -R against the fix commit's diff, not git stash, per
+the standing rule), re-ran the test file and watched it fail exactly as
+expected (1 failed / 1 passed), then re-applied the fix and confirmed both
+pass.
+
+RE-VERIFIED: npm run check (biome) clean; type:check:all clean; test:backend
+650/650 (untouched); test:frontend 235/235 (233 + 2 new AddPlaceFlow
+tests); full E2E suite 52/52 (Playwright's own summary line, re-run after
+this change since AddPlaceFlow.tsx was touched again); /pre-push all green;
+CI on PR #341 all 9 checks green at commit a5b9c3b (scripts/ci-wait.sh pr
+341 → PASS).
+
+SIDE QUESTION ANSWERED (not fixed, not in scope): Companion.is_active
+carries the identical number-vs-boolean mismatch, and yes — the backend
+does serialize it as a real boolean too. src/backend/routes/companions.ts's
+serializeCompanion returns `is_active: row.isActive === 1` (same pattern as
+categories.ts/activities.ts), while types/api.ts's Companion interface
+still declares `is_active: number`. Left untouched per instruction — a
+same-shaped follow-on to what I already fixed for Category/Activity in
+this PR.

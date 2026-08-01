@@ -542,3 +542,16 @@ NEXT STEPS (when resumed)
   the last of the 4 ADL-46 release stages, so merging it completes the
   release-branch work (whatever release/adl46-access-model → main promotion
   step follows is a COO/Architect call, not decided in this brief).
+
+UPDATE 2026-07-31 (same day): COO review of PR #341 caught a real defect —
+D14's region-selector narrowing could collapse to zero options when the
+geocode candidates' region_iso values matched no seeded row in the
+(known-incomplete, BUG-30/OQ-06) local regions table, locking the user out
+of the selector entirely. Fixed to fall back to the full country region
+list whenever the narrowed intersection has fewer than 2 entries, keeping
+the "ambiguous name" hint visible independent of whether narrowing
+survived. Added AddPlaceFlow.tsx's first-ever component test file
+(src/frontend/components/TripDetail/__tests__/AddPlaceFlow.test.tsx) —
+confirmed by hand (git apply -R, not stash) that the zero-overlap case
+fails without the fix. PR #341 commit a5b9c3b, CI 9/9 green. Full detail
+appended to jobs/COO/inbox/20260731_2130-FRONTEND-adl46-stage4-complete.txt.
