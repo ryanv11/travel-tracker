@@ -486,8 +486,36 @@ guaranteed a merge conflict on one JSON string (the D-13 failure shape). Fold it
 tracker once #327 merges, then strike this paragraph.
 
 ### D-17: ATDD-first (independent acceptance tests before implementation) — ON TRIAL this release
-**Raised:** 2026-07-30 · **Status:** TRIAL (ADL-46 access-model release). Promote to ADL on a
-positive verdict; narrow or drop on a negative one.
+**Raised:** 2026-07-30 · **Status:** TRIAL — **interim verdict POSITIVE (2026-07-31)**, pending
+release close (UAT). Promote to ADL on a positive verdict; narrow or drop on a negative one.
+
+> **TRIAL UPDATE (2026-07-31) — QA + Backend stages run; both verdict conditions met with margin.**
+> The QA-first dispatch produced 32 red acceptance tests (access matrix / D13 / GE-16 containment);
+> the Backend stage turned them green **by implementation, with QA's spec file untouched** (verified:
+> the file is absent from PR #338's diff). Two real divergences were caught that the implementer's own
+> tests would have missed:
+> 1. **HC-06 spec-inventory gap** — `owner-access.test.ts`'s `POST /api/cities → 403` block
+>    contradicted D4's end state and was missing from ADL-46 §8.2's own file inventory. Would have hit
+>    the Backend implementer mid-task as an unauthorised red security check (OP-30). Fed back into §8.2
+>    (PR #337) before Backend ran.
+> 2. **D13 reverse single-match duplicate** — caught in COO diff-review, NOT by any test: a no-region
+>    POST against a region-tier country with exactly one *regioned* row created a duplicate instead of
+>    returning it (§4.2.1 "no regression"). **QA's own suite missed it too** (B5 only covered the
+>    non-region-tier case), which is the strongest evidence for layered checks — the bug survived to
+>    the third layer (implementer tests → independent QA suite → COO review) on the exact path flagged
+>    as the trap. Fixed + regression test added (PR #338, commit 7f9a405).
+>
+> **Cost:** one QA dispatch + one targeted fix-cycle, no rebuilds — proportionate. **Placement on
+> promotion is unchanged** (Architect prompt marks each spawned brief ATDD-yes/no; COO one-liner;
+> warn-hook backstop). Write the formal verdict + promotion at release close, per the condition above.
+
+> **Process note surfaced during the trial (2026-07-31) — candidate for the promoted rule or a
+> sibling D-entry.** An ATDD author reporting its red baseline must **attribute pre-existing failures
+> to their root cause, not merely scope them out by file authorship.** QA's first report dismissed 20
+> type errors as "not in files I touched" — the right answer, but by the wrong test; PO caught the
+> reasoning. Verified correct only by opening all 20 (every one the DB-stage `userId`-NOT-NULL insert
+> breakage, one root cause, none in QA's own new file). "Not my files" is a single probe; "all N share
+> the expected root cause X" is the verified claim. Same shape as the negative-findings two-probe rule.
 
 **What it is.** For qualifying briefs, dispatch **QA first** to turn the BRD success criteria into
 *red* acceptance/integration tests, handed to the implementer as the executable definition of done —
