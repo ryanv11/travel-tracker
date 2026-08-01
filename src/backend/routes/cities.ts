@@ -110,12 +110,31 @@ function serializeCity(row: {
  * §8 row 6) rather than colliding with the index on insert.
  *
  *   Step 1 — exact match on (name COLLATE NOCASE, country_code, COALESCE(region_id,0)),
- *            mirroring uniq_cities_name_country_region_ci exactly.
+ *            mirroring uniq_cities_name_country_region_ci exactly. Creator- and
+ *            status-blind: the unique index is unconditional, so a filtered
+ *            step 1 would miss another user's row and the follow-on insert
+ *            would collide on it (ADL-46 F1/F2 ruling §3.1/§3.3 amendment 2).
  *   Step 2 — WILDCARD UPGRADE: if the request carries a region and step 1 missed,
  *            adopt a region-less row of the same name+country by SETTING its
  *            region_id. A region-less row is an under-specified record, not a
  *            different city — specialising it prevents the duplicate that naively
  *            adding `AND COALESCE(region_id,0)=…` would create (the BUG-33 class).
+ *            ADL-46 F1/F2 ruling §3.3 (R1): scoped to rows the caller may
+ *            legitimately mutate — `geocode_status IN ('pending','unresolvable')`
+ *            (whitelist, not `<> 'resolved'`: fails closed on a future status)
+ *            AND `(created_by_user_id = caller OR created_by_user_id IS NULL)`.
+ *            A `resolved` row is visible to the caller (GE-16) but must NOT be
+ *            upgradeable — read-through is global because the index is global;
+ *            write-through is scoped because nothing forces it to be. Declining
+ *            falls through to the ordinary insert on a distinct identity key
+ *            (legal under D13, at most one extra row per name+country). On a
+ *            successful upgrade the retry budget resets and, if the adopted row
+ *            is still 'pending', resolution is re-fired — the region is the
+ *            question, and a region-constrained lookup can collapse an
+ *            ambiguity the unconstrained one could not (ruling §2.5/§3.3
+ *            amendment 3). Not fired for an adopted 'unresolvable' row: the
+ *            geocoder returned zero candidates, and a region constraint cannot
+ *            turn zero into some (ruling §2.5 asymmetry).
  *
  *   Step 2b (reverse, NO region requested) — collapse to (name, country_code)
  *            regardless of region. This is the "today's behaviour" case the old
@@ -136,10 +155,12 @@ async function findOrUpgradeCity(
   name: string,
   countryCode: string,
   regionId: number | null,
+  callerUserId: string,
 ) {
   const regionKey = regionId ?? 0;
 
-  // Step 1 — exact match on the composite identity key.
+  // Step 1 — exact match on the composite identity key. Creator- and
+  // status-blind on purpose (see doc comment above).
   const exact = await db
     .select()
     .from(cities)
@@ -154,6 +175,7 @@ async function findOrUpgradeCity(
   if (exact.length) return exact[0];
 
   // Step 2 — wildcard upgrade (only when the request carries a region).
+  // ADL-46 F1/F2 ruling §3.3 (R1): whitelist status + creator-or-null scoping.
   if (regionId != null) {
     const regionless = await db
       .select()
@@ -163,6 +185,8 @@ async function findOrUpgradeCity(
           eq(cities.countryCode, countryCode),
           sql`${cities.name} = ${name} COLLATE NOCASE`,
           isNull(cities.regionId),
+          inArray(cities.geocodeStatus, ['pending', 'unresolvable']),
+          or(eq(cities.createdByUserId, callerUserId), isNull(cities.createdByUserId)),
         ),
       )
       .limit(1);
@@ -170,10 +194,20 @@ async function findOrUpgradeCity(
       const now = new Date().toISOString();
       const upgraded = await db
         .update(cities)
-        .set({ regionId, updatedAt: now })
+        .set({ regionId, geocodeAttempts: 0, updatedAt: now })
         .where(eq(cities.id, regionless[0].id))
         .returning();
-      return upgraded[0];
+      const upgradedRow = upgraded[0];
+      // Re-ask: the region is the question, and a region-constrained lookup
+      // can collapse an ambiguity the unconstrained one could not. Never fired
+      // for an adopted 'unresolvable' row (ruling §2.5 asymmetry — zero
+      // candidates cannot become some just because a region was added).
+      if (upgradedRow.geocodeStatus === 'pending') {
+        resolveCity(upgradedRow.id).catch(() => {
+          /* handled internally — defensive catch */
+        });
+      }
+      return upgradedRow;
     }
     // Has-region path ends here: step 1 + step 2 are authoritative for a
     // region-bearing request. Do NOT fall through to the reverse branch below.
@@ -250,7 +284,7 @@ citiesRouter.post(
     }
 
     // Pass 1 (§4.3 step 2) — find-or-create against the user's submitted name.
-    const found1 = await findOrUpgradeCity(db, name, country_code, region_id ?? null);
+    const found1 = await findOrUpgradeCity(db, name, country_code, region_id ?? null, userId);
     if (found1) {
       res.status(200).json(serializeCity(found1));
       return;
@@ -273,7 +307,13 @@ citiesRouter.post(
 
       // Pass 2 (§4.3 step 4a) — find-or-create against the CANONICAL name. This
       // is the step that does the real convergence work and is easy to omit.
-      const found2 = await findOrUpgradeCity(db, canonicalName, country_code, region_id ?? null);
+      const found2 = await findOrUpgradeCity(
+        db,
+        canonicalName,
+        country_code,
+        region_id ?? null,
+        userId,
+      );
       if (found2) {
         res.status(200).json(serializeCity(found2));
         return;
@@ -326,9 +366,20 @@ citiesRouter.post(
     // Fire-and-forget the queue re-resolution so a legitimate city created while
     // the geocoder was unreachable is promoted to 'resolved' (and globally
     // visible) on its own (GE-12 / §4.4). Never throws.
-    resolveCity(city.id).catch(() => {
-      /* handled internally — defensive catch */
-    });
+    //
+    // ADL-46 F1/F2 ruling §2.6: SKIP this when resolution.status === 'ambiguous'
+    // — the route already holds the verdict resolveCity would recompute, and
+    // under R2 a second call provably reaches the identical result while
+    // costing a second Nominatim request against a 1 req/s budget and burning
+    // an attempt for nothing. Still fired for 'unresolved' and 'disabled': the
+    // answer there is genuinely unknown to this route. The 15-minute queue
+    // still picks the pending ambiguous row up and spends its bounded retry
+    // budget — that cost is intended, not a leak.
+    if (resolution.status !== 'ambiguous') {
+      resolveCity(city.id).catch(() => {
+        /* handled internally — defensive catch */
+      });
+    }
 
     const fresh = await db.select().from(cities).where(eq(cities.id, city.id)).limit(1);
     res.status(201).json(serializeCity(fresh[0] ?? city));

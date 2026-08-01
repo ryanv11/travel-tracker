@@ -40,14 +40,120 @@ const GEOCODE_ATTEMPT_CAP = 5;
 export interface CityResolution {
   /**
    * - 'ok'         — a single best candidate was determined (see `best`).
-   * - 'ambiguous'  — two or more comparable settlement candidates survived the
-   *                  country/region constraint; the caller must NOT guess (D14).
+   * - 'ambiguous'  — the eligible candidates disagree about `region_iso`, or a
+   *                  region the user selected could not be confirmed; the
+   *                  caller must NOT guess (D14). See `reason`.
    * - 'unresolved' — the geocoder answered with no usable candidate.
    * - 'disabled'   — GEOCODING_ENABLED=false or a recoverable error; degrade to pending.
    */
   status: 'ok' | 'ambiguous' | 'unresolved' | 'disabled';
   candidates: NominatimCandidate[];
   best?: NominatimCandidate;
+  /**
+   * Why an 'ambiguous' verdict was reached. Not persisted anywhere — exists so
+   * logging (and a future frontend contract) can tell the two ambiguity
+   * classes apart without a breaking change later. ADL-46 F1/F2 ruling §2.2/§2.3.
+   */
+  reason?: 'multi-region' | 'region-unconfirmed';
+}
+
+/**
+ * Countries a candidate is permitted to come from — upper-cased ISO 3166-1
+ * alpha-2. An EMPTY set means UNCONSTRAINED. Today every caller passes a set
+ * of one; a future trip-declared-countries lookup would pass many.
+ * ADL-46 F1/F2 ruling §2.2.
+ */
+export type PermittedCountries = ReadonlySet<string>;
+
+/** Verdict returned by {@link classifyCandidates}. ADL-46 F1/F2 ruling §2.2. */
+export type CandidateVerdict =
+  | { status: 'ok'; best: NominatimCandidate; eligible: NominatimCandidate[] }
+  | {
+      status: 'ambiguous';
+      /** Why we are not choosing. Not persisted; drives logging and the follow-on. */
+      reason: 'multi-region' | 'region-unconfirmed';
+      regionIsos: string[];
+      eligible: NominatimCandidate[];
+    }
+  | { status: 'unresolved'; eligible: [] };
+
+/** Distinct, upper-cased, non-null `regionIso` values across the given candidates. */
+function distinctRegionIsos(candidates: NominatimCandidate[]): string[] {
+  return [
+    ...new Set(
+      candidates
+        .filter((c): c is NominatimCandidate & { regionIso: string } => c.regionIso != null)
+        .map((c) => c.regionIso.toUpperCase()),
+    ),
+  ];
+}
+
+/**
+ * ADL-46 F1/F2 ruling (2026-08-01), §2.1-§2.2 — THE single shared classifier.
+ * Both decision sites (`resolveCityName`'s create path and `resolveCity`'s
+ * queue/on-create-trigger path) call this and only this; there is exactly one
+ * answer to "is this ambiguous?" in the codebase.
+ *
+ * "Ambiguous" means more than one DISTINCT non-null `region_iso` among the
+ * eligible candidates — NOT candidate count. Nominatim routinely returns one
+ * real city at several administrative granularities (`city` + `municipality`,
+ * both surviving the settlement-type filter) sharing one `region_iso`;
+ * counting hits would mark nearly every city ambiguous, which is strictly
+ * worse than the bug this fixes (geocoding.service.ts:99-101, pre-fix).
+ *
+ * Algorithm — implemented in this order, per the ruling:
+ *   1. Country eligibility: `permitted.size === 0` → unconstrained (all
+ *      candidates eligible). Otherwise a candidate survives only if its
+ *      `countryCode` is non-null AND in `permitted` — a candidate we cannot
+ *      attribute to a country cannot confirm the user's country selection.
+ *   2. Zero eligible → terminal 'unresolved'.
+ *   3. A region was requested: any eligible candidate matching it → 'ok'
+ *      (count is irrelevant — every match agrees with what the user chose);
+ *      zero matches → 'ambiguous'/'region-unconfirmed' (R3: never resolve to
+ *      a candidate outside the region the user explicitly selected).
+ *   4. No region requested: >1 distinct eligible `region_iso` → 'ambiguous'/
+ *      'multi-region'; otherwise → 'ok' (this covers both "one shared region"
+ *      and the accepted "no candidate carries a region" guess limit).
+ *
+ * @param candidates          - Raw settlement candidates from Nominatim.
+ * @param permitted           - Country codes the result must come from (empty = any).
+ * @param requestedRegionIso  - The region the user explicitly selected, if any.
+ */
+export function classifyCandidates(
+  candidates: NominatimCandidate[],
+  permitted: PermittedCountries,
+  requestedRegionIso: string | null,
+): CandidateVerdict {
+  const eligible =
+    permitted.size === 0
+      ? candidates
+      : candidates.filter(
+          (c) => c.countryCode != null && permitted.has(c.countryCode.toUpperCase()),
+        );
+
+  if (eligible.length === 0) {
+    return { status: 'unresolved', eligible: [] };
+  }
+
+  if (requestedRegionIso != null) {
+    const upperRequested = requestedRegionIso.toUpperCase();
+    const matches = eligible.filter((c) => c.regionIso?.toUpperCase() === upperRequested);
+    if (matches.length >= 1) {
+      return { status: 'ok', best: matches[0], eligible };
+    }
+    return {
+      status: 'ambiguous',
+      reason: 'region-unconfirmed',
+      regionIsos: distinctRegionIsos(eligible),
+      eligible,
+    };
+  }
+
+  const regionIsos = distinctRegionIsos(eligible);
+  if (regionIsos.length > 1) {
+    return { status: 'ambiguous', reason: 'multi-region', regionIsos, eligible };
+  }
+  return { status: 'ok', best: eligible[0], eligible };
 }
 
 /**
@@ -56,21 +162,23 @@ export interface CityResolution {
  *
  * ADL-46 D12 (§4.3.1): the caller has already validated country_code (and often
  * region), so the lookup is CONSTRAINED by them and the lookup may never
- * override them:
- *   1. countrycodes filter from the validated country_code — removes the
- *      London-UK-vs-Ontario / Cambridge-UK-vs-MA classes entirely.
- *   2. where a region ISO is known, prefer the candidate whose subdivision matches.
- *   3. exactly one settlement candidate → 'ok'; two or more → 'ambiguous' (never
- *      guess — D14); zero → 'unresolved'.
+ * override them. ADL-46 F1/F2 ruling §2.3: the decision itself is delegated
+ * entirely to {@link classifyCandidates}.
  *
  * @param name       - The user-submitted city name.
- * @param countryCode- Validated ISO 3166-1 alpha-2 (e.g. 'US').
+ * @param countryCode- Validated ISO 3166-1 alpha-2 (e.g. 'US'). Stays singular —
+ *                     it is the user's ground truth (D12 rule 3); the SET used
+ *                     for the eligibility check defaults to `{countryCode}`
+ *                     unless the caller passes `permittedCountryCodes`.
  * @param opts.regionIso - ISO 3166-2 subdivision (e.g. 'US-CO') to disambiguate.
+ * @param opts.permittedCountryCodes - Eligibility set for classifyCandidates;
+ *   defaults to a set of one (`countryCode`). A future trip-declared-countries
+ *   lookup passes a larger set here without changing anything else.
  */
 export async function resolveCityName(
   name: string,
   countryCode: string,
-  opts: { regionIso?: string | null } = {},
+  opts: { regionIso?: string | null; permittedCountryCodes?: PermittedCountries } = {},
 ): Promise<CityResolution> {
   if (!geocodingEnabled()) return { status: 'disabled', candidates: [] };
 
@@ -85,28 +193,16 @@ export async function resolveCityName(
     return { status: 'disabled', candidates: [] };
   }
 
-  const candidates = result.candidates;
-  if (!candidates.length) return { status: 'unresolved', candidates: [] };
+  const permitted = opts.permittedCountryCodes ?? new Set([countryCode.toUpperCase()]);
+  const verdict = classifyCandidates(result.candidates, permitted, opts.regionIso ?? null);
 
-  // D12 step 2: if the user gave a region, prefer the candidate whose ISO matches.
-  if (opts.regionIso) {
-    const regionMatches = candidates.filter(
-      (c) => c.regionIso?.toUpperCase() === opts.regionIso!.toUpperCase(),
-    );
-    if (regionMatches.length === 1) {
-      return { status: 'ok', best: regionMatches[0], candidates };
-    }
-    if (regionMatches.length > 1) {
-      return { status: 'ambiguous', candidates: regionMatches };
-    }
-    // No region match — fall through to the general count.
+  if (verdict.status === 'unresolved') {
+    return { status: 'unresolved', candidates: [] };
   }
-
-  if (candidates.length === 1) {
-    return { status: 'ok', best: candidates[0], candidates };
+  if (verdict.status === 'ambiguous') {
+    return { status: 'ambiguous', candidates: verdict.eligible, reason: verdict.reason };
   }
-  // D14: two or more comparable candidates → ambiguous, do not guess.
-  return { status: 'ambiguous', candidates };
+  return { status: 'ok', best: verdict.best, candidates: verdict.eligible };
 }
 
 /**
@@ -168,9 +264,16 @@ export async function resolveCity(cityId: number): Promise<boolean> {
     return false;
   }
 
-  // result.status === 'ok' — the geocoder answered.
-  const best = pickBest(result.candidates, city.regionIso);
-  if (!best) {
+  // result.status === 'ok' — the geocoder answered. ADL-46 F1/F2 ruling §2.4:
+  // this is F1 — the single shared classifier replaces the old `pickBest`,
+  // which decided "is this ambiguous?" differently than resolveCityName did.
+  const verdict = classifyCandidates(
+    result.candidates,
+    new Set([city.countryCode.toUpperCase()]),
+    city.regionIso,
+  );
+
+  if (verdict.status === 'unresolved') {
     // TERMINAL: the geocoder answered with no usable match. Never retried (D10).
     const now = new Date().toISOString();
     await db
@@ -181,6 +284,21 @@ export async function resolveCity(cityId: number): Promise<boolean> {
     return false;
   }
 
+  if (verdict.status === 'ambiguous') {
+    // ADL-46 F1/F2 ruling §2.4/§2.5 (R2/R3/R4): the geocoder DID answer, but
+    // could not confirm a single region — this is not a "no match" (D10's
+    // 'unresolvable' does not apply) and it must not guess (D14). Consume the
+    // existing geocode_attempts budget (a bounded question, re-askable if the
+    // row's region_id later changes — R1 §3.3) and leave the row 'pending'.
+    await incrementAttempts(cityId);
+    console.info(
+      `[GEO] City ${cityId} (${city.name}) ambiguous (${verdict.reason}): regions=${verdict.regionIsos.join(',')}`,
+    );
+    return false;
+  }
+
+  // verdict.status === 'ok'
+  const best = verdict.best;
   const resolvedAt = new Date().toISOString();
   await db
     .update(cities)
@@ -195,19 +313,6 @@ export async function resolveCity(cityId: number): Promise<boolean> {
 
   console.info(`[GEO] Resolved city ${cityId} (${city.name}): ${best.latitude}, ${best.longitude}`);
   return true;
-}
-
-/** Picks the region-matching candidate if a region ISO is known, else the first. */
-function pickBest(
-  candidates: NominatimCandidate[],
-  regionIso: string | null,
-): NominatimCandidate | undefined {
-  if (!candidates.length) return undefined;
-  if (regionIso) {
-    const match = candidates.find((c) => c.regionIso?.toUpperCase() === regionIso.toUpperCase());
-    if (match) return match;
-  }
-  return candidates[0];
 }
 
 /** ADL-46 D10: increment the recoverable-failure counter for a pending row. */
