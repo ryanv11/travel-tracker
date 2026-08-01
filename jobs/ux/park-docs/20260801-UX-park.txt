@@ -1,0 +1,95 @@
+UX PARK DOCUMENT — 2026-08-01
+================================================================================
+
+THREAD: City entry, disambiguation, and location-status spec (GE-16), dispatched
+deliberately ahead of the Architect per PO direction — design the experience first,
+let the data model serve it, not the reverse.
+
+DELIVERABLE
+  jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md
+
+SCOPE COVERED
+  1. End-to-end city entry/disambiguation flow (search, new-city form, country/region
+     selection, post-create confirmation states).
+  2. Explicit answers: pin vs. no pin, canonicalisation surfacing, disagreement between
+     user selection and geocoder.
+  3. Full assessment of the unspecced /cities/:id screen (CityItemsPage, IT-09) and its
+     required additions.
+  4. Data-model/API implications section, addressed to the Architect.
+  5. Evaluation of the PO/COO proposals (shortlist-plus-full-list, trip-countries
+     constraint, three-tier precedence, agreement-promotes-to-resolved) — adopted with
+     stated refinements, plus explicit rejections (canonical-name-plus-aliases model,
+     fabricated placeholder pins, a separate disagreement alarm state, a city-editing
+     form on the cross-trip page).
+
+KEY FINDINGS FROM CODE AUDIT (main @ b26c21c, this worktree)
+  - AddPlaceFlow.tsx is not migrated to Waypoint tokens (raw Tailwind teal/gray) — flagged,
+    not fixed; my spec's new UI should use wp-* tokens regardless of the surrounding
+    modal's pre-existing debt.
+  - CityMarkers.tsx confirmed (by reading the filter condition + its own header comment):
+    a pending/unresolvable city renders literally zero pixels on the map today. No
+    affordance exists anywhere for it.
+  - PlaceSection.tsx's header has no location-status indicator and no city-correction
+    control at all — the GE-16 "re-point at any time" right is real in the BRD and has
+    zero UI surface.
+  - places.ts PATCH on main accepts only arrived_on/departed_on — no city_id. The D11
+    capability (re-point via PATCH) exists on release/adl46-access-model, not main.
+    Verified by reading both, not assumed.
+  - CityItemsPage (IT-09) uses proper Waypoint tokens and reuses shared components well,
+    but its header has no data source independent of router location.state — degrades to
+    "This city" on a refresh or direct link. A real defect, surfaced because this spec
+    now needs the header to carry more.
+
+BUGS DISCOVERED (per _shared/frameworks.txt rule 30)
+  [MINOR] CityItemsPage header loses city name/country on refresh/direct-link (router
+  state only, no independent fetch) — disposition: named in spec §6 item 1 as a required
+  fix bundled with this spec's other CityItemsPage additions, not filed as a standalone
+  tracker bug (it's not separable from the header work Frontend will do for this spec).
+
+SOURCING DISCREPANCY (flagged to COO, not silently resolved)
+  My brief cited jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md for two
+  named findings. That file does not exist — two independent probes (local find/ls; git
+  ls-tree against origin/main and origin/release/adl46-access-model). The content was real
+  and traced to ADL-46-non-owner-access-model.md §4.3.1/§4.4.3. Worked from the primary
+  source; see spec §0 for the full account.
+
+CALIBRATION NOTE — release/adl46-access-model already shipped un-spec'd UI
+  PR #341 (Frontend stage of the ADL-46 release, not yet merged to main) already
+  implemented D14's region-disambiguation mechanism with no UX pass — narrows the existing
+  region <select> to ambiguous candidates with inline hint text. My spec's §3.3 refines
+  this (distinguishing labels, ambiguity-signalling placeholder text) rather than
+  replacing it — it's a small Frontend follow-up, not a rewrite, and does not block that
+  PR's merge. Naming this so it isn't read as a second unrelated implementation of the
+  same control.
+
+PROCESS NOTE — two-probe rule caught its own near-miss mid-task
+  Initially concluded trip_countries was UI-less (grepped the Drizzle symbol name across
+  src/frontend, found nothing) — a naming-mismatch miss, the exact failure shape the
+  negative-findings rule warns about. A second probe (reading TripForm.tsx directly) found
+  a fully-built, working "Countries" multi-select already populating it. Corrected before
+  it reached the spec as a claim; the corrected finding materially changed how I framed the
+  "trip countries constrain autofill" proposal (immediately usable, not a follow-on
+  dependency) — recorded in the spec's §1 and in context/current.txt rather than quietly
+  fixed and left untraceable.
+
+OPEN ITEMS FOR COO
+  1. Route the spec's §7 (data-model implications) to the Architect before any Frontend
+     brief is cut — this was the explicit point of dispatching UX first.
+  2. Decide whether/how to note the filename discrepancy back into whatever produced the
+     original brief text, so it isn't inherited again.
+  3. New Waypoint token flagged (spec §5): one new badge hue (`unlocated`, hue 45/orange) —
+     small, no new dependency, but named per my role's obligation to flag new tokens rather
+     than assume them free.
+
+WHAT'S NOW UNBLOCKED
+  Architect: data-model review of spec §7 (region_name on city responses, a stable
+  CityItemsPage metadata source, explicit no-new-state/no-alias-table positions to sign
+  off or contest).
+  Frontend (after the Architect gate + BRD update, per CLAUDE.md's dispatch rules): the
+  full flow in spec §3-6, once a tracker entry/BRD success-criteria home exists — not
+  mine to create per the BRD-gate rule.
+
+GIT
+  Branch: docs/ux-city-entry-disambiguation-spec
+  Commits: spec file + jobs/ housekeeping (context, this park doc, completion report).
+  PR number and CI status: see completion report in jobs/COO/inbox/.

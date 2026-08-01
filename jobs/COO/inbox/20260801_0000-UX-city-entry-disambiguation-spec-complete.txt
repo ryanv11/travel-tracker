@@ -1,0 +1,42 @@
+Tracker: GE-16 · No GitHub issue at brief time (direct COO dispatch) · BRD §5.2 GE-16
+Branch: docs/ux-city-entry-disambiguation-spec (PR number below once opened)
+
+WHAT WAS SPECCED
+Full UX spec for city entry, disambiguation, pin-vs-no-pin, canonicalisation surfacing,
+the user/geocoder disagreement case, and a review of the unspecced /cities/:id screen —
+dispatched ahead of the Architect per PO direction so the data model serves the designed
+experience. Deliverable: jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md.
+
+FINDINGS
+- No discrepancies against an existing spec (none existed for this surface) — this is a
+  from-scratch spec, not an audit.
+- SOURCING DISCREPANCY: my brief cited jobs/architect/tech/20260731-ADL46-release-fresh-
+  eyes-review.md for two named findings (F1/F2). That file does not exist anywhere — two
+  independent probes (local find/ls; git ls-tree on origin/main AND
+  origin/release/adl46-access-model). Content was real, traced to ADL-46-non-owner-access-
+  model.md §4.3.1/§4.4.3 instead. Spec §0 has the full account. Please check whatever
+  produced the original brief text so this isn't inherited again.
+- CALIBRATION: PR #341 on release/adl46-access-model (not yet merged to main) already
+  shipped a UX-unreviewed version of the region-disambiguation control (D14). My spec §3.3
+  refines its labelling/grouping — small Frontend follow-up, does not block that PR.
+- One MINOR bug found and folded into the spec's own scope rather than filed separately:
+  CityItemsPage's header has no data source independent of router state, degrades to
+  "This city" on refresh/direct-link.
+
+DATA-MODEL IMPLICATIONS FOR ARCHITECT (spec §7 — please route before any Frontend brief)
+region_name on city-facing responses; a stable metadata source for /cities/:id's header;
+explicit no-new-city-state and no-alias-table positions (both evaluated and rejected in
+the spec, not left open); one new Waypoint badge hue (`unlocated`, orange/hue 45) for the
+"location not found" state.
+
+CI
+gh pr checks — pending PR creation, will confirm green before this is considered done.
+
+OPEN ISSUES OR BLOCKERS
+None UX-owned. Two items need COO judgement (listed above): the brief's sourcing
+discrepancy, and sequencing the Architect review before Frontend dispatch per the brief's
+own explicit instruction.
+
+WHAT IS NOW UNBLOCKED
+Architect: §7 data-model review. Frontend: full flow in spec §3-6, gated on that review
+plus the standing BRD-gate/tracker-entry rule (not mine to create).
