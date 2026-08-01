@@ -12,6 +12,15 @@ see §0.1).
 design the experience first; the data model serves it, not the reverse. The existing
 `(name, country_code, region_id)` identity model is treated as an input, not a constraint.
 
+**Addendum (2026-08-01, same day, two follow-up COO messages):** §§1–10 above are the original
+spec and stand unchanged except where explicitly marked. Two sections were added after review:
+**§11** answers "how does a user actually resolve an unlocated place" — a single recommended
+design (not a menu), with four worked flows using named examples, per explicit PO instruction.
+**§12** scopes an MVP against the PO's revised framing that this is likely edge-case territory
+until real usage data exists, and states plainly what is and isn't safe to cut. §11 is the design
+of record for when the fuller version is picked up; §12 is what I'd actually ship first. §5's
+badge design is superseded/extended by §11 — see the note there.
+
 ---
 
 ## 0. Sourcing note — a discrepancy in my brief, resolved
@@ -293,10 +302,24 @@ gates its existence.
   `release/adl46-access-model`, not yet on `main` — see §0.1/§7). This is an implementation-cost
   call, stated because my persona doesn't spec expensive things without a reason: building a second
   search-and-disambiguate UI from scratch for this would duplicate every rule in §3, and there's no
-  design reason for the two flows to look different.
+  design reason for the two flows to look different. **§12.1 verifies the exact extraction target
+  and the schema this rides on** — the `city_id` field on `UpdatePlaceDatesSchema` is real and
+  already implemented, but I looked further and concluded it shouldn't be reached by extending the
+  existing `PlaceDateForm.tsx`; see there for why and for what the minimal version actually is.
 - **A location-status badge**, shown only when non-`resolved` (silence is the `resolved` state, per
   §3.4's reasoning): reuses the existing `StatusBadge`/`BADGE_HUE_CLASSES` mechanism
   (`design/badges.ts`) rather than inventing a new badge component.
+
+  > **Superseded/extended (2026-08-01) by §11 and §12 — retained for history, do not build from
+  > this bullet directly.** The two-state version below (a plain `pending` vs. `unresolvable`
+  > split) was my first pass. §11 refines it into a three-bucket model that distinguishes *why* a
+  > place is unresolved down to the point where the remedy actually differs, driven by a
+  > follow-up COO/PO conversation that specifically asked for a single, worked resolution design
+  > rather than a badge taxonomy alone. §12 then scopes an MVP that ships something **smaller**
+  > than even this original two-state version — one undifferentiated badge, zero new hues. The
+  > `unlocated` hue named below survives into §11's fuller design (Bucket C) unchanged; it is
+  > **not** part of §12's MVP.
+
   - `pending`: reuse the existing **`locked` hue** (`wp-status-locked-bg`/`-text`, neutral
     grey, hue 80) — already used for a subdued, non-alarming, "not yet active" state (trip
     status Locked, item status Consider); the semantic fit is direct. Label: `Confirming
@@ -403,6 +426,22 @@ design further.
 7. **New Waypoint design token, not a schema implication but named for completeness:** the
    `unlocated` badge hue (§5) — two CSS custom properties and one enum entry, no new dependency.
 
+**Added 2026-08-01, from §11's fuller design — deferred per §12, not required for MVP, named here so
+they aren't lost:**
+
+8. **A persisted candidate-region list on an ambiguous city row** (§11.4) — e.g.
+   `cities.ambiguous_region_isos`, nullable JSON array of ISO 3166-2 codes, written when
+   `classifyCandidates` returns `multi-region`, cleared on resolution. Needed only for §11's Bucket
+   B one-tap picker; not needed for §12's MVP badge, which reads only the already-planned
+   `geocode_status`/`geocode_attempts` fields.
+9. **A place-level "location gap dismissed" marker** (§11.7's Dismiss) — a nullable flag/timestamp
+   on `trip_places`, scoped to the place (not the city, since dismissal is "I don't need a pin for
+   *this* visit," not a statement about the shared catalogue row). Deferred with the map counter per
+   §12.3 — no shipping surface needs it yet.
+10. **`GET /api/cities/:id` (and the trip/place responses that embed city data) would need to
+    return item 8's field** once Bucket B ships, so the picker can render without an extra round
+    trip. Not required for MVP.
+
 ---
 
 ## 8. What I rejected, and what I'm ratifying with a caveat
@@ -441,6 +480,15 @@ design further.
   cannot act on the distinction differently either way, so a second message would be new UI for no
   new decision.
 
+**Added 2026-08-01, from the follow-up conversation:**
+
+- **A user-authored, catalogue-private pin ("drop your own pin").** §11.3: agreed with the COO's
+  rejection on my own reasoning, not just deference — it's the same catalogue-drift mistake as the
+  alias-name rejection above, dressed as geography instead of spelling, and it doesn't fit the
+  three-remedy taxonomy as a fourth path without duplicating what re-pointing already provides.
+  Named the one place the COO's argument is weaker than stated (effort-comparison, for the
+  terminal case specifically) so the record shows a considered agreement, not a rubber stamp.
+
 ---
 
 ## 9. What I could not verify
@@ -456,6 +504,16 @@ design further.
 - **Whether `GET /api/cities/:id`'s current response already includes everything §7 item 2 needs**
   (I read the route's existence and its deliberate lack of containment, not its full response
   schema in detail) — stated as a probable small addition, not confirmed exhaustively.
+- **How often any of this actually happens in production — UNVERIFIED, and it's the reason §12
+  exists.** `geocode_status` has no production data yet (it ships on migration `0015`, integration
+  branch only, not deployed — confirmed via the F1/F2 ruling doc, not re-derived independently here
+  since it's the same fact the COO's relay stated and I have no separate way to check a column that
+  doesn't exist on a deployed database). Separately, the F1/F2 ruling establishes that a real share
+  of today's *shipped* ambiguity is itself a bug (multiple same-region Nominatim hits at different
+  granularities, not genuine ambiguity) that's being fixed on the integration branch — so even the
+  *pre-fix* rate would have overstated the true one. Both facts point the same direction: **treat
+  this whole feature's urgency as unmeasured, not as "probably small" or "probably large."** §12
+  scopes accordingly rather than guessing.
 
 ---
 
@@ -479,3 +537,344 @@ design further.
   dependency on router state.
 - A city name divergent from what the user typed (beyond case/whitespace) shows the one-time
   disclosure from §4.2 exactly once per creation, never on subsequent views.
+
+> **Scope note added 2026-08-01:** the badge criterion above and the map-counter criterion are
+> **full-design** criteria — see §12.5 for the smaller set that actually gates MVP shipping. Every
+> other criterion in this list (search labelling, the country-suggestion rule, creation-time
+> messaging, the standing Change City control, `/cities/:id`'s refresh fix, canonicalisation
+> disclosure) is unaffected by the MVP scoping and holds as written.
+
+---
+
+## 11. Resolving an unlocated place — the recommended design
+
+This section answers a question §5 didn't: once a badge tells a user something is unresolved, how
+do they actually fix it, differently, depending on *why*? Written after a follow-up conversation
+that specifically asked for one recommended design, shown as worked flows with named examples, not
+a list of options. **This is the design of record for the fuller version of this feature** —
+§12 scopes what of it ships first.
+
+### 11.1 The structural question: must the cause be visible?
+
+**Confirmed, with one refinement: cause must be visible only down to the point where the remedy
+changes — no finer.** Three remedies exist, not one generic "fix this":
+
+1. **Wait — nothing to do.** The lookup hasn't produced a usable answer yet, for a reason with no
+   user-facing action (not yet attempted, the service was unreachable, or the user's own selected
+   region genuinely can't be confirmed by the candidates found). Retrying is the only thing that
+   helps, and the backend already does that on its own schedule.
+2. **Pick — a one-tap answer already exists.** The lookup found more than one real candidate and
+   didn't guess. The alternatives are already known; the user just has to choose.
+3. **Re-point or let go — retrying will never help.** The geocoder has definitively answered "no
+   match," or the row has been asking the same unanswerable question for so long that continuing
+   to call it "still confirming" would be dishonest.
+
+I looked at the backend's actual disposition space (`jobs/architect/tech/20260801-ADL46-F1-F2-
+ruling.md`, R2) to check this against real granularity, not just my own taxonomy. The backend
+distinguishes **four** internal outcomes at classification time — `unresolved` (zero candidates),
+`ambiguous`/`multi-region` (no region chosen, several found), `ambiguous`/`region-unconfirmed` (the
+user's chosen region didn't match), and `ok` — plus, orthogonally, whether an attempt was ever
+network-successful at all. **That's more distinctions than the three remedies need.**
+`region-unconfirmed` sits in remedy bucket 1, not 2: the user already gave the only input they have
+to give (their region choice), there is no second candidate to offer them instead, and GE-16
+forbids overriding what they picked anyway — so despite being technically "ambiguous," it has
+nothing in common with the case where a genuine pick is available. Collapsing it into "wait" isn't
+a simplification for its own sake; showing a picker with no real alternative in it would be a
+control that does nothing, which is worse than not showing one. This is the same principle §4.3
+already applied to the user/geocoder disagreement case — a distinction that doesn't change the
+available action doesn't earn separate UI.
+
+**Concretely, three user-facing buckets, mapped from backend state:**
+
+| Bucket | Backend state | Badge label | Available action |
+|---|---|---|---|
+| **A — Still confirming** | `pending`, not ambiguous (unattempted, network failure so far, or `region-unconfirmed`) | `Confirming location` | None required. Standing Change City always available. |
+| **B — Choose to confirm** | `pending`, ambiguous with `reason: 'multi-region'` and a persisted candidate list (§11.4) | `Which one? — N matches` | One-tap pick from the persisted candidates. |
+| **C — Can't confirm** | `unresolvable` (terminal), **or** `pending`/multi-region past the retry cap (§11.3) | `Location not found` | Re-point (ideally to a nearby catalogued city) or dismiss. |
+
+### 11.2 A promotion rule the backend ruling makes necessary: exhausted retries read as Bucket C
+
+The backend ruling is explicit that an ambiguous row is **never** marked `unresolvable` — it stays
+`pending` forever once its retry budget (`geocode_attempts`, capped at 5, ADL-46 F1/F2 ruling §2.5)
+is spent, because "no match" and "nobody ever answered the region question" are genuinely different
+facts and only the first is permanent. That's the right backend rule. **It is the wrong UI rule
+applied unmodified**: a row stuck at `attempts = 5` is, to the user looking at it, indistinguishable
+from one that will keep trying — except that it never will again. Telling them "still confirming"
+at that point is not hedging, it's inaccurate. **The frontend must treat `pending` +
+`attempts >= CAP` the same as Bucket C**, purely as a display rule — no backend or schema change,
+since both fields already exist (or will, once the F1/F2 ruling's fields land). This is the one
+place in this design where I'm asserting a UI rule stricter than the backend's own state model, and
+I'm stating why rather than leaving it implicit.
+
+### 11.3 The dropped-pin idea: I agree with the COO's rejection, with one nuance
+
+Asked explicitly whether I'd overturn it. I don't, and I want to give the reasoning rather than
+just concur:
+
+- **The BRD-carve-out cost and the catalogue-drift cost both stand on their own** — either alone is
+  enough. Catalogue drift in particular is the same shape of argument I already used to reject a
+  canonical-name-plus-aliases model in §4.2: a private, per-user workaround that never contributes
+  to the shared catalogue means every other user hits the same dead end, forever. A user-dropped
+  pin is the geographic version of the same mistake.
+- **The "more effort than one tap" argument is weaker than stated, but only for Bucket C.** A
+  one-tap picker (Bucket B) is genuinely less effort than dropping a pin — no argument there. But
+  Bucket C's actual alternative isn't "one tap," it's "point at the nearest catalogued city," which
+  is not obviously less effort than dropping a pin accurately. I'd rest the Bucket C case on the
+  first two arguments (BRD scope, catalogue drift), not this one.
+- **It doesn't fit the taxonomy as a fourth remedy anyway.** Every bucket above already has a
+  remedy that keeps the user inside the shared catalogue's convergence property. A private pin adds
+  a fourth path that produces a result nothing else in this design produces: correct for exactly
+  one person, forever invisible to everyone else's identical problem. I'd want a much stronger
+  reason than "the village is small" to introduce that.
+
+**Net: agree with the rejection, unforced.** Named the one place the reasoning is thinner so the
+COO isn't relying on it more than it can bear.
+
+### 11.4 What Bucket B actually needs, and the data-model implication that follows
+
+The candidates that made a lookup ambiguous are known **once**, at the moment `classifyCandidates`
+runs — and the F1/F2 ruling is explicit that the resulting `reason` is "not persisted; drives
+logging." For a one-tap picker to exist later without a fresh (rate-limited) lookup, **something
+has to survive that isn't currently kept.**
+
+**Implication for the Architect:** a nullable, small persisted field on the ambiguous city row —
+e.g. `cities.ambiguous_region_isos` (JSON array of ISO 3166-2 codes) — written whenever
+`classifyCandidates` returns `multi-region`, ignored/cleared once `resolved`. Not needed for
+`region-unconfirmed` (Bucket A absorbs it, §11.1) or `unresolved` (nothing to persist). Render-time
+name resolution reuses the lookup `AddPlaceFlow` already does for `autoRegionIso`
+(`countryRegions.find(r => r.iso_3166_2 === iso)`) — **and must handle a miss**, per the standing
+constraint that region reference data is hand-seeded and incomplete: if a candidate's ISO code has
+no matching seeded region, show the raw code (e.g. `US-MO`) rather than silently dropping that
+option from the picker. `GET /api/cities/:id` needs to return this field.
+
+**Selecting a candidate in the picker submits a normal `POST /api/cities` resubmission** (same
+name, same country, the chosen region) — this is not a new endpoint, it is exactly the
+`findOrUpgradeCity` path the F1/F2 ruling already specifies (§3.3), which upgrades the existing
+pending row in place and, per the ruling's own rule 3, resets the retry budget and re-fires
+resolution. **This is a different action from "Change city"** — it doesn't change which city row
+the place points at, it supplies the missing detail on the *same* row. Both should be reachable
+from the same place, but a Frontend brief should not merge them into one control: Change City opens
+the full search-and-create flow; the Bucket B picker is a small, anchored popover offering only the
+already-known candidates.
+
+### 11.5 Worked flow — Case 1: "Springfield," no state chosen
+
+Priya is planning **"US Road Trip 2026"** and has already set the trip's Countries field
+(§1) to United States.
+
+1. She adds a place, types **"Springfield."** No catalogue match exists yet. She taps
+   **"+ Add new: 'Springfield'."**
+2. The new-city form opens. Country is **pre-selected to "United States"** outright — the trip has
+   exactly one associated country (§3.2) — she doesn't touch it.
+3. The lookup fires on name-commit, constrained to the US (D12). It returns candidates across three
+   distinct regions: **Illinois, Missouri, Massachusetts.** Per §3.3, the Region dropdown opens
+   already populated with exactly these three, placeholder reading **"Multiple matches — choose
+   one."**
+4. Priya doesn't know which stop yet — she taps **"Add City & Place"** without choosing. GE-16
+   explicitly permits this.
+5. Confirmation reads: *"Added — multiple matches found for Springfield. It's saved to your trip;
+   you can confirm which one whenever you're ready."*
+6. Back on the trip page, the place shows a badge: **"Which one? — 3 matches ▾"** (Bucket B).
+7. She taps it later, once she's picked her actual route. A small popover anchored to the badge
+   lists **Illinois / Missouri / Massachusetts** — the exact candidates from step 3, no retyping, no
+   new lookup.
+8. She taps **"Missouri."** The popover shows a brief "Confirming…" state and closes; the badge
+   changes to **"Confirming location"** (Bucket A) while the backend's re-fired resolution runs.
+9. On her next visit (or the next background poll), the badge is gone. The place reads like any
+   other resolved place, and the map shows a pin at Springfield, Missouri's actual coordinates.
+
+### 11.6 Worked flow — Case 2: added while the geocoder is unreachable
+
+Tomás is adding places to a France trip. He adds **"Lyon"** while the app's geocoding proxy can't
+reach the mapping service (a transient outage, not his connection). Nothing about "Lyon" is
+ambiguous — the question was simply never successfully asked.
+
+1. City creation succeeds immediately (GE-16: creation never depends on the geocoder being
+   reachable). Confirmation reads: *"Added — still confirming this location. It's saved to your
+   trip and only visible to you until then."* (§3.4, unchanged.)
+2. The place shows **"Confirming location"** (Bucket A) — identical treatment to a not-yet-attempted
+   or region-unconfirmed row, because the remedy is identical: wait.
+3. The backend's background queue retries on its normal schedule once the service is reachable
+   again. No user action ever appears — there is nothing to choose and nothing wrong to report.
+4. Once resolved, the badge disappears on Tomás's next view. He never had to do anything, and the
+   UI never implied he did.
+
+### 11.7 Worked flow — Case 3: a village the geocoder has no record of
+
+Tomás detours to a hamlet he's calling **"Nether Wallow"** — genuinely too small for the mapping
+service's data. This is terminal: GE-16 says `unresolvable` is never retried, so whatever exists
+here is the only path that will ever exist for this row.
+
+1. The lookup returns zero candidates. Per §3.4: *"Added — we couldn't find this location. It's
+   saved and only visible to you; you can point it at a different city any time from the place."*
+2. The place shows **"Location not found"** (Bucket C, the `unlocated` hue) — immediately, not after
+   a delay, since `unresolvable` is known at creation time, not discovered later.
+3. Tomás taps **Change City**. Because this place is flagged Bucket C, the modal shows a contextual
+   hint above the search box: *"Can't find 'Nether Wallow' in the map data? Try pointing this place
+   at the nearest larger town instead — you'll keep everything you've added here."*
+4. He searches **"Salisbury"** (a real, catalogued town nearby), finds it, selects it. The place now
+   points at Salisbury's city row — pin appears, all of Nether Wallow's items/notes/activities carry
+   over untouched (GE-16's explicit guarantee).
+5. **Alternative ending:** Tomás doesn't want to substitute a nearby town — he'd rather the place
+   just have no pin. He taps **Dismiss** instead of Change City. The badge disappears; the place no
+   longer contributes to any unlocated-places count (§12.3 on whether that count ships); Change City
+   remains available if he changes his mind later.
+
+### 11.8 Worked flow — Case 4: "Rome" on a US trip, meant Rome, Georgia
+
+This case never enters a non-`resolved` state at all — the risk is a **confident wrong answer**, not
+a missing one, so nothing in §11.1–11.4 applies. Two layers, in order:
+
+1. **Prevention, already in §3.2.** Because the trip's Countries field includes United States, the
+   country dropdown is pre-selected to United States, not silently guessed as Italy from an
+   unconstrained "Rome" lookup. The geocode call is constrained to the US from the start and finds
+   Rome, Georgia (or asks, if more than one US Rome-like candidate survives — Bucket B, same as
+   Springfield). **This is the primary defence, and it's already specified — nothing new here.**
+2. **Residual, if prevention doesn't fire** (e.g. the trip had no declared countries and Priya
+   accepted an unconstrained single-guess suggestion without checking it). The row resolves,
+   silently, to the wrong Rome. **No badge appears — `resolved` is deliberately silent (§3.4).**
+   The only defence left is the one GE-16 already guarantees and this spec already builds: the
+   **standing Change City control**, always visible regardless of status, so that whenever Priya
+   notices the pin is in the wrong US state, she can re-point it in the same two taps as any other
+   correction — no special "wrong result" UI, because ADL-46 itself declines to add a fourth
+   "verified" status for exactly this case (§4.3.1), and I'm not reopening that here.
+
+**No new mechanism for Case 4.** It's the clearest evidence in this whole design that the standing
+correction control isn't just for the pending/unresolvable buckets — it's the backstop for the one
+failure mode that never shows up as a badge at all.
+
+### 11.9 A bug found while verifying the retry mechanics (flagged, not fixed here)
+
+While confirming how an already-shipped mechanism (`src/frontend/services/geocodeRetryQueue.ts`)
+would interact with this design, I found it only removes a queue entry on
+`geocode_status === 'resolved'` (`attemptRetry`, `geocodeRetryQueue.ts`) — it has no branch for
+`unresolvable`. A city that resolves to `unresolvable` stays in this client-side queue and gets
+polled indefinitely on its 10-minute floor, even though the backend has permanently stopped trying.
+**MINOR** (wasted client polling, no data-correctness or security impact) — flagged in the park doc
+for a small Frontend fix (add an `unresolvable` branch to `attemptRetry` that removes the entry, the
+same as the existing 404 branch does), not something this spec needs to design further.
+
+---
+
+## 12. MVP scope — what ships now, what's deferred, and what would leave users stuck if cut
+
+Written after the PO's revised framing: this is probably edge-case territory until real usage data
+says otherwise, for two verified reasons — the F1/F2 ruling fixes a shipped regression that was
+inflating how often "ambiguous" fires on the ordinary happy path, and `geocode_status` itself has no
+production data yet (it arrives on migration `0015`, which is only on the integration branch).
+**Assume §11's fuller design is parked. This section is what I'd actually ship.**
+
+### 12.1 Verified: the correction surface, and why it isn't `PlaceDateForm`
+
+I verified both claims directly rather than taking them from the relay:
+
+- `UpdatePlaceDatesSchema` on `release/adl46-access-model`
+  (`src/backend/validation/places.schemas.ts:30–41`) already has `city_id: z.number().int()
+  .positive().optional()`, with an inline comment citing ADL-46 D11 §4.4.2 verbatim as "the
+  correction path for a mistyped/wrong city." The route (`places.ts:141`) already destructures and
+  uses it. **Confirmed independently in two places (schema file + route handler), not assumed.**
+- `PlaceDateForm.tsx` (`main`, unchanged on the release branch) is a small, single-purpose modal —
+  two date inputs, a warnings callout, Cancel/Save — driven by `useUpdatePlaceDates()`
+  (`usePlaces.ts:101–123`), whose mutation function signature only accepts
+  `{ tripId, placeId, arrivedOn, departedOn }`. **No city field exists anywhere in it today.**
+
+**My conclusion: don't extend `PlaceDateForm`.** Its name, its modal title (`Dates — {cityName}`),
+and its scope are all specifically about *when*, not *where*. Retrofitting a city search into a
+"Dates" modal is exactly the kind of scope creep into an existing small component my role exists to
+catch — it would produce a form that does two unrelated things behind one label, which fights the
+hierarchy principle rather than serving it. **The smaller and more correct answer is a second,
+separate, equally small modal** — "Change City" — reusing only the *search step* of `AddPlaceFlow`
+(city search + the new-city name/country/region form), extracted into a shared component with no
+date fields at all, submitting via the same PATCH endpoint with `city_id` instead of dates. This is
+not bigger than retrofitting `PlaceDateForm` — it's the same amount of new code, cleanly separated
+by concern instead of merged into an existing single-purpose form.
+
+**Why this can't be smaller still (e.g. a bare city-name text field with no search):** GE-16 states
+the correction "runs the normal find-or-create and resolution path" — the user doesn't know city
+IDs, and a free-text field with no search-and-match step would either duplicate cities or require
+the user to somehow already know whether their spelling matches the catalogue. The search step is
+inherent to the requirement, not an enhancement.
+
+### 12.2 The MVP itself
+
+1. **The standing "Change City" control** (§5, unchanged) — pencil icon, always visible on every
+   unlocked place regardless of status, opening the extracted search-step modal from §12.1. This
+   alone discharges GE-16's correction right for all four worked cases in §11: Springfield
+   (re-search and pick Missouri manually, same as adding fresh), offline Lyon (nothing to fix, but
+   available if impatient), Nether Wallow (search "Salisbury" instead), and wrong-Rome (re-search
+   and correct).
+2. **One undifferentiated badge, zero new hues.** Whenever `geocode_status !== 'resolved'`, show
+   `Location not confirmed` using the existing `locked` hue (grey, hue 80) — no split between
+   `pending` and `unresolvable`, no Bucket A/B/C. Copy chosen to be **honestly true regardless of
+   which backend state actually applies**: it doesn't promise automatic resolution (true for a
+   stuck ambiguous row and for `unresolvable`) and it doesn't demand action (true for a row that
+   genuinely will resolve on its own). This is smaller than even my original §5 draft, which already
+   proposed a second hue — that hue is deferred to §11/Bucket C, not part of MVP.
+3. **§3.2's country-suggestion rule (never silently auto-commit a country) stays in, not deferred.**
+   It's a frontend sequencing/labelling change with no new component and no backend dependency —
+   cheap on its own terms — and it prevents Case 4's confidently-wrong-result class before it can
+   happen, which the PO named as worse than a missing pin. Deferring it would save little cost while
+   leaving a known, avoidable defect live, so it isn't part of the correction-mechanism cost this
+   section is trying to shrink.
+4. **§3.4's creation-time messaging stays in, not deferred.** It's conditional text in a
+   confirmation flow that already exists — cheaper to keep than to special-case out, and it's the
+   only place a user learns *why* to expect the badge at all.
+
+**Everything else in §11 is deferred**: the three-bucket split, the persisted candidate list and
+one-tap picker, the exhausted-retries promotion rule, and the map's "N places not yet located"
+affordance (§4.1/§8) and Dismiss (§11.7/raw material). None of them are required to discharge GE-16;
+all of them make the fuller experience better once there's evidence the gap the badge already
+surfaces is actually common enough to be worth the extra build.
+
+### 12.3 Is the map counter part of MVP? No — and here's the reasoning, not just the answer
+
+**Deferred.** The per-place badge already satisfies the principle the counter exists for — a user
+cannot act on an absence they can't see — at the point a user is actually looking: their own trip
+detail page. The counter's *incremental* value is surfacing the same fact at the map level, for a
+user who wants an at-a-glance view across many trips without opening each one. That's a genuine but
+smaller need, and it's the one piece of §11 that requires new UI surface (an expandable list next to
+`MapLegend`) rather than reusing something already on screen — it's the most expensive item to
+defer and the easiest to justify deferring.
+
+**Trigger to revisit (concrete, not "later"):** either (a) a UAT session or user report describing
+the specific discoverability failure the counter exists to prevent — "I didn't know a place had no
+pin until much later" — or (b) once `geocode_status` has real production data (post the F1/F2
+ruling's deploy), a plain count showing more than roughly 5% of a user's active places sitting
+non-`resolved` at once. (a) is the stronger signal and should win if both are available at different
+times, since it's evidence of the actual failure rather than a proxy for it.
+
+**Dismiss is deferred with it, for the same reason.** Its stated purpose (raw material: "without
+it, the counter nags permanently") is a counter's problem. A single quiet line of text next to one
+place a user is already looking at isn't the kind of persistent nag Dismiss exists to relieve —
+reintroduce it alongside the counter, not before.
+
+### 12.4 What is not safe to cut, stated plainly because the PO asked for it directly
+
+Two things, and I'd push back on cutting either even under "make it very small":
+
+1. **The standing Change City control itself.** Without it, a wrong or missing city is permanently
+   unfixable short of deleting and recreating the place — which loses items, notes, and activity
+   tags, the exact loss GE-16 exists to prevent. There is no smaller version of "the user can correct
+   this" that doesn't include a working control to do it with.
+2. **Some passive signal that a place's location isn't confirmed, even in its smallest form.**
+   Without any indication at all, the Change City control has zero discoverability — nobody clicks
+   an edit-city affordance on a place that shows no sign anything is wrong. This is, verbatim, the
+   original brief's own framing: a correction mechanism that exists but is undiscoverable is not a
+   correction mechanism a user can use. One line of neutral text is enough; zero lines is not.
+
+Everything else in §11 — the bucket split, the one-tap picker, the counter, Dismiss — is a genuine
+refinement I'd want eventually, but none of them are load-bearing for "a user is not stuck." Those
+two are.
+
+### 12.5 Revised success criteria for MVP (supersedes the two flagged in §10)
+
+- Every unlocked place whose city is not `resolved` shows the single `Location not confirmed` badge
+  (no state-specific label) and the standing Change City control; a `resolved` place shows neither
+  the badge nor any other indication of location status.
+- Change City opens a modal containing only city search + new-city name/country/region fields (no
+  date fields); selecting or creating a city calls `PATCH .../places/:placeId` with `city_id` and
+  leaves the place's items, notes, and activity tags unchanged.
+- Change City is available and correctly hidden/disabled under the same `isLocked` rule as the
+  existing Remove-place control, on every place regardless of its city's `geocode_status`.
+- No map-level "N places not yet located" affordance ships in this pass; its absence is a scoping
+  decision, not a defect, until §12.3's trigger fires.

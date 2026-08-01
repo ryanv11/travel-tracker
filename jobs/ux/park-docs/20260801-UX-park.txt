@@ -93,3 +93,53 @@ GIT
   Branch: docs/ux-city-entry-disambiguation-spec
   Commits: spec file + jobs/ housekeeping (context, this park doc, completion report).
   PR number and CI status: see completion report in jobs/COO/inbox/.
+
+================================================================================
+ADDENDUM — same day, two follow-up COO messages (2026-08-01)
+================================================================================
+
+Same PR (#344), same file, extended via Edit — no new branch. Two new sections:
+
+§11 — a single recommended resolution design (not a menu), per explicit PO instruction to
+show it as worked flows with named examples rather than abstract state names ("pending,"
+"unresolvable," "ambiguous" don't communicate on their own). Three user-facing remedy
+buckets (wait / pick / re-point-or-dismiss) mapped from the backend's actual four-way
+disposition space, read directly from jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md
+rather than assumed. Four worked flows matching the brief's four named cases exactly.
+Explicit, reasoned agreement with the COO's rejection of a user-authored private pin — not
+deference, and one place named where the COO's own argument is weaker than stated.
+
+§12 — an MVP scope, added after a second COO message reframed the whole feature as
+probably-edge-case-until-measured (a share of today's ambiguity is a bug being fixed
+separately; geocode_status has zero production data). Verified two COO-relayed claims
+myself: UpdatePlaceDatesSchema on the release branch does accept an optional city_id
+(confirmed in the schema file and the route handler independently), but concluded a
+DIFFERENT surface than the one floated (PlaceDateForm.tsx) is the right home, since that
+form is genuinely dates-only and extending it would be scope creep into an existing
+component. MVP: standing Change City control (unconditional) + one undifferentiated badge,
+zero new hues + keep the cheap country-safeguard and creation-time messaging. Deferred with
+named concrete triggers: the three-bucket split, the persisted-candidate picker, the map
+counter, and Dismiss. Two items named explicitly NOT safe to cut per the PO's direct ask:
+the standing control itself, and some passive signal that a location isn't confirmed —
+without a signal at all, a working control has zero discoverability.
+
+BUGS DISCOVERED (addendum)
+  [MINOR] src/frontend/services/geocodeRetryQueue.ts's attemptRetry only removes a queue
+  entry on geocode_status === 'resolved' — no branch for 'unresolvable', so a terminally
+  unresolvable city is polled by the frontend indefinitely on its 10-minute floor even
+  though the backend has permanently stopped retrying it. Disposition: flagged for a small
+  Frontend fix (add an 'unresolvable' branch mirroring the existing 404 branch), not fixed
+  in this spec-only thread.
+
+CORRECTION TO MY OWN §0 FINDING (resolved, not an error)
+  My original spec's §0 reported — on two probes, correctly at the time — that
+  jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md did not exist anywhere.
+  It has since been created for real, later the same day, as part of the ADL-46 release's
+  own pre-merge review (PR #342) — after my original spec had already gone out. The
+  negative finding was correct when made; recording the resolution so it isn't misread as a
+  probing failure by a future reader who finds the file now exists.
+
+GIT (addendum)
+  Same branch (docs/ux-city-entry-disambiguation-spec), same PR (#344) — extended via Edit,
+  not a new commit-and-PR cycle. See completion report in jobs/COO/inbox/ for the updated
+  CI status.
