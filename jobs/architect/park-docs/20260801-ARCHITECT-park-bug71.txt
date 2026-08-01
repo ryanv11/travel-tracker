@@ -1,0 +1,83 @@
+================================================================================
+ARCHITECT PARK DOCUMENT — 2026-08-01 (BUG-71 ruling)
+Branch: chore/bug71-ambiguity-ruling
+Deliverable: jobs/architect/tech/20260801-BUG71-discovery-ambiguity-ruling.md
+Separate file from 20260801-ARCHITECT-park.txt (the F1/F2 agent's) — appending to
+that one would have interleaved two unrelated threads' records. Same-day suffixed
+naming follows the existing 20260728-*-adl46 / -adl46-review precedent.
+================================================================================
+
+WHAT THE BRIEF ASKED
+  Rule on the MECHANISM for fixing BUG-71 (P1): how to give the ambiguity
+  discriminator enough evidence to fire correctly without violating Nominatim's
+  usage policy. Decision document, not code. Four candidate approaches offered
+  (a) raise limit (b) two-phase (c) trip-country constraint / D-19 (d) something else.
+
+WHAT WAS RULED — eleven decisions, all High confidence except one split
+  B1  Invert the discriminator, don't feed it more. Confirm-or-ask. Zero extra requests.
+  B2  Truncation is observable and free: rawCount >= limitSent, measured on the RAW array.
+  B3  (a) ADOPT as an ENABLER, discovery call only, 10 -> 40. REJECTED as a fix on its own.
+  B4  (b) REJECT — arithmetic in §6.1, but the decisive objection is that it doesn't
+      remove the need for B1.
+  B5  (c) REJECT as the BUG-71 fix, ENDORSE as the destination. Corrected the dispatch's
+      premise: (c) costs ZERO extra requests.
+  B6  Move the decision to the backend — new classifyDiscovery beside classifyCandidates.
+  B7  F1/F2 §2.2 parity contract SUPERSEDED, honoured by deleting one side.
+  B8  Never narrow the region selector on a truncated set.
+  B9  Resolution path untouched; instrumented only; trigger recorded (§10.3).
+  B10 YES, a frontend change is required — but the backend half is independently
+      deployable and independently closes the violation.
+  B11 No new requirement ID. GE-15's success criteria MUST be amended before UAT.
+
+THE FINDING THAT REFRAMED THE WHOLE QUESTION
+  The dispatch (correctly) described the limit:'10' global query as the mechanism.
+  The deeper fault is that GET /api/geocode makes NO ambiguity decision at all — it
+  calls nominatimSearch directly and hands back candidates[0]. F1/F2 §2.1's
+  one-classifier instruction reached the two resolution call sites and stopped there.
+  So the real discriminator for the flow the PO actually used is hand-rolled in a
+  React component. That is why raising the limit cannot be the fix: there is nothing
+  on the backend to raise the limit FOR.
+
+THE DESIGN PROPERTY THE BRIEF DEMANDED, AND HOW IT WAS MET
+  Requirement: "a ruling that only works if Nominatim is generous is not acceptable."
+  The old rule needed Nominatim to VOLUNTEER a second region before it would ask the
+  user — generosity was a precondition for correctness. The new rule needs a complete,
+  fully attributed, unanimous set before it will answer FOR the user. The test I used
+  to check this: enumerate every condition under which the new rule still auto-fills
+  "Virginia" for "springfield". They all have to hold at once, and in that world
+  Virginia genuinely is the only US Springfield Nominatim knows. It can only fail
+  toward a right answer. No fact about the live payload is required.
+
+IF SOMEONE PICKS THIS UP AND WANTS TO "SIMPLIFY" IT — three things that look like
+tidy-ups and are not:
+  1. DO NOT share DISCOVERY_LIMIT with resolveCityName/resolveCity (still 10).
+     Raising those widens `eligible`, which flips ok->ambiguous and changes coordinate
+     writes — a resolution-path behaviour change this ruling does not authorise (B9).
+  2. DO NOT collapse 'none' and 'ambiguous' in DiscoveryConfidence. BUG-73 needs
+     exactly that distinction for its three-state presentation and would have to
+     reintroduce it.
+  3. DO NOT remove the [GEO] raw/limit/truncated log line as noise. It is the only
+     instrument that answers ENV-01 on this path and the only way we learn Nominatim's
+     real effective cap.
+  And one that looks like a contradiction and is not: classifyDiscovery being a SECOND
+  classifier does not breach F1/F2 §2.1. That instruction forbids two procedures
+  answering the SAME question. These answer different ones ("what may we pre-fill in a
+  form" vs "may we write coordinates to a shared row"). §4.4 pins them with a testable
+  strictly-stricter invariant so they cannot drift.
+
+OPEN / HANDED TO COO
+  - GE-15 amendment before the UAT round (not before the Backend brief).
+  - BUG-73 (#352) vs the Frontend brief: same function, same control. COO call.
+  - No GitHub issue exists for BUG-71 yet (open issues are 266, 351, 352) — the
+    cross-referencing rule wants one, with the tracker ID in the title.
+  - Carried forward from the F1/F2 park doc, still true: ADL-47 has no entry in the
+    main ADL log.
+
+UNVERIFIED, RESTATED SO IT IS NOT LOST
+  - The live springfield payload. Deliberately not depended on. §9.5 is the probe:
+    one staging submission + one log line answers all of it.
+  - limit=40 as Nominatim's documented max — from the brief, not read. Design compares
+    against the limit WE sent, so it degrades safely.
+  - ENV-01 re-probed two ways this session and holds: TCP connect rejected in 36ms
+    while DNS resolves fine, and zero nominatim/openstreetmap entries in the
+    default-REJECT firewall allowlist.

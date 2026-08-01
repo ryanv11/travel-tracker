@@ -895,3 +895,95 @@ DOC-LIFECYCLE GAP NOTICED, not mine to fix here: ADL-47 (expand/contract, cited 
   CLAUDE.md and in force on this release) has NO entry in the main ADL log — zero hits for
   "ADL-47" in 20260307-architecture-decisions-log.md. /record-decision item 2 says the log
   always gets the entry; standalone-only numbering has drifted before (ADL-28). Flagged to COO.
+
+================================================================================
+2026-08-01 — BUG-71 RULING (P1): the discovery-path ambiguity discriminator
+Branch chore/bug71-ambiguity-ruling · deliverable
+jobs/architect/tech/20260801-BUG71-discovery-ambiguity-ruling.md
+Fresh dispatch — no authorship of ADL-46, the F1/F2 ruling, or any ADL-46 stage.
+================================================================================
+
+THE STRUCTURAL ROOT CAUSE, which was in neither the COO's mechanism nor the F1/F2 ruling:
+  THE DISCOVERY PATH HAS NO CLASSIFIER AT ALL. F1/F2 §2.1's "one function, two call sites"
+  instruction reached resolveCityName and resolveCity but never reached GET /api/geocode,
+  which calls nominatimSearch directly and returns candidates[0] as an answer. The actual
+  ambiguity decision for the flow the PO used lives in a React component
+  (AddPlaceFlow.tsx:250-263). Two probes: reading geocode.ts in full (only geocoding-layer
+  import is nominatimSearch) AND a repo-wide grep for classifyCandidates (non-test call
+  sites are geocoding.service.ts:197 and :270 only).
+
+THE RULING (B1): invert the discriminator, do not feed it more evidence. Auto-fill only on
+  POSITIVE CONFIRMATION — complete (not truncated) AND fully attributed AND unanimous.
+  Thin/truncated/unattributed evidence is "cannot confirm", never "unambiguous".
+  ZERO ADDITIONAL NOMINATIM REQUESTS. The old rule read absence of evidence as evidence of
+  absence — the negative-findings failure shape, encoded in runtime logic.
+
+TRUNCATION IS OBSERVABLE AND FREE (B2) — rawResultCount >= limitSent, measured on the RAW
+  array before the settlement filter (Nominatim truncates first, we filter second). This is
+  what makes the design robust to not knowing the payload, which was the brief's hard
+  requirement. Sharpest test: enumerate when the new rule STILL auto-fills Virginia for
+  springfield — complete set, all attributed, all one country, all US-VA. In that world
+  Virginia IS the only US Springfield and filling it is correct. It can only fail toward a
+  right answer, without knowing one fact about the live payload.
+
+REJECTED (b) TWO-PHASE, with arithmetic read not assumed: chokepoint is 1100ms serialized
+  from request START = 0.909 req/s app-wide. Journey today = 2-3 requests (discovery +
+  resolveCityName + conditional resolveCity). Two-phase makes it 3-4, +33-50%, >=1.1s more
+  spinner. BUT THE DECISIVE OBJECTION IS NOT COST — a country-constrained phase 2 truncates
+  too, so B1 would still have to ship. Certain cost, unverified benefit, on top of a
+  sufficient fix. Also rejected a conditional/user-triggered second phase: B8 makes it
+  buy nothing. Recorded so neither is re-proposed as an oversight.
+
+CORRECTED THE DISPATCH'S FRAMING OF (c)/D-19: it costs ZERO extra requests — countrycodes
+  accepts a comma-joined list and nominatimSearch passes params verbatim. The reason to
+  defer it is behavioural (new product behaviour, needs a BRD home, degrades when
+  trip_countries is empty), not egress. Endorsed as the destination; B1 is its PREREQUISITE
+  (classifyDiscovery already takes requestedCountryCode — D-19 passes the trip's set through
+  a parameter that exists). A trip declaring only US still faces every US Springfield.
+
+F1/F2 §2.2's ACCEPTANCE RESTED ON A JUSTIFICATION BUG-71 FALSIFIES. The limit is described
+  accurately, but the reason given for accepting it was "dominated by non-region-tier
+  countries where the selector does not render — no control to ask through." BUG-71 fired in
+  the US, region-tier, selector rendering. Acceptance NARROWED not reversed: still fine for
+  the resolution path, not fine for discovery. The §2.2 parity contract is SUPERSEDED — and
+  honoured in the strongest way, by deleting one of the two sides. classifyCandidates
+  steps 1-4 are UNCHANGED.
+
+THE ASYMMETRY THAT MUST NOT BE FLATTENED LATER (B9): refusing to guess is FREE where there
+  is a control to ask through and EXPENSIVE where there is not. Discovery = form is open,
+  selects exist, region already optional. Resolution = a pending row with no pin, no region
+  shading, no explanation anywhere (UX-12 unbuilt) — F1/F2 §5.4's own constraint. Resolution
+  path is also already country-constrained so it lacks the global dilution that IS BUG-71's
+  mechanism. Left alone, INSTRUMENTED ONLY, with a named trigger (§10.3).
+
+FRONTEND ANSWER (B10), the sequencing bit the COO needed: the backend change ALONE closes
+  the GE-16 violation — traced branch by branch through the UNMODIFIED AddPlaceFlow, nulls
+  make every auto-fill branch fall through. Independently deployable (ADL-47 shape). But it
+  is NOT acceptable to stop there: blank country + blank state with no explanation is
+  BUG-73's defect applied to every ambiguous name. Frontend brief must follow in the same
+  release, before UAT.
+
+COLLISION THE COO MUST RESOLVE: BUG-73 (#352, open, undispatched) rewrites lookupCityCountry
+  — the same function — and the same failure presentation. Recommended: merge BUG-73 into
+  the Frontend brief. BUG-73's own tracker note already anticipates it.
+
+BRD (B11): NO new requirement ID; GE-16 already requires this fix. BUT GE-15's success
+  criteria read literally ("populates both country and region/state WITHOUT FURTHER USER
+  INPUT") are FAILED by the correct behaviour. GE-15 and GE-16 are in genuine tension in the
+  ambiguous case; GE-16 is newer (v3.13 vs v3.12) and more specific. GE-15 needs a clarifying
+  amendment — extending a principle GE-15 already accepts elsewhere in its own criteria
+  ("cannot be resolved to a seeded region leaves the region blank and editable"). Backend
+  brief is NOT blocked on it; the UAT VERDICT is.
+
+UNVERIFIED AND MARKED AS SUCH: the live payload for springfield (which of truncation /
+  settlement-filtering / missing ISO3166-2-lvl4 produced it — deliberately not depended on);
+  limit=40 as Nominatim's max (taken from the brief; design compares against the limit WE
+  sent and a new [GEO] log line reports the real cap on first live use). ENV-01 re-probed
+  two ways this session: TCP connect rejected in 36ms while getent resolves the name fine,
+  AND zero nominatim/openstreetmap matches in the default-REJECT firewall allowlist.
+
+ALSO FOUND: there is NO backend test for GET /api/geocode (two probes — repo-wide grep for
+  geocodeRouter|/api/geocode in test files returns only a FRONTEND hook test; filename search
+  for *geocode* finds nothing under src/backend/**/__tests__). BUG-71 is the third defect to
+  ship through the QUAL-21 class. QUAL-22 is directly aggravated — NominatimSearchResult
+  gains `truncated`, so every stale geocoding mock is now stale in a second way.
