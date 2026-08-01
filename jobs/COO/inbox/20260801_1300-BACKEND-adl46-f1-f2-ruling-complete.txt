@@ -1,0 +1,200 @@
+BACKEND completion report — ADL-46 F1/F2 ruling implementation (issue #345)
+Date: 2026-08-01
+Branch: fix/adl46-f1-f2-ruling (off release/adl46-access-model)
+PR: https://github.com/ryanv11/travel-tracker/pull/346 (Closes #345)
+CI: PASS — all 9 checks green on PR #346 @ 3d8a39d9037cfbfef5929e63bdd68d53ab2525b9
+    (Secret Scanning, Static Analysis/Semgrep, Dependency Vulnerability Scan, Biome,
+    Type Check, Backend Tests, Frontend Tests, Contract Tests, E2E Tests)
+
+=== WORKING DIRECTORY CONFIRMATION ===
+First action was `pwd` + `git rev-parse --show-toplevel`, both resolved to
+/workspace/.claude/worktrees/agent-a412c50ba10fde17f — the assigned worktree, not
+/workspace. `npm install` run inside the worktree before any test/type-check command
+(fresh worktree, no inherited node_modules). .env.local copied from /workspace/.env.local
+to run the backend locally for contract/E2E.
+
+=== SPEC FOLLOWED ===
+jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md (read in full before writing code).
+Implemented R1-R4 exactly as specified; R5 is a UAT-expectation record only, no code.
+
+=== WHAT CHANGED ===
+
+1. src/backend/services/geocoding.service.ts (targeted edits, not a rewrite)
+   - Deleted `pickBest` entirely (ruling §2.1 — the single most important
+     structural instruction).
+   - Added exported `PermittedCountries` type, `CandidateVerdict` type, and
+     `classifyCandidates(candidates, permitted, requestedRegionIso)` — the ONE
+     shared classifier, implementing the ruling §2.2 algorithm exactly (country
+     eligibility filter → zero-eligible terminal → region-requested branch →
+     no-region-requested branch, distinct non-null region_iso count as the
+     ambiguity discriminator, not candidate count).
+   - `resolveCityName` (call site 1, create path): deleted the inline
+     region/count logic, now delegates entirely to classifyCandidates. Signature
+     gained `opts.permittedCountryCodes` (defaults to `{countryCode}` — the
+     follow-on trip-constrained lookup changes nothing else per the ruling).
+     Added `reason?: 'multi-region' | 'region-unconfirmed'` to `CityResolution`.
+   - `resolveCity` (call site 2, queue/on-create trigger — this is F1): replaced
+     `pickBest(...)` with `classifyCandidates(...)`. New ambiguous branch (R2/R4):
+     writes no coordinates, leaves geocode_status='pending', calls
+     incrementAttempts, logs reason+regionIsos, returns false. Never sets
+     'unresolvable' for an ambiguous verdict.
+
+2. src/backend/routes/cities.ts (targeted edits, not a rewrite)
+   - `findOrUpgradeCity` signature gained `callerUserId: string`.
+   - Step 2 (wildcard upgrade) SELECT gained exactly two conditions per ruling
+     §3.3: `geocode_status IN ('pending','unresolvable')` (whitelist, not
+     `<> 'resolved'`) AND `(created_by_user_id = callerUserId OR
+     created_by_user_id IS NULL)`. Steps 1 and 2b left untouched — deliberately
+     creator/status-blind, per §3.1/§3.3 amendment 2.
+   - On a successful upgrade: `geocodeAttempts: 0` added to the UPDATE; if the
+     adopted row's status is 'pending', fires `resolveCity(upgraded.id)` with
+     the same defensive `.catch(() => {})` pattern used elsewhere in this file.
+     Not fired for an adopted 'unresolvable' row (ruling §2.5 asymmetry).
+   - Both call sites of `findOrUpgradeCity` updated to pass `userId`.
+   - §2.6: step 4c's `resolveCity(city.id)` fire-and-forget now skipped when
+     `resolution.status === 'ambiguous'` (kept for 'unresolved'/'disabled').
+
+No migrations touched. No new columns. No changes to auth middleware or route
+gating.
+
+=== §4.1 REGRESSION — DEMONSTRATED FAILING PRE-FIX ===
+
+Method (git apply -R, never git stash, per the mandatory rule — refs/stash is
+shared across this repo's worktrees):
+
+1. After writing the full fix + all tests, created a scratch diff of ONLY the
+   two production files:
+   `git diff -- src/backend/services/geocoding.service.ts src/backend/routes/cities.ts > scratch/f1f2-prodfix.diff`
+2. `git apply -R scratch/f1f2-prodfix.diff` — reverted both production files to
+   their pre-fix state, left all test files (including the new tests) in place.
+3. Ran the regression test in isolation:
+   `npx vitest run src/backend/services/__tests__/geocoding.service.test.ts -t "REGRESSION"`
+   Result: 2 failed / 18 skipped.
+     - The resolveCityName-based regression test (exercises the REAL pre-existing
+       call path, not the new classifyCandidates export) failed with:
+       `AssertionError: expected 'ambiguous' to be 'ok'` — this is the actual
+       shipped bug, reproduced live against pre-fix code.
+     - The classifyCandidates-based regression test failed with
+       `TypeError: classifyCandidates is not a function` — expected, since that
+       export doesn't exist pre-fix; not evidence of the regression itself, the
+       resolveCityName test above is.
+4. `git apply scratch/f1f2-prodfix.diff` — re-applied the fix.
+5. Re-ran the full backend suite: 34 files / 665 tests passed, confirming the
+   fix restores green.
+
+=== ALL FIVE §4 TEST OBLIGATIONS + FRONTEND PARITY ===
+
+Written against a candidate-returning fake at the Nominatim chokepoint, not the
+mocked-away geocoder every existing route suite uses (review finding F4 — this is
+exactly why F1 and the regression reached the branch behind green tests).
+
+1. `classifyCandidates` table-driven (geocoding.service.test.ts, new describe
+   block) — 6 cases: empty permitted set (unconstrained), null-countryCode
+   candidate excluded, the §4.1 regression case (two same-region candidates,
+   region requested → ok), zero region matches with a region requested →
+   ambiguous/region-unconfirmed, two distinct regions none requested →
+   ambiguous/multi-region, two null-regionIso candidates → ok (accepted, pinned
+   limit).
+2. `resolveCity` with a multi-region fake → pending, coordinates NULL, attempts
+   incremented, never unresolvable (geocoding.service.test.ts).
+3. `resolveCity` at attempts=CAP with a multi-region fake available → not
+   re-selected by processQueue (geocoding.service.test.ts).
+4. `findOrUpgradeCity` step 2, route-level, real geocoding.service (new file
+   src/backend/routes/__tests__/cities.f1f2-ruling.test.ts): declines on a
+   resolved row (new row inserted, original's region/status/coordinates
+   untouched), declines on another creator's pending row (original untouched),
+   succeeds on a NULL-creator pending row (adopted), succeeds on the caller's
+   own pending row with geocode_attempts reset to 0.
+5. Route-level step 2b two-or-more-match path (same new file): two existing
+   regioned rows (IL+MO), no region requested → step 2b declines, geocoder has
+   no candidates, route falls to step 4c and inserts a third region-less pending
+   row without a unique-index violation (201, not 500) — proves the §3.3
+   amendment 2 guard actually works end to end, not just in isolation.
+6. Frontend parity (AddPlaceFlow.test.tsx, two new tests): the same two-
+   same-region fixture that is the backend regression case does NOT trigger
+   AddPlaceFlow's ambiguous-region-selector UI (region auto-selects to
+   Colorado); the existing two-distinct-region fixture still does. Confirms the
+   frontend's distinct-region computation and classifyCandidates step 4 agree
+   on both directions.
+
+=== ROOT-CAUSING THE QA ACCEPTANCE SUITE ===
+
+adl46-access-model.test.ts: ran unmodified before AND after this change —
+32/32 passed both times, no delta. Investigated why per the brief's warning about
+F8: that file's `vi.mock('../../services/geocoding.service.js', ...)` only
+exports `resolveCity`, not `resolveCityName`. Since cities.ts imports
+`resolveCityName` from that module, every call to it in that suite resolves to
+`undefined`, calling `undefined(...)` throws a TypeError, and the route's
+`try { resolution = await resolveCityName(...) } catch { resolution = {status:
+'disabled', ...} }` swallows it — every POST in that suite degrades to the
+pending-insert path regardless of what a real resolver would do. This is a
+pre-existing mock/module-surface drift (review finding F8), not something this
+change caused or fixed: my new `permittedCountryCodes` parameter is optional, so
+the call shape cities.ts uses is unchanged, and the mock's incompleteness
+produces the identical TypeError-swallow before and after. Root cause:
+adl46-access-model.test.ts's mock is a QA-owned frozen acceptance file; not
+touched, per the brief's explicit instruction not to patch it to green. Flagging
+this to COO as a known, unresolved coverage gap — that suite currently cannot
+exercise a real ambiguous/ok verdict through the route layer at all.
+
+=== SECURITY CHECKLIST ===
+
+1. Auth middleware — unchanged by this brief. POST /api/cities remains
+   requireAuth-only (GE-16, D4 — city creation is open to any authenticated
+   user by design); PATCH /api/cities/:id remains requireOwner (verified at
+   src/backend/routes/cities.ts:427, unchanged). No new routes added.
+2. userId scoping on repository queries touching user data — the new step 2
+   predicate correctly scopes by created_by_user_id (caller OR NULL, matching
+   the existing GE-16 containment pattern used elsewhere in this file). Steps 1
+   and 2b are deliberately NOT scoped, per the ruling's own §3.1 reasoning (the
+   unique index is unconditional; scoping them would miss another user's row
+   and collide on insert) — documented inline in the code, not an oversight.
+3. New user-data columns with FK — none added. No schema/migration changes.
+
+=== DISAGREEMENTS / UNDERSPECIFIED AREAS ===
+
+None found underspecified — the ruling document lived up to its own claim that
+no design decisions were left to the implementer. One judgment call I made and
+want on record: for test obligation 4's "succeeds on the caller's own pending
+row" case, the ruling's re-fire-on-upgrade behavior (§3.3 amendment 3) meant I
+had to give the fake a region-confirming candidate so the fire-and-forget
+resolveCity call didn't log a spurious second ambiguous case during the test —
+this doesn't affect the assertions (which check the HTTP response and the
+attempts-reset, both settled before the fire-and-forget resolves) but is worth
+noting in case a future reader wonders why that particular test's fake isn't
+empty like the others.
+
+=== FULL-FILE REWRITES ===
+
+None. All four production/test file changes were targeted Edits, not Write
+replacements — declared per OP-28 even though none applied here.
+
+=== FINAL TEST/CI NUMBERS ===
+
+- npm run test:backend: 34 files / 665 tests passed (baseline was 33/650 —
+  net +1 file, +15 tests: 10 new in geocoding.service.test.ts, 5 new in the new
+  cities.f1f2-ruling.test.ts)
+- npm run test:frontend: 31 files / 237 tests passed (baseline was 31/235 —
+  +2 tests in AddPlaceFlow.test.tsx)
+- npm run test:contract: 5 files / 115 tests passed (against a locally started
+  backend using CI's exact env recipe: DB_TYPE=sqlite, GEOCODING_ENABLED=false,
+  BYPASS_AUTH=true, OWNER_CLERK_ID=test_clerk_id)
+- npm run test:e2e: 52/52 passed
+- npm run type:check:all: clean
+- npm run check (Biome): clean (one formatting fix applied to the new test file
+  before this was clean)
+- npm run status:check: STATUS.md in sync, no update needed
+- CI on PR #346: 9/9 checks green
+
+=== FILES ===
+- src/backend/services/geocoding.service.ts (edited)
+- src/backend/routes/cities.ts (edited)
+- src/backend/services/__tests__/geocoding.service.test.ts (edited — added
+  classifyCandidates + resolveCity ambiguity/R4 describe blocks, regression test)
+- src/backend/routes/__tests__/cities.f1f2-ruling.test.ts (new)
+- src/frontend/components/TripDetail/__tests__/AddPlaceFlow.test.tsx (edited —
+  added F1/F2 parity describe block)
+
+No tracker entry exists yet for #345/F1/F2 (grepped tracker.json for "F1/F2",
+"ADL46-F1", "20260801-ADL46" — no hits); per CLAUDE.md tracker.json is
+COO-maintained, left for COO to create/link alongside merging this PR.
