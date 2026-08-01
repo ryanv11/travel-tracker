@@ -51,6 +51,61 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-08-01 (BRD-GE16 / ADL-46 release — PO deployment shakedown, FAIL)
+
+**Scope:** PO's own shakedown of the ADL-46 release on staging, run unprompted at session pickup.
+Add Place → city entry → geocode auto-lookup. This is the OP-32 shakedown, and it did exactly what
+the rule promises: three defects found before a formal UAT round started.
+**Build:** staging @ a398d10 (Railway deploy verified live at the time; the first occurrence was
+under 645757c — both post-release, so **not** a deployment defect)
+**Verdict:** FAIL — GE-16's disambiguation criterion is not met in live use.
+
+#### Findings
+
+- [ ] **BUG-71 (P1) — ambiguous city silently auto-resolves, no disambiguation offered.**
+      Typing "springfield" pre-populated **State = Virginia** with no hint that any other Springfield
+      exists. Violates GE-16 verbatim. Confirmed by two independent probes: PO screenshot of the
+      settled form, and a code read of `AddPlaceFlow.tsx:250-263`.
+      **The Architect's F1/F2 ruling §2.2 predicted and explicitly accepted this exact limit**
+      ("That is a guess. It is accepted for this release."). It was hit on the *first real use*,
+      on the most famous ambiguous US city name — good evidence the limit was accepted too cheaply.
+      Mechanism: the discovery lookup is globally unconstrained at `limit:'10'`, so the candidate
+      set is thinned to a single distinct region and the ambiguity discriminator never fires.
+      Fix spans BUG-71 and **D-19**, which we had deferred as "probably edge case, unmeasured."
+
+- [ ] **BUG-72 (P2) — catalogue dropdown gives no way to tell which Springfield you're picking.**
+      Renders `{name} {country_code}` only, though `region_id` is already in the payload.
+      PO asked whether to remove the dropdown; **COO recommended against** — it is what makes the
+      shared catalogue converge, and removing it would leave only the path that just failed.
+      Fix the label (needs a region join in the search response), don't delete the control.
+
+- [ ] **BUG-73 (P2) — a failed geocode lookup is completely silent.**
+      Surfaced by the ENV-02 502s below. The user cannot distinguish "picked Virginia",
+      "found nothing", and "the lookup never ran". This is the defect that turns every
+      infrastructure hiccup into a false product bug.
+
+- [ ] **ENV-02 (P2) — two staging 502s during the session**, `/api/cities` and `/api/geocode`,
+      both self-resolving. Railway edge proxy "connection dial timeout" × 3; **app-side causes
+      ruled out with evidence** (no restart, queue ticking throughout, CPU max 19%, memory 0.26/1.0 GB).
+      Root cause not established — Railway-side networking, single replica in `sfo`.
+
+#### Notes / Observations
+
+1. **This session is the argument for OP-32's shakedown-before-UAT rule.** The COO had queried
+   `geocode_status` earlier the same morning, seen one correctly-shaped `Springfield/Virginia` row,
+   and concluded the live path "worked". A correct row is not a correct flow — the row was produced
+   by exactly the defect above. Ten minutes of a real browser found what a database query could not.
+2. **D-19 is no longer unmeasured.** It was deferred pending data on how often users hit a wrong
+   city. One user, first city typed, wrong result, no recourse. That is data.
+3. **BRD-GE16 must not close on a clean UAT elsewhere.** It was already `done_pending_uat` carrying
+   a partial-delivery note for UX-12 (no correction UI). This adds three more.
+4. Console also showed `Clerk has been loaded with development keys` on staging. Staging and
+   production share one Clerk pool — worth resolving before the production promotion. Noted against
+   the existing Clerk-pool thread rather than given its own ID.
+5. Clerk telemetry CSP noise reappeared — that is the known **BUG-68**, no functional impact.
+
+---
+
 ### UAT Session — 2026-07-28 (Wave 1 sub-wave B — AWAITING PO, not yet tested)
 
 **Scope:** Three more items shipped by Wave 1 sub-wave B, on top of the seven from sub-wave A

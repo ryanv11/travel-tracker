@@ -2512,6 +2512,58 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "Found by the Frontend agent during the ADL-46 frontend stage while verifying response shapes rather than assuming them, and deliberately left untouched as out of scope. serializeCompanion in src/backend/routes/companions.ts returns is_active: row.isActive === 1 — a real boolean — while the Companion interface in src/frontend/types/api.ts declares is_active: number. The identical mismatch on Category and Activity was fixed in PR #341; this is the third instance of the same class and the only one remaining. Cosmetic, not a runtime defect: every consumer uses a truthy check, so 0/1 and false/true behave identically today. It is a type lie that will mislead the next person to write a strict comparison. Fold into whatever next touches that file rather than raising a standalone brief."
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GE-16 first-live-use UAT findings (PO, 2026-08-01) — see uat-log.md
+    // ─────────────────────────────────────────────────────────────────────────
+
+    {
+      "id": "BUG-71",
+      "type": "bug",
+      "title": "Ambiguous city name silently auto-resolves and pre-fills a state — no disambiguation offered (GE-16 violation)",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P1",
+      "brdRefs": ["GE-16", "GE-15"],
+      "phase": 6,
+      "notes": "Found by the PO on the FIRST real use of the shipped ADL-46 release, on staging, typing 'springfield' into Add Place. The State field arrived pre-populated with 'Virginia' and no ambiguity hint of any kind was rendered — the user has no indication another Springfield exists. Confirmed by two independent probes: (1) PO screenshot of the settled new-city form showing Country=United States of America, State=Virginia with no hint; (2) code read of AddPlaceFlow.tsx:250-263, where the else-branch setAutoRegionIso(regionIso) is taken whenever sameCountryRegionIsos.length <= 1. Directly violates GE-16's success criterion that an ambiguous lookup must not be auto-resolved. CLASS: gap in shipped behaviour — NOT a regression and NOT a deployment defect. Staging was verified running post-release code (Railway deploy of 645757c live at the time of the first occurrence, deploy of a398d10 live at the second). MECHANISM (confirmed): the frontend discovery lookup calls GET /api/geocode?q=<name> with no country constraint (geocode.ts:46), so the proxy queries Nominatim globally at limit:'10'. Those 10 slots spread across every Springfield worldwide, are then thinned by the SETTLEMENT_TYPES filter (nominatim-client.ts:141) and again by the frontend's requirement for a non-null region_iso — collapsing the distinct-region set to 1 and defeating the ambiguity discriminator. IMPORTANT: this exact limit was PREDICTED AND ACCEPTED by the Architect's F1/F2 ruling §2.2 ('That is a guess. It is accepted for this release.'). The PO hit it on first use on the most famous ambiguous US city name, which is strong evidence the limit was accepted too cheaply. Fix direction spans BUG-71 and open-dialogues D-19: constrain the discovery lookup by country/trip-declared-countries so the discriminator gets real evidence, and add the shortlist selector D-19 designed. Do NOT close BRD-GE16 on a clean UAT elsewhere while this is open."
+    },
+
+    {
+      "id": "BUG-72",
+      "type": "bug",
+      "title": "City search dropdown shows name + country only — user selects a specific city blind",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P2",
+      "brdRefs": ["GE-16"],
+      "phase": 6,
+      "notes": "Raised by the PO alongside BUG-71. The Add Place autocomplete renders a single line per catalogue row: '{city.name} {city.country_code}' (AddPlaceFlow.tsx:357) — e.g. 'Springfield US'. Selecting it binds the trip to one specific cities row with specific coordinates, with nothing on screen identifying WHICH Springfield. Confirmed by two probes: PO screenshot of the dropdown, and the render code itself. The disambiguating field is already in the payload and simply not rendered — GET /api/cities returns region_id per row (cities.ts:72). PO asked whether the dropdown should be REMOVED now that auto-lookup exists; COO recommended against, and the recommendation was: (a) it is the mechanism that makes the shared catalogue converge — without it every user goes through create and spelling variance mints duplicate rows, the BUG-33 class through a different door (staging already holds a row literally named 'edin'); (b) the defect is the label, not the control; (c) rendering the region makes catalogue pollution visible to users, the cheapest detection mechanism available and a prerequisite for UX-12; (d) decisively, removing it would leave ONLY the path that just failed in BUG-71. IMPLEMENTATION NOTE: this is not a pure frontend tweak — the search response carries region_id (an integer), not a name, and the component only loads regions for one selected country. Cleanest fix is a join in the search endpoint returning region_name/region_iso. A row with no region in a region-tier country should render explicitly (e.g. 'Springfield · US — no state set') so the D13 wildcard row is visibly distinct rather than looking like a third Springfield."
+    },
+
+    {
+      "id": "BUG-73",
+      "type": "bug",
+      "title": "Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed'",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": ["GE-15", "GE-16"],
+      "phase": 6,
+      "notes": "Surfaced when a live staging 502 on GET /api/geocode (see ENV-02) produced no user-visible signal whatsoever. lookupCityCountry keeps a deliberate fire-and-forget silent-failure contract — introduced intentionally in PR #341 so AddPlaceFlow's manual-entry fallback stays unaffected — with the consequence that a failed lookup leaves the country and state fields simply blank. The user therefore cannot distinguish three materially different states: (1) the lookup confidently auto-picked a region, (2) the lookup ran and found nothing, (3) the lookup never completed. The silent-fallback contract is defensible; the absence of any signal in case (3) is not. This is the defect that converts every infrastructure hiccup into a false product bug, which is exactly the failure mode OP-32's deployment shakedown exists to prevent. Fix is a visible non-blocking state on the form (e.g. 'Couldn't look this up — enter country/state manually'), NOT removal of the manual fallback. Pairs with BUG-71: once ambiguity is surfaced properly, these three states each need their own distinct presentation."
+    },
+
+    {
+      "id": "ENV-02",
+      "type": "chore",
+      "title": "Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "PO hit two 502s on staging while re-testing GE-16 on 2026-08-01: GET /api/cities at 17:04:33Z and GET /api/geocode at 17:05:14Z. Both self-resolved on refresh. EVIDENCE (Railway http log): each failed with totalDuration 15000ms and upstreamErrors of three consecutive 'connection dial timeout' entries at 5000ms against the same deploymentInstanceID — i.e. the edge proxy could not open a TCP connection to the container, not an application error. APP-SIDE CAUSES RULED OUT with evidence rather than assumed: no 'Starting Container' in deploy logs since 16:46:46Z (no restart/crash); the 15-minute geocode queue tick logged normally at 16:46:47Z and 17:01:57Z, spanning the incident, so the process was alive throughout; service metrics over the window show CPU max 0.19 of one core and memory max 0.26GB against a 1.0GB limit, so neither OOM nor CPU saturation. No application error was logged at either timestamp. ROOT CAUSE NOT ESTABLISHED — what remains is Railway-side networking, which cannot be diagnosed from inside the devcontainer. Contributing factor worth weighing: the service runs multiRegionConfig {sfo: {numReplicas: 1}} — a single replica with no failover, so any instance-level hiccup is a total outage. PRODUCT CONSEQUENCE, and the reason this is tracked rather than dismissed: transients of this class manufacture false product bugs during UAT (OP-32), and BUG-73 means they are currently invisible to the user. Sequence: fix BUG-73 first (cheap, in our control, removes the false-bug pathway), then decide on replica count. Relates to QUAL-20 (post-deploy smoke check)."
     }
 
   ]
