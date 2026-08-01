@@ -1,0 +1,64 @@
+TO: COO
+FROM: Architect
+ADL: ADL-46 (amended, not superseded) · Branch: chore/adl46-f1-f2-ruling → PR vs release/adl46-access-model
+BRD: §5.2 GE-16, §5.11 SE-03 (v3.13) — no amendment needed, no new requirement ID
+Deliverable: jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md
+
+WHAT WAS DECIDED
+The F1/F2 blocking questions are ruled. F1's fix is one shared classifier replacing pickBest,
+with ambiguity defined as more than one distinct region_iso rather than more than one candidate;
+F2's wildcard upgrade gains a status+creator predicate. Backend-implementable as written — no
+schema change, no migration, no BRD bump.
+
+PER-DECISION VERDICT
+R1  F2 predicate — ADOPTED with four amendments. Whitelist IN ('pending','unresolvable'), not
+    <> 'resolved'. Step 2 only; steps 1 and 2b stay creator- and status-blind or the insert
+    collides on uniq_cities_name_country_region_ci. Reset geocode_attempts and re-fire
+    resolveCity on a pending upgrade. Declining falls through to insert.
+R1b The COO's RATIONALE — REJECTED. "Deliberately the same predicate GE-16 uses for visibility"
+    is false: `resolved` is a GRANT in the visibility disjunction and a BAR in the upgrade
+    predicate. The mnemonic inverts in SQL. Replacement principle in ruling §3.1. The predicate
+    itself survives on the stronger reason and the duplicate class it admits is bounded at one
+    row, analysed concretely in §3.2.
+R2  Ambiguity discriminator — ADOPTED. Distinct non-null region_iso set over country-eligible
+    candidates; eligibility takes a SET of permitted country codes (empty = unconstrained), so
+    the trip-declared-countries follow-on is a two-line change and nothing is unpicked.
+    Identical to the rule the frontend already computes — parity is a contract, with a test.
+R3  Region requested, no candidate matches — ADOPTED: stays pending. Not unresolvable.
+R4  Retry disposition — ADOPTED: consume geocode_attempts, never mark unresolvable. The budget
+    belongs to the question, so region_id changing resets it (and deliberately does not for
+    unresolvable). This answers the review's "ambiguous rows retry forever" without a new status.
+R5  Map consequence — STATED for UAT, not solved. Two corrections to the framing you gave me,
+    both material, below.
+    Review F7 (doubled egress on the 'unresolved' path) — NOT authorised here; needs its own call.
+
+TWO THINGS YOU SHOULD ACT ON
+1. THE HAPPY PATH IS ALREADY BROKEN ON THE BRANCH and it is in neither the review nor your
+   chain. resolveCityName returns 'ambiguous' whenever two or more candidates match the
+   REQUESTED region (geocoding.service.ts:99-101). UX-04 auto-populates the region and Nominatim
+   returns one city at several granularities, so ordinary submissions may be producing pending
+   rows today. The ruling fixes it incidentally. FREQUENCY IS UNVERIFIED — firewall blocks live
+   Nominatim; mechanism established by reading, rate is not. Put one region-tier city submission
+   into the staging shakedown and check the resulting geocode_status.
+2. R5 CORRECTIONS. (a) "Pending cities still shade correctly" holds at COUNTRY level only — a
+   multi-region-ambiguous row has no region by definition, so it contributes to no REGION
+   shading either. Three simultaneous gaps for one place, not one; set the UAT expectation on
+   all three. (b) The pending volume does NOT move only upward: the case in item 1 moves the
+   other way and is the more common one, so the net could plausibly be a reduction. I did not
+   assert a direction — see ruling §6.
+
+CI: no source files changed — docs only (ruling + ADL-46 §4.2.1/§4.3.2 amendments + ADL log
+amendment + context/park/this report). PR CI confirmed green before filing.
+
+BLOCKERS: none.
+
+ALSO FLAGGED (not mine to fix in this dispatch): ADL-47 has zero occurrences in the main ADL
+log despite being in force on this release and cited in CLAUDE.md. /record-decision item 2
+requires the log entry regardless of a standalone file; ADL-28 is the precedent for this drift.
+
+NOW UNBLOCKED
+Backend: a single implementation brief covering F1 + F2 with named functions, signatures, the
+ordered algorithm, the exact SQL predicate, and five test obligations (ruling §4 — the fix must
+NOT land behind the geocoder mocks that hid F1, per review F4).
+QA: the F1 assertion ATDD B4 was too weak to make is specified in ruling §4 item 2.
+UX: ruling §5.4 is the premise for the parallel UX brief, deliberately unanswered.

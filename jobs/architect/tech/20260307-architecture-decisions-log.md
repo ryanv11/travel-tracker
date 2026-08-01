@@ -3815,3 +3815,78 @@ flagged as a separate item (single-probe finding, marked as such in the standalo
 
 **Open question closed:** D-12 item 1 in `jobs/COO/open-dialogues.md` ("the three-role model has
 drifted from reality") is answered by D1/D5. Items 2–4 remain open.
+
+**AMENDMENT (2026-08-01) — D13 and D14 refined pre-merge after the second OP-27 review.
+Ruling: `jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md`. Status: decided, backend
+implementation pending; no schema change, no migration, no BRD amendment, no new requirement ID.**
+The OP-27 fresh-eyes review of the *assembled release*
+(`jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md`, PR #342) returned SHIP WITH
+FOLLOW-ONS with one HIGH finding. Three rulings, all amending rather than superseding:
+
+- **D14 — the ambiguity discriminator was wrong, and the queue was never specified.** "More than one
+  remaining candidate" is replaced by **"more than one distinct non-null `region_iso` among the
+  eligible candidates"**: Nominatim returns one real city at several administrative granularities,
+  so the count marks nearly everything ambiguous, and the region set is the discriminator because
+  the region selector is the control D14 asks through. Country eligibility takes a **set** of
+  permitted codes (empty = unconstrained) so the trip-declared-countries follow-on needs no
+  unpicking. The rule is deliberately identical to the one the frontend already computes — parity is
+  a contract. Separately, §4.3.2 never said what `processQueue`/the on-create trigger do with an
+  ambiguous name, and the implementation resolved that silence with the pre-existing `candidates[0]`
+  auto-pick (`pickBest`), undoing D14 roughly one second after a user declined to choose and
+  breaking two GE-16 success criteria. **`pickBest` is deleted; one classifier serves both callers**
+  — two decision procedures for one question is the root cause and would diverge again. An ambiguous
+  verdict leaves the row `pending` with no coordinates and consumes the existing `geocode_attempts`
+  budget (bounded, never retried forever); it is **never** `unresolvable`, which GE-16 reserves for a
+  geocoder "no match" and defines as terminal. **The retry budget is attached to the question:**
+  setting `region_id` resets it, because a region constraint can collapse an ambiguity — and
+  deliberately does *not* reset for an `unresolvable` row, where a region cannot turn zero candidates
+  into some. Also ruled: a row that *has* a region and no candidate matching it stays `pending`
+  rather than taking a candidate from a different region — the field survived but the coordinates
+  contradicted the user's explicit selection.
+- **D13 — step 2's wildcard upgrade gains a predicate** (review F2, a genuine spec conflict, not an
+  implementation bug: the code follows §4.2.1 verbatim). As specified, any authenticated user could
+  mutate a **`resolved`, globally visible** row — or another creator's private one — on a
+  `requireAuth` path, which SE-03/GE-16 make owner-only and which §4.4.2's own reasoning rejects.
+  Step 2 is restricted to `geocode_status IN ('pending','unresolvable')` **and**
+  `created_by_user_id = caller OR IS NULL`. The principle, stated because it is what makes the
+  asymmetry with step 1 defensible: **read-through is global because the unique index is global;
+  write-through is scoped because nothing forces it to be.** Steps 1 and 2b stay creator- and
+  status-blind — a filtered step 1 would miss and then collide on
+  `uniq_cities_name_country_region_ci`. The duplicate class the restriction admits is **bounded at
+  one row** (the index permits at most one region-less row per name+country, the fallback insert
+  lands on a key step 1 proved vacant, and a repeat request hits step 1) and its residue is
+  §4.4.3's already-triggered owner-repair follow-on. It is **not** the BUG-33 class, which was
+  unbounded duplication on an identical key. There is no version of adopting a `resolved` row that a
+  non-owner can perform *correctly*, because correcting it means rewriting shared coordinates.
+- **Direction this is step one of** (PO, post-release): *`resolved` should ultimately mean the
+  user's explicit selection and the geocoder independently agree; a selection the geocoder cannot
+  confirm stays `pending`.* The ruling implements that for **country and region** — the two
+  dimensions a user can select today. **Name canonicalisation ("Roma"/"Rome") is deliberately not
+  ruled on**: the name sits inside D13's identity key, and whether that model survives depends on a
+  UX brief being written first, by design, so the data model serves the experience rather than the
+  reverse.
+
+**One finding surfaced while ruling that neither the review nor the COO's chain had:** the *happy
+path* is already broken on the branch. `resolveCityName` returns `'ambiguous'` whenever two or more
+candidates match the requested region (`geocoding.service.ts:99-101`), and UX-04 auto-populates the
+region — so a common city returning `city` + `municipality` hits produces a `pending` row today. The
+new discriminator fixes it. It is invisible in CI for the same reason F1 was (review F4: every route
+suite mocks the geocoder away), which is why the ruling carries explicit service-level test
+obligations. **Frequency is UNVERIFIED** — the devcontainer firewall (GitHub/npm/Anthropic only)
+blocks live Nominatim; the mechanism is established by code reading, the real-world rate is not, and
+it must be exercised during the staging shakedown.
+
+**UAT consequence, recorded so it is not logged as a false product bug (OP-32).** Shading reads
+`country_code`/`region_id` and never `geocode_status` or coordinates (`shading.service.ts`); pins
+require both `resolved` and coordinates (`CityMarkers.tsx:52-58`). So a pending city shades its
+country, shows no pin — and, because `multi-region` ambiguity by definition means no region was
+chosen, contributes to **no region shading either**: three simultaneous gaps for one place, not one.
+The net change in pending volume is **not** monotonic — the happy-path case above moves the other
+way and is the more common one. **Framing the PO set, recorded and deliberately not solved here:**
+*the user never sees coordinates — a pin in the wrong place is reported as a bug exactly as fast as a
+missing pin.* "Stay pending" trades one user-visible defect class for another; it is the right trade
+only because a wrong `resolved` row is shared, global, never re-queried and owner-only to repair,
+while a `pending` row stays in its creator's own reach via D11. That argument expires the moment the
+affordance is missing — and it is: the three states are surfaced nowhere in the UI, and GE-16's
+correction-by-re-point works but is undiscoverable. **This is the premise for the UX brief, not a
+defect to log.**
