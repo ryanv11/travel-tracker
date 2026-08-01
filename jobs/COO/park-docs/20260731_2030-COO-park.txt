@@ -1,0 +1,93 @@
+COO SESSION PARK — 2026-07-31 (ADL-46 release: QA + Backend stages landed on the integration branch;
+only Frontend remains; D-17 ATDD trial interim verdict POSITIVE)
+================================================================================
+
+## Session summary
+Picked up a clean startup (all checks green). Committed a loose end from the prior session, then ran
+the ADL-46 release forward two stages — QA-first (the D-17 ATDD trial) and Backend — reviewing each
+critically against the diff rather than the self-report. Held Frontend per PO instruction. Closing so
+the PO can clear + rebuild the container.
+
+| PR | What | Merged to |
+|---|---|---|
+| #335 | Commit D-18 (startup lean-out proposal, left uncommitted last session) + ledger | main |
+| #337 | ADL-46 §8.2 inventory correction — the HC-06 gap QA caught | main |
+| #336 | QA ATDD red acceptance tests (access matrix / D13 / GE-16 containment) | **integration branch** |
+| #338 | Backend stage — S1/S2 + backend half of S3/S4, incl. the D13 reverse-single-match fix | **integration branch** |
+| (this) chore/session-close-adl46-backend | open-dialogues D-17 update, park doc, ledger | OPEN — close-out PR |
+
+main green @ d4cf2aa. Integration branch release/adl46-access-model @ 28a24d7 (DB+QA+Backend), pushed
+to origin — survives the rebuild.
+
+## The ADL-46 release — where it stands (READ THIS FIRST NEXT SESSION)
+Single release, three stages on release/adl46-access-model (off main; red tolerated there, never main):
+- **DB (S3/S4 schema + migrations)** ✅ (landed last session, #333)
+- **QA red acceptance tests (D-17 trial)** ✅ (#336) — now GREEN by implementation
+- **Backend (S1/S2 + backend half)** ✅ (#338) — reviewed, one defect found+fixed (see below)
+- **Frontend** ⏸️ NOT STARTED — held per PO. This is the ONLY thing between here and a green release.
+
+Integration branch CI is green on everything EXCEPT the 4 admin.spec.ts E2E tests — and those are
+exactly the Frontend dependency (admin panel still calls the removed /api/admin/categories +
+/api/admin/activities). The Frontend stage turns those 4 red → green and completes the release.
+
+## Backend stage review — what I verified, and the defect I caught
+Reviewed PR #338 against the diff (COO standards: verify artifacts, not the self-report):
+- QA's 32/32 acceptance tests pass BY IMPLEMENTATION — QA's spec file (adl46-access-model.test.ts) is
+  absent from the diff. ATDD integrity held.
+- D13 wildcard-upgrade (the flagged trap) implemented correctly.
+- **DEFECT FOUND (COO diff-review, not by any test): D13 reverse single-match duplicate.** A no-region
+  POST /api/cities against a region-tier country holding exactly one *regioned* row (e.g. only
+  "Springfield, IL") missed step 1, skipped step 2, returned null → caller inserted a duplicate.
+  Violates §4.2.1 "return it, no regression". QA's suite missed it too (B5 only tested the
+  non-region-tier case). Sent back to the Backend agent (resumed with context); fixed via step 2b
+  (no-region: match name+country, exactly one → return it, ≥2 → null→pending/D14). Has-region path
+  provably untouched (explicit return null before step 2b; two tests assert it). New backend-owned
+  regression test cities-find-or-create.test.ts. Re-verified green. commit 7f9a405.
+- E2E confirmed via authoritative Playwright summary (4 failed / 48 passed, all admin.spec.ts) — NOT
+  the broad grep, which false-flags nine specs. Two-probe discipline mattered here.
+
+## D-17 ATDD trial — interim verdict POSITIVE (formal verdict due at release close)
+Both conditions met with margin: QA-first caught the HC-06 gap AND the review layer caught the D13
+reverse bug (which QA missed too — the layered-checks argument in its strongest form). Cost was one
+QA dispatch + one fix-cycle. Full detail + a process note (attribute pre-existing red to root cause,
+not by file authorship — the type-error dismissal the PO caught) recorded in open-dialogues D-17.
+Promotion placement unchanged; write it up at release close.
+
+## Suggested next actions (in order)
+1. Merge this close-out PR; verify main green.
+2. **Dispatch the Frontend stage** off release/adl46-access-model (the held milestone). Scope: repoint
+   useAdmin.ts → /api/categories + /api/activities; repoint useCities.ts lookupCityCountry →
+   GET /api/geocode and DELETE the forbidden User-Agent header; consume D14 candidates in
+   AddPlaceFlow's existing region selector (no new component). S3 AdminPanel ownerOnly flags already
+   shipped (#298). DoD = the 4 admin.spec.ts E2E green + whole release CI green. Branch off the
+   integration branch, not main.
+3. **Final release PR** integration branch → main once green; then PO UAT on the whole release
+   (BUG-63/61/62 + BUG-55 + per-user behaviour + the D13/duplicate-city cases), then fast-forward to
+   production.
+4. **Write the D-17 formal verdict** + promote (Architect-prompt placement) at release close.
+5. **ENV-01 caveat:** the live Nominatim egress path (S2 proxy/chokepoint) can't be exercised from the
+   devcontainer firewall — verify real geocode lookups on staging during UAT.
+6. Standing follow-ons unchanged: city repair tool (trigger: before a 3rd account), BUG-68 (Clerk
+   telemetry CSP), D-14 (USA/US search — COO recommends ISO tier-2), IT-11 second-date defaults.
+7. Two AWAITING-PO UAT sessions (Wave 1 sub-waves A + B) still pending PO testing — untouched.
+8. Candidate D-entries still only park-doc-carried: OP-27 "a review that "executes" a migration can
+   still miss a block it only *described*" (from the DB stage, last session); the D-17 root-cause-
+   attribution note (now in open-dialogues, promote with D-17).
+
+## State of play
+- main green @ d4cf2aa. Integration branch release/adl46-access-model @ 28a24d7 (DB+QA+Backend),
+  pushed to origin.
+- Local branches after close: main + release/adl46-access-model (intentional long-lived integration
+  branch). No worktrees.
+- production @ 1a4f84f — unchanged, behind main.
+- tracker: BRD-GE16 in_progress on the integration branch, pending on main (correct — release tracker
+  state lives on the integration branch until it merges to main).
+- BRD v3.13 on main; ADL-46 = design of record (§8.2 now corrected); ADL-47 adopted; D-17 trial
+  interim-positive.
+
+## Open threads
+See jobs/COO/open-dialogues.md — D-04 through D-18. Updated this session: **D-17** (interim verdict +
+process note). D-18 (startup lean-out) now committed, still awaiting an adoption decision.
+
+## Restart preview
+Shown to Ryan before this doc was finalised.

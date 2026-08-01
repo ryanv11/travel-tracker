@@ -485,6 +485,167 @@ PR #327 has that same `notes` field open on another branch** — a separate edit
 guaranteed a merge conflict on one JSON string (the D-13 failure shape). Fold it into the
 tracker once #327 merges, then strike this paragraph.
 
+### D-17: ATDD-first (independent acceptance tests before implementation) — ON TRIAL this release
+**Raised:** 2026-07-30 · **Status:** TRIAL — **interim verdict POSITIVE (2026-07-31)**, pending
+release close (UAT). Promote to ADL on a positive verdict; narrow or drop on a negative one.
+
+> **TRIAL UPDATE (2026-07-31) — QA + Backend stages run; both verdict conditions met with margin.**
+> The QA-first dispatch produced 32 red acceptance tests (access matrix / D13 / GE-16 containment);
+> the Backend stage turned them green **by implementation, with QA's spec file untouched** (verified:
+> the file is absent from PR #338's diff). Two real divergences were caught that the implementer's own
+> tests would have missed:
+> 1. **HC-06 spec-inventory gap** — `owner-access.test.ts`'s `POST /api/cities → 403` block
+>    contradicted D4's end state and was missing from ADL-46 §8.2's own file inventory. Would have hit
+>    the Backend implementer mid-task as an unauthorised red security check (OP-30). Fed back into §8.2
+>    (PR #337) before Backend ran.
+> 2. **D13 reverse single-match duplicate** — caught in COO diff-review, NOT by any test: a no-region
+>    POST against a region-tier country with exactly one *regioned* row created a duplicate instead of
+>    returning it (§4.2.1 "no regression"). **QA's own suite missed it too** (B5 only covered the
+>    non-region-tier case), which is the strongest evidence for layered checks — the bug survived to
+>    the third layer (implementer tests → independent QA suite → COO review) on the exact path flagged
+>    as the trap. Fixed + regression test added (PR #338, commit 7f9a405).
+>
+> **Cost:** one QA dispatch + one targeted fix-cycle, no rebuilds — proportionate. **Placement on
+> promotion is unchanged** (Architect prompt marks each spawned brief ATDD-yes/no; COO one-liner;
+> warn-hook backstop). Write the formal verdict + promotion at release close, per the condition above.
+
+> **Process note surfaced during the trial (2026-07-31) — candidate for the promoted rule or a
+> sibling D-entry.** An ATDD author reporting its red baseline must **attribute pre-existing failures
+> to their root cause, not merely scope them out by file authorship.** QA's first report dismissed 20
+> type errors as "not in files I touched" — the right answer, but by the wrong test; PO caught the
+> reasoning. Verified correct only by opening all 20 (every one the DB-stage `userId`-NOT-NULL insert
+> breakage, one root cause, none in QA's own new file). "Not my files" is a single probe; "all N share
+> the expected root cause X" is the verified claim. Same shape as the negative-findings two-probe rule.
+
+**What it is.** For qualifying briefs, dispatch **QA first** to turn the BRD success criteria into
+*red* acceptance/integration tests, handed to the implementer as the executable definition of done —
+before any implementation. This is **ATDD / acceptance-test-first**, not classic TDD (which is one
+developer's red-green-refactor inner loop and is roughly what implementer agents already do). The
+value is *independent specification of behaviour*: today the implementer writes both the code and the
+tests that certify it, a closed loop where a misread of the spec produces code and tests that agree
+with each other and both diverge from intent. An independent QA author breaks that loop — same
+philosophy as OP-27 fresh-eyes and the negative-findings two-probe rule.
+
+**Unifying principle.** ATDD-first applies when *a wrong implementation would be silent and
+plausible* **and** *the intended behaviour is precisely specifiable in advance* — exactly the case
+the implementer's own tests cannot catch.
+
+**The trigger, keyed off Architect involvement (PO's cost insight).** Rather than have the COO
+re-read a classification rule every session, ATDD is keyed to **whether the brief went through the
+Architect** — because "goes to Architect" already gates on the high-stakes classes:
+- Access-matrix / ownership-scoping changes → already require an Architect pass (ADL-27). ✓
+- Data-integrity invariants (schema/migration, uniqueness/FK/dedup) → schema changes already require
+  Architect review. ✓
+- Multi-brief release exposing a contract other briefs consume → an ADL/spec by definition. ✓
+- Architect named a "get this wrong and it silently breaks" risk (e.g. ADL-46 D13 find-or-create). ✓
+
+So **ATDD-first = required for the implementation briefs an Architect spec spawns; not required for
+briefs that never reach the Architect.**
+
+**One trigger consciously dropped: "rich success criteria but no architecture needed"** — complex
+*frontend/behavioural* work (rating filters, date-default logic, the cross-trip city screen) that
+legitimately never sees the Architect. Rationale: those failures are **visible and recoverable** (they
+surface in UAT), not silent-and-costly like a cross-user data leak, so ATDD's extra dispatch round
+doesn't pay back there; they lean on implementer tests + UAT + the OP-32 rule (which forces the test
+the *second* time it breaks). **Revisit signal:** if UAT starts catching complex-frontend logic bugs
+that slipped implementer tests, promote this trigger back. *This is the one deliberate coverage gap in
+the rule and it is recorded as such, not hidden.*
+
+**Why this scales with the worry** (Ryan: complexity → missing more things): the retained triggers are
+exactly the classes that grow with the codebase — more routes → bigger access matrix, more tables →
+more integrity invariants, more components → more cross-brief contracts. The net widens where it
+matters without re-tuning the rule.
+
+**How the trial is assessed (verdict condition, stated up front so it's not "it felt fine").**
+Promote to standing policy iff, on this release: (1) QA-first caught **at least one behavioural
+divergence** the implementer's own tests would have missed, **and** (2) the extra dispatch round's
+cost was proportionate to that catch. If it was pure ceremony (no catch, added latency) → narrow the
+triggers or drop it. COO reports this verdict at release close.
+
+**Where it will live, if promoted (placement design agreed; NOT built during the trial — no premature
+plumbing for a policy that might get narrowed):**
+- **Home = the Architect agent prompt** (`.claude/agents/architect.md`) — loaded *only when the
+  Architect runs*, which is *only for complex work* (the whole cost argument). The Architect already
+  flags the risk item; this extends that to "for each brief this spec spawns, mark **ATDD-first:
+  yes/no**." The flag reaches the COO **pre-set**.
+- **COO's part shrinks to one line** — "when a spec marks a brief ATDD-first, dispatch QA before the
+  implementer." The only always-on cost, and trivial. Not CLAUDE.md, not a skill.
+- **A hook backstop IS wanted** (PO, given how load-bearing ATDD is for the access/data classes):
+  a warn hook (negative-findings precedent) firing when a brief body / `gh issue create` / a PR
+  touches `schema.ts`, `migrations/`, or `require(Owner|Auth)` **without** a stated ATDD decision.
+  It mechanically catches the two highest-stakes triggers even on a brief that somehow bypassed the
+  Architect — which is itself a CLAUDE.md process violation, so the hook doubles as a guard for that.
+  Warn-not-block first, per the OP-26/OP-28 precedent.
+
+**This release's trial run:** QA dispatched first, off `release/adl46-access-model`, to write red
+tests for the intended access-matrix rows (§8), the D13 find-or-create invariants, and the per-user
+category/activity route contracts. The Backend brief is gated behind those tests landing.
+
+### D-18: Startup/close-out feel heavy on a bare context-flush `/clear` — gate the audit on "did anything change?"
+**Raised:** 2026-07-31 (PO)
+
+**Deciding dimension:** proportionality of a fixed-cost safety audit to variable actual risk — the
+audit is priced for the *worst* pickup (cold, unattended, drifted) but runs identically on the
+*cheapest* one (a mid-work `/clear` to flush context where nothing changed since the last look).
+
+**The observation.** `/coo-startup` runs 8 checks and inlines a large block of state every pickup
+regardless of whether anything changed. Measured token cost of the unconditionally-inlined state
+(2026-07-31): UAT log ~7,000 tok (28KB), open-dialogues ~10,650 tok (42KB), drift-ledger tail
+~3,000 tok (80 lines), park doc ~1,930 tok, SKILL body ~3,000 tok ≈ **~25.7k tokens inlined at every
+startup.** The operational cost (≈4 gh/bash probes + 7 hook-canary probes) is modest; the felt weight
+is the token load plus reporting on 8 sections that are mostly no-ops on a clean flush.
+
+**Why it's uniform today.** A freshly `/clear`'d instance cannot introspect whether it's a flush or a
+cold start, so the audit trusts nothing and re-derives everything. Correct as a floor — agents only
+live during sessions, so an unsurfaced red main / cron flag has no other detector. But the "did the
+world change?" signal is cheap to read from durable state, and most checks are defending against a
+mutation that one probe against the last `reviewed` sentinel can detect.
+
+**Proposal — gate each heavy check on a cheap trigger probe; keep the two irreducible ones always:**
+
+| Check | Trigger probe (vs last `reviewed`) | If probe empty |
+|---|---|---|
+| Hook canary (7 probes) | `git diff --name-only <reviewed> -- .claude/hooks/` | skip (or weekly) |
+| Drift/subagent audit | ledger scan for `subagent_stop` since reviewed | one-line no-op |
+| BRD coverage + lifecycle | `git log <park-base>..origin/main` (anything merged?) | one-line no-op |
+| UAT log (de-inline) | grep open `[ ]` / non-PASS **before** reading | don't load full log |
+| drift-ledger tail | load entries since last `reviewed`, not fixed 80 | usually <20 lines |
+
+**open-dialogues bloat is a content problem, not a load-gate.** Measured 2026-07-31: Resolved is only
+56 lines (3 entries, none moved since 2026-07-20); the 42KB is **oversized Open entries** (D-14 alone
+is ~370 lines). So "load Open only" saves ~1k, not the ~5k first estimated. The real fixes are
+process, and they're the same discipline that keeps startup lean:
+- **Actually run the move-on-resolution step at close-out** (it has lapsed — only D-01/02/03 ever
+  moved), and archive resolved entries to a **separate `open-dialogues-archive.md`** (the
+  `uat-archive.md` pattern) so the loaded file is Open-only by construction.
+- **Keep Open entries terse** — the full analysis lives in the promoted home (ADL/tracker/BRD); the
+  entry is a pointer + status, not the essay. Retrofit the existing oversized entries once.
+
+**Always-run floor (never gate):** main-CI status and open cron-flags — one `gh` call each, and the
+two things nothing else catches.
+
+**Estimated saving:** from load-gating alone, **~8k tokens/pickup** (UAT log grep-gate ~5–6k +
+ledger-since-reviewed ~2k; open-dialogues load-gate only ~1k). Reaching the ~50%/~13k mark requires
+the *content* cleanup above — archiving resolved entries out and trimming oversized Open entries —
+which is a one-time fix plus a maintained close-out step, not a load-gate. On a clean flush the audit
+collapses to three things: main CI, cron-flags, park doc. On a genuine cold pickup the insurance is
+unchanged.
+
+**Does it require the PO to declare "this is a flush"?** No — and it must not depend on that. The
+durable-state probes are the objective detector and fail *safe* (a forgotten declaration falls to the
+heavy path, never skips the audit). A volunteered "just cleared, starting fresh" is welcome as a
+corroborating hint that lets the COO trust empty probes faster, but it is never load-bearing, and it
+can't lower the always-run floor.
+
+**Matched-pair caveat.** Startup and `/coo-merge-and-close` are a pair — the park doc + restart
+preview are what let the next startup trust rather than re-derive. Do not lean out the park doc to
+save startup cost; if trimming close-out, trim the tracker/STATUS restatement that duplicates the
+park doc, not the park doc itself.
+
+**Status:** analysis complete, not implemented. It's a change to a mandatory skill → wants a D-entry
+→ ADL, then edits to `coo-startup/SKILL.md` (de-inline UAT + open-dialogues, add trigger gates) and a
+close-out review. COO recommends adopting. Deferred to a session with token headroom.
+
 ## Resolved
 
 ### D-03: OP-21 process-kill guardrail (proposed, dropped)

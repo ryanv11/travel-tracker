@@ -423,6 +423,15 @@ npm run db:migrate    # apply pending migrations
 they are patched via `patches/drizzle-kit+0.31.9.patch` (auto-applied on `npm install`).
 See ADL-15 for full rationale.
 
+**Breaking migrations use expand/contract (ADL-47, adopted 2026-07-30).** A migration that would
+break existing code in one step (e.g. adding a `NOT NULL` column every insert site must now populate)
+is never a single hard cutover to `main`. Stage it so each step is independently green and
+deployable: **expand** (add nullable / alongside, backward-compatible), **migrate + switch code**
+(backfill, repoint reads/writes), **contract** (make `NOT NULL`, swap constraints, drop old). When a
+release genuinely can't be atomized into green steps, assemble it on an integration branch
+(`release/<slug>`) and merge to `main` once green — the broken intermediate states never touch the
+trunk. This is the authoring discipline that keeps the staging auto-deploy path (ADL-32) safe.
+
 ## COO session startup (mandatory)
 Run `/coo-startup` at the start of every COO session before doing anything else.
 

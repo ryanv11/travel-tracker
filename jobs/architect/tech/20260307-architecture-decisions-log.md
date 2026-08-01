@@ -3890,3 +3890,71 @@ while a `pending` row stays in its creator's own reach via D11. That argument ex
 affordance is missing — and it is: the three states are surfaced nowhere in the UI, and GE-16's
 correction-by-re-point works but is undiscoverable. **This is the premise for the UX brief, not a
 defect to log.**
+
+---
+
+## ADL-47 — Expand/contract as the default for breaking schema migrations; integration-branch delivery when a release can't be atomized
+
+**Date:** 2026-07-30
+**Status:** ADOPTED as the standing default for future breaking migrations. **Not retrofitted to
+ADL-46**, which ships this once via the integration-branch mechanism below (rationale in the
+alternatives). PO-approved in session (2026-07-30).
+
+**Trigger.** The ADL-46 S3 database brief (#332, PR #333) was correct, validated, and *red by
+design*: making `trip_categories.user_id` / `activities.user_id` `NOT NULL` in one step breaks every
+backend insert site until the Backend brief catches up, so 4 CI jobs (Type Check, Backend Tests,
+Contract, E2E) fail on the DB PR alone. Merging it to `main` would have put the trunk in exactly the
+broken, backend-can't-boot state that both the single-release decision (ADL-46 §9.1) and the
+never-red-main rule (CLAUDE.md, BUG-24) forbid. The COO surfaced this as a release-strategy decision;
+the PO asked whether never-red-main was too strict and what industry practice is.
+
+**Decision — two parts.**
+
+1. **Expand/contract (parallel change) is the default pattern for any breaking schema migration going
+   forward.** A breaking change is never a single hard cutover. It is staged so *each step is
+   independently green and independently deployable*: **expand** (add the new column nullable / add
+   the new structure alongside the old, backward-compatible — trunk stays green), **migrate + switch
+   code** (backfill; update every read/write site to the new shape — trunk stays green), **contract**
+   (make `NOT NULL`, swap the unique/FK constraint, drop the old — trunk stays green). This is the
+   pattern that scales to real users and continuous production deploys, and it removes the red-trunk
+   tension at its source rather than routing around it.
+
+2. **When a release genuinely cannot be atomized into green steps (or the effort isn't warranted),
+   keep the coordinated work off `main` on an integration branch** (`release/<slug>`), assembled to
+   green there, then merged to `main` in one PR. The intermediate broken states never touch the
+   trunk. This is what ADL-46 uses.
+
+**never-red-main is NOT too strict, and was explicitly kept.** It is the core invariant of
+trunk-based development and load-bearing *here specifically* because `main` auto-deploys to staging
+(CLAUDE.md env-promotion): a red `main` = broken staging = no UAT and no prod fast-forward. Two
+clarifications resolve the friction and are now on the record: (a) **the rule governs `main`, not
+every branch** — an integration branch sitting transiently red while a release is assembled is the
+rule working as intended, not a violation; (b) the tension we hit was **self-inflicted** by splitting
+a hard cutover across briefs, not a flaw in the rule.
+
+**Alternatives considered.**
+- *Retrofit expand/contract onto ADL-46 now* — rejected for this release only. The S3/S4 migrations
+  are already hand-written and validated (executed against a scratch DB from the real chain by the
+  OP-27 reviewer), staging and production data are both disposable, and prod promotion is a **manual**
+  fast-forward — so expand/contract's payoff (zero-downtime, no coordinated release) buys ~nothing
+  today, while the retrofit means discarding validated work for a multi-step sequence. Take the
+  integration branch here; make expand/contract the default for the *next* breaking migration.
+- *Relax never-red-main / accept a transiently red trunk* — rejected. Breaks the staging deploy and
+  the prod-promotion path; industry-standard trunk-based development mandates a green trunk.
+- *Stacked PRs* (Backend off the DB branch, Frontend off Backend, final head → main) — viable and
+  equivalent for trunk safety, but chain-rebases are fiddlier to manage than one integration branch;
+  not chosen, kept as a known alternative.
+- *Feature flags* — decouple deploy from release at the app layer, but do not help a `NOT NULL` DDL
+  cutover; complementary, not a substitute.
+
+**Implementation implications.**
+- CLAUDE.md "Schema changes (Drizzle ORM)" section gains a pointer to this ADL so the next
+  Database/Architect agent starts from expand/contract rather than rediscovering the tension.
+- ADL-46 delivery: integration branch `release/adl46-access-model` created off `main`; PR #333
+  (DB stage) merged into it; Backend then Frontend build on it; one final PR → `main` when the whole
+  release is green. `main` never red.
+- No code or schema change from this ADL itself — it is a process decision.
+
+**Supersession:** none. Complements ADL-15 (drizzle-kit migrate workflow, `db:push` forbidden) and
+ADL-32 (Railway/Turso staging-watches-main promotion model) — expand/contract is the *authoring*
+discipline that keeps that auto-deploy path safe.
