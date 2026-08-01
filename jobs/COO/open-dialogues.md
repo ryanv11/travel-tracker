@@ -553,6 +553,71 @@ plumbing for a policy that might get narrowed):**
 tests for the intended access-matrix rows (§8), the D13 find-or-create invariants, and the per-user
 category/activity route contracts. The Backend brief is gated behind those tests landing.
 
+### D-18: Startup/close-out feel heavy on a bare context-flush `/clear` — gate the audit on "did anything change?"
+**Raised:** 2026-07-31 (PO)
+
+**Deciding dimension:** proportionality of a fixed-cost safety audit to variable actual risk — the
+audit is priced for the *worst* pickup (cold, unattended, drifted) but runs identically on the
+*cheapest* one (a mid-work `/clear` to flush context where nothing changed since the last look).
+
+**The observation.** `/coo-startup` runs 8 checks and inlines a large block of state every pickup
+regardless of whether anything changed. Measured token cost of the unconditionally-inlined state
+(2026-07-31): UAT log ~7,000 tok (28KB), open-dialogues ~10,650 tok (42KB), drift-ledger tail
+~3,000 tok (80 lines), park doc ~1,930 tok, SKILL body ~3,000 tok ≈ **~25.7k tokens inlined at every
+startup.** The operational cost (≈4 gh/bash probes + 7 hook-canary probes) is modest; the felt weight
+is the token load plus reporting on 8 sections that are mostly no-ops on a clean flush.
+
+**Why it's uniform today.** A freshly `/clear`'d instance cannot introspect whether it's a flush or a
+cold start, so the audit trusts nothing and re-derives everything. Correct as a floor — agents only
+live during sessions, so an unsurfaced red main / cron flag has no other detector. But the "did the
+world change?" signal is cheap to read from durable state, and most checks are defending against a
+mutation that one probe against the last `reviewed` sentinel can detect.
+
+**Proposal — gate each heavy check on a cheap trigger probe; keep the two irreducible ones always:**
+
+| Check | Trigger probe (vs last `reviewed`) | If probe empty |
+|---|---|---|
+| Hook canary (7 probes) | `git diff --name-only <reviewed> -- .claude/hooks/` | skip (or weekly) |
+| Drift/subagent audit | ledger scan for `subagent_stop` since reviewed | one-line no-op |
+| BRD coverage + lifecycle | `git log <park-base>..origin/main` (anything merged?) | one-line no-op |
+| UAT log (de-inline) | grep open `[ ]` / non-PASS **before** reading | don't load full log |
+| drift-ledger tail | load entries since last `reviewed`, not fixed 80 | usually <20 lines |
+
+**open-dialogues bloat is a content problem, not a load-gate.** Measured 2026-07-31: Resolved is only
+56 lines (3 entries, none moved since 2026-07-20); the 42KB is **oversized Open entries** (D-14 alone
+is ~370 lines). So "load Open only" saves ~1k, not the ~5k first estimated. The real fixes are
+process, and they're the same discipline that keeps startup lean:
+- **Actually run the move-on-resolution step at close-out** (it has lapsed — only D-01/02/03 ever
+  moved), and archive resolved entries to a **separate `open-dialogues-archive.md`** (the
+  `uat-archive.md` pattern) so the loaded file is Open-only by construction.
+- **Keep Open entries terse** — the full analysis lives in the promoted home (ADL/tracker/BRD); the
+  entry is a pointer + status, not the essay. Retrofit the existing oversized entries once.
+
+**Always-run floor (never gate):** main-CI status and open cron-flags — one `gh` call each, and the
+two things nothing else catches.
+
+**Estimated saving:** from load-gating alone, **~8k tokens/pickup** (UAT log grep-gate ~5–6k +
+ledger-since-reviewed ~2k; open-dialogues load-gate only ~1k). Reaching the ~50%/~13k mark requires
+the *content* cleanup above — archiving resolved entries out and trimming oversized Open entries —
+which is a one-time fix plus a maintained close-out step, not a load-gate. On a clean flush the audit
+collapses to three things: main CI, cron-flags, park doc. On a genuine cold pickup the insurance is
+unchanged.
+
+**Does it require the PO to declare "this is a flush"?** No — and it must not depend on that. The
+durable-state probes are the objective detector and fail *safe* (a forgotten declaration falls to the
+heavy path, never skips the audit). A volunteered "just cleared, starting fresh" is welcome as a
+corroborating hint that lets the COO trust empty probes faster, but it is never load-bearing, and it
+can't lower the always-run floor.
+
+**Matched-pair caveat.** Startup and `/coo-merge-and-close` are a pair — the park doc + restart
+preview are what let the next startup trust rather than re-derive. Do not lean out the park doc to
+save startup cost; if trimming close-out, trim the tracker/STATUS restatement that duplicates the
+park doc, not the park doc itself.
+
+**Status:** analysis complete, not implemented. It's a change to a mandatory skill → wants a D-entry
+→ ADL, then edits to `coo-startup/SKILL.md` (de-inline UAT + open-dialogues, add trigger gates) and a
+close-out review. COO recommends adopting. Deferred to a session with token headroom.
+
 ## Resolved
 
 ### D-03: OP-21 process-kill guardrail (proposed, dropped)
