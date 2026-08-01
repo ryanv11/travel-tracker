@@ -1,0 +1,142 @@
+FRONTEND PARK DOCUMENT — 2026-08-01
+Thread: BUG-73 geocode lookup failure is silent — retry + visible failure state (fix/bug73-geocode-failure-visible, GitHub #352, PR #354)
+
+SUMMARY
+GET /api/geocode (proxied via lookupCityCountry, src/frontend/hooks/useCities.ts)
+bypasses React Query — it's a plain async function, not a useQuery hook — so the
+QueryClient's `retry: 3` default (src/frontend/main.tsx:33) never applied to it.
+Found during the ADL-46 deployment shakedown (PO, jobs/PO/uat-log.md,
+2026-08-01): `/api/geocode` 502'd twice on staging (ENV-02, an infra transient)
+in the same outage window `/api/cities` (a real useQuery) self-healed via its
+inherited retry. The user saw nothing — no country, no state, no message — and
+the three possible outcomes (auto-populated / ran-but-found-nothing / never
+completed) were indistinguishable.
+
+WHAT CHANGED
+1. src/frontend/hooks/useCities.ts — added fetchGeocodeResultWithRetry, a
+   retry wrapper around the GET /api/geocode call: up to 3 retries (matching
+   the query default's attempt count) with a fixed 250ms backoff, before
+   rethrowing. lookupCityCountry now calls this instead of a single apiGet.
+   Its resolved value gained a `failed: boolean` field — `true` only when
+   retries were exhausted without success. lookupCityCountry itself still
+   never throws (the pre-existing fire-and-forget contract for the caller is
+   unchanged), but the shape it resolves to is no longer identical for "found
+   nothing" (`failed: false`, empty candidates) and "gave up after retrying"
+   (`failed: true`, empty candidates) — those previously collapsed to the
+   exact same object.
+2. src/frontend/components/TripDetail/AddPlaceFlow.tsx — added
+   `geocodeLookupFailed` state. Reset to false at the top of
+   handleOpenNewCityForm (same place the other lookup-related state resets
+   already live). The `.then` callback checks `failed` first and, if true,
+   sets the failure state and returns immediately — the D14 ambiguity
+   computation below it never runs on a failed lookup (nothing to
+   disambiguate: no country, no candidates). The `.catch` (defensive
+   fallback for an unexpected throw, since lookupCityCountry itself
+   shouldn't throw) also sets the failure state. Added a non-blocking amber
+   banner under the Country field, shown only when geocodeLookupFailed is
+   true: "Automatic lookup failed — you can select country and region
+   manually." plus a "Retry" button that re-invokes
+   handleOpenNewCityForm(newCityName) — reusing the exact same open/reset/
+   lookup path rather than a new code path, so a retry gets a full clean
+   re-attempt (country/region/candidates state resets, then the lookup runs
+   again with its own internal 3-retry policy).
+3. src/frontend/hooks/__tests__/useCities.geocode.test.tsx — extended.
+   Every existing assertion on the resolved shape now checks `failed`
+   too. The old "silent-failure contract" test (single rejection,
+   `.resolves.toEqual({countryCode:null,...})`) is now the retries-
+   exhausted case: uses fake timers, asserts `apiGet` was called 4 times
+   (1 initial + 3 retries) and the result carries `failed: true`. New test:
+   "retries a transient failure and succeeds" — apiGet mocked to reject
+   twice then resolve, asserts exactly 3 calls and a populated,
+   `failed: false` result. This is the test proving retry actually
+   happens, not just that failure is eventually reported — a fix that
+   "looks like retry" but silently doesn't retry would fail this test's
+   call-count assertion specifically.
+4. New src/frontend/components/TripDetail/__tests__/AddPlaceFlow.geocodeFailure.test.tsx
+   (4 tests) — kept as its own file rather than added to the existing
+   AddPlaceFlow.test.tsx (which is BUG-71's D14 test file, in flight
+   separately) to avoid touching that file at all. Covers: failure message
+   shown + "detecting…" cleared on failure; failure message NOT shown on a
+   successful "found nothing" result; manual country selection stays fully
+   usable (and the submit button stays enabled) after a failure; clicking
+   Retry re-runs the lookup and clears the message on a subsequent success.
+5. jobs/frontend/context/current.txt — appended (not rewritten) with a
+   2026-08-01 entry summarizing this thread.
+
+MECHANISM CHOICE (per the issue's explicit ask to state and justify it)
+The issue named three options: useMutation, useQuery with enabled:false +
+refetch(), or retry inside the existing plain function. Chose the third.
+
+Why not useMutation: it would fit the codebase's existing mutation
+conventions (AddPlaceFlow already uses two — addPlace, createCity) and gets
+retry "for free" via React Query's machinery, IF retry is set explicitly
+(the issue's called-out trap: defaultOptions.queries.retry doesn't apply to
+mutations). But lookupCityCountry's non-throwing, always-resolves contract
+is asserted directly by an existing test ("silent-failure contract") and
+depended on by AddPlaceFlow's call site — routing it through useMutation
+would mean either changing that contract more invasively (a mutation's
+mutationFn needs to throw for retry to engage) or wrapping it awkwardly. It
+would also mean AddPlaceFlow.test.tsx's module-level mock of
+`hooks/useCities` (`lookupCityCountry`, `useCitySearch`, `useCreateCity`,
+`useCarryForwardCandidates`) would need a new `useGeocodeLookup`-shaped
+entry added for the D14 tests to keep passing — touching the exact test
+file BUG-71 has in flight, for a change unrelated to what BUG-71 is
+deciding. Retry-inside-the-function avoids all of that: lookupCityCountry's
+signature, call site, and never-throws contract are unchanged from
+AddPlaceFlow's perspective (only the resolved value gained one field), so
+zero risk of colliding with BUG-71's concurrent work on the same component
+and its test file. The tradeoff acknowledged in the issue — this duplicates
+retry policy that already exists in main.tsx's QueryClient — is accepted:
+the duplication is small (one loop, one constant), commented with why it
+exists, and the alternative's collision risk against in-flight BUG-71 work
+was judged the bigger cost right now.
+
+WHAT WAS EXPLICITLY NOT CHANGED
+- AddPlaceFlow.tsx:250-263 (the D14 distinct-region-ISO computation) and
+  the setAutoRegionIso call immediately after it — content is byte-for-byte
+  identical to before this PR. Diffed the final file against origin/main to
+  confirm: those lines appear unchanged, only new lines were added above
+  and below the block.
+- The existing AddPlaceFlow.test.tsx (D14 suite) — not touched at all; its
+  mock of lookupCityCountry doesn't include a `failed` field in its fixture
+  resolves, and that's fine — `failed` is `undefined` there, which is
+  falsy, so the `if (failed) {...return;}` branch is never taken and the
+  D14 logic executes exactly as it did before this PR. Ran that file
+  unmodified against the new component code to confirm — still 6/6 green.
+- AddPlaceFlow.tsx:357 (city search dropdown label) — untouched, BUG-72's
+  scope.
+- No backend files touched — ENV-02's infra cause is tracked separately.
+
+VERIFICATION RUN (all local, this worktree)
+  npm run check                clean (biome)
+  npm run type:check:all       clean
+  npm run test:backend         665 passed
+  npm run test:frontend        242 passed (32 files, includes both new/
+                                extended geocode test files)
+  npm run status:check         STATUS.md in sync
+  CI (PR #354)                 18/18 checks green (scripts/ci-wait.sh)
+  Manual browser check: NOT performed — same sandbox limitation as every
+  prior Frontend thread (no real Clerk key, firewall doesn't reach Clerk's
+  hosted sign-in from this devcontainer). The retry-proof test
+  (fake-timer-driven, asserting exact apiGet call counts) and the four
+  AddPlaceFlow UI-state tests are the verification for both the retry
+  mechanism and its visibility — no live network transient was available
+  to reproduce by hand in this environment.
+
+OPEN FLAGS FOR COO
+None blocking. One thing worth a look when convenient: the retry backoff
+(250ms fixed, 3 retries) adds up to ~750ms of extra wait in the worst case
+before the failure banner appears — reasonable for a foreground modal
+lookup but untested against real-world Nominatim/proxy latency distributions
+since this environment can't reach either. If ENV-02 recurs and the delay
+feels wrong in practice, the constants are isolated at the top of
+useCities.ts (GEOCODE_RETRY_ATTEMPTS, GEOCODE_RETRY_DELAY_MS) for an easy
+tune.
+
+WHAT'S NOW UNBLOCKED
+- BUG-73 is closed pending COO merge. A transient geocode proxy failure now
+  self-heals silently in the common case (retry) and, in the remaining
+  case, is visible and recoverable (manual entry always available, plus an
+  in-form Retry action) rather than a silent dead end.
+- No other thread depends on this directly; BUG-71 (D14 ambiguity ruling)
+  and BUG-72 (dropdown label) remain unaffected and un-collided-with.

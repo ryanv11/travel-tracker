@@ -555,3 +555,27 @@ survived. Added AddPlaceFlow.tsx's first-ever component test file
 confirmed by hand (git apply -R, not stash) that the zero-overlap case
 fails without the fix. PR #341 commit a5b9c3b, CI 9/9 green. Full detail
 appended to jobs/COO/inbox/20260731_2130-FRONTEND-adl46-stage4-complete.txt.
+
+UPDATE 2026-08-01 — BUG-73 (#352/PR #354): geocode lookup failure made
+visible. lookupCityCountry (src/frontend/hooks/useCities.ts) bypasses React
+Query, so main.tsx's QueryClient retry:3 default never applied to it — a
+transient GET /api/geocode failure (the ENV-02 502s from the ADL-46
+shakedown) rendered identically to "found nothing" and "never ran", no
+signal reached the user. Added fetchGeocodeResultWithRetry (3 retries, 250ms
+fixed backoff, matches the query default's attempt count) inside
+lookupCityCountry itself — chose this over useMutation/useQuery+enabled
+specifically to avoid restructuring AddPlaceFlow's call site or its D14 test
+mock while BUG-71 is in flight on the same file. lookupCityCountry's
+resolved value now carries `failed: boolean`, so "retries exhausted" is
+distinguishable from a genuine "no match" (previously both collapsed to the
+same null/empty shape) — AddPlaceFlow.tsx shows a non-blocking failure
+message with a manual Retry action once retries are exhausted; manual entry
+stays fully usable throughout. Did not touch AddPlaceFlow.tsx:250-263 (D14
+ambiguity logic, BUG-71) — content is byte-for-byte unchanged, only
+surrounding lines added. New test file
+src/frontend/components/TripDetail/__tests__/AddPlaceFlow.geocodeFailure.test.tsx
+(kept separate from the existing D14-scoped AddPlaceFlow.test.tsx to avoid
+touching that file at all). useCities.geocode.test.tsx extended with a
+retry-proof test (apiGet fails twice, succeeds on the 3rd call) and the
+`failed` discriminator across all existing cases. CI 18/18 green on PR #354.
+No backend files touched; BUG-72's city-search dropdown label untouched.
