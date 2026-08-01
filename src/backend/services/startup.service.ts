@@ -14,10 +14,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { count, sql } from 'drizzle-orm';
-import { activities, countries, getDb, regions, tripCategories } from '../db/index.js';
-
-// Re-import seed data from the DATABASE seed script to avoid duplication
-import { ACTIVITIES, TRIP_CATEGORIES } from '../db/seed-data.js';
+import { countries, getDb, regions, users } from '../db/index.js';
+import { activityRepository } from '../repositories/activities.js';
+import { tripCategoryRepository } from '../repositories/tripCategories.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -81,34 +80,35 @@ export async function assertForeignKeysEnabled(): Promise<void> {
 // ----------------------------------------------------------------
 
 /**
- * Seeds trip_categories and activities with default values if any are
- * missing. Uses onConflictDoNothing() — idempotent, safe on every startup.
+ * Reconciles per-user trip_categories and activities defaults for every
+ * existing user. Idempotent — each per-user seed uses onConflictDoNothing on
+ * the (user_id, name) unique index.
  *
- * ADL-28 (AD-07/AD-08): companions and map_shading_config used to be seeded
- * here too, but both are now per-user (userId NOT NULL FK) — there is no
- * single global row set to seed at server startup any more. companions has
- * no default list post-migration; map_shading_config is lazily seeded
- * per-user on first access to the shading config endpoint
- * (shadingConfigRepository.seedDefaults, ADL-28 repository section —
- * Backend brief, not yet implemented). trip_categories and activities
- * remain global seeded defaults (AD-09, unaffected by this ADL).
+ * ADL-46 (AD-09, D3): trip_categories and activities are now per-user
+ * (userId NOT NULL FK) — there is no single global row set to seed at startup
+ * any more. New users are lazily seeded on first access (read or write) via
+ * the repositories' ensureSeeded; this startup pass is the reconciliation
+ * half of §3.2.1 — it back-fills defaults for users who predate the change
+ * (e.g. a pre-existing non-owner whose lists were never populated by the S3
+ * migration's owner-only CROSS JOIN backfill). Because ensureSeeded only fires
+ * when a user has zero rows, this pass will NOT resurrect entries a user has
+ * deactivated — it seeds only users who have no rows at all.
+ *
+ * ADL-28 (AD-07/AD-08): companions and map_shading_config are likewise per-user;
+ * companions have no default list post-migration, and map_shading_config is
+ * lazily seeded per-user on first access to the shading config endpoint.
  */
 export async function seedAdminData(): Promise<void> {
   const db = getDb();
 
-  // -- trip_categories --
-  await db
-    .insert(tripCategories)
-    .values([...TRIP_CATEGORIES])
-    .onConflictDoNothing();
-  console.info('[STARTUP] Admin data: trip_categories seeded');
-
-  // -- activities --
-  await db
-    .insert(activities)
-    .values([...ACTIVITIES])
-    .onConflictDoNothing();
-  console.info('[STARTUP] Admin data: activities seeded');
+  const allUsers = await db.select({ id: users.id }).from(users);
+  for (const u of allUsers) {
+    await tripCategoryRepository.ensureSeeded(u.id);
+    await activityRepository.ensureSeeded(u.id);
+  }
+  console.info(
+    `[STARTUP] Admin data: per-user categories/activities reconciled for ${allUsers.length} user(s)`,
+  );
 }
 
 // ----------------------------------------------------------------

@@ -37,7 +37,12 @@ export type ShadingStateKey =
 export interface Category {
   id: number;
   name: string;
-  is_active: number; // SQLite boolean: 0 | 1
+  // ADL-46: serializeCategory (src/backend/routes/categories.ts) coerces the
+  // SQLite 0|1 column to a real boolean before it ever reaches the wire —
+  // this type had said `number` since before the route moved and never
+  // matched the actual JSON. Fixed as part of the ADL-46 frontend stage
+  // (issue #340) per its instruction to verify shapes rather than assume.
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -45,7 +50,7 @@ export interface Category {
 export interface Activity {
   id: number;
   name: string;
-  is_active: number;
+  is_active: boolean; // see Category.is_active — same pre-existing fix
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +77,26 @@ export interface Region {
   iso_3166_2: string;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * A single candidate from GET /api/geocode's `candidates` array (ADL-46 D7/D14).
+ * See src/backend/routes/geocode.ts for the serialization.
+ */
+export interface GeocodeCandidate {
+  name: string;
+  display_name: string;
+  country_code: string | null;
+  region_iso: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+/** Response shape of GET /api/geocode (ADL-46 D7/D14, GE-15). */
+export interface GeocodeResult {
+  candidates: GeocodeCandidate[];
+  country_code: string | null;
+  region_iso: string | null;
 }
 
 // Minimal association shapes used inside trip responses

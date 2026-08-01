@@ -133,3 +133,41 @@ NEXT STEPS (for incoming QA)
   4. When all fixes verified:
        → Issue QA sign-off memo to COO
        → Request PO frontend UAT pass with script from qa-report-2026-03-20.md Part 6
+
+================================================================================
+2026-07-31 — ADL-46 ATDD TRIAL (RED ACCEPTANCE TESTS, PRE-IMPLEMENTATION)
+================================================================================
+
+  Branch: test/adl46-atdd (off origin/release/adl46-access-model — the
+  integration branch; Database stage already landed there, migrations
+  0014/0015, no route code yet).
+
+  Authored 32 new RED assertions in a new file,
+  src/backend/routes/__tests__/adl46-access-model.test.ts, encoding ADL-46's
+  end-state access matrix (§7/§8), D13 find-or-create invariants (§4.2.1),
+  and GE-16 pending/resolved city containment (§4.4) — BEFORE Backend
+  implements any of it. Also unskipped the §8.1 coverage-hole regression in
+  security.access-matrix.test.ts:457 (guard present since BUG-22, assertion
+  had silently never run).
+
+  Result: 14/32 new assertions red-for-the-right-reason (clean assertion
+  mismatches, zero exceptions); 18/32 already green (fail-closed guards +
+  vacuous-until-implemented anchors, included deliberately — must stay true
+  post-implementation). Did not touch the 34 pre-existing DB-stage failures
+  in trips.test.ts / lock-matrix.test.ts / owner-access.test.ts /
+  qa-backend-fixes.test.ts (out of scope, Backend's job).
+
+  SPEC GAP FOUND: owner-access.test.ts's HC-06 block (non-owner POST
+  /api/cities → 403) directly contradicts the ADL-46 end state and is
+  missing from ADL-46 §8.2's inventory of what breaks in that file (§8.2
+  only credits the HC-04/categories block). Flagged, not fixed — see
+  jobs/qa/tech/20260731-adl46-atdd-red-tests.md for the full writeup.
+
+  Full detail: jobs/qa/tech/20260731-adl46-atdd-red-tests.md
+  Park doc: jobs/qa/park-docs/20260731-QA-park.txt
+  PR: opened against release/adl46-access-model (NOT main) — red CI expected
+  and is the acceptance criterion, not a defect. COO merges.
+
+  NEXT: Backend stage (S1-S4) implements against this file as part of its
+  definition-of-done, including the owner-access.test.ts HC-06 gap this
+  thread surfaced.

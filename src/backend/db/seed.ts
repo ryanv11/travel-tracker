@@ -19,38 +19,34 @@ import { config } from 'dotenv';
 
 config({ path: '.env.local' });
 
+import { activityRepository } from '../repositories/activities.js';
+import { tripCategoryRepository } from '../repositories/tripCategories.js';
 import { getDb } from './index.js';
-import { activities, tripCategories } from './schema.js';
-import { ACTIVITIES, TRIP_CATEGORIES } from './seed-data.js';
+import { users } from './schema.js';
 
 /**
- * Seeds all default admin list tables.
- * Each insert uses onConflictDoNothing() — safe to repeat without side effects.
+ * Seeds default per-user admin lists for every existing user.
+ * Each per-user seed uses onConflictDoNothing() — safe to repeat.
  *
- * ADL-28 (AD-07/AD-08): companions and map_shading_config are no longer
- * global-seeded here. Both tables are now per-user (userId NOT NULL FK).
- * companions has no default list post-migration (users build their own from
- * an empty list); map_shading_config is lazily seeded per-user on first
- * access to the shading config endpoint (shadingConfigRepository.seedDefaults,
- * ADL-28 repository section — Backend brief, not yet implemented). Only
- * trip_categories and activities remain global seeded defaults (AD-09,
- * unaffected by this ADL).
+ * ADL-46 (AD-09, D3): trip_categories and activities are per-user now
+ * (userId NOT NULL FK) — there is no global default list to seed. This script
+ * back-fills the default categories/activities for every existing user; new
+ * users are lazily seeded on first access (repositories' ensureSeeded).
+ *
+ * ADL-28 (AD-07/AD-08): companions and map_shading_config are likewise per-user;
+ * companions have no default list post-migration, and map_shading_config is
+ * lazily seeded per-user on first access to the shading config endpoint.
  */
 async function seed(): Promise<void> {
   console.log('[SEED] Starting seed...\n');
   const db = getDb();
 
-  await db
-    .insert(tripCategories)
-    .values([...TRIP_CATEGORIES])
-    .onConflictDoNothing();
-  console.log(`✓ trip_categories seeded (${TRIP_CATEGORIES.length} rows attempted)`);
-
-  await db
-    .insert(activities)
-    .values([...ACTIVITIES])
-    .onConflictDoNothing();
-  console.log(`✓ activities seeded (${ACTIVITIES.length} rows attempted)`);
+  const allUsers = await db.select({ id: users.id }).from(users);
+  for (const u of allUsers) {
+    await tripCategoryRepository.ensureSeeded(u.id);
+    await activityRepository.ensureSeeded(u.id);
+  }
+  console.log(`✓ per-user categories/activities seeded for ${allUsers.length} user(s)`);
 
   console.log('\n[SEED] Complete.');
 }

@@ -1,11 +1,175 @@
-UX CONTEXT — 2026-07-27 (updated — S4 trip-list/status-pill/activities spec delivered)
+UX CONTEXT — 2026-08-01 (updated twice same day — city entry/disambiguation spec delivered,
+then extended with a resolution design + MVP scope after PO follow-up)
 PROJECT: Travel Tracker
-CURRENT STATUS: Waypoint Phase 1+2 fully shipped, UAT PASS, CLOSED (see prior entries
-below). New thread this session: Wave 0 scoping brief S4 (GitHub #274), a batched spec
-covering BUG-53 (trip-list place display), UX-11 (status pill colours vs map shading),
-BUG-54 (category/activity colour — ruled parked), BUG-47 (auto-populate activities), and
-a ruling on BUG-46 (fix, not delete). Spec delivered, no open UX-owned questions. Next
-step is COO's: BRD gate (3 new IDs recommended, not added by me) + brief dispatch.
+CURRENT STATUS: Same-day addendum to the GE-16 city entry spec
+(jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md), still PR #344. Original
+spec covered entry/disambiguation/pin-vs-no-pin/canonicalisation and flagged that GE-16's
+correction mechanism ("Change city") had no UI anywhere. COO follow-up asked for a single
+recommended design (not a menu) for HOW a user resolves an unlocated place, shown as worked
+flows with named examples — added as new §11. A second COO follow-up then reframed the
+whole thing as probably-edge-case-until-measured (a shipped ambiguity-classification bug is
+being fixed separately, and geocode_status has zero production data) and asked for an
+explicit MVP scope — added as new §12. Both sections are in the same PR/file; §11 is the
+design of record for later, §12 is what I'd actually ship first. See the COMPLETED THREAD
+entry below for detail; see prior entries further down for the S4 thread (2026-07-27).
+
+================================================================================
+COMPLETED THREAD — city entry & disambiguation spec, +resolution design/MVP addendum (2026-08-01)
+================================================================================
+
+  Brief: dispatched directly by COO (not a GitHub issue at brief time), ahead of the
+  Architect, per explicit PO framing: design the ideal experience first, let the data
+  model serve it. Deliverable: jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md.
+
+  Sourcing discrepancy caught and resolved (§0 of the spec): the brief pointed at
+  jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md for two named findings
+  (F1/F2, the Springfield auto-pick and stale-coordinates-after-repoint bugs). That file
+  does not exist anywhere — verified by two independent probes (local find/ls, and
+  git ls-tree against both origin/main and origin/release/adl46-access-model). The content
+  was real; traced it to ADL-46-non-owner-access-model.md §4.3.1/§4.4.3 instead and worked
+  from there. Flagged to COO rather than silently substituted.
+
+  Design, top to bottom: a three-tier precedence rule (explicit user choice > trip-country-
+  constrained suggestions > unconstrained discovery) governs every auto-suggestion in the
+  flow. Country field is never silently auto-committed (the actual fix for Rome-Italy-vs-
+  Rome-Georgia — a frontend sequencing change, no backend dependency). Region disambiguation
+  refines, not replaces, the D14 mechanism already shipped un-spec'd on the in-flight
+  release/adl46-access-model branch (PR #341) — labelling and optgroup grouping only.
+  Pin-vs-no-pin: no fabricated placeholder pin (rejected as worse than none — wrong 100% of
+  the time vs. sometimes), but a single combined "N places not yet located" map affordance
+  (next to MapLegend, expandable, status-coded rows) rather than silent omission or two
+  competing counters. Canonicalisation: rejected a canonical-name-plus-aliases data model
+  outright (real complexity for a cosmetic want, and works against the convergence
+  resolve-then-create exists for) — one-time disclosure instead, plus a cheap non-UX
+  mitigation flagged to Backend (accept-language=en on the geocoder call). Disagreement
+  case: deliberately given the SAME messaging as "not yet attempted" (pending) — the user's
+  available action is identical either way, so a distinct alarm state would be new UI for
+  no new decision.
+
+  GE-16's correction mechanism ("re-point a place's city at any time") has zero UI today —
+  confirmed by reading PlaceSection.tsx's header in full. Designed a standing, always-
+  visible "Change city" control (not gated behind a status badge, since GE-16's right isn't
+  conditional on status) that reuses the Add-Place search/create UI as a shared component,
+  PATCHing city_id instead of creating a new place. Backend dependency named precisely: the
+  PATCH accepting city_id (ADL-46 D11) exists on release/adl46-access-model but NOT yet on
+  main — verified both by reading places.ts on each ref, not assumed.
+
+  /cities/:id (CityItemsPage, IT-09) assessed in full per the brief's instruction to fold it
+  into this spec rather than treat it separately: solid craft (proper Waypoint tokens,
+  reuses shared components) but a real defect independent of this spec — its header has no
+  data source of its own (relies on router location.state, degrades to "This city" on a
+  refresh or direct link) — plus the additions this spec now needs from it (location-status
+  display, a "visited on N trips" line, explicitly NOT a city-editing form, since the fix
+  action is place-scoped per D11, not city-scoped).
+
+  One correction made mid-investigation and left visible rather than silently fixed: I
+  initially misjudged trip_countries as a schema-only, UI-less field (a naming-mismatch
+  grep miss — grepped the Drizzle symbol, not the frontend's own field name) before a
+  second probe (reading TripForm.tsx) found a fully-built optional Countries multi-select
+  already submitting it. Corrected before it reached the spec as a claim — the two-probe
+  rule catching its own near-miss, worth recording since it changed a real design
+  recommendation's framing (tier 2 is immediately usable, not a follow-on dependency).
+
+  Data-model implications named for the Architect (spec §7): region_name needed on
+  city-facing responses (parallel to the D-04 country_name precedent); a stable city-
+  metadata source for CityItemsPage's header; explicitly NO new city state and NO alias
+  table (both evaluated and rejected in the spec itself, not left as open questions); one
+  new Waypoint badge hue (`unlocated`, orange/hue 45) for the "location not found" state,
+  named as a small new token, not assumed free.
+
+  One thing I could not verify (stated as UNVERIFIED in the spec, not silently assumed):
+  live Nominatim response shapes/ordering — this devcontainer's firewall doesn't reach it;
+  designed against ADL-46's documented contract, flagged for confirmation during the
+  already-planned ADL-46 staging UAT.
+
+  ADDENDUM (same day, two follow-up COO messages) — §11 and §12 added to the same file/PR:
+
+  §11 answers "how does a user actually resolve an unlocated place," as one recommended
+  design (not a menu), per explicit PO instruction to show it as worked flows with named
+  examples rather than abstract state names. Read the actual current backend disposition
+  space first (jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md, which now exists — the
+  file my original brief pointed at under a different name was created for real the same
+  day, after my first pass; see below) rather than working from my own original taxonomy.
+  Core call: three user-facing remedy buckets (wait / pick / re-point-or-dismiss), NOT the
+  backend's four internal dispositions — collapsed `region-unconfirmed` into "wait" because
+  it has no second candidate to offer despite being technically "ambiguous," on the same
+  principle already used elsewhere in the spec (a distinction that doesn't change the
+  available action doesn't earn separate UI). Added a promotion rule the backend ruling
+  makes necessary but doesn't itself provide: a `pending` row that has exhausted its retry
+  budget must read as terminal in the UI even though the backend never marks it
+  `unresolvable` — continuing to say "still confirming" past that point would be dishonest.
+  Four worked flows written to the brief's exact four cases (ambiguous Springfield, offline-
+  created Lyon, an unresolvable fictional hamlet, wrong-Rome-Georgia) using named personas.
+  On the dropped-pin idea the COO/PO already rejected: agreed with the rejection on my own
+  reasoning (same catalogue-drift shape as my own alias-name rejection), not deference —
+  and named the one place the COO's stated reasoning is weaker than claimed (the effort-
+  comparison argument doesn't really hold for the terminal/village case) rather than
+  silently smoothing it over.
+
+  §12 scopes an MVP after a second COO message reframed the whole feature as probably-edge-
+  case-until-measured: a share of today's shipped "ambiguous" cases is itself a bug (being
+  fixed on the integration branch, issue #345) inflating the apparent problem size, and
+  geocode_status has zero production data yet. Verified the COO's two claims myself rather
+  than taking them on relay, per instruction: UpdatePlaceDatesSchema on the release branch
+  does already accept an optional city_id (confirmed in both the zod schema file, which
+  carries an explicit ADL-46 D11 comment, and the route handler) — but PlaceDateForm.tsx is
+  a small, genuinely dates-only modal with no city field and a mutation hook whose signature
+  doesn't accept one. Concluded a DIFFERENT, equally small, separate modal (reusing only
+  AddPlaceFlow's search step, no date fields) is the right home, not an extension of
+  PlaceDateForm — retrofitting city search into a form named and scoped around dates is
+  exactly the kind of component scope-creep this role exists to catch. MVP itself: the
+  standing Change City control (unconditionally, not gated on any badge) + one single
+  undifferentiated "Location not confirmed" badge with zero new hues + keep the cheap §3.2
+  country-safeguard and §3.4 creation-time messaging. Explicitly deferred: the three-bucket
+  split, the persisted-candidate one-tap picker, the map's "N places not yet located"
+  counter, and Dismiss — each with a stated concrete trigger to revisit, not "later."
+  Two things named as NOT safe to cut even under "make it very small," since the PO asked
+  directly: the standing Change City control itself (without it a wrong/missing city is
+  permanently unfixable short of losing the place's items), and SOME passive signal that a
+  place's location isn't confirmed (without any signal at all, a working correction control
+  has zero discoverability — the exact framing the original brief opened with).
+
+  A small bug found while verifying, flagged not fixed: the existing
+  geocodeRetryQueue.ts's attemptRetry only removes a queue entry on
+  geocode_status === 'resolved', so a city that ends up `unresolvable` gets polled by the
+  frontend forever on its 10-minute floor even though the backend has permanently stopped
+  trying. MINOR, named for a small Frontend follow-up.
+
+  Also worth recording: the file my original brief cited
+  (jobs/architect/tech/20260731-ADL46-release-fresh-eyes-review.md) — which I reported as
+  not existing anywhere, on two probes, in my first pass — turned out to be real; it was
+  created for the first time later the same day as part of the ADL-46 release's own
+  pre-merge review (PR #342), after my original spec had already gone out. My original
+  negative finding was correct at the time it was made; recording the resolution here so a
+  future reader doesn't read it as a probing error.
+
+  GIT: Branch docs/ux-city-entry-disambiguation-spec (unchanged — same branch, same PR
+  #344, extended in place). See completion report in jobs/COO/inbox/ for CI status.
+
+================================================================================
+NEXT ACTIONS (this thread)
+================================================================================
+
+  COO: route this spec (jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md) to
+  the Architect for the data-model review named in its §7 before any Frontend brief is cut
+  from it — the brief that dispatched this work was explicit that the data model comes
+  second. Two things flagged for COO judgement specifically: (1) the filename discrepancy
+  in §0 — the brief cited a fresh-eyes-review file that doesn't exist; (2) PR #341 on
+  release/adl46-access-model already ships a UX-unreviewed version of the region-
+  disambiguation control this spec refines (§3.3) — doesn't block that PR's merge, but the
+  refinement (labelling/grouping) should land as a small Frontend follow-up rather than be
+  treated as done.
+
+  ADDENDUM to next actions: the §0 filename discrepancy above is now resolved (see the
+  addendum note above) — the file exists now, just wasn't written yet when I first probed.
+  For §12 (MVP): if the COO/PO want to dispatch a Frontend brief straight from this spec,
+  I'd recommend briefing §12's MVP scope specifically, not §11's fuller design, given §9's
+  now-stated position that this feature's real-world urgency is unmeasured. §11 stays as
+  the design of record for whenever usage data or a UAT observation trips one of §12.3's
+  named triggers.
+
+  My next thread: standard review-against-spec pass once Frontend implements, same pattern
+  as prior Waypoint/S4 reviews.
 
 ================================================================================
 ROLE SUMMARY
