@@ -2591,6 +2591,18 @@
     },
 
     {
+      "id": "QUAL-25",
+      "type": "chore",
+      "title": "Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3",
+      "status": "in_progress",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "PO direction 2026-08-02: pause the ADL-48 dispatch and assess a comprehensive city import on a separate branch first. RATIONALE, and it is the load-bearing fact: ADL-48 is 100% design — its own §15.1 item 7 states 'No code was written and no test was run', and every number in it comes from probe scripts against npm package data in a scratch directory, never against this application. Its OP-27 review then found 7 defects, two blocking. Committing to a three-stage build on that basis is the risk the spike removes. SCOPE (7 questions, branch spike/gazetteer-feasibility, draft PR, nothing merges): Q1 search performance at 170k rows — the PO's primary question; the live search is like(cities.name,'%q%') at cities.ts:48, a leading-wildcard match SQLite cannot serve from an index, free at 3 rows and a full scan per keystroke at 170,540. Q2 narrowing by trip country — trip_countries exists (schema.ts:442, COO-verified), and the PO's own constraint is the crux: region can never be a narrowing key because the user types the city BEFORE the region is known, so country is the last available signal; filter-vs-rank to be settled by measurement, with ranking preferred if fast enough (shortlist-not-filter, ADL-48 §6.9). Q3 Turso cold-seed cost and storage — ADL-48 §8.3's unmeasured number, all its timings are local libSQL; bounded write authorisation to a throwaway scratch table only, dropped after. Q4 does Nominatim actually have Plockton/Shieldaig/Dornie — UNVERIFIED and load-bearing: ADL-48's entire gazetteer-FIRST-not-ONLY shape rests on the geocoder covering the tail, and if it doesn't, §2.1 must be re-decided. Q5 S1 correctness with review findings F2 (regions must be UPSERT on iso_3166_2, never delete-and-reload — cities.region_id FKs into an AUTOINCREMENT id) and F4 (2 of 716 rows generate as garbage 'ID-'/'PH-') folded in. Q6 BUG-75 identity-key call, now decidable against real data. Q7 verdict. || COO NOTE on the rollback half of the PO's proposal, which was ASKED AND ANSWERED, not skipped: the PO asked whether we could selectively roll main back to where it would have been had this been decided upfront. Checked rather than assumed — the answer is that there is no rollback target, because ADL-48 is gazetteer-first, not gazetteer-only. The geocoder is explicitly kept for the tail (Plockton et al. are in no dataset, and Scotland is the dogfood trial), so the geocoding machinery — threaded through 16 non-test files — the geocode_status state machine, BUG-73's retry/banner and the D13 index all stay; the gazetteer sits IN FRONT of that code rather than replacing it. Where the PO's instinct DOES apply is the documents, not the code: QUAL-24's four-way reconciliation should wait, because ADL-48 §12.2 states the GE-15 amendment gets smaller if the gazetteer lands. || A no-go verdict is a successful outcome here; the spike was commissioned precisely because the design has never met real code."
+    },
+
+    {
       "id": "ENV-02",
       "type": "chore",
       "title": "Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out",
