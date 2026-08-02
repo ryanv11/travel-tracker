@@ -55,6 +55,19 @@ test-results/
 # (the watcher script + LaunchAgent plist) is checked in, see .claude/hooks/notify.sh
 .claude/notify/queue/
 
+# ADL-48 gazetteer spike artefacts (spike/gazetteer-feasibility).
+# `data/gazetteer-cities.json` is a ~17 MB generated blob regenerated in one command by
+# `scripts/generate-gazetteer.mjs`. Deliberately NOT committed during the spike — whether
+# that blob ever belongs in git history is one of the open decisions the spike raises, and
+# committing it here would settle it by accident. Its row count, byte size and content hash
+# are recorded in jobs/architect/tech/20260802-ADL48-feasibility-spike.md instead.
+# `data/vendor/` holds upstream inputs copied out of node_modules (see F3 in that report).
+data/gazetteer-cities.json
+data/gazetteer-meta.json
+data/regions.generated.json
+data/vendor/
+spike-gazetteer.db*
+
 # Agent worktrees (isolation: "worktree" dispatches, OP-19). Each is a full checkout of
 # this repo — currently ~492 MB across all of them. ADL-39 assumed these were already
 # ignored; they were not, so any `git add -A` from the main checkout would stage entire
