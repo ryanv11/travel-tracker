@@ -1,0 +1,183 @@
+DATABASE PARK DOCUMENT — 2026-08-02
+THREAD: BUG-77 / ADL-48 S1 — seed subdivisions for all 26 region-tier countries
+BRANCH: fix/bug77-region-subdivisions-seed
+ISSUE:  #367   TRACKER: BUG-77   DEFECT CLASS: gap
+
+================================================================================
+1. WHAT WAS ASKED, AND WHAT SHIPPED
+================================================================================
+Asked: all 26 region_tier_enabled countries seeded with their ISO 3166-2
+subdivisions (714 rows, up from 76 across 4 countries), with the startup gate
+changed from row-count to content-hash so a regenerated file actually applies,
+the upstream dataset vendored rather than depended on, and malformed rows
+filtered generally.
+
+Shipped exactly that. NO schema change. NO migration. Nothing was written to a
+remote database at any point.
+
+Files:
+  data/regions.json                     76 -> 714 rows (pure-append diff)
+  data/vendor/iso3166-2.json            NEW, 3.35 MB, vendored upstream input
+  data/vendor/iso3166-2.LICENSE         NEW, MIT licence text
+  data/vendor/README.md                 NEW, provenance + refresh procedure
+  .gitignore                            data/vendor/ narrowed to track those 3
+  scripts/generate-gazetteer.mjs        S1-only mode, stable ordering, coverage proof
+  src/backend/services/startup.service.ts   seedRegions() re-gated + upsert
+  src/backend/services/__tests__/startup.service.test.ts   11 new tests
+  jobs/architect/tech/ADL-48-bundled-gazetteer.md          §8.1 + §11 stamps
+  jobs/architect/tech/20260307-architecture-decisions-log.md  ADL-48 status block
+  jobs/database/tech/20260802-bug77-region-seed.md         NEW technical note
+
+================================================================================
+2. THE ONE THING A FUTURE READER MUST NOT GET WRONG
+================================================================================
+`regions` MUST NEVER BE DELETED AND RELOADED.
+
+  cities.region_id REFERENCES regions.id     (schema.ts:101; migration 0000
+                                              line 23; PRAGMA foreign_key_list
+                                              at runtime — three probes)
+  regions.id IS AUTOINCREMENT                (schema.ts:72; migration 0000
+                                              line 145; sqlite_master at
+                                              runtime — three probes)
+  FK enforcement is ON at boot               (assertForeignKeysEnabled())
+
+So DELETE + reload re-issues ids and repoints every existing city at a
+different subdivision — or aborts on the FK. Either way it is wrong, and the
+silent variant is the dangerous one: nobody would notice until a user saw
+their city had moved state.
+
+ADL-48 §8.1 defines hash-gated seeding ONLY as DELETE + batch-insert, and
+§11's S1 row invokes that mechanism BY NAME. An implementer reading §8.1 for
+the mechanism builds the corruption. §8.1's own safety argument is "because
+nothing references gazetteer_cities" — true there, false for regions. Both
+sections now carry a dated stamp, and the main ADL log entry carries an
+implementation-status block, so the next reader hits the correction before the
+text that would mislead them.
+
+================================================================================
+3. DESIGN DECISIONS I MADE, AND WHY
+================================================================================
+Three points where the brief left a choice. Each is a place a reviewer might
+reasonably land differently, so the reasoning is here rather than only in code.
+
+(a) DO UPDATE SET name/country_code, not DO NOTHING.
+    The brief offered either. DO NOTHING is not convergent under a
+    content-hash gate: an upstream name correction would leave the table's
+    hash permanently different from the file's, so the seed would re-run on
+    every boot, forever, without ever fixing the row it keeps noticing. The
+    UPDATE is narrowed by drizzle's setWhere to rows that genuinely differ, so
+    a purely additive run does not touch — or bump updated_at on — a single
+    existing row (verified: 0 touched). country_code is included so the gate
+    can converge on it too; the generator's own safety gate fails the build if
+    a currently-seeded code's country_code ever changed, so a country_code
+    rewrite cannot ship silently.
+
+(b) The content hash is COMPUTED FROM THE TABLE, not stored.
+    ADL-48 §8.1 stores a hash in a gazetteer_meta table. There is no meta or
+    key-value table today (checked two ways: sqliteTable exports in schema.ts,
+    and every CREATE TABLE across all 16 migrations), and adding one is a
+    schema change the brief explicitly did not expect — so the gate hashes the
+    bundled file and hashes what the table actually holds for those codes, and
+    compares. Cost is one SELECT of three columns over 714 rows (~30 KB, one
+    round trip, 3 ms measured), zero writes. This is also strictly stronger
+    than a stored marker: it detects drift applied directly to the database,
+    which a stored hash would happily vouch for.
+
+    If S2 later adds gazetteer_meta, moving this gate onto it would be a
+    reasonable simplification — but it would trade away that property, so it
+    should be a deliberate choice, not a tidy-up.
+
+(c) Output ordering is append-preserving, not sorted.
+    Rows already in data/regions.json keep their position; new rows append.
+    Two payoffs. The regeneration diff becomes a PURE APPEND (639 insertions,
+    1 deletion — and that one deletion is GB-NIR re-added with a trailing
+    comma), so "all 76 existing codes preserved byte-for-byte" is visible in
+    the diff itself instead of being taken on trust from the script's own
+    output. And because row order is INSERT order under AUTOINCREMENT, a
+    FRESH database still assigns the pre-existing codes their original ids.
+    Nothing hard-codes a region id (checked), so that half is belt-and-braces.
+
+================================================================================
+4. PROOFS — all re-derived here, none inherited
+================================================================================
+Generator (node scripts/generate-gazetteer.mjs, exit 0):
+  714 generated rows; 0 duplicate iso_3166_2
+  76/76 live codes preserved; 0 missing; 0 name/country mismatches; +638 net
+  2 dropped, both named: ID "West Papua", PH "Negros Island Region"
+  26/26 region-tier countries with >= 1 subdivision; 0 empty
+
+Real on-disk libSQL database pre-loaded with the historical 76:
+  PRAGMA foreign_keys = 1
+  cities FK: region_id -> regions.id
+  regions.id AUTOINCREMENT: true
+  regions indexes: uniq_regions_iso_3166_2(unique=1) idx_regions_country(0)
+  run 1: 76 -> 714 in 23 ms; 76/76 preserved with SAME ids; 0 updated_at
+         touched; city "Edinburgh" still points at the same GB-SCT row;
+         0 orphaned cities.region_id
+  run 2: skipped in 3 ms; table byte-identical
+
+Test suite: 679 backend tests pass (35 files), including 11 new seedRegions()
+tests run against the real migrations with FK enforcement ON. The tests read
+the REAL data/regions.json rather than a fixture, so the shipped artifact
+cannot drift while they stay green.
+
+================================================================================
+5. THE F4 FILTER IS GENERAL, AND THAT MATTERS MORE THAN THE TWO ROWS
+================================================================================
+Two subdivisions in the enabled set carry an empty upstream `iso` field and
+would seed as "ID-" and "PH-" — non-null and distinct, so they pass NOT NULL
+and the unique index and land as permanently unmatchable garbage.
+
+The filter is a general `iso === ''` test, applied to every country, in both
+the subdivision output AND the GeoNames crosswalk. 196 such rows exist across
+29 of the 234 countries, so this grows every time GE-07 enables another
+country. Dropped rows are printed by name, never silently.
+
+================================================================================
+6. DEPENDENCY CALL
+================================================================================
+iso3166-2-db is NOT a dependency. Confirmed by measurement: the published
+tarball is 18 MB and declares 42,268 files, unpacking to ~283 MB, for exactly
+one 3.35 MB file the generator reads. This repo installs node_modules per
+agent worktree and on every CI run, so that is paid repeatedly.
+
+data/vendor/iso3166-2.json is committed instead, with its MIT licence text and
+a README recording source, version 2.3.11, SHA-256
+c2cbb77d98388ee0fc779dcd559bc5f2890f3a89e19ea7dacfb30baa2e4e6422, what reads
+it, and the exact refresh procedure.
+
+cities.json was NOT vendored — it feeds only the S2 gazetteer half, which is
+out of scope here. That is why the generator gained an S1-only mode: requiring
+a 19 MB dependency to reproduce a shipped artifact that never reads it would
+have been the wrong trade.
+
+================================================================================
+7. WHAT IS NOW UNBLOCKED, AND WHAT IS NOT
+================================================================================
+UNBLOCKED: the BUG-30 class. A user adding a place in any of the 26
+region-tier countries is offered that country's subdivisions. Frontend needs
+no change — it already renders whatever regions exist for the country.
+
+NOT unblocked, and deliberately untouched:
+  - ADL-48 S2 (gazetteer_cities + gazetteer_meta + seedGazetteer). Blocked on
+    the BRD gate (GE-17/GE-18) and on the §8.3 Turso cold-seed timing probe.
+    S1 had to precede it — the crosswalk writes region codes that must exist —
+    and that ordering dependency is now satisfied.
+  - ADL-48 S3 (local-first lookup).
+  - ADL-48 S0 (the BUG-75 coordinate bucket) — REJECTED by the OP-27
+    fresh-eyes review, must be re-designed. Worth flagging from this seat: any
+    re-design lands on `cities`, whose unique index IS load-bearing for user
+    data, so it is a materially riskier change than this one was.
+
+================================================================================
+8. OPEN ITEMS FOR THE COO
+================================================================================
+1. The CC-BY attribution surface (ADL-48 §9) is still not discharged. This
+   thread vendored an MIT dataset, which carries no product-surface
+   obligation, so nothing here creates the debt — but it also does not pay it
+   down, and it becomes real the moment S2 bundles the GeoNames city data.
+2. ADL-48 §4.1's join figures are slightly off (84,257/1,746 vs the correct
+   84,226/2,336, per two independent re-derivations). Not decision-bearing and
+   not corrected here — it is S2 scope and belongs to the Architect.
+3. Tracker BUG-77 note needs the PR number; the BRD and tracker were not
+   edited by this thread, per brief.

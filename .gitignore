@@ -62,10 +62,19 @@ test-results/
 # committing it here would settle it by accident. Its row count, byte size and content hash
 # are recorded in jobs/architect/tech/20260802-ADL48-feasibility-spike.md instead.
 # `data/vendor/` holds upstream inputs copied out of node_modules (see F3 in that report).
+#
+# AMENDED 2026-08-02 (BUG-77 / ADL-48 S1, PR for issue #367): the spike's F3 recommendation
+# was adopted. `data/vendor/iso3166-2.json` (3.35 MB) is now COMMITTED and `iso3166-2-db` is
+# NOT a dependency — the package unpacks to 283 MB / 42,268 files and costs ~12 s of install
+# time per worktree and per CI run for this one file. The rest of `data/vendor/` stays ignored
+# so a future `cities.json` copy (S2) does not get committed by accident.
 data/gazetteer-cities.json
 data/gazetteer-meta.json
 data/regions.generated.json
-data/vendor/
+data/vendor/*
+!data/vendor/iso3166-2.json
+!data/vendor/iso3166-2.LICENSE
+!data/vendor/README.md
 spike-gazetteer.db*
 
 # Agent worktrees (isolation: "worktree" dispatches, OP-19). Each is a full checkout of

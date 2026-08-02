@@ -7,9 +7,10 @@
  * Updated startup sequence (Corrections message, 2026-03-07):
  *   1. seedAdminData()  — trip_categories, activities, companions, map_shading_config
  *   2. seedCountries()  — countries table from data/countries.json
- *   3. seedRegions()    — regions table from data/regions.json (US, AU, CA)
+ *   3. seedRegions()    — regions table from data/regions.json (all 26 region-tier countries)
  */
 
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -153,41 +154,151 @@ export async function seedCountries(): Promise<void> {
 }
 
 // ----------------------------------------------------------------
-// Region seed (Correction 2 — US, AU, CA pre-populated)
+// Region seed — ISO 3166-2 subdivisions (GE-01/GE-02/GE-03)
+//
+// Originally US/AU/CA only (Correction 2), extended to GB by BUG-30, and to all
+// 26 region_tier_enabled countries — 714 rows — by BUG-77 / ADL-48 S1.
 // ----------------------------------------------------------------
 
 /**
- * Populates the regions table from data/regions.json if the table is empty.
- * Seeds US (51), AU (8), CA (13) and GB (4) entries — 76 total.
- * Skips silently if already populated.
+ * Number of rows per upsert statement. Each row binds 3 parameters, so 200 rows is
+ * 600 bound parameters — comfortably under SQLite's most conservative historical
+ * SQLITE_MAX_VARIABLE_NUMBER of 999, which a single 714-row statement (2,142 params)
+ * would exceed on an older engine build. Only ever paid on a seed that actually runs.
+ */
+const REGION_UPSERT_CHUNK = 200;
+
+type RegionSeedRow = { country_code: string; name: string; iso_3166_2: string };
+type RegionContentRow = { countryCode: string; name: string; iso3166_2: string };
+
+/**
+ * Order-independent content hash over a set of region rows.
+ *
+ * `iso_3166_2` is the identity (it carries a UNIQUE index); `country_code` and `name`
+ * are the content. Sorting by the identity before hashing makes the digest independent
+ * of row order, so it compares the *content* of the seed file against the *content* of
+ * the table without caring how either is ordered.
+ *
+ * The separators are U+0001 and U+0002 rather than a printable delimiter, so a subdivision
+ * name containing the delimiter cannot forge a different field or row boundary and make two
+ * genuinely different row sets hash identically. Neither control character occurs in ISO
+ * 3166-2 data.
+ */
+const REGION_FIELD_SEP = String.fromCharCode(1);
+const REGION_ROW_SEP = String.fromCharCode(2);
+
+function regionContentHash(rows: RegionContentRow[]): string {
+  const canonical = [...rows]
+    .sort((a, b) => (a.iso3166_2 < b.iso3166_2 ? -1 : a.iso3166_2 > b.iso3166_2 ? 1 : 0))
+    .map((r) => [r.iso3166_2, r.countryCode, r.name].join(REGION_FIELD_SEP))
+    .join(REGION_ROW_SEP);
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
+/**
+ * Reconciles the regions table with data/regions.json — 714 ISO 3166-2 subdivisions
+ * covering all 26 `region_tier_enabled = 1` countries (BUG-77, ADL-48 S1).
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THIS SEED IS ADDITIVE. IT MUST NEVER DELETE AND RELOAD. Read before editing.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `cities.region_id` REFERENCES `regions.id` (schema.ts; migration 0000 line 23) and
+ * `regions.id` is AUTOINCREMENT. A DELETE + reload re-issues ids, which either aborts
+ * under the FK enforcement asserted at boot by assertForeignKeysEnabled(), or — if
+ * enforcement were ever off — silently repoints every existing city at a *different*
+ * subdivision. That corruption is invisible until a user notices their city moved state.
+ *
+ * ADL-48 §8.1 describes hash-gated seeding as DELETE + batch-insert, and §11's S1 row
+ * invokes that mechanism by name. **That pattern is correct only for a table nothing
+ * references** — §8.1 says so itself, justifying its safety as "nothing references
+ * gazetteer_cities". `regions` is referenced, so the mechanism here is an upsert instead.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY THE GATE CHANGED from `existingCount > 0`
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The previous gate returned early whenever the table held any rows at all. Staging and
+ * production each hold exactly 76 regions, so a regenerated 714-row file would never have
+ * been applied to either — the new subdivisions would ship and do nothing. This is the same
+ * row-count-gating trap that made BUG-30 require a hand-written patch migration (0008).
+ *
+ * The gate is now content-addressed: hash the bundled file, hash what the table holds for
+ * those same codes, compare. A data correction now applies itself on next boot with no
+ * migration.
+ *
+ * **Steady-state cost is one read and zero writes** — a single `SELECT` of three small
+ * columns (714 rows, ~30 KB, one round trip), then a hash comparison in memory. No stored
+ * hash, and therefore no schema change: persisting one would need a new meta table, and
+ * `regions` itself has nowhere to put it. Hashing the table instead of trusting a stored
+ * marker is also strictly stronger — it detects drift applied directly to the database,
+ * which a stored hash would happily vouch for.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY `DO UPDATE SET` RATHER THAN `DO NOTHING`
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Convergence. Under DO NOTHING an upstream *name* correction would leave the table's hash
+ * permanently different from the file's, so the gate would fail and re-run the seed on
+ * every single boot, forever, without ever fixing the row it keeps noticing. `setWhere`
+ * narrows the UPDATE to rows that genuinely differ, so a run that only adds new codes does
+ * not touch — or bump `updated_at` on — a single existing row.
+ *
+ * Rows present in the table but absent from the file are **left alone**, never deleted:
+ * one of them could already be referenced by a city. The gate only asks "is every bundled
+ * row present and correct", which is exactly what an additive seed can guarantee.
  */
 export async function seedRegions(): Promise<void> {
   const db = getDb();
 
-  const [{ value: existingCount }] = await db.select({ value: count() }).from(regions);
-  if (existingCount > 0) {
-    console.info('[STARTUP] Regions already seeded, skipping');
+  const dataPath = join(__dirname, '../../../data/regions.json');
+  const rawData = readFileSync(dataPath, 'utf-8');
+  const regionData = JSON.parse(rawData) as RegionSeedRow[];
+
+  const bundled: RegionContentRow[] = regionData.map((r) => ({
+    countryCode: r.country_code,
+    name: r.name,
+    iso3166_2: r.iso_3166_2,
+  }));
+  const bundledHash = regionContentHash(bundled);
+  const bundledCodes = new Set(bundled.map((r) => r.iso3166_2));
+
+  // --- The gate: one read, no writes. ---
+  const existing = await db
+    .select({
+      countryCode: regions.countryCode,
+      name: regions.name,
+      iso3166_2: regions.iso3166_2,
+    })
+    .from(regions);
+
+  const existingBundled = existing.filter((r) => bundledCodes.has(r.iso3166_2));
+  if (
+    existingBundled.length === bundled.length &&
+    regionContentHash(existingBundled) === bundledHash
+  ) {
+    console.info(
+      `[STARTUP] Regions up to date (${bundled.length} rows, content ${bundledHash.slice(0, 12)}), skipping`,
+    );
     return;
   }
 
-  const dataPath = join(__dirname, '../../../data/regions.json');
-  const rawData = readFileSync(dataPath, 'utf-8');
-  const regionData = JSON.parse(rawData) as Array<{
-    country_code: string;
-    name: string;
-    iso_3166_2: string;
-  }>;
+  for (let i = 0; i < bundled.length; i += REGION_UPSERT_CHUNK) {
+    await db
+      .insert(regions)
+      .values(bundled.slice(i, i + REGION_UPSERT_CHUNK))
+      .onConflictDoUpdate({
+        target: regions.iso3166_2,
+        set: {
+          name: sql`excluded.name`,
+          countryCode: sql`excluded.country_code`,
+          updatedAt: sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
+        },
+        // Only rewrite rows whose content actually differs. Keeps a purely additive
+        // run from touching, or bumping updated_at on, any pre-existing row.
+        setWhere: sql`${regions.name} IS NOT excluded.name OR ${regions.countryCode} IS NOT excluded.country_code`,
+      });
+  }
 
-  await db
-    .insert(regions)
-    .values(
-      regionData.map((r) => ({
-        countryCode: r.country_code,
-        name: r.name,
-        iso3166_2: r.iso_3166_2,
-      })),
-    )
-    .onConflictDoNothing();
-
-  console.info(`[STARTUP] ✓ Regions seeded (${regionData.length} rows)`);
+  const [{ value: totalAfter }] = await db.select({ value: count() }).from(regions);
+  console.info(
+    `[STARTUP] ✓ Regions reconciled (${bundled.length} bundled, ${existingBundled.length} already present, ${totalAfter} total, content ${bundledHash.slice(0, 12)})`,
+  );
 }

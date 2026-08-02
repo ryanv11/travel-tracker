@@ -1,6 +1,17 @@
-DATABASE CONTEXT — 2026-07-23
+DATABASE CONTEXT — 2026-08-02
 PROJECT: Travel Tracker
-CURRENT STATUS: BRD-AD07/BRD-AD08 (ADL-28) schema/migration half implemented
+CURRENT STATUS: BUG-77 / ADL-48 S1 implemented on
+fix/bug77-region-subdivisions-seed — data/regions.json 76 -> 714 rows covering
+all 26 region_tier_enabled countries, seedRegions() re-gated from row count to
+content hash, additive upsert (never delete-and-reload — cities.region_id
+references regions.id, which is AUTOINCREMENT). NO schema change and NO
+migration. See "THREAD — BUG-77 / ADL-48 S1 subdivision seed" at the end of
+this file.
+
+================================================================================
+PRIOR STATUS LINE (2026-07-23, preserved for history)
+================================================================================
+BRD-AD07/BRD-AD08 (ADL-28) schema/migration half implemented
 on feat/ad07-ad08-schema-migration — companions and map_shading_config both
 now userId-scoped (FK cascade, unique index / composite PK), migration 0012
 applied, owner-backfill verified against seeded pre-migration data. See
@@ -496,3 +507,95 @@ NEXT DATABASE THREAD:
   userId scoping + per-user cache, trips.ts replaceAssociations ownership
   validation). COO to update BRD-AD07/BRD-AD08 tracker notes once this PR
   merges (still "in-progress" — schema half only, not full feature).
+
+================================================================================
+THREAD — BUG-77 / ADL-48 S1 subdivision seed (2026-08-02)
+================================================================================
+Branch fix/bug77-region-subdivisions-seed · issue #367 · tracker BUG-77.
+Defect class: GAP (capability worked; reference data was incomplete).
+
+OUTCOME: data/regions.json 76 -> 714 rows. All 26 region_tier_enabled
+countries now have subdivisions; previously only US/AU/CA/GB did, so a user
+adding a place in Germany, Japan, India, Brazil or Mexico got an empty
+selector. NO schema change, NO migration — regions already existed; this is
+seed data plus startup logic.
+
+THE HAZARD, and why the mechanism differs from ADL-48 §8.1:
+regions must NEVER be deleted and reloaded. cities.region_id REFERENCES
+regions.id (schema.ts:101; migration 0000 line 23; confirmed at runtime via
+PRAGMA foreign_key_list) and regions.id is AUTOINCREMENT (schema.ts:72;
+migration 0000 line 145; confirmed in sqlite_master). A DELETE + reload
+re-issues ids and repoints every existing city at a different subdivision,
+or aborts under the FK enforcement asserted at boot. ADL-48 §8.1 defines
+hash-gated seeding ONLY as DELETE + batch-insert and §11's S1 row invokes it
+by name; §8.1's own safety argument is "nothing references gazetteer_cities",
+which is false for regions. Both sections now carry a dated stamp saying so,
+and the main ADL log entry carries an implementation-status block.
+
+MECHANISM AS SHIPPED (src/backend/services/startup.service.ts):
+  gate  — hash(bundled file) vs hash(table rows restricted to bundled codes).
+          One SELECT of three columns, zero writes, ~3 ms. No stored hash and
+          therefore no schema change: persisting one needs a meta table, and
+          none exists (checked two ways — schema.ts sqliteTable exports, and
+          every CREATE TABLE across all 16 migrations).
+  write — INSERT ... ON CONFLICT (iso_3166_2) DO UPDATE SET name,
+          country_code, updated_at, narrowed by drizzle setWhere to rows that
+          genuinely differ. Chunked at 200 rows (600 params) so a single
+          714-row statement cannot hit a conservative 999-parameter limit.
+  DO UPDATE rather than DO NOTHING is for CONVERGENCE: under DO NOTHING a
+  name correction leaves the hash permanently mismatched, so the seed would
+  re-run every boot forever without ever fixing the row it keeps noticing.
+  Rows present in the table but absent from the file are never deleted — one
+  could already be referenced by a city.
+
+WHY THE GATE HAD TO CHANGE: the old gate returned early on existingCount > 0.
+Staging and production each hold exactly 76 regions (verified by the OP-27
+review against the live tables), so a regenerated 714-row file would never
+have applied to either. Same row-count trap that made BUG-30 need a
+hand-written patch migration (0008_bug30_uk_region_seed.sql).
+
+PROOFS (all re-derived here, not inherited):
+  - 714 rows, 0 duplicate iso_3166_2.
+  - 76/76 pre-existing codes preserved byte-for-byte INCLUDING names, and
+    with their original ids; 0 rows had updated_at touched.
+  - Only 2 rows dropped, both named: ID "West Papua" and PH "Negros Island
+    Region", empty upstream ISO code, would have seeded as "ID-" / "PH-".
+    Filter is general (iso === ''), not a special case — 196 such rows exist
+    across 29 of the 234 countries, so this grows as GE-07 enables more.
+  - Additive against a real on-disk libSQL DB pre-loaded with the 76: 76 ->
+    714, a city pointing at GB-SCT still points at the same row, 0 orphaned
+    cities.region_id. Second run skips in 3 ms, table byte-identical.
+  - All 26 region-tier countries end with >= 1 subdivision; 0 empty.
+
+DEPENDENCY: iso3166-2-db is NOT taken as a dependency (283 MB / 42,268 files
+/ ~12 s install, per worktree and per CI run, for one 3.35 MB file). The file
+is vendored at data/vendor/iso3166-2.json with LICENSE (MIT) and provenance
++ refresh procedure in data/vendor/README.md. .gitignore narrowed from
+`data/vendor/` to `data/vendor/*` plus three negations.
+
+GENERATOR: scripts/generate-gazetteer.mjs gained an S1-only mode (cities.json
+input is now optional — it feeds only the S2 half), stable append-preserving
+output ordering so a regeneration is a pure-append diff, and a coverage proof
+(every region-tier country must end with >= 1 subdivision) added to its
+non-zero-exit safety gate.
+
+TESTING: 11 new seedRegions() tests in
+src/backend/services/__tests__/startup.service.test.ts, against the real
+migrations with FK enforcement ON. They read the REAL data/regions.json
+rather than a fixture, so the shipped artifact cannot drift while the tests
+stay green.
+
+jobs/database/tech/ mirror: added 20260802-bug77-region-seed.md. Did NOT copy
+data/regions.json in — it is a generated artifact with a canonical home and a
+generator that reproduces it, so a second copy would drift silently. Did not
+backfill the mirror's pre-existing migration gaps (out of scope, same
+judgment as prior threads).
+
+NEXT DATABASE THREAD:
+  None pending. ADL-48 S2 (gazetteer_cities + gazetteer_meta tables and
+  seedGazetteer) is the natural successor but is BLOCKED on the BRD gate
+  (GE-17/GE-18) and on the §8.3 Turso cold-seed timing probe, neither of
+  which this thread touched. ADL-48 S0 (the BUG-75 coordinate bucket) was
+  rejected by the OP-27 fresh-eyes review and must be re-designed before any
+  Database brief comes from it — note that any re-design lands on cities,
+  whose unique index IS load-bearing for user data.
