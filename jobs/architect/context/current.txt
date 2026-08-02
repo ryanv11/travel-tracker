@@ -1213,3 +1213,116 @@ STILL UNVERIFIED (unchanged): whether Nominatim actually has Plockton/Shieldaig/
 METHOD NOTE worth keeping: the ADL's two coverage probes were both NAME-based, so one wrong
 assumption (Gaelic/variant toponym) could produce both negatives. Two probes that share an
 assumption are one probe. The coordinate-radius probe is what made the absence claim safe.
+
+================================================================================
+2026-08-02 — ADL-48 FEASIBILITY SPIKE (branch spike/gazetteer-feasibility)
+Deliverable: jobs/architect/tech/20260802-ADL48-feasibility-spike.md
+================================================================================
+PO declined to commit to ADL-48 on design alone. Commissioned a spike: build it for real,
+measure it, return a verdict. First ADL-48 work where code was actually written and run —
+every prior number came from probe scripts against package data in a scratch directory.
+
+VERDICT: GO WITH FOUR CHANGES. The central decision (gazetteer-first, geocoder for the
+tail) survived being built and is cheaper than ADL-48 argued. Three stated mechanisms must
+change and one inherited defect is live in shipped code today.
+
+Q1 SEARCH PERF — the PO's primary question. THE headline finding:
+  Today's LIKE '%q%' = 8.7 ms and reads ALL 170,540 rows per keystroke. Verified by
+  EXPLAIN QUERY PLAN (SCAN using covering index — it does use the index, as a scan, which
+  is why it isn't worse; still O(n)). Prefix LIKE 'q%' gets a real range SEARCH at 0.1 ms
+  but is a SILENT PRODUCT REGRESSION: "vegas" stops finding Las Vegas, "orleans" stops
+  finding New Orleans. FTS5 token-prefix is DIFFERENTLY lossy (misses Alness from "ness":
+  9 rows vs 55). FTS5 TRIGRAM = 0.2 ms with a PROVABLY IDENTICAL result set — 30/30 terms
+  full id-set equality, full case parity. It is a drop-in. Costs +7.2 MB and REPLACES three
+  b-tree indexes. Constraint: undefined below 3 chars, returns 0 silently — the route must
+  enforce min-3 itself or it's a silent-wrong-answer trap.
+  REGIME: network-dominated. Turso RTT 29.5 ms vs 8.7 ms CPU, so trigram cuts total latency
+  only ~22%, NOT 40x. Anyone quoting 40x to the PO is quoting a local-file number the
+  deployed app never sees. The real argument is rows read: 4,264x fewer, and Turso bills on
+  rows read. Fix the shape for cost/server load, not latency; debounce is the latency lever.
+  Min length 3 + 250 ms debounce (1 char matches 65,743 rows). Cap 50 + a SEPARATE
+  COUNT/GROUP BY keeps ambiguity detectable — and unlike BUG-71 the DB knows the true total,
+  so "truncated" is a fact we return, not an inference.
+
+Q2 NARROWING — the tension dissolves rather than resolving:
+  Under LIKE, a hard WHERE filter is a 25x win (7.7 -> 0.3 ms) and ORDER BY rank buys
+  NOTHING (7.5-8.4 ms). So the PO's performance intuition was exactly right for the query
+  shape we have. But trigram unnarrowed (0.2 ms) already beats the FILTERED LIKE (0.3 ms) —
+  so once the shape is fixed there is no performance case for filtering at all and it
+  reverts to a pure product decision. RECOMMEND RANK. Filtering would hide all 3 "calais"
+  and all 49 "bergen" rows from a GB-declared trip — the day-trip-over-the-border case is
+  total, not marginal. Also: no-declared-countries degrades gracefully under rank, whereas a
+  filter has to special-case it.
+  IS COUNTRY THE LAST SIGNAL? NO. The trip's already-added places are an unused and much
+  stronger signal: 6 GB "Newport"s -> 1 within 100 km of an anchor (country only gets 32 -> 8).
+  Region genuinely IS unavailable — PO right on that half, and today doubly so: 22 of 26
+  region-tier countries have ZERO regions seeded. Recommend proximity as a later RANKING
+  term, not day one.
+
+Q3 TURSO — measured; write half blocked and I say so:
+  RTT 29.5 ms, batch(2000) 156 ms as ONE round trip, 2000-row VALUES stmt 33 ms. Full seed
+  wire time 2.8 s (VALUES) to 13.4 s (batch) — the VALUES shape is 5x better, worth putting
+  in the brief. Staging DB today 0.32 MB; production gazetteer footprint ~16.5 MB.
+  WRITES NOT MEASURABLE: the diagnostic token is read-only. I ATTEMPTED the authorised
+  scratch-table write deliberately so the refusal would be a second independent probe rather
+  than inheriting ADL-33 §5's text. Rejected ("SQL write operations are forbidden").
+  Post-check confirmed nothing was created, so nothing to drop. No user table touched.
+  RECOMMEND seedGazetteer() off the boot path FROM DAY ONE, not "if it exceeds the window" —
+  it sits in the awaited startup sequence before listen, and unmeasured write throughput on
+  a path where failure means the container never goes healthy is not worth it.
+
+Q4 NOMINATIM — STILL UNVERIFIED, and a bigger risk found underneath:
+  Unreachable: two probes (full read of init-firewall.sh allowlist; live curl, 23 ms local
+  REJECT). WebFetch was non-functional this session — 6 attempts, 5 hosts, INCLUDING
+  example.com as a control, so it's the tool not the target. Railway staging deploy log
+  array empty (ONE probe — explicitly NOT claiming such logs never existed).
+  OSM-presence proxy says all 9 present (Dornie direct: node 2133123145, typed Hamlet).
+  Stated as a proxy, not a Nominatim query.
+  THE REAL FINDING: nominatim-client.ts:81 filters every result to SETTLEMENT_TYPES
+  {city,town,village,hamlet,municipality}. Torridon/Gairloch/Applecross/Braemar denote
+  FEATURES as well as settlements. The risk is not "Nominatim lacks Plockton", it's
+  "Nominatim returns it and OUR OWN FILTER drops it". Neither ADL-48 nor its review drew
+  this distinction. The closing probe must check the returned `type`, not just that rows
+  came back — testing presence alone would give a FALSE PASS.
+
+Q5 S1 CORRECTNESS — generator built, run, proven:
+  714 rows (F4 dropped exactly 2: ID "West Papua", PH "Negros Island Region", both named in
+  the output, never silent). 76/76 preserved BYTE-FOR-BYTE, 0 missing, 0 name drift (I
+  compared names too, not just codes), 0 duplicate ISO, +638 net additive. F2 verified
+  MYSELF in schema.ts (FK, AUTOINCREMENT, uniq index, existingCount>0 early return) — not
+  inherited. Join 99.24% / NULL 1.37% — reproduces the REVIEWER, not ADL-48 (99.28/1.02).
+  Third independent derivation; ADL-48 §4.1 should be corrected.
+  F3 QUANTIFIED WITH A NUMBER THE REVIEW DIDN'T HAVE — INSTALL TIME: iso3166-2-db is
+  11,837 ms / 283 MB / 42,268 files vs cities.json 546 ms / 19 MB / 9 files, for ONE 3.35 MB
+  file. ~21x the install cost for 0.02% of the payload, paid per worktree AND per CI run.
+  RECOMMEND VENDORING. Spike deliberately did NOT add either package to package.json — a
+  spike shouldn't impose a 283 MB install on every CI run for work that ships nothing.
+
+Q6 BUG-75 — live defect today, and S1 IMPROVES it:
+  I MODELLED IT WRONG FIRST and caught it: grouping by raw region_iso invents a
+  discriminator the app doesn't have (region_id is forced NULL when region_tier_enabled=0),
+  which UNDERCOUNTS. Corrected model is time-dependent, so four scenarios not one:
+    A TODAY (76 regions)      8,876 rows / 5.20% unrepresentable, worst 8,092 km
+    B post-S1 (714 regions)   5,024 / 2.95% — REPRODUCES THE OP-27 REVIEW EXACTLY
+    C +0.1 deg bucket (~11km)    89 / 0.05%, ZERO groups >10 km apart
+    D +0.01 deg bucket (~1.1km)   1 / 0.00%
+  So: the review is right AND models post-S1; TODAY is materially worse and nobody had
+  measured it. COO's inference about the 22 zero-region countries CONFIRMED (list verified
+  from repo data). RECOMMEND the 0.1 deg coordinate bucket — 98.2% fixed, and it's the point
+  where "different town" and "same town" separate cleanly (0.01 deg is too tight and re-opens
+  the BUG-33 duplicate class). Costs ADL-48 §7's "no migration of cities" headline — but that
+  headline is ALREADY FALSE today. Dispatch as S0, DECOUPLED, cheapest to fix at 3 rows.
+
+WHAT I DID NOT CHANGE: ADL-48 G1/G2/G3/G5/G6/G8/G9/G10 all stand. Coverage floor re-verified
+  with three probes that fail differently — and probe 2 is why probe 3 mattered: a name-only
+  method reports Applecross and Braemar as PRESENT (they're elsewhere in the world). The
+  coordinate probe disambiguates. NW Highlands box = 45 rows, reproducing the review's P2.
+
+METHOD NOTES worth keeping:
+  - A speed table hides the decision. The Q1 answer was never "which is fastest" — three
+    shapes are within 0.1 ms of each other. It was "which changes what the user finds", and
+    only a result-SET comparison (not counts) settles it. Counts agreed for `vegas` at 9/9
+    while the row sets differed for `ness` at 55/9.
+  - Measure the regime before optimising the term. Local timings said 40x; the deployed
+    system sees 22%. Both are true and only one is relevant.
+  - When two documents disagree on a figure, derive it a third time rather than picking.
