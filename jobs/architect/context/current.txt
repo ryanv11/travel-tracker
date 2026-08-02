@@ -1154,3 +1154,62 @@ UNVERIFIED, both flagged as blockers on the relevant brief rather than resolved:
       This gates the whole tail strategy: if it doesn't, the §2.1 decision must be retaken.
 
 NEXT: OP-27 fresh-eyes review expected. I named the two places to attack first in the doc.
+
+================================================================================
+2026-08-02 — OP-27 FRESH-EYES REVIEW OF ADL-48 (separate agent, no ADL-48 authorship)
+Branch: chore/adl48-fresh-eyes-review
+Deliverable: jobs/architect/tech/20260802-ADL48-fresh-eyes-review.md
+ADL-48 NOT edited (OP-28) — findings filed separately for COO adjudication.
+
+VERDICT: SHIP WITH CORRECTIONS. The decision stands; two findings block briefs.
+
+F1 HIGH, BLOCKS S3 — the cities D13 identity key (name NOCASE, country_code,
+  COALESCE(region_id,0)) cannot represent 5,024 gazetteer rows (2.95%); 3,765 colliding
+  groups are >10 km apart. "Newport" GB-ENG = 4 towns 343 km apart collapsing to one
+  cities row: user B picking Newport IoW silently receives user A's Shropshire pin.
+  ADL-48 §7's "convergence happens through the mechanism that already exists" is false
+  for these rows. §5.2 spotted the mechanism (as an argument against loading into cities)
+  and never carried it to the select-and-copy path. §5.3's springfield example is clean —
+  21 rows, 21 groups, verified — which is exactly why it hid the problem. Every fix costs
+  §7's "no migration of cities" headline. Needs an Architect re-scope before S3.
+F2 MED-HIGH, BLOCKS S1 — S1 says "hash-gated reseed of regions"; §8.1 defines that
+  mechanism as DELETE + reload, justified by "nothing references gazetteer_cities" —
+  false for regions (cities.region_id FK onto AUTOINCREMENT ids). ADL intends additive
+  upsert ("purely additive") but never says so mechanically. S1, sold as the zero-risk
+  half, is the one place a literal reading corrupts data.
+F3 MED — iso3166-2-db is 177 MB / 42,268 files unpacked (283 MB on disk), unstated;
+  only its 3.9 MB data file is used. 2 years stale + single maintainer, while
+  all-the-cities is rejected explicitly FOR staleness. Suggest vendoring the 3.9 MB file.
+F4 LOW-MED, BLOCKS S1 — 2 of 716 region rows have empty ISO (ID West Papua, PH Negros
+  Island Region) -> seed as "ID-"/"PH-", passing NOT NULL and the unique index. 196 such
+  rows across all countries, so this worsens whenever GE-07 enables a new country.
+F5/F6/F7 LOW — ADL-43 S2's 940-row figure stale (amended source yields 716) and unstamped;
+  GE-16 amendment under-scoped (its body sentence and the ambiguity->pending success
+  criterion are contradicted too); join rate reproduces at 99.24% not 99.28%.
+
+BLOCKER CLOSED — Turso timing (§8.3, gating S2) IS measurable from this devcontainer: the
+  staging host is firewall-allowlisted. Measured: median RTT 33 ms, batch(2000) 386 ms
+  (one round trip), 2000-row VALUES stmt 55 ms => ~5 s for 86 batches, not minutes.
+  Caveat: read-only diagnostic token, so SELECTs — write throughput still unmeasured.
+  Recommend §8.3 drop from hard blocker to confirm-during-S2.
+
+WHAT HELD (attacked, did not break):
+  §2 coverage floor — re-run with a THIRD, name-free probe the ADL did not use (list every
+    row within 8 km of true coordinates). All nine absences genuine in BOTH datasets;
+    method self-validated (Ullapool/Aviemore/Portree at 0.11-0.45 km). G6 correctly founded.
+  Every dataset count/licence/cadence/maintainer figure reproduced exactly from fresh installs.
+  §4 admin1 != ISO 3166-2 — verified, exactly GB and US at 100%. I first "found" JP as a
+    third exception and DISPROVED MY OWN PROBE: JP admin1 46 = Yamanashi, ISO JP-46 =
+    Kagoshima. Set-membership is not identity. The ADL's JP example is sharper than it says.
+  76/76 seeded codes match AND all 76 names match (stronger than ADL-48 claimed).
+  All supersession stamps correctly placed and well-formed (F5 the one gap).
+  Corrections to the COO brief all correct: OQ-06 closed 2026-07-27 by ADL-43 (tracker
+    verified); BUG-45 zero source overlap (OpenFlights); region distribution right.
+  §13.2 narrowed-not-superseded + ship BUG-71 now: right, nothing there becomes throwaway.
+
+STILL UNVERIFIED (unchanged): whether Nominatim actually has Plockton/Shieldaig/Dornie.
+  ENV-01 re-confirmed by two probes. Remains the single load-bearing open item behind G6.
+
+METHOD NOTE worth keeping: the ADL's two coverage probes were both NAME-based, so one wrong
+assumption (Gaelic/variant toponym) could produce both negatives. Two probes that share an
+assumption are one probe. The coordinate-radius probe is what made the absence claim safe.

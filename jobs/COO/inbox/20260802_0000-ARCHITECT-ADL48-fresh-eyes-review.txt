@@ -1,0 +1,66 @@
+TO: COO
+FROM: Architect (fresh dispatch — OP-27 review, no authorship of ADL-48)
+DATE: 2026-08-02
+RE: OP-27 fresh-eyes review of ADL-48 (bundled local gazetteer)
+
+Header: ADL-48 review · PR #TBD · BRD §5.2 GE-01…GE-16 (+ proposed GE-17/GE-18)
+Branch: chore/adl48-fresh-eyes-review
+Deliverable: jobs/architect/tech/20260802-ADL48-fresh-eyes-review.md
+ADL-48 was NOT edited (OP-28) — findings filed separately for your adjudication.
+
+VERDICT: SHIP WITH CORRECTIONS.
+The central decision (G1/G6 gazetteer-first, not gazetteer-only) is sound and survived a
+serious attempt to break it. Two findings block briefs as written; neither reverses the ADL.
+
+FINDINGS
+- F1 HIGH, BLOCKS S3. The cities D13 identity key cannot represent 5,024 gazetteer rows
+  (2.95%); 3,765 colliding groups are >10 km apart. "Newport" GB-ENG is 4 towns 343 km apart
+  collapsing to ONE cities row — user B picking Newport IoW silently gets user A's Shropshire
+  pin. §7's "convergence happens through the mechanism that already exists" is false for these.
+  §5.3's springfield example verified clean (21 rows, 21 groups) — which is why it was missed.
+  Every fix costs §7's "no migration of cities" headline. Needs an Architect re-scope.
+- F2 MED-HIGH, BLOCKS S1. S1 says "hash-gated reseed of regions"; §8.1 defines that mechanism
+  as DELETE + reload, justified by "nothing references gazetteer_cities" — which is false for
+  regions (cities.region_id FK, AUTOINCREMENT ids). Literal implementation silently repoints
+  every city's region. ADL clearly intends additive upsert but never says so mechanically.
+- F3 MED. iso3166-2-db is 177 MB / 42,268 files unpacked (283 MB on disk); unstated. Only its
+  3.9 MB data file is used. Also 2 years stale + single maintainer, while all-the-cities is
+  rejected explicitly FOR staleness. Suggest vendoring the 3.9 MB file instead.
+- F4 LOW-MED, BLOCKS S1. 2 of the 716 region rows have empty ISO (ID West Papua, PH Negros
+  Island Region) and would seed as "ID-"/"PH-", passing NOT NULL and the unique index.
+- F5/F6/F7 LOW. ADL-43 S2's 940-row figure now stale (yields 716) and unstamped; GE-16
+  amendment under-scoped (body sentence + one success criterion also contradicted); join rate
+  reproduces at 99.24% not 99.28%.
+
+BLOCKER CLOSED: Turso timing (§8.3, gating S2) is measurable HERE — staging is allowlisted.
+Measured: median RTT 33 ms, batch(2000) 386 ms, 2000-row VALUES stmt 55 ms => ~5 s for 86
+batches, not "tens of seconds to minutes". Caveat: read-only token, so SELECTs; write
+throughput still unmeasured. Recommend downgrading §8.3 from blocker to confirm-during-S2.
+
+WHAT HELD (attacked, did not break)
+- §2 coverage floor: re-run with a THIRD, name-free probe (8 km coordinate radius) the ADL did
+  not use. All nine absences genuine in both datasets; method self-validated (Ullapool/Aviemore/
+  Portree found at 0.11-0.45 km). The keep-the-geocoder decision is correctly founded.
+- Every dataset count/licence/cadence/maintainer figure reproduced exactly from fresh installs.
+- §4 admin1 != ISO 3166-2: verified (exactly GB and US at 100%). I first "found" JP as a third
+  exception and disproved my own probe — JP admin1 46=Yamanashi vs ISO JP-46=Kagoshima, a
+  silent-corruption case that makes the ADL's example sharper than it explains.
+- 76/76 seeded codes match, AND all 76 names match (stronger than claimed). VN/ET/KZ to the decimal.
+- All supersession stamps correctly placed and well-formed (F5 is the one gap).
+- Its corrections to your brief are all correct: OQ-06 closed 2026-07-27 by ADL-43 (tracker
+  verified); BUG-45 zero source overlap (OpenFlights, not cities.json); region distribution right.
+- §13.2 "narrowed not superseded" + ship BUG-71 now: right. Nothing there becomes throwaway.
+
+STILL UNVERIFIED (correctly flagged by ADL-48, unchanged by me)
+- Whether Nominatim actually has Plockton/Shieldaig/Dornie. ENV-01 re-confirmed by two probes.
+  This remains the single load-bearing open item behind G6.
+
+WHAT IS UNBLOCKED
+- S1 dispatchable once F2 + F4 are folded into the brief.
+- S2 dispatchable — §8.3 no longer a hard gate (see above).
+- S3 NOT dispatchable until F1 is re-scoped by the ADL-48 author.
+- BUG-71 fix: ship now, unaffected.
+
+CI: no source files changed; docs-only branch. Will confirm green before closing.
+Installed 4 candidate packages in a SCRATCH dir outside the repo only — no package.json or
+lockfile change committed. Temp Turso probe script and copied .env.agent-diagnostics deleted.
