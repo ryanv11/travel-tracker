@@ -1,0 +1,114 @@
+ARCHITECT PARK DOCUMENT — 2026-08-02
+ADL-48 bundled-gazetteer FEASIBILITY SPIKE
+Branch: spike/gazetteer-feasibility   ·   SPIKE — nothing ships, draft PR, do not merge
+================================================================================
+
+WHAT THIS THREAD WAS
+The PO declined to commit to ADL-48 on design alone and commissioned a spike: build
+enough of it for real to answer the open questions with measurements, then return a
+go / no-go / go-with-changes verdict. This is the first ADL-48 work in which code was
+written and run — ADL-48's own §15.1 item 7 says "No code was written and no test was
+run", and its OP-27 review was likewise probe-scripts-against-package-data.
+
+DELIVERABLE
+  jobs/architect/tech/20260802-ADL48-feasibility-spike.md   (the report, Q1-Q7)
+  scripts/generate-gazetteer.mjs                            (the generator, F2+F4 fixed)
+  scripts/spike/gazetteer-bench.mjs                         (Q1/Q2 search benchmark)
+  scripts/spike/gazetteer-turso-probe.mjs                   (Q3 Turso latency/seed)
+  scripts/spike/gazetteer-identity-analysis.mjs             (Q1f/Q1g/Q1h/Q2b/Q6)
+  scripts/spike/gazetteer-bug75-scenarios.mjs               (Q6, corrected model)
+
+VERDICT: GO WITH FOUR CHANGES
+  1. Search is FTS5 TRIGRAM — not LIKE, and NOT prefix. ADL-48 §5.3's "exact then
+     prefix" is a silent product regression and must not be briefed as written.
+  2. `regions` is seeded by ADDITIVE UPSERT, never delete-and-reload (F2).
+  3. VENDOR the 3.35 MB crosswalk; drop the iso3166-2-db dependency (F3).
+  4. BUG-75 is DECOUPLED and fixed on its own merits — it is live in shipped code.
+ADL-48's G1/G2/G3/G5/G6/G8/G9/G10 all stand. The spike does not kill the design.
+
+================================================================================
+THE FIVE THINGS A FUTURE READER MOST NEEDS
+================================================================================
+
+1. FTS5 TRIGRAM IS A PROVABLE DROP-IN. 30/30 terms, full result-SET equality (not just
+   counts), full case parity, 0.2 ms vs 8.7 ms, and it REPLACES three b-tree indexes so
+   the net storage change is small. This is the single most useful finding in the spike
+   because it removes a product tradeoff the PO would otherwise have had to make.
+   ITS TRAP: trigram is undefined below 3 characters and returns ZERO ROWS, not an
+   error. The route MUST enforce min-3 as a validated precondition. An implementer who
+   treats "min 3 chars" as a UX convention rather than a correctness requirement ships a
+   silent empty-results bug for 1-2 character queries.
+
+2. THE REGIME MATTERS MORE THAN THE BENCHMARK. Local libSQL says trigram is 40x faster.
+   The deployed app talks to Turso, where the round trip is 29.5 ms and the query is
+   8.7 ms — so the real improvement is ~22%. BOTH numbers are true; only one is
+   relevant to the user. The actual argument for changing the query shape is ROWS READ:
+   170,540 per keystroke vs ~40, a 4,264x difference, and Turso bills on rows read.
+   Do not let anyone quote "40x faster" to the PO.
+
+3. BUG-75 IS WORSE TODAY THAN THE REVIEW REPORTED, AND S1 IMPROVES IT. The OP-27 review's
+   5,024 / 2.95% reproduces EXACTLY — but it models the POST-S1 world. Today, with only
+   76 regions seeded, it is 8,876 rows / 5.20%, worst case 8,092 km. Seeding 638 more
+   subdivisions gives the key a real discriminator in the 22 region-tier countries that
+   currently have none, so S1 takes it DOWN. A 0.1 degree coordinate bucket then removes
+   98.2% and leaves zero colliding groups more than 10 km apart.
+   I MODELLED THIS WRONG ON THE FIRST PASS and caught it: grouping by the gazetteer's raw
+   region_iso invents a discriminator the app does not have, because cities.region_id is
+   forced NULL wherever region_tier_enabled = 0. That UNDERCOUNTS. If anyone re-derives
+   these numbers, model the region-tier invariant or the answer will be too optimistic.
+
+4. Q4 IS STILL OPEN AND THE OPEN QUESTION HAS CHANGED SHAPE. Nominatim remains
+   unreachable from this devcontainer (two probes; WebFetch was also non-functional this
+   session, confirmed against an example.com control). The OSM-presence proxy strongly
+   suggests all nine tail villages exist. BUT the risk that actually matters is
+   nominatim-client.ts:81's SETTLEMENT_TYPES filter — Torridon, Gairloch, Applecross and
+   Braemar denote features as well as settlements, and a result typed `locality`,
+   `peninsula` or `administrative` is discarded by OUR code even though Nominatim
+   returned it. WHOEVER CLOSES THIS must check the returned `type` field, not merely that
+   rows came back. Testing presence alone gives a false pass.
+
+5. COUNTRY IS NOT THE LAST AVAILABLE SIGNAL. The PO is right that region is unavailable
+   (the city is typed before the region is known). But the trip's ALREADY-ADDED PLACES
+   are available and much stronger: 6 GB "Newport"s narrow to 1 within 100 km of an
+   anchor, where country only narrows 32 to 8. Recommended as a later RANKING term, not
+   a filter and not day one.
+
+================================================================================
+STANDING CONSTRAINTS RE-CONFIRMED (do not re-discover these)
+================================================================================
+- The Turso diagnostic token is READ-ONLY. The COO's brief authorised a scratch table;
+  authorisation is not capability. I attempted the write deliberately so the refusal
+  would be an independent second probe. Rejected. Post-check confirmed nothing created,
+  nothing to clean up, no user table touched. TURSO INSERT THROUGHPUT REMAINS UNMEASURED
+  and needs a write-capable token from an S2 branch.
+- iso3166-2-db costs 11.8 s of install time, not just 283 MB of disk. The review had the
+  disk number; the time number is per-worktree AND per-CI-run and is the stronger
+  argument. The spike deliberately did NOT add it to package.json.
+- The generated artifact is GITIGNORED: 170,540 rows, 17,756,562 bytes,
+  sha256:26ea16ec6eed8dee06eb420147b6536f5f5c8af91edfc2fc0423aa1ca0475fd4.
+  Regenerate with scripts/generate-gazetteer.mjs. Whether that blob ever belongs in git
+  history is an OPEN DECISION the spike deliberately did not settle by accident.
+
+================================================================================
+REVISED STAGING (detail in the report §9)
+================================================================================
+  S0  BUG-75 coordinate-bucket key widening   — NEW, DECOUPLED, dispatch first
+  S1  Subdivisions (upsert, 714 rows, vendored crosswalk)  — ready
+  S2  Gazetteer table + trigram + off-boot seed            — needs GE-17/GE-18
+  S3  Local-first lookup (trigram, rank-not-filter)        — needs S0 + S2
+  follow-on: proximity ranking term
+Also decoupled and unchanged: ship the BUG-71 fix now; amend GE-16 as a whole (F6);
+stamp ADL-43 S2's 940-row figure (F5).
+
+THE CONCESSION I MADE EXPLICITLY (report §10)
+The NW Highlands box holds 45 gazetteer rows total, so for the Scotland dogfood trial
+specifically the gazetteer is the MINORITY path. If the PO's priority is that trial
+rather than the product generally, the honest sequencing is S0 -> S1 -> BUG-71 fix ->
+PAUSE, and revisit S2/S3 after. S0 and S1 deliver real value with no dependency on the
+contested half.
+
+NOT DONE / OUT OF SCOPE
+- No schema change, no migration generated, no db:migrate anywhere, no remote write.
+- No BRD or tracker edits (COO records at execution time; I recommend only).
+- ADL-48 and its review were NOT edited — findings are filed in the spike report for
+  COO adjudication, same convention the OP-27 review used.
