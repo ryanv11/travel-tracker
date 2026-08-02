@@ -1,0 +1,110 @@
+PARK DOCUMENT — Architect
+2026-08-02 · OP-27 fresh-eyes review of ADL-48 (bundled local gazetteer)
+Branch: chore/adl48-fresh-eyes-review
+
+================================================================================
+WHAT THIS THREAD WAS
+================================================================================
+A second, independently dispatched Architect reviewing ADL-48 under OP-27. No
+authorship of ADL-48, ADL-43, ADL-46, the BUG-71 ruling or its review. Brief was
+explicit: critique and stress-test, do not confirm.
+
+Deliverable: jobs/architect/tech/20260802-ADL48-fresh-eyes-review.md
+Completion report: jobs/COO/inbox/20260802_0000-ARCHITECT-ADL48-fresh-eyes-review.txt
+ADL-48 itself was NOT edited (OP-28) — findings filed separately.
+
+VERDICT: SHIP WITH CORRECTIONS.
+
+================================================================================
+STATE AT PARK
+================================================================================
+Review complete. Seven findings (2 blocking), 3 preferences, one previously
+unverified blocker measured and substantially cleared. Nothing left open on my side.
+
+Blocking:
+  F1 HIGH  -> S3   D13 identity key conflates 5,024 distinct gazetteer places
+  F2 MED-HI-> S1   "hash-gated reseed of regions" = delete-and-reload on an FK'd table
+Non-blocking: F3 (iso3166-2-db 177 MB, stale, single maintainer, unstated),
+  F4 (2 malformed region rows), F5/F6/F7 (doc + precision).
+
+================================================================================
+THE TWO FINDINGS THAT MATTER, IN ONE PARAGRAPH EACH
+================================================================================
+F1. cities' unique index is (name COLLATE NOCASE, country_code, COALESCE(region_id,0)).
+Grouping the 170,540 gazetteer rows by exactly that key gives 165,516 distinct keys —
+5,024 rows are unrepresentable, and 3,765 of the 3,931 colliding groups are more than
+10 km apart. England alone has four Newports in GB-ENG, 343 km apart. ADL-48 §7 sells
+"convergence happens through the mechanism that already exists" as the reason no
+migration of cities is needed; for these rows convergence is silently WRONG, not
+absent. §5.2 actually noticed the collision mechanism but used it only as an argument
+against bulk-loading into cities, never carrying it to the select-and-copy path §7
+describes. §5.3's springfield worked example is genuinely clean (21 rows -> 21 groups,
+I verified) which is precisely why the problem stayed invisible. Every repair —
+widening the key, accepting conflation, or hiding colliding rows — costs something
+the ADL currently claims for free.
+
+F2. §11's S1 row says "hash-gated reseed of regions". The only definition of that
+mechanism in the document is §8.1: DELETE FROM <table>, batch insert, update meta —
+explicitly justified by "because nothing references gazetteer_cities". regions IS
+referenced (cities.region_id -> regions.id, AUTOINCREMENT), so a literal reading
+re-issues ids and repoints every existing city's region. The ADL means additive
+(it says "purely additive") but a Database agent reads §8.1 for the mechanism.
+Fix is one sentence in the S1 brief: upsert on conflict (iso_3166_2), never delete.
+I checked the upsert target is clean — zero duplicate iso_3166_2 across the 716 rows.
+
+================================================================================
+METHOD NOTES WORTH CARRYING FORWARD
+================================================================================
+1. TWO PROBES THAT SHARE AN ASSUMPTION ARE ONE PROBE.
+   ADL-48 §2's coverage claim used two probes — exact name match in GB, and
+   case-insensitive substring across all countries. Both are NAME-based. A single
+   wrong assumption (the place is stored under a Gaelic or variant toponym) produces
+   both negatives, so they do not satisfy the negative-findings rule as independent.
+   I added a name-free probe: list every row within 8 km of the true coordinates.
+   It self-validates (Ullapool/Aviemore/Portree returned at 0.11-0.45 km) and it
+   confirmed all nine absences in both datasets. The claim held — but it needed the
+   third probe to be safe, and this is a reusable pattern for any "X is not in the
+   data" finding: find a probe axis orthogonal to the one you already used.
+
+2. I DISPROVED MY OWN FINDING MID-REVIEW — worth remembering.
+   I ran a probe testing whether "<CC>-"+admin1 is a MEMBER of the country's ISO code
+   set, and "found" that ADL-48 was wrong: JP joined GB and US at 100%, so 3 of 26 not
+   2. Before reporting it I checked what JP-46 actually denotes. GeoNames admin1 46 =
+   Yamanashi; ISO JP-46 = Kagoshima. Both code sets are {01..47}, so membership is
+   100% while identity is 4%. My test was invalid; ADL-48's claim was right, and its
+   JP example is a sharper illustration than the ADL itself explains (a valid-LOOKING
+   but wrong code — silent, and invisible to any format check). Set membership is not
+   identity. A fresh reviewer inventing a finding is as damaging as one missing it.
+
+3. AN "UNVERIFIABLE" BLOCKER WAS VERIFIABLE.
+   ADL-48 §8.3/§15.1 correctly marked Turso cold-seed cost UNVERIFIED and named the
+   probe. But the staging Turso host is on this devcontainer's firewall allowlist
+   (init-firewall.sh:148) — the exact scenario CLAUDE.md already records as a past
+   false negative. Measuring took ten minutes and cleared the S2 gate: median RTT
+   33 ms, batch(2000) 386 ms (ONE round trip, not 2000), 2000-row VALUES stmt 55 ms,
+   => ~5 s for the full 86-batch seed. Caveat: read-only token, so SELECTs only;
+   write throughput remains unmeasured. Lesson: when a doc names a probe and calls it
+   blocked, check the block is still real before inheriting it.
+
+================================================================================
+IF THIS IS PICKED UP AGAIN
+================================================================================
+- F1 is the only finding needing real design work, and it belongs to ADL-48's author
+  (re-scope), not to a reviewer. The three options are laid out in the review §2 F1.
+- F2/F4 are one-paragraph additions to the S1 brief; no design needed.
+- F3 has a concrete cheap fix: vendor iso3166-2-db's data/iso3166-2.json (3.9 MB) into
+  data/vendor/ with GE-18 provenance and drop the 177 MB dependency entirely.
+- The one thing still genuinely unknown, unchanged from ADL-48: does Nominatim have
+  Plockton/Shieldaig/Dornie? ENV-01 blocks it from here (re-confirmed, two probes).
+  If it does NOT, ADL-48 §2.1 must be re-decided and §14 concedes the whole proposal
+  should then be reconsidered. Answer it on the staging shakedown.
+
+================================================================================
+HYGIENE
+================================================================================
+- Four candidate packages installed ONLY in a scratch dir outside the repo. No
+  package.json or lockfile change. Nothing to revert in-repo.
+- Temporary Turso probe script (scripts/tmp-turso-rtt.mjs) and the copied
+  .env.agent-diagnostics were both deleted before commit; git status verified clean.
+- No bare git stash used. cwd confirmed as the assigned worktree before any command.
+- Docs-only branch; no source files touched.
