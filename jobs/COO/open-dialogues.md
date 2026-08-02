@@ -61,6 +61,19 @@ has Plockton, Shieldaig or Dornie** — the very places the gazetteer was shown 
 blocks the probe (re-confirmed by two independent probes in the review). If Nominatim lacks them
 too, the tail strategy must be retaken and part of ADL-48 reopens.
 
+**AMENDED 2026-08-02 (QUAL-25 feasibility spike) — the probe design must change, or it gives a
+false pass.** The spike re-confirmed the reachability block (a third path, `WebFetch`, was also
+non-functional, verified against a control host) and left the coverage question UNVERIFIED as
+expected. But it found something neither ADL-48 nor its review saw, and it reframes the question:
+**`src/backend/services/nominatim-client.ts:81` filters every candidate to
+`SETTLEMENT_TYPES = {city, town, village, hamlet, municipality}`** (applied at line 141,
+COO-verified independently). Several of the tail places — Torridon, Gairloch, Applecross, Braemar —
+are OSM *features* as well as settlements. So the real risk is not only "Nominatim lacks them" but
+**"Nominatim returns them and our own filter discards them"**, which is a defect we own and can fix
+without any allowlist change at all. Consequence: **a probe that only asks whether Nominatim
+returns a result gives a false pass.** It must record the returned `type` for each name and check
+it against that set. Tracked as BUG-76.
+
 **Governance.** The allowlist is governed by **ADL-33/OP-21**, which documented its exclusions with
 reasoning (`api.turso.tech` and `api.clerk.com` deliberately excluded). Adding domains should
 **amend that ADL**, not quietly edit `.devcontainer/init-firewall.sh`. Note the practical asymmetry
