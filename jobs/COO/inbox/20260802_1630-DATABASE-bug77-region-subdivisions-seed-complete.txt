@@ -1,4 +1,4 @@
-BUG-77 · issue #367 · PR #PENDING · BRD GE-01/GE-02/GE-03 (ADL-48 S1) · fix/bug77-region-subdivisions-seed
+BUG-77 · issue #367 · PR #369 · BRD GE-01/GE-02/GE-03 (ADL-48 S1) · fix/bug77-region-subdivisions-seed
 
 BUILT: data/regions.json 76 -> 714 rows covering all 26 region_tier_enabled countries;
 seedRegions() re-gated from row count to content hash with an additive upsert.
@@ -20,7 +20,8 @@ ACCEPTANCE CRITERIA
 MIGRATION VERIFIED: none generated and none needed — `regions`, its unique index on
 iso_3166_2 and the cities FK all already exist. db:push never used (ADL-15).
 
-CI: <to be filled after scripts/ci-wait.sh>
+CI: PR #369 — 18/18 checks green (scripts/ci-wait.sh pr 369, commit d7b1fc8). Includes
+E2E, Contract, Gitleaks and Semgrep. No scanner suppression was added.
 
 DECISIONS I MADE THAT YOU SHOULD SANITY-CHECK (detail in the park doc §3)
   1. DO UPDATE SET name/country_code rather than DO NOTHING — DO NOTHING is not
