@@ -20,11 +20,35 @@ import {
 } from '../../hooks/useCities';
 import { useAddPlace } from '../../hooks/usePlaces';
 import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
-import type { City } from '../../types/api';
+import type { City, Country } from '../../types/api';
 import { resolveDefaultDate } from '../../utils/dateDefaults';
 import { capitalizeFirst } from '../../utils/textFormat';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { ErrorMessage } from '../shared/ErrorMessage';
+
+/**
+ * BUG-72: the search dropdown used to render only `{name} {country_code}`
+ * ("Springfield US"), which is visually identical for two same-named cities
+ * in different regions — selecting one silently binds the trip to specific
+ * coordinates with nothing on screen distinguishing which one. Renders:
+ *   - region-tier country, region known:   "Illinois, US"
+ *   - region-tier country, region missing: "US (no state set)" — explicit,
+ *     not indistinguishable from a regioned row (surfaces catalogue rows
+ *     that are missing data users should be able to notice)
+ *   - non-region-tier country:             "US" (unchanged from before)
+ * `region_name` comes straight off the GET /api/cities response (BUG-72
+ * backend half, PR #353's LEFT JOIN onto `regions`) — no new network call.
+ */
+function formatCitySubtitle(
+  city: { country_code: string; region_name?: string | null },
+  countries: Country[],
+): string {
+  const country = countries.find((c) => c.country_code === city.country_code);
+  if (!country?.region_tier_enabled) return city.country_code;
+  if (city.region_name) return `${city.region_name}, ${city.country_code}`;
+  const label = (country.region_tier_label ?? 'region').toLowerCase();
+  return `${city.country_code} (no ${label} set)`;
+}
 
 interface AddPlaceFlowProps {
   tripId: number;
@@ -70,6 +94,21 @@ export function AddPlaceFlow({
   // chooses from the (already-present) selector rather than being silently
   // guessed for. null means "no ambiguity — show the full country region list".
   const [candidateRegionIsos, setCandidateRegionIsos] = useState<string[] | null>(null);
+  // BUG-71 stopgap: true only when the CURRENT region-select value was set by
+  // the single-candidate auto-fill path below (autoRegionIso), never by an
+  // explicit user pick. The mechanism that sets autoRegionIso cannot tell a
+  // genuinely unambiguous city (Denver — one real region) apart from a
+  // globally-ambiguous one truncated down to a false single survivor
+  // (Springfield — Nominatim's 10-slot global result, thinned by settlement
+  // type and a non-null-region_iso requirement, happened to leave exactly one
+  // region standing) — see __tests__/AddPlaceFlow.bug71.test.tsx and the
+  // brief for GitHub #363. Rather than guess which case it is (out of scope —
+  // no truncation detection, no geocode request changes), every auto-filled
+  // single-candidate region is surfaced as a UX-spec §3.2-style visibly
+  // tentative suggestion instead of a silent commit. Cleared the moment the
+  // user actually chooses a region themselves (§1's tier-1 rule: an explicit
+  // choice is never just a suggestion) or the form/country resets.
+  const [regionIsSuggested, setRegionIsSuggested] = useState(false);
   const [countryLookupPending, setCountryLookupPending] = useState(false);
   // BUG-73: true only when the geocode lookup exhausted its retries without a
   // successful response — distinct from a successful lookup that legitimately
@@ -140,6 +179,11 @@ export function AddPlaceFlow({
   // the user should still learn the name was ambiguous even when they end
   // up looking at the unfiltered full list.
   const regionChoiceIsAmbiguous = candidateRegionIsos !== null;
+  // BUG-71: resolves the currently auto-filled region's display name for the
+  // "Suggested:" caption — undefined when nothing is auto-selected or the ID
+  // doesn't match a loaded region (defensive; shouldn't happen since
+  // newCityRegionId is only set here from a countryRegions lookup already).
+  const suggestedRegionName = countryRegions.find((r) => r.id === newCityRegionId)?.name;
 
   const addPlace = useAddPlace();
   const createCity = useCreateCity();
@@ -242,6 +286,7 @@ export function AddPlaceFlow({
     setNewCityRegionId(null);
     setAutoRegionIso(null);
     setCandidateRegionIsos(null);
+    setRegionIsSuggested(false);
     setGeocodeLookupFailed(false);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
@@ -276,7 +321,12 @@ export function AddPlaceFlow({
             setCandidateRegionIsos(sameCountryRegionIsos);
             // Ambiguous — leave newCityRegionId unset so the user must choose.
           } else if (regionIso) {
+            // BUG-71 stopgap: this branch cannot distinguish "genuinely one
+            // region" from "collapsed to one by truncation upstream" — mark
+            // every auto-fill from here as a tentative suggestion (see the
+            // regionIsSuggested declaration above) rather than assuming either.
             setAutoRegionIso(regionIso);
+            setRegionIsSuggested(true);
           }
           setCountryLookupPending(false);
         })
@@ -371,12 +421,14 @@ export function AddPlaceFlow({
                 {searchResults.map((city) => (
                   <div
                     key={city.id}
+                    data-testid={`city-search-result-${city.id}`}
                     className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50"
                     onClick={() => {
                       void handleSelectCity(city);
                     }}
                   >
-                    {city.name} <span className="text-gray-500">{city.country_code}</span>
+                    {city.name}{' '}
+                    <span className="text-gray-500">— {formatCitySubtitle(city, countries)}</span>
                   </div>
                 ))}
                 <div
@@ -459,6 +511,7 @@ export function AddPlaceFlow({
                   setNewCityCountryCode(e.target.value);
                   setNewCityRegionId(null);
                   setAutoRegionIso(null);
+                  setRegionIsSuggested(false);
                   // A manual country change invalidates any D14 candidate
                   // narrowing computed for the previously auto-detected country.
                   setCandidateRegionIsos(null);
@@ -505,9 +558,13 @@ export function AddPlaceFlow({
                 <select
                   className={inputClass}
                   value={newCityRegionId ?? ''}
-                  onChange={(e) =>
-                    setNewCityRegionId(e.target.value ? Number(e.target.value) : null)
-                  }
+                  onChange={(e) => {
+                    setNewCityRegionId(e.target.value ? Number(e.target.value) : null);
+                    // BUG-71: an explicit user pick is never "just a suggestion" —
+                    // tier 1 (UX spec §1): explicit selection always wins and is
+                    // never treated as tentative again.
+                    setRegionIsSuggested(false);
+                  }}
                 >
                   <option value="">No {regionLabel.toLowerCase()} selected</option>
                   {regionOptions.map((r) => (
@@ -516,6 +573,19 @@ export function AddPlaceFlow({
                     </option>
                   ))}
                 </select>
+                {/* BUG-71 stopgap: the single-candidate auto-fill above cannot
+                    tell a genuine unambiguous match from a truncated one, so it
+                    is surfaced as a visibly tentative suggestion (UX spec §3.2's
+                    "Suggested:" treatment, applied here to the region field)
+                    rather than a silent, indistinguishable-from-user-chosen
+                    commit. Mutually exclusive with the ambiguous-choice hint
+                    above — only one of the two auto-fill branches ever runs per
+                    lookup. */}
+                {regionIsSuggested && !regionChoiceIsAmbiguous && suggestedRegionName && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Suggested: {suggestedRegionName} — from "{newCityName}"
+                  </p>
+                )}
               </div>
             )}
 
