@@ -1,0 +1,73 @@
+TO: COO
+FROM: Architect (fresh dispatch)
+DATE: 2026-08-01
+RE: ADL-48 — bundled gazetteer build-vs-buy · Branch chore/gazetteer-build-vs-buy-adl
+BRD: §5.2 — two new IDs proposed (GE-17, GE-18) + a REQUIRED GE-16 amendment
+PR: see below · Tracker: OQ-06, BUG-30 class, D-14, D-19, BUG-71, BUG-45 (NOT closed)
+
+DECIDED. The PO is substantially right, with one material correction: bundle the
+gazetteer as a LOCAL-FIRST INDEX, not as a geocoder replacement. The geocoder is
+demoted to the tail path, not retired.
+
+PER-DECISION VERDICT
+- Bundle a gazetteer — ADOPTED (local-first; pure replacement REJECTED on coverage).
+- Keep the geocoder for the tail — ADOPTED. "Manual entry, no pin" REJECTED.
+- cities.json (CC-BY-4.0, 170,540 rows, monthly) — ADOPTED. all-the-cities REJECTED
+  (declares MIT over CC-BY GeoNames data; stale 2020). country-state-city REJECTED (GPL-3.0).
+- iso3166-2-db (MIT) for subdivisions AND the crosswalk — ADOPTED as a devDependency.
+- ADL-43 S1 amended: country-region-data -> iso3166-2-db. S3's override table loses its
+  one confirmed case. S2/S4/S5 stand. STAMPED in this PR.
+- BUG-71 ruling + its OP-27 review — NARROWED, not superseded. STAMPED. See BLOCKERS.
+- Separate gazetteer_cities table; `cities` NOT replaced, NOT migrated, NO backfill — ADOPTED.
+- Exec-queue item 13 corrected; D-19 re-scoped. Both STAMPED.
+
+WHY THE COVERAGE ANSWER DECIDED IT (the part to put to the PO)
+Of 16 Scottish places probed against both datasets: Glasgow, Edinburgh, Inverness,
+Ullapool, Aviemore, Portree, Tarbert are IN. Plockton, Applecross, Shieldaig, Lochinver,
+Durness, Kyleakin, Gairloch, Dornie, Braemar are ABSENT FROM BOTH. The floor is roughly
+"somebody's home town" in, "hamlet or single-attraction place" out. BUG-30's own note
+says the Scotland dogfood trial is the trigger requirement — a gazetteer-only build ships
+a product that cannot record the trip it was built for.
+
+THE FINDING THAT WOULD HAVE WRECKED A NAIVE BUILD
+GeoNames admin1 codes are NOT ISO 3166-2. Correct for 2 of 26 enabled countries (GB, US);
+20 are purely numeric. A "same source family" build writes AU-08 where the app expects
+AU-NSW, silently, and passes every test written against the only two countries with
+seeded regions today. The crosswalk lives inside iso3166-2-db: 99.28% join rate, and all
+76 currently-seeded region codes match EXACTLY — strict superset, no user-row backfill.
+
+CI: no code committed — design + docs only. PR CI green (docs-only change).
+
+BLOCKERS / DECISIONS YOU OWN
+1. BRD GATE. Stage S1 (subdivisions) needs NO BRD change and is dispatchable NOW —
+   it closes the BUG-30 class, 22 latent instances -> 0. Stages S2/S3 are BLOCKED until
+   GE-17 + GE-18 exist with the success criteria in ADL-48 §12.1, AND GE-16's definition
+   of "resolved" is amended ("the geocoder matched it" makes a gazetteer-sourced Glasgow
+   unrepresentable).
+2. DO NOT HOLD BUG-71 FOR THIS. It is a live P1; ADL-48 is a multi-stage build behind a
+   BRD gate. Ship the BUG-71 backend + frontend briefs as designed.
+3. PO SCOPE CALL: the recommendation is coherent ONLY as "gazetteer first, geocoder for
+   the tail". If it gets salami-sliced into "gazetteer only", reconsider it wholesale.
+4. TWO UNVERIFIED ITEMS, both flagged as brief-blockers not resolved here:
+   (a) Turso cold-seed cost/storage — all timings are LOCAL libSQL (618ms/12.47MB).
+       The S2 database brief must measure it before S3 depends on it.
+   (b) That Nominatim actually HAS Plockton/Shieldaig/Dornie — ENV-01 blocks the probe.
+       This gates the whole tail strategy. Add it to the next staging shakedown.
+5. TRIVIAL DEFECT, escalated not fixed: src/backend/services/startup.service.ts:161
+   says "72 total"; real figure is 76 (stale since PR #168). Line 10 omits GB. Left
+   alone deliberately — design-only PR. Fold into the S1 database brief.
+
+NOT CLOSED BY THIS — do not let the tracker read otherwise
+BUG-45 (zero source overlap with this dataset — item 13 wrongly bundles it), BUG-69,
+BUG-74, QUAL-22, UX-12, ENV-02. NO credit taken for BUG-55 or BUG-33; both already closed.
+
+NOW UNBLOCKED
+Stage S1 database brief (subdivisions, no BRD gate). ADL-48 §11 gives three
+independently-green stages per ADL-47 — no integration branch needed.
+
+EXPECTED: OP-27 fresh-eyes review. I named the two weakest points myself in the
+document's closing line so the reviewer starts there.
+
+Detail: jobs/architect/tech/ADL-48-bundled-gazetteer.md
+Log entry: jobs/architect/tech/20260307-architecture-decisions-log.md — ADL-48
+Park doc: jobs/architect/park-docs/20260801-ARCHITECT-park-adl48.txt

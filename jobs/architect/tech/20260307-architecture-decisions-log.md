@@ -3958,3 +3958,99 @@ a hard cutover across briefs, not a flaw in the rule.
 **Supersession:** none. Complements ADL-15 (drizzle-kit migrate workflow, `db:push` forbidden) and
 ADL-32 (Railway/Turso staging-watches-main promotion model) — expand/contract is the *authoring*
 discipline that keeps that auto-deploy path safe.
+
+---
+
+## ADL-48 — Bundled local gazetteer: buy the reference data, keep the geocoder for the tail
+
+**Date:** 2026-08-01
+**Status:** Decided, implementation pending. **No schema, migration, seed data or code change was
+made by this ADL** — it is the design that unblocks those briefs. Full evidence, table shapes,
+measurements and rejected alternatives: `jobs/architect/tech/ADL-48-bundled-gazetteer.md`.
+**Trigger.** The PO, after a day of geocoding defect-fighting: *"Are we over-engineering this?
+Wouldn't it be easier just to store a full cities list in a DB table? If we are querying a list via
+API anyway?"* Folded in: execution-queue Tier 2 item 13 (ISO 3166-2 reference-data build-vs-buy).
+**Tracker:** OQ-06 · BUG-30 (class) · D-14 · D-19 · BUG-71 · BUG-74 · BUG-69 · ENV-01 · QUAL-21/22 · UX-12 · BUG-45 (explicitly *not* closed).
+**BRD:** §5.2. **Two new IDs proposed (GE-17, GE-18) with success criteria, plus a required GE-16
+amendment** — see the standalone file §12. The BRD gate blocks stages S2/S3, **not** S1.
+
+**Decision — the PO is substantially right, with one material correction.**
+
+1. **Bundle a gazetteer, as a local-first *index* — not as a replacement for the geocoder.** The
+   geocoder is demoted from "the only path" to "the tail path". A pure replacement was tested
+   against real place names and **fails this project's own flagship use case**: of 16 Scottish
+   places probed, Glasgow / Edinburgh / Inverness / Ullapool / Aviemore / Portree / Tarbert are
+   present in both candidate datasets, but **Plockton, Applecross, Shieldaig, Lochinver, Durness,
+   Kyleakin, Gairloch, Dornie and Braemar are absent from both** — and BUG-30's own note records
+   that the Scotland dogfood trial is the trigger requirement. The coverage floor is real and it
+   bites exactly where this project travels.
+2. **Sources: `cities.json`** (npm, **CC-BY-4.0**, GeoNames-derived, 170,540 cities / 246 countries,
+   published **monthly** — verified from the registry's 65 publish timestamps, not the README) **and
+   `iso3166-2-db`** (npm, MIT, 3,940 subdivisions) as a **`devDependency`** build-time generator.
+   Both reachable over the npm registry, so **no ADL-33 firewall amendment is required.**
+   `all-the-cities` rejected: declares MIT over CC-BY GeoNames data, six years stale, and its own
+   "population ≥ 1000" claim is false for 22,913 of its rows. `country-state-city` rejected: GPL-3.0.
+3. **Load-bearing structural finding.** **GeoNames `admin1` codes are not ISO 3166-2 codes** — the
+   naive concatenation `"<CC>-"+admin1` is correct for exactly **2 of the 26** `region_tier_enabled`
+   countries (GB, US); 20 are purely numeric (`AU`→`08`, `CA`→`01`, `DE`→`15`). A build that assumed
+   the "same source family" would have written `AU-08` where the app expects `AU-NSW`, silently, and
+   passed every test written against the only two countries with seeded regions today.
+   **`iso3166-2-db` carries the crosswalk** (`admin` = GeoNames code, `iso` = ISO suffix):
+   **99.28 %** of city rows in enabled countries join, and **all 76 currently-seeded region codes
+   match exactly** — so the region set is a strict superset and **no user-row backfill is needed.**
+4. **Topology: a new `gazetteer_cities` reference table. `cities` is not replaced and not migrated.**
+   No FK ever points at the gazetteer; user rows are *created from* it through the unchanged ADL-46
+   find-or-create. That is what makes a delete-and-reload refresh safe by construction.
+5. **Seed: content-hash-gated startup seed** extending `startup.service.ts`. Steady-state boot cost is
+   one indexed `SELECT`. Measured cold seed against local libSQL: **618 ms, 12.47 MB, ambiguity
+   `GROUP BY` in < 1 ms.** (Repo precedent: `geo/regions.json` is already 40 MB.)
+6. **Refresh: on-demand and trigger-driven, not scheduled** — a monthly bot PR of a 17 MB artifact
+   trains reviewers to rubber-stamp. **Attribution is a real CC-BY obligation** and surfaces on a new
+   in-product About/Credits surface (GeoNames CC BY 4.0 · OpenStreetMap ODbL · Natural Earth),
+   discharging an obligation ADL-43 §6.2 and BUG-55 both already flagged and neither closed.
+
+**Alternatives considered.** *Gazetteer replaces the geocoder entirely* — rejected, §2's coverage
+floor. *Manual entry with no pin for the tail* — rejected: trades a user-visible product regression
+for an internal simplification, on precisely the places the PO travels to. *Load the gazetteer into
+`cities`* — rejected: a refreshable dataset must never be FK-referenced by user data, and it would
+dilute GE-16's three end states to nothing. *Do nothing and rely on the BUG-71 fix* — rejected, but
+**only partly**: the BUG-71 fix is correct and should ship now (below); it makes the common case
+*blank* rather than wrong, and the gazetteer is the only proposal that makes the common case
+correct *and* better.
+
+**What it closes, and what it does not.** Closes **OQ-06**'s implementation, the **BUG-30 class**
+(22 latent instances → 0) and **D-14 tier 2** (ISO alpha-2/alpha-3 ship in `iso3166-2-db`).
+Substantially closes **ENV-01's test blindness on the primary path** — the single strongest argument
+here, because it moves the common case *inside* the CI-testable boundary, which no amount of
+test-writing against the current architecture achieves. Re-scopes **D-19** from a design problem to
+an `ORDER BY`. **Does NOT close: BUG-45** (different dataset, zero source overlap — execution-queue
+item 13 wrongly bundles them), **BUG-69**, **BUG-74**, **QUAL-22**, **UX-12**, **ENV-02**. Takes **no
+credit** for **BUG-55** or **BUG-33**, both already closed by other work.
+
+**Implementation implications.**
+- **Three independently-green stages (ADL-47 satisfied without an integration branch):** **S1**
+  subdivisions (`data/regions.json` 76 → 716 rows, purely additive — *independently worth shipping
+  even if the cities half is declined*); **S2** `gazetteer_cities` + seed (no route reads it yet —
+  this is where the Turso timing question gets answered before anything depends on it); **S3**
+  local-first lookup. **S1 must precede S2** — the crosswalk writes region codes that must exist.
+- **UNVERIFIED and gating S2:** cold-seed cost and storage headroom against **Turso** (all timings
+  are local libSQL). **UNVERIFIED and gating the whole tail strategy:** that Nominatim actually *has*
+  Plockton/Shieldaig/Dornie — ENV-01 blocks the probe from here. If it does not, the tail decision
+  must be re-taken.
+- New in-product About/Credits surface (small Frontend item) and `data/gazetteer-meta.json` provenance.
+
+**Supersession.**
+- **ADL-43 §2 S1 and S3 are amended** (stamped in this PR): the subdivision source becomes
+  `iso3166-2-db`, not `country-region-data`. ADL-43 §6.1 was **right** that Natural Earth and
+  `country-region-data` both return 217 GB council-tier rows with none of `GB-ENG/SCT/WLS/NIR`
+  — re-verified independently here — but it did not find that a third source returns **exactly those
+  four**. S3's mandatory per-country override table therefore loses its one confirmed case; the
+  mechanism is kept for VN/ET/KZ but is no longer load-bearing on day one. S2/S4/S5 stand, adopted.
+- **The BUG-71 ruling and its OP-27 review are NARROWED, not superseded** (stamped in this PR).
+  **Ship the BUG-71 fix now — do not hold a live P1 behind this multi-stage build.**
+  `classifyDiscovery` survives as the *tail-path* classifier, and the review's three-valued output is
+  *strengthened*: a complete local set can never be "incomplete but undivided", so `'suggested'`
+  becomes precisely and only the tail-path state.
+- **Execution-queue Tier 2 item 13 is partly stale** and should be corrected: OQ-06 was already
+  decided by ADL-43 on 2026-07-27 (what remained was implementation, and now a source correction),
+  and BUG-45 does not belong in the same item.

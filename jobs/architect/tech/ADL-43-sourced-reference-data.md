@@ -38,11 +38,23 @@ stop being hand-typed, but not all three get there the same way. §6 makes the c
 
 ## 2. Subdivisions (OQ-06)
 
+> **AMENDED (2026-08-01) by ADL-48 §13.1 — S1 and S3 only; S2, S4 and S5 stand unchanged and are
+> adopted. Retained for history.** ADL-48 evaluated a third source, `iso3166-2-db` (npm, MIT), which
+> **returns exactly four GB rows — `GB-ENG`, `GB-SCT`, `GB-WLS`, `GB-NIR`** — matching this project's
+> seeded values byte-for-byte, and which additionally carries the GeoNames→ISO 3166-2 crosswalk that
+> a bundled city gazetteer requires. §6.1's finding below is **correct and was re-verified
+> independently** (`country-region-data` GB → 217 council-tier rows, none of the four); what it
+> missed is that a different source does not have the gap. **S1's source therefore becomes
+> `iso3166-2-db`**, and **S3's per-country override table loses its one confirmed case** — the
+> mechanism is kept for the granularity mismatches ADL-48 §4.1 measured (VN 54.8 %, ET 76.9 %,
+> KZ 86.3 % join rates) but is no longer required on day one. See
+> `jobs/architect/tech/ADL-48-bundled-gazetteer.md`.
+
 | # | Decision | Recommendation | Confidence |
 |---|----------|-----------------|------------|
-| S1 | Source | `country-region-data` (npm, MIT) generates `data/regions.json` — replaces hand-typing, does **not** replace `data/countries.json`'s existing `region_tier_enabled` config | High |
+| S1 | Source | ~~`country-region-data` (npm, MIT)~~ **→ `iso3166-2-db` (npm, MIT), amended 2026-08-01 by ADL-48 §13.1** — generates `data/regions.json`, replaces hand-typing, does **not** replace `data/countries.json`'s existing `region_tier_enabled` config | High |
 | S2 | Scope | Generate rows only for the 26 currently-enabled countries (940 rows, verified) — not all 249 (4,387 rows) — until GE-07's per-country enable list changes | Medium |
-| S3 | Per-country override | A small, committed, hand-reviewed override table for countries where the systematic source's granularity doesn't match GE-02's product intent. **GB is the one confirmed case** — see §6.1 | High |
+| S3 | Per-country override | ~~A small, committed, hand-reviewed override table… **GB is the one confirmed case**~~ **AMENDED 2026-08-01 by ADL-48 §13.1 — retained for history.** Under S1's amended source GB needs **no override** (`iso3166-2-db` returns `GB-ENG/SCT/WLS/NIR` directly). The override *mechanism* is retained for measured granularity mismatches (VN/ET/KZ) but is **no longer a mandatory day-one component** | High → **superseded in scope** |
 | S4 | Storage | Unchanged: generated JSON lands in `data/regions.json` in the exact shape it has today (`{country_code, name, iso_3166_2}`), seeded into the existing `regions` table by the existing startup-seed path. No new table, no new mechanism | High |
 | S5 | Refresh | Manual: a checked-in generation script re-run on demand (new country enabled, upstream correction, or a `BUG-30`-shaped report), output reviewed and committed like any other data change — not fetched at runtime | High |
 

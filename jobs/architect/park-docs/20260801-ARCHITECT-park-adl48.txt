@@ -1,0 +1,125 @@
+PARK DOCUMENT — ARCHITECT — 2026-08-01
+ADL-48: Bundled local gazetteer — build vs buy for city and subdivision reference data
+Branch: chore/gazetteer-build-vs-buy-adl
+
+================================================================================
+WHAT THIS THREAD WAS
+================================================================================
+Fresh Architect dispatch (no authorship of ADL-43, ADL-46, the BUG-71 ruling, its
+fresh-eyes review, or the UX spec). Task: decide on evidence whether to replace
+live geocoder-driven city discovery with a bundled local gazetteer, explicitly
+including deciding AGAINST it. Folded in execution-queue Tier 2 item 13 (ISO 3166-2).
+
+Deliverables:
+  jobs/architect/tech/ADL-48-bundled-gazetteer.md          (standalone, evidence + design)
+  jobs/architect/tech/20260307-architecture-decisions-log.md — ADL-48 entry (decision of record)
+  Amendment stamps: ADL-43 (S1/S3), BUG-71 ruling, BUG-71 review, exec-queue item 13, D-19
+
+================================================================================
+THE DECISION IN ONE LINE
+================================================================================
+Bundle the gazetteer as a LOCAL-FIRST INDEX; keep the geocoder for the tail.
+Not a replacement — a reordering. The geocoder is demoted, not retired.
+
+================================================================================
+WHERE THE EVIDENCE LIVES (probe scripts, if anyone needs to re-run)
+================================================================================
+Scratch dir (session-scoped, NOT in the repo):
+  /tmp/claude-1000/-workspace/d8d4dd31-.../scratchpad/gaz/
+    probe.mjs   — cities.json row counts, shape, Scotland coverage, Springfield
+    probe2.mjs  — admin1 code style by country; city->admin1 join rate
+    probe3.mjs  — all-the-cities coverage + population distribution
+    probe4.mjs  — SECOND independent probe of every absence claim (substring, all countries)
+    probe5.mjs  — the decisive GeoNames-admin1-vs-ISO-3166-2 test over the 26 enabled countries
+    probe6.mjs  — discovery of the crosswalk inside iso3166-2-db
+    probe7.mjs  — end-to-end crosswalk integration test (99.28%, 76/76)
+    probe8.mjs  — real libSQL build: seed timing, DB size, ambiguity query latency
+NOTE: these are scratch and will not survive. Every number they produced is recorded in
+ADL-48 §3, §4.1, §8.2 and §15.2 with the method stated, so the ADL stands alone.
+
+================================================================================
+THE THREE FINDINGS THAT MATTER MOST TO WHOEVER PICKS THIS UP
+================================================================================
+1. GeoNames admin1 codes ARE NOT ISO 3166-2 codes. Correct for 2 of 26 enabled
+   countries (GB, US); 20 purely numeric. A naive "same source family" build writes
+   AU-08 where the app expects AU-NSW — silently — and passes every test written
+   against the only two countries with seeded regions today. The crosswalk is inside
+   iso3166-2-db (field `admin` = GeoNames, field `iso` = ISO). 99.28% join rate;
+   all 76 currently-seeded codes match exactly, so NO backfill of user rows.
+
+2. The coverage floor is real and it bites Scotland specifically. 9 of 16 probed
+   Scottish places are absent from BOTH candidate datasets. BUG-30's own tracker note
+   records the Scotland dogfood trial as the trigger requirement. That is why the
+   recommendation is gazetteer-FIRST rather than gazetteer-ONLY, and it is the reason
+   the design must not be salami-sliced into "gazetteer only" later.
+
+3. ADL-43 §6.1 was right about country-region-data and Natural Earth (re-verified
+   independently: 217 GB council-tier rows, none of ENG/SCT/WLS/NIR) but did not test
+   a third source. iso3166-2-db returns exactly those four. That removes the mandatory
+   per-country override table from the critical path.
+
+================================================================================
+BUGS / DEFECTS DISCOVERED THIS THREAD
+================================================================================
+[TRIVIAL] src/backend/services/startup.service.ts:161 docstring says "Seeds US (51),
+  AU (8), and CA (13) entries — 72 total." Stale since BUG-30 / PR #168: the real
+  figure is 76 across US/AU/CA/GB. Line 10 likewise omits GB.
+  Disposition: ESCALATED TO COO, deliberately NOT fixed here. This is a design-only
+  PR; touching source to fix a comment would scope-creep it. It matters because it is
+  the most quotable-looking source of a wrong "currently seeded" baseline, and ADL-48
+  cites that baseline. Recommend folding into the ADL-48 S1 database brief, which
+  rewrites that seeder anyway.
+
+[TRIVIAL] npm package `all-the-cities` advertises "138,398 cities … population of at
+  least 1000". Actual: 135,233 rows, of which 22,913 are below 1000 and 12,788 are
+  exactly 0. Upstream defect, not ours. Disposition: recorded in ADL-48 §3 as part of
+  the rejection rationale. No action.
+
+No MAJOR or CRITICAL bugs discovered. No reclassifications.
+
+================================================================================
+OPEN / UNVERIFIED — CARRIED FORWARD DELIBERATELY
+================================================================================
+U1. Turso cold-seed cost and storage headroom. ALL timings in ADL-48 are LOCAL libSQL
+    (618ms / 12.47MB). Remote libSQL pays a round-trip per batch. GATES STAGE S2 —
+    the Database brief must measure it before S3 depends on it. Probe: time one
+    2,000-row batch via scripts/agent-diagnostics/turso-query.mjs against staging.
+
+U2. Whether Nominatim actually HAS the tail villages (Plockton, Shieldaig, Dornie).
+    ENV-01 blocks the probe from this devcontainer. THIS GATES THE WHOLE TAIL STRATEGY:
+    the recommendation to keep the geocoder for the tail assumes it can serve the tail.
+    If it cannot, ADL-48 §2.1 must be re-decided and the whole proposal reconsidered.
+    Probe: the staging deployment shakedown, or an allowlisted host.
+
+U3. feature_code (the ranking signal that would substitute for the missing population
+    column) is NOT present on cities.json rows — verified absent. Recovering it via a
+    join to all-the-cities is unverified and lossy. Design does not depend on it.
+
+================================================================================
+WHAT IS NOW UNBLOCKED / WHAT IS NOT
+================================================================================
+UNBLOCKED IMMEDIATELY (no BRD change needed):
+  Stage S1 — subdivisions. data/regions.json 76 -> 716 rows, purely additive, closes
+  the BUG-30 class (22 latent instances -> 0). Worth dispatching even if the PO
+  declines the cities half — that separation is deliberate.
+
+BLOCKED ON THE BRD GATE (COO must add GE-17 + GE-18 with the success criteria stated
+in ADL-48 §12.1, and amend GE-16's definition of "resolved"):
+  Stage S2 — gazetteer table + seed.  Stage S3 — local-first lookup.
+
+NOT AFFECTED, SHIP AS PLANNED:
+  BUG-71 backend + frontend briefs. ADL-48 explicitly says do NOT hold a live P1
+  behind this multi-stage build. classifyDiscovery survives as the tail classifier.
+
+STILL OPEN, UNTOUCHED BY THIS ADL:
+  BUG-45 (zero source overlap), BUG-69, BUG-74, QUAL-22, UX-12, ENV-02.
+
+================================================================================
+EXPECTED NEXT STEP
+================================================================================
+OP-27 fresh-eyes review of ADL-48 by a second, freshly dispatched Architect.
+I wrote it to be attacked and named the two weakest points myself in the closing
+line of the document: §2.1's tail strategy rests on U2, and §8.3's Turso timing is U1.
+A reviewer should also press on whether §5.1's no-FK-on-country_code exception is
+justified, and whether the three-stage split in §11 really keeps S2 green given S2
+ships a table nothing reads.

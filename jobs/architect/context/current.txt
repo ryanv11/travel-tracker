@@ -1074,3 +1074,83 @@ candidate-volume/truncation-frequency numbers; limit=40 as the max; dedupe-vs-li
 ordering (the load-bearing one); featureType/layer support; countrycodes comma-list
 acceptance server-side (the code-side pass-through IS verified). No browser driven, no
 suite executed.
+
+================================================================================
+2026-08-01 — ADL-48: BUNDLED LOCAL GAZETTEER (build-vs-buy)
+Branch chore/gazetteer-build-vs-buy-adl · fresh dispatch, no authorship of ADL-43,
+ADL-46, the BUG-71 ruling or its review.
+================================================================================
+
+TRIGGER: PO after a day of geocoding defects — "wouldn't it be easier just to store
+a full cities list in a DB table?" Folded in execution-queue Tier 2 item 13.
+
+VERDICT: PO substantially right, with one material correction. Bundle a gazetteer as a
+LOCAL-FIRST INDEX, not as a geocoder replacement. The geocoder is demoted to the tail
+path, not retired.
+
+THE DECIDING EVIDENCE — coverage floor probed with real names, not population theory.
+Of 16 Scottish places probed against BOTH candidate datasets (two probes that fail
+differently: exact-match-in-GB, and case-insensitive substring across all 246 countries):
+  PRESENT in both: Glasgow, Edinburgh, Inverness, Ullapool, Aviemore, Portree, Tarbert
+  ABSENT from both: Plockton, Applecross, Shieldaig, Lochinver, Durness, Kyleakin,
+                    Gairloch, Dornie, Braemar
+  DISAGREE: Tobermory (in all-the-cities pop 1010; absent from cities.json)
+The floor is roughly "somebody's home town" in / "hamlet or single-attraction place" out.
+BUG-30's own note says the Scotland dogfood trial is the trigger requirement — so a pure
+replacement would ship a product that cannot record the trip it was built for. Dispositive.
+
+SOURCES (all verified by installing and reading, nothing from memory; all npm-reachable,
+so NO ADL-33 firewall amendment needed):
+  cities.json 1.1.61 — CC-BY-4.0, GeoNames, 170,540 cities/246 countries, ships
+    admin1.json+admin2.json, MONTHLY (65 registry publish timestamps, not the README).
+  iso3166-2-db 2.3.11 — MIT, 3,940 subdivisions, AND the GeoNames->ISO crosswalk. devDependency.
+  REJECTED: all-the-cities (declares MIT over CC-BY GeoNames data; 6 yrs stale; its own
+    "pop >= 1000" claim false for 22,913 of 135,233 rows); country-state-city (GPL-3.0).
+
+LOAD-BEARING STRUCTURAL FINDING — the one that would have wrecked a naive build:
+GeoNames admin1 codes ARE NOT ISO 3166-2. "<CC>-"+admin1 is correct for exactly 2 of the
+26 region_tier_enabled countries (GB, US); 20 are purely numeric (AU->08, CA->01, DE->15).
+A naive build writes AU-08 where the app expects AU-NSW, silently, and passes every test
+written against the only two countries with seeded regions today.
+CROSSWALK: iso3166-2-db carries admin (GeoNames) + iso (ISO) per subdivision.
+Measured: 99.28% of city rows in enabled countries join; ALL 76 currently-seeded region
+codes match exactly -> strict superset, NO user-row backfill.
+
+TOPOLOGY: new gazetteer_cities reference table; cities NOT replaced, NOT migrated. No FK
+ever points at the gazetteer (that is what makes delete-and-reload refresh safe). User
+rows created FROM it through the unchanged ADL-46 find-or-create.
+
+MEASURED (local libSQL, real data): cold seed 170,540 rows = 618ms; DB 12.47MB; the
+springfield ambiguity GROUP BY = 21 groups in <1ms. Repo precedent: geo/regions.json is
+already 40MB.
+
+WHAT IT CLOSES: OQ-06 implementation, BUG-30 class (22 latent -> 0), D-14 tier 2, and
+substantially ENV-01's test blindness on the primary path (the strongest single argument —
+it moves the common case INSIDE the CI-testable boundary).
+WHAT IT DOES NOT: BUG-45 (zero source overlap — item 13 wrongly bundles it), BUG-69,
+BUG-74, QUAL-22, UX-12, ENV-02. NO credit taken for BUG-55 or BUG-33 (already closed).
+D-19 re-scoped from a design problem to an ORDER BY.
+
+AMENDMENTS MADE (stamped in this PR):
+  ADL-43 S1: country-region-data -> iso3166-2-db. ADL-43 §6.1 was RIGHT (re-verified
+    independently: country-region-data GB = 217 council rows, no ENG/SCT/WLS/NIR) but
+    missed that a third source returns exactly those four. S3's override table loses its
+    one confirmed case. S2/S4/S5 stand.
+  BUG-71 ruling + its OP-27 review: NARROWED, not superseded. SHIP BUG-71 NOW — do not
+    hold a live P1 behind this. classifyDiscovery survives as the tail-path classifier;
+    the review's three-valued output is STRENGTHENED ('suggested' becomes precisely and
+    only the tail state); the review's F2 never-helps concern is substantially answered.
+  Execution-queue item 13: partly stale (OQ-06 already decided by ADL-43 2026-07-27).
+  open-dialogues D-19: re-scoped.
+
+BRD: two new IDs proposed with success criteria (GE-17 bundled city reference data,
+GE-18 provenance/attribution) + a REQUIRED GE-16 amendment — "resolved" currently means
+"the geocoder matched it", which makes a gazetteer-sourced Glasgow unrepresentable.
+Stage S1 needs NO BRD change; S2/S3 are gated.
+
+UNVERIFIED, both flagged as blockers on the relevant brief rather than resolved:
+  (1) Turso cold-seed cost and storage headroom — all timings are LOCAL libSQL. Gates S2.
+  (2) That Nominatim actually HAS Plockton/Shieldaig/Dornie — ENV-01 blocks the probe.
+      This gates the whole tail strategy: if it doesn't, the §2.1 decision must be retaken.
+
+NEXT: OP-27 fresh-eyes review expected. I named the two places to attack first in the doc.

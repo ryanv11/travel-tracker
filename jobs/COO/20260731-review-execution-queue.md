@@ -170,6 +170,23 @@ Misleading docs to fix in the same pass:
 both doc comments corrected.
 
 ### 13. ISO 3166-2 reference-data adoption (Architect ADL first — BRD gate)
+
+> **DISCHARGED AND PARTLY CORRECTED (2026-08-01) by ADL-48 — retained for history.** The ADL this
+> item asks for now exists: `jobs/architect/tech/ADL-48-bundled-gazetteer.md`. Two corrections to
+> the item as written, both established in ADL-48 §13.3:
+> 1. **OQ-06 was already *decided* by ADL-43 on 2026-07-27** and is `closed` in the tracker — this
+>    item queued an ADL that already existed. What was genuinely outstanding was the *implementation*
+>    brief, and now a **source correction**: ADL-48 §13.1 amends ADL-43 S1 from `country-region-data`
+>    to `iso3166-2-db`, because the latter returns GB at the constituent-country tier
+>    (`GB-ENG/SCT/WLS/NIR`) that ADL-43 §6.1 correctly established no other source does.
+> 2. **BUG-45 does not belong in this item.** It shares a *decision shape* but has **zero source
+>    overlap** (OpenFlights airlines vs a GeoNames gazetteer). Bundling them invites a single brief
+>    that tries to seed airlines from a city dataset. ADL-43 §3/§4 remains the live design for BUG-45
+>    and is untouched by ADL-48.
+>
+> **Disposition:** ADL-48 closes OQ-06's implementation question, the BUG-30 class and D-14 tier 2,
+> and re-scopes D-19. It does **not** close BUG-45. Dispatchable as three independently-green stages
+> (ADL-48 §11); **stage S1 needs no BRD change**, stages S2/S3 are gated on new IDs GE-17/GE-18.
 Build-vs-buy decision that closes four backlog threads at once: OQ-06 (its literal question),
 D-14 (USA/US search wants ISO codes), the BUG-30 class (hand-seeded region gaps), BUG-45
 (airline/provider lists — separate dataset, same decision shape). Architect to evaluate

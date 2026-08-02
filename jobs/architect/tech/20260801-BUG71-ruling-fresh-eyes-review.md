@@ -13,6 +13,18 @@
 
 > ## **SHIP WITH CORRECTIONS — and the corrections must land before the Backend brief is dispatched, not after.**
 
+> **NARROWED (2026-08-01) by ADL-48 §13.2 — retained for history; this verdict stands and the
+> BUG-71 work should SHIP NOW, not wait for ADL-48.** ADL-48 bundles a local city gazetteer
+> consulted before Nominatim. Two effects on this review specifically: **(1) F2's "never-helps"
+> failure mode is substantially answered** — categories **B** (Denver, Portland) and **C** (Paris,
+> London, Tokyo), the ones this review correctly identified as the real cost and the ones the PO
+> would notice, are precisely the names most certain to be present in a 170,540-row gazetteer, so
+> they resolve locally from a *complete* set and are confirmable rather than blank. **(2) F1/F3's
+> recommended three-valued output is strengthened and should still be adopted**: a complete local
+> set can never be "incomplete but undivided", so `'suggested'` becomes precisely and only the
+> **tail-path** state, which is a cleaner semantic than either document could give it. Findings
+> F4–F10 and P1–P4 are unaffected. See `jobs/architect/tech/ADL-48-bundled-gazetteer.md`.
+
 The ruling's core direction is right and I am not asking for it to be reversed. Moving the ambiguity decision out of a React component and into the backend (B6) is correct and overdue; "absence of disagreement is not agreement" (§2) is the correct diagnosis of BUG-71; leaving the resolution path alone (B9) is correctly reasoned and correctly scoped.
 
 But the **output shape is wrong**, and it is wrong in a way that cannot be cheaply corrected once `DiscoveryConfidence` ships as an API contract. Three findings converge on the same clause:
