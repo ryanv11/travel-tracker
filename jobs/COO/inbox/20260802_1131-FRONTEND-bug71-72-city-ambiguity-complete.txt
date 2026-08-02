@@ -1,0 +1,43 @@
+BUG-71 (P1 stopgap) / BUG-72 (P2) · GitHub #363 · PR #365 · BRD §5.2 GE-16 · branch fix/bug71-72-city-ambiguity-surfacing
+
+Built: BUG-71 — the new-city form's single-candidate region auto-fill (which
+can't distinguish genuine unambiguity from a truncated false single survivor)
+now renders as a visibly tentative "Suggested: {region} — from "{name}""
+caption instead of silently committing, reusing UX spec §3.2's pattern
+verbatim. BUG-72 — the search dropdown now shows region ("Illinois, US") and
+explicitly flags a region-tier country's city with no region set ("US (no
+state set)"), sourced from BUG-72's already-shipped backend half (PR #353),
+verified directly against the route rather than taken on the brief's word.
+
+Acceptance criteria:
+1. Ambiguous city no longer silently commits a region — PASS (pre-filled,
+   tentative status visible per §3.2)
+2. Search dropdown distinguishes same-named/different-region cities — PASS
+3. No-region row in a region-tier country visibly distinct — PASS
+4. BUG-73 amber failure banner + Retry control unregressed — PASS (re-ran its
+   test file in isolation, untouched)
+5. Unit tests: ambiguous, unambiguous, lookup-failed, no-region — PASS (7 new
+   tests, 2 new files)
+
+CI: gh pr checks 365 — all 18 checks green (scripts/ci-wait.sh pr 365 PASS).
+
+Security checklist: N/A, confirmed not skipped — no routes added, no data
+access changed, no new network call.
+
+Source file note: no wholesale rewrites — AddPlaceFlow.tsx and api.ts both
+received targeted diffs only; the two new test files are net-new additions.
+
+Open issues / blockers: none blocking merge. Two flags for COO (full detail
+in park doc): (1) QUAL-24 — GE-15's literal "without further user input"
+success criteria now contradicts correct ambiguous-city behaviour; BRD
+reconciliation not done here per brief, is COO/Architect's call. (2) UX spec
+§11.9 names a pre-existing MINOR bug in geocodeRetryQueue.ts (no
+`unresolvable` branch in attemptRetry) — not touched, outside this brief's
+named file scope, restated here so it isn't lost in the spec's length.
+
+Unblocked: the UX spec's fuller §11/§12 resolution design (Change City
+control, location-status badge, map counter) can now be scoped as its own
+brief whenever prioritized — no dependency on this PR beyond it being merged.
+
+Park doc: jobs/frontend/park-docs/20260802-FRONTEND-bug71-72-city-ambiguity-park.txt
+Tech note: jobs/frontend/tech/20260802-bug71-72-city-ambiguity.md
