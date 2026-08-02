@@ -158,7 +158,7 @@ export async function seedCountries(): Promise<void> {
 
 /**
  * Populates the regions table from data/regions.json if the table is empty.
- * Seeds US (51), AU (8), and CA (13) entries — 72 total.
+ * Seeds US (51), AU (8), CA (13) and GB (4) entries — 76 total.
  * Skips silently if already populated.
  */
 export async function seedRegions(): Promise<void> {

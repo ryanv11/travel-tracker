@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (73)
+## Open work (75)
 
 ### P0 — Blockers (1)
 
@@ -36,7 +36,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | BUG-71 | Ambiguous city name silently auto-resolves and pre-fills a state — no disambiguation offered (GE-16 violation) | backend | ⬜ Pending |
 
-### P2 — Important (38)
+### P2 — Important (40)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -74,9 +74,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-21 | Resolve-then-create success path has zero route-level test coverage (review F4) | qa | ⬜ Pending |
 | QUAL-22 | QA ATDD suite's geocoding mock drifted — one group is green for the wrong reason (review F8) | qa | ⬜ Pending |
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
-| BUG-72 | City search dropdown shows name + country only — user selects a specific city blind | backend | ⬜ Pending |
-| BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | ⬜ Pending |
+| BUG-72 | City search dropdown shows name + country only — user selects a specific city blind | backend | done_pending_uat |
+| BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | done_pending_uat |
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | ⬜ Pending |
+| BUG-75 | D13 city identity key cannot represent two distinct same-name towns in the same region — live latent conflation | architect | ⬜ Pending |
+| QUAL-24 | GE-15, GE-16 and UX spec §3.2 contradict each other on city auto-populate — reconcile before the next UAT round | coo | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
 ### P3 — Minor (28)
@@ -118,9 +120,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `██████████▓░░░░░░░░░` 29/56 | 29 | 27 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `█████████████░░░░░░░` 44/68 | 44 | 24 | 4 |
+| bug | `█████████████░░░░░░░` 44/69 | 44 | 25 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `████████▓░░░░░░░░░░░` 13/31 | 13 | 18 | 1 |
+| chore | `████████▓░░░░░░░░░░░` 13/32 | 13 | 19 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -154,4 +156,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_135 done · 10 deferred · 4 closed · 73 open — 222 tracked items_
+_135 done · 10 deferred · 4 closed · 75 open — 224 tracked items_

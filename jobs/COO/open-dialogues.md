@@ -25,6 +25,57 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-21: Firewall allowlist for external data sources (Nominatim, MapTiler) + recorded-fixture testing
+**Raised:** 2026-08-01 (PO: *"do we need to get you hooked up to nominatim or any other services
+to improve our local testing and development?"*) · **Status:** COO recommendation given, PO has
+not decided. **Escalated in importance the same session** — see the Plockton note below.
+
+**The COO's answer, in short: yes to Nominatim, but not so tests can call it live.** Live-calling
+tests would be non-deterministic (Nominatim's data and ranking change), rate-limited at ~1 req/s
+with the client's own comment warning a violation *"blocks the whole app"*, and an abuse of a free
+public service that risks an IP ban. The valuable thing an allowlist entry buys is the ability to
+**record real responses once** and commit them as replay fixtures — deterministic, fast, and
+*faithful because recorded rather than invented*.
+
+**The argument for it.** What actually failed in BUG-71 was not reachability but fidelity: the
+defect passed 32 purpose-written ATDD acceptance tests and green CI because the mocks encoded what
+we *assumed* Nominatim returns. That is QUAL-22 verbatim — a group green for the wrong reason.
+A recorded-fixture set closes the class; more mock-writing inside the wrong environment cannot.
+
+**Honest scope limit, stated up front so it isn't oversold.** This does **not** fix the
+environment-parity class. The worst parity defect this project has had (BUG-55, Nominatim
+CSP-blocked in production) would not have been caught by any allowlist entry — it is a *topology*
+difference (prod serves the document from Express with helmet's CSP; E2E serves it from `vite
+preview` with no CSP header at all), which is QUAL-18's job and needs no firewall change.
+
+**COO's spend ranking if forced to choose:** QUAL-20 (post-deploy smoke — automates the manual
+shakedown that found four defects on 2026-08-01) → Nominatim allowlist + fixtures → QUAL-18/19 →
+MapTiler (unblocks visual map testing; BUG-49 and BUG-34 are currently unobservable).
+
+**Why this got MORE important, not less, after ADL-48.** The COO initially advised parking the
+Nominatim half on the grounds that a bundled gazetteer might make it moot. **That advice was
+wrong and is withdrawn.** ADL-48's recommendation is gazetteer-*first*, not gazetteer-*only* — the
+geocoder is retained for the coverage tail. Both ADL-48 and its OP-27 review then flag, as the
+single load-bearing unverified item behind decision G6, that **nobody knows whether Nominatim even
+has Plockton, Shieldaig or Dornie** — the very places the gazetteer was shown to miss. ENV-01
+blocks the probe (re-confirmed by two independent probes in the review). If Nominatim lacks them
+too, the tail strategy must be retaken and part of ADL-48 reopens.
+
+**Governance.** The allowlist is governed by **ADL-33/OP-21**, which documented its exclusions with
+reasoning (`api.turso.tech` and `api.clerk.com` deliberately excluded). Adding domains should
+**amend that ADL**, not quietly edit `.devcontainer/init-firewall.sh`. Note the practical asymmetry
+already recorded in ADL-48: an npm-distributed dataset is reachable from this environment and from
+CI; a direct third-party download is not.
+
+**Also note:** `init-firewall.sh` runs at container start, so any change needs a container rebuild
+and cannot help an in-flight session.
+
+**Next step if adopted:** an Architect brief amending ADL-33 to cover Nominatim (+ MapTiler if the
+PO wants visual map testing), plus the fixture-capture and drift-check design. Cheap; ready to
+execute whenever the container next rebuilds.
+
+---
+
 ### D-19: Constrain city lookup by the trip's declared countries + shortlist-not-filter selection
 **Raised:** 2026-08-01 (PO) · **Status:** ~~DESIGNED, deferred behind an MVP~~ → **DEFERRAL
 NO LONGER JUSTIFIED (amended 2026-08-01, same day).** Needs a BRD home before any brief.

@@ -1,0 +1,161 @@
+COO SESSION PARK — 2026-08-01/02 (GE-16 SHAKEDOWN: PO FOUND 3 DEFECTS ON FIRST REAL USE;
+BUG-71 ESCALATED TWICE THEN REFRAMED BY THE PO INTO ADL-48 — BUNDLED GAZETTEER)
+================================================================================
+
+## READ THIS FIRST — the session ended with the PO saying "there is too much here for me
+## to make sense of right now." That is the most important fact in this document.
+
+Do NOT open the next session by replaying everything below. Four decisions are waiting.
+Take them one at a time, smallest first. Everything else is durably tracked and can wait.
+
+### The four decisions, smallest first
+
+1. **BUG-71 stopgap — go/no-go.** Asked three times, never declined, just overtaken each
+   time by a bigger thread. It is the live P1. Frontend-only, ~one component, no truncation
+   detection, correct under BOTH the current geocoder and ADL-48's gazetteer so nothing is
+   throwaway. Both the BUG-71 review AND ADL-48's review independently say ship it now.
+   Full design is in the BUG-71 tracker note. **This is the single highest-value ask.**
+   Fold in BUG-72's outstanding frontend half — same component, same visit.
+
+2. **ADL-48 S1/S2 dispatch** (subdivisions + gazetteer table). Dispatchable with review
+   findings F2 and F4 folded into the briefs. S1 alone closes 22 latent BUG-30s.
+
+3. **BUG-75 design call** — belongs to ADL-48's author, blocks S3. Widen the identity key,
+   accept conflation, or hide colliding rows. Every option costs ADL-48 §7's headline.
+
+4. **D-21** (open-dialogues) — Nominatim/MapTiler firewall + recorded fixtures. Now
+   load-bearing, not optional: see "the withdrawn advice" below.
+
+## What happened
+
+The PO ran an unprompted deployment shakedown of the ADL-46 release on staging at pickup.
+It returned FAIL and found three product defects plus one infrastructure item in about ten
+minutes — more than the entire automated suite. That is the OP-32 shakedown rule earning
+its place for the third time.
+
+| PR | What | Status |
+|---|---|---|
+| #350 | Log BUG-71/72/73 + ENV-02 from the shakedown | merged |
+| #355 | Architect ruling — BUG-71 ambiguity mechanism | merged |
+| #353 | BUG-72 backend — region name/ISO on city search | merged |
+| #354 | BUG-73 — geocode retry + visible failure state | merged |
+| #356 | OP-27 fresh-eyes review of the BUG-71 ruling | merged |
+| #357 | BUG-74 — partial-fix gap the review found in #354 | merged |
+| #358 | **ADL-48 — bundled gazetteer build-vs-buy** | merged |
+| #359 | OP-27 fresh-eyes review of ADL-48 | merged |
+
+main green @ 0f1d0a5. No open PRs, no worktrees, one local branch.
+
+## THE COO ERROR THAT MATTERS MOST — read before trusting any COO framing next session
+
+BUG-71 was dispatched to an Architect asking *"how do we give the ambiguity discriminator
+enough evidence from Nominatim?"*, then the ruling went to an OP-27 reviewer. Both did
+excellent work. Scope grew each round: small fix → truncation heuristic → four-document
+reconciliation.
+
+The PO then asked: *"Are we over-engineering this? Wouldn't it be easier just to store a
+full cities list in a DB table?"* That reframing became ADL-48 and retired most of the
+problem space at a stroke.
+
+**Every agent operated inside a COO framing that none of them was invited to challenge.**
+OP-27 catches wrong *answers* — it caught two blocking defects the same day — but a
+reviewer handed "review this ruling" reviews the ruling, not the question behind it.
+Independent eyes on the answer are not independent eyes on the frame.
+Memory: `feedback_question_the_frame_not_just_the_answer.md`.
+**Trigger to adopt: scope growing across two consecutive rounds on one defect.**
+
+Two smaller COO errors, same root (trusting context not personally established):
+- Read a correct-looking `Springfield → Virginia` row from a `geocode_status` query as
+  evidence the live path worked. That row *was* the defect. A correct row is not a correct
+  flow, and a DB query was the wrong instrument — ten minutes of real browser found what it
+  could not.
+- Told an Architect that OQ-06 needed deciding. It was already decided by ADL-43 on
+  2026-07-27; the claim was inherited from the execution queue and never re-probed.
+
+## Advice the COO gave and then WITHDREW — do not act on the earlier version
+
+The COO advised parking the Nominatim allowlist question on the grounds that a gazetteer
+might make it moot. **Wrong, withdrawn.** ADL-48 is gazetteer-*first*, not gazetteer-*only* —
+the geocoder is kept for the coverage tail. Both ADL-48 and its review then flag the single
+load-bearing unverified item behind that decision: **nobody knows whether Nominatim even has
+Plockton, Shieldaig or Dornie** — the exact places the gazetteer was proven to miss. ENV-01
+blocks the probe (two independent probes confirm). If Nominatim lacks them too, the tail
+strategy must be retaken and part of ADL-48 reopens. Full thread: **D-21**.
+
+## Two shipped fixes that are PARTIAL — do not read the tracker as closing their class
+
+- **BUG-72** `done_pending_uat` — backend only. `GET /api/cities` now returns
+  `region_name`/`region_iso`, but `AddPlaceFlow.tsx:357` still renders `{name} {country_code}`.
+  **The data is available and unused, so the PO-visible defect is NOT fixed.** Held
+  deliberately to avoid two agents editing one component; pair it with decision 1.
+- **BUG-73** `done_pending_uat` — covers only the browser→backend hop. An upstream Nominatim
+  failure returns HTTP 200 with nulls, so `failed` stays false and no banner shows. That is
+  **BUG-74**, logged the same day the fix merged.
+
+## What the two OP-27 reviews bought (the case for keeping the practice)
+
+- **On the BUG-71 ruling:** the merged UX spec §3.2 had ALREADY decided the country half the
+  other way (*"never auto-committed... a visibly tentative default, not a silent fill"*). The
+  ruling read §3.3 and stopped. A Frontend agent told to "adopt the UX spec, do not reinvent
+  it" would have hit a flat contradiction between two merged documents on the first field.
+  It also broke the ruling's central "can only fail toward a right answer" claim.
+- **On ADL-48:** found the shipped D13 identity key cannot represent 5,024 gazetteer rows
+  (2.95%), 3,765 colliding groups >10 km apart — "Newport" GB-ENG is four towns up to 343 km
+  apart collapsing to one row (now **BUG-75**, and live today, not gazetteer-specific). Also
+  caught that S1 — the half everyone including the COO called zero-risk — defines its reseed
+  as DELETE+reload of a table `cities.region_id` points at. **The COO was one message from
+  dispatching that.**
+  It further *closed* an unverified blocker by measuring (Turso cold-seed ~5 s, not "tens of
+  seconds to minutes"), strengthened ADL-48's coverage evidence by noting its two probes were
+  both name-based and adding a name-free coordinate-radius probe, and disproved one of its own
+  findings mid-flight (GeoNames admin1 46 = Yamanashi vs ISO JP-46 = Kagoshima).
+
+Methodological keeper: **ADL-48's worked example was Springfield, which is genuinely clean
+(21 rows → 21 groups). The most reassuring example in the document was the one structurally
+incapable of exposing its flaw.**
+
+## ADL-48 in one paragraph
+
+Recommendation: **gazetteer-first, not gazetteer-only.** Bundle a local dataset as the primary
+index; keep the geocoder for the tail. Decided on real Scottish place names, not population
+theory: Glasgow/Edinburgh/Inverness/Ullapool/Portree present; Plockton, Applecross, Shieldaig,
+Lochinver, Durness, Kyleakin, Gairloch, Dornie, Braemar absent from both candidate datasets.
+BUG-30's own note makes the Scotland dogfood trial the trigger requirement — a gazetteer-only
+build ships a product that cannot record the trip it was built for. Biggest technical catch:
+GeoNames `admin1` is NOT ISO 3166-2 — correct for 2 of 26 region-tier countries, numeric for
+20 — and would have written `AU-08` where the app expects `AU-NSW`, silently, passing every
+test because GB and US are the only region-tier countries with seeded regions today.
+
+## State of play
+
+- main green @ 0f1d0a5. Production still behind main (manual promotion, ADL-35).
+- BRD v3.13, unchanged this session. ADL-48 added. ADL-43 amended (source swap, stamped).
+- tracker: 231 entries, no duplicate IDs. New: BUG-71/72/73/74/75, ENV-02, QUAL-24.
+- Reference data reality check: **250 countries, 76 regions spanning only 4 countries
+  (US 51, CA 13, AU 8, GB 4), 3 cities** — while 26 countries have the region tier ENABLED.
+  22 of them present users an empty state selector today. That is 22 latent BUG-30s.
+- `startup.service.ts` region-count comment corrected 72 → 76 (stale since PR #168).
+
+## Still outstanding, already durable — NOT at risk, just not actioned
+
+Two Wave 1 UAT sessions (sub-waves A + B, July) untouched for a fourth session. The rest of
+the ADL-46 shakedown, especially **non-owner add-a-place end to end** — the root fix for
+BUG-61/62/63 and the highest-value check remaining. Tier 1 cleanup queue (9 items,
+`jobs/COO/20260731-review-execution-queue.md`) untouched again. ADL-46 follow-ons BUG-69,
+QUAL-21/22/23, UX-12. **D-17's formal ATDD verdict still owed** — note QUAL-22 is now the
+qualification it must carry. D-18 never answered (asked, overtaken). PO declined the memory-dir
+backup (execution-queue item 7) — recorded as declined, not skipped.
+
+## Open threads
+
+See `jobs/COO/open-dialogues.md` — D-01 … D-21. Updated this session: **D-19** (deferral
+amended; "unmeasured" had been treated as "rare", and the measurement arrived by other means
+within hours). New: **D-21** (firewall allowlist + recorded fixtures, now load-bearing).
+
+## Restart preview
+
+Shown to the PO before this doc was written. All clear-cut gaps were resolved in this
+close-out rather than deferred: BUG-75 and QUAL-24 created, D-21 opened, the memory entry
+written, the stale startup comment fixed. Deliberately NOT given tracker IDs: ADL-48's
+S1/S2/S3 stages — per the execution-queue precedent, assign IDs at execution time against the
+then-current tracker, and S3 is blocked by BUG-75 regardless.
