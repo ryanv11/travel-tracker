@@ -117,6 +117,19 @@ resolve-then-create path primary.
 **Artifacts:** `jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md` (merged, PR #344) ·
 tracker UX-12, QUAL-21 · BRD GE-15/GE-16.
 
+> **RE-SCOPED (2026-08-01) by ADL-48 §6.9 — not closed, and still needs the PO's scope call.**
+> ADL-48 decides to bundle a local city gazetteer (170,540 rows) queried before Nominatim. Against a
+> local table, D-19's design problem collapses to a single clause:
+> `ORDER BY (country_code IN (/* trip countries */)) DESC, name`. That **is** the PO's
+> shortlist-not-filter pattern exactly — nothing is removed, likely matches sort first — with no
+> rate-limit interaction, no extra egress and no truncation risk, and the UX spec's `<optgroup>`
+> presentation sits on top unchanged. Two consequences worth recording: **QUAL-21 stops being a
+> prerequisite** in the form stated above (the primary path is a SQL query, not the untested
+> resolve-then-create path), and the *"a selection the geocoder cannot confirm stays pending"* item 3
+> becomes cheap because a complete local set can positively confirm. **D-19 should be picked up as a
+> consequence of ADL-48 stage S3 rather than designed separately** — designing it independently now
+> risks a second, incompatible lookup path. See `jobs/architect/tech/ADL-48-bundled-gazetteer.md`.
+
 ---
 
 ### D-20: Shared-record append collisions — the per-agent-region fix identified in Wave 0 and never adopted

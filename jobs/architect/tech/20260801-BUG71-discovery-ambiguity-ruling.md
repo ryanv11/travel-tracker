@@ -7,6 +7,21 @@
 **BRD:** GE-16 (violated), GE-15 (in tension — see §8)
 **Inputs:** `jobs/architect/tech/20260801-ADL46-F1-F2-ruling.md` §2.2; `jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md` §§1, 3.2, 3.3; `jobs/COO/open-dialogues.md` D-19; tracker BUG-71/72/73, QUAL-21/22; `main` @ `a398d10`.
 **Status:** Decided. Backend-implementable as written; a Frontend brief must follow in the same release (§7).
+
+> **NARROWED (2026-08-01) by ADL-48 §13.2 — retained for history; nothing here is retracted, and
+> this ruling should SHIP NOW rather than wait for ADL-48.** ADL-48 decides to bundle a local city
+> gazetteer consulted *before* Nominatim, which changes this ruling's **scope**, not its
+> **correctness**. Every section below describes the discovery path as Nominatim-only; after ADL-48
+> S3 that is true only of the **tail** — names absent from the bundled dataset. Consequences:
+> `classifyDiscovery` **survives** as the tail-path classifier and is still required; `truncated`
+> (§4.1) is structurally unrepresentable for a gazetteer hit, because a local query returns the
+> complete set and "is this ambiguous?" becomes a `GROUP BY`; and the fresh-eyes review's
+> three-valued output is **strengthened** — a complete local set can never be "incomplete but
+> undivided", so `'suggested'` becomes precisely and only the tail-path state. ADL-48 §13.2 also
+> notes that the review's **F2 "never-helps" concern is substantially answered**: the common,
+> high-noise names it worried about (Denver, Paris) are the *most* likely to be in a 170,540-row
+> gazetteer and so resolve locally, completely and confirmably.
+> See `jobs/architect/tech/ADL-48-bundled-gazetteer.md`.
 **No schema change. No migration. No new requirement ID. One existing BRD success criterion (GE-15) must be amended or the correct fix fails its own UAT — §8.**
 
 ---
