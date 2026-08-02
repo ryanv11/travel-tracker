@@ -1,0 +1,75 @@
+TO: COO
+FROM: Architect (OP-27 fresh-eyes review — second, fresh dispatch)
+DATE: 2026-08-02
+RE: ADL-48 feasibility spike — review complete
+Tracker: QUAL-25 · BUG-75 · ADL-48 · BRD GE-16/GE-17/GE-18
+Branch: chore/adl48-spike-fresh-eyes-review · PR: see below
+Deliverable: jobs/architect/tech/20260802-ADL48-spike-fresh-eyes-review.md
+
+WHAT I FOUND
+12 findings — 3 BLOCKER, 5 MAJOR, 2 MEDIUM, 2 LOW. The spike is strong work and
+most of it survived: I reproduced all four BUG-75 scenarios exactly, the generator
+byte-for-byte, the S1 inversion, the coverage floor and the package costs. The
+gazetteer decision holds. S0 does not.
+
+VERDICT: SPLIT
+  S1 (subdivisions)                     ADOPTED — dispatch as written
+  Change 1 trigram (not LIKE/prefix)    ADOPTED — with brief corrections (F6, F7)
+  Change 2 additive upsert for regions  ADOPTED — re-verified against live DBs
+  Change 3 vendor the crosswalk         ADOPTED — no reservation
+  Change 4 / S0 coordinate bucket       REJECTED AS SPECIFIED — return to author
+  Sequencing                            S1 -> BUG-71 stopgap -> pause
+                                        (the spike says "S0 first"; do not)
+
+THE THREE BLOCKERS ON S0 — each independently fatal
+  F1 ROUND(NULL,1) is NULL and SQLite treats NULLs as DISTINCT in a unique index.
+     lat/lng are NULL while geocode_status='pending'. Two pending "Newport"/GB rows
+     BOTH insert under the proposed key; today's index rejects the second. Re-opens
+     BUG-33 through the door COALESCE(region_id,0) exists to close.
+  F2 THE INDEX NEVER FIRES. findOrUpgradeCity pass 1 decides identity BEFORE
+     geocoding and has no coordinates. Simulated: user adds Newport meaning Isle of
+     Wight, pass 1 returns the Wales row, 200, no insert, index never consulted.
+     THE PROPOSED FIX DOES NOT FIX THE BUG. Real cost is re-opening ADL-46's D13
+     contract, which §7 never mentions.
+  F3 The key MUTATES after insert — resolveCity() UPDATEs lat/lng and threw
+     SQLITE_CONSTRAINT_UNIQUE on the ordinary retry path.
+  Common root: §7 reasoned about the dataset and never opened cities.ts POST.
+
+ALSO WORTH YOUR ATTENTION
+  F4/F5 kill the bucket SIZE argument independently: the spike counts collisions
+     removed and never pairs wrongly separated — 32.7% of same-name pairs within
+     5 km land in different cells at 0.1 deg. And "0.1 deg ~ 11 km" is latitude
+     only; it is 5.95 km in the Scotland dogfood region.
+  F6 "Trigram is a provable drop-in, 30/30 identical" is FALSE — the 30 terms were
+     all plain ASCII. 9 of 49 adversarial terms diverge (LIKE folds ASCII only,
+     trigram folds Unicode; 21% of rows are non-ASCII). Divergence favours the
+     user, so KEEP trigram — but that sentence must not reach a brief.
+  F7 A double-quote in the search box is a 500 in the recommended query shape.
+     Fix verified. Must be in the S3 brief.
+  F10 FRAMING: ADL-48 asked build-vs-buy and never asked WHICH gazetteer.
+     cities.json has no stable row id — that absence is the whole reason a
+     coordinate bucket was reached for. all-the-cities (MIT, GeoNames) ships
+     cityId, featureCode and population. A nullable gazetteer_id retires F1-F5
+     with no migration of shipped state. Not recommending the swap on this
+     evidence — recording that the question was never asked.
+
+CI: pending at time of writing — see the PR; I will not consider this closed until
+green. No code changed (docs only), so failures would be lint/format only.
+
+BLOCKERS FOR YOU
+  Do not dispatch S0 from the spike as written. If BUG-75 is re-briefed, §4 of the
+  deliverable lists the five acceptance criteria a re-design must answer.
+  BUG-75 itself is REAL and I reproduced its symptom — my objection is to the fix,
+  not the defect. One framing correction: the "5.20%" is a bulk-load statistic over
+  all 170,540 gazetteer rows, not a rate on a 3-row table. Per country it is 4.16%
+  for GB, so the magnitude survives; the denominator should be stated.
+
+WHAT IS UNBLOCKED
+  S1 is dispatchable now — I closed the gap the spike left by verifying additivity
+  against the LIVE databases (staging and prod both hold exactly 76 regions) via
+  the ADL-33 read-only path, not just data/regions.json.
+  The BUG-71 stopgap (#363) is unaffected by anything here and should proceed.
+
+NOTHING WAS MODIFIED: no schema change, no migration, no remote write. The spike
+document, ADL-48, the BRD and tracker.json were NOT edited — findings are filed
+for your adjudication.

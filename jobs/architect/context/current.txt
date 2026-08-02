@@ -1326,3 +1326,106 @@ METHOD NOTES worth keeping:
   - Measure the regime before optimising the term. Local timings said 40x; the deployed
     system sees 22%. Both are true and only one is relevant.
   - When two documents disagree on a figure, derive it a third time rather than picking.
+
+================================================================================
+2026-08-02 — OP-27 FRESH-EYES REVIEW OF THE ADL-48 FEASIBILITY SPIKE
+Branch chore/adl48-spike-fresh-eyes-review · deliverable
+jobs/architect/tech/20260802-ADL48-spike-fresh-eyes-review.md
+================================================================================
+
+VERDICT: SPLIT. The gazetteer half of the spike stands; S0 does not.
+  S1 SAFE TO DISPATCH AS WRITTEN. S0 (BUG-75 coordinate bucket) MUST GO BACK.
+  Recommended sequencing INVERTS the spike's own: S1 -> BUG-71 stopgap -> pause.
+  The spike says "S0 — dispatch first". S0 should not be dispatched at all yet.
+
+THREE BLOCKERS ON S0, each independently fatal. All three come from reasoning about
+the DATA and never against the WRITE PATH — §7 never opens cities.ts POST.
+  F1  ROUND(NULL,1) is NULL and SQLite treats NULLs as DISTINCT in a unique index.
+      cities.latitude/longitude are NULL while geocode_status='pending' (schema.ts),
+      and step 4c inserts exactly that. Proved: two pending "Newport"/GB rows BOTH
+      insert under the proposed key; today's index correctly rejects the second.
+      This is the BUG-33 door that COALESCE(region_id,0) exists to close, repeated
+      one column over. schema.ts documents the hazard verbatim for region_id.
+  F2  THE WIDENED INDEX NEVER FIRES. findOrUpgradeCity pass 1 decides identity
+      BEFORE resolveCityName and has no coordinates to bind — structural, because
+      GE-12 requires creation to succeed with the geocoder offline. Simulated the
+      D13 flow end to end: user adds Newport (Isle of Wight), pass 1 returns the
+      WALES row, route 200s, no insert, index never consulted. The fix does not fix
+      the bug. Real cost is not "a migration" — it is re-opening the ADL-46 D13
+      three-step contract, which §7 never mentions.
+  F3  THE KEY MUTATES AFTER INSERT. resolveCity() UPDATEs lat/lng; under the widened
+      key that UPDATE threw SQLITE_CONSTRAINT_UNIQUE on the ordinary retry path.
+
+F4/F5 kill the BUCKET SIZE argument even if F1-F3 were fixed:
+  The spike measures collisions REMOVED and never pairs NEWLY SEPARATED — so its
+  success metric scores false splits as wins. Measured: at 0.1 deg, 37 of 113
+  same-name pairs within 5 km (32.7%) land in DIFFERENT cells; 2 points 22 m apart
+  straddling 51.6499/51.6501 split. "0.1 deg is where same/different town separate
+  cleanly" is false, and no bucket size is clean — a bucket is a GRID, not a radius.
+  Also "0.1 deg ~ 11 km" holds only in LATITUDE: in longitude it is 11.1*cos(lat) =
+  5.95 km in the NW Highlands, 2.27 km at 78N. The spike rejected 0.01 deg as "too
+  tight at ~1.1 km" while its chosen cell is half-way there in the dogfood region.
+
+F6 TRIGRAM IS NOT A DROP-IN — the headline claim, and the 30 test terms were ALL
+  plain lowercase ASCII (read both term arrays in full). 49 adversarial terms: 40
+  identical, 9 DIVERGENT. LIKE folds ASCII only; the trigram tokenizer folds Unicode.
+  LIKE '%ZUR%' (with umlaut) = 0 rows, trigram = 51 (Zurich). 21.0% of rows carry a
+  non-ASCII character. Divergence is in the USER'S FAVOUR, so keep trigram — but
+  "provably identical / no user-visible change to communicate" must not be briefed.
+  UNCONSIDERED AND CHEAP: tokenize='trigram remove_diacritics 1' makes "zurich",
+  "sao", "koln", "malaga", "geneve" all find their accented rows. Neither shape does
+  today. That is a real product win the spike never evaluated.
+F7 A double-quote in the search box is a 500 — the recommended shape binds the raw
+  query into a quoted FTS5 MATCH phrase. Also permits FTS5 operator injection.
+  Parameterised, so not SQL injection. Fix verified: double the quote before binding.
+F8 EVERY Turso number is a READ, including batch(stmts,'read'). The spike correctly
+  marks INSERT throughput UNVERIFIED but §9 still instructs "VALUES shape, 5x better
+  than batch()" — a write instruction from a read ratio.
+F9 The 3-char floor is 5 sites in 3 files (all >=2 today), not "the route". And the
+  recommended 250 ms debounce is SHORTER than the shipped 300 ms — it would increase
+  request volume, the opposite of §2.6's own argument.
+
+F10 THE FRAME (the thing OP-27 exists for). ADL-48 asked build-vs-buy and never asked
+  WHICH GAZETTEER; the spike inherited that whole. cities.json carries only
+  name/lat/lng/country/admin1/admin2 — verified over the key UNION of all 170,540
+  rows. NO STABLE ROW ID, and that absence is the ENTIRE reason a coordinate bucket
+  was reached for. all-the-cities@3.1.0 (MIT, GeoNames) ships cityId (135,233
+  distinct of 135,233, zero dupes), featureCode (= ADL-48 §6.4's unanswered
+  question), population (= the relevance signal the ranking design lacks) and
+  altName. A nullable gazetteer_id, unique-when-present, is known AT SELECTION TIME
+  and never mutates — retiring F1-F5 for that path with no migration of shipped
+  state. Coverage is neutral: NW Highlands 46 rows vs 45, 0/9 tail villages either
+  way, so ADL-48 §2 stands regardless. NOT recommending the swap on this evidence —
+  recording that the question was never asked and is cheap to ask.
+
+WHAT I TRIED TO BREAK AND COULD NOT — four of my own findings, disproved:
+  1. "The case-fold model is wrong." Spike groups with JS toLowerCase (folds
+     Unicode); COLLATE NOCASE is ASCII-only; 2,576 rows fold differently. Re-ran
+     every scenario with the correct fold: 8,876 / 5,024 / 89, IDENTICAL. Zero effect.
+  2. "The antimeridian breaks the bucket." 0 rows with |lng| > 179.5. Theoretical.
+  3. "The 3-char floor is script-biased against CJK." 0 CJK/Kana/Hangul names in the
+     data (romanised source). Shrank to 79 Latin <=2-char names.
+  4. "ORDER BY sinks the perf argument." First measurement 6.32 ms for `san`; warm
+     re-measure 1.48 ms — cold-cache artefact. Corrected BEFORE filing.
+  Also reproduced EXACTLY in the spike's favour: all four BUG-75 scenarios including
+  the 8,092 km Nikol'skoye and Valverde 1,922 km; the S1 INVERSION (8,876 -> 5,024)
+  is real; the generator byte-for-byte incl. artifact hash sha256:26ea16e...; NW
+  Highlands 45; package sizes 19 MB / 283 MB.
+
+GAP I CLOSED IN THE SPIKE'S FAVOUR: it proved S1 additivity against data/regions.json
+  — the REPO FILE. The claim that matters is about the LIVE tables. Via the ADL-33
+  read-only path: staging regions=76 cities=3 null_latlng=0 pending=0; prod
+  regions=76 cities=2 null_latlng=0. Both match the file. S1 additivity holds against
+  real data. Note both environments hold ZERO null-coordinate cities today, so F1/F3
+  are LATENT — they activate the first time the geocoder is down during a create.
+
+METHOD NOTES:
+  - A benchmark that compares two shapes must compare the SAME shape. The spike times
+    LIKE with ORDER BY and trigram without. I expected this to be the big finding; I
+    re-ran it apples-to-apples and the spike WINS ANYWAY (31.5x median, 6.2x worst
+    term). Report the flaw, keep the recommendation.
+  - When a fix is proposed for a defect, simulate the DEFECT'S OWN CODE PATH, not the
+    data the defect was measured on. F2 was invisible to every data-side analysis and
+    obvious the moment the route was traced.
+  - "Fixed 98.2% of collisions" is only a success metric if nothing was WRONGLY
+    merged apart. Always measure both directions of a de-duplication change.

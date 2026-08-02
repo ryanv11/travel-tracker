@@ -1,0 +1,153 @@
+ARCHITECT PARK DOCUMENT — 2026-08-02
+OP-27 fresh-eyes review of the ADL-48 feasibility spike
+Branch: chore/adl48-spike-fresh-eyes-review
+Deliverable: jobs/architect/tech/20260802-ADL48-spike-fresh-eyes-review.md
+Tracker: QUAL-25 · BUG-75 · ADL-48 · GE-16/GE-17/GE-18
+
+--------------------------------------------------------------------------------
+WHAT THIS THREAD WAS
+--------------------------------------------------------------------------------
+Second, fresh Architect dispatch under CLAUDE.md's OP-27 rule, reviewing
+jobs/architect/tech/20260802-ADL48-feasibility-spike.md (main @ 04715fc, PR #362)
+and the spike code it produced. Explicit instruction: attack it, do not confirm it.
+The spike reaches GO-with-changes and will be cited by implementation briefs,
+including one placing a NEW UNIQUE INDEX on the `cities` table.
+
+--------------------------------------------------------------------------------
+VERDICT — SPLIT
+--------------------------------------------------------------------------------
+The gazetteer half stands. S0 does not.
+  * S1 (subdivisions) — SAFE TO DISPATCH AS WRITTEN.
+  * Changes 1/2/3 (trigram, additive upsert, vendor the crosswalk) — all sound,
+    with wording corrections to the brief.
+  * S0 (BUG-75 coordinate bucket) — REJECT AS SPECIFIED. Three blockers.
+  * Sequencing INVERTS the spike's: S1 -> BUG-71 stopgap -> pause. Not S0 first.
+
+12 findings: 3 BLOCKER, 5 MAJOR, 2 MEDIUM, 2 LOW. Full table in §1 of the
+deliverable; each finding carries the probe that established it.
+
+--------------------------------------------------------------------------------
+THE THREE BLOCKERS (all S0, all invisible to a data-side analysis)
+--------------------------------------------------------------------------------
+Common root: §7 reasoned about the DATASET and never opened cities.ts POST.
+
+F1  ROUND(NULL,1) = NULL, and SQLite treats NULLs as DISTINCT in a unique index.
+    latitude/longitude are NULL while geocode_status='pending' (schema.ts), and
+    step 4c inserts precisely that shape. Two pending "Newport"/GB rows BOTH
+    insert under the proposed key; today's index rejects the second. This is the
+    BUG-33 door that COALESCE(region_id,0) exists to close, repeated one column
+    over — schema.ts documents the identical hazard for region_id in prose.
+
+F2  THE INDEX NEVER FIRES — the most important finding in the review.
+    findOrUpgradeCity pass 1 decides identity BEFORE resolveCityName runs, and has
+    no coordinates to bind. That is structural: GE-12 requires creation to succeed
+    with the geocoder offline. Simulated end to end — user adds Newport meaning
+    Isle of Wight, pass 1 returns the Wales row, route 200s, no insert happens,
+    the unique index is never consulted. The proposed fix does not fix the bug it
+    is proposed for. Real cost is not "a migration staged per ADL-47" but
+    re-opening the ADL-46 D13 three-step find-or-create contract.
+
+F3  THE KEY MUTATES AFTER INSERT. resolveCity() UPDATEs lat/lng; under the widened
+    key that UPDATE threw SQLITE_CONSTRAINT_UNIQUE on the ordinary retry path.
+    An identity key written once by the user and again by a background job.
+
+--------------------------------------------------------------------------------
+IF ANYONE RE-OPENS S0, THESE ARE THE ACCEPTANCE CRITERIA
+--------------------------------------------------------------------------------
+1. What is a city's identity when its coordinates are not yet known?      (F1)
+2. How does pass 1 evaluate that identity BEFORE geocoding?                (F2)
+3. What happens when resolveCity() moves a row into an occupied identity?  (F3)
+4. If identity is proximity-based, what expresses "same place within X km"?
+   A unique index over quantised coordinates does not.               (F4, F5)
+5. Has a gazetteer source carrying a STABLE ROW ID been evaluated?        (F10)
+
+--------------------------------------------------------------------------------
+F10 — THE FRAMING FINDING (why OP-27 exists)
+--------------------------------------------------------------------------------
+ADL-48 framed the space as build-vs-buy and never asked WHICH gazetteer; the spike
+inherited that frame wholesale and stress-tested everything inside it.
+cities.json carries only name/lat/lng/country/admin1/admin2 — verified over the key
+UNION of all 170,540 rows. NO STABLE ROW ID. That absence is the ENTIRE reason a
+coordinate bucket was reached for; F1-F5 are consequences of the dataset choice,
+not of the problem.
+all-the-cities@3.1.0 (MIT, GeoNames-derived) ships cityId (135,233 distinct of
+135,233, zero duplicates), featureCode (ADL-48 §6.4's unanswered question),
+population (the relevance signal the §3 ranking design lacks entirely) and altName.
+A nullable `gazetteer_id`, unique-when-present, is known AT SELECTION TIME and never
+mutates — retiring F1-F5 for the gazetteer path with no migration of shipped state.
+Does nothing for user-typed tail cities; that half keeps today's key and today's
+limitation, which is a strictly smaller problem.
+Coverage is NEUTRAL between the datasets: NW Highlands 46 vs 45 rows, 0/9 tail
+villages either way. ADL-48 §2's coverage floor is dataset-independent and STANDS.
+NOT recommending the swap on this evidence alone — recording that the question was
+never asked and is cheap to ask.
+
+--------------------------------------------------------------------------------
+WHAT I TRIED TO BREAK AND COULD NOT
+--------------------------------------------------------------------------------
+Four of my own findings, disproved mid-flight and recorded as such:
+ 1. "The case-fold model is wrong" — spike groups with JS toLowerCase (Unicode
+    fold); COLLATE NOCASE is ASCII-only; 2,576 rows fold differently. Re-ran every
+    scenario with the correct fold: 8,876 / 5,024 / 89. IDENTICAL. Zero effect.
+ 2. "The antimeridian breaks the bucket" — 0 rows with |lng| > 179.5. Theoretical.
+ 3. "The 3-char floor is script-biased against CJK" — 0 CJK/Kana/Hangul names in
+    the data (romanised source). Shrank to 79 Latin <=2-char names (F9).
+ 4. "ORDER BY sinks the perf argument" — first measurement 6.32 ms for `san`, warm
+    re-measure 1.48 ms. Cold-cache artefact, corrected before filing.
+
+REPRODUCED EXACTLY, in the spike's favour: all four BUG-75 scenarios (8,876 / 5,024
+/ 89 / 1) including Nikol'skoye at 8,092 km and Valverde at 1,922 km; the S1
+INVERSION (8,876 -> 5,024) is real and the counter-intuitive claim survives; the
+generator byte-for-byte including artifact hash sha256:26ea16e...; NW Highlands 45
+rows; package costs 19 MB / 283 MB.
+
+GAP CLOSED IN THE SPIKE'S FAVOUR: it proved S1 additivity against data/regions.json
+— the repo file. Checked the LIVE tables via the ADL-33 read-only path:
+staging regions=76 cities=3 null_latlng=0 pending=0; prod regions=76 cities=2
+null_latlng=0. Both match. S1 additivity holds against real data.
+Also: both environments hold ZERO null-coordinate cities TODAY, so F1/F3 are
+LATENT, not active. They activate the first time the geocoder is down during a
+create — a path GE-12 exists to guarantee is reachable.
+
+--------------------------------------------------------------------------------
+OPEN / UNVERIFIED FROM THIS THREAD
+--------------------------------------------------------------------------------
+1. all-the-cities cityId stability ACROSS RELEASES — UNVERIFIED. Verified
+   uniqueness within v3.1.0 only; did not diff two versions. Matters if a
+   gazetteer_id is stored. Probe: install two versions, diff cityId for a fixed
+   name set.
+2. remove_diacritics 1 availability on TURSO's engine build — UNVERIFIED. Tested
+   on local libSQL 3.45.1 only. Probe: create the virtual table on a staging
+   branch with a write-capable token.
+3. All timings local libSQL, single-user, warm cache — same blind spot the spike
+   declares, applies to my F11/F12 numbers too.
+4. F2's trace is a faithful simulation, not the running server. Reproduced pass 1's
+   WHERE clause verbatim against real libSQL rather than booting Express. Read the
+   POST handler end to end and found no coordinate source before resolveCityName;
+   did not exhaustively trace every caller.
+
+--------------------------------------------------------------------------------
+DISCIPLINE NOTES WORTH KEEPING
+--------------------------------------------------------------------------------
+* When a fix is proposed for a defect, simulate the DEFECT'S OWN CODE PATH — not
+  the dataset the defect was measured on. F2 was invisible to every data-side
+  analysis and obvious the moment the route was traced.
+* "Removed 98.2% of collisions" is only a success metric if nothing was WRONGLY
+  merged apart. Always measure both directions of a de-duplication change; the
+  naive metric scores false splits as wins.
+* A benchmark comparing two options must compare the SAME query shape. The spike
+  times LIKE with ORDER BY and trigram without. I expected that to be the headline
+  finding; re-run apples-to-apples the spike WINS ANYWAY. Report the flaw, keep the
+  recommendation — the review's job is accuracy, not scalps.
+* An equivalence proof is only as adversarial as its inputs. 30 lowercase ASCII
+  English fragments cannot detect a Unicode case-folding divergence affecting 21%
+  of the data.
+
+--------------------------------------------------------------------------------
+NOTHING WAS MODIFIED
+--------------------------------------------------------------------------------
+No schema change, no migration, no remote write (the diagnostic token is read-only
+and only SELECTs were issued). The spike document, ADL-48, the BRD and
+_project/tracker.json were NOT edited — findings are filed for COO adjudication.
+Deliverable, this park doc, the context append and the completion report are the
+only changes on the branch.
