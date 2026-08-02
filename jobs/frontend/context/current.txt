@@ -1,3 +1,95 @@
+FRONTEND CONTEXT — as of 2026-08-02 (BUG-71 stopgap + BUG-72, GitHub #363)
+
+STATUS: fix/bug71-72-city-ambiguity-surfacing branch, GitHub issue #363, BRD GE-16.
+  Both bugs live in AddPlaceFlow.tsx, deliberately paired by the brief so one
+  agent visits the component once. Frontend-only — no backend change made or
+  needed (BUG-72's backend half already shipped in PR #353, verified directly
+  rather than taken on the brief's word). Governing doc:
+  jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md §3.2 (adopted
+  as written, not reinvented — the brief was explicit that an earlier
+  Architect ruling nearly contradicted it and this thread had to hold the
+  line). GE-15's literal success criteria ("region-tier country populates
+  country/region without further user input") now contradicts the correct
+  ambiguous-city behaviour — known, tracked as QUAL-24, BRD reconciliation is
+  COO's job not this thread's.
+
+  BUG-71 (P1) stopgap: AddPlaceFlow.tsx's single-candidate region auto-fill
+  (the `else if (regionIso)` branch at what's now ~line 321, distinct from
+  D14's multi-region narrowing branch just above it) cannot tell a genuinely
+  unambiguous city (Denver — one real region) apart from a globally-ambiguous
+  one truncated to a false single survivor by Nominatim's 10-slot global
+  result + the frontend's non-null-region_iso filter (Springfield — many
+  worldwide matches, thinned down to exactly one same-country region by
+  coincidence). That's the PO's observed defect: typing "springfield" silently
+  pre-filled the State field with "Virginia," no hint given. Explicitly out of
+  scope per the brief: truncation detection, changing the geocode request
+  shape, a candidate shortlist selector, any backend change — this is the
+  MINIMAL STOPGAP two OP-27 reviews already endorsed. Fix: added
+  `regionIsSuggested` state, true only when the CURRENT region value came from
+  that auto-fill branch. When true (and not the D14 ambiguous case, which is
+  mutually exclusive), renders a "Suggested: {region} — from "{name}""
+  caption under the select — reusing the UX spec §3.2 "Suggested:" chip
+  pattern (written there for the country field) applied to the region field,
+  per the brief's explicit instruction to adopt the pattern rather than design
+  a new one. The value stays pre-filled (not blanked — blanking would trade a
+  wrong answer for no answer, a regression on the common Paris/Denver case).
+  Cleared the instant the user makes an explicit region choice (tier 1: an
+  explicit selection is never "just a suggestion") or the country/form resets.
+
+  BUG-72 (P2): the search dropdown rendered only `{city.name} {city.country_code}`
+  ("Springfield US") — visually identical for two same-named cities in
+  different regions, with nothing distinguishing which specific `cities` row
+  (and coordinates) a click would bind the trip to. Verified the backend half
+  myself before building on it (brief said not to take its word for it): GET
+  /api/cities (src/backend/routes/cities.ts, PR #353) already LEFT JOINs
+  `regions` and returns `region_name`/`region_iso` per row; the frontend
+  `City` type did NOT have `region_name` yet — added it as `region_name?:
+  string | null` (optional, not just nullable: genuinely absent from every
+  other City-shaped response in the app today — serializeCity and the
+  trip-detail/map shapes never select it; only the search endpoint's LEFT
+  JOIN does). New `formatCitySubtitle()` helper renders `{region}, {country}`
+  when a region-tier country's row has one, and explicitly `{country} (no
+  {label} set)` when it doesn't — never indistinguishable from a regioned row,
+  per the brief's requirement that missing-region catalogue pollution stay
+  visible to users. Non-region-tier countries render unchanged (just the
+  country code). No new network call — reuses the `countries` list AddPlaceFlow
+  already had loaded via `useCountries()`. Added a `data-testid` to each search
+  result row for test stability (no prior test exercised this render path at
+  all — the existing D14 test file mocks `useCitySearch` to return `[]`).
+
+  VERIFICATION: npm run check (biome, clean), npm run type:check:all (clean —
+  the region_name type change required no fixture edits elsewhere since it's
+  optional, not required), npm run test:backend (668/668, unaffected — no
+  backend files touched), npm run test:frontend (249/249, includes 7 new
+  tests across AddPlaceFlow.bug71.test.tsx and AddPlaceFlow.bug72.test.tsx;
+  the existing D14-scoped AddPlaceFlow.test.tsx and BUG-73-scoped
+  AddPlaceFlow.geocodeFailure.test.tsx re-run and confirmed green, untouched —
+  BUG-73's amber failure banner + Retry control do not regress), npm run
+  status:check (clean, no tracker/STATUS.md edit made — that's the COO's job
+  per this brief).
+
+  KEY FILE LOCATIONS (changed this thread)
+    src/frontend/components/TripDetail/AddPlaceFlow.tsx (regionIsSuggested
+      state + "Suggested:" caption for BUG-71; formatCitySubtitle() +
+      data-testid for BUG-72)
+    src/frontend/types/api.ts (City.region_name added, optional)
+    src/frontend/components/TripDetail/__tests__/AddPlaceFlow.bug71.test.tsx (new)
+    src/frontend/components/TripDetail/__tests__/AddPlaceFlow.bug72.test.tsx (new)
+
+  NEXT STEPS (when resumed)
+    COO: review PR (see completion report for #), merge via
+    /coo-merge-and-close when CI is green. The UX spec's fuller §11/§12
+    resolution design (three-bucket badges, one-tap picker, map counter,
+    Change City control) is NOT this thread's scope — this is only the BUG-71
+    stopgap + BUG-72 dropdown fix the brief named. QUAL-24 (GE-15 success
+    criteria vs. ambiguous-city behaviour) still needs a BRD reconciliation
+    pass.
+
+========================================================================
+PRIOR THREAD — retained in full below per this file's established
+newest-first pattern.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-07-28 (BUG-50/BUG-58, brief B7, Wave 1 sub-wave B)
 
 STATUS: fix/b7-trip-delete-and-selection branch, GitHub issue #316, tracker

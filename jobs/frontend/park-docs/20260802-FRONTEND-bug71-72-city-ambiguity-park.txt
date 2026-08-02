@@ -1,0 +1,179 @@
+FRONTEND PARK DOCUMENT — 2026-08-02
+Thread: BUG-71 stopgap + BUG-72 — surface city ambiguity in Add Place (fix/bug71-72-city-ambiguity-surfacing, GitHub #363)
+
+SUMMARY
+Two defects, both in AddPlaceFlow.tsx, deliberately paired by the brief so one
+agent visits the component once. Both classified as gaps in shipped behaviour
+(not regressions, not deployment defects — staging was verified running
+post-release code when both were observed). Governing document:
+jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md, adopted as
+written per the brief's explicit instruction — an earlier Architect ruling on
+BUG-71 had missed the spec's §3.2 and nearly proposed contradictory behaviour
+for the country field, so this thread held the line rather than reinventing
+its own design.
+
+WHAT CHANGED
+
+1. BUG-71 (P1) stopgap — src/frontend/components/TripDetail/AddPlaceFlow.tsx
+
+   Observed: typing "springfield" into Add Place on staging pre-populated the
+   State field with "Virginia," no ambiguity hint of any kind.
+
+   Mechanism, confirmed by reading the code: the new-city form's geocode
+   lookup collects `sameCountryRegionIsos` (distinct non-null region_iso
+   values among candidates sharing the resolved country). When that set has
+   more than one entry, D14's existing multi-candidate narrowing kicks in
+   (unchanged, out of scope here). When it has exactly one (or zero, falling
+   through to the top candidate's own region), the code silently commits that
+   single value via `setAutoRegionIso` -> an effect that sets
+   `newCityRegionId` directly. The upstream cause (also out of scope, per the
+   brief): GET /api/geocode queries Nominatim globally at limit:10, so a
+   globally-ambiguous name (many Springfields worldwide) can have its 10
+   slots thinned by settlement-type filtering and the frontend's
+   non-null-region_iso requirement down to exactly one same-country survivor
+   — indistinguishable, at the frontend, from a name that is genuinely
+   unambiguous (Denver: multiple Nominatim hits, but all the same one real
+   region).
+
+   Explicitly out of scope per the brief (endorsed by two prior OP-27
+   reviews): truncation detection, changing the geocode request shape, a
+   candidate shortlist selector, any backend change. The fix does not and
+   cannot tell the false-single-survivor case apart from the genuine one —
+   it doesn't try to. Instead, EVERY auto-fill from the single-candidate path
+   is now treated identically: pre-filled (not blanked — blanking would trade
+   a wrong answer for no answer, a UX regression on the ordinary Paris/Denver
+   case) but rendered as visibly tentative.
+
+   Concretely: new `regionIsSuggested` boolean state, set true only inside
+   the `else if (regionIso)` auto-fill branch (mutually exclusive with the
+   D14 ambiguous branch, which sets `candidateRegionIsos` instead and never
+   this flag). When true and the D14 ambiguous hint is NOT also showing,
+   renders a caption under the region <select>:
+     Suggested: {region name} — from "{city name}"
+   reusing the UX spec §3.2 "Suggested:" chip pattern verbatim (written there
+   for the country field's tier-3 fallback guess) rather than inventing new
+   wording — the brief was explicit this pattern should be adopted, not
+   redesigned. Cleared (regionIsSuggested -> false) the instant: the user
+   picks a region themselves via the select's onChange (tier 1 of the UX
+   spec's precedence rule: an explicit choice is never "just a suggestion"
+   again); the user changes the country (invalidates the whole auto-detected
+   state, same as the pre-existing autoRegionIso/candidateRegionIsos resets
+   there); or the new-city form is reopened for a fresh lookup.
+
+   NOT changed: the D14 multi-candidate narrowing branch, the geocode
+   request/response shape, BUG-73's failure banner/Retry path (verified
+   still green — see VERIFICATION).
+
+2. BUG-72 (P2) — src/frontend/components/TripDetail/AddPlaceFlow.tsx,
+   src/frontend/types/api.ts
+
+   Observed: the search dropdown rendered one line per row as
+   `{city.name} {city.country_code}` — "Springfield US". Selecting a row
+   binds the trip to one specific `cities` row with specific coordinates,
+   with nothing on screen identifying which Springfield.
+
+   Verified the brief's claim myself before building on it (brief explicitly
+   said not to take its word for it): read src/backend/routes/cities.ts's
+   GET /api/cities handler directly — it already LEFT JOINs `regions` and
+   selects `region_name`/`region_iso` per row (BUG-72's backend half, PR
+   #353, landed 2026-08-01 per `git log`). Cross-checked the frontend
+   `City` type (src/frontend/types/api.ts) — it had `region_iso` already but
+   NOT `region_name`. Two consistent signals (backend route reads the
+   column; frontend type doesn't have it), no contradiction to resolve.
+
+   Added `region_name?: string | null` to the `City` interface — optional,
+   not just nullable, because it is genuinely absent (not merely null) from
+   every OTHER City-shaped response in the app: `serializeCity` (cities.ts,
+   used by POST/PATCH) and the trip-detail/map City shapes never select the
+   column at all. Making it required would have meant touching City fixture
+   literals in CityMarkers.test.ts, ReviewPanel.test.tsx, PlaceSection.test.tsx,
+   TripDetail.test.tsx, and filterAndSortTrips.test.ts across the app for no
+   functional reason (confirmed via `npm run type:check:all`, which failed
+   with exactly those five call sites when I first tried region_name as
+   required) — optional matches what's actually true of the API surface and
+   avoids scope creep into five unrelated test files for a two-component bug
+   fix.
+
+   New `formatCitySubtitle()` helper (AddPlaceFlow.tsx): for a region-tier
+   country's row with a region, renders "{region name}, {country code}"
+   (e.g. "Illinois, US"); for a region-tier country's row with NO region,
+   renders "{country code} (no {region label} set)" (e.g. "US (no state
+   set)") — explicitly distinct wording, never visually identical to a
+   regioned row, per the brief's requirement that missing-region catalogue
+   pollution stay visible to users (a deliberate prerequisite the UX spec
+   names for later correction work). Non-region-tier countries render
+   unchanged (just the country code) — no behaviour change for the common
+   case. No new network call: reuses the `countries` list AddPlaceFlow
+   already had loaded via the existing `useCountries()` call.
+
+   Added a `data-testid={`city-search-result-${city.id}`}` to each search
+   result row — no prior test exercised this render path at all (the
+   existing D14 test file mocks `useCitySearch` to always return `[]`), so
+   there was no existing query strategy to reuse.
+
+VERIFICATION
+  npm run check (Biome CI, format + lint) — clean.
+  npm run type:check:all (frontend + backend tsc --noEmit) — clean.
+  npm run test:backend — 668/668 passed, unaffected (no backend files
+    touched).
+  npm run test:frontend — 249/249 passed. 7 new tests across
+    AddPlaceFlow.bug71.test.tsx (4: false-single-survivor shows Suggested +
+    pre-filled; explicit pick clears Suggested; D14 ambiguous case shows no
+    Suggested caption, mutually exclusive with the "multiple matches" hint;
+    zero-candidate lookup shows no caption) and AddPlaceFlow.bug72.test.tsx
+    (3: two same-named/different-region rows distinguished; a region-tier
+    country's no-region row rendered explicitly distinct; non-region-tier
+    country unchanged). Re-ran the existing D14-scoped AddPlaceFlow.test.tsx
+    and BUG-73-scoped AddPlaceFlow.geocodeFailure.test.tsx in isolation
+    first, confirmed both still fully green and untouched — BUG-73's amber
+    failure banner and Retry control do not regress (success criterion 4).
+  npm run status:check — clean. No tracker.json/STATUS.md edit made in this
+    thread — per the brief, that's the COO's job, not this thread's.
+
+BUGS DISCOVERED
+  None beyond the two named in the brief. No new defects found while working
+  the file.
+
+FLAGS FOR COO
+  - QUAL-24 (named in the brief, not this thread's job to resolve): GE-15's
+    success criteria as literally written require a region-tier country to
+    populate country AND region "without further user input" — the correct
+    ambiguous-city behaviour built here (and D14 before it) cannot satisfy
+    that for a genuinely ambiguous name, since asking nothing of the user is
+    exactly how the Springfield-silently-becomes-Virginia bug happened. BRD
+    reconciliation is a COO/Architect call.
+  - The UX spec's fuller resolution design (§11: three-bucket badges
+    Confirming/Which-one/Can't-confirm, a persisted candidate list + one-tap
+    picker, the map's "N places not yet located" counter, Dismiss) and its
+    own §12 MVP scoping (a single undifferentiated "Location not confirmed"
+    badge + a standing "Change City" control) are BOTH out of this thread's
+    scope. This brief named only the BUG-71 stopgap (a narrower slice even
+    than §12's badge — no badge was requested or built here, just the
+    "Suggested:" tentative-value caption) and the BUG-72 dropdown fix. No
+    "Change City" control, no badge, no map counter exist after this PR —
+    that's the next, larger brief if/when picked up, not a gap in this one.
+  - The UX spec's §11.9 flags a MINOR pre-existing bug in
+    src/frontend/services/geocodeRetryQueue.ts (attemptRetry has no branch
+    for `unresolvable`, so such a city polls forever client-side even though
+    the backend has permanently stopped trying). Not touched here — out of
+    this brief's named file scope (geocodeRetryQueue.ts vs. AddPlaceFlow.tsx)
+    and not required by either BUG-71 or BUG-72's success criteria. Restating
+    it here since the UX spec is dense and this is an easy line to lose.
+
+KEY FILE LOCATIONS (changed this thread)
+  src/frontend/components/TripDetail/AddPlaceFlow.tsx (regionIsSuggested
+    state + "Suggested:" caption for BUG-71; formatCitySubtitle() helper +
+    data-testid on search result rows for BUG-72)
+  src/frontend/types/api.ts (City.region_name added, optional)
+  src/frontend/components/TripDetail/__tests__/AddPlaceFlow.bug71.test.tsx (new)
+  src/frontend/components/TripDetail/__tests__/AddPlaceFlow.bug72.test.tsx (new)
+
+NO SOURCE FILE WAS REWRITTEN WHOLESALE — every change above is a targeted
+diff to AddPlaceFlow.tsx and an additive field on api.ts's City interface;
+the two new test files are net-new, not replacements.
+
+NEXT STEPS (when resumed)
+  COO: review PR (see completion report for #), merge via
+  /coo-merge-and-close when CI is green. Decide whether/when to dispatch the
+  larger UX-spec-driven follow-up (Change City control, badge, map counter)
+  and whether/when to run the QUAL-24 BRD reconciliation.
