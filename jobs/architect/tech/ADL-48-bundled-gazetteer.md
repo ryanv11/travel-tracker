@@ -227,6 +227,29 @@ That is the PO's **shortlist-not-filter** pattern exactly — nothing is removed
 
 ### 8.1 The mechanism
 
+> **PARTLY SUPERSEDED (2026-08-02) by the BUG-77 / S1 implementation (issue #367) — retained for history.**
+>
+> Two corrections, both established against the shipped schema rather than argued from this text:
+>
+> 1. **The delete-and-reload below applies to `gazetteer_cities` ONLY. It must never be used for
+>    `regions`.** `cities.region_id` REFERENCES `regions.id` (`src/backend/db/schema.ts`; migration
+>    `0000_open_electro.sql` line 23) and `regions.id` is AUTOINCREMENT, so a delete-and-reload
+>    re-issues ids and silently repoints every existing city at a different subdivision — or aborts
+>    under the FK enforcement asserted at boot. This section's own safety argument is *"because
+>    nothing references `gazetteer_cities`"*; that precondition is **false for `regions`**, so the
+>    conclusion does not carry across. **S1 shipped as a hash-gated additive upsert**
+>    (`ON CONFLICT (iso_3166_2) DO UPDATE SET name, country_code`, narrowed by `setWhere` to rows
+>    that actually differ), never a delete. See `src/backend/services/startup.service.ts`.
+> 2. **Neither package is a `devDependency`.** `iso3166-2-db` unpacks to 283 MB / 42,268 files and
+>    costs ~12 s of install time for exactly one 3.35 MB file, paid per agent worktree and per CI
+>    run. It is **vendored** at `data/vendor/iso3166-2.json`, provenance in `data/vendor/README.md`.
+>    `cities.json` is still resolved at build time and is an S2 concern; the generator now runs
+>    S1-only without it.
+>
+> The hash-gating idea itself stands and is what S1 implements — only the write mechanism and the
+> dependency handling changed. The S1 gate stores no hash (there is no meta table and adding one
+> would be a schema change); it hashes the bundled file and the table's own contents and compares.
+
 **Build time (developer machine / CI, never at runtime):** a checked-in generator script, `scripts/generate-gazetteer.mjs`, reads `cities.json` + `iso3166-2-db` (**both `devDependencies`**), applies the §4.1 crosswalk, and emits two committed artifacts:
 
 - `data/regions.json` — regenerated, 716 rows for the 26 enabled countries (from 76)
@@ -302,6 +325,15 @@ Against local libSQL, real data, 2,000-row batches:
 ---
 
 ## 11. Expand/contract staging (ADL-47)
+
+> **S1 ROW AMENDED (2026-08-02) by its implementation, BUG-77 / issue #367 — retained for history.**
+> The row below says *"hash-gated reseed of `regions`"*, which points a reader at §8.1's
+> delete-and-reload. **It is an additive upsert, never a reseed** — see the stamp on §8.1 for why
+> that distinction is load-bearing rather than pedantic. Two numbers also settled: **714 rows, not
+> 716** (two upstream subdivisions carry an empty ISO code and would seed as the unmatchable codes
+> `ID-` and `PH-`; they are filtered and named by the generator), and the additive claim was
+> verified against the **live** staging and production tables, which hold exactly 76 regions each,
+> not only against `data/regions.json`. Delivered with no schema change and no migration.
 
 Three stages, each independently green, independently deployable, and independently valuable. **No integration branch needed** — this decomposes cleanly, which is ADL-47's preferred outcome.
 

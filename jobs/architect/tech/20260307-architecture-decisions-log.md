@@ -3964,9 +3964,29 @@ discipline that keeps that auto-deploy path safe.
 ## ADL-48 — Bundled local gazetteer: buy the reference data, keep the geocoder for the tail
 
 **Date:** 2026-08-01
-**Status:** Decided, implementation pending. **No schema, migration, seed data or code change was
+**Status:** Decided. **No schema, migration, seed data or code change was
 made by this ADL** — it is the design that unblocks those briefs. Full evidence, table shapes,
 measurements and rejected alternatives: `jobs/architect/tech/ADL-48-bundled-gazetteer.md`.
+
+> **IMPLEMENTATION STATUS (updated 2026-08-02, BUG-77 / issue #367).**
+> **S1 — IMPLEMENTED.** `data/regions.json` 76 → **714** rows (not 716: two upstream subdivisions
+> carry an empty ISO code and are filtered, see below); `seedRegions()` in
+> `src/backend/services/startup.service.ts` re-gated from row count to content hash. **No schema
+> change and no migration were required.** All 76 pre-existing codes preserved with their ids.
+> **S2 — not started.** Blocked on the BRD gate (GE-17/GE-18) and the §8.3 Turso timing probe.
+> **S3 — not started.** **S0 (the BUG-75 coordinate bucket) — rejected**, see the OP-27 fresh-eyes
+> review of the feasibility spike; it was never part of this ADL.
+>
+> **Two corrections this ADL should be read with:**
+> 1. **§8.1's delete-and-reload is NOT the S1 mechanism**, and §11's S1 row invokes it by name.
+>    `cities.region_id` REFERENCES `regions.id`, which is AUTOINCREMENT, so a delete-and-reload
+>    re-issues ids and repoints existing cities at different subdivisions. S1 shipped as a
+>    hash-gated **additive upsert** (`ON CONFLICT (iso_3166_2) DO UPDATE SET name, country_code`)
+>    instead. §8.1's own safety argument — *"nothing references `gazetteer_cities`"* — is what
+>    makes delete-and-reload correct there and incorrect here.
+> 2. **`iso3166-2-db` is not a `devDependency`.** It unpacks to 283 MB / 42,268 files for one
+>    3.35 MB file this repo installs per worktree and per CI run. The file is vendored at
+>    `data/vendor/iso3166-2.json` with its provenance in `data/vendor/README.md`.
 **Trigger.** The PO, after a day of geocoding defect-fighting: *"Are we over-engineering this?
 Wouldn't it be easier just to store a full cities list in a DB table? If we are querying a list via
 API anyway?"* Folded in: execution-queue Tier 2 item 13 (ISO 3166-2 reference-data build-vs-buy).

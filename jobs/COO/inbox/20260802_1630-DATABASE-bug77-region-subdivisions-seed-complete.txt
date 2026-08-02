@@ -1,0 +1,49 @@
+BUG-77 · issue #367 · PR #PENDING · BRD GE-01/GE-02/GE-03 (ADL-48 S1) · fix/bug77-region-subdivisions-seed
+
+BUILT: data/regions.json 76 -> 714 rows covering all 26 region_tier_enabled countries;
+seedRegions() re-gated from row count to content hash with an additive upsert.
+NO schema change, NO migration, nothing written to any remote database.
+
+ACCEPTANCE CRITERIA
+  76/76 existing codes preserved byte-for-byte incl. names and ids ........ PASS
+  Zero duplicate iso_3166_2 across the 714 .............................. PASS
+  Only the 2 malformed rows dropped, both named (ID "West Papua",
+    PH "Negros Island Region"; filter general — 196 such rows exist
+    across 29 of 234 countries) ......................................... PASS
+  Additive against a local DB already holding the 76: 76 -> 714, city on
+    GB-SCT unchanged, 0 orphaned cities.region_id, 0 updated_at touched .. PASS
+  All 26 region-tier countries have >= 1 subdivision; 0 empty ........... PASS
+  Fresh install and already-seeded install both converge to 714 ......... PASS
+  Steady-state boot = one read, zero writes (3 ms, table byte-identical) . PASS
+  iso3166-2-db vendored, dependency dropped, licence+provenance recorded . PASS
+
+MIGRATION VERIFIED: none generated and none needed — `regions`, its unique index on
+iso_3166_2 and the cities FK all already exist. db:push never used (ADL-15).
+
+CI: <to be filled after scripts/ci-wait.sh>
+
+DECISIONS I MADE THAT YOU SHOULD SANITY-CHECK (detail in the park doc §3)
+  1. DO UPDATE SET name/country_code rather than DO NOTHING — DO NOTHING is not
+     convergent under a hash gate; a name correction would re-run the seed every boot
+     forever without ever fixing the row. setWhere keeps additive runs from touching
+     any existing row.
+  2. The hash is computed FROM THE TABLE, not stored. Storing it needs a meta table
+     (none exists — checked two ways), i.e. a schema change you said not to expect.
+     Hashing the table is also stronger: it catches drift applied directly to the DB.
+  3. Generator now runs S1-only (cities.json optional) so reproducing a shipped
+     artifact does not require a 19 MB dependency that the S1 half never reads.
+
+DOC LIFECYCLE: stamped ADL-48 §8.1 and §11 (their delete-and-reload mechanism is unsafe
+for `regions` and §11 said 716 rows, not 714) and added an implementation-status block to
+the ADL-48 main-log entry. No source file was rewritten wholesale.
+
+BLOCKERS: none.
+
+FOR YOU: (a) tracker BUG-77 needs the PR number; I did not touch tracker.json or the BRD.
+(b) ADL-48 §9's CC-BY attribution surface is still undischarged — not created by this
+thread (vendored dataset is MIT) but it becomes real at S2. (c) ADL-48 §4.1's join figures
+are wrong (84,257/1,746 vs 84,226/2,336); S2 scope, Architect's to fix.
+
+UNBLOCKS: the BUG-30 class closes. ADL-48 S2's hard ordering dependency ("region codes must
+exist before the crosswalk writes them") is satisfied — S2 itself remains blocked on the
+BRD gate (GE-17/GE-18) and the §8.3 Turso timing probe. S0 stays rejected pending re-design.
