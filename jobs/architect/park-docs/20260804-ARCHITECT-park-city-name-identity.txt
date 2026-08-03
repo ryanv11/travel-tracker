@@ -1,0 +1,90 @@
+ARCHITECT PARK DOCUMENT — 2026-08-04
+Thread: "What IS a city's name?" — BUG-75 + BUG-80 designed together
+Branch: chore/city-name-identity-design
+Deliverable: jobs/architect/tech/20260804-city-name-and-identity-design.md
+Status: design only. No schema change, no migration, no code, no remote write.
+
+--------------------------------------------------------------------------------
+WHY THIS THREAD EXISTED
+--------------------------------------------------------------------------------
+Two designs had already been rejected on BUG-75. Both took the city's NAME as a
+given and tried to make the identity KEY discriminate better — first a coordinate
+bucket (S0), then a hashed place_ref. The PO then asked the question nobody had
+asked: "I don't remember us deciding to shorten place names." There was no
+decision. The brief put that premise explicitly in scope.
+
+--------------------------------------------------------------------------------
+WHAT I FOUND, IN THE ORDER IT CHANGED THE ANSWER
+--------------------------------------------------------------------------------
+1. The premise question turned out to be a red herring in its literal form — and
+   productive anyway. cities.name SHOULD stay short (it is rendered as a bare
+   label on six surfaces). The error was never shortening; it was DISCARDING the
+   qualifier the geocoder already returns and we already parse.
+
+2. Chasing "then where does the wrong town come from?" led to the real finding.
+   I first concluded that creator-scoping the unique index fixed BUG-75. It does
+   not. That failure is what made me actually RUN classifyCandidates rather than
+   read it — and it returns 'ok' with an arbitrary best for four distinct
+   Newports, both with and without a requested region.
+
+3. So BUG-75 originates in the ambiguity classifier, not the index. The first
+   user is mis-pinned on an EMPTY table. Both rejected designs were fixes to the
+   propagation mechanism. A perfect key would not have fixed the defect.
+
+4. Probing my own index proposal killed it. COALESCE(created_by_user_id,'')
+   mirrors the existing COALESCE(region_id,0) sentinel and looks obviously right.
+   Against a real ON DELETE SET NULL cascade it MAKES ACCOUNT DELETION FAIL.
+   Caught only because I ran it.
+
+--------------------------------------------------------------------------------
+WHAT THE NEXT PERSON NEEDS TO KNOW
+--------------------------------------------------------------------------------
+* The recommended order is S1 (BUG-80 display, no schema) and S2 (classifier fix,
+  no schema) FIRST. Those are the whole user-visible fix. The schema work is real
+  but third.
+
+* Do not brief S2 without first calibrating the "distinct place" predicate
+  against real Nominatim responses. I specified the rule and deliberately refused
+  to invent the threshold — this container cannot reach the service (two probes,
+  §7). ADL-49's replay fixtures are the vehicle. This is Attack 1 in the doc and
+  it is the single thing most likely to be wrong.
+
+* D14 is region-keyed and structurally cannot express this defect. Making the
+  backend say "ambiguous" is necessary and not sufficient. This is the piece that
+  determines the real size of the work and nobody had named it.
+
+* BUG-76 is NOT fixed here, but the design surfaces an independent hardening that
+  is needed regardless: our own SETTLEMENT_TYPES filter emptying the candidate
+  list produces a TERMINAL 'unresolvable' that survives fixing the filter.
+
+* A reviewer will reach for F4/F5 ("proximity is non-transitive, the bucket was
+  rejected for this"). It does not transfer. The bucket used coordinates as an
+  identity key inside a UNIQUE index — a transitive equivalence class. This uses
+  them as a per-request classification input with a human in the loop, where
+  being wrong costs one unnecessary question. Doc §3.2 has the table.
+
+--------------------------------------------------------------------------------
+WHAT I KILLED BEFORE FILING (five, full detail in doc §7)
+--------------------------------------------------------------------------------
+- "Creator-scoping the index fixes BUG-75" — my first answer, wrong.
+- "COALESCE(created_by_user_id,'')" — breaks account deletion. Probed.
+- "BUG-80 needs qualified_name" — half of it is a dropped join, shippable now.
+- "Store display_name as cities.name" — breaks six render surfaces.
+- "resolveCity must never write an identity column" — would make a claim unable
+  to ever become a distinguishable place. The tiered framing legitimises it.
+
+--------------------------------------------------------------------------------
+OPEN / NOT MINE TO DECIDE
+--------------------------------------------------------------------------------
+- ADL number. ADL-49 is taken; the COO assigns.
+- Whether to pin Accept-Language on Nominatim requests (one-line follow-on;
+  affects qualified_name display quality, not correctness).
+- Whether the resolved index should key on osm_type+osm_id instead of
+  qualified_name. That is Attack 2 and I would rather a reviewer force it than
+  assume it — it would mean carrying both columns.
+
+METHOD NOTE: the brief told me to test the COO's read rather than adopt it, and
+to disprove my own conclusions. Both instructions paid — the first produced §3.1
+(the classifier), the second produced D7 (account deletion). Neither was
+reachable by reading; both needed running code. Same lesson as the previous
+thread's park doc, one round later.
