@@ -1429,3 +1429,72 @@ METHOD NOTES:
     obvious the moment the route was traced.
   - "Fixed 98.2% of collisions" is only a success metric if nothing was WRONGLY
     merged apart. Always measure both directions of a de-duplication change.
+
+================================================================================
+2026-08-03 — BUG-75 CITY IDENTITY RE-DESIGN (replaces the rejected S0)
+Branch chore/bug75-city-identity-redesign · deliverable
+jobs/architect/tech/20260803-BUG75-city-identity-redesign.md · NEEDS A NEW ADL NUMBER
+(supersedes ADL-48 §7, amends ADL-46 D13). Design only — no code, no schema, no migration.
+
+THE CALL: stop DERIVING identity from the row's data; start CARRYING it. A nullable
+  cities.place_ref TEXT, namespaced (cj1:/geonames:/osm:/local:), supplied in the create
+  request because the user picked a specific row. Known before the insert, written once,
+  never touched by the geocoder. Coordinates leave the identity question entirely.
+  Two indexes: UNIQUE(name NOCASE, country_code, COALESCE(region_id,0), COALESCE(place_ref,''))
+  + UNIQUE(place_ref) WHERE place_ref IS NOT NULL. New step 0 in findOrUpgradeCity, ahead
+  of every existing step and ahead of the geocoder.
+
+WHY F1-F5 DISSOLVE RATHER THAN GET PATCHED: all five are properties of USING COORDINATES
+  AS IDENTITY, not of the bucket size. Remove coordinates from the key and F1 (NULL while
+  pending) has nothing to sentinel, F2 (decided before coords exist) becomes the answer
+  rather than the obstacle — the discriminator ARRIVES WITH THE REQUEST — F3 (mutates after
+  insert) is checkable at source (resolveCity writes only lat/lng/status/attempts, none
+  indexed, and early-returns on 'resolved'), and F4/F5 (grid vs radius) never arise.
+
+THE DATASET QUESTION HAD A DIFFERENT ANSWER THAN THE FRAMING EXPECTED. ADL-48's "cities.json
+  carries no stable row id" is TRUE and was read as "therefore no identity". It has no id
+  COLUMN; it has a NATURAL KEY. (country,admin1,admin2,name,lat,lng) is UNIQUE over all
+  170,540 rows — 0 duplicates, measured — and its 64-bit hash is collision-free at that size
+  (32-bit is NOT: 7 collisions). THE APP DISCARDS admin2 ENTIRELY, which is the whole reason
+  the dataset looked identity-less: admin2 is exactly what separates the four Newports
+  (E1/O2/E4/G2). => mint place_ref = 'cj1:'+16 hex sha256. No swap, no donor, no dependency.
+
+  all-the-cities REJECTED, and not on licence: 97.78% of its 135,233 rows ALREADY SIT INSIDE
+  cities.json. It is not a different trade — it is substantially the same GeoNames cities1000
+  extract measured in 2020 (its own README's "ca 130.000" is cities.json's 2020 size; the
+  35,307-row gap is 5 years of growth). No release since 2020-03-18 vs cities.json's automated
+  monthly cadence (1.1.61 on 2026-08-01). Its "population>15000" headline is false — 82% of
+  rows are under 15,000. Joining its id into cities.json: ~77.6% coverage and falling monthly.
+  GE-18's third success criterion was written FOR the MIT-over-CC-BY conflict in that package —
+  under this recommendation it has NO LIVE INSTANCE (cities.json declares CC-BY-4.0 in both
+  package.json and README). Standing rule, now unexercised. COO should know.
+
+MIGRATION IS EXPAND-ONLY AND THERE IS NO CONTRACT STEP, BY DESIGN — place_ref stays nullable
+  forever because the tail legitimately has none. Verified a NO-OP over shipped data: with
+  every place_ref NULL the new composite index degenerates to today's index exactly, so it is
+  strictly more permissive, no backfill, no row can violate it.
+
+SEQUENCING COST, STATED PLAINLY: the rejected S0 claimed to fix BUG-75 independently of the
+  gazetteer. THIS DOES NOT. E1/E2 ship inert; the defect stops only at E3, when a client
+  actually sends a place_ref. Possible decoupling flagged not designed: Nominatim returns
+  osm_type+osm_id, so the D14 candidate flow could mint 'osm:<type>:<id>' and fix the geocoder
+  path first. UNVERIFIED against a live response (host firewalled). Use osm_type+osm_id, NEVER
+  place_id — Nominatim documents place_id as unstable across reimports.
+
+METHOD NOTES:
+  - FOUR OF MY OWN FINDINGS DISPROVED BEFORE FILING, all in §7. The sharpest: I measured 740
+    all-the-cities cityIds "repointing to a different place" and nearly filed it as the case
+    against the option. They were RENAMES (Ejmiatsin -> Vagharshapat) with the id correctly
+    following the place — a stable id doing its job. Real figure 109/122,751 = 0.089%. I would
+    have overstated the case against an option I rejected anyway, for the wrong reason.
+  - "X has no stable id" and "X has no identity" ARE DIFFERENT CLAIMS. The first was verified
+    and correct; the second was assumed from it and is false. A verified negative can still
+    license an unverified inference — check the step AFTER the probe, not just the probe.
+  - Build the index and run the DEFECT'S OWN INSERT SHAPES before believing any index design.
+    T5 and T7 are both unfavourable results I would not have predicted: place_ref='' silently
+    enters the partial index (hence a load-bearing CHECK), and the index does NOT prevent a
+    user-typed row coexisting with a gazetteer row for the same place — policy must.
+  - A DANGLING place_ref COSTS A DUPLICATE, NOT A WRONG ANSWER, because the cities row carries
+    its own copied name/country/region/coords. Identity is a LINK, not the data. That is the
+    property that makes this decision low-stakes and is exactly what the coordinate bucket
+    lacked — there identity WAS the data, so getting it wrong was unrecoverable.

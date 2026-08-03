@@ -1,0 +1,167 @@
+ARCHITECT PARK DOCUMENT — 2026-08-03
+BUG-75 city identity re-design (replaces the rejected coordinate-bucket S0)
+Branch: chore/bug75-city-identity-redesign
+Deliverable: jobs/architect/tech/20260803-BUG75-city-identity-redesign.md
+
+================================================================================
+WHAT THIS THREAD WAS
+================================================================================
+A re-design after outright rejection. The QUAL-25 spike proposed widening the
+cities unique index with quantised coordinates (ROUND(lat,1), ROUND(lng,1)); the
+OP-27 fresh-eyes review killed it with three independently fatal findings, the
+decisive one being that the index NEVER FIRES — findOrUpgradeCity pass 1 decides
+identity in a SELECT, before resolveCityName, with no coordinates to bind.
+
+I was given five acceptance criteria and told to answer each explicitly, plus one
+genuinely open question the earlier work never asked: WHICH gazetteer.
+
+================================================================================
+WHERE I LANDED
+================================================================================
+Identity is CARRIED, not DERIVED. A nullable cities.place_ref TEXT, namespaced,
+supplied in the create request because the user picked a specific row from a list.
+Known before the insert, written exactly once, never touched by the geocoder.
+Coordinates leave the identity question entirely and go back to being data.
+
+Two indexes:
+  UNIQUE(name COLLATE NOCASE, country_code, COALESCE(region_id,0), COALESCE(place_ref,''))
+  UNIQUE(place_ref) WHERE place_ref IS NOT NULL
+plus CHECK (place_ref IS NULL OR length(place_ref) > 0) — load-bearing, see below.
+
+New step 0 in findOrUpgradeCity, ahead of every existing step and ahead of the
+geocoder. Steps 1/2/2b unchanged and reached only when no place_ref is supplied.
+
+DATASET: keep cities.json. Do not swap. Do not join a donor id. Mint place_ref as
+'cj1:' + first 16 hex of sha256(country|admin1|admin2|name|lat|lng).
+
+================================================================================
+THE THING I WOULD TELL THE NEXT ARCHITECT FIRST
+================================================================================
+"cities.json has no stable row id" is TRUE. "cities.json has no identity" is FALSE.
+Everyone (ADL-48, the spike, the review, the brief) made the second claim from the
+first, and the coordinate bucket exists entirely because of it.
+
+It has no id COLUMN. It has a NATURAL KEY, and I measured it unique over every one
+of its 170,540 rows — zero duplicates. The app has simply been discarding admin2,
+which is precisely the field that separates the four Newports:
+
+  GB|ENG|E1|Newport  (East Riding)   GB|ENG|O2|Newport  (Shropshire)
+  GB|ENG|E4|Newport  (Essex)         GB|ENG|G2|Newport  (Isle of Wight)
+
+A verified negative finding can still license an UNVERIFIED inference. The probe
+was right; the sentence after the probe was not. Check the step AFTER the probe.
+
+================================================================================
+WHAT I MEASURED (all re-derived here; nothing inherited, per the brief)
+================================================================================
+Packages installed fresh in a scratch dir: cities.json@1.1.61 and @1.1.55,
+all-the-cities@3.1.0 and @3.0.0. Key unions over ALL rows, not samples.
+
+  cities.json 1.1.61                        170,540 rows  CC-BY-4.0  monthly cadence
+  all-the-cities 3.1.0                      135,233 rows  MIT decl.  last rel. 2020-03-18
+
+  candidate identity keys over 170,540 rows:
+    country|name                            8,017 dup groups   21,981 rows (12.889%)
+    country|admin1|name  (TODAY'S APP KEY)  2,076 dup groups    4,388 rows ( 2.573%)
+    country|admin1|admin2|name                584 dup groups    1,196 rows ( 0.701%)
+    + lat|lng                                   0 dup groups        0 rows ( 0.000%)  <-- ADOPT
+
+  hash truncation (collision-free at 170,540? verified, not argued):
+    8 hex = 7 collisions   12 hex = 0   16 hex = 0  <-- 16, with margin
+
+  all-the-cities vs cities.json overlap:
+    matched country+name+coords(<0.2deg)  132,228  (97.78%)
+    coords differ >0.2deg                     306
+    no country+name match at all            2,699  ( 2.00%)  <- renames + population=0 rows
+
+  churn (identity dangle rate):
+    all-the-cities cityId, 3.0.0 -> 3.1.0        109 / 122,751  (0.089%)
+    cities.json full-row key, 1.1.55 -> 1.1.61   803 / 169,115  (0.475%)  [572 edited in place]
+    cities.json admin-only key                   268 / 168,519  (0.159%)  [but NOT unique]
+
+  GB, the dogfood country, against the ACTUAL seeded region set (data/regions.json:
+  GB has exactly 4 regions ENG/SCT/WLS/NIR, so admin1 maps 1:1 and this IS post-S1):
+    4,638 GB rows · 165 colliding groups · 193 unrepresentable (4.16%)
+    ALL 165 groups span >10 km — there are NO benign near-duplicates in GB at all
+    worst 478 km (ENG|ashington) · GB-ENG "Newport" 4 rows / 343 km (matches the brief)
+
+  libSQL index probe (real database, real insert/update shapes from cities.ts):
+    T1 three distinct gazetteer Newports in one region  -> ALL THREE ACCEPTED (BUG-75 fixed)
+    T2 same place twice                                 -> REJECTED (place_ref unique)
+    T3/T3b two pending NULL-coord rows, same nat. key   -> REJECTED (BUG-33 guard intact)
+    T4 resolveCity UPDATE, incl. two rows same coords   -> ACCEPTED (F3 gone)
+    T5 user-typed + gazetteer row, same natural key     -> BOTH ACCEPTED  <-- weak point
+    T6 new indexes over today's data                    -> NO-OP, still rejects nat-key dups
+    T7 place_ref = '' enters the partial index          -> hence the CHECK
+    T8 COLLATE NOCASE survives the added column         -> yes
+
+================================================================================
+FOUR OF MY OWN FINDINGS DISPROVED BEFORE FILING
+================================================================================
+1. "all-the-cities cityId churns badly — 740 ids repoint to a different place."
+   FALSE and backwards. They are RENAMES (AM/Ejmiatsin -> AM/Vagharshapat) with the
+   id correctly following the place through the rename. Real figure 0.089%. I would
+   have overstated the case against an option I rejected anyway, for the wrong reason.
+   The bug in my probe: matching forward by id and calling any name change a repoint.
+2. "The admin-only key is the elegant answer." It churns 3x less so I wanted it.
+   584 duplicate groups. Not unique. Discarded.
+3. "Make the natural-key index partial (WHERE place_ref IS NULL)." SQLite cannot use
+   a partial index for a query whose WHERE omits the partial condition, so the tail's
+   step-1 lookup would lose its index. The uglier COALESCE form is correct.
+4. "A place_ref miss should fall back to the natural key — more forgiving." This was
+   in my first draft of step 0. It IS BUG-75: a user who named a specific place gets
+   handed a different one. Removed and promoted to the design's top invariant.
+
+================================================================================
+WHAT I FLAGGED AS MY OWN WEAK POINTS (§8, for the OP-27 reviewer)
+================================================================================
+A1 (start here). The index does NOT prevent a user-typed row coexisting with a
+    gazetteer row for the same real place (T5). Pass-1 policy must. That is the SAME
+    CLASS of weakness F2 destroyed the previous design over — identity decided in
+    application code. My defence is narrower than "fixed": the index now AGREES with
+    the policy instead of contradicting it, and the discriminator is immutable and
+    present at the decision point. A policy bug still yields a duplicate — it just no
+    longer yields a wrong town. Attack: find a request sequence producing two rows.
+A2. The dataset decision rests on TWO n=1 version-pair comparisons over
+    non-comparable windows (2 months in 2026 vs 4 months in 2019-20). Read "5x more
+    stable" as an order of magnitude, not a constant.
+A3. Step 0d's adoption inherits D13 step 2's repoint hazard (upgrading a pending row
+    already attached to a trip place silently moves the trip). Same scoping, already
+    accepted in ADL-46, not widened — but least load-bearing decision in the document
+    and can be flipped without touching anything else.
+
+================================================================================
+OPEN FOR THE COO — NOT MINE TO DECIDE
+================================================================================
+1. ADL NUMBER. This needs one (supersedes ADL-48 §7, amends ADL-46 D13). Not assigned.
+2. GE-17's criterion "two genuinely distinct places sharing a name, country and region
+   are individually selectable" is NOT fully satisfied for the TAIL (user-typed cities
+   absent from the gazetteer) by the core design alone. I proposed D9 instead of a BRD
+   amendment: an explicit "no, this is a different place" affordance minting
+   'local:<uuid>'. One request field, one UI affordance, no extra schema. If the COO
+   would rather not carry the UX, GE-17 needs scoping to bundled cities — COO's call.
+3. GE-18's third success criterion (package declaration vs upstream source) was written
+   FOR all-the-cities' MIT-over-CC-BY conflict. Under this recommendation that package
+   is not adopted, so the criterion has NO LIVE INSTANCE. Good standing rule; now
+   unexercised rather than discharged. The credit line the PO approved is still owed
+   (GeoNames CC BY 4.0, plus OSM and Natural Earth).
+4. SEQUENCING COST. S0 claimed to fix BUG-75 independently of the gazetteer. This does
+   not — E1/E2 ship inert and the defect stops at E3. Possible decoupling flagged, not
+   designed: capture Nominatim's osm_type+osm_id as 'osm:<type>:<id>' in the D14
+   candidate flow. UNVERIFIED against a live response (host firewalled). Use
+   osm_type+osm_id, NEVER place_id (documented unstable across reimports).
+5. DOWNLOAD.GEONAMES.ORG is unreachable from this devcontainer (curl + the allowlist in
+   .devcontainer/init-firewall.sh — two probes that fail differently). That is the
+   container's reachability, not the host's or CI's. If a GeoNames dump can be vendored
+   from outside the container, 'geonames:<geonameid>' is strictly better than 'cj1:<hash>'
+   and the namespace prefix exists precisely so that switch is additive, not a migration.
+
+================================================================================
+HOUSEKEEPING
+================================================================================
+- No schema change, no migration generated, no remote DB written, no db:push.
+- BRD, _project/tracker.json, ADL-48 and the spike/review docs NOT edited.
+- Scratch probe scripts written outside the repo; three temp .mjs files that briefly
+  lived in the worktree (to reach @libsql/client) were deleted before committing.
+- No scanner suppression added.
+- context/current.txt was APPENDED to, not rewritten.
