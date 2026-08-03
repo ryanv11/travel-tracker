@@ -1,0 +1,81 @@
+QUAL-20 — Automated post-deploy shakedown · GitHub issue #384 · PR #385
+Branch chore/qual20-post-deploy-shakedown
+Tracker: QUAL-20 (implements). Related: QUAL-18, QUAL-19, ENV-02, ADL-49, BUG-76.
+BRD: none (OP-32 tooling, no BRD requirement ID).
+
+WHAT WAS BUILT
+A Playwright suite (src/e2e-shakedown/shakedown.spec.ts, playwright.shakedown.config.ts)
+that runs against the ALREADY-DEPLOYED staging URL from GitHub Actions
+(.github/workflows/post-deploy-shakedown.yml), not from the devcontainer, which cannot
+reach the staging domain (confirmed by two probes: curl timeout, allowlist grep — same
+block ADL-49/D-06 already documented for the prod domain).
+
+CHECKS BUILT (5, all on the anonymous/unauthenticated surface):
+  1. App loads and returns a document
+  2. Browser console is free of errors on load
+  3. No 5xx in the page's network lifecycle — retries once, classifies a clearing 5xx as
+     ENV-02-class transient rather than a false product-bug fail
+  4. Deployed document carries a Content-Security-Policy header (proves the QUAL-18
+     topology gap is real, i.e. this deploy genuinely differs from pre-merge E2E)
+  5. /health answers within a deploy-propagation window (backoff for the automatic trigger)
+
+SCOPE LIMIT — READ THIS BEFORE ASSUMING BUG-76-CLASS COVERAGE: none of the brief's
+evidence checks (denver, springfield/newport, plockton, map, admin region list) are
+built. All require an authenticated session; staging's BYPASS_AUTH is fail-closed under
+NODE_ENV=production, and ADL-33 §4 already declined the Clerk credential that would let
+CI mint one (checked directly against .env.agent-diagnostics — Railway/Turso tokens only,
+no Clerk secret/testing-token). Faking auth to get these checks green would repeat
+QUAL-22's shape one level up. THIS IS A PO/ARCHITECT DECISION (dedicated test account or
+Clerk Testing Token), flagged in the tech doc, not solved here.
+
+TRIGGER: workflow_dispatch (primary, COO-invoked, zero ambiguity) + push-to-main
+(automatic, weaker — no build-version signal exists yet, so it can't prove it tested the
+NEW deploy vs. one still rolling out; 60s grace + /health backoff mitigate but don't close
+this). Reasoning in tech doc §6.
+
+PASS/FAIL — WHAT I HAVE ACTUALLY SEEN, NOT INFERRED:
+  Never run against real staging — firewall-blocked from here (two probes, tech doc §2).
+  Validated instead against the closest reachable topology: a local build running
+  NODE_ENV=production with helmet CSP genuinely live, no BYPASS_AUTH.
+    PASS (seen, 4/5): app loads · no 5xx · CSP header present · /health w/ backoff.
+    FAIL (seen, 2x, RIG causes not defects): console-clean check — 1st run used a local-
+      only VITE_BYPASS_AUTH shortcut that fired 401'ing API calls (rig mismatch); 2nd run
+      used a real-shaped (non-secret) Clerk publishable key with no bypass and hit
+      net::ERR_ADDRESS_UNREACHABLE on Clerk's CDN subdomains, which aren't in this
+      devcontainer's allowlist. Check logic confirmed correct both times; a genuinely
+      clean pass was never observed. Marked UNVERIFIED against real staging in the tech
+      doc, with circumstantial support only (tracker already records live prod sign-in
+      working).
+  First real evidence comes from a workflow_dispatch run post-merge, not from this report.
+
+BUGS FOUND: none — this thread built tooling, not a feature/fix verification pass.
+
+CI: scripts/ci-wait.sh pr 385 → PASS, all 18 checks green (Biome, Type Check, Backend
+Tests, Frontend Tests, Contract Tests, E2E Tests, Gitleaks, Semgrep, Dependency Scan) @
+ef443849da7034c77c8f254aaf14be623d56d126. Note: the new post-deploy-shakedown.yml workflow
+itself does NOT run on this PR by design (workflow_dispatch + push-to-main only, since it
+targets real staging) — it has not executed anywhere yet. Its first real run is whatever
+happens after merge; see the "PASS/FAIL" section above for what has and hasn't been
+observed to work.
+
+DECLARATIONS PER STANDING RULES:
+  - No source file rewritten wholesale — all changes are new files or small additive
+    edits (package.json +1 script line, .gitignore +1 block).
+  - jobs/qa/context/current.txt and this inbox entry are additive (Edit/new file), never
+    a rewrite.
+  - No scanner suppression added, none needed.
+  - No BRD or tracker.json edit made (COO's job per brief).
+
+OPEN ISSUES / FOLLOW-ONS (all named in the tech doc §5, not tracker entries — COO's call
+on whether to log them):
+  1. PO/Architect decision on an automated staging test-account mechanism — blocks the
+     denver/plockton/map/region-list checks entirely.
+  2. Embed the deployed commit SHA in /health (cheap Backend follow-on) — closes the
+     "which build actually answered" gap on the automatic trigger.
+  3. If a Railway token is ever added as a GH Actions secret for other reasons, revisit
+     gating the automatic trigger on a real deployment-status poll instead of a fixed
+     grace sleep.
+
+Full design, per-check proves/does-not-prove table, cost, and residual PO scope:
+jobs/qa/tech/20260804-post-deploy-shakedown.md
+Park doc: jobs/qa/park-docs/20260804-QA-park.txt
