@@ -171,3 +171,46 @@ NEXT STEPS (for incoming QA)
   NEXT: Backend stage (S1-S4) implements against this file as part of its
   definition-of-done, including the owner-access.test.ts HC-06 gap this
   thread surfaced.
+
+================================================================================
+2026-08-04 — QUAL-20 AUTOMATED POST-DEPLOY SHAKEDOWN
+================================================================================
+
+  Branch: chore/qual20-post-deploy-shakedown. Built the mechanical half of
+  OP-32's deployment-shakedown rule: a Playwright suite
+  (src/e2e-shakedown/shakedown.spec.ts, playwright.shakedown.config.ts) that
+  runs against the ALREADY-DEPLOYED staging URL from GitHub Actions
+  (.github/workflows/post-deploy-shakedown.yml — workflow_dispatch primary,
+  push-to-main automatic secondary), not from this devcontainer, which cannot
+  reach the staging domain (two probes: curl timeout, allowlist grep — same
+  block ADL-49/open-dialogues D-06 already documented against the prod
+  domain).
+
+  FIVE CHECKS, ALL ON THE ANONYMOUS SURFACE: app loads, console clean, no 5xx
+  (ENV-02-aware retry so a known transient edge dial-timeout doesn't read as
+  a false product bug), CSP header present (the literal topology difference
+  QUAL-18 documents E2E as unable to observe), /health answers with backoff.
+
+  LOAD-BEARING SCOPE LIMIT, STATED NOT HIDDEN: none of the brief's evidence
+  checks (denver auto-fill, springfield/newport narrowing, plockton, map,
+  admin region list) are built. All require an authenticated session;
+  staging's BYPASS_AUTH is fail-closed under NODE_ENV=production
+  (src/backend/middleware/auth.ts) and ADL-33 §4 already declined the Clerk
+  credential that would let CI mint one. Faking auth to get these checks
+  green would be the QUAL-22 mistake one level up. Flagged as a PO/Architect
+  decision (dedicated test account or Clerk Testing Token), not solved here.
+
+  HONEST STATUS (do not upgrade past what was actually observed): 4 of 5
+  checks seen passing against a production-shaped LOCAL build (NODE_ENV=
+  production, helmet CSP live, real CLERK_ISSUER, no BYPASS_AUTH — the
+  closest topology reachable from this sandbox). The console-clean check
+  failed twice locally for two RIG reasons (VITE_BYPASS_AUTH mismatch, then
+  this devcontainer's firewall blocking Clerk's CDN subdomains) — logic
+  confirmed correct (it caught both), but never observed to pass cleanly.
+  THE WHOLE SUITE HAS NEVER RUN AGAINST REAL STAGING — blocked by the same
+  firewall. First real evidence comes from whoever runs workflow_dispatch
+  from Actions after merge.
+
+  Full design + per-check proves/does-not-prove table + trigger reasoning +
+  cost: jobs/qa/tech/20260804-post-deploy-shakedown.md
+  Completion report: jobs/COO/inbox/

@@ -48,6 +48,11 @@ e2e.db
 playwright-report/
 test-results/
 
+# Post-deploy shakedown (QUAL-20) artefacts — playwright.shakedown.config.ts's own
+# outputDir/reporter output, separate from the pre-merge E2E suite's above.
+shakedown-results/
+shakedown-results.json
+
 # Personal Claude Code overrides — machine-specific permissions, notification hooks
 .claude/settings.local.json
 
