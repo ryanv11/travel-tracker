@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (79)
+## Open work (80)
 
 ### P0 — Blockers (1)
 
@@ -36,7 +36,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
 
-### P2 — Important (44)
+### P2 — Important (45)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -73,6 +73,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 | QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
 | QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | ⬜ Pending |
+| DEP-05 | ip-address SSRF/trust-boundary advisories (HIGH, runtime via express-rate-limit) — fixed; react-router moderates deferred | coo | done_pending_uat |
 | QUAL-21 | Resolve-then-create success path has zero route-level test coverage (review F4) | qa | ⬜ Pending |
 | QUAL-22 | QA ATDD suite's geocoding mock drifted — one group is green for the wrong reason (review F8) | qa | ⬜ Pending |
 | BUG-71 | Ambiguous city name silently auto-resolves and pre-fills a state — no disambiguation offered (GE-16 violation) | frontend | done_pending_uat |
@@ -126,7 +127,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `████████████░░░░░░░░` 44/71 | 44 | 27 | 4 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `████████▓░░░░░░░░░░░` 14/33 | 14 | 19 | 1 |
+| chore | `████████▓░░░░░░░░░░░` 14/34 | 14 | 20 | 1 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -160,4 +161,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_136 done · 10 deferred · 4 closed · 79 open — 229 tracked items_
+_136 done · 10 deferred · 4 closed · 80 open — 230 tracked items_
