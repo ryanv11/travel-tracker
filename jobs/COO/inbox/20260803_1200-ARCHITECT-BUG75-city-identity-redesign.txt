@@ -1,0 +1,64 @@
+TO: COO
+FROM: Architect
+DATE: 2026-08-03
+RE: BUG-75 city identity — re-design complete, replaces the rejected S0
+
+Tracker: BUG-75 · BRD-GE17 · BRD-GE18 · QUAL-25 · ADL-48
+BRD: GE-12, GE-15, GE-16, GE-17, GE-18 (v3.14) · Branch: chore/bug75-city-identity-redesign
+GitHub issue: none exists for BUG-75 · PR: see below
+Deliverable: jobs/architect/tech/20260803-BUG75-city-identity-redesign.md
+NEEDS A NEW ADL NUMBER — supersedes ADL-48 §7, amends ADL-46 D13. Not assigned; yours.
+
+DECIDED
+Identity is CARRIED, not DERIVED. A nullable, namespaced cities.place_ref TEXT supplied in
+the create request because the user picked a specific row — known before the insert, written
+once, never touched by the geocoder. Coordinates leave the identity question entirely. F1-F5
+dissolve rather than get patched: all five are properties of using coordinates as identity,
+not of the bucket size.
+
+PER-DECISION VERDICT
+- Coordinate bucket, any size: REJECTED. Not re-proposed. F1-F5 not contested.
+- place_ref + two indexes + step 0 in findOrUpgradeCity: ADOPTED. Built in real libSQL and
+  attacked — 8 probes, incl. two unfavourable results reported (T5, T7).
+- Swap to all-the-cities: REJECTED — and not on licence. 97.78% of its rows ALREADY sit
+  inside cities.json; it is the same GeoNames extract measured in 2020, not a different trade.
+- Join its GeoNames id into cities.json: REJECTED. ~77.6% coverage, falling monthly.
+- Keep cities.json, mint place_ref = 'cj1:'+16 hex sha256: ADOPTED. (country,admin1,admin2,
+  name,lat,lng) is UNIQUE over all 170,540 rows — measured, 0 duplicates.
+- GeoNames dump direct: DEFERRED with a trigger — download.geonames.org unreachable from the
+  devcontainer (2 probes). The namespace prefix makes that switch additive, not a migration.
+- Migration: expand-only, NO contract step by design. Verified a no-op over shipped data.
+
+THE ONE-LINE FRAMING CORRECTION
+"cities.json has no stable row id" is TRUE. "cities.json has no identity" is FALSE — everyone
+inferred the second from the first, and the coordinate bucket exists entirely because of it.
+It has no id COLUMN; it has a natural key. The app discards admin2, which is exactly what
+separates the four Newports (E1/O2/E4/G2).
+
+CI: no code committed — documents only. PR CI reported in the PR.
+
+OPEN / BLOCKERS — three need your decision
+1. GE-17's "two genuinely distinct places... individually selectable" is NOT fully satisfied
+   for the TAIL (user-typed cities absent from the gazetteer). I propose D9 (an explicit
+   "this is a different place" affordance minting 'local:<uuid>' — one request field, one UI
+   affordance) INSTEAD of amending GE-17. If you would rather not carry the UX, GE-17 needs
+   scoping to bundled cities. Your call, not mine.
+2. GE-18's third success criterion was written for all-the-cities' MIT-over-CC-BY conflict.
+   That package is not adopted, so the criterion now has NO LIVE INSTANCE — good standing
+   rule, unexercised rather than discharged. The PO's credit line is still owed.
+3. SEQUENCING COST, priced honestly: S0 claimed to fix BUG-75 independently of the gazetteer.
+   This does not. E1/E2 ship inert; the defect stops only at E3. A possible decoupling is
+   flagged not designed (capture Nominatim's osm_type+osm_id — never place_id, documented
+   unstable). UNVERIFIED against a live response; the host is firewalled.
+
+NOW UNBLOCKED
+- Database: E1 is fully specified (column, CHECK, both indexes, and the SQLite table-rebuild
+  warning for the CHECK — read the generated SQL, ADL-15/patched drizzle-kit territory).
+- Backend: step 0 is specified line by line, incl. the invariant an implementer will be
+  tempted to break (a place_ref miss must NEVER fall back to the natural key — that IS BUG-75).
+- ADL-48 S2/S3 unblocked on the identity question; the dataset choice is settled as cities.json
+  with no swap, so S2's seeding work is unchanged from the spike apart from carrying place_ref.
+
+Written to be attacked: §8 names my two weakest points and where to start. Four of my own
+findings were disproved before filing (§7) — the sharpest nearly became the case against the
+option I rejected, for the wrong reason.
