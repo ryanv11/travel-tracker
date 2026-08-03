@@ -110,6 +110,7 @@ describe('lookupCityCountry', () => {
         regionIso: null,
         candidates: [],
         failed: true,
+        truncated: false,
       });
       // 1 initial attempt + 3 retries — proves retry actually ran, not just
       // that the eventual failure is reported.
@@ -165,5 +166,56 @@ describe('lookupCityCountry', () => {
     expect(regionIso).toBeNull();
     expect(candidates).toEqual([]);
     expect(failed).toBe(false);
+  });
+
+  // BUG-79 (#379): the backend's `truncated` flag (geocode.ts, nominatim-client.ts)
+  // says the raw upstream response may have had more matches than `candidates`
+  // shows — must reach the caller unchanged so AddPlaceFlow can avoid
+  // presenting a narrowed result as certain.
+  it('propagates truncated:true from the proxy response (BUG-79)', async () => {
+    const result: GeocodeResult = {
+      candidates: [
+        {
+          name: 'Springfield',
+          display_name: 'Springfield, Illinois, USA',
+          country_code: 'us',
+          region_iso: 'US-IL',
+          latitude: 39.78,
+          longitude: -89.65,
+        },
+      ],
+      country_code: 'us',
+      region_iso: 'US-IL',
+      truncated: true,
+    };
+    vi.mocked(apiGet).mockResolvedValue(result);
+
+    const { truncated } = await lookupCityCountry('Springfield');
+
+    expect(truncated).toBe(true);
+  });
+
+  it('defaults truncated to false when the proxy response omits the field (pre-BUG-79 shape)', async () => {
+    const result: GeocodeResult = { candidates: [], country_code: null, region_iso: null };
+    vi.mocked(apiGet).mockResolvedValue(result);
+
+    const { truncated } = await lookupCityCountry('Zzznotacity');
+
+    expect(truncated).toBe(false);
+  });
+
+  it('reports truncated:false on a failed lookup (retries exhausted) — nothing was truncated, nothing was returned', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(apiGet).mockRejectedValue(new Error('network error'));
+
+      const promise = lookupCityCountry('Nowhere');
+      await vi.runAllTimersAsync();
+      const { truncated } = await promise;
+
+      expect(truncated).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

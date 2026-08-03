@@ -97,6 +97,15 @@ export interface GeocodeResult {
   candidates: GeocodeCandidate[];
   country_code: string | null;
   region_iso: string | null;
+  /**
+   * BUG-79: true when the backend's raw Nominatim response was at least as
+   * large as the limit it requested — there may be more matches upstream
+   * than `candidates` shows. Always sent by the backend (see geocode.ts), but
+   * typed optional here so existing hand-written test fixtures that predate
+   * this field (useCities.geocode.test.tsx and friends) aren't forced to add
+   * it where the truncation behaviour isn't what they're testing.
+   */
+  truncated?: boolean;
 }
 
 // Minimal association shapes used inside trip responses

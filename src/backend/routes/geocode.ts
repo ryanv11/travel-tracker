@@ -20,6 +20,33 @@
  * is the only gate — it is a first-party egress surface and must never be
  * callable anonymously. No userId scoping: this reads no user data (tier-1
  * reference lookup).
+ *
+ * BUG-79 (GitHub #379): the only frontend caller of this route today
+ * (lookupCityCountry, useCities.ts) never supplies `country_code` — it's the
+ * "discovery" lookup a country/region auto-fill runs BEFORE either is known,
+ * so it cannot constrain by country the way the two other Nominatim call
+ * sites (geocoding.service.ts, D12) already do. At the previous fixed
+ * limit=10, a globally-ambiguous name (many Springfields worldwide) could
+ * have its 10 slots spread across countries other than the one the user
+ * actually meant, thinning the same-country region set down to a false
+ * single survivor — indistinguishable from a genuinely unambiguous city
+ * (Denver). Raising the discovery limit gives the existing D14 narrowing
+ * (AddPlaceFlow.tsx) more same-country candidates to find, WITHOUT any
+ * change to the request cadence — this is still exactly one upstream
+ * request per keystroke-settle, only the `limit` value on that one request
+ * changed. A country-constrained call keeps the original, already-narrow
+ * limit — it doesn't have this problem, since `countrycodes` already
+ * restricts Nominatim's search space.
+ *
+ * 40 was chosen for the discovery limit as a meaningfully larger, but not
+ * extreme, value. Nominatim's actual maximum `limit` is UNVERIFIED from this
+ * environment — the firewall blocks reaching the service directly, and this
+ * session made three independent failed attempts (see the brief for GitHub
+ * #379). The code does not assume 40 is honoured: `truncated` below is
+ * computed against whatever was actually requested, and everything downstream
+ * (settlement filtering, D14 narrowing) already handles an arbitrary
+ * candidate count. If the real cap is lower, Nominatim simply returns fewer
+ * rows and the mechanism degrades to today's behaviour, not a crash.
  */
 
 import { Router } from 'express';
@@ -29,6 +56,11 @@ import { nominatimSearch } from '../services/nominatim-client.js';
 import { GeocodeQuerySchema } from '../validation/geocode.schemas.js';
 
 export const geocodeRouter = Router();
+
+/** Unconstrained "discovery" lookup — no country_code supplied (BUG-79). */
+const DISCOVERY_LIMIT = '40';
+/** Already constrained by country — the original, narrower limit is fine. */
+const CONSTRAINED_LIMIT = '10';
 
 // ----------------------------------------------------------------
 // GET /api/geocode?q=...&country_code=...&region_iso=...
@@ -44,11 +76,15 @@ geocodeRouter.get(
       region_iso?: string;
     };
 
-    const params: Record<string, string> = { q, limit: '10' };
+    const params: Record<string, string> = {
+      q,
+      limit: country_code ? CONSTRAINED_LIMIT : DISCOVERY_LIMIT,
+    };
     if (country_code) params.countrycodes = country_code.toLowerCase();
 
     const result = await nominatimSearch(params);
     let candidates = result.status === 'ok' ? result.candidates : [];
+    const truncated = result.status === 'ok' ? (result.truncated ?? false) : false;
 
     // D12 step 2: if a region ISO was supplied and any candidate matches it,
     // narrow to those — but never fabricate a result when none match.
@@ -72,6 +108,14 @@ geocodeRouter.get(
       // GE-15 auto-populate convenience — the top candidate's country/region.
       country_code: candidates[0]?.countryCode ?? null,
       region_iso: candidates[0]?.regionIso ?? null,
+      // BUG-79: true when Nominatim's raw response (before the settlement-type
+      // filter above ever runs) was at least as large as the limit we asked
+      // for — there may be candidates beyond it we never saw. The frontend
+      // uses this to avoid presenting a narrowed-to-one-region result as
+      // certain when it might just be truncated. Always false for a
+      // country-constrained call in practice (10 is rarely hit once the
+      // search space is already narrowed), computed the same way regardless.
+      truncated,
     });
   }),
 );
