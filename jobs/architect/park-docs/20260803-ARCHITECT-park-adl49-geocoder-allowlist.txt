@@ -1,0 +1,86 @@
+ARCHITECT PARK DOCUMENT — 2026-08-03
+ADL-49: geocoder allowlist (amends ADL-33) · replay fixtures · GE-17 reassessment
+Branch: chore/adl33-nominatim-allowlist
+================================================================================
+
+STATE AT PARK
+-------------
+Design complete, committed, PR open. NOTHING IS APPLIED. The .devcontainer/init-firewall.sh
+diff is quoted in ADL-49 §3.5 and the file is untouched on this branch — it needs a container
+rebuild and is the COO's to take after PO approval. No BRD edit, no tracker edit, no source
+change (all three were out of scope by the brief).
+
+DELIVERABLES
+------------
+- jobs/architect/tech/ADL-49-geocoder-allowlist-and-replay-fixtures.md   (long form, §0-§9)
+- jobs/architect/tech/20260307-architecture-decisions-log.md              (ADL-49 log entry)
+- same file: an AMENDED banner on ADL-33 (its exclusions stand; §7's caveat is measured)
+- jobs/COO/open-dialogues.md                                             (D-21 status appended)
+- jobs/architect/context/current.txt                                     (dated entry appended)
+- jobs/COO/inbox/20260803_*-ARCHITECT-adl49-geocoder-allowlist.txt        (completion report)
+
+THE FIVE THINGS TO PICK UP FROM, IN PRIORITY ORDER
+--------------------------------------------------
+1. BUG-76 IS THE HIGHEST-VALUE ITEM ON THIS THREAD AND IT IS ALSO THE CHEAPEST.
+   ADL-48 §2 says the ten tail places are "absent from BOTH" candidate GAZETTEER datasets. So
+   under GE-17 as designed they resolve only via the geocoder anyway. Our own SETTLEMENT_TYPES
+   filter (nominatim-client.ts:81, applied :141) is therefore the only change under discussion
+   that could make Plockton work AT ALL. One set-widening, no dataset, no migration.
+
+2. THE PROBE IS ~60 SECONDS OF EGRESS AND ANSWERS FOUR OPEN QUESTIONS AT ONCE.
+   ADL-49 §7.2's matrix: 17 names x 3 variants + a 4-request Springfield/us completeness probe.
+   It settles (a) is the tail gap ours or Nominatim's, (b) Nominatim's actual `limit` cap,
+   (c) whether dedupe runs before or after the limit, (d) every response becomes a fixture.
+   Run it FIRST after the rebuild. Everything else on this thread is waiting on it.
+
+3. THE PREMISE CORRECTION THAT CHANGES A LIVE PO DECISION.
+   "The geocoder is queried at limit=10 globally" is FALSE for two of three call sites.
+   geocoding.service.ts:185 and :250 already pass countrycodes. Only routes/geocode.ts:50 is
+   global, and only for the discovery call (useCities.ts:42 sends q and nothing else). Three
+   one-line changes (ADL-49 §6.4 A/B/C) close most of the ambiguity gap without any dataset.
+
+4. THE FIXTURE SEAM IS THE ONLY DESIGN DECISION THAT CAN BE GOT WRONG CHEAPLY AND HURT LATER.
+   Record the WIRE response at fetch. Never NominatimCandidate[]. Never mock nominatimSearch.
+   If a future brief "simplifies" this by recording parsed candidates, BUG-76's whole class
+   becomes structurally unobservable again and the suite goes green for the wrong reason —
+   which is QUAL-22 verbatim, one level up.
+
+5. ENV-01 NEEDS REOPENING. It has sat as `accepted` / "no fix needed" for a year, and by
+   2026-08-01 that accepted constraint had become one of four arguments for a 170,540-row
+   dataset (BRD v3.15's GE-17 changelog says so in as many words). Tracker edits were out of
+   scope for this brief — it is a COO action.
+
+MY TWO WEAKEST POINTS (for the OP-27 reviewer — start here, do not finish here)
+-------------------------------------------------------------------------------
+W1. Everything in §6.4 and §7.4 rests on unmeasured assumptions about a service this container
+    cannot reach: Nominatim's limit cap, dedupe ordering, and OSM's typing of ten specific
+    Scottish places. All marked UNVERIFIED with blind spots. Treat "GE-17's ambiguity argument
+    is substantially weakened" as CONDITIONAL ON THE PROBE. If the cap is 10, change (B) dies
+    and §6.3 weakens considerably. (§6.5's coverage finding survives regardless — it is read
+    from ADL-48's own text, not from the network.)
+W2. "The browser runs on the host" is the load-bearing premise of the MapTiler deferral and I
+    INFERRED it from the devcontainer topology rather than observing it. If the PO drives a
+    container-side browser, D2 inverts. Also soft: I assert a local inline MapLibre style would
+    suffice for map assertions without having read what BUG-49's paint-order test would need.
+W3 (offered, since a self-named weakness is a hypothesis not a confession): §5.6's three
+    fixture-honesty mechanisms may be theatre. The real property might just be that a genuine
+    40-field Nominatim response is expensive to fake convincingly — in which case simplify
+    rather than elaborate.
+
+WHAT I DISPROVED BEFORE FILING
+------------------------------
+"IPv6 bypasses the firewall" (3 probes say no — no global inet6 addr, no -6 route, curl -6
+fails where curl -4 to the same URL returns 200). "All three call sites query globally."
+"MapTiler unblocks BUG-49/BUG-34" (both already fixed). "Nominatim is Cloudflare-fronted like
+Turso" (Fastly anycast — a weaker caveat, running against my own more cautious draft). And
+"CI can't reach Nominatim", which I could NOT disprove from here and therefore left marked
+UNVERIFIED rather than correcting ci.yml:76 on inference.
+
+OPEN / NOT DONE
+---------------
+- Nothing applied; container not rebuilt; probe not run (blocked on the rebuild by definition).
+- ci.yml:76's comment needs one probe from a GitHub runner before anyone touches it.
+- The local-MapLibre-style alternative for map assertions is named, not designed. Needs a QUAL
+  item and a look at what BUG-49/MP-02 actually need to assert.
+- No _shared/frameworks.txt change: no stack decision was taken. D5 explicitly DECLINES a new
+  dependency (in-repo replay double over MSW) with a stated switch trigger.

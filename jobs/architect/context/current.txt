@@ -1579,3 +1579,80 @@ METHOD NOTES — what this review would tell the next one:
     identical (country, admin1, admin2, name). The design rejects auto-repair as "a fuzzy-
     matched write against user data"; for the dominant case it is an EQUALITY JOIN, unambiguous
     for ~99.3% of them. Check what a rejected option actually costs before rejecting it.
+
+================================================================================
+2026-08-03 — ADL-49: geocoder allowlist (amends ADL-33), replay fixtures, GE-17 reassessment
+Branch chore/adl33-nominatim-allowlist · D-21 · ENV-01 · BUG-76 · QUAL-22 · ADL-48/GE-17
+================================================================================
+
+DESIGN ONLY. No code, no config, no firewall change. The init-firewall.sh diff is QUOTED in
+  ADL-49 §3.5 and deliberately NOT applied — it needs a container rebuild and is the COO's to
+  take after PO approval. Deliverables: jobs/architect/tech/ADL-49-geocoder-allowlist-and-
+  replay-fixtures.md (long form) + the ADL-49 entry in the main log + an amendment banner on
+  ADL-33.
+
+WHAT I WAS ASKED, AND THE ORDER OF VALUE IT CAME BACK IN — the allowlist was the smallest part.
+
+1. ALLOWLIST: add nominatim.openstreetmap.org, one entry, nothing else. MapTiler DEFERRED and
+   the reason D-21 gave for it does not hold (see below). Measured rather than restated: ADL-33
+   §7's CDN rotation caveat is WEAKER for Nominatim than for Turso/Railway — Fastly ANYCAST,
+   one stable A record (151.101.21.91, 3/3 samples), vs MapTiler's rotating 5-address
+   Cloudflare pool. Wrote the practical consequence into the ADL so nobody debugs it as code:
+   if the geocoder works after the rebuild then dies mid-session, RESTART THE CONTAINER.
+
+2. THE PREMISE THAT WAS FALSE, AND IT IS THE MOST USEFUL THING HERE. Everyone on this thread
+   (D-19, D-21, the COO's read I was told to test rather than accept) has been saying "the
+   geocoder is queried at limit=10 GLOBALLY". FALSE FOR TWO OF THREE CALL SITES.
+   geocoding.service.ts:185 (resolveCityName) and :250 (resolveCity) both already pass
+   countrycodes. Only routes/geocode.ts:50 is unconstrained, and only when the caller omits
+   country_code — which is exactly what useCities.ts:42 does, because DISCOVERY cannot know the
+   country yet. That single path is where BUG-71 happened. Consequence: the "ambiguity
+   completeness" argument — the COO's nominated strongest survivor for GE-17 — is much weaker
+   than stated, and three ONE-LINE changes close most of the residual: (A) nominatim-client.ts
+   :136-143 DISCARDS data.length, so truncation is undetectable even if you fix the limit;
+   (B) raise limit on the constrained paths so rawCount < limit becomes a POSITIVE completeness
+   determination, which is exactly the predicate BRD v3.14 says is unsatisfiable without GE-17;
+   (C) pass trip countries on discovery (= D-19, as one query parameter).
+
+3. THE FINDING THE PO MOST NEEDS, and it was sitting in ADL-48's own text unread: the ten tail
+   places (Plockton, Applecross, Shieldaig, Lochinver, Durness, Kyleakin, Gairloch, Dornie,
+   Braemar, Torridon) are "absent from BOTH" — both CANDIDATE GAZETTEER DATASETS. So under
+   GE-17 as designed they resolve only through the geocoder ANYWAY. The flagship Scottish trip
+   is not covered by the gazetteer under either architecture. Which makes BUG-76 — our own
+   SETTLEMENT_TYPES filter at nominatim-client.ts:81 — the ONLY change under discussion that
+   could make Plockton work at all, and the cheapest item on the thread. Nobody had connected
+   these two facts.
+
+4. FIXTURE DESIGN — the seam is the ONLY interesting decision. Record the WIRE response at
+   fetch, never the parsed NominatimCandidate[]. Recording post-filter output bakes BUG-76 into
+   the fixture and makes it structurally unobservable — same shape as QUAL-18's CSP blind spot,
+   the artefact under test cannot express the failure. Corollary: mocking nominatimSearch is
+   FORBIDDEN in the new suites; that is QUAL-22's exact error, one level up.
+
+5. RATE LIMIT — the chokepoint binds the APP, not the ENVIRONMENT. chain/lastRequestAt are
+   module scope = PROCESS scope, and the comment at :48 says "process-wide (single egress IP)"
+   where only the first half is true. A capture script, a vitest worker and an ad-hoc curl each
+   start a fresh 1 req/s budget against ONE shared IP. That is what the allowlist newly exposes
+   and it is procedural, not a code bug.
+
+WHAT I KILLED BEFORE FILING (five):
+  - "IPv6 bypasses the firewall entirely" — script is IPv4-only with no ip6tables rules and both
+    hosts publish AAAA. Looked like a serious pre-existing hole. THREE probes say no: no global
+    inet6 addr, no -6 route, curl -6 fails where curl -4 to the SAME URL returns 200. Latent
+    only if the Docker network ever gains IPv6. Would have been an alarming and wrong headline.
+  - "All three call sites query globally" — see 2. Correcting it made my conclusion STRONGER,
+    which is the uncomfortable direction and therefore the trustworthy one.
+  - "MapTiler unblocks BUG-49/BUG-34" — both ALREADY FIXED (BUG-34 done PR #163; BUG-49
+    done_pending_uat PR #301). I nearly wrote the whole section around unblocking them.
+  - "Nominatim is Cloudflare-fronted like Turso" — Fastly anycast, weaker caveat, runs against
+    the more cautious story I had started writing.
+  - "CI can't reach Nominatim" — inherited from ci.yml:76 into BRD v3.15. Could NOT disprove it
+    from here so it is marked UNVERIFIED with its blind spot, and I deliberately did NOT edit
+    the comment. Correcting it on inference would be the exact single-probe upgrade the rule
+    forbids.
+
+METHOD NOTE FOR THE NEXT ARCHITECT ON THIS THREAD: the brief told me to test the COO's read
+  rather than accept it, and that instruction is what produced items 2 and 3. Both were
+  available to every previous pass — one is three greps, the other is re-reading a paragraph of
+  ADL-48. Neither was found, because nobody was asked to attack the frame. This is the same
+  lesson as feedback_question_the_frame_not_just_the_answer.md, one round later.

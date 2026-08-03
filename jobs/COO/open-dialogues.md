@@ -87,6 +87,26 @@ and cannot help an in-flight session.
 PO wants visual map testing), plus the fixture-capture and drift-check design. Cheap; ready to
 execute whenever the container next rebuilds.
 
+> **DESIGNED 2026-08-03 — ADL-49, branch `chore/adl33-nominatim-allowlist`. Still the PO's call;
+> nothing applied.** `jobs/architect/tech/ADL-49-geocoder-allowlist-and-replay-fixtures.md` + the
+> main-log entry. The `init-firewall.sh` diff is **quoted, not applied** (needs a rebuild). Four
+> things in this entry the design changed rather than confirmed:
+> 1. **MapTiler: recommended DEFER, and the stated rationale does not hold.** The container firewall
+>    never reached the PO's browser (it runs on the host); **BUG-34 is `done` and BUG-49 is
+>    `done_pending_uat`**, so neither is an open bug awaiting observation; and in CI the blocker is a
+>    missing `VITE_MAPTILER_KEY` — `ci.yml` consumes no repository secrets at all — not the firewall.
+> 2. **"Queried at `limit=10` globally" is false for two of three call sites.** `resolveCityName` and
+>    `resolveCity` already pass `countrycodes`; only the *discovery* call is global, and that is the
+>    path BUG-71 travelled. Three one-line changes close most of the ambiguity gap without a dataset.
+> 3. **The ten tail places are absent from the gazetteer datasets too** (ADL-48 §2's own words), so
+>    they resolve only via the geocoder under *either* architecture — which makes **BUG-76 the
+>    highest-value and cheapest item on this whole thread**.
+> 4. **ENV-01 should be reopened.** Its `accepted` / "no fix needed" resolution is what let an
+>    environment constraint become an argument for a 170,540-row dataset.
+>
+> Recommended sequence before re-taking GE-17 S2/S3: apply the diff → rebuild → run the BUG-76 probe
+> (~60 s of egress) → widen the filter + land the query changes → land the fixtures. ~a day.
+
 ---
 
 ### D-19: Constrain city lookup by the trip's declared countries + shortlist-not-filter selection
