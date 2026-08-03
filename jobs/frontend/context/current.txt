@@ -1,3 +1,163 @@
+FRONTEND CONTEXT — as of 2026-08-03 (BUG-78 + BUG-79, GitHub #379, PO UAT follow-up)
+
+STATUS: fix/bug78-79-suggested-bold-region-narrowing branch, GitHub issue
+  #379, BRD GE-16. Both items came from the PO's UAT of the BUG-71/72
+  release (previous entry below) — classified as gaps in a deliberately-
+  minimal stopgap, not regressions, per the brief. Frontend-only for BUG-78;
+  BUG-79 required a small, brief-authorized backend change confined to the
+  discovery lookup path (geocode.ts, nominatim-client.ts) — no route added,
+  no auth/scoping change (tier-1 reference lookup, requireAuth only,
+  unchanged). The third UAT item (shortened city name storage) is explicitly
+  out of scope per the brief — did not touch cities.name derivation.
+
+  BUG-78 (P3): the BUG-71 "Suggested:" caption
+  (AddPlaceFlow.tsx, region field) rendered with no more visual weight than
+  any other muted helper text. Checked jobs/ux/tech/20260801-UX-city-entry-
+  and-disambiguation-spec.md §3.2 first per the brief's instruction — it
+  specifies the "Suggested:" pattern itself but does not dictate a
+  font-weight, so this thread made the call: bolded the WHOLE caption line
+  via font-semibold (an existing design-system utility already used
+  elsewhere in this file for similar-weight emphasis — no new colour or
+  component introduced).
+
+  BUG-79 (P2), PO's own comparison as the spec: "springfield" resolved to
+  Virginia with no ambiguity signal, unlike "newport" in a UK context
+  (already narrows to England/Wales with the D14 "multiple matches" hint).
+  Re-verified the brief's mechanism claim myself rather than inheriting it:
+  confirmed geocode.ts:47 requested limit=10 unconditionally and applied
+  countrycodes only when the frontend supplied one; confirmed
+  lookupCityCountry (useCities.ts) — the ONLY frontend caller of GET
+  /api/geocode — never supplies country_code (it's the discovery lookup
+  that runs BEFORE country/region are known, so it structurally can't
+  constrain by country on this call); confirmed nominatim-client.ts:136-143
+  discards the pre-filter response count once `.filter()` runs, so no
+  caller could ever tell "one real region" from "one region a 10-slot
+  global result happened to collapse to" even if the limit were raised
+  alone. Root cause: NOT the frontend's existing D14 narrowing (unchanged,
+  already correct and already tested) — the backend discovery call was
+  starving it of same-country candidates for a globally-ambiguous name.
+
+  Fix, confined to the discovery lookup path per the brief:
+    - geocode.ts: the unconstrained discovery call (no country_code) now
+      requests limit=40 (DISCOVERY_LIMIT) instead of 10; a country-
+      constrained call is unchanged (CONSTRAINED_LIMIT='10', same value as
+      before, just named). This does NOT add any upstream request — still
+      exactly one Nominatim call per keystroke-settle, only the limit value
+      on that one call changed, so the rate-limit chokepoint
+      (nominatim-client.ts) is untouched and unaffected.
+    - nominatim-client.ts: NominatimSearchResult's 'ok' variant gained an
+      optional `truncated` field, computed as raw-response-length >=
+      requested-limit, BEFORE the settlement-type/parse filter discards
+      anything — preserves exactly the signal the brief named as
+      discarded. Optional (not required) specifically so the ~15 pre-
+      existing NominatimSearchResult fixtures in geocoding.service.test.ts
+      and cities.f1f2-ruling.test.ts (neither touched by this fix, both
+      already using the two OTHER nominatimSearch call sites that already
+      pass countrycodes) don't need an unrelated field added — every
+      consumer treats absent the same as false.
+    - geocode.ts response JSON gained `truncated` (always present,
+      non-optional on the wire).
+    - types/api.ts (GeocodeResult), useCities.ts (lookupCityCountry's
+      return shape) — `truncated` threaded through, optional on the type
+      for the same pre-existing-fixture reason as above but always
+      populated in practice.
+    - AddPlaceFlow.tsx: new `lookupTruncated` state, reset at every point
+      the pre-existing regionIsSuggested/candidateRegionIsos state already
+      resets (form reopen, manual country change). Appends a caveat when
+      true: " (there may be more not shown)" on the D14 ambiguous hint,
+      " (other matches may exist)" on the BUG-71 Suggested caption — no new
+      UI element, just conditional text on what already renders. The
+      blanket "every single-candidate auto-fill is tentative" behaviour
+      from BUG-71 is DELIBERATELY unchanged even though truncation
+      detection now exists (success criterion 3, Denver): a higher limit
+      makes genuine ambiguity easier to detect, it doesn't make a single
+      survivor provably certain, so regionIsSuggested still fires on every
+      auto-fill, truncated or not.
+
+  CHOSEN LIMIT VALUE (40) — stated per the brief's explicit requirement:
+  Nominatim's actual maximum `limit` is UNVERIFIED from this container —
+  the firewall blocks reaching the live service, and this session made no
+  new attempt beyond the three already recorded in the brief as failed.
+  40 is a deliberate, meaningfully-larger-than-10 choice, NOT a discovered
+  cap. The code does not depend on 40 being honoured: `truncated` is
+  computed against whatever was actually requested, not an assumed
+  service-side maximum, and every downstream consumer (settlement
+  filtering, D14 narrowing) already handles an arbitrary candidate count.
+
+  RATE-LIMIT IMPACT: none. This fix issues NO additional upstream request —
+  explicitly checked against the brief's "say so if more than one request
+  per keystroke-settle" requirement. Only the `limit` query value on the
+  existing single discovery request changed.
+
+  VERIFICATION: npm run check (Biome, clean after one const/let fixup on
+  the new backend test file), npm run type:check:all (clean — the
+  `truncated?` optional field required zero pre-existing fixture edits
+  except one exact-match useCities.geocode.test.tsx assertion, see below),
+  npm run test:backend (689/689, +10 new across geocode.test.ts (6,
+  route-level limit/truncation plumbing) and nominatim-client.test.ts (4,
+  truncation computed from the PRE-filter raw count, not the post-
+  settlement-filter survivor count — this is the one direct unit test of
+  the actual mechanism the whole fix depends on; no existing test in this
+  codebase mocked below the nominatimSearch chokepoint before, so this is
+  new territory for the test suite, not just new cases in an existing
+  pattern)), npm run test:frontend (257/257, +6 new in
+  AddPlaceFlow.bug78-79.test.tsx covering the ambiguous-US case, an
+  ambiguous-UK regression check, the unambiguous case with the bold-caption
+  assertion, and two truncated-case variants (collapsed-to-one and
+  ambiguous-and-truncated) — plus 3 new + 1 fixed in
+  useCities.geocode.test.tsx for the `truncated` propagation), npm run
+  status:check (clean, no tracker.json edit made — COO's job per the
+  brief). npm audit: 2 pre-existing MODERATE react-router vulnerabilities
+  (CVE-2025-68470-adjacent) — confirmed pre-existing and unrelated (no
+  package.json/package-lock.json change in this diff), flagged per
+  frameworks.txt rule 20, not fixed here (breaking change via
+  `--force`, out of this brief's scope).
+
+  WHAT THIS DOES NOT AND CANNOT PROVE (verification note from the brief):
+  no live Nominatim access from this container. All tests above are
+  against hand-written fixtures faithful to the documented
+  RawNominatimResult/NominatimCandidate/GeocodeCandidate shapes, not a live
+  response — explicitly flagging this per the brief's warning that BUG-71
+  passed 32 tests against exactly this kind of gap (mocks encoding an
+  assumption about the geocoder rather than its real behaviour). Success
+  criterion 1 (does "springfield" actually surface >1 US region within the
+  raised limit from the REAL Nominatim) is UNVERIFIED here and needs PO
+  confirmation on staging. Criteria 2, 3, 5 are also UI-only assertions
+  against the same fixture set. Criterion 4 (truncated case) and 6 (test
+  coverage) are the ones this thread could fully close by test, since
+  they're about this codebase's own handling of a given input, not about
+  what Nominatim actually returns.
+
+  KEY FILE LOCATIONS (changed this thread)
+    src/backend/routes/geocode.ts (DISCOVERY_LIMIT/CONSTRAINED_LIMIT split,
+      `truncated` in response JSON)
+    src/backend/services/nominatim-client.ts (`truncated` on
+      NominatimSearchResult's 'ok' variant, computed pre-filter)
+    src/backend/routes/__tests__/geocode.test.ts (new)
+    src/backend/services/__tests__/nominatim-client.test.ts (new — first
+      test in this codebase to mock below the nominatimSearch chokepoint)
+    src/frontend/components/TripDetail/AddPlaceFlow.tsx (lookupTruncated
+      state; bold Suggested caption; truncation caveats on both auto-fill
+      branches)
+    src/frontend/hooks/useCities.ts (lookupCityCountry returns `truncated`)
+    src/frontend/types/api.ts (GeocodeResult.truncated, optional)
+    src/frontend/components/TripDetail/__tests__/AddPlaceFlow.bug78-79.test.tsx (new)
+    src/frontend/hooks/__tests__/useCities.geocode.test.tsx (+3 new tests,
+      1 existing exact-match assertion updated for the new field)
+
+  NEXT STEPS (when resumed)
+    COO: review PR (see completion report for #), merge via
+    /coo-merge-and-close when CI is green. PO: confirm on staging that
+    "springfield" actually narrows to multiple US states now (criterion 1 —
+    cannot be proven from this sandboxed container). 2 pre-existing
+    moderate npm audit findings (react-router) flagged above, unrelated to
+    this PR — COO's call on whether/when to address.
+
+========================================================================
+PRIOR THREAD — retained in full below per this file's established
+newest-first pattern.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-08-02 (BUG-71 stopgap + BUG-72, GitHub #363)
 
 STATUS: fix/bug71-72-city-ambiguity-surfacing branch, GitHub issue #363, BRD GE-16.
