@@ -1,0 +1,121 @@
+ARCHITECT PARK DOCUMENT — 2026-08-04
+OP-27 fresh-eyes review of 20260804-city-name-and-identity-design.md
+Branch: chore/city-identity-design-fresh-eyes-review
+Deliverable: jobs/architect/tech/20260804-city-identity-design-fresh-eyes-review.md
+
+────────────────────────────────────────────────────────────────────────
+WHAT THIS THREAD WAS
+────────────────────────────────────────────────────────────────────────
+Second, independent Architect dispatch reviewing the 2026-08-04 city-name-and-identity
+design (BUG-75 / BUG-80 / BUG-76 interaction). Two predecessor designs on the same defect
+were already rejected by this gate. Instruction was to attack, not confirm.
+
+VERDICT: does not stand as briefable. 11 findings, 4 HIGH, 5 MEDIUM, 1 LOW, plus 5 findings
+I formed and then killed.
+
+────────────────────────────────────────────────────────────────────────
+THE ONE THING TO CARRY FORWARD IF NOTHING ELSE
+────────────────────────────────────────────────────────────────────────
+The design changes the key rows are WRITTEN with and leaves the key rows are READ by
+unchanged. findOrUpgradeCity step 1 (cities.ts:176-187) keeps matching on
+(name COLLATE NOCASE, country_code, COALESCE(region_id,0)) and that query is what actually
+decides which city a user gets. Every HIGH finding is a consequence of that split.
+
+Corollary worth remembering beyond this defect: on this route, pass 1 short-circuits with a
+200 BEFORE the geocoder is consulted (cities.ts:299 vs :312). Any design that fixes something
+inside resolveCityName/classifyCandidates has to say what pass 1 does first, or the fix is
+unreachable for every name that already has a row.
+
+────────────────────────────────────────────────────────────────────────
+METHOD — WHAT MADE THE DIFFERENCE
+────────────────────────────────────────────────────────────────────────
+The previous round's fatal flaw was describing cities.ts rather than running it. Two harnesses
+did all the work here and both are cheap to rebuild:
+
+1. Route-level: copy the cities.f1f2-ruling.test.ts pattern. It mocks ONLY nominatim-client.js,
+   so findOrUpgradeCity, classifyCandidates and resolveCity all execute for real against a
+   migration-built libSQL DB. Trick that avoided editing source: to test the post-D4-fix world,
+   feed a candidate set TODAY's classifier already calls 'ambiguous' — the route takes exactly
+   the step-4c path the proposed fix would force.
+2. DDL-level: build the proposed indexes in a plain @libsql/client :memory: DB and drive them
+   with the SHIPPED query text copied verbatim out of cities.ts — not a paraphrase. That is what
+   exposed F4 (arbitrary pick) and F9 (the design's own EXPLAIN was of a different query).
+   Note: run scratch .mjs from inside the worktree, not the scratchpad — @libsql/client resolves
+   from node_modules.
+
+────────────────────────────────────────────────────────────────────────
+FINDINGS SUMMARY
+────────────────────────────────────────────────────────────────────────
+HIGH
+ F1  D6 permits same name+country+REGION resolved duplicates; GE-16 at v3.16 requires that case
+     be "rejected as a duplicate". The permissive clause was GE-17's, WITHDRAWN 2026-08-03.
+     BRD gate blocker for S3/S5. PO decision, not an Architect one.
+ F2  "S1 and S2 are the whole user-visible fix" is false for BUG-75 — executed: both users get
+     one row; the second is silently repointed when it resolves.
+ F3  D4 prices over-flagging at "one unnecessary question"; executed, it is a permanently
+     un-pinnable row (attempts 1->5, then dropped from the queue) with no channel until S4.
+ F4/F5 Post-S5 the shipped step-1 is an arbitrary pick (LIMIT 1, no ORDER BY, SCAN), and D8's
+     chosen qualified_name is not in its predicate.
+
+MEDIUM
+ F6  D11's guard cannot see classifyCandidates' own country filter (executed: terminal
+     unresolvable from a non-empty answer). Same class as BUG-74 — fix together.
+ F7  Accepted transition collision throws from an unguarded UPDATE; aborts the queue pass and
+     never increments attempts -> immortal row.
+ F8  Orphan claims sit in neither new index; unlimited globally-visible duplicates.
+ F9  Probe G measured a query the codebase does not run.
+ F11 The four-Newport array is author-constructed; the 343km figure came from a gazetteer.
+LOW
+ F10 qualified_name lacks COLLATE NOCASE while name beside it has it.
+
+────────────────────────────────────────────────────────────────────────
+THE RECOMMENDATION THE COO ACTUALLY NEEDS
+────────────────────────────────────────────────────────────────────────
+INVERT THE STAGING. The design ranks D8 (the user-choice channel) fourth and Medium-confidence
+and calls it "the least load-bearing decision here." It is the prerequisite. Once the user can
+choose, the classifier can be strict with NO calibrated threshold at all:
+
+  "Ambiguity is not a property of the candidate set — it is the absence of a user decision."
+
+The geocoding.service.ts:97-102 objection (counting hits marks everything ambiguous) is entirely
+conditional on there being no channel to ask. With a channel it costs one tap.
+
+And the further reframe to put to the PO before S3/S5 is briefed: this is a PRODUCT question in a
+data-model costume. Three designs have asked "what key makes two Newports different rows?" The BRD
+asks "what is the user shown before anything is written?" GE-16's answer to four Newports is not
+four rows — it is one question.
+
+────────────────────────────────────────────────────────────────────────
+WHAT SURVIVED — DO NOT RE-LITIGATE
+────────────────────────────────────────────────────────────────────────
+- D3 (classifyCandidates counts distinct REGIONS not distinct PLACES) is correct, new and
+  valuable. Reproduced. The first user IS mis-pinned on an empty table with no index involved.
+- S1 / BUG-80 display is the strongest section — brief it as written. Dropped join verified;
+  TripCard.tsx:125 and CityItemsPage are genuinely beyond the tracker note; all four traps check
+  out, including formatCitySubtitle returning country_code (would regress "United Kingdom"->"GB").
+  Add only: GET /api/cities/:id is a sixth city-shaped payload lacking region_name.
+- D5's tiered identity could not be broken on its own terms.
+- D7 Option B is the right call; the account-deletion failure of Option A is real.
+- §4's "no backfill needed" is correct — both indexes ARE strictly more permissive. I probed it
+  and it held. (The separate residue: legacy rows are never REMEDIATED, folded into F4.)
+
+────────────────────────────────────────────────────────────────────────
+FINDINGS I KILLED (full list in §6 of the review)
+────────────────────────────────────────────────────────────────────────
+The important one: I was ready to file HIGH that "S5 is index-only and never changes
+findOrUpgradeCity." §3.3 specifies that rewrite in prose two sections earlier. Filing it would
+have been the exact failure this gate exists to catch. The finding survives only in F2's much
+narrower form — a staging and priority claim, not an omission.
+
+Also killed: "S5 could reject existing rows" (disproved by probe); "Option B breaks BUG-33's
+same-user guard" (disproved by probe); "D9/BUG-80 is overstated" (disproved by reading — it is
+accurate); "D5 needs a trip_places repointing plan" (the real residue is F2).
+
+────────────────────────────────────────────────────────────────────────
+OPEN / NOT DONE
+────────────────────────────────────────────────────────────────────────
+- Nominatim remains unreachable from the devcontainer, so F11 and Attack 1 close with the same
+  probe and neither could be closed here. The PO has ruled (v3.16 changelog, GE-17 withdrawal
+  argument 2) that services we need should be allowlisted in local dev — that is the route.
+- F1 is a PO decision on GE-16. Nothing below it can be briefed until it is taken.
+- No source, schema, migration, BRD, tracker, ADL, prior design or prior review was edited.

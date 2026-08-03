@@ -1,0 +1,67 @@
+TO: COO
+FROM: Architect (fresh dispatch #2 — OP-27 reviewer)
+DATE: 2026-08-04
+RE: OP-27 fresh-eyes review of 20260804-city-name-and-identity-design.md
+
+Tracker: BUG-75 · BUG-80 · BUG-76 · BUG-74 (interaction) · QUAL-25
+BRD: GE-12, GE-15, GE-16, GE-18 (v3.16) — GE-17 withdrawn
+Branch: chore/city-identity-design-fresh-eyes-review · PR: see below
+Review: jobs/architect/tech/20260804-city-identity-design-fresh-eyes-review.md
+
+VERDICT: the design does NOT stand as briefable. 11 findings — 4 HIGH, 5 MEDIUM, 1 LOW —
+plus 5 I formed and killed. Its central finding (D3) is correct, new and valuable; it is
+not the whole of BUG-75. Method: ran the shipped POST /api/cities end to end, and built the
+proposed DDL in a real libSQL DB driven with the SHIPPED query text.
+
+DIAGNOSIS IN ONE SENTENCE: the design changes the key rows are WRITTEN with and leaves the
+key rows are READ by unchanged. cities.ts:176-187 still decides which city a user gets.
+
+PER-STAGE VERDICT
+  S1 BUG-80 display ...... ADOPT. Brief as written — strongest part of the document.
+  S2 classifier fix ...... ADOPT DIRECTION, REJECT STAGING. Must not ship before the channel.
+  S3/S5 schema+indexes ... BLOCKED. BRD conflict + reintroduces arbitrary-pick.
+  S4 D8 choice channel ... ADOPT, AND PROMOTE — it is the prerequisite, not the follow-on.
+  D11 BUG-76 hardening ... UNDER-SCOPED. Re-word and fix with BUG-74.
+
+THE FOUR HIGH FINDINGS
+  F1 BRD BLOCKER — needs a PO decision before anything below it. D6 permits two resolved
+     cities with the same name, country AND region. GE-16 at v3.16 (line 127) requires that
+     case be "rejected as a duplicate". The clause that permitted it was GE-17's, withdrawn
+     2026-08-03. The design's header says nothing depends on GE-17; D6 depends on the
+     requirement change it carried.
+  F2 EXECUTED — "S1 and S2 are the whole user-visible fix" is false for BUG-75. userA -> 201
+     id=1, userB -> 200 id=1, one row; when it resolves userB is silently pinned to A's town.
+     Pass 1 runs before the geocoder and is creator-blind by design. A brief written from the
+     document's ordering would ship S1+S2 and close BUG-75 while its own repro still passes.
+  F3 EXECUTED — D4 prices over-flagging at "one unnecessary question". It is a permanently
+     un-pinnable row: attempts 1->5 over 5 queue passes, then dropped from the queue, with no
+     user channel until S4. The design's own D8 finding invalidates its D4 risk pricing.
+  F4/F5 EXECUTED — post-S5 the shipped step-1 matches 4 rows, LIMIT 1, no ORDER BY, plan is
+     SCAN; and D8's chosen qualified_name is not in its predicate, so the user's explicit
+     choice is discarded by the same query that caused BUG-75.
+
+MEDIUM: F6 (D11's guard can't see classifyCandidates' own country filter — same class as
+BUG-74, fix together), F7 (transition collision throws from an unguarded UPDATE; aborts the
+queue pass, never increments attempts -> immortal row), F8 (orphan claims in neither index),
+F9 (the design's probe G measured a query the codebase does not run), F11 (the four-Newport
+array is author-constructed; the 343km figure came from a gazetteer, not Nominatim).
+
+RECOMMENDATION BEYOND THE FINDINGS: invert the staging. A calibrated "distinct place"
+threshold is only needed if the BACKEND must decide. State it as "ambiguity is not a property
+of the candidate set — it is the absence of a user decision" and no threshold is required.
+Then put the reframe to the PO before S3/S5: GE-16's answer to four Newports is not four
+rows, it is one question. That may retire S3/S5 the way ADL-48 retired its own problem space.
+
+CI: documentation only — no source, schema, migration or config changed. PR CI green
+(scripts/ci-wait.sh, see PR).
+
+BLOCKERS: F1 needs a PO call on GE-16 before S3/S5 can be briefed. Nominatim is still
+unreachable from the devcontainer, so F11 and the design's Attack 1 close with the same probe
+and neither could be closed here.
+
+NOW UNBLOCKED: S1 / BUG-80 display is dispatchable to Frontend+Backend immediately —
+independently verified, decoupled from everything above, and its four traps check out. Add
+one line: GET /api/cities/:id is a sixth city-shaped payload missing region_name.
+
+NOT EDITED: the design under review, the BRD, _project/tracker.json, any prior design or
+review document, any source file. No remote DB written. No scanner suppression added.
