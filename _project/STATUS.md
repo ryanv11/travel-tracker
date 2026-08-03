@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (81)
+## Open work (80)
 
 ### P0 — Blockers (1)
 
@@ -36,7 +36,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
 
-### P2 — Important (46)
+### P2 — Important (45)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -44,7 +44,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
 | BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | done_pending_uat |
 | BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
-| BRD-GE17 | Bundled city reference data — local list searched first, geocoder as backstop (GE-17) | architect | ⬜ Pending |
 | BRD-GE18 | Reference-data provenance and in-product attribution credits surface (GE-18) | frontend | ⬜ Pending |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
 | BRD-FL04 | Flight number lookup — auto-populate fields from flight number + date (FL-04) | backend | ⬜ Pending |
@@ -82,8 +81,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | done_pending_uat |
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | ⬜ Pending |
 | BUG-75 | D13 city identity key cannot represent two distinct same-name towns in the same region — live latent conflation | architect | ⬜ Pending |
+| BUG-80 | Saved places render as name + country only — two different Newports in one trip are indistinguishable | backend | ⬜ Pending |
 | BUG-77 | 22 region-tier countries ship with zero regions — 22 latent BUG-30s (ADL-48 S1) | database | done_pending_uat |
-| BUG-76 | Our own SETTLEMENT_TYPES filter may discard legitimate tail places the geocoder does return | backend | ⬜ Pending |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
@@ -124,9 +123,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `██████████▓░░░░░░░░░` 29/58 | 29 | 29 | 3 |
+| feature | `██████████▓░░░░░░░░░` 29/57 | 29 | 28 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `████████████░░░░░░░░` 44/72 | 44 | 28 | 3 |
+| bug | `████████████░░░░░░░░` 45/73 | 45 | 28 | 3 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `████████▓░░░░░░░░░░░` 14/34 | 14 | 20 | 1 |
 
@@ -148,12 +147,13 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 </details>
 
 <details>
-<summary>Closed without change (4)</summary>
+<summary>Closed without change (5)</summary>
 
 | ID | Title | Resolution |
 |---|---|---|
 | BUG-38 | SQLite foreign_keys pragma never enabled — declared cascade FKs not actually enforced | not-a-bug |
 | BUG-17 | BUG-A untracked — trips.ts comment references unlogged issue | not-a-bug |
+| BRD-GE17 | Bundled city reference data — local list searched first, geocoder as backstop (GE-17) | closed |
 | OQ-06 | Adopt a systematic subdivision reference list (ISO 3166-2) instead of ad hoc per-country region seeding | closed |
 | DEP-04 | Semgrep job pulls semgrep/semgrep:latest unpinned from Docker Hub | closed |
 
@@ -161,4 +161,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_136 done · 9 deferred · 4 closed · 81 open — 230 tracked items_
+_137 done · 9 deferred · 5 closed · 80 open — 231 tracked items_
