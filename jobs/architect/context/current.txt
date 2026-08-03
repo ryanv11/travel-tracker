@@ -1498,3 +1498,84 @@ METHOD NOTES:
     its own copied name/country/region/coords. Identity is a LINK, not the data. That is the
     property that makes this decision low-stakes and is exactly what the coordinate bucket
     lacked — there identity WAS the data, so getting it wrong was unrecoverable.
+
+================================================================================
+2026-08-03 — OP-27 FRESH-EYES REVIEW of the BUG-75 city-identity re-design
+Reviewer: second, fresh Architect dispatch (no authorship of ADL-48, the QUAL-25 spike,
+that spike's review, the rejected S0, or the document reviewed).
+Deliverable: jobs/architect/tech/20260803-BUG75-redesign-fresh-eyes-review.md
+Branch: chore/bug75-redesign-fresh-eyes-review
+================================================================================
+
+VERDICT: THE CORE STANDS; IT IS NOT SAFE TO BRIEF AS WRITTEN. Two blockers, both cheap
+  to fix, neither requiring place_ref to be re-designed.
+
+R1 (BLOCKER) — STEP 0d PRODUCES A WRONG TOWN, NOT JUST A DUPLICATE. The design's own
+  Attack 1 asked for a duplicate-producing POST sequence. There is one; there is also a
+  wrong-town one. Step 4c creates a 'pending' row precisely when the geocoder verdict is
+  AMBIGUOUS — i.e. when the name has several real referents and the route deliberately
+  declined to choose. Step 0d then adopts that row and stamps it with ONE specific place's
+  place_ref + coordinates. A user's Shropshire trip ends up pinned on the Isle of Wight and
+  two trips share one row. That is BUG-75, re-created by the fix. Also cross-user via the
+  permanent created_by_user_id IS NULL branch (ON DELETE SET NULL regenerates it).
+  The design's "inherited from D13 step 2, not widened" defence is FALSE: D13 step 2 writes
+  {regionId, geocodeAttempts, updatedAt} — filling a NULL region. Step 0d writes
+  {place_ref, latitude, longitude, geocode_status} on a row whose region already matched —
+  it decides WHICH TOWN. Fix: DELETE STEP 0d. Always insert. The design's own §3.3 severity
+  ordering (duplicate benign, mis-pin real) demands it, and it makes "identity written once,
+  never mutated" literally true.
+
+R2 (BLOCKER) — E2 IS NOT IMPLEMENTABLE. Step 0b dereferences gazetteer_cities. That table
+  is absent from this codebase (three probes: grep src/ finds only a COMMENT; the enumerated
+  sqliteTable list in schema.ts holds 21 tables and not this one; no migration mentions it).
+  It is ADL-48 stage S2, which the design's E-table never lists. "Inert until a client sends
+  a place_ref" is not the property claimed — a client CAN send one and gets a 500, not 0b's
+  fail-closed 400. Fix: insert E2a (ADL-48 S2) and record the hard order S1 -> S2 -> E2 -> E3.
+
+R3/R4 (MAJOR) — THE READ PATH IS UNADDRESSED AND A CHEAPER FIX EXISTS.
+  GE-17's wording is "presents all of them DISTINGUISHABLY". The design mints three
+  Newport/GB/GB-ENG rows; the SHIPPED search projection (cities.ts:75-90) renders them
+  identically — a hash cannot be displayed. Meanwhile nominatim-client.ts:121 ALREADY sends
+  addressdetails=1 and :165 ALREADY parses display_name into NominatimCandidate.displayName,
+  and NOTHING PERSISTS IT. Persisting a locality-detail string and keying on it fixes BUG-75
+  on the geocoder path with NO dataset, no gazetteer, no hash, no S2/S3 — and is renderable,
+  so it closes the display gap place_ref cannot. The design read that exact interface end to
+  end looking for an ID and did not see the NAME two lines away. That is the frame, not the
+  reasoning.
+
+WHAT SURVIVED ATTACK — re-derived independently from freshly installed packages, nothing
+  inherited: natural-key uniqueness 170,540/170,540; hash widths 7/0/0 at 32/48/64 bit; the
+  full collision-key table (12.889% / 2.573% / 0.701% / 0); GB 4.16%; every all-the-cities
+  figure (97.78% / 306 / 2,699 / 35,307 / 82% / 22,913); 0.475% and 0.159% churn. ALL EXACT.
+  D6 is SAFE TO ACT ON — I stress-tested the 97.78% across a 10x tolerance range and it moves
+  0.44 points; the rejection would stand at 90%. Reverse the earlier all-the-cities approval
+  with confidence. EXPLAIN QUERY PLAN also confirms the COALESCE(place_ref,'') index IS used
+  for the tail lookup — migration note 3 is right, and that class of claim usually isn't.
+
+SIX OF MY OWN FINDINGS DISPROVED BEFORE FILING (§4 of the review). The one that mattered:
+  I expected admin2 to be sparse exactly where collisions are worst, which would have hollowed
+  out the design's best idea. FALSE — 92.43% of colliding rows carry a non-empty admin2, 100%
+  in GB. Also killed: "step 0 removes the geocoder rate limit" (server.ts:186 has a dedicated
+  20/min citiesCreateLimiter on POST /api/cities); "the expression index won't be used";
+  "the 0.2 degree tolerance inflates 97.78%"; "a year of monthly releases compounds badly"
+  (measured 0.236%/rebuild, ~2.8%/yr, compounding validated against a held-out pair).
+
+METHOD NOTES — what this review would tell the next one:
+  - THE ONE PROBE THAT FOUND R1 was transcribing the SHIPPED handler and driving real POST
+    sequences through it, rather than reasoning about the step-0 pseudocode. The design
+    verified its INDEXES against real inserts (correctly) but verified its POLICY only by
+    argument. Indexes are the easy half; the policy is where the defect lives.
+  - A SELF-NAMED WEAK POINT IS A HYPOTHESIS, NOT A CONFESSION. The design named Attack 1 and
+    Attack 3 and mis-sized both — Attack 1's duplicate is structural rather than contingent on
+    "a policy bug", and Attack 3, called "the least load-bearing decision in the document", is
+    the most. Start at the named weaknesses; never finish there.
+  - MEASURE THE WINDOW, NOT JUST THE NUMBER. cities.json@1.1.55 was published 2026-05-28 —
+    four days before 1.1.59, in a six-version burst inside two hours. The design's window
+    holds THREE monthly rebuilds, not the "six" it states, and the donor's window is 4.5
+    months. The "5x more stable" ratio is 1.8x-11x depending on normalisation. No decision
+    flipped, and the correction ran AGAINST the design's own conclusion — which is the honest
+    direction for an error to run.
+  - 67% OF REFRESH DANGLES ARE COORDINATE NUDGES where the place is still present under an
+    identical (country, admin1, admin2, name). The design rejects auto-repair as "a fuzzy-
+    matched write against user data"; for the dominant case it is an EQUALITY JOIN, unambiguous
+    for ~99.3% of them. Check what a rejected option actually costs before rejecting it.

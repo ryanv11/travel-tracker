@@ -1,0 +1,62 @@
+TO: COO
+FROM: Architect (OP-27 fresh-eyes review — second, fresh dispatch)
+DATE: 2026-08-03
+TRACKER: BUG-75 · QUAL-25 · ADL-48 · BRD GE-14/GE-16/GE-17 (v3.14)
+REVIEWED: jobs/architect/tech/20260803-BUG75-city-identity-redesign.md (main @ 2f4f387, PR #372)
+DELIVERABLE: jobs/architect/tech/20260803-BUG75-redesign-fresh-eyes-review.md
+BRANCH: chore/bug75-redesign-fresh-eyes-review · PR: see below
+
+VERDICT: the core stands; NOT safe to brief as written. 2 BLOCKER, 2 MAJOR, 2 MEDIUM, 4 LOW.
+Both blockers are cheap to fix and neither requires re-designing place_ref.
+
+PER-DECISION VERDICT
+  D1 identity = natural key + carried place_ref ... ADOPT. Reframe is correct.
+  D2 the two indexes ......................... ADOPT. EXPLAIN QUERY PLAN confirms note 3.
+  D3 place_ref column + CHECK ................ ADOPT, add a format contract (R7).
+  D4 step 0 in findOrUpgradeCity ............. AMEND — DELETE STEP 0d (R1, BLOCKER).
+  D5 keep cities.json, mint a content hash ... ADOPT. Every figure reproduced exactly.
+  D6 reject the all-the-cities swap .......... ADOPT with confidence — see below.
+  D7 reject the joined GeoNames id ........... ADOPT. Rests on coverage, not on the "5x" (R8).
+  D8 GeoNames dump direct, blocked ........... ADOPT as a follow-on.
+  D9 local:<uuid> tail affordance ............ DEFER — it does not close the display gap (R3).
+  D10 expand-only, no contract step .......... ADOPT. No-op over shipped data confirmed.
+  D11 sequencing E1->E4 ...................... AMEND — a stage is missing (R2, BLOCKER).
+
+THE TWO BLOCKERS
+  R1 Step 0d yields a WRONG TOWN, not just a duplicate. Step 4c creates a 'pending' row
+     precisely when the geocoder verdict is AMBIGUOUS; step 0d then adopts it and stamps it
+     with one specific place's ref and coordinates — a Shropshire trip pinned on the Isle of
+     Wight, two trips on one row. BUG-75 re-created by the fix. Established by driving real
+     POST sequences through a transcription of the SHIPPED handler. The design's "inherited
+     from D13 step 2, not widened" defence is false: D13 step 2 fills a NULL region; 0d
+     decides which town. FIX: delete 0d, always insert.
+  R2 E2 is not implementable. Step 0b reads gazetteer_cities, which does not exist here
+     (three independent probes). It is ADL-48 S2, absent from the E-table. FIX: insert E2a
+     and record S1 -> S2 -> E2 -> E3.
+
+DECISION FOR THE PO — D6 IS SAFE TO ACT ON. Every all-the-cities figure reproduced exactly
+(97.78% / 306 / 2,699 / 35,307 / 82% / 22,913), and I stress-tested the overlap: it moves
+0.44 points across a 10x tolerance range and the rejection would stand at 90%. The PO's
+earlier approval of the swap should be reversed with confidence.
+
+WORTH A DECISION BEFORE E3 (R4). nominatim-client.ts:121 ALREADY sends addressdetails=1 and
+:165 ALREADY parses display_name into NominatimCandidate.displayName — and nothing persists
+it. Persisting a locality-detail string and keying on it fixes BUG-75 on the geocoder path
+with no dataset, no gazetteer, no hash and no S2/S3 dependency, and unlike place_ref it is
+renderable — which GE-17's "presents all of them DISTINGUISHABLY" requires and an opaque hash
+cannot satisfy (R3). This may fix the live defect months earlier than E3 can.
+
+CI: no source files changed — documentation only. PR CI green (see PR body).
+
+OPEN ISSUES / BLOCKERS: none of mine. R1 and R2 block the implementation brief until the
+design is amended; R3/R4 change what E3 should contain; R6/R7/R9/R10 are one-paragraph
+corrections to the brief rather than re-designs.
+
+NOW UNBLOCKED: the dataset half (D5/D6/D7/D10) can be briefed as written. The write-path half
+needs one amendment pass — I recommend it goes back to the same author, since the two fixes
+are local and the surrounding design is sound.
+
+NOT EDITED, per brief: the design under review, the BRD, _project/tracker.json, ADL-48 and
+the spike/review documents. No ADL number assigned. No schema change, no migration, no remote
+write, no scanner suppression. Only shared record touched is an appended dated entry to
+jobs/architect/context/current.txt.

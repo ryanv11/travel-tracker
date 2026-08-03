@@ -1,0 +1,159 @@
+ARCHITECT PARK DOCUMENT
+Session: 2026-08-03 — OP-27 fresh-eyes review of the BUG-75 city-identity re-design
+Branch: chore/bug75-redesign-fresh-eyes-review
+Deliverable: jobs/architect/tech/20260803-BUG75-redesign-fresh-eyes-review.md
+
+================================================================================
+1. WHAT THIS SESSION WAS
+================================================================================
+Second, freshly dispatched Architect under CLAUDE.md's OP-27 rule. Reviewed
+jobs/architect/tech/20260803-BUG75-city-identity-redesign.md (on main at 2f4f387,
+PR #372) with an explicit instruction to attack rather than confirm. No authorship
+of ADL-48, the QUAL-25 feasibility spike, that spike's OP-27 review, the rejected
+S0, or the document under review.
+
+No schema change, no migration, no code change, no remote database write, no
+scanner suppression. The document under review, the BRD, _project/tracker.json,
+ADL-48 and the spike/review documents were NOT edited — every recommendation is
+filed in the review for COO adjudication.
+
+================================================================================
+2. VERDICT
+================================================================================
+THE CORE STANDS. IT IS NOT SAFE TO BRIEF AS WRITTEN.
+
+Dataset half (D5, D6, D7, D10): brief it. Every measured figure reproduced exactly
+and independently. Do not re-open the all-the-cities question.
+
+Write-path half (D4, E1-E4): send back for two amendments. R1 and R2 are blockers.
+Both are cheap; neither requires re-designing place_ref.
+
+Ten findings: 2 BLOCKER, 2 MAJOR, 2 MEDIUM, 4 LOW. Six of my own suspicions
+disproved before filing and recorded as such.
+
+================================================================================
+3. THE TWO BLOCKERS, IN ONE PARAGRAPH EACH
+================================================================================
+R1 — step 0d produces a WRONG TOWN, not just a duplicate. Step 4c creates a
+'pending' row precisely when the geocoder verdict is AMBIGUOUS, i.e. when the name
+has several real referents and the route deliberately declined to choose (D14).
+Step 0d then adopts that row and stamps it with ONE specific place's place_ref and
+coordinates. A Shropshire trip ends up pinned on the Isle of Wight and two trips
+share one row — BUG-75, re-created by the fix. Also cross-user through the
+permanent created_by_user_id IS NULL branch. The design's defence that this is
+"inherited from D13 step 2, not widened" is false: D13 step 2 writes {regionId,
+geocodeAttempts, updatedAt} — it fills a NULL region; step 0d writes {place_ref,
+latitude, longitude, geocode_status} on a row whose region already matched — it
+decides which town. FIX: delete step 0d, always insert. The design's own §3.3
+severity ordering demands it.
+
+R2 — E2 is not implementable. Step 0b dereferences gazetteer_cities, which does not
+exist in this codebase (three independent probes). It is ADL-48 stage S2, which the
+E-sequence never lists. "Inert until a client sends one" is not the property
+claimed: a client can send one and gets a 500, not 0b's fail-closed 400. FIX:
+insert E2a (ADL-48 S2) and record the ordering S1 -> S2 -> E2 -> E3.
+
+================================================================================
+4. THE FRAMING FINDING (R3/R4) — MOST LIKELY TO BE UNDERWEIGHTED
+================================================================================
+GE-17's wording is "presents all of them DISTINGUISHABLY". The design mints three
+Newport/GB/GB-ENG rows and the SHIPPED search projection (cities.ts:75-90) renders
+them identically. A hash cannot be displayed. The design is specified entirely for
+the write path.
+
+Meanwhile the discriminator is already on the wire today:
+  nominatim-client.ts:121  every request already forces addressdetails=1
+  nominatim-client.ts:165  display_name is already parsed into
+                           NominatimCandidate.displayName
+  nothing persists it      (grep for displayName + reading both insert(cities)
+                           call sites in full)
+
+Persisting a locality-detail string and including it in the identity key fixes
+BUG-75 on the geocoder path with no dataset, no gazetteer, no hash and no ADL-48
+S2/S3 dependency — and it is renderable, so it also closes the display gap.
+The design read that exact interface end to end (§6) looking for an ID and did not
+register the NAME two lines away, because the frame is "identity must be an opaque
+reference". Recommend the COO evaluates this BEFORE E3.
+
+UNVERIFIED half, blind spot stated: whether addressdetails=1 densely returns a
+structured county/state_district field. Probe run = read the request construction,
+the RawNominatimResult interface and the parse. Blind spot = the host is firewalled
+from this container, so no live response was observed. The unstructured half
+(display_name is requested, returned and parsed) is verified from the code. One
+Nominatim call from an unfirewalled machine closes both this and the design's own
+§7 item 2.
+
+================================================================================
+5. WHAT SURVIVED ATTACK — DO NOT RE-LITIGATE
+================================================================================
+Re-derived from freshly installed packages (cities.json 1.1.55/59/60/61,
+all-the-cities 3.0.0/3.1.0), over all rows, nothing inherited:
+
+  natural key (country,admin1,admin2,name,lat,lng)  170,540 / 170,540, zero dups
+  hash widths 32 / 48 / 64 bit                      7 / 0 / 0 collisions
+  country|name                                      156,576 / 8,017 / 21,981 (12.889%)
+  country|admin1|name (today's key)                 168,228 / 2,076 /  4,388 (2.573%)
+  country|admin1|admin2|name                        169,928 /   584 /  1,196 (0.701%)
+  GB unrepresentable                                193 (4.16% of 4,638)
+  all-the-cities overlap / far / no-match / net      132,228 (97.78%) / 306 / 2,699 (2.00%) / 35,307
+  all-the-cities population claim                    110,910 (82%) <15k, 22,913 <1k
+  cities.json churn 1.1.55 -> 1.1.61                803 (0.475%) full, 268 (0.159%) admin
+
+ALL EXACT. D6 is safe to act on: the 97.78% moves 0.44 points across a 10x
+tolerance range (97.34% at 0.02 deg), and the rejection would stand at 90% because
+the decisive facts are the release history and the 82%-under-15,000 mismatch. The
+PO's earlier approval of the all-the-cities swap should be reversed with confidence.
+
+Also confirmed at source: resolveCity's write set (C3 is sound); the empty-string
+CHECK is genuinely load-bearing; and EXPLAIN QUERY PLAN shows the
+COALESCE(place_ref,'') expression index IS used for the tail's step-1 lookup —
+migration note 3 is right, and that class of claim usually is not.
+
+================================================================================
+6. SIX FINDINGS I KILLED BEFORE FILING
+================================================================================
+1. "admin2 will be sparse exactly where collisions are worst." FALSE — 92.43% of
+   colliding rows carry a non-empty admin2, 100% in GB. This was my headline
+   hypothesis and it would have hollowed out the design's best idea.
+2. "Step 0 removes the geocoder's rate limit, so any user can bulk-publish into the
+   global catalogue." FALSE — server.ts:186 applies a dedicated 20 req/min
+   citiesCreateLimiter to POST /api/cities, independent of the global limiter.
+3. "The COALESCE expression index won't be usable; the tail degrades to a scan."
+   FALSE — EXPLAIN QUERY PLAN uses the expression term.
+4. "The 0.2 degree tolerance inflates the 97.78% overlap." Non-issue, measured.
+5. "A year of monthly releases compounds 0.475% into something ugly." FALSE —
+   0.236%/rebuild, ~2.8%/yr, compounding validated against a held-out pair.
+6. "Include coordinates only for rows in a residual collision group." Rejected on
+   the design's own reasoning — a row can acquire a same-key sibling later, which
+   would change its place_ref retroactively. The design's choice is right.
+
+================================================================================
+7. METHOD NOTES FOR THE NEXT REVIEWER ON THIS THREAD
+================================================================================
+- THE PROBE THAT FOUND R1 was transcribing the SHIPPED handler and driving real
+  POST sequences through it, not reasoning about the step-0 pseudocode. The design
+  verified its INDEXES against real inserts (correctly) but verified its POLICY only
+  by argument. Indexes are the easy half; the policy is where the defect lives.
+- A SELF-NAMED WEAK POINT IS A HYPOTHESIS, NOT A CONFESSION. Attack 1's duplicate is
+  structural, not contingent on "a policy bug"; Attack 3, called "the least
+  load-bearing decision in the document", is the most load-bearing. Start at the
+  named weaknesses; never finish there.
+- MEASURE THE WINDOW, NOT JUST THE NUMBER. cities.json@1.1.55 shipped 2026-05-28,
+  four days before 1.1.59, in a six-version burst inside two hours. The design's
+  window holds three monthly rebuilds, not the "six" it states.
+- CHECK WHAT A REJECTED OPTION ACTUALLY COSTS. 67% of refresh dangles are coordinate
+  nudges where the place is still present under an identical admin key — an equality
+  join, not the "fuzzy-matched write" the design rejects auto-repair as.
+
+================================================================================
+8. STATE AT PARK
+================================================================================
+Nothing in flight. Deliverable, context entry, park doc and completion report all
+committed to chore/bug75-redesign-fresh-eyes-review. Probe scripts were written to
+a scratch directory outside the repository and are deliberately not committed; the
+review states every measurement precisely enough to re-run.
+
+Open for the COO to adjudicate: R1 and R2 block the brief; R3/R4 change what E3
+should contain; R6/R7/R9/R10 are one-paragraph brief corrections. This review
+assigns no ADL number and edits no shared record other than appending to
+jobs/architect/context/current.txt.
