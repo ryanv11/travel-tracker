@@ -1,0 +1,139 @@
+QA PARK DOCUMENT — 2026-08-04
+PROJECT: Travel Tracker
+THREAD: QUAL-20 — automated post-deploy shakedown
+
+---
+
+WORK COMPLETED THIS THREAD
+
+Built the mechanical half of OP-32's "deployment shakedown before UAT" rule as a
+runnable, CI-triggerable Playwright suite that exercises the DEPLOYED staging
+build directly, so the PO stops being the first person to discover a broken
+deploy. Did not touch any product/application source (auth.ts, server.ts,
+geocode.ts etc. were read, not edited).
+
+Branch: chore/qual20-post-deploy-shakedown.
+
+---
+
+FILES CHANGED (all new; nothing rewritten)
+
+New:
+  playwright.shakedown.config.ts        — separate Playwright config, baseURL
+                                           = deployed staging URL (overridable
+                                           via SHAKEDOWN_BASE_URL), no webServer
+  src/e2e-shakedown/shakedown.spec.ts   — the 5 checks, each with an inline
+                                           "proves / does not prove" comment
+  .github/workflows/post-deploy-shakedown.yml
+                                         — workflow_dispatch (primary) + push
+                                           to main (automatic, weaker signal,
+                                           documented as such)
+  jobs/qa/tech/20260804-post-deploy-shakedown.md
+                                         — full design doc
+
+Edited (Edit, not Write — append-only per OP-28):
+  package.json          — added "shakedown:staging" script
+  .gitignore             — added shakedown-results/ + shakedown-results.json
+  jobs/qa/context/current.txt — appended 2026-08-04 entry
+
+No source file was rewritten wholesale. No BRD or tracker.json edit (out of
+scope per brief — COO's job).
+
+---
+
+THE SCOPE-DEFINING FINDING: AN AUTH WALL, NOT A CHOICE TO SKIP CHECKS
+
+The brief's evidence list (denver, springfield/newport, plockton, map, admin
+region list) all require an authenticated session against staging's real
+Clerk instance. Two things close that off today, established by code read +
+a direct check of the one credential store this session has:
+  1. src/backend/middleware/auth.ts's BYPASS_AUTH guard is fail-closed under
+     NODE_ENV=production (staging's actual mode per ADL-32) — there is no
+     bypass to reach for on a hosted environment.
+  2. ADL-33 §4 already declined Clerk API access; .env.agent-diagnostics
+     (checked directly, not inferred) holds Railway/Turso tokens only, no
+     Clerk secret key or Testing Token.
+Faking either would repeat QUAL-22's shape one level up (a check green
+against a mocked/bypassed environment it never actually touched). Documented
+as a PO/Architect decision to make (dedicated test account or Clerk Testing
+Token), not solved unilaterally inside this brief — this IS the "infra/auth-
+topology change needs Architect ADL" guardrail firing correctly, not a QA
+agent skipping hard work.
+
+Consequence: all 5 built checks run against the anonymous surface only (app
+loads, console clean, no 5xx w/ ENV-02-aware retry, CSP header present,
+/health w/ backoff). Full reasoning + what would unblock it: the tech doc §1
+and §5.
+
+---
+
+HONEST PASS/FAIL ACCOUNTING — READ BEFORE TRUSTING THIS SUITE
+
+THE SUITE HAS NEVER RUN AGAINST REAL STAGING. This devcontainer's firewall
+blocks the staging domain (two probes: curl timeout exit 7; grep of
+.devcontainer/init-firewall.sh's domain list — zero matches), the same block
+ADL-49/open-dialogues D-06 already documented for the prod domain. This is
+why the deliverable is a GitHub Actions workflow, not a local script — per
+QUAL-20's own tracker note, a runner has no such restriction.
+
+Validated locally instead against the closest reachable topology: a real
+`npm run build` + `tsx src/backend/server.ts` with NODE_ENV=production, real
+CLERK_ISSUER/CLERK_JWKS_URI, no BYPASS_AUTH (so helmet's CSP is genuinely
+live, matching production's gate condition at server.ts:233).
+
+  SEEN PASS locally (4/5): app loads; no 5xx; CSP header present; /health
+  with backoff.
+
+  SEEN FAIL locally, twice, for RIG reasons not product/check defects (the
+  5th check, console-clean):
+    1st attempt — VITE_BYPASS_AUTH=true (local-only shortcut) made the
+      frontend skip the sign-in gate and fire authenticated API calls that
+      401'd. Rig mismatch with staging's real topology, not a finding.
+    2nd attempt — used a real-shaped Clerk publishable key (pk_test_ + the
+      known CLERK_ISSUER host, Clerk's own public encoding, not a secret) and
+      no bypass; the sign-in page rendered correctly, but Clerk's CDN
+      subdomains (scdn.clerk.com etc.) aren't in this devcontainer's
+      allowlist (only the JWKS endpoint is, for backend diagnostics) —
+      net::ERR_ADDRESS_UNREACHABLE, a network-level block, not a CSP
+      violation.
+  The check's LOGIC is confirmed correct (caught real errors both times).
+  What was NOT observed is a genuinely clean pass — marked UNVERIFIED against
+  real staging specifically, with circumstantial support only (tracker
+  records Clerk sign-in already working live on production).
+
+First real evidence of this suite's actual behaviour against its actual
+target comes from whoever runs `workflow_dispatch` from GitHub Actions after
+this PR merges — not from anything in this park doc or the tech doc.
+
+---
+
+CI / VERIFICATION (local, pre-push)
+
+npm run check           → clean, 215 files, no fixes needed
+npm run type:check:all  → clean (src/e2e-shakedown/ isn't covered by either
+                           tsconfig, same as the existing src/e2e/ — not a
+                           new gap, matches precedent)
+npm run status:check    → STATUS.md up to date
+npx playwright test --config playwright.shakedown.config.ts --list
+                         → all 5 checks register correctly
+
+PR CI (test-e2e, test-backend, test-frontend, test-contract, biome, typecheck)
+— status recorded in the completion report; this file is written before that
+resolves, per template order. See jobs/COO/inbox/ for the confirmed result.
+
+---
+
+NEXT STEPS FOR WHOEVER PICKS THIS UP
+
+1. Run `workflow_dispatch` on post-deploy-shakedown.yml from Actions after
+   merge — this is the first genuine test of the suite against its actual
+   target. Read the result as new information, not a formality.
+2. PO/Architect decision needed on an automated staging test-account
+   mechanism before the denver/plockton/map/region-list checks can be built
+   — tech doc §5 item 1. Until then those checks stay a PO/UAT-only surface.
+3. Cheap Backend follow-on, not built here: embed the deployed commit SHA in
+   /health's response body, closing the "which build actually answered" gap
+   on the automatic (push) trigger — tech doc §5 item 2.
+4. If a Railway token is ever added as a GitHub Actions secret for other
+   reasons, revisit gating the automatic trigger on an actual deployment-
+   status poll (tech doc §6.3) rather than the current fixed grace sleep.
