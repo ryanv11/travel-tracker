@@ -117,9 +117,11 @@ npm run status:check    → STATUS.md up to date
 npx playwright test --config playwright.shakedown.config.ts --list
                          → all 5 checks register correctly
 
-PR CI (test-e2e, test-backend, test-frontend, test-contract, biome, typecheck)
-— status recorded in the completion report; this file is written before that
-resolves, per template order. See jobs/COO/inbox/ for the confirmed result.
+PR CI: scripts/ci-wait.sh pr 385 → PASS, all 18 checks green (Biome, Type
+Check, Backend/Frontend/Contract/E2E Tests, Gitleaks, Semgrep, Dependency
+Scan) @ ef443849da7034c77c8f254aaf14be623d56d126. GitHub issue #384, PR #385.
+Note: post-deploy-shakedown.yml itself does not run on PRs by design
+(workflow_dispatch + push-to-main only) — it has not executed anywhere yet.
 
 ---
 

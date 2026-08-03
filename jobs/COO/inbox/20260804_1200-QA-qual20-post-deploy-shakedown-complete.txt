@@ -1,4 +1,5 @@
-QUAL-20 — Automated post-deploy shakedown · Branch chore/qual20-post-deploy-shakedown
+QUAL-20 — Automated post-deploy shakedown · GitHub issue #384 · PR #385
+Branch chore/qual20-post-deploy-shakedown
 Tracker: QUAL-20 (implements). Related: QUAL-18, QUAL-19, ENV-02, ADL-49, BUG-76.
 BRD: none (OP-32 tooling, no BRD requirement ID).
 
@@ -49,8 +50,13 @@ PASS/FAIL — WHAT I HAVE ACTUALLY SEEN, NOT INFERRED:
 
 BUGS FOUND: none — this thread built tooling, not a feature/fix verification pass.
 
-CI: gh pr checks pending at time of writing — will confirm green (or fix) before this
-report is considered final; see PR comments / re-check if this note precedes ci-wait.sh.
+CI: scripts/ci-wait.sh pr 385 → PASS, all 18 checks green (Biome, Type Check, Backend
+Tests, Frontend Tests, Contract Tests, E2E Tests, Gitleaks, Semgrep, Dependency Scan) @
+ef443849da7034c77c8f254aaf14be623d56d126. Note: the new post-deploy-shakedown.yml workflow
+itself does NOT run on this PR by design (workflow_dispatch + push-to-main only, since it
+targets real staging) — it has not executed anywhere yet. Its first real run is whatever
+happens after merge; see the "PASS/FAIL" section above for what has and hasn't been
+observed to work.
 
 DECLARATIONS PER STANDING RULES:
   - No source file rewritten wholesale — all changes are new files or small additive
