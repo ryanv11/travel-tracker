@@ -1039,12 +1039,12 @@
       "id": "ENV-01",
       "type": "bug",
       "title": "Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall",
-      "status": "accepted",
+      "status": "pending",
       "owner": "coo",
-      "priority": "P3",
+      "priority": "P2",
       "brdRefs": [],
       "phase": 4,
-      "notes": "PO noted 5 items stuck in geocoding pending queue. Root cause: devcontainer firewall only allows GitHub/npm/Anthropic — Nominatim (external geocoding API) is blocked. Not a code bug. Accepted constraint for dev environment. Queue will resolve when app runs outside devcontainer. No fix needed."
+      "notes": "PO noted 5 items stuck in geocoding pending queue. Root cause: devcontainer firewall only allows GitHub/npm/Anthropic — Nominatim (external geocoding API) is blocked. Not a code bug. Accepted constraint for dev environment. Queue will resolve when app runs outside devcontainer. No fix needed. || REOPENED 2026-08-03, P3 -> P2, on PO direction and at the ADL-49 author's explicit request. THE ORIGINAL RESOLUTION WAS THE PROBLEM. Marking this 'accepted / no fix needed' was locally reasonable — the queue really does drain in a deployed environment — but it converted a one-line config gap into a standing architectural constraint, and over the following weeks that constraint was cited as an argument FOR bundling a 170,540-row dataset. ADL-48 §14 point 4 called the untestability of the primary path 'the strongest single reason' for the gazetteer, and the COO repeated it to the PO. PO ruling 2026-08-03: 'because the firewall blocks the geocoder isn't a good argument because we should be whitelisting services we need access to in local dev.' Correct — .devcontainer/init-firewall.sh is repo-controlled and adding a host is one entry in its `for domain in \\` list. THE COO ALSO HAD THE REBUTTAL ON DISK AND DID NOT CONNECT IT: open dialogue D-21, raised 2026-08-01, already recommended exactly this allowlist plus recorded fixtures. Memory: feedback_arguments_for_are_absence_claims_too. RESOLUTION PATH NOW EXISTS: ADL-49 (PR #376, merged) amends ADL-33 to allowlist nominatim.openstreetmap.org, quotes the exact init-firewall.sh diff rather than applying it, and designs recorded-fixture capture/replay so tests are deterministic without CI calling a free public service live. Two gates before it takes effect: an OP-27 fresh-eyes review of ADL-49, and a container rebuild (init-firewall.sh runs at container start, so no change helps an in-flight session). GENERAL LESSON WORTH KEEPING BEYOND THIS ENTRY: an 'accepted' environment constraint is not inert. It becomes a premise, and premises get built on. When accepting one, record what it would cost to remove — otherwise the next design pays that cost many times over without anyone re-pricing it."
     },
     {
       "id": "FUTURE-02",

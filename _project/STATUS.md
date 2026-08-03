@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (80)
+## Open work (81)
 
 ### P0 — Blockers (1)
 
@@ -36,10 +36,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
 
-### P2 — Important (45)
+### P2 — Important (46)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
+| ENV-01 | Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall | coo | ⬜ Pending |
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
 | BRD-IT0809 | Rating sort and filter in item list views, cross-trip by city (IT-08/09) | frontend | done_pending_uat |
 | BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
@@ -125,12 +126,12 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `██████████▓░░░░░░░░░` 29/58 | 29 | 29 | 3 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `████████████░░░░░░░░` 44/71 | 44 | 27 | 4 |
+| bug | `████████████░░░░░░░░` 44/72 | 44 | 28 | 3 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `████████▓░░░░░░░░░░░` 14/34 | 14 | 20 | 1 |
 
 <details>
-<summary>Deferred (10)</summary>
+<summary>Deferred (9)</summary>
 
 | ID | Title | Owner |
 |---|---|---|
@@ -141,7 +142,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | NR-12 | Archive instead of hard delete for structured lists | architect |
 | NR-13 | Global settings risk control — owner/admin only for destructive changes | architect |
 | UX-05 | Photos — full implementation | frontend |
-| ENV-01 | Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall | coo |
 | BRD-PL0104 | Planning core — idea pool → booked across all item types (PL-01–04) | fullstack |
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack |
 
@@ -161,4 +161,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_136 done · 10 deferred · 4 closed · 80 open — 230 tracked items_
+_136 done · 9 deferred · 4 closed · 81 open — 230 tracked items_
