@@ -38,7 +38,31 @@ THE THREE THINGS THAT SHOULD CHANGE WHAT YOU DO NEXT
    in CI the blocker is a missing VITE_MAPTILER_KEY — ci.yml consumes no repository secrets at
    all — not the firewall.
 
-CI: green — no source files changed (docs only). PR checks confirmed before filing.
+CI: PR #376 — 8 of 9 checks green. ONE RED, AND IT IS NOT MINE, AND IT NEEDS YOUR ATTENTION:
+
+  "Dependency Vulnerability Scan" (npm audit --audit-level=high) FAILS. This branch changes
+  only jobs/** text — package.json and package-lock.json are untouched (git diff main...HEAD
+  is 6 files, all jobs/). security.yml's OWN HEADER documents this exact failure mode: npm
+  audit "queries the GitHub Advisory Database at run time — so its verdict is a function of
+  commit *and date*, not commit alone", with a prior instance (GHSA-v422-hmwv-36x6, body-parser,
+  2026-07-24 -> 07-26). Main's Security Checks were green 40 minutes before this run; the same
+  lockfile now fails. Reproduced locally on this worktree, same result.
+
+  The two HIGH blockers, with what pulls them:
+    undici@7.28.0     <- jsdom@28.1.0            DEV ONLY (test environment).
+                                                  Fix is NON-breaking (`npm audit fix`).
+    ip-address@10.2.0 <- express-rate-limit@8.5.2 RUNTIME. Advisory is SSRF / trust-boundary
+                                                  bypass in address parsing, i.e. it sits in
+                                                  the path that derives rate-limit keys
+                                                  (server.ts's global + citiesCreateLimiter).
+                                                  This is the one worth weighing properly.
+
+  I DID NOT FIX IT AND DID NOT SUPPRESS IT, deliberately, on three grounds: OP-30 forbids a new
+  npm-audit exception without your sign-off; a dependency bump in a docs-only ADL PR is exactly
+  the silent scope-widening the project forbids; and the runtime one needs an actual decision,
+  not a reflex `audit fix`. It blocks EVERY open PR and main's next push, not just this one, so
+  it wants a DEP-series tracker entry and its own brief rather than being absorbed here.
+  DEP-03 (#266) is the nearest open sibling.
 
 OPEN ISSUES / BLOCKERS
 - Nothing applied and the probe cannot run until the container is rebuilt. That is by design.
