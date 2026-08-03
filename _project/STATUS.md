@@ -73,7 +73,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 | QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
-| QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | ⬜ Pending |
+| QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | done_pending_uat |
 | DEP-05 | ip-address SSRF/trust-boundary advisories (HIGH, runtime via express-rate-limit) — fixed; react-router moderates deferred | coo | done_pending_uat |
 | QUAL-21 | Resolve-then-create success path has zero route-level test coverage (review F4) | qa | ⬜ Pending |
 | QUAL-22 | QA ATDD suite's geocoding mock drifted — one group is green for the wrong reason (review F8) | qa | ⬜ Pending |
