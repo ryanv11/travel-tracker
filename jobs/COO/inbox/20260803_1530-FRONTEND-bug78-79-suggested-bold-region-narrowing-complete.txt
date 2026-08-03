@@ -1,0 +1,54 @@
+BUG-78 (P3) + BUG-79 (P2) · GitHub #379 · PR #381 · BRD GE-16 · branch fix/bug78-79-suggested-bold-region-narrowing
+
+WHAT WAS BUILT
+BUG-78: bolded the BUG-71 "Suggested:" region caption (font-semibold, no new
+colour/component). BUG-79: raised the geocode discovery call's Nominatim
+limit (10 -> 40, unconstrained call only) and added a `truncated` signal
+preserved from the raw pre-filter response count, so the existing D14
+region-narrowing now gets enough same-country candidates for a globally-
+ambiguous name (Springfield) instead of collapsing to a false single
+survivor, and the UI never presents a possibly-truncated result as certain.
+Root cause re-verified independently before touching anything — frontend
+D14 narrowing was already correct; the backend discovery call was starving
+it of candidates. No change to cities.name derivation (explicitly out of
+scope, third UAT item).
+
+ACCEPTANCE CRITERIA
+1. Springfield narrows + shows yellow note — PASS (mechanism-level, by
+   test/fixture). UNVERIFIED end-to-end: no live Nominatim access from this
+   container — needs PO confirmation on staging.
+2. Newport/UK unaffected — PASS (regression test, fixture-driven).
+3. Denver still auto-fills with bold Suggested caption, no false ambiguity — PASS.
+4. Truncated result never presented as certain — PASS (dedicated tests,
+   both collapsed-to-one and ambiguous-and-truncated cases).
+5. Suggested caption is bold — PASS.
+6. Tests cover all four named cases — PASS (10 new backend + 9 new/updated
+   frontend tests).
+
+CI: gh pr checks 381 — all 18 checks green (confirmed via scripts/ci-wait.sh).
+
+RATE-LIMIT: no additional upstream request added — still one Nominatim call
+per keystroke-settle, only the limit value changed. Confirmed explicitly per
+the brief's requirement to flag otherwise.
+
+LIMIT VALUE CHOSEN: 40 (was 10), stated as a deliberate choice, not a
+discovered cap — Nominatim's real max is UNVERIFIED from this container
+(firewall-blocked, three prior failed probes already on record). Code does
+not assume 40 is honoured.
+
+OPEN ISSUES / BLOCKERS
+- Criterion 1 needs PO confirmation on staging (see above) — the one thing
+  this sandboxed thread cannot verify itself.
+- 2 pre-existing MODERATE npm audit findings (react-router,
+  CVE-2025-68470-adjacent) — confirmed unrelated to this PR (no
+  package.json/lock change here). Fix is a breaking major bump
+  (react-router-dom), out of this brief's scope. Flagged per
+  frameworks.txt rule 20 for your call on whether/when to address.
+- No new source file rewritten wholesale; no new scanner suppression.
+
+WHAT IS NOW UNBLOCKED
+PR #381 ready for review/merge via /coo-merge-and-close. Once merged and on
+staging, PO can re-run the Springfield UAT step to close criterion 1 and the
+BUG-78/79 tracker entries.
+
+Full detail: jobs/frontend/park-docs/20260803-FRONTEND-bug78-79-suggested-bold-region-narrowing-park.txt
