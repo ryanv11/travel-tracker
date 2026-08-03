@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (80)
+## Open work (81)
 
 ### P0 — Blockers (1)
 
@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (6)
+### P1 — Critical (7)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -35,6 +35,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
+| BUG-76 | Our own SETTLEMENT_TYPES filter may discard legitimate tail places the geocoder does return | backend | ⬜ Pending |
 
 ### P2 — Important (45)
 
@@ -125,7 +126,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `██████████▓░░░░░░░░░` 29/57 | 29 | 28 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `████████████░░░░░░░░` 45/73 | 45 | 28 | 3 |
+| bug | `████████████░░░░░░░░` 44/73 | 44 | 29 | 3 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
 | chore | `████████▓░░░░░░░░░░░` 14/34 | 14 | 20 | 1 |
 
@@ -161,4 +162,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_137 done · 9 deferred · 5 closed · 80 open — 231 tracked items_
+_136 done · 9 deferred · 5 closed · 81 open — 231 tracked items_
