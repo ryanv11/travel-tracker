@@ -1656,3 +1656,67 @@ METHOD NOTE FOR THE NEXT ARCHITECT ON THIS THREAD: the brief told me to test the
   available to every previous pass — one is three greps, the other is re-reading a paragraph of
   ADL-48. Neither was found, because nobody was asked to attack the frame. This is the same
   lesson as feedback_question_the_frame_not_just_the_answer.md, one round later.
+
+================================================================================
+2026-08-04 — WHAT IS A CITY'S NAME? BUG-75 + BUG-80 designed together
+================================================================================
+Doc: jobs/architect/tech/20260804-city-name-and-identity-design.md
+Branch: chore/city-name-identity-design. Design only. Needs a new ADL number (COO assigns).
+Supersedes ADL-46 D13 (identity key); amends the ADL-46 F1/F2 ruling §2.2 step 3 (ambiguity rule).
+
+THE HEADLINE, AND IT MOVES THE DEFECT TWO FILES: BUG-75 does NOT originate in the unique index.
+  classifyCandidates (geocoding.service.ts:122-157) decides ambiguity by counting distinct
+  region_iso, not distinct PLACES. Four Newports in GB-ENG -> one distinct region -> status 'ok',
+  best = matches[0]. VERIFIED BY RUNNING THE SHIPPED FUNCTION, both with and without a requested
+  region, with a passing cross-region control. So the FIRST user is mis-pinned on an EMPTY table,
+  before any index exists to be wrong, and the row is written 'resolved' = globally visible.
+  The index is the PROPAGATION mechanism, not the origin. That is why the coordinate bucket (S0)
+  and place_ref both failed: both were fixes to the propagation.
+
+WHAT IS A CITY'S NAME: three strings, three jobs. The user's text is a QUERY (authoritative for
+  nothing). raw.name is the LABEL -> cities.name, KEEP IT. raw.display_name is the QUALIFIED NAME
+  and nothing persists it. Shortening was never the error; DISCARDING was. 815b650 should be
+  ratified, not reverted — cities.name is rendered as a bare label on six surfaces.
+
+IDENTITY: a row created with the geocoder unreachable HAS no identity and must not be given one.
+  It is a claim about a name, not a record of a place. Identity is TIERED BY EVIDENCE and the tier
+  already exists as geocode_status — it drives visibility today, it must drive identity too.
+  Claims = creator-scoped; resolved = qualified-name-scoped. cities.ts:120-128's creator-blind
+  step 1 is a correct derivation from a wrong premise (one global index over all three states).
+
+I KILLED FIVE OF MY OWN CONCLUSIONS (full list in doc §7):
+  - "Creator-scoping the index fixes BUG-75" — WRONG, my first answer. Leaves the classifier
+    intact so user #1 is still mis-pinned. Chasing this is what made me run the classifier.
+  - "COALESCE(created_by_user_id,'') for the claim index" — probed head-to-head against a real
+    ON DELETE SET NULL cascade: IT MAKES ACCOUNT DELETION FAIL. I would have shipped it on the
+    strength of the analogy to the existing COALESCE(region_id,0) sentinel. Use
+    "WHERE ... AND created_by_user_id IS NOT NULL" instead.
+  - "BUG-80 needs qualified_name" — half of it does not. See below.
+  - "Store display_name as cities.name" — breaks six render surfaces; locale-volatile.
+  - "resolveCity must never write an identity column" — would make a claim unable to ever BECOME
+    a distinguishable place.
+
+SMALLER THAN THE BRIEF IMPLIED, IN TWO PLACES (the brief invited this):
+  - BUG-80 as the PO reported it (GB-SCT vs GB-WLS) is a DROPPED JOIN. trips.ts repository:341-353
+    already LEFT JOINs regions and selects iso3166_2; routes/trips.ts:235-244 throws both away.
+    No schema change, no dependency on the identity work. SHIPPABLE NOW.
+  - The BUG-75 safety fix is one predicate in geocoding.service.ts. No schema change.
+  Schema work is real but it is the THIRD priority, not the first.
+
+TWO THINGS NOBODY HAS NAMED YET:
+  - D14 is REGION-KEYED (AddPlaceFlow.tsx:327-335 collects distinct region_iso into the region
+    selector). Four Newports share one region_iso -> the user is offered a "choice" of one. Making
+    the backend say 'ambiguous' is necessary and NOT sufficient; there is no channel to resolve it.
+  - BUG-76 interaction: SETTLEMENT_TYPES emptying the candidate list produces 'unresolvable',
+    which D10 defines as TERMINAL and never retried. A filter bug becomes a permanent dead row
+    that survives fixing the filter. Independent hardening required either way.
+
+BUG-80 SURFACE AUDIT found TWO surfaces beyond the brief's list: TripCard.tsx:125 and
+  CityItemsPage.tsx:106,109 (the latter inherits its label from PlaceSection's router state).
+  formatCitySubtitle returns country_code — lifting it verbatim into PlaceSection.tsx:154
+  REGRESSES "United Kingdom" -> "GB".
+
+UNVERIFIED AND LOAD-BEARING: the "distinct place" predicate cannot be calibrated from this
+  container (curl to nominatim = exit 7; allowlist read at init-firewall.sh:140-151 — two probes,
+  blind spot is that this is the DEVCONTAINER's reachability, not staging's). I specified the RULE
+  and refused to invent the THRESHOLD. ADL-49's replay fixtures are the vehicle. Named as Attack 1.

@@ -1,0 +1,70 @@
+TO: COO
+FROM: Architect
+DATE: 2026-08-04
+RE: BUG-75 + BUG-80 — "what IS a city's name?" design
+
+Tracker: BUG-75 · BUG-80 · BUG-76 (interaction only) · QUAL-25
+BRD: GE-12/13/14/15/16 (v3.16). GE-17 withdrawn; nothing here depends on it.
+Branch: chore/city-name-identity-design · PR: see below
+Doc: jobs/architect/tech/20260804-city-name-and-identity-design.md
+NEEDS A NEW ADL NUMBER — supersedes ADL-46 D13, amends the F1/F2 ruling §2.2 step 3. You assign.
+
+WHAT CHANGED
+BUG-75 does not originate in the unique index. classifyCandidates counts distinct REGIONS, not
+distinct PLACES — four Newports in GB-ENG return 'ok' with an arbitrary best. Verified by running
+the shipped function. The first user is mis-pinned on an empty table, before any index exists to
+be wrong, and the row is written 'resolved' = globally shared. The index is the propagation
+mechanism. Both rejected designs were fixes to the propagation, which is why neither could work.
+
+PER-DECISION VERDICT
+D1/D2 cities.name stays the short label; add qualified_name    ADOPTED (ratify 815b650, don't revert)
+D3/D4 ambiguity = distinct PLACES, not distinct regions        ADOPTED — the primary fix, no schema
+D5    an offline-created row is a CLAIM with no identity       ADOPTED — tier identity by geocode_status
+D6    two partial indexes replacing the global one             ADOPTED — verified in real libSQL
+D7    index only OWNED claims                                  ADOPTED — COALESCE variant KILLED, see below
+D8    POST /api/cities takes a server-verified qualified_name  ADOPTED (Medium) — D14 is region-keyed
+D9    BUG-80 is two defects; the reported one is a dropped join ADOPTED — no schema, ship first
+D10   5-stage expand/contract                                  ADOPTED
+D11   terminal 'unresolvable' must not follow OUR filter       ADOPTED — needed regardless of BUG-76
+
+SMALLER THAN THE BRIEF IMPLIED (you invited this)
+- BUG-80 as the PO reported it is a DROPPED JOIN. repositories/trips.ts:341-353 already LEFT JOINs
+  regions; routes/trips.ts:235-244 throws it away. No schema change, no dependency. Shippable now.
+- The BUG-75 safety fix is one predicate in geocoding.service.ts. No schema change.
+- Schema work is real but it is the THIRD priority. S1 and S2 are the whole user-visible fix.
+
+BLOCKER ON DISPATCH — do not brief S2 without this
+The "distinct place" predicate cannot be calibrated from this container (curl exit 7; allowlist read
+at init-firewall.sh:140-151 — two probes; blind spot is that this is the devcontainer's reachability,
+not staging's). I specified the RULE and refused to invent the THRESHOLD. Needs ~30-50 real Nominatim
+responses via ADL-49's replay fixtures first. This is Attack 1 and the likeliest thing to be wrong.
+
+TWO THINGS NOBODY HAD NAMED
+- D14 is region-keyed (AddPlaceFlow.tsx:327-335). Four Newports share one region_iso, so the user is
+  offered a "choice" of one. Backend saying 'ambiguous' is necessary and NOT sufficient.
+- BUG-76: SETTLEMENT_TYPES emptying the candidate list yields a TERMINAL 'unresolvable' that survives
+  fixing the filter. Independent hardening, needed either way. NOT fixed here — needs its own class.
+
+I KILLED FIVE OF MY OWN CONCLUSIONS (doc §7). Two matter to you:
+- "Creator-scoping the index fixes BUG-75" — my first answer, wrong. Leaves the classifier intact.
+- "COALESCE(created_by_user_id,'')" — mirrors the existing COALESCE(region_id,0) sentinel and looks
+  obviously right. Probed against a real ON DELETE SET NULL cascade: IT MAKES ACCOUNT DELETION FAIL.
+
+BUG-80 AUDIT found two surfaces beyond the brief's list — TripCard.tsx:125 and CityItemsPage.tsx:106.
+formatCitySubtitle returns country_code, so lifting it into PlaceSection.tsx:154 regresses
+"United Kingdom" -> "GB". Four traps for the brief are in doc §5.
+
+DOCUMENT LIFECYCLE — TWO STAMPS OWED BY YOU, NOT BY ME
+The brief forbade me editing prior design/review documents, so I have not stamped them. If you adopt
+this doc, the same PR that records the decision owes:
+  - 20260803-BUG75-city-identity-redesign.md — §2/C2 (step 0) and §5 (the E-sequence) are superseded;
+    its D5-D7 dataset findings are moot under GE-17's withdrawal, not wrong.
+  - 20260802-ADL48-feasibility-spike.md §7.3 (S0) — already rejected, but nothing states that in the
+    document itself.
+Doc-lifecycle rule 2 (supersession stamps) applies to both. Flagging rather than doing it.
+
+CI: no source files changed (docs only). PR CI confirmed green before filing.
+BLOCKERS: none. UNVERIFIED items and their blind spots are doc §7; two weakest points are doc §8.
+
+UNBLOCKED: Frontend+Backend can be briefed for S1 (BUG-80a) immediately — no gate, no schema.
+S2 is gated on the fixture calibration above. S3-S5 are gated on OP-27 review of this doc.
