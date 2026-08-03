@@ -1608,6 +1608,17 @@ called for below. Not implemented this session.
 create. No BRD requirement ID (see §8). **BRD ref:** none — this is dev-operational
 tooling, not a product requirement.
 
+> **AMENDED (2026-08-03) by ADL-49 — retained in full; nothing below is withdrawn.** ADL-49 adds
+> `nominatim.openstreetmap.org` to the §7 allowlist and, in doing so, extends this ADL's scope: every
+> host here is an **agent read-only diagnostic** host, whereas the geocoder is the **app's own
+> runtime** dependency, which is a new category with usage-policy obligations §4 never had to
+> consider. §2's and §4's exclusions (`api.turso.tech`, `api.clerk.com`) are **unchanged and still
+> binding**. §7's CDN IP-rotation caveat is **measured rather than restated** in ADL-49 §2.2:
+> Nominatim is Fastly *anycast* with a single stable A record, materially less rotation-prone than
+> the Cloudflare-fronted Turso/Railway entries this section was written about — the caveat applies
+> but bites less hard. ADL-49 §2.3 also records the first check of this script's IPv4-only posture:
+> not a live gap (the container has no IPv6 route), latent if the Docker network ever gains one.
+
 **Triggered by:** PO request (2026-07-21). While the COO was debugging a live Railway
 deploy stuck "queued due to upstream GitHub issues" with no visible logs, the only way to
 see error output was Ryan pasting logs back and forth by hand. Ryan asked that the
@@ -4074,3 +4085,146 @@ credit** for **BUG-55** or **BUG-33**, both already closed by other work.
 - **Execution-queue Tier 2 item 13 is partly stale** and should be corrected: OQ-06 was already
   decided by ADL-43 on 2026-07-27 (what remained was implementation, and now a source correction),
   and BUG-45 does not belong in the same item.
+
+---
+
+## ADL-49 — Geocoder allowlist amendment to ADL-33, recorded-response replay fixtures, and a reassessment of GE-17's remaining case
+
+**Date:** 2026-08-03
+**Status:** **Decided — design only. NO code, config or firewall change ships with this ADL.** The
+`.devcontainer/init-firewall.sh` diff is **quoted verbatim, not applied** (standalone §3.5); it
+requires a container rebuild and is the COO's to take after PO approval. Full analysis, probe
+outputs, fixture design and decision tables: `jobs/architect/tech/ADL-49-geocoder-allowlist-and-replay-fixtures.md`.
+**Amends:** ADL-33 §2/§7/§10.3 (stamped in this PR). **Supersedes nothing.**
+**Tracker:** ENV-01 · BUG-76 · QUAL-22 · QUAL-18/19/20 · QUAL-25 · open-dialogue D-21.
+**BRD:** GE-11/GE-15/GE-16/GE-17/GE-18 at v3.15 — **no BRD change proposed.** §6 asks the PO to
+*re-take* a decision the BRD already records; it does not edit a requirement.
+
+**Triggered by:** PO direction 2026-08-03 — *"because the firewall blocks the geocoder isn't a good
+argument because we should be whitelisting services we need access to in local dev."* The PO is
+right, and the record should say why it matters beyond one domain entry: **ENV-01 sat in the tracker
+as `accepted` / "no fix needed" for a year, and by 2026-08-01 that accepted environment constraint
+had become one of four arguments for a 170,540-row bundled dataset** (BRD v3.15's GE-17 changelog
+entry states it explicitly). An environment gap left permanent had started deciding product
+architecture. That is the durable finding, independent of how GE-17 is eventually decided.
+
+### Summary
+
+| # | Decision | Recommendation | Confidence |
+|---|---|---|---|
+| D1 | Allowlist `nominatim.openstreetmap.org` | **ADOPT** — one entry in the existing domain loop; diff quoted, not applied | High |
+| D2 | Allowlist MapTiler | **DEFER** — the firewall is not what blocks the map testing it would supposedly unblock | High |
+| D3 | Usage-policy obligations | In-process limiter binds all 3 app call sites; **that is not sufficient** — separate processes each start a fresh 1 req/s budget | High |
+| D4 | Fixture seam | **Record the wire response at `fetch`**, never the parsed `NominatimCandidate[]` | High |
+| D5 | Interception | ~50-line in-repo replay double, **not** MSW | Medium |
+| D6 | Drift detection | On-demand from the devcontainer; **never a CI gate**; semantic projection, not bytes | High |
+| D7 | BUG-76 probe | Record `class` **and** `type` per candidate; a result-count probe is a false pass | High |
+| D8 | Does this weaken GE-17? | **YES, materially — not fatally.** Two of four arguments dead; the third rests on a premise false for 2 of 3 call sites | Medium-High |
+| D9 | Sequencing | Cheap-first wave (allowlist → probe → 3 query changes → fixtures) **before** re-taking S2/S3 | Medium-High |
+
+**Decisions.**
+
+1. **D1 — add `nominatim.openstreetmap.org`, and nothing else.** It is the only Nominatim host in
+   the codebase (`nominatim-client.ts:31`, sole occurrence of the literal in `src/`). Blocked today,
+   established by two probes that fail differently plus a working control (standalone §2.1). ADL-34's
+   fail-open fix means an added entry carries no lockdown risk. **Still excluded, with reasons kept
+   in the script comment:** MapTiler, the OSM raster tile servers, and (unchanged) `api.turso.tech`
+   and `api.clerk.com`.
+2. **D2 — defer MapTiler.** Three findings, any one sufficient: the firewall does not reach the host
+   browser the PO does visual testing in; **BUG-34 is `done` and BUG-49 is `done_pending_uat`**, so
+   the two bugs D-21 cites as blocked are already fixed; and in CI the blocker is a missing
+   `VITE_MAPTILER_KEY` (three probes), not the firewall — the E2E job consumes no repository secrets
+   at all. Better answer for map assertions: a local inline MapLibre style with no third-party host.
+   Cheap and safe to add anyway if the PO wants it; this is a value argument, not a risk one.
+3. **D3 — the limiter binds the app, not the environment.** All three call sites (`geocode.ts:50`,
+   `geocoding.service.ts:185` and `:250`) route through the serialized chokepoint — two independent
+   probes (import graph; literal-host grep). But `chain`/`lastRequestAt` are **module scope = process
+   scope**, so a capture script, a vitest worker, or an ad-hoc `curl` each start a fresh budget
+   against **one shared egress IP**. Rules: all deliberate egress goes through the capture script;
+   the script refuses under `CI`, requires `ALLOW_LIVE_NOMINATIM=1`, and refuses if the dev API is
+   answering on :3001; test doubles **throw** on unmatched requests rather than passing through.
+   Also: widen the `User-Agent` to carry a contact URL — the policy wants a contact route, and
+   `(personal-use-app)` has none.
+4. **D4/D5 — fixtures record the wire, replayed by an in-repo `fetch` double.** Recording
+   `NominatimCandidate[]` would bake BUG-76 into the fixture and make it structurally unobservable —
+   the same shape as QUAL-18's CSP blind spot. Fixtures live in `tests/fixtures/nominatim/` with a
+   checked-in `requests.json` (the reviewable statement of what we ask a donated service for), an
+   order-independent canonical query key, and a loud throw on a miss. **Mocking `nominatimSearch` is
+   forbidden in the new suites** — that is QUAL-22's exact error. Frontend fixtures are *derived* by
+   running the recorded responses through the real proxy handler, never authored.
+5. **D6 — drift detection never gates CI.** `npm run fixtures:nominatim:drift`, on demand from the
+   devcontainer, comparing a semantic projection (`class`, `type`, name, country, region ISO, lat/lon
+   to 3 dp, count, order) rather than bytes. Named triggers replace a schedule. A scheduled Action was
+   rejected: a runner's egress IP is shared with all of GitHub Actions, which is exactly what a public
+   geocoder rate-limits indiscriminately.
+6. **D7 — the BUG-76 probe must read the raw array.** 17 names (10 tail + 7 controls) × 3 variants
+   (unconstrained/`limit=10`; `countrycodes=gb`/`limit=10`; `countrycodes=gb`/`limit=40`) ≈ 56 s of
+   egress, plus a 4-request `Springfield`/`us` completeness probe at `limit=10/20/40/50`. The
+   standalone §7.4 decision table states what each outcome implies — present-and-mistyped means widen
+   the filter (`class`-aware, not a flat set); present only as `boundary/administrative` means tier it;
+   present only as a natural feature means do **not** widen; absent at `limit=40` means a genuine
+   coverage gap and ADL-48 §15.1's gating item fires. Every response is also a fixture — the probe and
+   the capture are one run.
+7. **D8 — GE-17's case is materially weakened.** *"Works offline"* was already withdrawn (BRD v3.15).
+   *"The primary path can't be tested"* is dismantled by D4 — and its stated **reason** is inaccurate:
+   the devcontainer firewall has nothing to do with CI, which sets `GEOCODING_ENABLED=false` for
+   ADL-10 policy reasons. *(`ci.yml:76`'s "CI firewall doesn't allow Nominatim" comment is marked
+   **UNVERIFIED**, not corrected — I cannot probe a runner from here; see standalone §6.2 for the
+   positive evidence and its blind spot.)* The third argument, **ambiguity completeness, rests on a
+   premise that is false for two of three call sites**: `resolveCityName` and `resolveCity` already
+   pass `countrycodes`; only the **discovery** call (`useCities.ts:42`, no `country_code`) is global,
+   which is the path BUG-71 travelled. Three one-line changes close most of the residual gap —
+   (A) record the discarded raw pre-filter count (`nominatim-client.ts:136-143`), (B) raise `limit`
+   on the constrained paths so `rawCount < limit` becomes a *positive* completeness determination,
+   (C) pass the trip's declared countries on discovery (D-19, as one query parameter). What survives
+   for GE-17: provider independence (ENV-02 class), queue depth, common-case latency/coverage — none
+   of which are the arguments it is currently carried by.
+8. **The finding the PO most needs, and it reorders the priorities.** ADL-48 §2's own words: the ten
+   tail places are *"absent from both"* **candidate gazetteer datasets**. Under GE-17 as designed they
+   resolve **only** through the geocoder. So the flagship Scottish trip is not covered by the
+   gazetteer under either architecture, and **BUG-76 — our own `SETTLEMENT_TYPES` filter — is the only
+   change under discussion that could make Plockton work at all.** It is also the cheapest. If the
+   probe instead shows Nominatim genuinely lacks them, GE-17 does not rescue that either, and the
+   answer becomes a different and larger decision.
+9. **D9 — sequence, do not re-litigate.** W1 apply the diff + rebuild → W2 run the probe (~60 s) →
+   W3 widen/tier `SETTLEMENT_TYPES` and land (A)+(B) → W4 land the fixtures recorded in W2 → **W5
+   re-take the GE-17 S2/S3 decision with measurements instead of estimates.** ~a day of work against
+   a multi-stage dataset build. This ADL takes **no position on W5's outcome** — only on the evidence
+   it should be taken with. "Approved in principle" is not a reason to soften §6, and equally not a
+   reason to reverse three benefits this document leaves untouched.
+
+**Alternatives considered.** *Quietly edit `init-firewall.sh`* — rejected; ADL-33's omissions are
+load-bearing and an extension must inherit their reasoning. *Live-call the geocoder in CI* — rejected:
+non-deterministic (upstream data and ranking change), rate-limited, and an abuse of a donated service.
+*MSW instead of an in-repo double* — rejected for now (one URL prefix, one method; the property that
+matters is a throwing miss); switch trigger stated. *A scheduled drift Action* — rejected on shared
+runner egress IP and on red-CI desensitisation; `workflow_dispatch` is the next step if needed.
+*Add a Nominatim check to the script's closing verification block* — rejected: it would put a third
+party on the critical path of container start. *A cross-process file lock for the rate limiter* —
+rejected as over-engineering; the dev-API guard plus a single entry point covers the realistic cases.
+
+**Implementation implications.**
+- **COO/PO:** approve or decline the §3.5 diff; on approval apply, rebuild, and run all three
+  verification commands (including the `example.com`-must-fail one, which is the one people skip).
+  **Reopen ENV-01** — its "no fix needed" resolution is the root of the framing problem above.
+  Decide MapTiler explicitly. Do **not** correct `ci.yml:76` on inference — it needs one probe from a
+  runner first.
+- **Backend brief (after rebuild):** run the probe, publish the table, commit the 55 fixtures, widen
+  or tier `SETTLEMENT_TYPES`, land (A) and (B) *if* the measured `limit` cap supports (B), export
+  `NOMINATIM_BASE`/`USER_AGENT` and widen the UA (**declare it — it is an egress-behaviour change**).
+  Security checklist: no new routes, no new user-data columns, no auth surface touched.
+- **QA brief (parallel):** the fixture scaffold, replay double, setup wiring, hash check, synthetic
+  quarantine, and the drift script with its guards.
+- **Known unverified, by design:** Nominatim's `limit` cap, whether de-duplication runs before or
+  after the limit, and OSM's typing of the ten tail places are all **unverifiable from this
+  container** (host blocked, six probes) and are what the §7.2 probe measures. Treat D8's
+  quantification as **conditional on the probe** — if the cap turns out to be 10, change (B) is dead
+  and D8 weakens considerably. The §8 coverage finding survives regardless, being read from ADL-48's
+  own text.
+
+**Weakest points, named for the OP-27 review** (standalone §9.2): (1) the whole D8/D7 quantification
+rests on assumptions about a service this container cannot reach; (2) *"the browser runs on the
+host"* is the load-bearing premise of the MapTiler deferral and is **inferred from the devcontainer
+topology, not observed**. A third, offered because a self-named weakness is a hypothesis rather than
+a confession: §5.6's fixture-honesty mechanisms may be theatre around the real property, which is
+simply that a genuine 40-field Nominatim response is expensive to fake convincingly.

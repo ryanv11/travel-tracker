@@ -1,0 +1,65 @@
+TO: COO
+FROM: Architect
+DATE: 2026-08-03
+RE: ADL-49 — geocoder allowlist (amends ADL-33), replay fixtures, GE-17 reassessment
+
+ADL-49 · D-21 / ENV-01 / BUG-76 / QUAL-22 · BRD GE-11/15/16/17/18 (v3.15, no BRD change)
+Branch: chore/adl33-nominatim-allowlist · PR: see below
+
+WHAT WAS DECIDED
+Design only — nothing applied. The init-firewall.sh diff is QUOTED in ADL-49 §3.5 and the file
+is untouched; it needs a container rebuild and is yours after PO approval. The allowlist turned
+out to be the smallest part of the answer.
+
+PER-DECISION VERDICT
+D1 Allowlist nominatim.openstreetmap.org — ADOPTED (one entry; diff quoted, not applied)
+D2 Allowlist MapTiler — DEFERRED, and D-21's stated rationale for it does not hold
+D3 Usage-policy obligations — ADOPTED (limiter binds the app, NOT the environment; rules §4.3)
+D4 Fixture seam = the wire response at fetch, never parsed candidates — ADOPTED
+D5 In-repo replay double, not MSW — ADOPTED (no new dependency; switch trigger stated)
+D6 Drift check on-demand from the devcontainer, never a CI gate — ADOPTED
+D7 BUG-76 probe records class AND type per candidate — ADOPTED (§7.2 matrix, §7.4 table)
+D8 Does this weaken GE-17? — YES, MATERIALLY, NOT FATALLY
+D9 Cheap-first wave before re-taking S2/S3 — RECOMMENDED
+
+THE THREE THINGS THAT SHOULD CHANGE WHAT YOU DO NEXT
+1. "Queried at limit=10 globally" is FALSE for two of three call sites. geocoding.service.ts
+   :185 and :250 already pass countrycodes; only the DISCOVERY call (useCities.ts:42 ->
+   geocode.ts:50) is global, and that is the path BUG-71 travelled. Three one-line changes
+   close most of the ambiguity gap with no dataset — including one prerequisite nobody has
+   noticed: nominatim-client.ts:136-143 DISCARDS the raw pre-filter count, so truncation is
+   undetectable even if you fix the limit.
+2. The ten tail places are absent from the GAZETTEER DATASETS TOO — ADL-48 §2's own words.
+   Under GE-17 they resolve only via the geocoder anyway. So BUG-76 (our SETTLEMENT_TYPES
+   filter) is the only change under discussion that could make Plockton work at all, and it is
+   the cheapest. This reorders the priorities.
+3. MapTiler: the firewall never reached the PO's browser (host, not container); BUG-34 is
+   `done` and BUG-49 is `done_pending_uat`, so neither is an open bug awaiting observation; and
+   in CI the blocker is a missing VITE_MAPTILER_KEY — ci.yml consumes no repository secrets at
+   all — not the firewall.
+
+CI: green — no source files changed (docs only). PR checks confirmed before filing.
+
+OPEN ISSUES / BLOCKERS
+- Nothing applied and the probe cannot run until the container is rebuilt. That is by design.
+- UNVERIFIED and load-bearing: Nominatim's `limit` cap, dedupe ordering, and OSM's typing of
+  the ten places. The host is unreachable from here (six probes). §7.2 measures all of them for
+  ~60 seconds of egress. Treat D8's quantification as CONDITIONAL ON THE PROBE.
+- ci.yml:76's "CI firewall doesn't allow Nominatim" comment is unsupported but NOT disproved —
+  I could not probe a runner. Deliberately left unedited. Needs one probe first.
+- ENV-01 should be reopened (tracker edit — out of scope for this brief, yours to make). Its
+  "accepted / no fix needed" resolution is what let an environment constraint become an
+  argument for a 170,540-row dataset.
+
+WHAT IS NOW UNBLOCKED
+- You can put the §3.5 diff to the PO as a decision with reasoning attached.
+- A Backend brief (BUG-76 probe + filter widening + the three query changes) is fully specified
+  and dispatchable the moment the container is rebuilt.
+- A QA brief (fixture scaffold, replay double, hash check, synthetic quarantine, drift script)
+  is fully specified and can run in parallel; it needs the probe's output to seed fixtures.
+- The GE-17 S2/S3 decision now has a stated evidence sequence (W1-W5, ~a day) instead of four
+  arguments of which two are dead and one rests on a false premise.
+
+NO wholesale rewrite of any shared record: ADL log, open-dialogues and context/current.txt were
+all appended/amended via Edit. Two new files created (the standalone ADL and the park doc).
+No scanner suppression added. No remote database touched.
