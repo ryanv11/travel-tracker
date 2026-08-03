@@ -1,0 +1,72 @@
+name: Post-Deploy Shakedown
+
+# QUAL-20 / OP-32 — the mechanical half of the deployment shakedown: confirms the DEPLOYED
+# staging build behaves like main before a PO UAT round finds otherwise. See
+# jobs/qa/tech/20260804-post-deploy-shakedown.md for the full design and the honest account
+# of what this suite does and does not cover.
+#
+# WHY THIS RUNS HERE AND NOT AS A DEVCONTAINER SCRIPT: the devcontainer's own firewall
+# blocks the app's public Railway domains (confirmed by two independent probes this session
+# — a direct curl timeout, and grep of .devcontainer/init-firewall.sh's domain list coming up
+# empty for travel-tracker-staging.up.railway.app; this mirrors the same block already
+# recorded against the production domain in jobs/COO/open-dialogues.md D-06). A GitHub-hosted
+# runner has no such restriction, so this is the only place in the project that can actually
+# reach the deployed app directly.
+#
+# TWO TRIGGERS, DELIBERATELY ASYMMETRIC IN HOW MUCH THEY ARE TRUSTED:
+#
+#   workflow_dispatch — COO-invoked, the PRIMARY way this is meant to be run today. Run it
+#   right after confirming (via scripts/agent-diagnostics/railway-query.sh staging status)
+#   that a new deployment reached SUCCESS. No ambiguity about which build is under test.
+#
+#   push to main — automatic, using ADL-32's existing staging-watches-main auto-deploy as
+#   the natural hook the QUAL-20 brief asked to use. This is WEAKER evidence than the manual
+#   trigger: Railway's rollout is not instantaneous and /health carries no build/commit
+#   marker, so this run cannot prove it tested the NEW deploy rather than the previous one
+#   still serving traffic during the rollout window (stated plainly in the tech doc rather
+#   than glossed over). The /health check's own retry/backoff absorbs the common case
+#   (rollout still in progress), but does not close the gap entirely. Treat a red run here as
+#   authoritative; treat a green run here as a good sign, not a substitute for a
+#   workflow_dispatch run before a UAT round that matters.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Override target URL (defaults to staging)"
+        required: false
+        type: string
+  push:
+    branches: [main]
+
+jobs:
+  shakedown:
+    name: Shakedown staging
+    runs-on: ubuntu-latest
+    # Give the ADL-32 auto-deploy a head start on a push-triggered run before the suite's
+    # own /health retry/backoff takes over — this is a coarse grace period, not a
+    # deploy-completion signal (no such signal exists today, see comment above).
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Grace period for in-flight deploy (push trigger only)
+        if: github.event_name == 'push'
+        run: sleep 60
+      - name: Run shakedown
+        run: npm run shakedown:staging
+        env:
+          SHAKEDOWN_BASE_URL: ${{ inputs.base_url || 'https://travel-tracker-staging.up.railway.app' }}
+      - name: Upload shakedown report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: shakedown-results
+          path: |
+            shakedown-results/
+            shakedown-results.json
+          retention-days: 14
