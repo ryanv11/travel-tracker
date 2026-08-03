@@ -77,15 +77,19 @@ async function fetchGeocodeResultWithRetry(cityName: string): Promise<GeocodeRes
  *
  * @param cityName - The city name to look up.
  * @returns Upper-cased country code (e.g. "FR"), region ISO (e.g. "US-CA"),
- *   both nullable, the full candidate list (empty on any failure), and
- *   `failed` — true only when retries were exhausted without a successful
- *   response (never true for a successful "no match" response).
+ *   both nullable, the full candidate list (empty on any failure), `failed` —
+ *   true only when retries were exhausted without a successful response
+ *   (never true for a successful "no match" response) — and `truncated`
+ *   (BUG-79) — true when the backend's raw Nominatim response may have had
+ *   more matches than `candidates` shows, false on any failure (nothing was
+ *   truncated; nothing was returned at all).
  */
 export async function lookupCityCountry(cityName: string): Promise<{
   countryCode: string | null;
   regionIso: string | null;
   candidates: GeocodeCandidate[];
   failed: boolean;
+  truncated: boolean;
 }> {
   try {
     const result = await fetchGeocodeResultWithRetry(cityName);
@@ -94,9 +98,10 @@ export async function lookupCityCountry(cityName: string): Promise<{
       regionIso: result.region_iso ?? null,
       candidates: result.candidates,
       failed: false,
+      truncated: result.truncated ?? false,
     };
   } catch {
-    return { countryCode: null, regionIso: null, candidates: [], failed: true };
+    return { countryCode: null, regionIso: null, candidates: [], failed: true, truncated: false };
   }
 }
 

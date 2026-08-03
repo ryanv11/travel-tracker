@@ -88,8 +88,26 @@ const SETTLEMENT_TYPES = new Set(['city', 'town', 'village', 'hamlet', 'municipa
  * per-city retry budget).
  */
 export type NominatimSearchResult =
-  /** Geocoder answered. candidates may be empty — that is a terminal "no match". */
-  | { status: 'ok'; candidates: NominatimCandidate[] }
+  /**
+   * Geocoder answered. candidates may be empty — that is a terminal "no match".
+   *
+   * `truncated` (BUG-79, GitHub #379): true when the RAW response (before the
+   * settlement-type/parse filter below discards anything) came back with at
+   * least as many rows as the caller's requested `limit` — i.e. Nominatim may
+   * have had more matches it didn't return. Computed from the pre-filter
+   * count specifically because that count used to be discarded entirely once
+   * `.filter()` ran, which made "one real region" and "one region that
+   * survived truncation" indistinguishable to every caller. `false`/absent
+   * when the caller passed no numeric `limit` (nothing to compare against) or
+   * when the raw count came in under it — a response smaller than what was
+   * asked for is, by definition, not truncated by our own request. Optional
+   * (not every existing caller's test fixtures set it, and every consumer
+   * treats an absent value the same as `false`) rather than forcing every
+   * pre-existing `NominatimSearchResult` fixture in geocoding.service.test.ts
+   * / cities.f1f2-ruling.test.ts (neither of which this fix touches) to grow
+   * an unrelated field.
+   */
+  | { status: 'ok'; candidates: NominatimCandidate[]; truncated?: boolean }
   /** GEOCODING_ENABLED=false — a global condition, never a per-city failure. */
   | { status: 'disabled' }
   /** Network error, timeout, 5xx, 429, host unreachable — recoverable, retry. */
@@ -134,13 +152,20 @@ export async function nominatimSearch(
         return { status: 'error' };
       }
       const data = (await resp.json()) as RawNominatimResult[];
+      // BUG-79: preserve the pre-filter signal before the settlement-type/
+      // parse filter below discards it. Compared against the LIMIT WE
+      // REQUESTED, not an assumed cap on Nominatim's side (its actual max is
+      // unverified and irrelevant here) — if the raw response is at least as
+      // large as what we asked for, there may be more matches beyond it.
+      const requestedLimit = Number(params.limit);
+      const truncated = Number.isFinite(requestedLimit) && data.length >= requestedLimit;
       const candidates = data
         .map(parseCandidate)
         .filter(
           (c): c is NominatimCandidate =>
             c !== null && (c.type == null || SETTLEMENT_TYPES.has(c.type)),
         );
-      return { status: 'ok', candidates };
+      return { status: 'ok', candidates, truncated };
     } finally {
       clearTimeout(timer);
     }

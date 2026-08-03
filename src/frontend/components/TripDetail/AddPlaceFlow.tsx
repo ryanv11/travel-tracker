@@ -102,13 +102,29 @@ export function AddPlaceFlow({
   // (Springfield — Nominatim's 10-slot global result, thinned by settlement
   // type and a non-null-region_iso requirement, happened to leave exactly one
   // region standing) — see __tests__/AddPlaceFlow.bug71.test.tsx and the
-  // brief for GitHub #363. Rather than guess which case it is (out of scope —
-  // no truncation detection, no geocode request changes), every auto-filled
-  // single-candidate region is surfaced as a UX-spec §3.2-style visibly
-  // tentative suggestion instead of a silent commit. Cleared the moment the
-  // user actually chooses a region themselves (§1's tier-1 rule: an explicit
-  // choice is never just a suggestion) or the form/country resets.
+  // brief for GitHub #363. Rather than guess which case it is, every
+  // auto-filled single-candidate region is surfaced as a UX-spec §3.2-style
+  // visibly tentative suggestion instead of a silent commit. Cleared the
+  // moment the user actually chooses a region themselves (§1's tier-1 rule:
+  // an explicit choice is never just a suggestion) or the form/country
+  // resets.
+  //
+  // BUG-79 (#379) note: the backend now DOES raise the discovery limit and
+  // surface a truncation signal (lookupTruncated below) — but this blanket
+  // "every auto-fill is tentative" behaviour is kept unchanged even so
+  // (success criterion 3): a higher limit makes true ambiguity easier to
+  // detect (more candidates for the sameCountryRegionIsos check just below to
+  // find), it does not make a single survivor provably unambiguous, so
+  // regionIsSuggested still can't and shouldn't be narrowed to "only when
+  // truncated."
   const [regionIsSuggested, setRegionIsSuggested] = useState(false);
+  // BUG-79 (#379): true only when the geocode lookup's raw upstream response
+  // may have had more matches than `candidates` shows (nominatim-client.ts's
+  // pre-filter count hit the requested limit) — see useCities.ts/geocode.ts.
+  // Used to avoid presenting a narrowed result as exhaustive when it might
+  // not be: appends a caveat to the D14 "multiple matches" hint and to the
+  // "Suggested:" caption rather than adding a new UI element.
+  const [lookupTruncated, setLookupTruncated] = useState(false);
   const [countryLookupPending, setCountryLookupPending] = useState(false);
   // BUG-73: true only when the geocode lookup exhausted its retries without a
   // successful response — distinct from a successful lookup that legitimately
@@ -287,11 +303,12 @@ export function AddPlaceFlow({
     setAutoRegionIso(null);
     setCandidateRegionIsos(null);
     setRegionIsSuggested(false);
+    setLookupTruncated(false);
     setGeocodeLookupFailed(false);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
       lookupCityCountry(cityName.trim())
-        .then(({ countryCode, regionIso, candidates, failed }) => {
+        .then(({ countryCode, regionIso, candidates, failed, truncated }) => {
           // BUG-73: a failed lookup (retries exhausted) never reaches the D14
           // disambiguation logic below — there's no country/candidates to
           // reason about, and this is the surfaced-to-the-user failure state.
@@ -300,6 +317,11 @@ export function AddPlaceFlow({
             setCountryLookupPending(false);
             return;
           }
+          // BUG-79: recorded regardless of which branch below fires — a
+          // truncated raw response can produce either an ambiguous set or a
+          // false single survivor, and both need the same "don't claim
+          // certainty" caveat.
+          setLookupTruncated(truncated);
           if (countryCode) setNewCityCountryCode(countryCode);
 
           // D14: collect the distinct region_iso values among candidates that
@@ -515,6 +537,10 @@ export function AddPlaceFlow({
                   // A manual country change invalidates any D14 candidate
                   // narrowing computed for the previously auto-detected country.
                   setCandidateRegionIsos(null);
+                  // BUG-79: the truncation signal was computed for the
+                  // auto-detected country's lookup — it says nothing about a
+                  // country the user is now picking by hand.
+                  setLookupTruncated(false);
                 }}
                 required
               >
@@ -552,6 +578,10 @@ export function AddPlaceFlow({
                     <span className="font-normal text-amber-600 text-xs">
                       {' '}
                       — multiple matches found, please choose
+                      {/* BUG-79: the narrowed set itself may be incomplete —
+                          say so rather than implying these are the only
+                          matches that exist. */}
+                      {lookupTruncated && ' (there may be more not shown)'}
                     </span>
                   )}
                 </label>
@@ -580,10 +610,19 @@ export function AddPlaceFlow({
                     rather than a silent, indistinguishable-from-user-chosen
                     commit. Mutually exclusive with the ambiguous-choice hint
                     above — only one of the two auto-fill branches ever runs per
-                    lookup. */}
+                    lookup.
+                    BUG-78 (#379): bolded (font-semibold, same utility the rest
+                    of this file already uses for emphasis — no new colour or
+                    component) — this is a value the user is being asked to
+                    check, not a fact they can skim past.
+                    BUG-79 (#379): appends a caveat when the lookup that
+                    produced this suggestion may have been truncated upstream
+                    — the value stays "a suggestion", never presented as more
+                    certain than the data actually supports. */}
                 {regionIsSuggested && !regionChoiceIsAmbiguous && suggestedRegionName && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs font-semibold text-gray-500">
                     Suggested: {suggestedRegionName} — from "{newCityName}"
+                    {lookupTruncated && ' (other matches may exist)'}
                   </p>
                 )}
               </div>
