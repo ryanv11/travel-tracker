@@ -25,6 +25,44 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-22: BUG-75 — is "four Newports" a data-model problem or a product one? Plus the GE-16/GE-17 conflict the COO created
+**Raised:** 2026-08-03/04 · **Status:** two PO decisions outstanding; **both block any further identity work.**
+Nothing is dispatched against either, so nothing is at risk of being wasted while they sit.
+
+**Item 1 — a BRD conflict the COO created and must not leave buried.** Retiring GE-17 (BRD v3.16, on PO
+direction) removed the only clause permitting what BUG-75's fix requires. GE-16 says a city with the same
+name, country **and region** is *"rejected as a duplicate."* GE-17 said such places must be *"individually
+selectable and do not collapse into one record."* Four distinct Newports exist in GB-ENG. **The BRD now
+forbids the thing we are trying to build.** Found by the OP-27 review of the 2026-08-04 identity design (its
+F1), not by the COO, who checked that GE-18 survived the withdrawal independently and never checked what
+GE-16 was leaning on. One of the two clauses has to change; that is a PO call, not an Architect one.
+
+**Item 2 — the reframe, and it may retire most of the remaining work.** From the same review:
+
+> *"This is a product question in a data-model costume. Three designs have asked 'what key makes two Newports
+> different rows?' The BRD asks what the user is shown before anything is written. **GE-16's answer to four
+> Newports is not four rows — it is one question.**"*
+
+GE-16 **already** specifies that *"where a lookup returns more than one candidate the user is asked to choose
+rather than one being selected for them."* So the fix may be a product behaviour we specified and never
+built, rather than a schema change. **This would be the fourth time on this thread that the answer was a
+reframe rather than a better mechanism** — and on the previous three the reframe came from the PO, not from
+a review. Worth taking seriously before commissioning a fourth design round.
+
+**Why this is an open dialogue and not a tracker entry:** BUG-75 already exists and carries the technical
+history. What is unresolved here is a requirements decision and a framing question, neither of which is
+scoped, ticketed work yet.
+
+**State of the technical work, so nobody re-derives it:** three designs have been rejected — coordinate
+bucket, hashed `place_ref`, and the 2026-08-04 carried-identity design. The last one's central finding is
+correct and new and should NOT be re-litigated: `classifyCandidates` (`geocoding.service.ts:122-157`) decides
+ambiguity by counting distinct **regions**, not distinct **places**, so four Newports in one region return
+`ok` with an arbitrary `best` — **before any row exists**, on an empty table, with no index involved. Its
+review then showed that fixing that alone does not fix BUG-75, because `findOrUpgradeCity` still decides
+which row a second user receives. Both halves are true.
+
+---
+
 ### D-21: Firewall allowlist for external data sources (Nominatim, MapTiler) + recorded-fixture testing
 **Raised:** 2026-08-01 (PO: *"do we need to get you hooked up to nominatim or any other services
 to improve our local testing and development?"*) · **Status:** COO recommendation given, PO has
