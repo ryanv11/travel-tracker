@@ -1,0 +1,148 @@
+COO SESSION PARK — 2026-08-02/04 ("UNPICK THE COUNTRY REGION MESS")
+26 PRs merged · main green @ a1b28af · BRD v3.16 · staging current as of 01:09Z
+================================================================================
+
+## READ THIS FIRST
+
+Two things are waiting on the PO and **both block all remaining identity work**. They are
+in `jobs/COO/open-dialogues.md` as **D-22**. Nothing is dispatched against either, so
+nothing is wasted while they sit. Do not commission a fourth design round before D-22 is
+answered — see "the pattern" below for why.
+
+Everything else here is either shipped or durably tracked.
+
+## What the session was, in one paragraph
+
+The PO asked to unpick the country/region tangle. It turned out to be one root cause with
+four layers: reference data missing, region too coarse as an identity key, the user unable
+to see which place they got, and the BRD contradicting itself. Three of the four are now
+closed or materially better. The fourth (identity) has been through **three rejected
+designs** and ended with a reframe that may retire most of it.
+
+## Shipped and live
+
+| Item | What |
+|---|---|
+| **BUG-77** | 714 subdivisions seeded, all 26 region-tier countries. **The BUG-30 class is closed** — 22 countries previously showed an empty state selector |
+| **BUG-71/72** | Ambiguous region now renders `Suggested: X` instead of silently committing; search dropdown shows the region |
+| **BUG-78/79** | Caption bolded; ambiguous US cities now narrow the state list like the UK already did. PO confirmed springfield → Virginia + Indiana with the yellow note |
+| **BUG-80** | Region surfaced on every saved-place surface. Six routes; the audit found three payloads nobody knew were missing it, incl. a repository that never joined regions at all |
+| **DEP-05** | Two HIGH advisories cleared (`ip-address` runtime via express-rate-limit; `undici`) |
+| **QUAL-20** | Post-deploy shakedown built — but see the deadlock below |
+| **QUAL-24** | GE-15/GE-16/UX-spec contradiction resolved on PO wording ("where there is a clear single choice") |
+
+## THE MISTAKE THAT MATTERS MOST — read before trusting any deploy
+
+**The shakedown froze staging for five commits and nothing went red.**
+
+Railway's staging service sets `checkSuites: true` — it gates each deploy on that commit's
+GitHub check suite. The shakedown shipped with a `push: branches: [main]` trigger. It runs
+against the *already-deployed* app, so its failure means "the deployed build has a problem"
+— but Railway read it as "this commit's checks failed" and **SKIPPED every deploy**.
+
+Five commits never deployed, including the BUG-80 fix the PO was actively testing. Every PR
+showed green. Main's CI showed green. The deploys were *skipped*, not *failed*, so there was
+no alarm anywhere.
+
+**Only the PO found it**, by reporting that a merged fix "still wasn't working" on staging.
+Fixed in #391 (trigger reduced to `workflow_dispatch`). The comment in the workflow explains
+why re-adding it re-creates the deadlock. Memory:
+`feedback_post_deploy_checks_must_not_gate_deploys.md`.
+
+**Standing check for the next session: if a deploy-gated check goes red, run
+`list-deployments` and look for SKIPPED before assuming staging is current.**
+
+## GE-17 (bundled city list) — WITHDRAWN. Do not reopen without a new argument.
+
+Approved in principle 2026-08-02, withdrawn 2026-08-03 on PO direction. **All four of its
+supporting arguments failed within two days, and nothing was built against it.**
+
+1. *"Works offline"* — false. No service worker, no PWA manifest, no client cache; the table
+   would have been server-side. The COO wrote this into the BRD from the PO's framing without
+   probing it. Withdrawn in v3.15.
+2. *"The only way to make the primary path testable"* — false. PO: *"we should be whitelisting
+   services we need access to in local dev."* One line in `init-firewall.sh`. ADL-49 now covers
+   it; ENV-01 reopened because accepting that constraint is what let it become an argument.
+3. *"The only way to detect ambiguity"* — materially weakened; BUG-79's fix closed most of it
+   with no dataset.
+4. *"Covers the Scotland trip"* — **false, and never true.** The nine tail villages are absent
+   from both candidate datasets. The PO typed Plockton into staging and **it worked**, via the
+   geocoder — which also closed BUG-76's original question and ADL-48 §15.1's load-bearing
+   unverified item in one action.
+
+**GE-18 (attribution) survives independently** and is still owed — Natural Earth is bundled,
+OSM is consumed, and ADL-43 §6.2 flagged ODbL before any city dataset was proposed.
+
+Cost/benefit, recorded deliberately: four Architect documents and three OP-27 reviews, all
+merged, none producing code. That is a spike working. It prevented a 17 MB dataset, a refresh
+pipeline, a new table and a permanent maintenance obligation.
+
+## BUG-75 — three rejected designs. Do not re-litigate the parts that held.
+
+- **Rejected:** coordinate bucket (the widened index never fires — identity is decided in a
+  SELECT before coordinates exist, and GE-12 requires creation to work offline, so this is
+  structural); hashed `place_ref` (produced a wrong town, one user, no concurrency); the
+  2026-08-04 carried-identity design (changes the key rows are *written* with, leaves the key
+  they are *read* by unchanged).
+- **HOLDS, and is new — do not re-derive:** `classifyCandidates`
+  (`geocoding.service.ts:122-157`) decides ambiguity by counting distinct **regions**, not
+  distinct **places**. Four Newports in GB-ENG return `ok` with an arbitrary `best`, **before
+  any row exists**, on an empty table, with no index involved. Verified by executing the
+  shipped function.
+- **ALSO HOLDS:** fixing that alone does not fix BUG-75 — `findOrUpgradeCity` still decides
+  which row a second user receives. Both halves are true simultaneously.
+
+## Open — all in D-22, both PO calls
+
+1. **A BRD conflict the COO created.** Retiring GE-17 removed the only clause permitting what
+   BUG-75's fix requires. GE-16 says same name+country+region is *"rejected as a duplicate."*
+   GE-17 said such places must be *"individually selectable."* **The BRD now forbids the thing
+   we are trying to build.** One clause has to change.
+2. **The reframe:** *"GE-16's answer to four Newports is not four rows — it is one question."*
+   GE-16 already specifies asking the user when a lookup is ambiguous. The fix may be a product
+   behaviour we specified and never built.
+
+## The pattern worth carrying forward
+
+**Four times on this thread the answer was a reframe rather than a better mechanism — and the
+PO caught every one.** "Store a cities list in a table"; "we should whitelist the geocoder";
+"I don't remember deciding to shorten place names"; and the `_app-*.js` filename that
+identified a console error as Clerk's page rather than ours.
+
+The OP-27 reviews are genuinely earning their place — they killed two designs that would have
+shipped broken, one of them a migration the COO was one dispatch from sending. **But a
+reviewer given "review this design" reviews the design, not the question behind it.** The
+trigger written down after BUG-71 (scope growing across two consecutive rounds) fired here and
+the COO stopped one round later than it should have.
+
+## Live defects, not yet fixed
+
+- **BUG-76 (P1)** — `denver` does not populate the country on staging. Diagnosed from Railway
+  logs: the geocoder answered 200 in normal time with no `[GEO]` error, and no
+  `/api/admin/countries/US/regions` follow-up fired, so we discarded the result ourselves.
+  `SETTLEMENT_TYPES` is the leading hypothesis, **unverified**. Also unestablished whether it
+  is a regression. **The COO closed this on one positive instance (Plockton) and had to reopen
+  it 40 minutes later — do not close a class on a single instance.**
+- **UX-12 (P1)** — no UI to correct a wrong city. Escalated because the PO's accepted
+  "Suggested:" behaviour explicitly rests on being able to fix it afterwards, and today that
+  means deleting the place and losing its items and tags.
+- **BUG-74** — an upstream geocoder failure still reads as "found nothing". This is why BUG-76
+  was undiagnosable from the UI.
+- **QUAL-20's console check** — fails deterministically on a Clerk-page CSP notice. Fix is to
+  scope the check to our own origin; **do not filter the message away to go green.**
+
+## Also outstanding, durably tracked, untouched this session
+
+ADL-49 needs its OP-27 review, then the `init-firewall.sh` diff and a container rebuild.
+Two Wave 1 UAT sessions. The Tier 1 cleanup queue. ADL-46 follow-ons BUG-69, QUAL-21/22/23.
+D-17's ATDD verdict. The city identity design has no ADL number assigned — deliberately, since
+its review says it does not stand.
+
+## Suggested next, smallest first
+
+1. **BUG-76** — cheapest live P1, and the shakedown's evidence checks can't cover it until
+   ADL-49's allowlist lands.
+2. **QUAL-20's console check** — small, and a permanently-red check is one people learn to
+   ignore.
+3. **D-22** — the two PO decisions. Everything identity-shaped waits on these.
+4. **UX-12** — makes the shipped ambiguity behaviour safe.
