@@ -19,6 +19,15 @@ name: Post-Deploy Shakedown
 #   right after confirming (via scripts/agent-diagnostics/railway-query.sh staging status)
 #   that a new deployment reached SUCCESS. No ambiguity about which build is under test.
 #
+# AMENDED 2026-08-04 (QUAL-26, issue #396): the "which build did this test?" ambiguity below
+# is now CLOSED for the workflow_dispatch path. /health returns the running build's commit
+# SHA, this job passes the dispatched ref's SHA as SHAKEDOWN_EXPECTED_SHA, and the /health
+# check spends its retry window waiting for the two to match — failing loudly if the deployed
+# build is not the expected one. That turns a SKIPPED deploy (which never goes red, and so
+# hid five stale commits on 2026-08-04) into a red check. The paragraph below is retained for
+# history; its reasoning is why the push trigger was weak evidence, and it still describes the
+# rollout-lag problem the retry window absorbs.
+#
 #   push to main — automatic, using ADL-32's existing staging-watches-main auto-deploy as
 #   the natural hook the QUAL-20 brief asked to use. This is WEAKER evidence than the manual
 #   trigger: Railway's rollout is not instantaneous and /health carries no build/commit
@@ -76,6 +85,21 @@ jobs:
         run: npm run shakedown:staging
         env:
           SHAKEDOWN_BASE_URL: ${{ inputs.base_url || 'https://travel-tracker-staging.up.railway.app' }}
+          # QUAL-26: the commit this run expects the deployed app to be serving. /health now
+          # returns the running build's SHA, so the /health check waits for the deployed SHA
+          # to MATCH this rather than merely waiting for a 200 — which is what lets a run
+          # state which build it tested, and lets a SKIPPED deploy show up as a red check
+          # instead of as silence.
+          #
+          # Deliberately EMPTY when `base_url` is overridden: that points at some other
+          # environment whose build has nothing to do with the ref this workflow was
+          # dispatched from, and asserting there would manufacture a false failure. With it
+          # empty the check reports the SHA without verifying it (see the spec's comment).
+          #
+          # The `== '' &&` form is load-bearing — `${{ inputs.base_url && '' || github.sha }}`
+          # looks equivalent but is not: '' is falsy, so that expression falls through to
+          # github.sha in BOTH branches.
+          SHAKEDOWN_EXPECTED_SHA: ${{ inputs.base_url == '' && github.sha || '' }}
       - name: Upload shakedown report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

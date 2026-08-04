@@ -34,6 +34,7 @@ import { geocodeRouter } from './routes/geocode.js';
 import { mapRouter } from './routes/map.js';
 import { meRouter } from './routes/me.js';
 import { tripsRouter } from './routes/trips.js';
+import { buildHealthPayload } from './services/build-info.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -125,8 +126,10 @@ app.use('/api/activities', activitiesRouter); // ADL-46 (AD-09, D3): requireAuth
 app.use('/api/geocode', geocodeRouter); // ADL-46 (D7): geocoding proxy — requireAuth, egress chokepoint
 app.use('/api/me', meRouter); // BUG-26: identity endpoint for frontend owner gating
 
-// Health check
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+// Health check — same handler shape as server.ts (QUAL-26: liveness + build identity).
+// Kept identical so integration tests exercise the real payload rather than a stub that
+// could drift away from what production actually returns.
+app.get('/health', (_req, res) => res.json(buildHealthPayload()));
 
 // Global error handler — MUST be last (SEC-06)
 app.use(errorHandler);

@@ -11,6 +11,7 @@
     "dev": "vite",
     "dev:api": "tsx watch src/backend/server.ts",
     "start": "drizzle-kit migrate && tsx src/backend/server.ts",
+    "prebuild": "node scripts/generate-build-info.js",
     "build": "vite build",
     "type:check": "tsc -p tsconfig.frontend.json --noEmit",
     "type:check:backend": "tsc -p tsconfig.backend.json --noEmit",

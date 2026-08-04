@@ -1,0 +1,170 @@
+BACKEND PARK DOCUMENT — 2026-08-04
+THREAD: QUAL-26 — build commit SHA in /health, the UI, and the shakedown
+ISSUE: #396   BRANCH: feat/qual26-build-marker   CLASSIFICATION: gap (never built)
+
+--------------------------------------------------------------------------
+WHY THIS EXISTED
+--------------------------------------------------------------------------
+/health returned {status:'ok'} and nothing else. From a browser, "the fix is
+broken" and "the fix was never deployed" looked identical — and the PO now
+tests staging-only, in a host browser. On 2026-08-04 that ambiguity hid five
+consecutive SKIPPED Railway deploys. A skipped deploy never goes red; every PR
+was green; staging served a build five commits stale. The only detection
+mechanism in the entire system was the PO noticing a merged fix still didn't
+work.
+
+--------------------------------------------------------------------------
+WHAT SHIPPED
+--------------------------------------------------------------------------
+1. src/backend/services/build-info.ts (NEW)
+   resolveBuildInfo() reads, in order:
+     BUILD_COMMIT_SHA (operator override)
+     RAILWAY_GIT_COMMIT_SHA (platform-injected)
+     src/backend/generated/build-info.json (baked at build time)
+     -> "unknown"
+   Design points that are load-bearing rather than decoration:
+   - Candidates are validated against /^[0-9a-f]{40}$/. A typo, a truncated
+     value or a platform placeholder degrades to "unknown". A marker that
+     LOOKS like a commit but is not is strictly worse than no marker, because
+     it answers "is my fix deployed?" confidently and wrongly.
+   - builtAt is only carried when the baked file's own commit equals the
+     resolved SHA. Otherwise you would pair commit A with build time B.
+   - Memoised: the build cannot change under a live process, and /health is a
+     pollable liveness endpoint.
+   - `source` is returned to callers but is logged at startup ONLY, never over
+     HTTP. It is operator diagnostics ("the resolver fell back"), not
+     something a public endpoint should volunteer.
+
+2. /health — server.ts AND server-test-app.ts, same handler shape
+   {status:'ok', commit, commitFull, builtAt}. `status` unchanged and first.
+   Kept identical in the test app deliberately, so integration tests exercise
+   the real payload rather than a stub that can drift.
+
+3. scripts/generate-build-info.js + npm "prebuild"
+   Resolves BUILD_COMMIT_SHA -> RAILWAY_GIT_COMMIT_SHA -> GITHUB_SHA ->
+   `git rev-parse HEAD`, writes src/backend/generated/build-info.json.
+   Gitignored: a committed copy is stale one commit later.
+   Never fails a build — writes commit:null and warns.
+   Fires on Railway because Railpack runs `npm run build` for this service
+   (empirically: staging serves dist/ per ADL-32, which only exists if
+   `vite build` ran there).
+
+4. Frontend — deliberately tiny
+   hooks/useHealth.ts (staleTime Infinity, no refetch-on-focus, retry false)
+   components/shared/BuildStamp.tsx — ONE muted 7-char monospace span, full
+   SHA + build time in the title tooltip. Renders null when the build is
+   unidentifiable or /health fails: no spinner, no error surface.
+   Mounted in App.tsx's EXISTING nav right-hand group. That group now owns
+   `ml-auto` instead of the UserButton wrapper, so the stamp stays pinned
+   right under BYPASS_AUTH too (where UserButton is not rendered). That is the
+   only layout-adjacent change and it is mechanical — no new page, no dialog,
+   no new layout region, per the brief's explicit scope constraint.
+   vite.config.ts proxies /health to :3001 in BOTH server and preview blocks
+   (preview does not inherit server.proxy — the OP-11 note in that file).
+
+5. Shakedown check 5 (src/e2e-shakedown/shakedown.spec.ts)
+   Renamed to "/health answers and reports the build SHA within the
+   deploy-propagation window".
+   - ALWAYS records the deployed SHA: console.info + testInfo.annotations, so
+     it lands in shakedown-results.json and the uploaded artifact.
+   - When SHAKEDOWN_EXPECTED_SHA is set, the existing 10x6s retry window is
+     spent waiting for the deployed SHA to MATCH, not merely for a 200. A
+     rollout in flight still passes; a deploy that never happened fails, with
+     an error naming Railway SKIPPED deploys explicitly.
+   - Unset (local run, or a base_url override) => report, do not verify. Said
+     plainly in the annotation text.
+   Workflow: only a step-level `env:` was added. SHAKEDOWN_EXPECTED_SHA is
+   `${{ inputs.base_url == '' && github.sha || '' }}`.
+   The `== ''` form is NOT optional: `${{ inputs.base_url && '' || github.sha }}`
+   looks equivalent and is wrong — '' is falsy, so it yields github.sha in both
+   branches, and a base_url override would then assert against an unrelated
+   environment's build.
+   TRIGGERS UNTOUCHED. workflow_dispatch only. The push-to-main trigger stays
+   removed; re-adding it re-creates the deploy deadlock (Railway's staging
+   service sets checkSuites:true, so a post-deploy check inside the pre-deploy
+   gate skips deploys). The currently-failing console-clean check was NOT
+   touched — out of scope, and filtering its message away was explicitly
+   forbidden.
+
+--------------------------------------------------------------------------
+RAILWAY_GIT_COMMIT_SHA — THREE PROBES, AND WHAT IS STILL UNVERIFIED
+--------------------------------------------------------------------------
+The brief flagged the COO's finding as one probe with a known blind spot. It
+is, and the blind spot is real.
+
+(a) COO, `list-variables` on the staging service: not listed. BLIND SPOT —
+    that API enumerates user-set SERVICE variables. get-service-config's
+    variableNames confirms the same 11 app variables (ALLOWED_ORIGINS,
+    CLERK_*, DB_TYPE, HOST, NODE_ENV, OWNER_CLERK_ID, TURSO_*, VITE_*) and no
+    platform-injected ones at all — including none of RAILWAY_PROJECT_ID,
+    RAILWAY_SERVICE_ID etc., which Railway unquestionably does inject. So the
+    listing's silence is expected behaviour, not evidence of absence.
+
+(b) Railway docs (docs.railway.com/variables/reference): Railway provides its
+    system variables "to all builds and deployments"; the Git variables table
+    (RAILWAY_GIT_COMMIT_SHA among them) applies "if the deploy originated from
+    a GitHub trigger".
+
+(c) Empirical, and independent of (b): get-service-config shows
+    source.repo = ryanv11/travel-tracker, branch main; and every staging
+    deployment's Railway-side meta carries commitHash + branch:main. The
+    precondition in (b) therefore holds for this service in fact, not just in
+    principle.
+
+VERDICT: (b) and (c) together make runtime injection EXPECTED. But none of the
+three observes the deployed process's actual environment, and the staging
+origin is firewall-blocked from this container, so runtime presence is
+UNVERIFIED — stated as such rather than upgraded to a fact.
+
+That is precisely why the baked-file layer was built rather than dismissed as
+redundant. If the env var is present at runtime, layer 2 answers. If it is
+present only at build time, layer 3 answers. If neither, /health says
+"unknown" honestly and BUILD_COMMIT_SHA can be set by hand. The feature does
+not depend on the unverified claim being true.
+
+--------------------------------------------------------------------------
+TESTS
+--------------------------------------------------------------------------
+NEW  src/backend/services/__tests__/build-info.test.ts (13) — precedence,
+     malformed/short/uppercase SHAs, invalid baked JSON, builtAt pairing,
+     memoisation, and an EXACT-KEY-SET assertion on the /health payload so a
+     future addition of an env value or path fails a test rather than ships.
+NEW  src/backend/routes/__tests__/health.test.ts (3) — 200 without any
+     Authorization header, exact key set, honest degradation with no SHA.
+NEW  src/frontend/components/shared/__tests__/BuildStamp.test.tsx (4) —
+     weighted toward the render-nothing cases, since a placeholder or an error
+     state would reintroduce the ambiguity the stamp exists to remove.
+EDIT src/frontend/__tests__/App.test.tsx — added a useHealth mock. App.test
+     renders App with no QueryClientProvider; same mocking pattern the file
+     already uses for useGeocodeRetryQueue. Two lines plus a header note.
+
+Suites: backend 39 files / 712 passed (696 baseline + 16 new).
+        Frontend 37 files / 270 passed (266 baseline + 4 new).
+type:check:all clean. biome clean. `npm run build` green with prebuild wired.
+
+--------------------------------------------------------------------------
+DECLARED FULL-FILE REWRITES (OP-28)
+--------------------------------------------------------------------------
+NONE. Every existing source file was touched with targeted Edits. New files
+are genuinely new. Shared records (context, QA tech doc, API reference,
+CODEBASE.md) were amended in place, never replaced.
+
+--------------------------------------------------------------------------
+OPEN / FOR THE COO
+--------------------------------------------------------------------------
+1. THE DEMONSTRATION IS POST-MERGE, BY CONSTRUCTION. The definition of done
+   asks for /health reporting build identity on a real staging deploy. Staging
+   watches main, so nothing on a branch can deploy there, and this container
+   cannot reach the staging origin. Sequence: merge -> confirm the deployment
+   reached SUCCESS -> run the shakedown via workflow_dispatch. That run prints
+   the deployed SHA and fails on a mismatch, so it IS the demonstration. If
+   /health comes back "unknown" there, the fix is one Railway variable
+   (BUILD_COMMIT_SHA) and no code change.
+2. The shakedown's console-clean check is still red for its own pre-existing
+   reason. Untouched here on instruction. A run after this merges will now
+   also tell you which build produced that console error, which was not
+   knowable before.
+3. The build stamp is in the top nav, which is hidden at mobile widths on
+   /trips only (WP-03/C9, pre-existing). Visible at every width elsewhere.
+   Flagged rather than changed — moving it is a layout decision this brief
+   explicitly told me to stop at rather than make.
