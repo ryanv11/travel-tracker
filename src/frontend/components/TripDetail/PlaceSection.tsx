@@ -32,6 +32,7 @@
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useCountries } from '../../hooks/useAdmin';
 import {
   applyRatingSortFilter,
   DEFAULT_RATING_SORT_FILTER,
@@ -39,6 +40,7 @@ import {
 } from '../../hooks/useItems';
 import { useRemovePlace } from '../../hooks/usePlaces';
 import type { Item, TripPlace } from '../../types/api';
+import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { formatDate } from '../../utils/formatDate';
 import { resolvePlaceDateRange } from '../../utils/resolvePlaceDateRange';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -98,6 +100,20 @@ export function PlaceSection({
   );
 
   const removePlace = useRemovePlace();
+  const { data: countries = [] } = useCountries();
+
+  // BUG-80: D-04's "full country name" contract stays intact — countryDisplay
+  // is place.city.country_name (falling back to the code only when the name
+  // itself is unavailable, e.g. list/map-shaped City objects), region info is
+  // layered on top of it via the shared formatter rather than a bespoke
+  // string here. Two saved places named "Newport" in different UK regions
+  // used to both render exactly "United Kingdom" on this line with nothing to
+  // tell them apart (PO UAT finding, BUG-80/#388).
+  const citySubtitle = formatCitySubtitle(
+    place.city,
+    countries,
+    place.city.country_name ?? place.city.country_code,
+  );
 
   const handleEditItem = (item: Item) => setEditingItem(item);
   const handleCloseForm = () => {
@@ -143,15 +159,20 @@ export function PlaceSection({
               IT-09: links to the cross-trip rated-items view for this city. */}
           <Link
             to={`/cities/${place.city.id}`}
-            state={{ cityName: place.city.name, countryName: place.city.country_name }}
+            state={{
+              cityName: place.city.name,
+              countryName: place.city.country_name,
+              citySubtitle,
+            }}
             className="font-display font-semibold text-[17px] max-md:text-[16px] text-wp-ink hover:text-wp-primary hover:underline no-underline"
           >
             {place.city.name}
           </Link>
 
-          {/* D-03/UX-02: Country name · date range on single subtitle line */}
+          {/* D-03/UX-02/BUG-80: region (when applicable) + country name · date
+              range on single subtitle line */}
           <p className="mt-0.5 font-ui text-[12px] text-wp-ink-muted">
-            {place.city.country_name ?? place.city.country_code}
+            {citySubtitle}
             {dateRangeDisplay && (
               <>
                 {' · '}
@@ -300,6 +321,7 @@ export function PlaceSection({
           currentArrivedOn={place.arrived_on ?? null}
           currentDepartedOn={place.departed_on ?? null}
           cityName={place.city.name}
+          citySubtitle={citySubtitle}
           onClose={() => setShowEditDates(false)}
         />
       )}

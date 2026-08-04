@@ -82,6 +82,10 @@ async function buildTripResponse(trip: {
       country_code: p.cityCountryCode,
       region_id: p.cityRegionId,
       region_iso: p.cityRegionIso ?? null,
+      // BUG-80: region_iso was already selected here; region_name (the
+      // human-readable "Scotland" vs the ISO "GB-SCT") was not — same LEFT
+      // JOIN in tripRepository.getPlaces, one more column.
+      region_name: p.cityRegionName ?? null,
       latitude: p.cityLatitude,
       longitude: p.cityLongitude,
       geocode_status: p.cityGeocodeStatus,
@@ -238,6 +242,15 @@ tripsRouter.get(
         country_code: p.cityCountryCode,
         country_name: p.cityCountryName,
         region_id: p.cityRegionId,
+        // BUG-80: this route already SELECTs regions.iso3166_2 and regions.name
+        // via tripRepository.getPlaces' LEFT JOIN onto `regions` (cityRegionIso /
+        // cityRegionName), but this response object never surfaced either —
+        // the dropped-join defect described in the brief. Two saved places for
+        // same-named cities in different regions ("Newport, Scotland" vs
+        // "Newport, Wales") rendered identically as "Newport United Kingdom"
+        // with nothing in the payload for the frontend to distinguish them by.
+        region_iso: p.cityRegionIso ?? null,
+        region_name: p.cityRegionName ?? null,
         latitude: p.cityLatitude,
         longitude: p.cityLongitude,
         geocode_status: p.cityGeocodeStatus,

@@ -1,3 +1,76 @@
+BACKEND CONTEXT — 2026-08-03 (BUG-80 thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: implemented BUG-80 (GitHub #388, BRD GE-16/GE-17) — region
+  now surfaced on every city-shaped payload and saved-place surface, not just
+  GET /api/cities (BUG-72). Branch fix/bug80-region-on-saved-places off main,
+  PR to be opened this thread.
+  1. Backend (no schema change, no new join beyond what already existed on
+     trips.ts; one new join each on cities.ts GET /:id and places.ts POST):
+     - repositories/trips.ts getPlaces() and repositories/places.ts
+       findByTrip() both already LEFT JOIN regions for region_iso; both now
+       also select region_name off the same join.
+     - routes/trips.ts: list (buildTripResponse) was missing region_name;
+       detail (GET /:id) was missing BOTH region_iso and region_name — the
+       exact dropped-join defect the brief described.
+     - routes/places.ts: GET /api/trips/:tripId/places (standalone, confirmed
+       via two probes — grep + full read of usePlaces.ts — to have NO current
+       frontend consumer) now passes through region_iso/region_name from the
+       repo. POST /api/trips/:tripId/places built its own inline city object
+       with no join at all; added one.
+     - routes/cities.ts: GET /api/cities/:id (BUG-29) had no region fields at
+       all; added the same LEFT JOIN pattern as GET /api/cities (BUG-72).
+     - POST /api/cities and PATCH /api/cities/:id (serializeCity) deliberately
+       NOT touched — audited (traced AddPlaceFlow's handleSelectCity and
+       geocodeRetryQueue; neither reads region fields off these responses)
+       and left as the documented "never joined" case on the City type.
+  2. Frontend: lifted BUG-72's formatCitySubtitle() out of AddPlaceFlow.tsx
+     into src/frontend/utils/formatCitySubtitle.ts — one shared formatter,
+     generalized with an optional countryDisplay param (defaults to
+     country_code, matching BUG-72's original behaviour) so PlaceSection's
+     full-country-name contract (D-04) and AddPlaceFlow/ReviewPanel's
+     country-code convention both work off the same function. Honors the
+     region_name null-vs-undefined distinction (types/api.ts) — a payload
+     that never joined regions renders as country-only, never a false "no
+     region set" claim.
+     Wired into: PlaceSection.tsx (main subtitle line + PlaceDateForm modal
+     title via a new optional citySubtitle prop), ReviewPanel.tsx,
+     DesktopTripsLayout.tsx/MobileTripsLayout.tsx (map-filter chip label —
+     now derives the full city object, not just its name), CityMarkers.tsx
+     (map pin labels — subtitle only appended when two rendered pins share a
+     name, a coordinate-based dedup that's separate from BUG-33/34's
+     same-location dedup), TripCard.tsx (place badges — same collision-only
+     rule as CityMarkers, to avoid growing every badge on every trip
+     regardless of ambiguity), and CityItemsPage.tsx (via a pre-formatted
+     citySubtitle passed through router state — this page has no `countries`
+     list of its own).
+  3. Deliberately NOT touched (found during audit, judged out of scope):
+     PlaceSection's Remove-place ConfirmDialog ("Remove {name}?") never showed
+     country/region even before this fix and touching it risks the documented
+     Playwright substring-matching fragility (PlaceSection.tsx's own comment
+     on the Remove button's accessible name) — same defect *class* but a
+     wider blast radius than this brief's "surface the region" scope.
+  4. Tests: new src/frontend/utils/__tests__/formatCitySubtitle.test.ts (9
+     cases — regioned, region-tier-no-region with and without a custom label,
+     non-region-tier with both null and absent region_name, the critical
+     undefined-vs-null distinction, empty-countries-list fallback, and the
+     countryDisplay override). Backend: new integration tests in
+     trips.crud.test.ts (list + detail, reproducing the exact
+     Newport-Scotland-vs-Wales scenario), cities.get-by-id.test.ts, and
+     places.test.ts (both GET and POST) — 6 new backend tests total.
+  Full detail: jobs/backend/park-docs/20260803-BACKEND-bug80-park.txt.
+  No schema change, no new user-data columns. Security checklist: all
+  touched routes' auth middleware unchanged (blanket requireAuth via
+  server.ts, no owner gates added or removed); all repository queries
+  touching user data (getPlaces, findByTrip) remain scoped exactly as
+  before — only a join and two selected columns were added, no scoping
+  logic changed; regions has no userId column (tier-1 global reference
+  data, same classification BUG-72 already established with its own two
+  probes, re-confirmed here by reading schema.ts directly).
+ACTIVE TASKS: None — PR to be opened this thread, awaiting CI + COO
+  review/merge.
+PENDING MESSAGES TO COO: completion report in jobs/COO/inbox/ (this
+  thread).
+
 BACKEND CONTEXT — 2026-08-01 (BUG-72 thread, latest)
 PROJECT: Travel Tracker
 CURRENT STATUS: implemented BUG-72 (GitHub #351, BRD GE-16) — GET /api/cities

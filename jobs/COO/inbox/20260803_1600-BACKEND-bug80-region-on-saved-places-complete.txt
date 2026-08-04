@@ -1,0 +1,67 @@
+TO: COO
+FROM: BACKEND
+DATE: 2026-08-03 16:00
+RE: BUG-80 — surface region on every city-shaped payload and saved-place surface
+
+Tracker: BUG-80 · GitHub #388 (PR not yet numbered — see below) · BRD GE-16/GE-17
+Branch: fix/bug80-region-on-saved-places
+
+WHAT WAS BUILT
+PO UAT finding: two saved places for same-named cities in different regions
+("Newport" in Scotland vs Wales) rendered identically as "Newport United
+Kingdom" — display-only (the identity key already kept them as distinct
+rows). Extended region_iso/region_name across every city-shaped backend
+payload that was missing one or both (GET/POST /api/trips + nested places,
+GET /api/cities/:id — 6 route handlers, 3 files, no schema change), lifted
+BUG-72's formatCitySubtitle() into a shared frontend util, and wired it into
+every saved-place-rendering surface named in the brief plus 2 more found by
+audit (GET/POST /api/trips/:tripId/places, previously unjoined entirely).
+
+ACCEPTANCE CRITERIA
+1. Two same-named cities in different regions visually distinguishable on
+   every surface that renders a saved place — PASS (PlaceSection,
+   PlaceDateForm, ReviewPanel, TripCard, CityMarkers, DesktopTripsLayout/
+   MobileTripsLayout map-filter label, CityItemsPage).
+2. Region-tier country with no region set renders that fact explicitly —
+   PASS (formatCitySubtitle's "(no <label> set)" branch, unit-tested).
+3. Non-region-tier country renders unchanged, no empty separator/undefined —
+   PASS (unit-tested, including the "region_name absent from object
+   entirely" variant).
+4. One formatter, shared, not two — PASS. formatCitySubtitle.ts is the only
+   implementation; every surface (including CityItemsPage, which consumes a
+   pre-computed subtitle via router state rather than recomputing) reuses it.
+5. Tests cover regioned / region-tier-no-region / non-region-tier /
+   payload-never-joined — PASS, 9-case unit suite plus 7 new backend
+   integration tests reproducing the exact PO scenario.
+
+SECURITY CHECKLIST (6 routes modified, 0 added)
+1. Auth middleware — unchanged on all 6 (blanket requireAuth via server.ts;
+   no requireOwner added/removed; GET /api/cities* intentionally ungated,
+   pre-existing).
+2. userId scoping — unchanged; only joins/columns added, no WHERE-clause or
+   ownership-check logic touched (tripRepository.getPlaces,
+   placeRepository.findByTrip both re-verified scoped exactly as before).
+3. New user-data FK columns — none; no migration, no schema.ts edit.
+   `regions` has no userId column (confirmed by direct schema read; same
+   tier-1 classification BUG-72 already established).
+
+CI: gh pr checks <PR#> — to be confirmed after PR is opened (see below).
+
+OPEN ISSUES / BLOCKERS
+- Deferred (not blocking): PlaceSection's Remove-place ConfirmDialog shows
+  neither country nor region — a pre-existing, wider ambiguity than this
+  brief's "region" scope, and touching it risks a documented Playwright
+  substring-matching fragility on that exact dialog. Flagged in the park doc
+  for a future, separately-scoped brief if wanted.
+- POST /api/cities and PATCH /api/cities/:id (serializeCity) deliberately
+  left as the "never joined regions" case — audited (two probes: full read
+  of AddPlaceFlow's use of the created city object, and a repo-wide grep for
+  other consumers) to confirm nothing renders their region fields today.
+
+WHAT'S NOW UNBLOCKED
+Nothing else was waiting on this specifically — closes the backend+frontend
+half of BUG-72's original design the brief described as already the
+strongest section of a larger identity design still blocked elsewhere.
+
+Full detail: jobs/backend/park-docs/20260803-BACKEND-bug80-park.txt
+Context: jobs/backend/context/current.txt (2026-08-03 entry)

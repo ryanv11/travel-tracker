@@ -22,9 +22,11 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useCountries } from '../../hooks/useAdmin';
 import { useMe } from '../../hooks/useMe';
 import { type TripFilters, useDeleteTrip, useTrip, useTrips } from '../../hooks/useTrips';
 import type { TripStatus } from '../../types/api';
+import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { AdminIcon, LocationPinIcon, SuitcaseIcon } from '../icons';
 import { ReviewPanel } from '../PostTripReview/ReviewPanel';
 import { ErrorMessage } from '../shared/ErrorMessage';
@@ -76,6 +78,7 @@ export function MobileTripsLayout() {
   const { data: trips, isLoading, error } = useTrips(filters);
   const { data: allTrips = [] } = useTrips();
   const deleteTrip = useDeleteTrip();
+  const { data: countries = [] } = useCountries();
 
   // Detail-view data — fetched directly (no <Outlet/>, see module doc comment).
   const numericSelectedId = selectedId ? Number(selectedId) : undefined;
@@ -95,22 +98,34 @@ export function MobileTripsLayout() {
     [trips, searchText, sortBy, countryFilter, regionFilter, cityFilter],
   );
 
-  const cityName = useMemo(() => {
+  // BUG-80: same fix as DesktopTripsLayout — derive the full city object (not
+  // just its name) so the map-filter label can carry a region/country
+  // subtitle; two different "Newport" pins used to both label this chip
+  // "City: Newport" once clicked.
+  const cityInfo = useMemo(() => {
     if (cityFilter === null) return null;
     for (const trip of trips ?? []) {
       for (const place of trip.places) {
-        if (place.city_id === cityFilter) return place.city.name;
+        if (place.city_id === cityFilter) return place.city;
       }
     }
-    return String(cityFilter);
+    return null;
   }, [trips, cityFilter]);
 
   const mapFilterLabel = useMemo(() => {
-    if (cityFilter !== null) return `City: ${cityName ?? cityFilter}`;
+    if (cityFilter !== null) {
+      if (!cityInfo) return `City: ${cityFilter}`;
+      const subtitle = formatCitySubtitle(
+        cityInfo,
+        countries,
+        cityInfo.country_name ?? cityInfo.country_code,
+      );
+      return `City: ${cityInfo.name}, ${subtitle}`;
+    }
     if (regionFilter) return `Region: ${regionFilter}`;
     if (countryFilter) return `Country: ${countryFilter}`;
     return null;
-  }, [cityFilter, regionFilter, countryFilter, cityName]);
+  }, [cityFilter, regionFilter, countryFilter, cityInfo, countries]);
 
   const tripCount = displayedTrips.length;
 

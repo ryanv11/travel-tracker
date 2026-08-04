@@ -12,7 +12,8 @@
  *   D-01: Companion names in meta row below title
  *   D-02: Category + activity badges in meta row
  *   D-03: Per-place date range derived from hotel check-in/check-out
- *   D-04: Country code shown in PlaceSection subtitle
+ *   D-04: Full country name shown in PlaceSection subtitle (BUG-80: region
+ *         name, when applicable, now shown ahead of it — formatCitySubtitle)
  *   F-04/TR-12: Persistent status transition control (now the stepper)
  *   PH-03/F-08: Photos button placeholder (non-functional, shows "Coming soon")
  *   C2: Unlock button/flow preserved as new stepper-card chrome (mockup has no

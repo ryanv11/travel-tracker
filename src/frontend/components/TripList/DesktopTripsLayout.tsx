@@ -22,8 +22,10 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import { Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useCountries } from '../../hooks/useAdmin';
 import { type TripFilters, useDeleteTrip, useTrips } from '../../hooks/useTrips';
 import type { TripStatus } from '../../types/api';
+import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { TripForm } from '../TripDetail/TripForm';
@@ -72,6 +74,7 @@ export function DesktopTripsLayout() {
 
   const { data: trips, isLoading, error } = useTrips(filters);
   const { data: allTrips = [] } = useTrips(); // no filters — for counts only
+  const { data: countries = [] } = useCountries();
   const deleteTrip = useDeleteTrip();
 
   const handleFormClose = () => {
@@ -88,23 +91,36 @@ export function DesktopTripsLayout() {
     [trips, searchText, sortBy, countryFilter, regionFilter, cityFilter],
   );
 
-  // Derive city name for display when city filter is active
-  const cityName = useMemo(() => {
+  // BUG-80: this filter already targets one specific city_id (unambiguous by
+  // definition), but the label used to show only the bare name — two
+  // different "Newport" pins on the map would both read "City: Newport"
+  // after being clicked. Derive the full city object (not just its name) so
+  // the label can carry the same region/country subtitle every other
+  // saved-place surface now shows.
+  const cityInfo = useMemo(() => {
     if (cityFilter === null) return null;
     for (const trip of trips ?? []) {
       for (const place of trip.places) {
-        if (place.city_id === cityFilter) return place.city.name;
+        if (place.city_id === cityFilter) return place.city;
       }
     }
-    return String(cityFilter);
+    return null;
   }, [trips, cityFilter]);
 
   const mapFilterLabel = useMemo(() => {
-    if (cityFilter !== null) return `City: ${cityName ?? cityFilter}`;
+    if (cityFilter !== null) {
+      if (!cityInfo) return `City: ${cityFilter}`;
+      const subtitle = formatCitySubtitle(
+        cityInfo,
+        countries,
+        cityInfo.country_name ?? cityInfo.country_code,
+      );
+      return `City: ${cityInfo.name}, ${subtitle}`;
+    }
     if (regionFilter) return `Region: ${regionFilter}`;
     if (countryFilter) return `Country: ${countryFilter}`;
     return null;
-  }, [cityFilter, regionFilter, countryFilter, cityName]);
+  }, [cityFilter, regionFilter, countryFilter, cityInfo, countries]);
 
   const tripCount = displayedTrips.length;
 

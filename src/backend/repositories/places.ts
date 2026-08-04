@@ -11,6 +11,7 @@ import {
   cities,
   getDb,
   items,
+  regions,
   tripPlaceActivitiesMap,
   tripPlaces,
   trips,
@@ -33,6 +34,16 @@ export interface PlaceWithCity {
     name: string | null;
     country_code: string | null;
     region_id: number | null;
+    // BUG-80: this standalone endpoint (GET /api/trips/:tripId/places) had no
+    // frontend consumer at the time of the fix (confirmed by two probes — a
+    // repo-wide grep for a hook wrapping this path, and a full read of
+    // usePlaces.ts) — added anyway, for the same reason GET /api/cities/:id
+    // was fixed despite also having no direct region-rendering consumer: it
+    // is a city-shaped payload, and the whole point of this brief is that
+    // every one of them carries the same fields consistently rather than
+    // some silently lagging until the next bug report.
+    region_iso: string | null;
+    region_name: string | null;
     latitude: number | null;
     longitude: number | null;
     geocode_status: string | null;
@@ -70,12 +81,15 @@ export const placeRepository = {
         cityName: cities.name,
         cityCountryCode: cities.countryCode,
         cityRegionId: cities.regionId,
+        cityRegionIso: regions.iso3166_2,
+        cityRegionName: regions.name,
         cityLatitude: cities.latitude,
         cityLongitude: cities.longitude,
         cityGeocodeStatus: cities.geocodeStatus,
       })
       .from(tripPlaces)
       .leftJoin(cities, eq(cities.id, tripPlaces.cityId))
+      .leftJoin(regions, eq(regions.id, cities.regionId))
       .where(eq(tripPlaces.tripId, tripId));
 
     const placeIds = placesRows.map((p) => p.id);
@@ -103,6 +117,8 @@ export const placeRepository = {
         name: p.cityName,
         country_code: p.cityCountryCode,
         region_id: p.cityRegionId,
+        region_iso: p.cityRegionIso ?? null,
+        region_name: p.cityRegionName ?? null,
         latitude: p.cityLatitude,
         longitude: p.cityLongitude,
         geocode_status: p.cityGeocodeStatus,

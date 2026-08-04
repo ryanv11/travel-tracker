@@ -1,5 +1,5 @@
 /**
- * Integration tests for GET /api/cities/:id (BUG-29).
+ * Integration tests for GET /api/cities/:id (BUG-29; BUG-80 region fields).
  *
  * The frontend geocode retry queue polls this endpoint to check whether a
  * pending city has been geocoded — replacing the previous empty-PATCH poll
@@ -9,6 +9,10 @@
  *   2. Return 404 for an unknown city id (drives queue entry removal)
  *   3. Return 404 for a non-numeric id
  *   4. Not modify the row (no updated_at bump — it is a pure read)
+ *   5. (BUG-80) LEFT JOIN `regions` so this city-shaped payload also carries
+ *      region_name/region_iso — same pattern as GET /api/cities (search,
+ *      BUG-72) and the trip list/detail city objects. A NULL region_id must
+ *      still return the row (LEFT, not INNER).
  *
  * Uses an in-memory libSQL database, schema derived from the real migrations
  * via createTestDb() (QUAL-17 — see repositories/__tests__/test-db.ts).
@@ -110,10 +114,37 @@ describe('GET /api/cities/:id — BUG-29 read-based geocode status poll', () => 
       name: 'Dublin',
       country_code: 'IE',
       region_id: null,
+      // BUG-80: LEFT JOIN regions — a NULL region_id must resolve to
+      // region_name/region_iso both null, not undefined/omitted (that would
+      // be the "never joined" case this route no longer is in).
+      region_name: null,
+      region_iso: null,
       latitude: null,
       longitude: null,
       geocode_status: 'pending',
     });
+  });
+
+  it('BUG-80: returns region_name/region_iso when the city has a region_id', async () => {
+    // Country row must exist before the region FK — seedCity would normally
+    // create it, but the region needs to be inserted first here so the city
+    // can reference it, so it's created explicitly (onConflictDoNothing
+    // matches seedCity's own idempotent insert).
+    await testDb!
+      .insert(schema.countries)
+      .values({ countryCode: 'IE', name: 'Ireland' })
+      .onConflictDoNothing();
+    const [region] = await testDb!
+      .insert(schema.regions)
+      .values({ countryCode: 'IE', name: 'Leinster', iso3166_2: 'IE-L' })
+      .returning();
+    const city = await seedCity(testDb!, { regionId: region.id });
+
+    const res = await supertest(app).get(`/api/cities/${city.id}`).expect(200);
+
+    expect(res.body.region_id).toBe(region.id);
+    expect(res.body.region_name).toBe('Leinster');
+    expect(res.body.region_iso).toBe('IE-L');
   });
 
   it('returns a resolved city with coordinates', async () => {
