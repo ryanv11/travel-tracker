@@ -35,8 +35,23 @@ on:
         description: "Override target URL (defaults to staging)"
         required: false
         type: string
-  push:
-    branches: [main]
+  # push-to-main REMOVED 2026-08-04 — it blocked every deployment. Railway's staging
+  # service sets `checkSuites: true`, i.e. it gates deploys on GitHub's check suite for
+  # the commit. This workflow runs against the ALREADY-DEPLOYED app, so a failure here
+  # means "the deployed build has a problem" — but Railway reads it as "this commit's
+  # checks failed" and SKIPS the deploy. The result was a deadlock: the console check
+  # failed deterministically, main's check suite went red, and five consecutive commits
+  # (including the BUG-80 fix the PO was testing) were never deployed. Staging silently
+  # served a build five commits stale while every PR showed green.
+  #
+  # The category error is structural, not a bad value: a post-deploy check must never be
+  # part of the pre-deploy gate. Re-adding this trigger re-creates the deadlock — if an
+  # automatic run is wanted, it must report somewhere Railway does not read as a gate
+  # (a separate status context excluded from checkSuites, an issue, or a notification).
+  #
+  # workflow_dispatch was already the primary trigger by design: this workflow's own
+  # header notes that a push-triggered run cannot prove which build it tested, because
+  # /health carries no commit marker and Railway's rollout is not instantaneous.
 
 jobs:
   shakedown:
