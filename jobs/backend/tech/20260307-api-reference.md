@@ -180,6 +180,8 @@ List all trips with their associations.
           "name": "Paris",
           "country_code": "FR",
           "region_id": null,
+          "region_iso": null,
+          "region_name": null,
           "latitude": 48.8566,
           "longitude": 2.3522,
           "geocode_status": "resolved"
@@ -191,6 +193,14 @@ List all trips with their associations.
 ```
 
 > **Note on `places` in list response:** The list endpoint includes a minimal `places` array (city coordinates only — no `activities` or `items`) to support map city-pin rendering without requiring a full trip detail fetch.
+
+> **`region_name` on `places[].city` (BUG-80, GitHub #388, 2026-08-03):** the joined
+> `regions` row's `name`, alongside the pre-existing `region_iso`. Both `null` when
+> `region_id` is `null` (LEFT JOIN — a region-less city is never dropped). Before this fix,
+> two saved places for same-named cities in different regions of one country (e.g. "Newport"
+> in Scotland vs Wales) rendered identically — `tripRepository.getPlaces()` already joined
+> `regions`, but this route never surfaced the result. See also `GET /api/cities` (BUG-72),
+> which added the same two fields to search results.
 
 Returns an empty array `[]` if no trips match.
 
@@ -289,7 +299,10 @@ Get a single trip with full nested data (places, cities, items).
         "id": 1,
         "name": "Paris",
         "country_code": "FR",
+        "country_name": "France",
         "region_id": null,
+        "region_iso": null,
+        "region_name": null,
         "latitude": 48.8566,
         "longitude": 2.3522,
         "geocode_status": "resolved"
@@ -317,6 +330,16 @@ Get a single trip with full nested data (places, cities, items).
   ]
 }
 ```
+
+> **`region_iso` / `region_name` on `places[].city` (BUG-80, GitHub #388, 2026-08-03):** both
+> were entirely missing from this endpoint's `city` object before this fix — unlike the list
+> endpoint (`GET /api/trips`), which already had `region_iso`. `tripRepository.getPlaces()`
+> (shared by both endpoints) already LEFT JOINs `regions` and selected `region_iso`; this
+> route's response assembly just never included either field. `country_name` was already
+> present and is included in this example for completeness — see the PO UAT finding
+> reproduced by the fix: two saved places for same-named cities in different regions of one
+> country (e.g. "Newport" in Scotland vs Wales) rendered identically with nothing in the
+> payload to distinguish them.
 
 > **`arrived_on` / `departed_on` on each place (ADL-24 / BUG-31):** `null` when
 > not explicitly set on the place. These drive `resolvePlaceDateRange`'s
@@ -472,6 +495,8 @@ List all places on a trip with their city details and activity tags.
       "name": "Paris",
       "country_code": "FR",
       "region_id": null,
+      "region_name": null,
+      "region_iso": null,
       "latitude": 48.8566,
       "longitude": 2.3522,
       "geocode_status": "resolved"
@@ -483,6 +508,11 @@ List all places on a trip with their city details and activity tags.
   }
 ]
 ```
+
+`region_name` / `region_iso` (BUG-80, GitHub #388, 2026-08-03) — same `LEFT JOIN` onto
+`regions` as every other city-shaped payload touched by this fix. This endpoint has no
+current frontend consumer (the trip detail page uses `GET /api/trips/:id` instead), added
+here for payload consistency.
 
 **Errors:**
 - `404` — trip not found
@@ -518,6 +548,8 @@ Add a city to a trip as a place.
     "name": "Paris",
     "country_code": "FR",
     "region_id": null,
+    "region_name": null,
+    "region_iso": null,
     "latitude": 48.8566,
     "longitude": 2.3522,
     "geocode_status": "resolved"
@@ -525,6 +557,10 @@ Add a city to a trip as a place.
   "activities": []
 }
 ```
+
+`region_name` / `region_iso` (BUG-80, GitHub #388, 2026-08-03) — same as `GET
+/api/trips/:tripId/places` above. The frontend's `useAddPlace` only reads `id`/`warnings`
+off this response and re-fetches trip detail for display; added for payload consistency.
 
 **Errors:**
 - `400` — validation failure
@@ -1111,6 +1147,43 @@ To clear the region:
 **Errors:**
 - `400` — validation failure, or `region_id` does not exist in regions table
 - `404` — city not found
+
+---
+
+### GET /api/cities/:id
+
+Read-only single-city fetch (BUG-29, GitHub #155). Used by the frontend geocode retry queue
+to poll `geocode_status` without issuing a write. Never triggers geocoding (ADL-10) — the
+backend queue owns re-resolution. Readable by any authenticated user, same as `GET /api/cities`
+(no owner gate — cities are global reference data).
+
+**Path Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | City ID |
+
+**Response: `200 OK`**
+```json
+{
+  "id": 5,
+  "name": "Newport",
+  "country_code": "GB",
+  "region_id": 9,
+  "region_name": "Wales",
+  "region_iso": "GB-WLS",
+  "latitude": 51.5842,
+  "longitude": -2.9977,
+  "geocode_status": "resolved"
+}
+```
+
+`region_name` / `region_iso` (BUG-80, GitHub #388, 2026-08-03) — same `LEFT JOIN` onto
+`regions` as `GET /api/cities` (search, BUG-72). Both `null` when `region_id` is `null`.
+This endpoint itself (and this doc section) predates BUG-80; it was undocumented before
+this fix — added here as part of the same brief that touched its response shape.
+
+**Errors:**
+- `404` — city not found, or `id` is not numeric
 
 ---
 

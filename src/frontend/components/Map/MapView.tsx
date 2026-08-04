@@ -13,6 +13,7 @@ import { useCallback, useRef, useState } from 'react';
 import MapGL, { type MapLayerMouseEvent, type MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useNavigate } from 'react-router-dom';
+import { useCountries } from '../../hooks/useAdmin';
 import { useMapShading, useRegionShading } from '../../hooks/useMapShading';
 import type { TripSummary } from '../../types/api';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
@@ -50,6 +51,7 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
   const navigate = useNavigate();
 
   const { data: shadingData, isLoading: shadingLoading } = useMapShading();
+  const { data: countries = [] } = useCountries();
   // Lazy-load region shading only when zoomed in enough
   const { data: regionData } = useRegionShading(
     zoom >= REGION_ZOOM_THRESHOLD ? visibleCountryCode : undefined,
@@ -157,7 +159,7 @@ export function MapView({ trips, onCountryClick }: MapViewProps) {
         )}
 
         {/* City pins — only for geocoded cities */}
-        <CityMarkers trips={trips} />
+        <CityMarkers trips={trips} countries={countries} />
       </MapGL>
 
       {/* Shading colour legend — bottom-left, clear of the MapLibre attribution

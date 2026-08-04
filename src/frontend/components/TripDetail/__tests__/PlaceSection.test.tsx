@@ -49,6 +49,17 @@ vi.mock('../../../hooks/usePlaces.js', () => ({
   useRemovePlace: () => mockRemovePlace,
 }));
 
+// BUG-80: PlaceSection now calls useCountries() (formatCitySubtitle needs the
+// country's region-tier config) — mocked so this file doesn't need a real
+// QueryClientProvider wired up, same reasoning as the useItems mock below.
+// Empty by default: none of these tests exercise region-tier disambiguation
+// (that's formatCitySubtitle's own unit tests) — every fixture city here is a
+// non-region-tier / unlisted country, so formatCitySubtitle's tier lookup
+// safely falls through to "show the country as before" either way.
+vi.mock('../../../hooks/useAdmin.js', () => ({
+  useCountries: () => ({ data: [] }),
+}));
+
 // ItemCard (rendered per item) depends on useDeleteItem — stub it so tests that
 // include items don't need a real QueryClient wired up. applyRatingSortFilter/
 // DEFAULT_RATING_SORT_FILTER (IT-08) are pure helpers PlaceSection imports

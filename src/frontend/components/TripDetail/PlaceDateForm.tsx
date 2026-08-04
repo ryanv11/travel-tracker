@@ -15,6 +15,15 @@ interface PlaceDateFormProps {
   tripId: number;
   placeId: number;
   cityName: string;
+  /**
+   * BUG-80: optional region/country subtitle (from formatCitySubtitle),
+   * appended to the modal title so two same-named cities in different
+   * regions ("Newport, Scotland" vs "Newport, Wales") aren't both titled
+   * just "Dates — Newport". Optional so a caller without region context
+   * (there are none left in this codebase after BUG-80, but the prop isn't
+   * load-bearing for the form's actual date logic) degrades to the old title.
+   */
+  citySubtitle?: string;
   currentArrivedOn: string | null;
   currentDepartedOn: string | null;
   onClose: () => void;
@@ -26,6 +35,7 @@ interface PlaceDateFormProps {
  * @param tripId - Parent trip ID.
  * @param placeId - Place ID to patch.
  * @param cityName - City name — shown in the modal title.
+ * @param citySubtitle - Optional region/country suffix for the title (BUG-80).
  * @param currentArrivedOn - Existing arrived_on value (null if not set).
  * @param currentDepartedOn - Existing departed_on value (null if not set).
  * @param onClose - Called when the modal should close.
@@ -34,6 +44,7 @@ export function PlaceDateForm({
   tripId,
   placeId,
   cityName,
+  citySubtitle,
   currentArrivedOn,
   currentDepartedOn,
   onClose,
@@ -94,7 +105,10 @@ export function PlaceDateForm({
         className="bg-white rounded-lg p-6 w-[400px] max-w-[95vw] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Dates — {cityName}</h2>
+        <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">
+          Dates — {cityName}
+          {citySubtitle && <span className="font-normal text-gray-500">, {citySubtitle}</span>}
+        </h2>
 
         {/* Backend warnings callout */}
         {warnings.length > 0 && (

@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom';
+import { useCountries } from '../../hooks/useAdmin';
 import type { TripSummary } from '../../types/api';
+import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { formatDate } from '../../utils/formatDate';
 import { StatusBadge } from '../shared/StatusBadge';
 
@@ -48,12 +50,22 @@ export function TripCard({
   density = 'desktop',
 }: TripCardProps) {
   const navigate = useNavigate();
+  const { data: countries = [] } = useCountries();
 
   const places = trip.places ?? [];
   const visiblePlaces = places.slice(0, MAX_PLACE_BADGES);
   const extraCount = places.length - MAX_PLACE_BADGES;
   const isLocked = trip.status === 'locked';
   const isMobile = density === 'mobile';
+
+  // BUG-80: badges stay compact ("Newport") for the common case — a region
+  // suffix is only appended when two places on THIS trip share a city name
+  // (the actual ambiguity a viewer can hit), rather than growing every badge
+  // on every trip card regardless of whether anything on it is ambiguous.
+  const nameCounts = new Map<string, number>();
+  for (const p of places) {
+    nameCounts.set(p.city.name, (nameCounts.get(p.city.name) ?? 0) + 1);
+  }
 
   const handleClick = () => {
     if (selectionMode) {
@@ -117,14 +129,19 @@ export function TripCard({
       {/* D-06: Place name badges — wrap, never scroll horizontally */}
       {places.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {visiblePlaces.map((p) => (
-            <span
-              key={p.id}
-              className={`inline-block rounded-[7px] px-2.5 py-1 text-[11px] font-ui bg-wp-bg-subtle text-wp-ink-muted ${isMobile ? 'rounded-[8px]' : ''}`}
-            >
-              {p.city.name}
-            </span>
-          ))}
+          {visiblePlaces.map((p) => {
+            const isAmbiguous = (nameCounts.get(p.city.name) ?? 0) > 1;
+            return (
+              <span
+                key={p.id}
+                className={`inline-block rounded-[7px] px-2.5 py-1 text-[11px] font-ui bg-wp-bg-subtle text-wp-ink-muted ${isMobile ? 'rounded-[8px]' : ''}`}
+              >
+                {p.city.name}
+                {isAmbiguous &&
+                  `, ${formatCitySubtitle(p.city, countries, p.city.country_name ?? p.city.country_code)}`}
+              </span>
+            );
+          })}
           {extraCount > 0 && (
             <span className="inline-block rounded-[7px] px-2.5 py-1 text-[11px] font-ui bg-wp-bg-subtle text-wp-ink-faint">
               +{extraCount} more

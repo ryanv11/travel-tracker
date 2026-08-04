@@ -35,6 +35,14 @@ import { formatDate } from '../utils/formatDate';
 interface CityLinkState {
   cityName?: string;
   countryName?: string | null;
+  /**
+   * BUG-80: pre-formatted region+country subtitle (formatCitySubtitle,
+   * computed by PlaceSection at link-creation time — this page has no
+   * `countries` list of its own and deliberately doesn't fetch one just to
+   * duplicate that formatting here). Falls back to `countryName` alone when
+   * absent (direct/refreshed visit with no router state, or an older link).
+   */
+  citySubtitle?: string;
 }
 
 /** Derives the display label and effective rating for a city item, per its type. */
@@ -105,10 +113,15 @@ export function CityItemsPage() {
       <h1 className="font-display font-semibold text-2xl text-wp-ink mb-0.5">
         {state.cityName ?? 'This city'}
       </h1>
-      {state.countryName && (
-        <p className="font-ui text-sm text-wp-ink-muted mb-4">{state.countryName}</p>
+      {/* BUG-80: prefer the pre-formatted region+country subtitle passed from
+          PlaceSection's link; fall back to the bare country name for an older
+          link shape or a state-less direct visit. */}
+      {(state.citySubtitle ?? state.countryName) && (
+        <p className="font-ui text-sm text-wp-ink-muted mb-4">
+          {state.citySubtitle ?? state.countryName}
+        </p>
       )}
-      {!state.countryName && <div className="mb-4" />}
+      {!(state.citySubtitle ?? state.countryName) && <div className="mb-4" />}
 
       <p className="font-ui text-xs text-wp-ink-faint mb-4">
         Completed restaurants, hotels, and experiences across every trip that visited this city.

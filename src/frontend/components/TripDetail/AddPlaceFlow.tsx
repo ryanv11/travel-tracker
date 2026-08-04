@@ -20,35 +20,16 @@ import {
 } from '../../hooks/useCities';
 import { useAddPlace } from '../../hooks/usePlaces';
 import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
-import type { City, Country } from '../../types/api';
+import type { City } from '../../types/api';
 import { resolveDefaultDate } from '../../utils/dateDefaults';
+// BUG-80: formatCitySubtitle used to live here (BUG-72, PR #353) as a
+// module-local function. Lifted to a shared util so every saved-place
+// surface reuses the same formatter instead of a second one drifting out of
+// sync — see formatCitySubtitle.ts's doc comment for the full behaviour.
+import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { capitalizeFirst } from '../../utils/textFormat';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { ErrorMessage } from '../shared/ErrorMessage';
-
-/**
- * BUG-72: the search dropdown used to render only `{name} {country_code}`
- * ("Springfield US"), which is visually identical for two same-named cities
- * in different regions — selecting one silently binds the trip to specific
- * coordinates with nothing on screen distinguishing which one. Renders:
- *   - region-tier country, region known:   "Illinois, US"
- *   - region-tier country, region missing: "US (no state set)" — explicit,
- *     not indistinguishable from a regioned row (surfaces catalogue rows
- *     that are missing data users should be able to notice)
- *   - non-region-tier country:             "US" (unchanged from before)
- * `region_name` comes straight off the GET /api/cities response (BUG-72
- * backend half, PR #353's LEFT JOIN onto `regions`) — no new network call.
- */
-function formatCitySubtitle(
-  city: { country_code: string; region_name?: string | null },
-  countries: Country[],
-): string {
-  const country = countries.find((c) => c.country_code === city.country_code);
-  if (!country?.region_tier_enabled) return city.country_code;
-  if (city.region_name) return `${city.region_name}, ${city.country_code}`;
-  const label = (country.region_tier_label ?? 'region').toLowerCase();
-  return `${city.country_code} (no ${label} set)`;
-}
 
 interface AddPlaceFlowProps {
   tripId: number;

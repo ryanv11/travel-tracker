@@ -414,7 +414,26 @@ citiesRouter.get(
 
     const db = getDb();
 
-    const rows = await db.select().from(cities).where(eq(cities.id, cityId)).limit(1);
+    // BUG-80: LEFT JOIN regions so this city-shaped payload also carries
+    // region_name/region_iso, matching GET /api/cities (search). LEFT, not
+    // INNER: a NULL region_id (non-region-tier country, or a region-tier city
+    // not yet assigned one) must still return the city row, not 404 it.
+    const rows = await db
+      .select({
+        id: cities.id,
+        name: cities.name,
+        countryCode: cities.countryCode,
+        regionId: cities.regionId,
+        regionName: regions.name,
+        regionIso: regions.iso3166_2,
+        latitude: cities.latitude,
+        longitude: cities.longitude,
+        geocodeStatus: cities.geocodeStatus,
+      })
+      .from(cities)
+      .leftJoin(regions, eq(regions.id, cities.regionId))
+      .where(eq(cities.id, cityId))
+      .limit(1);
     if (!rows.length) throw new NotFoundError('City');
 
     const city = rows[0];
@@ -423,6 +442,8 @@ citiesRouter.get(
       name: city.name,
       country_code: city.countryCode,
       region_id: city.regionId,
+      region_name: city.regionName,
+      region_iso: city.regionIso,
       latitude: city.latitude,
       longitude: city.longitude,
       geocode_status: city.geocodeStatus,

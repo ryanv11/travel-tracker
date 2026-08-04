@@ -343,6 +343,10 @@ export const tripRepository = {
         cityCountryName: countries.name,
         cityRegionId: cities.regionId,
         cityRegionIso: regions.iso3166_2,
+        // BUG-80: human-readable region name (e.g. "Scotland") off the SAME
+        // LEFT JOIN onto `regions` already used for cityRegionIso two lines
+        // below — no new join, one more column selected from it.
+        cityRegionName: regions.name,
         cityLatitude: cities.latitude,
         cityLongitude: cities.longitude,
         cityGeocodeStatus: cities.geocodeStatus,

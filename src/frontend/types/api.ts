@@ -139,11 +139,15 @@ export interface City {
   /**
    * Human-readable region name (e.g. "Illinois"). Optional (not just
    * nullable): present on GET /api/cities search results (BUG-72, PR #353's
-   * LEFT JOIN onto `regions`), but genuinely absent from every other City
-   * shape in this codebase today — serializeCity (cities.ts) and the
-   * trip-detail/map City shapes never select it. Null means "joined, but this
-   * city has no region_id"; undefined means "this response never joined
-   * `regions` at all" — callers must not conflate the two into "no region."
+   * LEFT JOIN onto `regions`), and — as of BUG-80 — also on the city objects
+   * nested in trip list/detail responses (GET /api/trips, GET /api/trips/:id)
+   * and on GET /api/cities/:id, all via the same LEFT JOIN pattern. Still
+   * genuinely absent from POST /api/cities and PATCH /api/cities/:id
+   * (serializeCity, cities.ts) — audited for BUG-80 and left unjoined because
+   * nothing renders those responses' region fields (see BUG-80 park doc).
+   * Null means "joined, but this city has no region_id"; undefined means
+   * "this response never joined `regions` at all" — callers must not conflate
+   * the two into "no region" (see formatCitySubtitle, utils/formatCitySubtitle.ts).
    */
   region_name?: string | null;
   latitude: number | null;

@@ -14,7 +14,7 @@
 
 import { and, eq, inArray } from 'drizzle-orm';
 import { Router } from 'express';
-import { cities, getDb, items, tripPlaceActivitiesMap, tripPlaces } from '../db/index.js';
+import { cities, getDb, items, regions, tripPlaceActivitiesMap, tripPlaces } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
@@ -73,8 +73,27 @@ placesRouter.post(
     const { city_id, arrived_on, departed_on } = req.body;
     const db = getDb();
 
-    // Verify city exists
-    const cityRows = await db.select().from(cities).where(eq(cities.id, city_id)).limit(1);
+    // Verify city exists. BUG-80: LEFT JOIN regions so this response's city
+    // object also carries region_name/region_iso — same city-shaped-payload
+    // consistency as every other route touched by this fix, even though (per
+    // usePlaces.ts's useAddPlace) the frontend only reads place.id/warnings
+    // off this response today and re-fetches trip detail for display.
+    const cityRows = await db
+      .select({
+        id: cities.id,
+        name: cities.name,
+        countryCode: cities.countryCode,
+        regionId: cities.regionId,
+        regionName: regions.name,
+        regionIso: regions.iso3166_2,
+        latitude: cities.latitude,
+        longitude: cities.longitude,
+        geocodeStatus: cities.geocodeStatus,
+      })
+      .from(cities)
+      .leftJoin(regions, eq(regions.id, cities.regionId))
+      .where(eq(cities.id, city_id))
+      .limit(1);
     if (!cityRows.length) throw new NotFoundError('City');
 
     // placeRepository.create verifies trip ownership + lock status + duplicate check
@@ -92,6 +111,8 @@ placesRouter.post(
         name: city.name,
         country_code: city.countryCode,
         region_id: city.regionId,
+        region_name: city.regionName,
+        region_iso: city.regionIso,
         latitude: city.latitude,
         longitude: city.longitude,
         geocode_status: city.geocodeStatus,

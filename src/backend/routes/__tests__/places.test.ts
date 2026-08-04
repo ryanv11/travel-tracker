@@ -82,12 +82,30 @@ async function seedCountry(db: TestDb, countryCode: string, name: string) {
   await db.insert(schema.countries).values({ countryCode, name }).onConflictDoNothing();
 }
 
-async function seedCity(db: TestDb, countryCode: string, name: string) {
+async function seedCity(
+  db: TestDb,
+  countryCode: string,
+  name: string,
+  overrides: Partial<typeof schema.cities.$inferInsert> = {},
+) {
   const [city] = await db
     .insert(schema.cities)
-    .values({ name, countryCode, geocodeStatus: 'resolved' })
+    .values({ name, countryCode, geocodeStatus: 'resolved', ...overrides })
     .returning();
   return city;
+}
+
+// BUG-80 (#388): seeds a region row for a country already inserted via
+// seedCountry — used to prove both the standalone GET /api/trips/:tripId/places
+// list and the POST create response carry region_name/region_iso, not just
+// region_id (repositories/places.ts's findByTrip and this route's POST both
+// previously omitted the two fields entirely).
+async function seedRegion(db: TestDb, countryCode: string, name: string, iso: string) {
+  const [region] = await db
+    .insert(schema.regions)
+    .values({ countryCode, name, iso3166_2: iso })
+    .returning();
+  return region;
 }
 
 async function seedTrip(db: TestDb, overrides: Partial<typeof schema.trips.$inferInsert> = {}) {
@@ -171,6 +189,42 @@ describe('GET /api/trips/:tripId/places', () => {
 
     expect(res.body).toHaveProperty('error');
   });
+
+  // BUG-80 (#388): repositories/places.ts's findByTrip already joined `cities`
+  // but never `regions` — region_id was present, region_iso/region_name were
+  // not. This endpoint has no current frontend consumer (confirmed by grep +
+  // a full read of usePlaces.ts), but it's still a city-shaped payload the
+  // brief calls out for consistency.
+  it('BUG-80: place.city carries region_name/region_iso for a regioned city', async () => {
+    const db = testDb!;
+    const region = await seedRegion(db, 'FR', 'Île-de-France', 'FR-IDF');
+    const city = await seedCity(db, 'FR', 'Paris', { regionId: region.id });
+    const trip = await seedTrip(db);
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
+
+    const res = await supertest(app).get(`/api/trips/${trip.id}/places`).expect(200);
+
+    expect(res.body[0].city.region_id).toBe(region.id);
+    expect(res.body[0].city.region_name).toBe('Île-de-France');
+    expect(res.body[0].city.region_iso).toBe('FR-IDF');
+  });
+
+  it('BUG-80: place.city has null region_name/region_iso for a region-less city', async () => {
+    const db = testDb!;
+    const city = await seedCity(db, 'FR', 'Lyon');
+    const trip = await seedTrip(db);
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
+
+    const res = await supertest(app).get(`/api/trips/${trip.id}/places`).expect(200);
+
+    expect(res.body[0].city.region_id).toBeNull();
+    expect(res.body[0].city.region_name).toBeNull();
+    expect(res.body[0].city.region_iso).toBeNull();
+  });
 });
 
 // ----------------------------------------------------------------
@@ -204,6 +258,28 @@ describe('POST /api/trips/:tripId/places', () => {
     expect(res.body.city.name).toBe('Lyon');
     expect(res.body).toHaveProperty('activities');
     expect(Array.isArray(res.body.activities)).toBe(true);
+  });
+
+  // BUG-80 (#388): this route built its own inline city object (a bare
+  // `cities` select, no join at all) — region_id was present, region_iso/
+  // region_name were entirely absent from the shape. The frontend doesn't
+  // render this response's city fields directly today (useAddPlace
+  // invalidates and re-fetches trip detail instead — confirmed by reading
+  // usePlaces.ts in full), but it's still a city-shaped payload.
+  it('BUG-80: created place.city carries region_name/region_iso for a regioned city', async () => {
+    const db = testDb!;
+    const region = await seedRegion(db, 'FR', 'Île-de-France', 'FR-IDF');
+    const city = await seedCity(db, 'FR', 'Paris', { regionId: region.id });
+    const trip = await seedTrip(db);
+
+    const res = await supertest(app)
+      .post(`/api/trips/${trip.id}/places`)
+      .send({ city_id: city.id })
+      .expect(201);
+
+    expect(res.body.city.region_id).toBe(region.id);
+    expect(res.body.city.region_name).toBe('Île-de-France');
+    expect(res.body.city.region_iso).toBe('FR-IDF');
   });
 
   it('returns 201 with arrived_on and departed_on when provided', async () => {

@@ -6,9 +6,11 @@
  * and a "Complete Review & Lock Trip" button with confirmation.
  */
 import { useState } from 'react';
+import { useCountries } from '../../hooks/useAdmin';
 import { useUpdateItem } from '../../hooks/useItems';
 import { useLockTrip, useUpdateTripStatus } from '../../hooks/useTrips';
 import type { Item, ItemStatus, TripDetail } from '../../types/api';
+import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { ReviewItemRow } from './ReviewItemRow';
@@ -34,6 +36,7 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
   const lockTrip = useLockTrip();
   const returnToPlanning = useUpdateTripStatus();
   const updateItem = useUpdateItem();
+  const { data: countries = [] } = useCountries();
 
   const handleLock = async () => {
     await lockTrip.mutateAsync(trip.id);
@@ -112,7 +115,11 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
               paddingBottom: '6px',
             }}
           >
-            {place.city.name} · {place.city.country_code}
+            {/* BUG-80: was `{name} · {country_code}` — identical for two
+                same-named cities in different regions. Keep the compact
+                country_code display (this panel's existing convention), just
+                add the region ahead of it via the shared formatter. */}
+            {place.city.name} · {formatCitySubtitle(place.city, countries)}
           </h3>
           {place.items.length === 0 ? (
             <p style={{ margin: 0, color: '#9CA3AF', fontSize: '13px' }}>No items at this place.</p>

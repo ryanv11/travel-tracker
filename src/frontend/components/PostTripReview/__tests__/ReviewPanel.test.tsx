@@ -59,6 +59,16 @@ vi.mock('../../../hooks/useItems.js', () => ({
   useUpdateItem: () => mockUpdateItem,
 }));
 
+// BUG-80: ReviewPanel now calls useCountries() (formatCitySubtitle's tier
+// lookup) — mocked so this file doesn't need a real QueryClientProvider,
+// same reasoning as the mocks above. Empty by default: none of these tests
+// exercise region-tier disambiguation (that's formatCitySubtitle's own unit
+// tests); every fixture city here is a non-listed country, so the tier
+// lookup safely falls through to "show the country as before" either way.
+vi.mock('../../../hooks/useAdmin.js', () => ({
+  useCountries: () => ({ data: [] }),
+}));
+
 // ----------------------------------------------------------------
 // Test data builders
 // ----------------------------------------------------------------

@@ -97,6 +97,34 @@ async function seedTrip(db: TestDb, overrides: Partial<typeof schema.trips.$infe
   return trip;
 }
 
+// BUG-80 (#388): a city in a region-tier country, optionally with a region
+// assigned. Used to reproduce the PO's exact UAT finding — two saved places
+// for same-named cities in different UK regions ("Newport, Scotland" vs
+// "Newport, Wales") rendering identically because region_name/region_iso
+// were dropped when the places array was assembled (repositories/trips.ts
+// already LEFT JOINs `regions` and selects both — the route just never
+// surfaced them).
+async function seedCityWithRegion(
+  db: TestDb,
+  cityName: string,
+  regionName: string,
+  regionIso: string,
+) {
+  await db
+    .insert(schema.countries)
+    .values({ countryCode: 'GB', name: 'United Kingdom', regionTierEnabled: 1 })
+    .onConflictDoNothing();
+  const [region] = await db
+    .insert(schema.regions)
+    .values({ countryCode: 'GB', name: regionName, iso3166_2: regionIso })
+    .returning();
+  const [city] = await db
+    .insert(schema.cities)
+    .values({ countryCode: 'GB', name: cityName, regionId: region.id })
+    .returning();
+  return city;
+}
+
 // ----------------------------------------------------------------
 // GET /api/trips
 // ----------------------------------------------------------------
@@ -182,6 +210,23 @@ describe('GET /api/trips', () => {
     const res = await supertest(app).get('/api/trips?status=bogus').expect(400);
 
     expect(res.body).toHaveProperty('error');
+  });
+
+  // BUG-80 (#388): the list endpoint (buildTripResponse) already carried
+  // region_iso — region_name was the missing field here.
+  it('BUG-80: list place.city carries region_name for a regioned city', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db, { name: 'UK Trip' });
+    const city = await seedCityWithRegion(db, 'Newport', 'Wales', 'GB-WLS');
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
+
+    const res = await supertest(app).get('/api/trips').expect(200);
+
+    const place = res.body[0].places[0];
+    expect(place.city.region_name).toBe('Wales');
+    expect(place.city.region_iso).toBe('GB-WLS');
   });
 
   it('returns trips ordered by start_date descending (QUAL-02 finding 2)', async () => {
@@ -338,6 +383,66 @@ describe('GET /api/trips/:id', () => {
 
     expect(res.body.places[0].arrived_on).toBe('2025-07-10');
     expect(res.body.places[0].departed_on).toBe('2025-07-14');
+  });
+
+  // BUG-80 (#388) — PO UAT: "Once I save two different newports as two
+  // different places in a trip, they display identically 'Newport United
+  // Kingdom'. Should be Newport, Scotland and Newport, Wales." The two rows
+  // already existed as distinct cities (the identity key did its job — this
+  // was display-only); repositories/trips.ts's getPlaces() already LEFT
+  // JOINs regions and selects region_iso, but this route's city object never
+  // included region_iso OR region_name. Reproduces the exact scenario.
+  it('BUG-80: detail place.city carries region_id/region_iso/region_name, distinguishing two same-named cities', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db, { name: 'UK Trip' });
+    const newportScotland = await seedCityWithRegion(db, 'Newport', 'Scotland', 'GB-SCT');
+    const newportWales = await seedCityWithRegion(db, 'Newport', 'Wales', 'GB-WLS');
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: newportScotland.id, userId: TEST_USER_ID });
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: newportWales.id, userId: TEST_USER_ID });
+
+    const res = await supertest(app).get(`/api/trips/${trip.id}`).expect(200);
+
+    expect(res.body.places).toHaveLength(2);
+    const byRegion = Object.fromEntries(
+      res.body.places.map((p: { city: { region_iso: string; region_name: string } }) => [
+        p.city.region_iso,
+        p.city,
+      ]),
+    );
+    expect(byRegion['GB-SCT']).toMatchObject({
+      name: 'Newport',
+      region_id: newportScotland.regionId,
+      region_name: 'Scotland',
+      region_iso: 'GB-SCT',
+    });
+    expect(byRegion['GB-WLS']).toMatchObject({
+      name: 'Newport',
+      region_id: newportWales.regionId,
+      region_name: 'Wales',
+      region_iso: 'GB-WLS',
+    });
+    // The actual defect: both used to render "Newport United Kingdom" with
+    // nothing in the payload to tell them apart.
+    expect(byRegion['GB-SCT'].region_name).not.toBe(byRegion['GB-WLS'].region_name);
+  });
+
+  it('trip detail place.city has null region_name/region_iso for a non-region-tier city', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+    const city = await seedCityForPlace(db); // Italy — non-region-tier, no region_id
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
+
+    const res = await supertest(app).get(`/api/trips/${trip.id}`).expect(200);
+
+    expect(res.body.places[0].city.region_id).toBeNull();
+    expect(res.body.places[0].city.region_name).toBeNull();
+    expect(res.body.places[0].city.region_iso).toBeNull();
   });
 });
 

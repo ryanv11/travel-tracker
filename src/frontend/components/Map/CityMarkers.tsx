@@ -11,11 +11,19 @@
 import type { SymbolLayerSpecification } from 'maplibre-gl';
 import { useMemo } from 'react';
 import { Layer, Source } from 'react-map-gl/maplibre';
-import type { TripSummary } from '../../types/api';
+import type { Country, TripSummary } from '../../types/api';
+import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 
 interface CityMarkersProps {
   /** All loaded trip summaries — cities are extracted from their places. */
   trips: TripSummary[];
+  /**
+   * BUG-80: used to disambiguate two same-named pins (e.g. two "Newport"
+   * markers in different regions) with a region/country label suffix.
+   * Defaults to `[]` — same safe "country only, no false claims" fallback
+   * formatCitySubtitle already has when the country list hasn't loaded yet.
+   */
+  countries?: Country[];
 }
 
 /**
@@ -42,9 +50,13 @@ function coordKey(lat: number, lng: number): string {
  * DB or not — renders exactly one marker, restoring consistent treatment
  * across cities regardless of whether BUG-33's root cause has been fixed yet.
  */
-export function buildCityGeoJSON(trips: TripSummary[]): GeoJSON.FeatureCollection {
+export function buildCityGeoJSON(
+  trips: TripSummary[],
+  countries: Country[] = [],
+): GeoJSON.FeatureCollection {
   const seen = new Set<string>();
-  const features: GeoJSON.Feature[] = [];
+  type DedupedCity = NonNullable<TripSummary['places'][number]['city']>;
+  const deduped: DedupedCity[] = [];
 
   for (const trip of trips) {
     for (const place of trip.places) {
@@ -58,21 +70,40 @@ export function buildCityGeoJSON(trips: TripSummary[]): GeoJSON.FeatureCollectio
         const key = coordKey(city.latitude, city.longitude);
         if (seen.has(key)) continue;
         seen.add(key);
-        features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [city.longitude!, city.latitude!],
-          },
-          properties: {
-            id: city.id,
-            // SEC-12: city name rendered via MapLibre text-field, not innerHTML
-            name: city.name,
-          },
-        });
+        deduped.push(city);
       }
     }
   }
+
+  // BUG-80: two distinct pins can legitimately share a name (two "Newport"
+  // rows in different regions, at different coordinates — not the BUG-33/34
+  // same-location duplicate this function already dedupes above). Only
+  // append the region/country suffix when a name collision actually exists
+  // among the markers being rendered, so the common case (every pin has a
+  // unique name) keeps its plain label.
+  const nameCounts = new Map<string, number>();
+  for (const city of deduped) {
+    nameCounts.set(city.name, (nameCounts.get(city.name) ?? 0) + 1);
+  }
+
+  const features: GeoJSON.Feature[] = deduped.map((city) => {
+    const isAmbiguous = (nameCounts.get(city.name) ?? 0) > 1;
+    const label = isAmbiguous
+      ? `${city.name}, ${formatCitySubtitle(city, countries, city.country_name ?? city.country_code)}`
+      : city.name;
+    return {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [city.longitude!, city.latitude!],
+      },
+      properties: {
+        id: city.id,
+        // SEC-12: name rendered via MapLibre text-field, not innerHTML
+        name: label,
+      },
+    };
+  });
 
   return { type: 'FeatureCollection', features };
 }
@@ -105,9 +136,11 @@ const citySymbolLayer: SymbolLayerSpecification = {
  * derived from the provided trips.
  *
  * @param trips - Array of trip summaries from which city coordinates are extracted.
+ * @param countries - Country tier config, used to disambiguate same-named
+ *   pins in different regions (BUG-80). Defaults to `[]`.
  */
-export function CityMarkers({ trips }: CityMarkersProps) {
-  const geojson = useMemo(() => buildCityGeoJSON(trips), [trips]);
+export function CityMarkers({ trips, countries = [] }: CityMarkersProps) {
+  const geojson = useMemo(() => buildCityGeoJSON(trips, countries), [trips, countries]);
 
   return (
     <Source id="cities-source" type="geojson" data={geojson}>
