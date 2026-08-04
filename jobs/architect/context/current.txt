@@ -1859,6 +1859,77 @@ OPEN FOR THE OP-27 REVIEWER: this is ADL-49's FIRST fresh-eyes review and it cov
   My three named weaknesses are in §10.10. The one I would attack first is Weakness B — §10.4.2's
   "we already granted X so refusing Y is incoherent" is a ratchet argument and generalises badly.
 
+================================================================================
+2026-08-04 — ARCHITECT (OP-27 fresh-eyes review of ADL-49 §1-§10, PR #394)
+================================================================================
+Branch chore/adl49-op27-review. Deliverable:
+  jobs/architect/tech/20260804-ADL49-fresh-eyes-review.md
+Reviewed ADL-49 whole (§1-§9 shipped in PR #376 and had never had an OP-27 pass;
+§10 is the ENV-01 host enumeration new in PR #394).
+
+VERDICT: does not stand as briefable as written — narrowly. All three ADD
+  recommendations (D1 Nominatim, D10 staging, D11 prod) are RIGHT and survive.
+  What fails is the framework used to price them.
+
+THE HEADLINE (F1, critical). §10.8 derives D17 — the allowlist matches IPs, not
+  hostnames — then closes "This does not change any verdict in §10.3." It does.
+  Demonstrated live from this container, not argued: `curl --resolve <host>:443:
+  <allowlisted-cloudflare-ip>` reaches ANY Cloudflare-proxied origin. 9 hosts
+  tested, 9 reachable, from BOTH allowlisted CF edges (registry.npmjs.org pins 12,
+  just-raptor-89.clerk.accounts.dev pins 2). Includes api.maptiler.com (301, real
+  MapTiler origin; style.json -> 403) and api.clerk.com (401 on /v1/users) — both
+  recorded in §10.3 as "Blocked today: Yes" with two probes each. Negative controls
+  hold: pypi.org (Fastly) and api.turso.tech (CloudFront) both fail at TLS
+  handshake, so this is NOT "everything is reachable" — it is exactly "every
+  Cloudflare-proxied zone". Consequence: the allowlist is an accident/availability
+  control, NOT a containment boundary. Cuts FOR D10/D11 (marginal cost ~0) while
+  demolishing the exclusion-discipline frame. ADL-33 §4's Clerk exclusion is
+  credential-only; there is no second network layer.
+
+F2 (high). nominatim.openstreetmap.org and tile.openstreetmap.org resolve to the
+  SAME address (151.101.21.91, Fastly anycast). Applying D1 makes the OSM tile
+  servers reachable — and §10.7's diff would commit "*.tile.openstreetmap.org
+  STILL DELIBERATELY EXCLUDED" into the script as a false statement. Do not apply
+  the diff as written.
+
+F3 (high). D12's "cannot be expressed in this script at all" is FALSE. §10.3 row 5
+  rules out GitHub meta's .actions key with an unprobed claim: "Azure blob storage
+  is not in GitHub's meta ranges at all". I probed it — 20.209.227.33 (the author's
+  OWN error IP) is in .actions at 20.209.226.0/23; 20.150.83.4 (vscode.blob) is in
+  20.150.83.0/24. So `(.web + .api + .git + .actions)` at line 126 IS a mechanism,
+  using the script's existing CIDR path, immune to all three of §10.5.2's "three
+  independent reasons" (which are not independent — all three assume the entry must
+  be a HOSTNAME). Verdict survives, reason must change: .actions is 3,944 collapsed
+  CIDRs / 27.9M addresses vs 92 / 30,800 today — a ~900x widening. REFUSE ON RISK,
+  which §10.5.2's own last paragraph already does while the summary table says the
+  opposite.
+
+F4 (high). Probe B (grep the script for a hostname) cannot establish "blocked" once
+  D17 is known — it establishes "not explicitly named". Probe A resolves by name so
+  shares the blind spot. §10.3 needs a probe class E: tested against the allowlisted
+  ADDRESS SPACE.
+
+Also: F5 `--log-failed` is instructed in 11 places (CLAUDE.md, /coo-startup — a
+  SECOND gate-shaped fail-open — and 8 role system prompts); D13 names 1. F6 the
+  STANDING CONDITION is filed in a firewall comment nobody provisioning a Clerk
+  credential will read (premise verified TRUE though — 3 probes, no sk_ anywhere).
+  F7 D10's headline rests on the PO's workflow and the PO is the one actor who does
+  NOT need the entry — re-base on OP-32. F8 the enumeration is additive-only and
+  never asks what should come OUT, which under F1 is the higher-leverage question.
+
+WEAKNESS B (the author's own nomination) IS REAL BUT NOT THE WEAKEST POINT. §10.4.2
+  is a ratchet in shape, but it holds on the specifics (subset, not consistency),
+  it is hedged, and it tells the PO to cut that line first. Low severity. The real
+  weakest point is §10.8's closing sentence — a correct discovery whose consequences
+  were truncated one step early. That is the shape of EVERY problem I found.
+
+KILLED BEFORE FILING (6, §11 of the review): ci-wait.sh fail-open (it fails CLOSED
+  by design, BUG-64, read all 287 lines); a Clerk credential already present (none);
+  §10.7's diff malformed (git apply --check exit 0 — author's claim accurate); IPv6
+  hole (re-verified closed); Railway edge collision surface (NOT established and it
+  cuts the ADL's way — per-domain addresses); api.turso.tech nominal too (no, that
+  exclusion is EFFECTIVE — and it is the control proving F1 is not a blanket claim).
+
 --------------------------------------------------------------------------------
 2026-08-04 (later) — AMENDMENT 2 to ADL-49, after the OP-27 review (PR #395) + a PO threat model.
 Same branch/PR (#394). ADL-49 §10.11 added; ADL-33 §4 amended. init-firewall.sh still untouched.

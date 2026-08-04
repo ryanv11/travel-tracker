@@ -153,3 +153,35 @@ PR #394 — `scripts/ci-wait.sh pr 394` green.
 ## Blockers
 
 None. Diff still quoted, not applied.
+
+---
+
+## Merge-conflict resolution (QUAL-12) — 2026-08-04
+
+`jobs/architect/context/current.txt` conflicted with main: the OP-27 review agent (PR #395) appended
+its thread record to the same file I appended mine to. **Resolved append-both**, ordered as the work
+actually happened: **ENV-01 enumeration → OP-27 review of it → amendment 2 responding to the review.**
+
+Verified lossless four ways, since the whole point of OP-28 is that a bad resolution destroys someone
+else's record silently:
+
+- `git diff origin/main -- <file>` shows **0 lines removed**, 116 added. Every line main has is
+  present, in order.
+- All three blocks located as **contiguous, verbatim** runs: review agent's 71 lines @ 1861, my
+  enumeration 66 @ 1795, my amendment 2 72 @ 1932.
+- Arithmetic exact: 1794 base + 66 + 71 + 72 = **2003** lines.
+- No `git stash` used at any point.
+
+Everything else in the merge auto-resolved cleanly, including the QUAL-27 `--log-failed` fixes across
+CLAUDE.md, `/coo-startup` and the eight role system prompts.
+
+**The structural lesson is now in ADL-49 §10.11.5.1**, written as a liftable block with the three
+questions an amendment should ask before filing, plus the reviewer-side corollary (review the
+*document*, not the amendment — all four of F1–F4 lived in the seam between §1–§9 and §10). Yours to
+place in CLAUDE.md; I have not touched it.
+
+**Noted on your three responses:** the F1-severity refinement and the §10.11.2 pushback both landing
+is good, and thank you for flagging the QUAL-28 note correction rather than absorbing it silently.
+On the 2,709× figure — recording it as **accepted-not-verified** is the right call and I'd rather you
+did that than re-derive it; it is one `python3` over `api.github.com/meta` if it ever becomes
+load-bearing, and it does not change the verdict either way.

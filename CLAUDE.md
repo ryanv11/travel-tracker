@@ -349,12 +349,25 @@ gh pr create --title "feat: description (#N)" --body "Closes #N\nBRD §X.X TR-XX
 ### After opening a PR
 ```bash
 scripts/ci-wait.sh pr <PR_NUMBER>
-gh run view <run-id> --log-failed   # if ci-wait.sh reports a failure
+
+# If ci-wait.sh reports a failure, read the logs like this:
+gh api "repos/ryanv11/travel-tracker/actions/runs/<run-id>/logs" > /tmp/runlogs.zip
+unzip -p /tmp/runlogs.zip | grep -iE "fail|error" | head -40
 ```
 `scripts/ci-wait.sh` blocks until every check finishes and exits non-zero if any
 failed, instead of a hand-rolled polling loop — don't write your own (see the
 script's header comment for why: a past ad-hoc script broke outright from naming a
 variable `status`, a read-only special variable in this environment's zsh shell).
+
+> **Do not use `gh run view <id> --log-failed` — it fails open in this container**
+> (QUAL-27, found 2026-08-04 by the OP-27 review of ADL-49, COO-verified with three
+> probes that fail differently). Job-level logs are served from an Azure blob host the
+> firewall blocks; `gh` swallows the connection error and **exits 0 with empty output**.
+> An agent that runs it on a genuinely failed run sees nothing and success, which reads
+> as "nothing failed". `scripts/ci-wait.sh` itself is unaffected — it is built to fail
+> closed ("absence of evidence is treated as failure") and correctly reported the failure
+> that exposed this. What broke was the *diagnosis* step after the gate, not the gate.
+> The `gh api …/logs` form above uses a reachable host and is verified working.
 - Do not consider a task complete until CI passes (all jobs green)
 - Fix any CI failures before filing your completion report
 

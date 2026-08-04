@@ -121,7 +121,11 @@ Never commit directly to main (adopted 2026-03-21). Every thread works on its ow
    instead of a hand-rolled polling loop (a past incident: naming a variable `status`
    in an ad-hoc script broke it outright, since `status` is a read-only special
    variable in this environment's zsh shell). If it reports a failure:
-   gh run view <run-id> --log-failed   (for the failed job)
+   gh api "repos/ryanv11/travel-tracker/actions/runs/<run-id>/logs" > /tmp/runlogs.zip
+   unzip -p /tmp/runlogs.zip | grep -iE "fail|error" | head -40
+   DO NOT use `gh run view --log-failed` — it FAILS OPEN in this container: job-level
+   logs live on a host the firewall blocks, gh swallows the error, and the command
+   exits 0 with EMPTY output. "No output" then reads as "nothing failed" (QUAL-27).
    Do not consider the thread complete until all jobs are green — fix failures first.
 8. Do not merge your own PR. COO reviews and merges via /coo-merge-and-close.
 

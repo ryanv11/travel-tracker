@@ -1968,8 +1968,38 @@ Four things, and the pattern connecting them is worth more than the list:
 **The pattern:** each is a *correct* finding whose consequences stop one step early. That is not
 carelessness and it is not fixed by more care — it is what happens when a document grows by
 amendment and each amendment is graded against its own brief rather than against the document it is
-joining. The structural fix I would propose, if asked: **an amendment must re-walk the sections it
-did not intend to change**, and probe class `E` exists because that re-walk was not done here.
+joining.
+
+### 10.11.5.1 The structural fix, stated for lifting into CLAUDE.md
+
+> **AN AMENDMENT MUST RE-WALK THE SECTIONS IT DID NOT INTEND TO CHANGE.**
+>
+> When an amendment establishes a new general fact — a mechanism, a constraint, a property of the
+> system — that fact is retroactive. It applies to every claim the document already made, including
+> the ones the amendment was not written to touch. **The amendment is not complete until those
+> earlier claims have been re-checked against it**, and any that no longer hold are corrected or
+> stamped in the same change.
+>
+> **The failure mode this prevents** is not a wrong answer; it is a *right* answer whose
+> consequences stop one step early. It is invisible to ordinary review because every individual
+> sentence was true when written, and it is systematically produced by the way amendments are
+> graded — against the brief that commissioned them, rather than against the document they are
+> joining.
+>
+> **Concretely, when an amendment establishes a new fact, ask three questions before filing:**
+> 1. **Does it invalidate any earlier *verdict*?** (§10.8's D17 flipped three rows of §10.3 and I
+>    wrote "this does not change any verdict".)
+> 2. **Does it invalidate any earlier *method*?** (D17 also broke §10.1's claim that probes A and B
+>    were independent — they share the assumption D17 disproves.)
+> 3. **Does it invalidate any earlier *reason*, even where the verdict survives?** (D12's refusal
+>    was right; its stated reason — "cannot be expressed" — was false, and a false reason
+>    forecloses re-examination in a way a priced refusal does not.)
+>
+> **Reviewer-side corollary, since this is what caught it here:** an OP-27 fresh-eyes pass over an
+> amended document should review the *document*, not the amendment. The reviewer of this ADL was
+> given §1–§10 rather than §10 alone, and every one of F1–F4 lives in the seam between them.
+
+Probe class `E` exists because that re-walk was not done here.
 
 ## 10.11.6 Follow-ups for the COO — new items, not ADL edits
 
