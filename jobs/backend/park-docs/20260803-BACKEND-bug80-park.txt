@@ -1,0 +1,246 @@
+BACKEND PARK DOC — 2026-08-03
+BRIEF: BUG-80 (GitHub #388) — BRD GE-16/GE-17
+BRANCH: fix/bug80-region-on-saved-places
+CLASS (OP-32): gap in shipped behaviour (display-only; not a regression —
+  the brief explicitly ruled out git-history hunting).
+
+TASK
+PO UAT on staging: "Once I save two different newports as two different
+places in a trip, they display identically 'Newport United Kingdom'. Should
+be Newport, Scotland and Newport, Wales." Two distinct city rows already
+existed (Newport GB-SCT, Newport GB-WLS) — the ADL-46 identity key did its
+job; this was purely a missing-field display defect. Scope: extend region
+display to every city-shaped payload and saved-place surface, reusing
+BUG-72's formatCitySubtitle() rather than writing a second formatter.
+Explicitly out of scope (per brief): the `cities` identity key,
+findOrUpgradeCity, classifyCandidates, ambiguity classification — all live
+open questions on a separate thread.
+
+WHAT WAS CHANGED — BACKEND
+
+1. src/backend/repositories/trips.ts — getPlaces(): added `cityRegionName:
+   regions.name` to the existing select (the LEFT JOIN onto `regions` was
+   already there for cityRegionIso — one more column, no new join).
+
+2. src/backend/repositories/places.ts — findByTrip(): this repository's own
+   city query had NEVER joined `regions` at all (a separate query path from
+   tripRepository.getPlaces, easy to miss without an explicit audit). Added
+   `leftJoin(regions, eq(regions.id, cities.regionId))` and selected both
+   cityRegionIso/cityRegionName. Updated the PlaceWithCity interface's
+   `city` shape to add region_iso/region_name (both `string | null`, never
+   optional here — this repository always joins).
+
+3. src/backend/routes/trips.ts:
+   - buildTripResponse (list, GET /api/trips): city object had region_iso
+     already (prior work) but not region_name — added.
+   - GET /api/trips/:id (detail): city object was missing BOTH region_iso
+     AND region_name — the core defect the brief described. Added both.
+
+4. src/backend/routes/places.ts:
+   - GET /api/trips/:tripId/places (standalone list): the route just does
+     `city: p.city` — once the repository (see #2) started returning the
+     two fields, this endpoint got them for free. No route-level edit
+     needed beyond confirming the passthrough.
+   - POST /api/trips/:tripId/places: built its OWN inline city object from a
+     bare `db.select().from(cities)...` with no join whatsoever. Changed the
+     query to select the same shape as GET /api/cities/:id (LEFT JOIN
+     regions, select regionName/regionIso) and added both fields to the
+     response.
+
+5. src/backend/routes/cities.ts — GET /api/cities/:id (BUG-29): had NO
+   region fields at all (not even region_id was joined — region_id was a
+   bare column, region_name/region_iso weren't in the shape). Added the
+   same LEFT JOIN pattern GET /api/cities (search, BUG-72) already
+   established. LEFT, not INNER — a NULL region_id must still 200, not 404.
+
+6. NOT touched: POST /api/cities and PATCH /api/cities/:id (serializeCity's
+   four call sites). AUDIT (two probes, per the negative-findings rule):
+   (a) read AddPlaceFlow.tsx's handleSelectCity/handleCreateCity in full —
+   the created `city` object is only used for `city.id`/`city.geocode_status`
+   (geocodeRetryQueue.add) and to call handleSelectCity; no region field is
+   read or rendered from it anywhere in this flow. (b) grepped the entire
+   frontend for other consumers of `useCreateCity` / `apiPatch.*cities` — none
+   found beyond AddPlaceFlow. Conclusion: these two responses are the
+   documented "never joined regions" case on the City type and stay that
+   way; fixing them would mean restructuring findOrUpgradeCity's return
+   shape or adding a follow-up query on every code path in POST /api/cities
+   (four call sites, three of which return raw `cities` rows from different
+   insert/select statements) for zero rendering benefit — not worth the
+   risk of touching code adjacent to the explicitly-out-of-scope
+   find-or-create logic.
+
+WHAT WAS CHANGED — FRONTEND
+
+7. src/frontend/utils/formatCitySubtitle.ts (NEW) — lifted verbatim-in-
+   behaviour from AddPlaceFlow.tsx's module-local function, generalized with
+   a third optional parameter `countryDisplay` (defaults to
+   `city.country_code`, so AddPlaceFlow's call site and its existing tests
+   are unaffected). This is what let ONE formatter serve both:
+     - AddPlaceFlow/ReviewPanel's convention (country CODE, e.g. "Illinois, US")
+     - PlaceSection's D-04 contract (full country NAME, e.g. "Scotland,
+       United Kingdom") — pass `city.country_name ?? city.country_code`
+   Preserves BUG-72's three-state behaviour (regioned / region-tier-no-region
+   / non-region-tier) and adds explicit handling for the fourth state this
+   brief calls out: `region_name === undefined` (payload never joined
+   `regions`) renders as country-only, NEVER "(no state set)" — that would
+   be a lie the payload never checked. See the file's own doc comment for
+   the full reasoning; see types/api.ts's City.region_name doc comment for
+   the contract this honors.
+
+8. src/frontend/components/TripDetail/AddPlaceFlow.tsx — removed the
+   module-local formatCitySubtitle, imports the shared one instead. Call
+   site (`formatCitySubtitle(city, countries)`) unchanged — 2-arg form,
+   defaults countryDisplay to country_code, byte-identical behaviour.
+   Existing AddPlaceFlow.bug72.test.tsx passes unmodified (verified).
+
+9. src/frontend/components/TripDetail/PlaceSection.tsx — this IS the exact
+   surface the PO looked at. Replaced
+   `{place.city.country_name ?? place.city.country_code}` with a computed
+   `citySubtitle = formatCitySubtitle(place.city, countries, place.city.
+   country_name ?? place.city.country_code)`. Added `useCountries()`.
+   Also threads `citySubtitle` through to:
+     - the `/cities/:id` Link's router state (for CityItemsPage, #12)
+     - PlaceDateForm's new optional `citySubtitle` prop (#10)
+   Deliberately did NOT touch the Remove-place ConfirmDialog's "Remove
+   {name}?" title/message — see "DEFERRED FINDING" below.
+
+10. src/frontend/components/TripDetail/PlaceDateForm.tsx — added optional
+    `citySubtitle?: string` prop; when present, the modal title becomes
+    "Dates — Newport, Scotland" instead of just "Dates — Newport". Optional
+    so the prop isn't load-bearing for the date-editing logic itself.
+
+11. src/frontend/components/PostTripReview/ReviewPanel.tsx — was
+    `{place.city.name} · {place.city.country_code}`, the same bug pattern
+    one panel over. Now `{place.city.name} · {formatCitySubtitle(place.city,
+    countries)}` (2-arg form — this panel already showed the code, not the
+    full name, so that convention is preserved). Added `useCountries()`.
+
+12. src/frontend/pages/CityItemsPage.tsx — `CityLinkState` gained an
+    optional `citySubtitle` field; the page renders it in preference to the
+    old bare `countryName`, falling back to `countryName` for a state-less
+    direct visit or an older link shape. Deliberately does NOT call
+    useCountries()/formatCitySubtitle itself — PlaceSection (the only
+    producer of this router state) already computed the subtitle once;
+    duplicating the computation here would be exactly the "two formatters"
+    the brief said not to write.
+
+13. src/frontend/components/TripList/TripCard.tsx — place badges
+    (`{p.city.name}`) previously showed no country/region at all, ever.
+    Rather than growing every badge on every trip card, added a per-render
+    name-collision check (`nameCounts`): a region/country suffix is appended
+    ONLY when two places on THAT trip share a city name — the actual
+    ambiguity a viewer can hit. The common case (all unique names) is
+    visually unchanged. Added `useCountries()`.
+
+14. src/frontend/components/Map/CityMarkers.tsx — `buildCityGeoJSON` dedupes
+    pins by COORDINATE (BUG-34), not name, so two different-location
+    same-named cities (the Newport case) already render as two separate
+    pins — just both labeled plain "Newport". Applied the same
+    collision-only rule as TripCard: a name-count pass over the deduped
+    feature list appends the region/country suffix only where a collision
+    exists among the pins actually being rendered. `buildCityGeoJSON` and
+    `CityMarkers` both gained an optional `countries` param/prop (default
+    `[]`) — kept optional so the existing CityMarkers.test.ts pure-function
+    tests (single-arg calls) needed no changes.
+
+15. src/frontend/components/Map/MapView.tsx — added `useCountries()`, passes
+    `countries` down to `<CityMarkers>`.
+
+16. src/frontend/components/TripList/DesktopTripsLayout.tsx /
+    MobileTripsLayout.tsx — the map-filter chip ("City: Newport") derives
+    from a SPECIFIC city_id click, so it's already unambiguous by
+    selection — but the LABEL wasn't. Changed `cityName` (string) to
+    `cityInfo` (the full city object) so the label can always show
+    "City: Newport, Scotland" rather than "City: Newport" regardless of
+    collision (this is a single selected city, not a list of badges, so the
+    TripCard/CityMarkers collision-only rule doesn't apply here — always
+    showing it is the more informative default). Added `useCountries()` to
+    both.
+
+17. src/frontend/components/TripDetail/TripDetail.tsx — corrected a stale
+    module-doc line ("D-04: Country code shown in PlaceSection subtitle" —
+    it was actually the full country NAME even before this brief; now also
+    notes the region prefix).
+
+18. src/frontend/types/api.ts — City.region_name's doc comment updated to
+    list the now-much-larger set of endpoints that join `regions`, and to
+    name the two that deliberately still don't (POST/PATCH /api/cities).
+
+DEFERRED FINDING (audited, not fixed)
+PlaceSection.tsx's Remove-place ConfirmDialog ("Remove {city.name}?" / "This
+permanently removes {city.name} from the trip...") shows NEITHER country NOR
+region — a pre-existing, broader ambiguity than this brief's "surface the
+region" scope (this bug is specifically about region being dropped where
+country WAS already shown; the Remove dialog never showed country in the
+first place). PlaceSection.tsx's own comment documents a real, previously-hit
+Playwright substring-matching fragility on this exact dialog's accessible
+name (fixture city names "EditCity"/"DeleteCity" collided with
+"Edit"/"Delete" button name matching). Given that documented fragility and
+that this dialog is outside the brief's explicit surface list, left
+unchanged and flagged here rather than risking an E2E regression for a
+finding that's a different, wider defect than the one being fixed.
+
+SCOPE AUDIT — SURFACES BEYOND THE BRIEF'S STARTING LIST
+The brief named 6 known city-shaped payloads (5 frontend components + GET
+/api/cities/:id) and asked for a fresh audit on top. Found and fixed 2 more
+not on that list:
+  - GET /api/trips/:tripId/places (standalone; repositories/places.ts never
+    joined `regions` at all — a separate code path from tripRepository).
+  - POST /api/trips/:tripId/places (built its own unjoined inline city
+    object).
+Both confirmed to have NO current frontend rendering consumer (two probes
+each: grep + full read of the relevant hook file) but fixed anyway for
+payload consistency, matching the brief's explicit rationale for including
+GET /api/cities/:id despite it also lacking a direct region-rendering
+consumer today.
+
+SECURITY CHECKLIST (routes modified, none added)
+1. Auth middleware — unchanged on every touched route. All six remain under
+   the blanket `app.use('/api/', requireAuth)` (server.ts), confirmed by
+   reading each route file's mount/nosemgrep comments; none of this brief's
+   changes touch route registration, middleware chains, or add/remove a
+   `requireOwner` gate. GET /api/cities/:id and GET /api/cities (search)
+   both intentionally have no owner gate (cities are global reference data)
+   — unchanged, pre-existing.
+2. userId scoping — unchanged. tripRepository.getPlaces(tripId) and
+   placeRepository.findByTrip(userId, tripId) both scope exactly as they
+   did before; this brief added a join and selected columns, never touched
+   a WHERE clause or an ownership check. routes/places.ts POST's city
+   lookup is intentionally NOT userId-scoped (cities are global reference
+   data — the ownership check that matters, trip ownership, lives in
+   placeRepository.create(), untouched).
+3. New user-data columns — none. No migration, no schema.ts edit anywhere
+   in this brief. `regions` (the table every new join targets) has no
+   userId/createdByUserId column — confirmed by reading schema.ts directly
+   (positive finding, self-verifying) and consistent with BUG-72's own
+   two-probe classification of `regions` as tier-1 global reference data.
+
+TEST RESULTS
+- New: src/frontend/utils/__tests__/formatCitySubtitle.test.ts (9 tests).
+- New backend integration tests: trips.crud.test.ts (+3: list region_name,
+  detail region_id/iso/name distinguishing two same-named cities — the
+  exact PO scenario — and a non-region-tier null-fields case),
+  cities.get-by-id.test.ts (+1, plus updated the existing exact-shape
+  toEqual to include the two new always-present null fields),
+  places.test.ts (+3: GET regioned, GET region-less, POST regioned).
+- Full suites: test:backend 696 passed (0 skipped); test:frontend 266
+  passed; type:check:all clean; biome check clean (2 files needed
+  `biome check --write` for line-length formatting on lines I wrote,
+  applied before the final commit); status:check clean (no STATUS.md
+  regeneration needed).
+
+DECLARED FULL-FILE REWRITES
+None. Every change is a targeted edit (Edit tool) to an existing file, or a
+genuinely new file (formatCitySubtitle.ts and its test). No source file was
+replaced wholesale.
+
+OPEN ISSUES / BLOCKERS
+None. The Remove-place ConfirmDialog finding above is deferred, not
+blocking — it's a pre-existing, differently-shaped ambiguity gap, not a
+regression from this fix.
+
+WHAT'S NOW UNBLOCKED
+Nothing downstream is waiting on this specifically; it closes out the
+"other half" of BUG-72's original design that the brief describes as
+already the strongest section of a larger identity design whose remaining
+sections stay blocked on a separate PO decision.
