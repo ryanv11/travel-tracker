@@ -1792,3 +1792,69 @@ WHAT SURVIVED THE ATTACK (credit, not politeness): S1/BUG-80 is the strongest pa
 FINDINGS I KILLED BEFORE FILING (5, listed in §6 of the review) — including one I was ready to file
   HIGH ("S5 never changes findOrUpgradeCity") which §3.3 disproves. Filing it would have repeated the
   exact failure this gate exists to catch.
+
+================================================================================
+2026-08-04 — ENV-01 FULL HOST ENUMERATION (issue #393, branch chore/env01-allowlist-enumeration)
+Amended ADL-49 with §10. Deliverable is design-only; init-firewall.sh untouched.
+================================================================================
+
+TASK: ADL-49 §3 answered "should we allowlist Nominatim?" It never answered "what is the COMPLETE
+  set of hosts this dev environment needs and cannot reach?" ENV-01's class had surfaced 4x in one
+  session (geocoder / staging domain D-06 / QUAL-20 Playwright trace / MapTiler D-21). Enumerated it.
+
+VERDICT SHAPE — 16 hosts assessed: 3 ADD, 11 EXCLUDE with reasons, 2 recorded already-reachable.
+  Explicitly NOT "allowlist everything"; the most-requested item was refused.
+
+THE THREE ADDS: nominatim.openstreetmap.org (unchanged from D1) + travel-tracker-staging.up.railway.app
+  + travel-tracker-production-241f.up.railway.app. Staging is now the HIGHEST-VALUE entry in the ADL,
+  ahead of Nominatim — PO confirmed 2026-08-04 "im only testing on staging now via browser on my mac",
+  so nobody in-container can observe the only surface the project is judged on. Prod assessed
+  SEPARATELY and is second: its need is episodic and the shakedown workflow already takes a base_url.
+
+THE BIG TECHNICAL FINDING — GitHub Actions ARTIFACT storage CANNOT be allowlisted, and this is not a
+  risk call. Host is productionresultssa<N>.blob.core.windows.net: 10 artifacts -> 9 DISTINCT shards;
+  every N up to 50 resolves (no bound found); >=7 Azure storage scale units, >=19 IPs, 4 regions,
+  ALL behind *.trafficmanager.net (Azure Traffic Manager — rotation is the design intent, not a risk).
+  Shard is chosen at UPLOAD time and baked in, so retrying does not move it. QUAL-20's tracker note
+  frames this as a simple allowlist gap; it is not. I started §10.5 intending to ADD it — the shard
+  sampling killed it. Note vscode.blob.core.windows.net IS allowlisted and does NOT generalise
+  (different scale unit ams23prdstr11a, Amsterdam, different IP) — the brief was right to flag that.
+
+LIVE DEFECT FOUND ON THE WAY (D13, needs a tracker entry — COO action, I did not edit CLAUDE.md):
+  `gh run view <id> --log-failed` — the command CLAUDE.md tells EVERY agent to run on a CI failure —
+  EXITS 0 WITH ZERO OUTPUT from this container. It resolves to the same blocked blob pool and gh
+  swallows the error. FAIL-OPEN: an agent reads empty+exit-0 as "no failures". Three probes.
+  WORKING REPLACEMENT (verified end-to-end, run-LEVEL not job-level):
+      gh api "repos/ryanv11/travel-tracker/actions/runs/<RUN_ID>/logs" > /tmp/runlogs.zip
+  Run-level logs redirect to results-receiver.actions.githubusercontent.com (140.82.113.22, inside
+  GitHub meta .web) = REACHABLE. Job-level logs and gh run download go to Azure blob = BLOCKED.
+  *.actions.githubusercontent.com DOES NOT BEHAVE UNIFORMLY — pipelines.* is blocked, results-receiver.* is not.
+
+MAPTILER: §3.4(a) is now ESTABLISHED not inferred (PO-confirmed). COO initially supplied it as a PO
+  ruling, then retracted it as fabricated, then the real PO answer arrived and matched. Independent
+  support found anyway: devcontainer forwardPorts [5173,3001] + vite host 0.0.0.0; and
+  src/e2e/map.spec.ts:14-20 already filters maptiler.com + ERR_ADDRESS_UNREACHABLE with the comment
+  "tile services unreachable in devcontainer". (b) and (c) re-verified and hold. NEW argument against:
+  CSP allows *.maptiler.com (WILDCARD) while MapView.tsx:26 names only api.maptiler.com — one entry
+  may not even make in-container maps render, and I cannot read the style.json to check. Still DEFER,
+  diff line supplied as a PO option.
+
+NEW CROSS-CUTTING PROPERTY (§10.8, applies to ADL-33's EXISTING entries too): this allowlist matches
+  IP ADDRESSES, not hostnames. Adding a host grants everything virtual-hosted on the addresses it
+  pinned. For Fastly/Cloudflare/Railway edges that is not one service. Changes no verdict but it is
+  the correct unit of "what does one line cost". Durable fix (SNI-aware proxy) named, not proposed.
+
+METHOD NOTE WORTH KEEPING: DNS/UDP-53 stays OPEN through lockdown (init-firewall.sh:52-53, the
+  script's own dig depends on it), so a successful dig proves NOTHING and was never used as a probe.
+  Probe A = real TCP attempt with allowed+blocked controls in the same pass; the TIMING is a second
+  signal (blocked = tens of ms per address via ICMP admin-prohibited; a dead upstream times out).
+  Probe B = grep BOTH the repo copy and /usr/local/bin (diff'd: identical). Probe C = run the real
+  operation, which is what turned the artifact question from a guess into a finding.
+  Could NOT read the live ipset — sudo is restricted to init-firewall.sh only. Logged as blind spot 1.
+
+DIFF WAS TESTED WITHOUT BEING APPLIED: git apply --check exit 0; patch applied to a COPY outside the
+  repo then bash -n = SYNTAX OK; repo file confirmed byte-identical to the running copy afterwards.
+
+OPEN FOR THE OP-27 REVIEWER: this is ADL-49's FIRST fresh-eyes review and it covers §1-§9 too.
+  My three named weaknesses are in §10.10. The one I would attack first is Weakness B — §10.4.2's
+  "we already granted X so refusing Y is incoherent" is a ratchet argument and generalises badly.
