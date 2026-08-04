@@ -99,7 +99,7 @@ that file's own comments so it travels with the code rather than living only her
 | 2 | **Browser console is free of errors on load** | No CSP violation, uncaught exception, or failed-resource error is reported by a real browser against the real origin with helmet's CSP actually applied — the specific observation QUAL-18 says the pre-merge E2E suite structurally cannot make (vite preview carries no CSP header at all) | The console stays clean *past sign-in* — BUG-55 and BUG-68's violations both fired from authenticated actions this suite cannot reach (§1) |
 | 3 | **No 5xx in the page's network lifecycle (ENV-02-aware)** | The static asset pipeline and Express aren't 500ing an anonymous request, on a first attempt or a same-minute retry | Absence of 5xx on authenticated-only routes (`/api/geocode`, `/api/cities`, `/api/admin/*`) — unreachable without a session |
 | 4 | **The document carries a Content-Security-Policy header** | This deployed process is genuinely running the production code path (`NODE_ENV=production`, helmet mounted) — i.e. the exact topology difference QUAL-18 names is real, not a header-value duplicate of that suite's own test | The allowlist is *correct or complete* — that's QUAL-19's static source-level job, deliberately not re-implemented here so the two checks don't drift pretending to test the same thing two ways |
-| 5 | **`/health` answers within a deploy-propagation window** | The Express process is up and answering its own liveness endpoint; absorbs Railway rollout lag for the automatic trigger | That the *new* deploy is what answered, not the previous one still serving traffic — there is no version/commit marker in the response (§5) |
+| 5 | **`/health` answers and reports the build SHA within a deploy-propagation window** | The Express process is up and answering its own liveness endpoint; **and (QUAL-26, 2026-08-04) which build is answering** — the run records the deployed commit SHA and, when given an expected SHA, spends its retry window waiting for the two to match rather than merely waiting for a 200 | That the deployed *frontend assets* match — `/health` is the backend's answer, and one-commit-per-deploy is a property of this single-service topology rather than something this check observes. When `SHAKEDOWN_EXPECTED_SHA` is unset (a `base_url` override, or a local run) the SHA is reported but **not verified** |
 
 ### 3.1 Checks considered and argued against, per the brief's instruction not to implement the list blindly
 
@@ -159,6 +159,15 @@ shakedown whose own status is overstated is worse than not having one (the brief
    Railway's rollout (§6.2 names this explicitly rather than glossing over it). **Cheap follow-on,
    flagged for Backend, not built here:** embed the deployed commit SHA in `/health`'s response body.
    This is a one-line, low-risk change to a route this brief has no mandate to touch.
+
+   > SUPERSEDED (2026-08-04) by QUAL-26 (issue #396) — retained for history. The follow-on above was
+   > built. `/health` now returns `commit` / `commitFull` / `builtAt`
+   > (`src/backend/services/build-info.ts`), the workflow passes the dispatched ref's SHA as
+   > `SHAKEDOWN_EXPECTED_SHA`, and check 5 fails on a mismatch instead of reporting a bare 200. The gap
+   > this item describes is **closed for `workflow_dispatch`**, which is the only trigger this workflow
+   > has (the `push` trigger was removed the same day — see §6.2's own stamp). The residual limit is
+   > narrower and stated in the §3 table: an unset `SHAKEDOWN_EXPECTED_SHA` reports the SHA without
+   > verifying it, and the check speaks for the backend rather than the served frontend assets.
 3. **Third-party correctness.** These checks prove *our* deployment is intact, never that Nominatim,
    Clerk, or MapTiler are behaving correctly today — same boundary ADL-49 §5.8 draws for the
    replay-fixture design.
@@ -181,6 +190,15 @@ that matters — exactly the workflow QUAL-20's own tracker note anticipates ("a
 serves a CSP-broken or otherwise non-functional build fails the check").
 
 ### 6.2 `push` to `main` — automatic, secondary, with a stated gap
+
+> SUPERSEDED (2026-08-04) — retained for history. Two things overtook this section on the day it was
+> written. **(a)** The `push`-to-`main` trigger was **removed** (PR #391): Railway's staging service
+> sets `checkSuites: true`, so a red post-deploy check is read as "this commit's checks failed" and the
+> deploy is SKIPPED — five consecutive commits never deployed. A post-deploy check must never sit
+> inside the pre-deploy gate. **(b)** QUAL-26 (issue #396) closed the build-marker half of the gap
+> below: `/health` now carries the commit SHA and check 5 asserts it against the dispatched ref. The
+> rollout-lag reasoning here remains accurate and is why the check still retries rather than failing on
+> the first poll.
 
 ADL-32 already makes staging watch `main` continuously, which the brief calls out as "a natural hook."
 Wiring it costs nothing extra (the same workflow, a second trigger) and it means a badly broken deploy

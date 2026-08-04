@@ -1,7 +1,9 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.5
-**Date:** 2026-07-23 (updated: ADL-28 AD-07/AD-08 — companions moved to /api/companions
+**Version:** 1.6
+**Date:** 2026-08-04 (updated: QUAL-26 — `GET /health` documented, now returning the running
+build's commit SHA alongside `status`)
+**Previously:** 1.5, 2026-07-23 (ADL-28 AD-07/AD-08 — companions moved to /api/companions
 requireAuth-only; map shading routes dropped requireOwner for requireAuth + per-user scoping)
 **Base URL:** `http://localhost:3001`
 **Author:** BACKEND
@@ -22,7 +24,8 @@ This document is the authoritative contract between BACKEND and FRONTEND. FRONTE
 7. [Companions](#companions)
 8. [Admin](#admin)
 9. [Static Assets](#static-assets)
-10. [Error Reference](#error-reference)
+10. [Health](#health)
+11. [Error Reference](#error-reference)
 
 ---
 
@@ -1714,6 +1717,54 @@ Natural Earth admin-0 country boundary GeoJSON (~839 KB). Feature `properties.IS
 ### GET /geo/regions.json
 
 Natural Earth admin-1 states/provinces GeoJSON (~40 MB). Feature `properties.iso_3166_2` is the ISO 3166-2 region reference.
+
+---
+
+## Health
+
+Liveness plus the identity of the build serving the response. Added to this document 2026-08-04
+(QUAL-26, issue #396).
+
+### GET /health
+
+**Not under `/api`, and intentionally unauthenticated** — it is the deployment's own liveness
+endpoint (OP-06 §1.2 exempts it from the access matrix). It is the only endpoint FRONTEND calls
+outside `/api`.
+
+**Response 200:**
+
+```json
+{
+  "status": "ok",
+  "commit": "b93bf9b",
+  "commitFull": "b93bf9b510a2abe375450c763d17cee5e14d1d96",
+  "builtAt": "2026-08-04T18:25:26.865Z"
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `status` | `"ok"` | Unchanged and always present. Anything already depending on it keeps working. |
+| `commit` | `string` | Short (7-char) commit SHA, or the literal `"unknown"` when no SHA could be resolved. |
+| `commitFull` | `string \| null` | Full 40-char SHA, or `null` when unknown. |
+| `builtAt` | `string \| null` | ISO-8601 build timestamp, or `null`. Only present when the build baked one AND it belongs to the same commit as `commit` — a timestamp is never paired with a SHA from a different build. |
+
+**Errors:** none. This endpoint does not fail on an unidentifiable build; it reports
+`"unknown"` and still returns 200.
+
+**How the SHA is resolved**, in order — `BUILD_COMMIT_SHA` (operator override) →
+`RAILWAY_GIT_COMMIT_SHA` (platform-injected on GitHub-sourced deploys) → a file baked at build
+time by `scripts/generate-build-info.js` → `"unknown"`. See `src/backend/services/build-info.ts`
+for why the resolution is layered rather than a single lookup.
+
+**What is deliberately NOT here.** This is a public endpoint, so the payload is build identity and
+nothing else: no environment values, no config, no filesystem paths, no dependency versions. The
+GitHub repository is public, so the commit SHA discloses nothing that is not already public — that
+reasoning covers the SHA and does not extend to anything else. `routes/__tests__/health.test.ts`
+asserts the exact key set so a future addition fails a test rather than shipping.
+
+**Consumers:** `src/frontend/components/shared/BuildStamp.tsx` (nav build stamp) and check 5 of
+`src/e2e-shakedown/shakedown.spec.ts` (post-deploy verification of which build is live).
 
 ---
 

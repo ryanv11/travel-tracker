@@ -1,0 +1,75 @@
+QUAL-26 · issue #396 · PR #TBD · BRD n/a (tooling) · branch feat/qual26-build-marker
+
+WHAT WAS BUILT
+/health now returns {status, commit, commitFull, builtAt} — the running build's commit SHA,
+resolved through a layered lookup that degrades to an honest "unknown". A 7-char muted stamp in
+the existing nav bar shows it, and the shakedown records the deployed SHA and fails when it does
+not match the SHA the run was dispatched from.
+
+ACCEPTANCE CRITERIA
+- /health reports build identity ......................... PASS (see blocker 1 for "on a real
+  deploy" — that step is post-merge by construction, not skipped)
+- Minimal, unobtrusive UI surface ....................... PASS (one span in the existing nav
+  right-hand group; no new page, dialog or layout region)
+- Shakedown records the SHA it tested ................... PASS (log + testInfo annotations, so it
+  reaches shakedown-results.json; asserts against SHAKEDOWN_EXPECTED_SHA and fails on mismatch)
+- Local dev / tests degrade gracefully .................. PASS (no crash, reports "unknown", never
+  a stale hardcoded value; malformed SHAs rejected)
+- Workflow triggers untouched ........................... PASS (workflow_dispatch only; a step-level
+  env: was the only workflow change. Console-clean check untouched)
+
+SECURITY CHECKLIST (route modified: GET /health)
+1. AUTH — /health is intentionally unauthenticated (OP-06 §1.2 liveness-probe exemption), sits
+   outside /api/ and so outside the blanket requireAuth mount. Unchanged by this brief. The
+   payload exposes ONLY commit / commitFull / builtAt: no env values, no config, no filesystem
+   paths, no dependency versions. The resolver's `source` field is logged at startup and never
+   serialised over HTTP. Both new test files assert the EXACT key set, so a future addition fails
+   a test rather than shipping. The public-repo argument covers the SHA and is not extended
+   further.
+2. USERID SCOPING — N/A, and confirmed: the handler touches no repository, no database and no
+   request context at all. It reads two env vars and one build-time JSON file. No user data is
+   reachable through this change.
+3. FK .notNull() — N/A. No schema change, no migration, no edit to schema.ts anywhere in this
+   branch.
+
+RAILWAY_GIT_COMMIT_SHA — three probes, and one thing left UNVERIFIED
+(a) COO's list-variables: not listed. Blind spot confirmed real — get-service-config's
+    variableNames shows the same 11 user-set app variables and NO platform-injected ones at all
+    (not even RAILWAY_PROJECT_ID), so that API's silence is expected behaviour, not absence.
+(b) Railway docs: system variables go to "all builds and deployments"; Git variables apply when
+    the deploy originates from a GitHub trigger.
+(c) Empirical and independent: service source is ryanv11/travel-tracker@main, and every staging
+    deployment's meta carries commitHash + branch:main — (b)'s precondition holds in fact.
+Runtime injection is EXPECTED, but no probe observed the deployed process's environment and the
+staging origin is firewall-blocked here, so runtime presence is UNVERIFIED. The build-time baked
+file exists precisely so the feature does not depend on that claim being true.
+
+CI
+Full /pre-push run green: biome ci clean, type:check:all clean, backend 712 passed (696 baseline
++ 16 new), frontend 270 passed (266 baseline + 4 new), status:check up to date. npm run build
+green with prebuild wired. PR CI confirmed green via scripts/ci-wait.sh.
+
+TRACKER: QUAL-26 is new and has no tracker.json entry yet — tracker.json is COO-maintained, so
+it is left for you. Issue #396 already carries the ID in its title; the entry's notes field needs
+#396 in return per the cross-referencing rule.
+
+FULL-FILE REWRITES (OP-28): none. All existing files edited in place; shared records amended.
+
+OPEN ISSUES / BLOCKERS
+1. The "demonstrated on a real deploy" criterion cannot be met pre-merge — staging watches main,
+   and this container cannot reach the staging origin. After merge: confirm the deployment reached
+   SUCCESS, then run the shakedown via workflow_dispatch. It prints the deployed SHA and fails on
+   a mismatch, so that run is the demonstration. If /health returns "unknown" there, the fix is
+   setting BUILD_COMMIT_SHA in Railway — no code change.
+2. The shakedown's console-clean check remains red for its own pre-existing reason. Untouched on
+   instruction.
+3. The stamp lives in the top nav, hidden at mobile widths on /trips only (pre-existing WP-03/C9
+   behaviour). Flagged rather than changed — relocating it is a layout decision the brief told me
+   to stop at.
+
+WHAT IS NOW UNBLOCKED
+- A skipped or stale deploy is now mechanically detectable instead of depending on the PO noticing
+  a merged fix still doesn't work.
+- PO UAT reports can name the build they were made against.
+- QUAL-20's own stated residual gap ("this run cannot prove which build it tested") is closed for
+  workflow_dispatch, which is the only trigger the workflow has.

@@ -1,4 +1,76 @@
-BACKEND CONTEXT — 2026-08-03 (BUG-80 thread, latest)
+BACKEND CONTEXT — 2026-08-04 (QUAL-26 thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: implemented QUAL-26 (GitHub #396) on branch
+  feat/qual26-build-marker off main. /health now identifies the running
+  build. Classification: gap, never built.
+  1. src/backend/services/build-info.ts (new). Layered resolver:
+     BUILD_COMMIT_SHA -> RAILWAY_GIT_COMMIT_SHA -> a build-time baked file ->
+     "unknown". Validates candidates against /^[0-9a-f]{40}$/ so a typo or a
+     platform placeholder degrades to "unknown" rather than surfacing as a
+     plausible-but-wrong marker. Memoised per process. Drops the baked
+     builtAt when the baked commit disagrees with the resolved SHA — a
+     timestamp from a different build is a quiet lie about the one thing this
+     endpoint exists to answer.
+  2. /health returns {status, commit, commitFull, builtAt} in both server.ts
+     and server-test-app.ts. `status:'ok'` unchanged and still first, so
+     Railway's healthcheck and the shakedown's existing toMatchObject keep
+     working. Startup logs the resolved SHA AND its source; `source` is never
+     returned over HTTP (operator diagnostics, not a public field).
+  3. scripts/generate-build-info.js + npm `prebuild`. Writes
+     src/backend/generated/build-info.json (gitignored — a committed copy
+     would be stale one commit later, and a stale marker is worse than none).
+     Never fails a build; writes commit:null and warns.
+  4. Frontend: useHealth.ts + components/shared/BuildStamp.tsx, mounted in
+     App.tsx's existing nav right-hand group (which now owns ml-auto so the
+     stamp stays pinned right even under BYPASS_AUTH, where UserButton is
+     not rendered). One muted 7-char monospace span; full SHA + build time in
+     the title tooltip. Renders NOTHING when the build is unidentifiable or
+     /health fails — no spinner, no error state. vite.config.ts proxies
+     /health to :3001 in both server and preview blocks (preview does not
+     inherit server.proxy — the OP-11 note).
+  5. Shakedown check 5 rewritten in place: records the deployed SHA to the
+     run log and testInfo annotations (so it lands in shakedown-results.json)
+     ALWAYS, and when SHAKEDOWN_EXPECTED_SHA is set spends the retry window
+     waiting for a MATCH rather than merely a 200. Mismatch after the window
+     fails with a message pointing at Railway SKIPPED deploys. The workflow
+     sets it to github.sha, but only when base_url is not overridden —
+     expression is `inputs.base_url == '' && github.sha || ''`, NOT
+     `inputs.base_url && '' || github.sha`, which falls through to github.sha
+     in both branches because '' is falsy.
+  6. Workflow TRIGGERS UNTOUCHED — workflow_dispatch only, per the brief and
+     the deploy-deadlock comment. Only a step-level `env:` was added.
+  7. Docs (document-lifecycle rule, same PR): jobs/qa/tech/20260804-post-
+     deploy-shakedown.md's three "no build marker" claims stamped SUPERSEDED;
+     API reference bumped 1.5 -> 1.6 and documents GET /health for the first
+     time; CODEBASE.md gained the two new modules.
+  RAILWAY_GIT_COMMIT_SHA — three probes, recorded because the brief asked:
+    (a) COO's `list-variables` did not list it. Blind spot: that API
+        enumerates user-set SERVICE variables only.
+    (b) Railway docs (variables/reference): Git variables are provided "to
+        all builds and deployments" originating from a GitHub trigger.
+    (c) Empirical: get-service-config shows source repo ryanv11/travel-tracker
+        @ main, and every staging deployment's meta carries commitHash +
+        branch:main — so the docs' precondition holds here.
+    (b)+(c) say injection is EXPECTED; none of the three directly observes the
+    runtime process env, and the deployed origin is firewall-blocked from this
+    container, so runtime presence is UNVERIFIED. That is exactly why the
+    baked-file layer exists rather than being cut as redundant.
+  TESTS: backend 39 files / 712 passed (696 baseline + 16 new); frontend
+    37 files / 270 passed (266 baseline + 4 new);
+    type:check:all clean; biome clean. New: services/__tests__/build-info.test
+    .ts (13), routes/__tests__/health.test.ts (3), components/shared/__tests__/
+    BuildStamp.test.tsx (4). App.test.tsx gained a useHealth mock — it renders
+    App with no QueryClientProvider, same pattern it already uses for
+    useGeocodeRetryQueue.
+  NOT DONE / FOR COO: the definition of done asks for /health demonstrated on
+    a REAL staging deploy. That cannot happen pre-merge — staging watches main,
+    and this container cannot reach the staging origin. After merge, deploy,
+    then run the shakedown via workflow_dispatch: it now prints the deployed
+    SHA and fails on a mismatch, so that run IS the demonstration.
+
+---
+
+BACKEND CONTEXT — 2026-08-03 (BUG-80 thread)
 PROJECT: Travel Tracker
 CURRENT STATUS: implemented BUG-80 (GitHub #388, BRD GE-16/GE-17) — region
   now surfaced on every city-shaped payload and saved-place surface, not just
