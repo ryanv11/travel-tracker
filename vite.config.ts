@@ -35,6 +35,13 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      // QUAL-26: /health is Express's, not Vite's. In production Express serves both the
+      // document and /health from one origin; without this the dev server would answer
+      // the build stamp's fetch with its own SPA fallback instead.
+      '/health': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 
@@ -50,6 +57,12 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/geo': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      // QUAL-26 — same reason as `server.proxy` above, repeated because `vite preview`
+      // does not inherit it (see the OP-11 note).
+      '/health': {
         target: 'http://localhost:3001',
         changeOrigin: true,
       },

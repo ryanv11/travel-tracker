@@ -13,6 +13,9 @@
  *
  * Mocks:
  *   - useGeocodeRetryQueue() — inert (no pending geocodes)
+ *   - useHealth() — inert (QUAL-26 build stamp; this file renders App with no
+ *     QueryClientProvider, and the stamp is not what these tests are about —
+ *     its own coverage lives in components/shared/__tests__/BuildStamp.test.tsx)
  *   - @clerk/react UserButton — rendered as a stub
  *   - Page components (MapPage, AdminPage, TripDetailPage, TripsLayout) —
  *     lightweight stubs so App renders without MapLibre/query wiring
@@ -35,6 +38,10 @@ import { App } from '../App';
 
 vi.mock('../hooks/useGeocodeRetryQueue', () => ({
   useGeocodeRetryQueue: () => ({ pendingCount: 0, retryAll: vi.fn(), dismiss: vi.fn() }),
+}));
+
+vi.mock('../hooks/useHealth', () => ({
+  useHealth: () => ({ data: undefined }),
 }));
 
 vi.mock('@clerk/react', () => ({

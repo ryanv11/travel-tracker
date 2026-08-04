@@ -133,6 +133,7 @@ src/
 │   │   ├── useMapShading.ts
 │   │   ├── useGeocodeRetryQueue.ts
 │   │   ├── useMe.ts            Identity endpoint (GET /api/me) — owner-gated nav (BUG-26)
+│   │   ├── useHealth.ts        Build identity (GET /health) — feeds the nav build stamp (QUAL-26)
 │   │   └── useIsMobile.ts      Viewport breakpoint hook driving the WP-04 mobile layout switch
 │   ├── utils/
 │   │   ├── apiClient.ts        Centralised fetch() wrapper — base URL, auth token, error handling
@@ -213,7 +214,8 @@ src/
     │   ├── shading.service.ts  Map shading state computation (country + region)
     │   ├── items.service.ts    Carry-forward and item transaction logic
     │   ├── geocoding.service.ts Nominatim geocoding queue
-    │   └── startup.service.ts  DB seeding (countries, regions, defaults)
+    │   ├── startup.service.ts  DB seeding (countries, regions, defaults)
+    │   └── build-info.ts       Deployed commit SHA for /health + the nav build stamp (QUAL-26)
     ├── middleware/             Auth middleware (Clerk JWT verification)
     └── validation/             Zod schemas for request validation
 ```

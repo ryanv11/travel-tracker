@@ -13,6 +13,7 @@
 import { UserButton } from '@clerk/react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { LocationPinIcon } from './components/icons';
+import { BuildStamp } from './components/shared/BuildStamp';
 import { TripsLayout } from './components/TripList/TripsLayout';
 import { useGeocodeRetryQueue } from './hooks/useGeocodeRetryQueue';
 import { AdminPage } from './pages/AdminPage';
@@ -108,12 +109,13 @@ export function App() {
           </div>
         )}
 
-        {/* NR-14: User account menu (sign-out) — always pinned to the right */}
-        {import.meta.env.VITE_BYPASS_AUTH !== 'true' && (
-          <div className="ml-auto">
-            <UserButton />
-          </div>
-        )}
+        {/* Right-hand group: QUAL-26 build stamp + NR-14 user account menu (sign-out).
+            The group owns `ml-auto` rather than the UserButton, so the stamp stays pinned
+            right whether or not Clerk's button renders (it is hidden under BYPASS_AUTH). */}
+        <div className="ml-auto flex items-center gap-3">
+          <BuildStamp />
+          {import.meta.env.VITE_BYPASS_AUTH !== 'true' && <UserButton />}
+        </div>
       </nav>
 
       {/* Page content */}

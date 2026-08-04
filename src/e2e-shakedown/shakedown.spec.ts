@@ -188,52 +188,137 @@ test('the deployed document carries a Content-Security-Policy header', async ({
   ).toBeTruthy();
 });
 
+/** Shape of /health's body since QUAL-26 — liveness plus the identity of the running build. */
+type HealthBody = {
+  status?: unknown;
+  commit?: unknown;
+  commitFull?: unknown;
+  builtAt?: unknown;
+};
+
 /**
- * CHECK — /health answers, with backoff — the readiness gate the automatic (post-push)
- * trigger relies on.
+ * The commit this run expects the deployed app to be serving, or null when the run makes no
+ * claim about it.
  *
- * PROVES: the Express process is up and answering its own liveness endpoint. Also
- * absorbs deploy-propagation lag when this suite is triggered automatically right after a
- * merge to main (ADL-32's staging auto-deploy) — Railway's rollout is not instantaneous,
- * and this is the one check designed to retry across that window rather than report a
- * false failure for a deploy still in flight.
- *
- * DOES NOT PROVE: that /health reflects the NEW deploy specifically rather than the
- * previous one still running — there is no version/commit marker in the response to tell
- * the difference (see the tech doc's "what this does not cover" — a cheap Backend follow-on,
- * not built here). A manual (COO-invoked) run after confirming the deployment in
- * `railway-query.sh staging status` does not have this ambiguity; the automatic trigger
- * does, and that residual gap is stated rather than hidden.
+ * Set by the workflow to `github.sha` — but only when the run targets the default staging
+ * URL. A `base_url` override points somewhere whose build has nothing to do with the ref
+ * this workflow was dispatched from, so asserting there would manufacture a false failure.
+ * A local `npm run shakedown:staging` also leaves it unset: the operator's checkout is not
+ * evidence of what is deployed.
  */
-test('/health answers within the deploy-propagation window', async ({ request, baseURL }) => {
+const EXPECTED_SHA = (process.env.SHAKEDOWN_EXPECTED_SHA ?? '').trim().toLowerCase() || null;
+
+/**
+ * CHECK — /health answers AND names the build it is serving, with backoff.
+ *
+ * PROVES: the Express process is up and answering its own liveness endpoint — and, since
+ * QUAL-26, WHICH BUILD is answering. When the run knows the commit it expects
+ * (SHAKEDOWN_EXPECTED_SHA, set by the workflow to the dispatched ref's SHA), the retry
+ * window is spent waiting for the deployed SHA to MATCH rather than merely waiting for a
+ * 200 — so this check now distinguishes "the new build is live" from "the previous build is
+ * still serving traffic", which is exactly what it previously could not do.
+ *
+ * WHY THAT MATTERS MORE THAN IT SOUNDS. On 2026-08-04 Railway SKIPPED five consecutive
+ * staging deploys. Nothing went red — a skipped deploy is not a failed one — and staging
+ * served a build five commits stale while every PR showed green. The only thing that caught
+ * it was the PO noticing a merged fix still didn't work. A SHA mismatch here is a direct,
+ * mechanical detector for that entire class.
+ *
+ * The SHA is recorded unconditionally — logged to the run output and attached as a test
+ * annotation (so it lands in shakedown-results.json and the uploaded artifact) — even when
+ * there is nothing to compare it against. A shakedown that cannot say which build it tested
+ * is evidence of very little, which was QUAL-20's own stated residual gap.
+ *
+ * DOES NOT PROVE: anything about builds when SHAKEDOWN_EXPECTED_SHA is unset (a base_url
+ * override or a local run) — in that mode the SHA is reported, not verified. Nor does it
+ * prove the deployed frontend ASSETS match: /health is the backend's answer, and while this
+ * single-service deployment builds both from one commit, that is a property of the topology
+ * rather than something this check observes.
+ */
+test('/health answers and reports the build SHA within the deploy-propagation window', async ({
+  request,
+  baseURL,
+}, testInfo) => {
   const url = `${baseURL}/health`;
   const maxAttempts = 10;
   const delayMs = 6_000;
   let lastStatus: number | undefined;
   let lastBody: string | undefined;
+  let lastSeenSha: string | null = null;
+
+  /** Records the SHA in both the human-readable log and the machine-readable report. */
+  const record = (message: string) => {
+    console.info(`[shakedown] ${message}`);
+    testInfo.annotations.push({ type: 'build', description: message });
+  };
 
   for (let i = 0; i < maxAttempts; i++) {
     const res = await request.get(url, { failOnStatusCode: false });
     lastStatus = res.status();
     lastBody = await res.text();
+
     if (res.ok()) {
-      let parsed: unknown;
+      let parsed: HealthBody | undefined;
       try {
-        parsed = JSON.parse(lastBody);
+        parsed = JSON.parse(lastBody) as HealthBody;
       } catch {
         parsed = undefined;
       }
       expect(parsed, `/health returned 200 but an unexpected body: ${lastBody}`).toMatchObject({
         status: 'ok',
       });
-      return;
+
+      const commitFull = typeof parsed?.commitFull === 'string' ? parsed.commitFull : null;
+      const commitShort = typeof parsed?.commit === 'string' ? parsed.commit : 'unknown';
+      const builtAt = typeof parsed?.builtAt === 'string' ? parsed.builtAt : 'unknown';
+      lastSeenSha = commitFull;
+
+      // No expectation to check against — report the build and stop. This is the local /
+      // base_url-override mode.
+      if (!EXPECTED_SHA) {
+        record(
+          `deployed build: ${commitShort} (full: ${commitFull ?? 'unknown'}, built: ${builtAt}) ` +
+            '— NOT VERIFIED against an expected commit (SHAKEDOWN_EXPECTED_SHA unset).',
+        );
+        return;
+      }
+
+      if (commitFull === EXPECTED_SHA) {
+        record(
+          `deployed build ${commitShort} MATCHES the expected commit ` +
+            `${EXPECTED_SHA.slice(0, 7)} (built: ${builtAt}).`,
+        );
+        return;
+      }
+
+      // Mismatch. Keep retrying — a rollout genuinely in flight will flip to the new SHA
+      // inside this window, and failing on the first poll would just re-manufacture the
+      // false-failure problem the original backoff existed to avoid.
+      record(
+        `attempt ${i + 1}/${maxAttempts}: deployed build is ${commitShort}, expected ` +
+          `${EXPECTED_SHA.slice(0, 7)} — waiting for the rollout.`,
+      );
     }
+
     if (i < maxAttempts - 1) await new Promise((r) => setTimeout(r, delayMs));
   }
 
+  const windowSeconds = (maxAttempts * delayMs) / 1000;
+
+  if (lastStatus !== undefined && lastStatus >= 200 && lastStatus < 300) {
+    throw new Error(
+      `/health is healthy but is serving the WRONG BUILD after ~${windowSeconds}s: ` +
+        `deployed ${lastSeenSha ?? 'unknown'}, expected ${EXPECTED_SHA}. ` +
+        'This is the QUAL-26 signal: the app is up, so this is not a rollout still in ' +
+        'flight — the expected commit was most likely never deployed at all. Check ' +
+        'Railway for a SKIPPED deployment (a skipped deploy never goes red, which is why ' +
+        'five of them went unnoticed on 2026-08-04) before treating anything here as a ' +
+        'product defect.',
+    );
+  }
+
   throw new Error(
-    `/health never returned 200 after ${maxAttempts} attempts over ~${
-      (maxAttempts * delayMs) / 1000
-    }s (last: ${lastStatus} ${lastBody})`,
+    `/health never returned 200 after ${maxAttempts} attempts over ~${windowSeconds}s ` +
+      `(last: ${lastStatus} ${lastBody})`,
   );
 });

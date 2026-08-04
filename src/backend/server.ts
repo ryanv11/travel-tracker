@@ -47,6 +47,7 @@ import { geocodeRouter } from './routes/geocode.js';
 import { mapRouter } from './routes/map.js';
 import { meRouter } from './routes/me.js';
 import { tripsRouter } from './routes/trips.js';
+import { buildHealthPayload, getBuildInfo } from './services/build-info.js';
 import { processQueue } from './services/geocoding.service.js';
 import {
   assertForeignKeysEnabled,
@@ -218,8 +219,17 @@ app.use('/api/activities', activitiesRouter); // ADL-46 (AD-09, D3): requireAuth
 app.use('/api/geocode', geocodeRouter); // ADL-46 (D7): geocoding proxy — requireAuth, egress chokepoint
 app.use('/api/me', meRouter); // BUG-26: identity endpoint for frontend owner gating
 
-// Health check (useful for development)
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+// Health check — liveness AND build identity (QUAL-26).
+//
+// Intentionally unauthenticated (OP-06 §1.2 exempts it as a liveness probe), so the payload
+// is limited to `status` plus the commit SHA and build timestamp: no env values, no config,
+// no paths, no dependency versions. The GitHub repo is public, so the SHA discloses nothing
+// that is not already public; that reasoning covers the SHA and nothing else.
+//
+// `status: 'ok'` is unchanged and still first — Railway's healthcheck and the shakedown's
+// existing assertion both keep working. See src/backend/services/build-info.ts for how the
+// SHA is resolved and why the resolution is layered.
+app.get('/health', (_req, res) => res.json(buildHealthPayload()));
 
 // ----------------------------------------------------------------
 // Static frontend (ADL-32 — hosted deployment only)
@@ -265,6 +275,15 @@ app.use(errorHandler);
 
 async function startup(): Promise<void> {
   console.info('[STARTUP] Travel Tracker API starting...');
+
+  // QUAL-26: state the build identity in the very first lines of the deploy log, so
+  // "which build is this?" is answerable from Railway's log view as well as from /health.
+  // `source` is logged but never returned over HTTP — it is operator diagnostics for
+  // "the SHA resolver fell back", not something a public endpoint should volunteer.
+  const build = getBuildInfo();
+  console.info(
+    `[STARTUP] Build ${build.commit} (source: ${build.source}, built: ${build.builtAt ?? 'unknown'})`,
+  );
 
   // 0. Guard: BYPASS_AUTH must never be set outside test/CI environments.
   if (process.env.BYPASS_AUTH === 'true') {

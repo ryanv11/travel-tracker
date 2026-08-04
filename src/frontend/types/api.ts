@@ -337,3 +337,24 @@ export interface Me {
   /** ADL-27 owner flag: 1 = owner, 0 = non-owner. */
   isOwner: number;
 }
+
+// ============================================================
+// HEALTH (GET /health) — QUAL-26
+// ============================================================
+
+/**
+ * Liveness plus the identity of the build serving this response.
+ *
+ * Unauthenticated and NOT under /api — it is the deployment's own liveness endpoint. The
+ * only reason the frontend reads it is to answer "which build am I looking at?" without
+ * leaving the app, which is what QUAL-26 exists for.
+ */
+export interface Health {
+  status: 'ok';
+  /** Short (7-char) commit SHA, or the literal `'unknown'` when no SHA could be resolved. */
+  commit: string;
+  /** Full 40-char commit SHA, or null when unknown. */
+  commitFull: string | null;
+  /** ISO-8601 build timestamp, or null when the build did not record one. */
+  builtAt: string | null;
+}
