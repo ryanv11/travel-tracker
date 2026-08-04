@@ -165,11 +165,21 @@ gh run list --repo ryanv11/travel-tracker --branch main --limit 6 \
   --jq '.[] | "\(.conclusion)\t\(.workflowName)\t\(.displayTitle)"'
 ```
 
-- Any `failure` on main → **blocking first item**: diagnose which job failed
-  (`gh run view <id> --log-failed`) and either fix it this session or raise a
-  tracked issue before starting other work. Main red is never left unowned —
-  agents only exist during sessions, so an unsurfaced red main has no other
-  detection mechanism.
+- Any `failure` on main → **blocking first item**: diagnose which job failed and
+  either fix it this session or raise a tracked issue before starting other work.
+  Main red is never left unowned — agents only exist during sessions, so an
+  unsurfaced red main has no other detection mechanism.
+
+  ```bash
+  gh api "repos/ryanv11/travel-tracker/actions/runs/<run-id>/logs" > /tmp/runlogs.zip
+  unzip -p /tmp/runlogs.zip | grep -iE "fail|error" | head -40
+  ```
+
+  **Not `gh run view --log-failed`** — it fails open in this container, exiting 0
+  with empty output because job logs live on a firewall-blocked host and `gh`
+  swallows the error (QUAL-27). This step is *gate-shaped*: it is how a red main
+  gets diagnosed at session start, so a silent empty result here reads as "nothing
+  to see" on the one check whose whole purpose is catching an unowned red main.
 - Known-red jobs with an open tracked issue (e.g. DEP-01/#98 npm audit) →
   note them in the pickup summary; everything else must be green.
 
