@@ -137,6 +137,70 @@ fi
 # no read-only credential exists for it, see ADL-33 §4). Note: Turso/Railway sit
 # behind a CDN that rotates edge IPs — this script pins IPs resolved at container
 # start, so intermittent reachability is possible within a long session (ADL-33 §7).
+#
+# ADL-49 §10 (2026-08-04, ENV-01) — three entries added below, in two categories.
+#
+# (a) nominatim.openstreetmap.org — the app's OWN RUNTIME geocoder
+#     (nominatim-client.ts:31), for local development and fixture capture. This is
+#     the first entry of that kind; every other host here is agent diagnostics.
+#     Two usage-policy obligations ride with it and are not optional: ~1 req/s from
+#     this single egress IP, and an identifying User-Agent. The in-process limiter
+#     does NOT span processes — read ADL-49 §4.3 before running any capture or
+#     probe script. Fastly anycast, one A record: materially less rotation-prone
+#     than the Turso/Railway entries above. If the geocoder stops working
+#     mid-session, restart the container before debugging the client.
+#
+#     SIDE EFFECT, STATED BECAUSE IT IS REAL: the OSM TILE servers share this exact
+#     Fastly anycast address — nominatim, tile., a/b/c.tile.openstreetmap.org all
+#     resolve to 151.101.21.91. This ipset holds ADDRESSES, so this entry makes the
+#     tile servers reachable too and no entry here can separate them. We do not use
+#     them (the app renders MapTiler vector tiles via MapLibre), their usage policy
+#     is STRICTER than Nominatim's, and nothing in this repo may call them. That is
+#     a repo RULE, not a control this file enforces — see ADL-49 §10.11.2.
+#
+# (b) travel-tracker-staging.up.railway.app
+#     travel-tracker-production-241f.up.railway.app
+#     The DEPLOYED APP's own public domains — read-only diagnostic GETs. Open
+#     dialogue D-06, raised 2026-07-21 and now on its fourth occurrence. The PO's
+#     entire verification loop is a host browser against staging, so nobody inside
+#     this container can observe the surface the PO is actually judging. These
+#     grant no credential: the API stays behind Clerk, and the container already
+#     holds read-only SELECT on BOTH Turso databases (ADL-33 §2) — granting the
+#     production database while refusing the public website would be incoherent.
+#     Prefer staging; hit production only when the question is specifically about
+#     production (ADL-33 §2's convention, carried over).
+#
+#     The "no credential" argument above has a STANDING CONDITION attached. It is
+#     recorded in ADL-33 §4 — the decision that declined Clerk access — because that
+#     is what someone provisioning a credential actually reads. It is NOT restated
+#     here: a condition filed only in a firewall script is a record, not a control.
+#
+# NOT ALLOWLISTED BY NAME, each with a reason (ADL-49 §10.3). READ THE CAVEAT BELOW
+# BEFORE TREATING ANY OF THESE AS BLOCKED — for Cloudflare-fronted hosts they are a
+# statement that no case has been made, NOT a control this file enforces:
+#   api.turso.tech    ADL-33 §2. CloudFront-fronted with no allowlisted neighbour,
+#                     so this exclusion is EFFECTIVE (verified). It is the DB admin
+#                     plane and the most important exclusion in this file.
+#   api.clerk.com     ADL-33 §4. Cloudflare-fronted: reachable today via the caveat
+#                     below, answering 401. The control here is the ABSENT
+#                     CREDENTIAL, not this list. That is deliberate, not a gap.
+#   img.clerk.com     no in-container consumer; browser-side avatars only.
+#   api.maptiler.com  ADL-49 §3.4/§10.6 — the firewall is not what blocks map
+#                     testing (PO-confirmed 2026-08-04). Also already reachable.
+#   productionresultssa*.blob.core.windows.net — GitHub Actions ARTIFACT storage.
+#                     Reachable only by widening the meta CIDRs at line 126 to
+#                     include '.actions': 10,300 -> 27,901,673 addresses, a 2,709x
+#                     widening. REFUSED ON THAT COST (ADL-49 §10.5.2). The run-LEVEL
+#                     logs API is already reachable — use it instead.
+#   GitHub meta '.actions' key — same refusal, same number.
+#
+# WHAT THIS FILE IS AND IS NOT (ADL-49 §10.8, measured not theorised): it matches IP
+# ADDRESSES, not hostnames — there is no SNI or Host inspection anywhere. So it is an
+# AVAILABILITY AND ACCIDENT CONTROL, not a containment boundary. Any CDN-fronted
+# origin sharing an address with an allowlisted host is reachable via SNI, and for
+# Cloudflare that is demonstrated: api.maptiler.com returns 301 when pinned to an
+# address registry.npmjs.org resolves to. Non-Cloudflare exclusions (CloudFront,
+# Azure) do hold. Do not read an absence from this list as unreachability.
 for domain in \
     "registry.npmjs.org" \
     "api.anthropic.com" \
@@ -146,6 +210,9 @@ for domain in \
     "vscode.blob.core.windows.net" \
     "update.code.visualstudio.com" \
     "just-raptor-89.clerk.accounts.dev" \
+    "nominatim.openstreetmap.org" \
+    "travel-tracker-staging.up.railway.app" \
+    "travel-tracker-production-241f.up.railway.app" \
     "travel-tracker-prod-ryanv11.aws-us-west-2.turso.io" \
     "travel-tracker-staging-ryanv11.aws-us-west-2.turso.io" \
     "backboard.railway.com"; do

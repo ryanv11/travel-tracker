@@ -1,0 +1,149 @@
+COO SESSION PARK — 2026-08-04 ("GET THE COO VISIBILITY FIRST")
+5 PRs merged · main green @ c1f5a01 · BRD v3.16 unchanged · staging current @ 0dac8e8
+================================================================================
+
+## READ THIS FIRST
+
+**The firewall diff is APPLIED but NOT YET IN EFFECT.** `.devcontainer/init-firewall.sh`
+now carries three new hosts (nominatim.openstreetmap.org, travel-tracker-staging.up.
+railway.app, travel-tracker-production-241f.up.railway.app). The script runs at
+**container start**, so the session that applied it still ran under the old rules.
+
+**FIRST ACTION NEXT SESSION: run ADL-49 §10.7.1's verification commands.** If any of the
+three is still unreachable after the rebuild, that is a REAL FINDING — not propagation
+delay. Do not wave it through.
+
+Two obligations ride with the Nominatim entry and are NOT optional (ADL-49 §4): ~1 req/s
+from this single egress IP, and an identifying User-Agent. **The in-process limiter does
+not span processes** — read §4.3 before running any capture or probe script, because a
+standalone script bypasses the app's limiter entirely.
+
+Disclosed side effect: the OSM **tile** servers share Nominatim's Fastly address
+(151.101.21.91) and are now reachable. We do not use them, their policy is stricter, and
+nothing in this repo may call them. That is a **repo rule, not a control**.
+
+## What the session was, in one paragraph
+
+It started as "fix BUG-76" and the PO reframed it twice. The COO proposed patching around
+its own blindness with an in-app observability fix; the PO asked why we weren't fixing the
+visibility itself, and asked for the **set** of unreachable-but-needed hosts rather than
+one more host. That reframe found a fail-open in the command every agent is told to run on
+a CI failure — something the narrow path would never have reached. Nothing was built on a
+guess: BUG-76 is still unfixed, deliberately, because the cause is inferred and now finally
+measurable.
+
+## Shipped and live
+
+| Item | What |
+|---|---|
+| **ENV-01 / ADL-49 §10** | 16 hosts assessed: 3 ADD, 11 EXCLUDE with reasons, 2 already-reachable. Diff applied on PO approval |
+| **QUAL-27** | `gh run view --log-failed` fails open here — exit 0, zero bytes, on a genuinely failed run. Fixed across 10 instruction sites |
+| **QUAL-26** | Build SHA in /health, the nav bar and the shakedown. Verified on a real deploy |
+| **QUAL-28** | The allowlist matches IPs, not hostnames — any Cloudflare-fronted origin is reachable. Filed P3, see below |
+| **OP-27 review** | ADL-49 §1–§10 reviewed by fresh eyes for the first time. 3 blocking findings, all fixed |
+| **D-06** | Closed after 14 days and four recurrences |
+
+## THE THING MOST WORTH CARRYING FORWARD
+
+**`gh run view <id> --log-failed` returned exit 0 and ZERO bytes on a genuinely failed
+run.** Job logs live on a firewall-blocked Azure blob host; `gh` swallows the error. Every
+agent in this project has been told to run it on any CI failure. "No output" reads as
+"nothing failed."
+
+It was documented in **10 places**, one of them gate-shaped — `/coo-startup`'s red-main
+audit, i.e. the one check whose entire purpose is catching an unowned red main.
+
+**`scripts/ci-wait.sh` was NOT touched and must not be.** It fails *closed* by design and
+correctly reported the very failure that exposed this. The gate held; the diagnosis step
+after it did not. That distinction is written into CLAUDE.md next to the replacement
+command precisely so the next reader does not "fix" a script that was never broken.
+
+## THE OTHER FINDING — and why it is P3, not critical
+
+The OP-27 review found the allowlist is bypassable to **any Cloudflare-proxied origin** and
+rated it CRITICAL. COO verified it live: `api.maptiler.com` is blocked by name (curl exit 7)
+but returns **HTTP 301** pinned to an address `registry.npmjs.org` resolves to. Control
+holds — `api.turso.tech` through the same edge fails TLS handshake, so this is *every
+Cloudflare zone*, not everything.
+
+**The PO then stated the actual threat model, which nobody had:** the container exists to
+stop **CHANGES**, not reads; changes are restricted at API permissions; least privilege with
+a case made for any access. Against that, F1 grants reads and no write capability — **low
+severity**. The review had scored it against a containment model that was never the goal.
+
+**But "low" is a CONDITION, not a property** — low *because* no credential exists for those
+write APIs. That correction is the ADL author's, not the COO's; the COO's first tracker note
+said "low severity" without the qualifier, which is exactly the propagation the author warned
+about. If a Clerk or MapTiler credential is ever provisioned here, severity changes that day
+and nothing re-triggers a review. That is why ADL-33 §4 now holds the standing condition —
+a firewall comment is not read by whoever provisions a credential.
+
+Best news in the whole finding, and it was buried: **`api.turso.tech` — the DB admin plane,
+the one host where a write is catastrophic — is CloudFront-fronted with no allowlisted
+neighbour. Its exclusion is EFFECTIVE.**
+
+## Where the COO was wrong, four times
+
+Recorded because the pattern is more useful than the instances.
+
+1. **Fabricated a PO ruling.** Wrote "PO answer, supplied so you do not re-derive it: the PO
+   tests in a browser on the host machine" into a brief. The PO had not said it. The
+   inference was right, which is luck. An attributed decision is unarguable by design, so
+   nobody downstream probes it — that makes it *worse* than an ordinary unverified claim.
+   Caught on re-read; retracted in the issue and by message to the running agent.
+   Memory: `feedback_never_attribute_an_inference_to_the_po`.
+2. **A worthless probe, stated as evidence.** Told the QUAL-26 brief that
+   `RAILWAY_GIT_COMMIT_SHA` "does not appear in staging's variable list." Railway's API
+   enumerates only user-set variables — it lists NO platform-injected ones at all. The
+   silence meant nothing. The agent caught it and built a baked-file fallback anyway.
+3. **Reported hygiene debt that did not exist.** Told the PO there were 26 stale remote
+   branches to prune. The GitHub API lists only `main` and `production`; the repo has
+   `deleteBranchOnMerge: true`. They were stale *local* remote-tracking refs that had never
+   been pruned. `git branch -r` is not a remote listing.
+4. **Reached for the local fix before questioning the frame.** The opening proposal was an
+   in-app workaround for the COO's own blindness — the fourth one-off handling of ENV-01's
+   class in a single session. The PO caught it. **That is now five times on this project that
+   the reframe came from the PO.**
+
+Two of these were caught by agents, one by the PO, one by the COO. The review machinery is
+earning its place, including against the COO.
+
+## Live defects, not yet fixed
+
+- **BUG-76 (P1)** — `denver` does not populate its country on staging. **Now measurable**
+  after the rebuild: query Nominatim directly and read the returned class/type. ADL-49 §7.2
+  specifies the request matrix and §7.4 the decision table, **including the false-pass trap
+  a presence-only probe would fall into.** Classified this session: **NOT a regression** —
+  `routes/geocode.ts` and `nominatim-client.ts` both first appear in #348 and
+  `SETTLEMENT_TYPES` has never been modified, so there is no earlier behaviour to regress
+  from. Do not do git archaeology.
+- **BUG-63 (P1)** — non-owner cannot add a place; three 403s. Untouched.
+- **UX-12 (P1)** — no UI to correct a wrong city. Untouched.
+- **BUG-74** — an upstream geocoder failure still reads as "found nothing". Still true, and
+  still worth fixing on its own merits (the *user* can't tell the cases apart either) — it
+  just stopped being the COO's diagnostic crutch.
+- **QUAL-20's console check** — still deterministically red on the Clerk-page CSP fragment.
+  The Playwright trace that would settle it is **permanently undownloadable** (artifact
+  storage refused at 2,709x). Widening the check's own capture is now the ONLY route.
+  Do NOT filter the message away to go green.
+
+## Open threads
+
+See `jobs/COO/open-dialogues.md` — **D-22** (two PO decisions blocking all identity work),
+**D-23** (enumerate credentials, the way we just enumerated hosts), **D-24** (ci-wait stale
+SHA, watch-only), **D-25** (two structural rules awaiting a CLAUDE.md home). Not restated
+here — one home.
+
+## Also outstanding, durably tracked, untouched
+
+23 items at `done_pending_uat` and three untested UAT sessions — the largest single thing
+between here and closing anything. 13 resolved `[x]` items are unarchived in the UAT log
+(deliberate: the archive rule only triggers when findings were resolved that session).
+Tier 1 cleanup queue. ADL-46 follow-ons BUG-69, QUAL-21/22/23. D-17's ATDD verdict.
+
+## Suggested next, smallest first
+
+1. **Verify the rebuild** — ADL-49 §10.7.1. Cheap, and everything below assumes it worked.
+2. **BUG-76** — the cheapest live P1, and now answerable with evidence rather than a guess.
+3. **D-22** — two PO decisions; all remaining identity work waits on them.
+4. **UAT backlog** — 23 items. Nothing closes without it.

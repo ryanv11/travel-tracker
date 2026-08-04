@@ -4,9 +4,10 @@
 **§10.11 (amendment 2: threat model + OP-27 review corrections).** §10.11 corrects §10 in four
 places; where they conflict, **§10.11 wins.** OP-27 review: `jobs/architect/tech/20260804-ADL49-fresh-eyes-review.md`.
 **Status:** **Decided — design only. No code, config or firewall change ships with this ADL.**
-The `.devcontainer/init-firewall.sh` diff is quoted verbatim in §3.5 and is *not applied*; it needs a
-container rebuild and is the COO's to take after PO approval.
-**§3.5's diff is superseded by §10.7's consolidated diff** — §3.5 is retained for history; apply §10.7.
+**§10.7's consolidated diff was APPLIED 2026-08-04** on PO approval of all three hosts
+(`nominatim.openstreetmap.org`, staging, production) — see the status stamp at §10.7. It takes effect
+at the **next container rebuild**, not before. §3.5's earlier diff is superseded and retained for
+history only; it was never applied and must not be.
 **Amends:** ADL-33 (§2, §7, §10.3 — the allowlist and its stated exclusions).
 **Tracker:** ENV-01 · BUG-76 · QUAL-22 · QUAL-18/19/20 · QUAL-25 · D-21 (open-dialogues).
 **BRD:** GE-11, GE-15, GE-16, GE-17, GE-18 at v3.15. **No BRD change is proposed by this ADL** —
@@ -1526,7 +1527,18 @@ the brief asked, so it is a visible PO option rather than prose: *the entry is c
 add, (b) is an argument about value rather than risk, and this is a recommendation and not a veto.*
 The diff line is supplied in §10.7 so the PO can take it without another Architect round.
 
-## 10.7 The consolidated diff — QUOTED, NOT APPLIED
+## 10.7 The consolidated diff — **APPLIED 2026-08-04**
+
+> **STATUS CHANGED (2026-08-04) — this diff is no longer quoted-only. It has been applied.**
+> PO approved all three hosts at session close and applied it to `.devcontainer/init-firewall.sh`
+> in the same PR as this stamp. The file now carries 14 domain-loop entries (11 prior + 3 new);
+> `bash -n` passes. **The change does not take effect until the container is rebuilt** —
+> `init-firewall.sh` runs at container start, so the session that applied it still ran under the
+> old rules. Run §10.7.1's verification commands after the rebuild; if any of the three new hosts
+> is still unreachable, that is a real finding, not a propagation delay.
+> The original text below is retained unchanged for history.
+
+*(Original text follows.)*
 
 `.devcontainer/init-firewall.sh` is **unmodified on this branch** (`git status` clean of it; `diff`
 against `/usr/local/bin/init-firewall.sh` reports identical). Applying it needs a container rebuild,
