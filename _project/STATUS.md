@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (83)
+## Open work (86)
 
 ### P0 — Blockers (1)
 
@@ -37,7 +37,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
 | BUG-76 | Our own SETTLEMENT_TYPES filter may discard legitimate tail places the geocoder does return | backend | ⬜ Pending |
 
-### P2 — Important (46)
+### P2 — Important (48)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -86,9 +86,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-79 | Region selector not narrowed for an ambiguous US city, though it is for the UK | frontend | done_pending_uat |
 | BUG-77 | 22 region-tier countries ship with zero regions — 22 latent BUG-30s (ADL-48 S1) | database | done_pending_uat |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
+| QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | 🔄 In progress |
+| QUAL-27 | `gh run view --log-failed` FAILS OPEN in this container — exits 0 with empty output on a genuinely failed run | coo | 🔄 In progress |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
-### P3 — Minor (29)
+### P3 — Minor (30)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -121,6 +123,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-69 | geocodeRetryQueue polls 'unresolvable' cities forever — no terminal branch | frontend | ⬜ Pending |
 | BUG-70 | Companion.is_active typed number but serialized boolean (third instance of the class) | frontend | ⬜ Pending |
 | BUG-78 | 'Suggested:' region caption not bold enough to read as a value needing checking | frontend | done_pending_uat |
+| QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 
 ## Coverage by type
 
@@ -128,9 +131,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `██████████▓░░░░░░░░░` 29/57 | 29 | 28 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `████████████░░░░░░░░` 44/75 | 44 | 31 | 3 |
+| bug | `████████████░░░░░░░░` 44/76 | 44 | 32 | 3 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `████████▓░░░░░░░░░░░` 14/34 | 14 | 20 | 1 |
+| chore | `████████▓░░░░░░░░░░░` 14/36 | 14 | 22 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -164,4 +167,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_136 done · 9 deferred · 5 closed · 83 open — 233 tracked items_
+_136 done · 9 deferred · 5 closed · 86 open — 236 tracked items_

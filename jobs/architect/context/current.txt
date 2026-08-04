@@ -1794,6 +1794,72 @@ FINDINGS I KILLED BEFORE FILING (5, listed in §6 of the review) — including o
   exact failure this gate exists to catch.
 
 ================================================================================
+2026-08-04 — ENV-01 FULL HOST ENUMERATION (issue #393, branch chore/env01-allowlist-enumeration)
+Amended ADL-49 with §10. Deliverable is design-only; init-firewall.sh untouched.
+================================================================================
+
+TASK: ADL-49 §3 answered "should we allowlist Nominatim?" It never answered "what is the COMPLETE
+  set of hosts this dev environment needs and cannot reach?" ENV-01's class had surfaced 4x in one
+  session (geocoder / staging domain D-06 / QUAL-20 Playwright trace / MapTiler D-21). Enumerated it.
+
+VERDICT SHAPE — 16 hosts assessed: 3 ADD, 11 EXCLUDE with reasons, 2 recorded already-reachable.
+  Explicitly NOT "allowlist everything"; the most-requested item was refused.
+
+THE THREE ADDS: nominatim.openstreetmap.org (unchanged from D1) + travel-tracker-staging.up.railway.app
+  + travel-tracker-production-241f.up.railway.app. Staging is now the HIGHEST-VALUE entry in the ADL,
+  ahead of Nominatim — PO confirmed 2026-08-04 "im only testing on staging now via browser on my mac",
+  so nobody in-container can observe the only surface the project is judged on. Prod assessed
+  SEPARATELY and is second: its need is episodic and the shakedown workflow already takes a base_url.
+
+THE BIG TECHNICAL FINDING — GitHub Actions ARTIFACT storage CANNOT be allowlisted, and this is not a
+  risk call. Host is productionresultssa<N>.blob.core.windows.net: 10 artifacts -> 9 DISTINCT shards;
+  every N up to 50 resolves (no bound found); >=7 Azure storage scale units, >=19 IPs, 4 regions,
+  ALL behind *.trafficmanager.net (Azure Traffic Manager — rotation is the design intent, not a risk).
+  Shard is chosen at UPLOAD time and baked in, so retrying does not move it. QUAL-20's tracker note
+  frames this as a simple allowlist gap; it is not. I started §10.5 intending to ADD it — the shard
+  sampling killed it. Note vscode.blob.core.windows.net IS allowlisted and does NOT generalise
+  (different scale unit ams23prdstr11a, Amsterdam, different IP) — the brief was right to flag that.
+
+LIVE DEFECT FOUND ON THE WAY (D13, needs a tracker entry — COO action, I did not edit CLAUDE.md):
+  `gh run view <id> --log-failed` — the command CLAUDE.md tells EVERY agent to run on a CI failure —
+  EXITS 0 WITH ZERO OUTPUT from this container. It resolves to the same blocked blob pool and gh
+  swallows the error. FAIL-OPEN: an agent reads empty+exit-0 as "no failures". Three probes.
+  WORKING REPLACEMENT (verified end-to-end, run-LEVEL not job-level):
+      gh api "repos/ryanv11/travel-tracker/actions/runs/<RUN_ID>/logs" > /tmp/runlogs.zip
+  Run-level logs redirect to results-receiver.actions.githubusercontent.com (140.82.113.22, inside
+  GitHub meta .web) = REACHABLE. Job-level logs and gh run download go to Azure blob = BLOCKED.
+  *.actions.githubusercontent.com DOES NOT BEHAVE UNIFORMLY — pipelines.* is blocked, results-receiver.* is not.
+
+MAPTILER: §3.4(a) is now ESTABLISHED not inferred (PO-confirmed). COO initially supplied it as a PO
+  ruling, then retracted it as fabricated, then the real PO answer arrived and matched. Independent
+  support found anyway: devcontainer forwardPorts [5173,3001] + vite host 0.0.0.0; and
+  src/e2e/map.spec.ts:14-20 already filters maptiler.com + ERR_ADDRESS_UNREACHABLE with the comment
+  "tile services unreachable in devcontainer". (b) and (c) re-verified and hold. NEW argument against:
+  CSP allows *.maptiler.com (WILDCARD) while MapView.tsx:26 names only api.maptiler.com — one entry
+  may not even make in-container maps render, and I cannot read the style.json to check. Still DEFER,
+  diff line supplied as a PO option.
+
+NEW CROSS-CUTTING PROPERTY (§10.8, applies to ADL-33's EXISTING entries too): this allowlist matches
+  IP ADDRESSES, not hostnames. Adding a host grants everything virtual-hosted on the addresses it
+  pinned. For Fastly/Cloudflare/Railway edges that is not one service. Changes no verdict but it is
+  the correct unit of "what does one line cost". Durable fix (SNI-aware proxy) named, not proposed.
+
+METHOD NOTE WORTH KEEPING: DNS/UDP-53 stays OPEN through lockdown (init-firewall.sh:52-53, the
+  script's own dig depends on it), so a successful dig proves NOTHING and was never used as a probe.
+  Probe A = real TCP attempt with allowed+blocked controls in the same pass; the TIMING is a second
+  signal (blocked = tens of ms per address via ICMP admin-prohibited; a dead upstream times out).
+  Probe B = grep BOTH the repo copy and /usr/local/bin (diff'd: identical). Probe C = run the real
+  operation, which is what turned the artifact question from a guess into a finding.
+  Could NOT read the live ipset — sudo is restricted to init-firewall.sh only. Logged as blind spot 1.
+
+DIFF WAS TESTED WITHOUT BEING APPLIED: git apply --check exit 0; patch applied to a COPY outside the
+  repo then bash -n = SYNTAX OK; repo file confirmed byte-identical to the running copy afterwards.
+
+OPEN FOR THE OP-27 REVIEWER: this is ADL-49's FIRST fresh-eyes review and it covers §1-§9 too.
+  My three named weaknesses are in §10.10. The one I would attack first is Weakness B — §10.4.2's
+  "we already granted X so refusing Y is incoherent" is a ratchet argument and generalises badly.
+
+================================================================================
 2026-08-04 — ARCHITECT (OP-27 fresh-eyes review of ADL-49 §1-§10, PR #394)
 ================================================================================
 Branch chore/adl49-op27-review. Deliverable:
@@ -1863,3 +1929,75 @@ KILLED BEFORE FILING (6, §11 of the review): ci-wait.sh fail-open (it fails CLO
   hole (re-verified closed); Railway edge collision surface (NOT established and it
   cuts the ADL's way — per-domain addresses); api.turso.tech nominal too (no, that
   exclusion is EFFECTIVE — and it is the control proving F1 is not a blanket claim).
+
+--------------------------------------------------------------------------------
+2026-08-04 (later) — AMENDMENT 2 to ADL-49, after the OP-27 review (PR #395) + a PO threat model.
+Same branch/PR (#394). ADL-49 §10.11 added; ADL-33 §4 amended. init-firewall.sh still untouched.
+--------------------------------------------------------------------------------
+
+REVIEW VERDICT: "does not stand as briefable, narrowly." All three ADDs (D1/D10/D11) survived.
+  THE FRAMEWORK THAT PRICED THEM DID NOT. Reviewer's diagnosis, which I adopt verbatim and which is
+  the single most useful sentence in the whole exchange: EVERY PROBLEM IT FOUND IS A CORRECT
+  DISCOVERY WHOSE CONSEQUENCES WERE NOT PROPAGATED BACKWARDS.
+
+WHAT I GOT WRONG (4, all mine, listed in §10.11.5):
+  1. §10.3 row 5 asserted "Azure blob storage is not in GitHub's meta ranges at all" WITH NO PROBE.
+     FALSE — 20.209.227.33 is in .actions (20.209.226.0/23). I verified it myself this pass. A
+     no-probe absence claim, in a section that lectures about two probes. This is the one I mind.
+  2. §10.5.2 called three reasons "independent" when all three share one premise (that the entry
+     must be a HOSTNAME). The CIDR path at line 126 defeats all three at once. Exactly the
+     memory: feedback_arguments_for_are_absence_claims_too.
+  3. §10.8 derived D17 (IP-not-hostname) then wrote "this does not change any verdict" — a
+     reassurance written immediately after discovering the fact that invalidates it. WITHDRAWN.
+  4. §10.1's probe A and probe B ARE NOT INDEPENDENT — both assume hostnames are the unit of
+     reachability. Added PROBE CLASS E (test against the allowlisted ADDRESS SPACE, not the name).
+
+F1 — THE ALLOWLIST IS BYPASSABLE TO ANY CLOUDFLARE-PROXIED ORIGIN. Confirmed independently:
+  api.maptiler.com blocked by name (curl 7); pinned to 104.16.5.34 (a registry.npmjs.org address)
+  -> HTTP 301. NEGATIVE CONTROL: api.turso.tech pinned to the same edge -> TLS handshake failure
+  (it is CloudFront, api.turso.io -> 143.204.160.109). So it is every CLOUDFLARE zone, not everything.
+
+F2 — ADDING NOMINATIM MAKES THE OSM TILE SERVERS REACHABLE. Verified: nominatim, tile.,
+  a/b/c.tile.openstreetmap.org ALL -> 151.101.21.91. My diff would have committed
+  "*.tile.openstreetmap.org STILL DELIBERATELY EXCLUDED" into the running script as a FALSE
+  statement. Reworded: it is now disclosed as a side effect and stated as a REPO RULE, not a control.
+
+THE THREAT MODEL (PO, new — neither ADL-33 nor §10 had it): the container exists to STOP CHANGES to
+  sensitive info, not to stop reads/exfil; changes are restricted THROUGH API PERMISSIONS; least
+  privilege where A CASE IS MADE FOR ANY ACCESS REQUIRED. Consequences I worked through in §10.11.2-3:
+  - F1 is LOW severity but CONDITIONAL, not simply low. It grants reads and NO write capability.
+    Its real effect: it removes the network layer for CF-fronted write APIs, leaving the CREDENTIAL
+    as the SOLE control. That PROMOTES ADL-33 §4 rather than excusing it. Do not read "low" as "fine".
+  - api.turso.tech is THE most important row in the table — DB ADMIN PLANE, where a write is
+    catastrophic — and its exclusion is EFFECTIVE (CloudFront, no allowlisted neighbour). The one
+    that matters holds. The reviewer's framing grouped all exclusions together and missed this.
+  - ADL-33 §4's credential-based Clerk exclusion is the CORRECT MECHANISM under this model, not the
+    weakness the reviewer read it as. Writes are controlled at API permissions BY DESIGN.
+
+WHERE I DISAGREED WITH THE REVIEW (and argued it in §10.11.2): it says F1 "demolishes the
+  exclusion-discipline frame." IT DOES NOT. Exclusion discipline here is least-privilege-by-
+  JUSTIFICATION (governance), which survives intact. What dies is the claim that an EXCLUDE row is a
+  KERNEL GUARANTEE. Repair = per-row honesty: EFFECTIVE / NOMINAL / RULE-ONLY (D19). Conflating the
+  two would throw away the half that works.
+
+ALSO CORRECTED THE REVIEW'S ARITHMETIC (in the direction that STRENGTHENS its own conclusion): it
+  priced the .actions widening at ~900x using 30,800 for the current set. 30,800 DOUBLE-COUNTS —
+  .api and .git largely repeat .web and the ipset dedupes. Distinct: 10,300 today vs 27,901,673.
+  LIKE-FOR-LIKE IT IS 2,709x. D12 verdict unchanged (refuse) but now on a measured number, and
+  "cannot be expressed" is dropped — it CAN be, via the meta-CIDR path, and "impossible" forecloses
+  re-examination where "priced and refused" invites it.
+
+MOVED: the STANDING CONDITION out of the firewall comment into ADL-33 §4 (D21). A condition filed
+  where the triggering action never looks is a record, not a control — the person provisioning a
+  Clerk key edits .env.local, not init-firewall.sh.
+
+STILL OPEN / HANDED TO COO (§10.11.6): allowlist REMOVAL review (registry.npmjs.org is the source of
+  the bypass; sentry.io/statsig.com are telemetry egress BY FUNCTION — the review is right that my
+  §10.9 entry 7 was wearing the UNVERIFIED label to avoid the work); SNI-proxy decision as an open
+  dialogue; a periodic re-probe of api.turso.tech's CDN (if Turso moves to Cloudflare that exclusion
+  silently becomes nominal with NO signal); --log-failed is in 11 files incl. coo-startup's RED-MAIN
+  GATE (worse than D13 — a gate that fails open); F9 live MapTiler key locally reachable.
+
+LESSON I WOULD KEEP BEYOND THIS THREAD: an amendment must RE-WALK THE SECTIONS IT DID NOT INTEND TO
+  CHANGE. Every failure above is a late discovery not pushed backwards through earlier text, and it
+  happens because each amendment gets graded against its own brief rather than the document it joins.

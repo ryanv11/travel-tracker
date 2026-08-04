@@ -1731,6 +1731,32 @@ access, not to smuggle in a write-capable `sk_*` key under a "read-only" label. 
 recurring, concrete Clerk-debugging need emerges that the dashboard/paste flow genuinely
 cannot serve, reopen this as its own decision with that evidence.
 
+> **STANDING CONDITION — added 2026-08-04 by ADL-49 §10.11.3 (PR #394). Read this before
+> provisioning any Clerk credential for this container.** It is filed here, rather than in
+> `.devcontainer/init-firewall.sh` where it was first drafted, because *this* is the document
+> someone re-opens when they want Clerk access — nobody about to edit `.env.local`,
+> `.env.agent-diagnostics` or a Railway variable set reads the firewall script.
+>
+> **The decision above is now the ONLY control, not one of two.** ADL-49 §10.8 established by
+> live probe that this container's firewall matches **IP addresses, not hostnames**, and that
+> `api.clerk.com` is Cloudflare-proxied and therefore **reachable today** via any allowlisted
+> Cloudflare edge address — it answers `404` on `/` and **`401` on `/v1/users`**. The host is
+> reachable; only the absent credential stands between this container and full user CRUD over all
+> PII. There is no network backstop and there never was one for this host.
+>
+> Under the PO's stated threat model (2026-08-04 — *"the purpose of the container is primarily to
+> stop **changes** to sensitive information … we restrict changes through API permissions … least
+> privilege model where a case is made for any access required"*), that is the **intended design**
+> rather than a gap: writes are controlled at the credential. But it means the margin for error here
+> is zero.
+>
+> **Therefore: provisioning an `sk_*` key into this container is not a configuration step. It is a
+> re-taking of this decision**, and it also invalidates ADL-49 §10.4.1's *"these entries grant no
+> data access"* argument for the Railway app domains. Both must be re-taken **before** the credential
+> is created, not after. Verified 2026-08-04 by three independent probes that no Clerk secret is
+> present: no `CLERK_SECRET_KEY` among `.env.local`'s keys, no `sk_test_`/`sk_live_` pattern in any
+> env file, and no `@clerk/backend`/`clerkClient` consumer in non-test backend source.
+
 ### 5. Credential storage
 
 **Do not reuse `.env.local`.** `.env.local` holds the running app's runtime secrets

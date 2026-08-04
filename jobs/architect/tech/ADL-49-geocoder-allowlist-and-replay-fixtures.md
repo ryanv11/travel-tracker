@@ -1,9 +1,12 @@
 # ADL-49 — Geocoder allowlist amendment to ADL-33, recorded-response replay fixtures, and a reassessment of GE-17's remaining case
 
-**Date:** 2026-08-03
+**Date:** 2026-08-03 · **Amended 2026-08-04** — §10 (ENV-01 full host enumeration, issue #393) and
+**§10.11 (amendment 2: threat model + OP-27 review corrections).** §10.11 corrects §10 in four
+places; where they conflict, **§10.11 wins.** OP-27 review: `jobs/architect/tech/20260804-ADL49-fresh-eyes-review.md`.
 **Status:** **Decided — design only. No code, config or firewall change ships with this ADL.**
 The `.devcontainer/init-firewall.sh` diff is quoted verbatim in §3.5 and is *not applied*; it needs a
 container rebuild and is the COO's to take after PO approval.
+**§3.5's diff is superseded by §10.7's consolidated diff** — §3.5 is retained for history; apply §10.7.
 **Amends:** ADL-33 (§2, §7, §10.3 — the allowlist and its stated exclusions).
 **Tracker:** ENV-01 · BUG-76 · QUAL-22 · QUAL-18/19/20 · QUAL-25 · D-21 (open-dialogues).
 **BRD:** GE-11, GE-15, GE-16, GE-17, GE-18 at v3.15. **No BRD change is proposed by this ADL** —
@@ -27,6 +30,31 @@ the long form and supplements that entry; it does not replace it.
 | D7 | BUG-76 probe design | **ADOPT §7's design.** Record `class` *and* `type` per candidate against three limit/constraint variants; the decision table in §7.4 states what each outcome means. A result-count probe gives a false pass. | High |
 | D8 | Does this weaken GE-17's case? | **YES — materially, though not fatally.** Two of the four arguments are dead. The third ("ambiguity completeness") rests on a premise that is **false for two of three call sites** and is largely addressable by three one-line changes. §6. | Medium-High |
 | D9 | Sequencing | **Cheap-first wave before re-deciding GE-17 S2/S3:** allowlist → BUG-76 probe → the three geocoder query changes (§6.4) → fixtures. Then re-take S2/S3 with measurements instead of estimates. | Medium-High |
+
+**Added by the 2026-08-04 amendment (§10) — the full ENV-01 host enumeration.** Full table with
+evidence per host in §10.3; consolidated diff in §10.7.
+
+| # | Decision | Recommendation | Confidence |
+|---|---|---|---|
+| D10 | Allowlist `travel-tracker-staging.up.railway.app` | **ADOPT — the highest-value entry in this ADL, ahead of Nominatim.** D-06's fourth occurrence. The PO's entire verification loop is a host browser against staging (PO-confirmed 2026-08-04), so nobody in the container can observe the surface being judged. It grants an anonymous GET to a public page and no credential; the container already holds read-only SELECT on both Turso DBs. §10.4.1 | High |
+| D11 | Allowlist `travel-tracker-production-241f.up.railway.app` | **ADOPT — separately, and second.** Same argument, weaker on value (prod is a promotion-event surface, and the shakedown workflow already accepts a `base_url` override). Taking D10 alone first is defensible and captures most of the benefit. §10.4.2 | Medium-High |
+| D12 | Allowlist GitHub Actions **artifact** storage | **EXCLUDE — refused on cost. (CORRECTED, amendment 2 — the original headline "it cannot be expressed in this script" was false.)** It *can* be, via the meta-CIDR path this script already uses at line 126: the pool sits in GitHub meta's `.actions`. Priced and refused — **10,300 → 27,901,673 distinct addresses, a 2,709× widening** to reach a test artifact. The hostname route is still dead (9 distinct shards in 10 samples, unbounded, Traffic Manager). §10.5.2 | High |
+| D13 | The `gh` CLI's own reach — **a live defect found while enumerating** | **`gh run view --log-failed`, the command CLAUDE.md tells every agent to run on a CI failure, exits 0 with zero output from this container.** It resolves to the same blocked blob pool. The run-*level* logs API is reachable and returns the full log. Working command in §10.5.3; this is a fail-open, not a nuisance | High |
+| D14 | `api.maptiler.com` | **STILL DEFER — but §3.4(a) is now established rather than inferred**, and two further findings (§10.6) strengthen it: the E2E suite already filters MapTiler errors by design, and `api.maptiler.com` alone probably would *not* make in-container maps work. Presented as an explicit PO option in §10.3, not buried | High |
+| D15 | Everything else probed | **EXCLUDE, each with its own reason** — `pipelines.actions.githubusercontent.com`, GitHub meta's `.actions` key, `img.clerk.com`, the Playwright CDNs, the OSM tile servers, `api.turso.tech`, `api.clerk.com`. §10.3 | High |
+| D16 | Four hosts that look blocked and are not | `objects.githubusercontent.com`, `raw.githubusercontent.com`, `codeload.github.com` and `results-receiver.actions.githubusercontent.com` are **already reachable** via the GitHub meta CIDR aggregation. Recorded so nobody "fixes" a non-problem. §10.3 | High |
+| D17 | The property that prices every entry — **new, and it applies to ADL-33's existing entries too** | **This allowlist matches IP addresses, not hostnames.** Adding a host grants the addresses it resolved to at container start *and everything else virtual-hosted on them*. ~~It does not change any verdict above~~ — **that clause is WITHDRAWN (amendment 2): it changes three.** §10.8 | High |
+
+**Added by the 2026-08-04 amendment 2 (§10.11), after the OP-27 fresh-eyes review.** All three ADD
+recommendations survive; the framework that priced them did not. Re-priced against a PO-stated threat
+model §10 did not have. Full re-pricing table in §10.11.4.
+
+| # | Decision | Recommendation | Confidence |
+|---|---|---|---|
+| D18 | What this allowlist actually is | **An availability and accident control — not a containment boundary.** Measured, not argued: `api.maptiler.com` is blocked by name but returns **HTTP 301** pinned to an address `registry.npmjs.org` resolves to. Negative control holds — `api.turso.tech` (CloudFront) fails TLS handshake through the same edge, so this is *every Cloudflare-proxied zone*, not everything. §10.8 | High |
+| D19 | What an `EXCLUDE` row means | **Three different things, and each row must now say which:** `effective` (no allowlisted entry shares its CDN — the kernel does stop you), `nominal` (reachable today; the row states no case has been made), `rule-only` (reachable *because of one of our own entries*). §10.3 records this as probe class `E`. §10.11.2 | High |
+| D20 | Severity of the bypass, under the PO's stated threat model | **Low — but *conditional*, not simply low.** The boundary exists to stop **changes**, and the bypass grants reads and no write capability. Its real effect is to leave the *credential* as the sole control for Cloudflare-fronted write APIs — which **promotes** ADL-33 §4 rather than excusing it. §10.11.2 | Medium-High |
+| D21 | Where the STANDING CONDITION lives | **Moved to ADL-33 §4**, the decision someone re-opens when they want Clerk access. A condition filed only in a firewall comment is a record, not a control. §10.11.3 | High |
 
 **The single most important finding in this document is not the allowlist.** It is §6.5: *the ten
 tail places GE-17 was justified on are absent from the gazetteer datasets too* — ADL-48 §2 says so in
@@ -216,6 +244,24 @@ browser the firewall reaches is the Playwright chromium baked into the image at 
 > topology, not observed. If the PO in fact drives a container-side browser, the reasoning inverts
 > and MapTiler should go in immediately.
 
+> **RESOLVED (2026-08-04) — the inference above is now established, by the PO directly.** PO,
+> verbatim: *"im only testing on staging now via browser on my mac."* The browser fetching
+> `api.maptiler.com` is on the host machine, outside the container netns and outside `iptables`.
+> The firewall does not gate the PO's map testing in either direction. §9.2's Weakness 2 is
+> closed on its first half; its second half (whether a tile-less MapLibre style is sufficient
+> for what map tests need to assert) is **untouched and still soft**.
+>
+> **Two independent confirmations found while enumerating (§10.6), which matter because they do
+> not depend on the PO's statement:** (i) `devcontainer.json` forwards ports `[5173, 3001]` and
+> `vite.config.ts` binds `host: '0.0.0.0'` — the configured topology is host-browser-to-forwarded-port;
+> (ii) `src/e2e/map.spec.ts:14-20` filters `maptiler.com` and `ERR_ADDRESS_UNREACHABLE` out of its
+> console assertions, with the comment *"tile services unreachable in devcontainer"* — the in-container
+> suite was written knowing its own browser is inside the netns and blocked.
+>
+> **A new caveat that cuts against allowlisting MapTiler even if the PO wants it:** see §10.6 —
+> one entry for `api.maptiler.com` probably would **not** be sufficient to make in-container maps
+> render.
+
 **(b) The two bugs cited are already fixed.** Read from the tracker rather than assumed:
 **BUG-34** is `done` — *"MERGED to main 2026-07-20 (PR #163)"*. **BUG-49** is `done_pending_uat` —
 *"FIXED 2026-07-28 (GitHub #296, PR #301)"*, with a `beforeId: 'city-markers'` fix and a COO
@@ -243,6 +289,12 @@ nothing when unused, and (b) above is an argument about *value*, not about risk.
 line goes. This is a recommendation, not a veto.
 
 ### 3.5 The exact diff — QUOTED, NOT APPLIED
+
+> **SUPERSEDED (2026-08-04) by §10.7 — retained for history.** §10.7 carries the same Nominatim
+> entry plus the two Railway app domains, and rewrites the comment block to cover the full
+> exclusion set. **Apply §10.7, not this.** Nothing below is withdrawn; it is simply incomplete
+> now that the whole host set has been enumerated. §3.5's three post-rebuild verification
+> commands are still correct and are extended (not replaced) in §10.7.1.
 
 `.devcontainer/init-firewall.sh` is untouched on this branch (`git status` clean of it). The COO
 applies this after PO approval; it takes effect at the next container rebuild.
@@ -932,3 +984,1046 @@ plausible that the *real* mechanism is none of the three, and is simply that a r
 `boundingbox` and an `importance` of `0.31527` is expensive to fake convincingly. If that is the
 actual load-bearing property, §5.6's mechanisms are theatre around it and should be simplified rather
 than elaborated.
+
+---
+
+# 10. AMENDMENT (2026-08-04) — the complete ENV-01 host enumeration
+
+**Author:** Architect · **Brief:** GitHub issue #393 · **Branch:** `chore/env01-allowlist-enumeration`
+**Tracker:** ENV-01 (P2, reopened) · D-06 · D-21 · QUAL-20 · BUG-76
+**Class:** environment/tooling. Not a product defect. Nothing under `src/` changes and
+`.devcontainer/init-firewall.sh` is untouched on this branch.
+
+## 10.0 Why §3 was not enough, and what this section adds
+
+§3 answered *"should we allowlist Nominatim?"*. It did not answer *"what is the complete set of
+external hosts this project needs and cannot reach?"* — and that is the question ENV-01's class keeps
+re-asking. It has surfaced **four times in one session**: the geocoder (§3), the deployed staging
+domain (D-06), the QUAL-20 Playwright trace, and MapTiler (D-21). Each was handled as a one-off.
+
+This section enumerates the set from sources, decides each host, and consolidates the whole change
+into **one** quoted diff (§10.7).
+
+**It is not "allowlist everything," and the shape of the answer is the evidence for that.** Of
+sixteen candidate hosts assessed, **three are added** and **eleven are excluded with stated reasons**;
+two more are recorded as already-reachable. The single most-requested item on the list — GitHub
+Actions artifact storage — is refused, and refused on a *technical* finding rather than a risk
+judgement: it cannot be expressed in this script at all (§10.5).
+
+**Adopted from §3 as-is, not re-derived** (per the brief): §3.1 (Nominatim is the whole surface),
+§3.3 (the script's resolution/failure/idempotence mechanics), and §3.2's exclusion discipline. I did
+re-run §3.3's mechanics against the live file and they hold; §10.5.2 adds one property of the
+`while read -r ip` loop that §3.3 did not need to consider.
+
+## 10.1 The probe apparatus, and the trap that invalidates the obvious probe
+
+Everything below was probed from inside the devcontainer on **2026-08-04**, from the worktree
+`/workspace/.claude/worktrees/agent-af551979e1405714d` (confirmed by `pwd` and
+`git rev-parse --show-toplevel` before anything else ran).
+
+**The trap, stated first because it disqualifies the probe most people would reach for.**
+`init-firewall.sh:52-53` allows **UDP/53 in both directions before lockdown**, and it must — the
+script's own `dig` calls at line 153 depend on it. So **DNS resolution succeeds for every host on
+the internet, blocked or not.** A successful `dig` is not evidence of reachability and is not used
+as one anywhere in this section. Where `dig` appears below it is doing a different job: mapping the
+*address space the script would pin*, which is exactly what line 153 does.
+
+**Probe A — a real TCP/TLS connection attempt**, with two controls run in the same pass:
+
+| Control | Result | What it rules out |
+|---|---|---|
+| `api.github.com/zen` | `HTTP=200`, connect 0.119 s | A broken resolver, a dead network, a broken `curl` |
+| `registry.npmjs.org` | `HTTP=200`, connect 0.061 s | Second allowlisted host, same second |
+| `example.com` | `curl (7)` after **45 ms** | Confirms the lockdown is live *now*, not just in the file |
+
+The **timing** is a second, independent signal and it is worth naming: a blocked host fails in tens
+of milliseconds per address, because `iptables -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited`
+(line 84) returns an ICMP error immediately. A *dead upstream* black-holes and times out. So
+"fails in 45 ms" and "fails after 8 s" mean different things, and every failure recorded below is
+the fast kind. (Multi-address hosts fail proportionally slower — `api.maptiler.com` takes 3.2 s
+because `curl` tries all five A records in turn. That is still fast-per-address.)
+
+**Probe B — reading the allowlist configuration**, which fails differently by construction: a wrong
+assumption about the network cannot also make a `grep` miss. Run against **both** copies, because
+they are not the same file and could diverge:
+
+- `/workspace/.claude/worktrees/agent-af551979e1405714d/.devcontainer/init-firewall.sh` (repo)
+- `/usr/local/bin/init-firewall.sh` (the copy `postStartCommand` actually runs)
+
+`diff` reports them **identical** on this branch. That check is itself load-bearing — §3.5's own
+verification block greps the running copy for a reason, and an amendment that assumed they matched
+without looking would be repeating the mistake this ADL keeps documenting.
+
+**Probe C, where available — running the actual operation** (`gh run download`, `gh api …/logs`).
+This is the strongest probe of the three because it exercises the real code path with the real
+credential, and it is what turned the artifact question from a guess into §10.5.
+
+**What I could not do:** `ipset list allowed-domains` requires root and `sudo` is restricted to
+`init-firewall.sh` only (`/etc/sudoers.d/node-firewall`). So I could not read the live ipset
+directly. Probe B reads the script that *builds* it, which is a strictly weaker statement — noted
+here rather than glossed, and it is the main blind spot shared by every row in §10.3.
+
+## 10.2 Sources enumerated — so the list is derived, not recalled
+
+| Source | Command / file | What it contributed |
+|---|---|---|
+| Host literals in code | `grep -rEohI` for TLD-anchored domains over `src`, `scripts`, `.github`, `.devcontainer`, `e2e`, `tests`, `package.json`, `playwright*.config.ts` | `nominatim.openstreetmap.org`, `api.maptiler.com`, `img.clerk.com`, `backboard.railway.com`, `travel-tracker-staging.up.railway.app`, the Turso hosts, `just-raptor-89.clerk.accounts.dev` |
+| The app's own CSP | `src/backend/server.ts:114-139` | The definitive list of what the *browser* fetches: `*.maptiler.com`, `img.clerk.com`, `CLERK_ORIGIN`. Note it is a **wildcard** for MapTiler — §10.6 |
+| Env template | `.env.example` | `CLERK_JWKS_URI`, `CLERK_ISSUER`, `VITE_MAPTILER_KEY`, Turso URL shape. No host not already found |
+| Railway variable set | Railway API, staging env, service `travel-tracker` | 22 variable **names** (values redacted — an OAuth-app token returns names only, so no secret was read or is reproduced here). Confirms the external-service set is exactly Clerk + Turso + MapTiler; introduces no new host |
+| Deployed domains | Railway API, both environments | **Authoritative:** staging `travel-tracker-staging.up.railway.app`, production `travel-tracker-production-241f.up.railway.app`, both `targetPort 8080`, **no custom domains in either environment.** This closes the app-domain enumeration rather than assuming the two known names are all of them |
+| CI egress paths | `.github/workflows/{ci,security,post-deploy-shakedown}.yml` | Playwright browser install, artifact upload, gitleaks release download, the `semgrep/semgrep` container image. All **runner-side**, see the scope note below |
+| `gh` API surfaces | `gh run download`, `gh api …/runs/<id>/logs`, `gh api …/jobs/<id>/logs` | §10.5 — the artifact blob pool, and the D13 defect |
+| Tooling image build | `.devcontainer/Dockerfile` | Playwright browser binaries are fetched at **image build time**, before any firewall exists — §10.3 row 14 |
+| Standing requests | `jobs/COO/open-dialogues.md` D-06, D-21; `_project/tracker.json` ENV-01, QUAL-20 | The four occurrences, and QUAL-20's specific artifact need |
+
+**Scope boundary, stated because it is easy to blur.** This table is about the **devcontainer's**
+egress. GitHub Actions runners have their own, separate posture which this container cannot probe —
+§6.2 already marks the `ci.yml:76` claim about it `UNVERIFIED` and that is unchanged. Rows about
+CI-side hosts (the gitleaks release, the semgrep image, the Playwright CDN in CI) are listed only to
+show they were considered and are **out of scope**, not to claim anything about a runner.
+
+## 10.3 The host table
+
+Legend — **Decision:** `ADD` (proposed for §10.7's diff) · `KEEP` (already allowlisted, no change) ·
+`EXCLUDE` (assessed and deliberately left out) · `PO OPTION` (recommendation is exclude, but the
+call is the PO's and the diff line is supplied).
+**Evidence:** `A` = connection attempt, `B` = allowlist config read (both copies), `C` = ran the real
+operation, `D` = address-space characterisation, **`E` = tested against the allowlisted *address
+space*, not only against the host's own name** (added 2026-08-04, amendment 2).
+
+> **PROBE CLASS `E` — added because A and B were not independent, and the review was right (F4).**
+> §10.1 claimed A and B *"fail differently by construction"*. They do not. Once D17 is known — this
+> allowlist matches IPs, not hostnames — **both probes share one assumption: that hostnames are the
+> unit of reachability.** A resolves the host by its own name; B greps for that name. A single wrong
+> assumption produces both results, which is exactly what the negative-findings rule prohibits, and
+> the document derived the invalidating fact two sections later without connecting it.
+>
+> **What B actually establishes is "this name is not explicitly listed" — not "unreachable".** Class
+> `E` is what answers the question the column claims to answer: resolve the host, identify its CDN,
+> and check whether any allowlisted entry shares that CDN's edge. It costs one `dig` per host.
+>
+> **`Blocked today` is therefore split below into two columns**, because they are different facts:
+> *by name* (what A and B measured) and *effectively* (what `E` measures). Three rows differ.
+
+### Proposed additions
+
+| # | Host | What needs it | Blocked today? (evidence) | Risk of allowing | Decision | Reason |
+|---|---|---|---|---|---|---|
+| 1 | `nominatim.openstreetmap.org` | The app's own runtime geocoder (`nominatim-client.ts:31`); BUG-76's probe; §5's fixture capture | **Yes.** A: `curl (7)` in 57 ms. B: 0 occurrences in either copy. (§2.1 records four further probes) | Low. Fastly anycast, one A record (§2.2). Carries **usage-policy obligations** that are not optional — §4.3 | **ADD** | Unchanged from D1. The one host here that is app runtime rather than agent diagnostics |
+| 2 | `travel-tracker-staging.up.railway.app` | Reading the deployed staging build the PO is actually judging: served HTML/JS, `/health`, response headers, CSP | **Yes.** A: `curl (7)` in 64 ms. B: 0 occurrences of the host *or* of `up.railway.app` in either copy | Low, and lower than it looks. An **anonymous GET to a public page** — no credential is granted, and the API stays behind Clerk. See §10.4.1 for the honest version, including what it *does* widen | **ADD** | §10.4.1. D-06's fourth occurrence; the PO's whole verification loop lives here |
+| 3 | `travel-tracker-production-241f.up.railway.app` | Verifying a promotion actually served the promoted build | **Yes.** A: `curl (7)` in 62 ms. B: 0 occurrences | Low, same shape as row 2. Prod-specific consideration in §10.4.2 | **ADD** (second, separable) | §10.4.2. The container **already** holds read-only SELECT on the production Turso DB (ADL-33 §2) — refusing the public website while granting the production database is not a coherent boundary |
+
+### Deliberately excluded — the substance of this table
+
+| # | Host | What would need it | Blocked **by name** (A+B) | Blocked **effectively** (probe `E`) | Decision | Reason |
+|---|---|---|---|---|---|---|
+| 4 | `productionresultssa<N>.blob.core.windows.net` | Downloading the QUAL-20 Playwright trace; any `gh run download` | **Yes.** C: `gh run download` → `dial tcp 20.209.227.33:443: connect: no route to host`. B: 0 occurrences | **Yes.** Azure Storage; no allowlisted entry shares those scale units | **EXCLUDE — refused on cost** | **CORRECTED (amendment 2).** It *is* expressible — via the CIDR path at line 126, not a hostname. Priced and refused: **2,709× widening.** §10.5.2 |
+| 5 | GitHub meta's `.actions` key (script uses `.web + .api + .git` only) | Reaching row 4 by CIDR | n/a — B: `(.web + .api + .git)[]` at line 126 | n/a | **EXCLUDE — refused on cost** | **CORRECTED (amendment 2). My original reason here was false and unprobed:** I wrote *"it would not reach row 4 anyway — Azure blob storage is not in GitHub's meta ranges at all"*. It **is** in `.actions` — `20.209.227.33` ∈ `20.209.226.0/23`. Verified. Real reason: **10,300 → 27,901,673 addresses** |
+| 6 | `pipelines.actions.githubusercontent.com` | Nothing in this container | **Yes.** A: `curl (7)` after 2.3 s. D: `13.107.42.16` via `l-msedge.net` | **Yes.** Microsoft edge; not in `.web/.api/.git` and no allowlisted neighbour | **EXCLUDE** | Probed only to explain *why* row 4's neighbours differ. No consumer |
+| 7 | `api.maptiler.com` | In-container Playwright map assertions | Yes. A: `curl (7)` after 3.2 s. B: 0 occurrences | **NO — reachable today.** Cloudflare-proxied; pinned to `104.16.5.34` (a `registry.npmjs.org` address) it returns **HTTP 301**. Verified §10.8 | **PO OPTION** (recommend exclude — **now more strongly**) | §10.6. The entry would grant **almost nothing it does not already have**, while making a nominal exclusion look like a decision. F1 strengthens the deferral |
+| 8 | `*.tile.openstreetmap.org` | Nothing — this app renders MapTiler vector tiles via MapLibre | Yes. A: `curl (7)` in 45 ms. B: 0 occurrences | **Yes today — but NO the moment D1 is applied.** `nominatim`, `tile`, `a/b/c.tile.openstreetmap.org` all resolve to **`151.101.21.91`**. Verified independently | **EXCLUDE as a rule, not as a control** | **CORRECTED (amendment 2), and it changes the diff.** Adding Nominatim makes the tile servers reachable as a side effect. The prohibition stands as a **repo rule**; §10.7's comment no longer claims it is enforced. §10.11.2 |
+| 9 | `img.clerk.com` | Clerk avatar images — **in a browser** (`server.ts:130`, `imgSrc`) | Yes. A: `curl (7)` after 3.3 s. B: 0 occurrences | **NO — reachable today.** Cloudflare-proxied (`img-service-prod.clerk.dev.cdn.cloudflare.net`) | **EXCLUDE (nominal)** | Reason unchanged and still correct — no in-container consumer. But it is a *statement of no need*, not a control |
+| 10 | `cdn.playwright.dev`, `playwright.azureedge.net` | `npx playwright install` **inside a running container** | **Yes.** A: `curl (7)` after 2.4 s / 3.3 s. B: 0 occurrences | **Yes.** Azure Front Door; no allowlisted neighbour | **EXCLUDE** | Browser binaries are baked at **image build time**, before any firewall exists. **The trap:** bumping `@playwright/test` needs a *rebuild*, not an in-container install — which fails here looking like a missing binary rather than a firewall block |
+| 11 | `api.turso.tech` | Turso Platform/management API | **Yes.** A: `curl (7)` after 5.1 s. B: 0 occurrences | **YES — effective, and independently re-verified.** CloudFront (`api.turso.io` → `143.204.160.109`); pinned to the Cloudflare edge it **fails TLS handshake** | **EXCLUDE** | ADL-33 §2, **unchanged.** **This is the most important row in the table under §10.11's threat model** — it is the DB admin plane, the one host here where a write is catastrophic, and its exclusion actually holds |
+| 12 | `api.clerk.com` | Clerk Backend API | Yes. A: `curl (7)` after 3.4 s. B: 0 occurrences | **NO — reachable today.** Cloudflare-proxied; the review measured `404` on `/` and **`401` on `/v1/users`** | **EXCLUDE (credential, not network)** | ADL-33 §4, **unchanged and — under §10.11 — the *correct* mechanism rather than a weakness.** The `401` is the control working: the host answers, and only the absent credential stands between this container and full user CRUD. See §10.11.3 |
+| 13 | gitleaks GitHub release; `semgrep/semgrep` image | `security.yml` | n/a — runner-side | n/a | **OUT OF SCOPE** | Runs on a GitHub-hosted runner, not here. Listed so it is visibly considered, not silently missing |
+
+### Already reachable — recorded so nobody "fixes" a non-problem
+
+| # | Host | Status | Why it matters |
+|---|---|---|---|
+| 14 | `objects.githubusercontent.com`, `raw.githubusercontent.com`, `codeload.github.com` | **Reachable** (A: 404 / 301 / 301 — all connected) | Every one of them *looks* like it should be blocked, because none appears in the domain loop. They are covered by the meta CIDR aggregation at line 126 |
+| 15 | `results-receiver.actions.githubusercontent.com` | **Reachable** (A: 404 — connected. D: `140.82.113.22`, a GitHub GLB address inside `.web`) | This is the whole of §10.5.3. Its sibling `pipelines.actions.githubusercontent.com` (row 6) is blocked — **`*.actions.githubusercontent.com` does not behave uniformly**, and assuming it does is how this gets mis-diagnosed |
+| 16 | `vscode.blob.core.windows.net` | **Allowlisted** (line 146). D: `20.150.83.4`, scale unit `ams23prdstr11a` (Amsterdam) | The brief flagged this and was right to: it is `*.blob.core.windows.net` like row 4, and it **does not generalise** — different scale unit, different region, different IP. Its presence buys row 4 exactly nothing |
+
+### Unchanged existing entries, with the reasons they carry
+
+Recorded for completeness because this table's contract is *every* host carries a reason. Nothing
+here is proposed for change.
+
+| Host | Reason it is allowlisted |
+|---|---|
+| GitHub `.web + .api + .git` CIDRs | `git`, `gh`, the CI-log path. Bootstrapped at line 99 |
+| `registry.npmjs.org` | `npm ci` / `npm install` |
+| `api.anthropic.com` | Claude Code's own runtime |
+| `sentry.io`, `statsig.com`, `marketplace.visualstudio.com`, `vscode.blob.core.windows.net`, `update.code.visualstudio.com` | Toolchain entries inherited from the upstream Anthropic devcontainer template — VS Code extension install/update and agent telemetry. **Not app-driven.** I am not proposing to remove them (out of scope, and removal is a different kind of change from addition), but a reader should know they are the one group here whose reason is "the template shipped it" |
+| `just-raptor-89.clerk.accounts.dev` | Clerk JWKS + Frontend API — the app's auth runtime (`.env.example`, `CLERK_ISSUER`) |
+| `travel-tracker-{prod,staging}-ryanv11.aws-us-west-2.turso.io` | ADL-33 §2 — read-only DB SELECT, per-database `--read-only` tokens |
+| `backboard.railway.com` | ADL-33 §3 — deploy logs/status. Note the caveat there: no read-only Railway scope exists; the token is write-capable and "read-only" is behavioural |
+
+## 10.4 D10/D11 — the two Railway app domains, assessed separately
+
+### 10.4.1 Staging — ADOPT, and it should go in ahead of Nominatim
+
+**This is the highest-value entry in the whole ADL, and §3 did not contain it.**
+
+> **RE-BASED (2026-08-04, amendment 2) — the verdict is unchanged, the argument is not.** The
+> original case led on the PO's current testing habit (*"im only testing on staging now via browser
+> on my mac"*). The review (F7) is right that this is the wrong foundation, and its catch is sharp:
+> **the same premise was doing opposite work in two sections.** §3.4(a) uses *"the PO's browser is on
+> the host, outside the netns"* to argue **against** MapTiler — the firewall does not gate what the
+> PO sees, so widening it buys nothing. §10.4.1 used the identical fact to argue **for** the Railway
+> domains. Both hold only because the consumer differs — and once that is said out loud, **the PO
+> quote stops supporting D10 at all. The PO can already see staging perfectly well; the entry does
+> nothing for the PO.** An argument that evaporates the day the PO's habits change is not one to
+> hang a firewall decision on. Re-based below on OP-32, which does not move.
+
+**The need is entirely agent-side, and stating it that way makes it durable.** OP-32 is mandatory
+and it is where this bites: **every defect must be classified regression / deployment-config / gap
+before it is briefable, and getting the class wrong invalidates the entire brief.** A
+deployment-class classification requires *observing the deployed artifact*. No agent in this
+container can do that, so every deployment-class defect here is classified by proxy — which is
+precisely the history the record already carries: D-06 (BRD-NF09 shakedown), BUG-59, and BUG-55,
+which OP-32's own text names as the case that cost the project twice. That argument holds whether
+the PO tests on staging, locally, or from a phone.
+
+**The honest strength of the claim.** The original wording — *"nobody inside this container can
+observe the surface the project is judged on"* — is too strong, and the review found the
+counterexample in this repo: `post-deploy-shakedown.yml` defaults `SHAKEDOWN_BASE_URL` to the
+staging domain and is `workflow_dispatch`-able with a `base_url` override, so an agent can dispatch
+it and — **with D13's now-working run-log retrieval** — read the result. §10.4.2 credits exactly
+that path when arguing prod needs the entry *less*, and did not credit it against staging. That was
+inconsistent. The defensible claim is narrower and still strong: **no agent can observe staging
+interactively or cheaply.** The shakedown path is one round-trip per question, minutes per answer,
+and can only answer the five assertions someone already wrote — it is not a diagnostic instrument.
+
+The rest of the original case stands: the COO reads Railway deploy logs and Turso rows through the
+ADL-33 path, which worked twice (D-06's own 2026-07-21 update records it). The metadata path is
+often sufficient — but it is a different question from *"what is the deployed document actually
+serving"*, which is what D-06 was raised about and what neither Railway logs nor Turso rows answer.
+
+**Four occurrences is the argument.** The BRD-NF09 shakedown (D-06, 2026-07-21), BUG-59 the same
+day, QUAL-20's design (which had to be built as a GitHub Action *specifically because* of this
+block — `post-deploy-shakedown.yml`'s header says so in its own words), and QUAL-20's unresolved
+CSP classification now. A gap that has shaped a workflow decision is no longer a nuisance.
+
+**What allowing it actually grants — stated at full strength, not minimised:**
+
+- An **anonymous HTTP GET to a public web page.** Any person on the internet can already do this.
+  The firewall is not what protects staging; Clerk is.
+- It grants **no data access.** The API is behind `requireAuth` and the container holds no Clerk
+  credential — ADL-33 §4 declined one and that is unchanged. `BYPASS_AUTH` is fatal under
+  `NODE_ENV=production` (`server.ts:271-273`), and staging demonstrably runs `NODE_ENV=production`:
+  it serves the frontend document from Express, which is gated on exactly that (`server.ts:86`,
+  `SERVE_STATIC`), and the QUAL-20 shakedown's *"the app loads and returns a document"* and
+  *"carries a Content-Security-Policy header"* checks both pass against it.
+- It is **write-capable in principle** — nothing stops a `POST`. But without a token every write is
+  a 401, and the container's existing Railway token (ADL-33 §3) is *already* write-capable against
+  the same environment by Railway's own admission. The marginal reach is small.
+- **The real widening, and it is not the app:** see §10.8. Pinning `69.46.46.75` grants that
+  address, and whatever else answers on it becomes reachable by `Host` header. This is a genuine
+  cost and it is not specific to staging; it is a property of every line in the list.
+  **Smaller than I first stated (amendment 2):** the review found each Railway domain resolves to a
+  *distinct single* address in `69.46.46.0/24` — staging `.75`, production `.14`, `up.railway.app`
+  `.126`, `railway.com` `.46` — i.e. Railway appears to allocate per-domain edge addresses rather
+  than pooling. Whether one such address serves other tenants by `Host` header is **UNVERIFIED and
+  untestable from here while the address is blocked.** So the collision surface may be materially
+  smaller than the CDN entries; I over-stated it, in the cautious direction.
+
+> **AGAINST — WITHDRAWN (amendment 2), and this is the correction that matters most in §10.4.**
+> The original ran: *"The container runs autonomous agents, and every entry widens what a
+> misbehaving one can reach. If I thought this entry granted a data path I would refuse it."*
+>
+> **That argument was answering a question that was already lost.** §10.11's F1 shows the allowlist
+> does not contain a deliberate actor at all — any Cloudflare-proxied origin is reachable today, with
+> no firewall change. A "misbehaving agent" is not held back by this list; it never was. So the
+> marginal containment cost of one more public web domain **rounds to zero**, and the honest position
+> is that I was pricing this entry against a boundary that does not exist.
+>
+> Note the direction: this cuts *for* D10, which is why I am satisfied it is not motivated
+> reasoning — the review found it, and it makes my own recommendation cheaper than I argued for it.
+
+**What survives as the real argument against, and it is a governance one rather than a technical
+one:** under §10.11's model, *"a case is made for any access required"*. The case here is OP-32,
+and it is a good one. The clause that would refuse this entry is convenience, and this is not that.
+
+**Verdict: ADOPT, first.** If the PO wants to take only one thing from this amendment, take this.
+
+### 10.4.2 Production — ADOPT, separately, and second
+
+Kept as its own decision at the COO's direction, and it deserves to be.
+
+**For — restated as a SUBSET argument, not a consistency one (amendment 2).** I nominated this as my
+own Weakness B and the review confirmed the diagnosis while correctly sizing it as smaller than I
+feared. The original form was *"we already granted X, so refusing Y is incoherent"* — a **ratchet**,
+which licenses every grant by reference to the last one and erodes chosen exclusions without ever
+re-examining them. That shape is genuinely dangerous and I should not have used it.
+
+**The valid form is a subset claim, and it needs no reference to precedent at all:** a read-only
+SELECT against the production Turso database returns **user PII**; an anonymous GET of the
+production website returns **what any stranger on the internet can already fetch**. The second is a
+strict subset of the first on the axis that matters. That is sound on its own terms — *"already
+granted"* was doing none of the logical work and all of the rhetorical work, and the sentence is
+better without it. Under §10.11 the marginal cost is near zero anyway, so this argument no longer
+has to carry weight it could not bear.
+
+**Against, and it is why this is second rather than joint-first:**
+
+- The need is **episodic**, not continuous. Prod is touched at promotion events, which are manual
+  and COO-driven; staging is touched daily.
+- **A path already exists.** `post-deploy-shakedown.yml` takes a `base_url` `workflow_dispatch`
+  input, so prod can be shaken down from a runner today with no firewall change at all. That is a
+  real alternative and it would be dishonest to omit it.
+- Production is where an agent mistake is most expensive, and *"both databases hold disposable data
+  today"* is a fact about today, not a design principle
+  (memory: `feedback_dont_architect_for_current_user_base`).
+
+**Verdict: ADOPT, but taking §10.4.1 alone is a defensible smaller change** and captures most of the
+value. I am not going to pretend the prod entry is as load-bearing as the staging one; it is not.
+If the PO wants to minimise the widening, drop the prod line from §10.7's diff — the diff is
+written so that removing that one line leaves everything else valid.
+
+**Carry ADL-33 §2's convention over verbatim:** prefer staging; hit production only when the
+question is specifically about production.
+
+## 10.5 D12/D13 — GitHub Actions artifacts, and a live defect found on the way
+
+### 10.5.1 The finding
+
+QUAL-20's tracker note says the Playwright trace *"is undownloadable from the devcontainer (Azure
+blob storage is not in the firewall allowlist)"*, and treats that as an allowlist gap. It is not one.
+**It is a host that cannot be put in this allowlist at all**, and that is a materially different
+answer.
+
+Probe C, the real operation:
+
+```
+$ gh run download 30866122831 --name shakedown-results
+error downloading shakedown-results: Get "https://productionresultssa13.blob.core.windows.net/
+  actions-results/…/artifacts/….zip?…": dial tcp 20.209.227.33:443: connect: no route to host
+```
+
+`no route to host` is the kernel surfacing the ICMP `admin-prohibited` from line 84 — the firewall,
+unambiguously, not an outage.
+
+**Then the part that decides it.** The host is not fixed. Reading the `302 Location` for ten
+different artifacts returned **nine distinct hosts**:
+
+```
+sa13  sa5  sa17  sa4  sa7  sa16  sa18  sa11  sa17  sa1
+```
+
+And the namespace has no discoverable bound — every shard I tried resolves, up to and including
+`productionresultssa50`. Characterising the address space behind them (probe D):
+
+| Property | Measurement |
+|---|---|
+| Distinct shards observed in 10 artifact samples | 9 |
+| Shards confirmed to exist | at least `sa1`–`sa20`, plus `sa24`, `sa30`, `sa40`, `sa50` — **no upper bound found** |
+| Distinct Azure storage scale units behind 24 sampled shards | 7 (`blz25prdstrz09a`, `bl5prdstrz24a`, `bl5prdstrz25a`, `bn3prdstrz12a`, `bnz49prdstrz09a`, `bn9prdstrz04a`, `dub14prdstr24c`) |
+| Distinct A records | ≥19, in four distinct `20.x`/`52.x`/`57.x` Azure blocks |
+| Resolution path | `…blob.core.windows.net` → `blob.<unit>.store.core.windows.net` → **`blob.<unit>.trafficmanager.net`** |
+| Regions implied | multiple — `dub14…` is Dublin, the rest are US |
+
+### 10.5.2 Why this is refused — corrected (amendment 2)
+
+> **CORRECTED (2026-08-04). This subsection was headed *"Why this cannot be an allowlist entry"* and
+> that was wrong.** It can be. The OP-27 review (F3) found the mechanism, and it is one **this same
+> script already implements**: line 126 aggregates GitHub meta CIDRs. Changing
+> `(.web + .api + .git)[]` to `(.web + .api + .git + .actions)[]` reaches the blob pool, because the
+> pool is inside `.actions`.
+>
+> **The three reasons below are not independent, and I claimed they were.** All three are downstream
+> of one unstated assumption — *that the entry must be a hostname in the `for domain in \ …` loop*.
+> A shared premise means they can all fall at once, which is exactly what happened. This is the
+> project's own *"an argument **for** is an absence claim in disguise"* pattern, and I walked into it
+> in a document whose whole subject is probing absences. Demoted to **three consequences of requiring
+> a hostname entry** — they correctly kill the hostname route, which is what I set out to test.
+>
+> **A false sub-claim went with it.** §10.3 row 5 said *"Azure blob storage is not in GitHub's meta
+> ranges at all"* — stated flatly, load-bearing for the headline, **and I ran no probe for it.** It
+> is false. That is precisely the failure the negative-findings rule exists to catch, committed by
+> the author of a section arguing for that rule. Corrected in row 5 and priced below.
+
+**The verdict does not change — refuse — but the reason must.** I re-ran the pricing myself rather
+than inherit it, and the review's arithmetic is slightly off in the direction that *understates* the
+case:
+
+| Set | CIDRs as published | After collapse | **Distinct addresses** |
+|---|---|---|---|
+| `.web + .api + .git` (today) | 92 | 58 | **10,300** |
+| `.actions` (the alternative) | 5,658 | 3,944 | **27,901,673** |
+
+The review priced this as *"~900×"*, comparing `.actions`' distinct total against `30,800` for the
+current set. `30,800` is the **overlap-counted** sum: `.api` and `.git` largely repeat `.web`'s
+ranges, and the ipset deduplicates (`ipset add --exist`). Like-for-like the container holds **10,300
+distinct addresses today**, so the widening is **2,709×**, not 900×. The refusal is stronger than the
+review stated it.
+
+**Refuse it on that number.** A 2,709× widening of reachable address space — to a set whose declared
+purpose is running arbitrary third-party workloads — in order to retrieve a test artifact. That is
+not close, and it is a *risk* judgement rather than an impossibility, which matters: "impossible"
+forecloses re-examination, while "expressible, priced at 27.9M addresses, refused" is a decision
+someone with a different need can re-open and re-refuse in ten minutes.
+
+**Three consequences of requiring a hostname entry** (retained — they kill the hostname route, which
+remains the route anyone would reach for first):
+
+1. **The hostname space is unbounded from our vantage point.** `init-firewall.sh` takes literal
+   hostnames; it has no wildcard and cannot have one, because it resolves each name to A records
+   at container start. Enumerating `sa1`…`sa50` would be a guess at a bound I could not establish,
+   and GitHub can add shards at will.
+2. **`trafficmanager.net` is Azure Traffic Manager** — a DNS-based global load balancer whose
+   entire purpose is to hand out *different* endpoints over time. This is ADL-33 §7's rotation
+   caveat in its most aggressive form: the addresses pinned at container start are not merely
+   *likely* to drift, drifting is the mechanism's design intent. §3.3's "worst case, one host stays
+   unreachable and says so loudly" does not hold here — the failure would be intermittent and
+   silent, appearing days into a session.
+3. **The shard is chosen at upload time and baked into the artifact record.** Retrying does not
+   move it. So an entry covering some shards fails on the artifacts that landed elsewhere, at
+   random, which is the worst available failure mode: a diagnostic tool that works most of the time.
+
+**Superseded by the pricing above.** This paragraph originally read *"the only construction that
+would genuinely work is allowlisting Azure IP blocks … Refused, and it is not close."* The instinct
+was right and the conclusion survives — but the construction that works is **GitHub meta's `.actions`
+CIDRs**, not hand-written Azure `/16`s, and it is narrower than I guessed while still being 2,709×
+too wide. The refusal is on the measured number, not on the guess.
+
+One mechanical note §3.3 did not need: the `while read -r ip` loop (lines 160-168) adds *every* A
+record returned, and the `dig` answer for these hosts contains CNAME rows the `$4 == "A"` guard
+correctly skips. So the loop would behave *correctly* here — it is not a parsing problem. The script
+is fine; the target is wrong.
+
+### 10.5.3 What to do instead — and this part already works
+
+**Run-level logs are reachable and job-level logs are not.** That asymmetry is the answer, and it
+was not obvious:
+
+| Operation | Redirects to | Result |
+|---|---|---|
+| `gh api repos/{o}/{r}/actions/runs/{id}/logs` | `results-receiver.actions.githubusercontent.com` (GitHub-owned, `140.82.113.22`, inside `.web`) | **Works.** `HTTP=200`, 11,678-byte zip containing the full 47 KB job log |
+| `gh api repos/{o}/{r}/actions/jobs/{id}/logs` | `productionresultssa<N>.blob.core.windows.net` | **Blocked** |
+| `gh run download` | same blob pool | **Blocked** |
+
+So, for the COO and every agent, the working command is:
+
+```bash
+# Full CI logs for a run, from inside the devcontainer. REFINED (amendment 2, review F10):
+RUN_ID=<run-id>
+gh api "repos/ryanv11/travel-tracker/actions/runs/$RUN_ID/logs" > "/tmp/runlogs-$RUN_ID.zip" \
+  && unzip -o "/tmp/runlogs-$RUN_ID.zip" -d "/tmp/runlogs-$RUN_ID" \
+  && grep -rn "<what you are looking for>" "/tmp/runlogs-$RUN_ID"
+```
+
+Two refinements over the form I first published, both from the review and both worth taking:
+
+- **Check the exit code explicitly.** On failure `gh api` exits 1 but still writes ~138 bytes of JSON
+  error body to stdout — so the original `gh api … > /tmp/runlogs.zip` produced a file named `.zip`
+  that was not one. The `&&` chain above gates on `gh` rather than relying on `unzip` to notice.
+  (It does fail *loud*, which is the property that matters and which the review verified: a
+  nonexistent run exits **1** with `gh: Not Found (HTTP 404)` on stderr. It is not a second D13.)
+- **Use a per-run directory.** A fixed `/tmp/runlogs` is overwritten across runs in one session and
+  an agent can end up grepping a mixture of two.
+
+> **UNVERIFIED — one thing neither of us probed.** `/runs/{id}/logs` is documented by GitHub to
+> return the **latest attempt**, so diagnosing an earlier failing attempt of a re-run would need
+> `/runs/{id}/attempts/{n}/logs`. **Blind spot:** no re-run was tested from this container; the only
+> probes were the 404 case and a successful retrieval. Worth one probe before the CLAUDE.md edit lands.
+
+**Verified end to end against QUAL-20's failing run.** The retrieved log contains the assertion, the
+captured console text, and the stack — everything the tracker note needed except the `trace.zip`
+itself:
+
+```
+Error: console/page errors on load:
+ Note that 'script-src' was not explicitly set, so 'default-src' is used as a fallback.
+```
+
+**And that is the whole point.** QUAL-20's own tracker note already prescribes the right fix —
+*"widen the capture in shakedown.spec.ts:47-49 to record all console args, msg.location() and the
+violated directive, then re-run"*. That change puts the evidence into the **log**, which is already
+reachable. The trace artifact was never the cheapest route to the answer; it was the route that
+happened to be tried first. Same shape as §3.4's conclusion about MapTiler and QUAL-18's about CSP:
+**fix the artefact so it can express the failure, rather than reaching further outside the
+environment.**
+
+### 10.5.4 D13 — the defect this uncovered, which is not about artifacts at all
+
+**`gh run view <id> --log-failed` — the command CLAUDE.md instructs every agent to run when CI
+fails — exits 0 and prints nothing from this container.**
+
+Established by three probes that fail differently:
+
+1. Two different failed runs (`30866122831`, `30863294212`): `exit=0`, **0 bytes on stdout, 0 bytes
+   on stderr**, both times.
+2. `gh run view --log` (the non-failed variant): same, `exit=0`, 0 bytes.
+3. The underlying API call, run directly, names the cause instead of swallowing it:
+   `gh api repos/…/actions/jobs/91858249898/logs` → `dial tcp 20.209.227.33:443: no route to host`.
+   `gh`'s own subcommand discards that error; the raw API call does not.
+
+This is **fail-open**, and it is the class the project already has a memory about
+(`project_gate_script_failopen_audit.md`). An agent following CLAUDE.md's documented procedure sees
+an empty result and a success exit code, and the natural reading of that is *"no failures in the
+log"* — the opposite of the truth. It has presumably been silently degrading CI diagnosis for as
+long as artifacts have been on this blob pool.
+
+**Recommendation (COO action, not this ADL's to take):** replace `gh run view <run-id> --log-failed`
+with §10.5.3's `gh api …/runs/<id>/logs` form, and raise a tracker entry. Deliberately **not** edited
+here — those are shared records (OP-28) and outside the brief's scope.
+
+> **UNDER-SCOPED BY AN ORDER OF MAGNITUDE — corrected (amendment 2, review F5).** I wrote this as a
+> CLAUDE.md fix. `--log-failed` is instructed in **eleven** places: `CLAUDE.md:352`,
+> `.claude/skills/coo-startup/SKILL.md:169`, and **eight role system prompts**
+> (`jobs/{architect,backend,frontend,database,qa,docs,integrations,ux}/*-system-prompt.txt`), plus one
+> historical reference in `open-dialogues.md` to leave alone. A role system prompt is read on *every*
+> dispatch of that role, which arguably makes it more load-bearing here than CLAUDE.md — the reviewer
+> noted it was told to run the command at the start of its own task, and so was I.
+>
+> **And there is a second fail-open in the same family that I did not look for.**
+> `.claude/skills/coo-startup/SKILL.md:169` uses `--log-failed` in the **session-start audit for a
+> red `main`**. Empty output plus exit 0 there means the COO's opening audit reports nothing to fix.
+> That is D13's shape at a **gate** rather than a debugging step, and gates that fail open are a
+> class this project already has a memory about. It is the more consequential of the two.
+>
+> **The COO is handling all eleven files separately; I have deliberately not touched any of them.**
+
+> **UNVERIFIED — the scope of D13, stated so it is not over-read.** I established this for *this
+> repository's* runs from *this* container. I did **not** establish when the behaviour started, nor
+> whether `gh` behaves this way for all repositories, nor whether a newer `gh` reports the error
+> properly. **Blind spot:** one `gh` version, one container, one repo, runs from the last week.
+> The claim that stands is *"this command returns nothing here, and the reason is the blob block"* —
+> not *"`gh run view --log-failed` is broken."*
+
+## 10.6 D14 — MapTiler, with §3.4 re-checked rather than inherited
+
+**§3.4(a) — now established.** PO-confirmed 2026-08-04 (§3.4's own stamp carries the quote). The
+browser is host-side. Two independent supporting findings that do not depend on the PO's statement:
+`devcontainer.json`'s `forwardPorts: [5173, 3001]` with `vite.config.ts` binding `0.0.0.0`; and
+`src/e2e/map.spec.ts:14-20`, which filters `maptiler.com` and `ERR_ADDRESS_UNREACHABLE` from its
+console assertions with the comment *"tile services unreachable in devcontainer"*. The E2E suite was
+written knowing its browser is inside the netns and blocked — which is also a small, independent
+confirmation that in-container Playwright *is* gated by this firewall, the other half of §3.4(a).
+
+**§3.4(b) — re-verified, holds.** Read from the tracker on this branch: **BUG-34** `status: done`;
+**BUG-49** `status: done_pending_uat`. Neither is an open defect awaiting a way to observe it.
+
+**§3.4(c) — re-verified, holds, and one probe was stronger than §3.4 claimed.** `grep -rn MAPTILER
+.github/` returns **nothing** (exit 1). `grep -rn 'secrets\.' .github/` returns exactly one hit, and
+it is the word "secrets" in an English comment (`security.yml:55`, *"Scan for accidentally committed
+secrets"*) — **not a `${{ secrets.* }}` reference anywhere in any workflow.** So the CI E2E build
+requests `…style.json?key=undefined` and an allowlist entry would not change that.
+
+**New finding, and it argues against the entry even for someone who wants it.** The app's own CSP
+allows **`*.maptiler.com`** — a wildcard — in both `imgSrc` and `connectSrc` (`server.ts:130-133`),
+while `MapView.tsx:26` names only `api.maptiler.com`. The wildcard is positive evidence that the
+authors expected more than one MapTiler host: a MapLibre style document routinely references
+sprites, glyphs and tile endpoints, which may or may not all live on `api.maptiler.com`.
+
+> **UNVERIFIED, and it is the reason this row stays "recommend exclude" rather than becoming a
+> cheap yes.** I could not read `https://api.maptiler.com/maps/streets-v2/style.json` to enumerate
+> the hosts it references — the host is unreachable from here, which is the very thing under
+> discussion, and this container has no other web access. **Probes run:** the CSP wildcard
+> (`server.ts:130-133`) and the single literal in `MapView.tsx:26`. **Blind spot:** the style
+> document's actual contents. **What follows:** adding `api.maptiler.com` alone may leave
+> in-container maps still broken, in which case the entry buys nothing while widening the firewall
+> — the worst combination available. If the PO wants MapTiler, the honest sequence is: add the one
+> entry, rebuild, and **check whether tiles actually render** before concluding the question is
+> closed.
+
+**Recommendation unchanged: DEFER.** §3.4's closing position is carried up into §0's table (D14) as
+the brief asked, so it is a visible PO option rather than prose: *the entry is cheap and safe to
+add, (b) is an argument about value rather than risk, and this is a recommendation and not a veto.*
+The diff line is supplied in §10.7 so the PO can take it without another Architect round.
+
+## 10.7 The consolidated diff — QUOTED, NOT APPLIED
+
+`.devcontainer/init-firewall.sh` is **unmodified on this branch** (`git status` clean of it; `diff`
+against `/usr/local/bin/init-firewall.sh` reports identical). Applying it needs a container rebuild,
+which is the PO's to take at a session boundary.
+
+This **supersedes §3.5** and contains everything §3.5 had. Context verified against the live file at
+lines 137–151.
+
+**The diff was verified without being applied to the repo**, because a quoted diff nobody has tested
+is just prose with syntax highlighting:
+
+1. `git apply --check` against the worktree → **exit 0**, patch applies cleanly.
+2. The patch was then applied to a **copy** of the file in a scratch directory outside the repo, and
+   the result passed `bash -n` (**SYNTAX OK**) with the domain loop containing all fourteen entries
+   in the intended order.
+3. `.devcontainer/init-firewall.sh` in the repo is byte-identical to `/usr/local/bin/init-firewall.sh`
+   after all of the above — **unmodified, as required**.
+
+```diff
+--- a/.devcontainer/init-firewall.sh
++++ b/.devcontainer/init-firewall.sh
+@@ -137,15 +137,82 @@
+ # no read-only credential exists for it, see ADL-33 §4). Note: Turso/Railway sit
+ # behind a CDN that rotates edge IPs — this script pins IPs resolved at container
+ # start, so intermittent reachability is possible within a long session (ADL-33 §7).
++#
++# ADL-49 §10 (2026-08-04, ENV-01) — three entries added below, in two categories.
++#
++# (a) nominatim.openstreetmap.org — the app's OWN RUNTIME geocoder
++#     (nominatim-client.ts:31), for local development and fixture capture. This is
++#     the first entry of that kind; every other host here is agent diagnostics.
++#     Two usage-policy obligations ride with it and are not optional: ~1 req/s from
++#     this single egress IP, and an identifying User-Agent. The in-process limiter
++#     does NOT span processes — read ADL-49 §4.3 before running any capture or
++#     probe script. Fastly anycast, one A record: materially less rotation-prone
++#     than the Turso/Railway entries above. If the geocoder stops working
++#     mid-session, restart the container before debugging the client.
++#
++#     SIDE EFFECT, STATED BECAUSE IT IS REAL: the OSM TILE servers share this exact
++#     Fastly anycast address — nominatim, tile., a/b/c.tile.openstreetmap.org all
++#     resolve to 151.101.21.91. This ipset holds ADDRESSES, so this entry makes the
++#     tile servers reachable too and no entry here can separate them. We do not use
++#     them (the app renders MapTiler vector tiles via MapLibre), their usage policy
++#     is STRICTER than Nominatim's, and nothing in this repo may call them. That is
++#     a repo RULE, not a control this file enforces — see ADL-49 §10.11.2.
++#
++# (b) travel-tracker-staging.up.railway.app
++#     travel-tracker-production-241f.up.railway.app
++#     The DEPLOYED APP's own public domains — read-only diagnostic GETs. Open
++#     dialogue D-06, raised 2026-07-21 and now on its fourth occurrence. The PO's
++#     entire verification loop is a host browser against staging, so nobody inside
++#     this container can observe the surface the PO is actually judging. These
++#     grant no credential: the API stays behind Clerk, and the container already
++#     holds read-only SELECT on BOTH Turso databases (ADL-33 §2) — granting the
++#     production database while refusing the public website would be incoherent.
++#     Prefer staging; hit production only when the question is specifically about
++#     production (ADL-33 §2's convention, carried over).
++#
++#     The "no credential" argument above has a STANDING CONDITION attached. It is
++#     recorded in ADL-33 §4 — the decision that declined Clerk access — because that
++#     is what someone provisioning a credential actually reads. It is NOT restated
++#     here: a condition filed only in a firewall script is a record, not a control.
++#
++# NOT ALLOWLISTED BY NAME, each with a reason (ADL-49 §10.3). READ THE CAVEAT BELOW
++# BEFORE TREATING ANY OF THESE AS BLOCKED — for Cloudflare-fronted hosts they are a
++# statement that no case has been made, NOT a control this file enforces:
++#   api.turso.tech    ADL-33 §2. CloudFront-fronted with no allowlisted neighbour,
++#                     so this exclusion is EFFECTIVE (verified). It is the DB admin
++#                     plane and the most important exclusion in this file.
++#   api.clerk.com     ADL-33 §4. Cloudflare-fronted: reachable today via the caveat
++#                     below, answering 401. The control here is the ABSENT
++#                     CREDENTIAL, not this list. That is deliberate, not a gap.
++#   img.clerk.com     no in-container consumer; browser-side avatars only.
++#   api.maptiler.com  ADL-49 §3.4/§10.6 — the firewall is not what blocks map
++#                     testing (PO-confirmed 2026-08-04). Also already reachable.
++#   productionresultssa*.blob.core.windows.net — GitHub Actions ARTIFACT storage.
++#                     Reachable only by widening the meta CIDRs at line 126 to
++#                     include '.actions': 10,300 -> 27,901,673 addresses, a 2,709x
++#                     widening. REFUSED ON THAT COST (ADL-49 §10.5.2). The run-LEVEL
++#                     logs API is already reachable — use it instead.
++#   GitHub meta '.actions' key — same refusal, same number.
++#
++# WHAT THIS FILE IS AND IS NOT (ADL-49 §10.8, measured not theorised): it matches IP
++# ADDRESSES, not hostnames — there is no SNI or Host inspection anywhere. So it is an
++# AVAILABILITY AND ACCIDENT CONTROL, not a containment boundary. Any CDN-fronted
++# origin sharing an address with an allowlisted host is reachable via SNI, and for
++# Cloudflare that is demonstrated: api.maptiler.com returns 301 when pinned to an
++# address registry.npmjs.org resolves to. Non-Cloudflare exclusions (CloudFront,
++# Azure) do hold. Do not read an absence from this list as unreachability.
+ for domain in \
+     "registry.npmjs.org" \
+     "api.anthropic.com" \
+     "sentry.io" \
+     "statsig.com" \
+     "marketplace.visualstudio.com" \
+     "vscode.blob.core.windows.net" \
+     "update.code.visualstudio.com" \
+     "just-raptor-89.clerk.accounts.dev" \
++    "nominatim.openstreetmap.org" \
++    "travel-tracker-staging.up.railway.app" \
++    "travel-tracker-production-241f.up.railway.app" \
+     "travel-tracker-prod-ryanv11.aws-us-west-2.turso.io" \
+     "travel-tracker-staging-ryanv11.aws-us-west-2.turso.io" \
+     "backboard.railway.com"; do
+```
+
+**Three lines are independently removable**, and the diff is written so that dropping any one of
+them leaves the rest valid. That is deliberate — it lets the PO take a narrower change without
+another Architect round:
+
+- Drop `travel-tracker-production-241f.up.railway.app` → §10.4.2's smaller option.
+- Drop both Railway lines → §3.5's original scope.
+- **If the PO wants MapTiler** (§10.6 recommends against; it is the PO's call): add
+  `    "api.maptiler.com" \` immediately after the Nominatim line, and delete the
+  `api.maptiler.com` row from the "STILL DELIBERATELY EXCLUDED" comment block.
+
+### 10.7.1 Post-rebuild verification — §3.5's three commands, extended
+
+Run in this order. The first four are new or changed; the last is §3.5's and is the one people skip.
+
+```bash
+# 1. The RUNNING copy carries the change, not just the repo copy.
+grep -nE 'nominatim|up\.railway\.app' /usr/local/bin/init-firewall.sh
+
+# 2. Nothing failed to resolve at container start.
+#    (Check the startup output for the "FIREWALL WARNING: N item(s)" block — absent is correct.)
+
+# 3. The three new hosts answer.
+curl -sS -o /dev/null -w 'nominatim %{http_code}\n' \
+  'https://nominatim.openstreetmap.org/search?q=glasgow&format=json&limit=1'   # expect 200
+curl -sS -o /dev/null -w 'staging  %{http_code}\n' \
+  https://travel-tracker-staging.up.railway.app/health                          # expect 200
+curl -sS -o /dev/null -w 'prod     %{http_code}\n' \
+  https://travel-tracker-production-241f.up.railway.app/health                  # expect 200
+
+# 4. The exclusions still hold — a positive test that the change was ADDITIVE.
+curl -sS -o /dev/null -w 'maptiler %{http_code}\n' https://api.maptiler.com/    # expect failure
+curl -sS -o /dev/null -w 'turso-mgmt %{http_code}\n' https://api.turso.tech/    # expect failure
+
+# 5. The lockdown itself still holds.
+curl -sS -o /dev/null -w 'example  %{http_code}\n' https://example.com          # expect failure
+```
+
+Step 4 is the one this amendment adds and it is the one that matters most for review: it converts
+"we added three hosts" from an assertion into a measurement, by checking that the hosts we
+*declined* are still declined.
+
+## 10.8 D17 — the property that prices every line in this list
+
+Worth stating plainly because it is not obvious from reading the script, it applies to entries that
+were approved long before this ADL, and it is the honest unit of "what does one line cost".
+
+**`init-firewall.sh` builds an `ipset` of IP addresses and matches on destination address
+(lines 83, 160-168). It does not filter by hostname or SNI.** Adding a host therefore grants:
+
+> every service reachable at the addresses that host resolved to *at container start*.
+
+For a dedicated-IP host that is one service. For a CDN-fronted host it is not:
+
+| Entry | Pins | What else is plausibly on those addresses |
+|---|---|---|
+| `nominatim.openstreetmap.org` | `151.101.21.91` | A Fastly anycast address — shared edge, many tenants |
+| `api.maptiler.com` (if added) | five `104.17.24x.40` | Cloudflare shared edge |
+| `travel-tracker-staging.up.railway.app` | `69.46.46.75` | Railway's edge — other Railway-hosted apps answering on the same address |
+| `travel-tracker-production-241f.up.railway.app` | `69.46.46.14` | as above, a different edge address |
+| the Turso and Railway entries (ADL-33) | — | already subject to exactly this, which §7's rotation caveat gestures at without naming |
+
+> **WITHDRAWN (2026-08-04, amendment 2 — §10.11).** The sentence that stood here was:
+> *"This does not change any verdict in §10.3, and I want to be clear about why rather than let it
+> sound like a hedge. Reaching another tenant's service at a shared edge address requires knowing
+> what to ask for and sending the right `Host`/SNI, and yields whatever that tenant serves publicly.
+> It is a real widening and a small one."*
+>
+> **It is false, and the OP-27 review (F1) demonstrated it live rather than argued it.** It does
+> change verdicts in §10.3 — rows 7, 9 and 12 describe hosts this container can reach *today*. I
+> wrote it as a reassurance immediately after discovering the fact that invalidates it, which is the
+> review's central diagnosis of this whole section and it is correct: **a correct discovery whose
+> consequences were not propagated backwards.** The replacement is below; the propagation is §10.11.
+
+**What replaces it.** This allowlist is an **availability and accident control, not a containment
+boundary.** It stops an agent reaching a host *by name*, and it stops casual or accidental egress.
+It does **not** stop deliberate egress to any CDN-fronted origin that shares an address with an
+allowlisted host — and for Cloudflare that is now measured, not theoretical.
+
+Confirmed independently on this branch (four requests, no volume), because a claim that re-prices
+the whole section should not be inherited:
+
+| Request | Result |
+|---|---|
+| `api.maptiler.com` direct, by its own name | `curl (7)` after 3.2 s — **blocked** |
+| `api.maptiler.com` pinned to `104.16.5.34` (an address `registry.npmjs.org` resolves to) | **HTTP 301** — reachable |
+| `api.turso.tech` direct | `curl (7)` after 5.1 s — blocked |
+| `api.turso.tech` pinned to the same Cloudflare edge — **negative control** | **TLS handshake failure** (`curl 35`) |
+
+The negative control is the important half: this is *not* "everything is reachable". It is precisely
+"every Cloudflare-proxied zone is reachable". `api.turso.tech` fronts on **CloudFront**
+(`api.turso.io` → `143.204.160.109`) and no CloudFront address is in the ipset, so its exclusion is
+**effective**. `api.clerk.com` and `img.clerk.com` are Cloudflare-proxied, so theirs are **nominal**.
+
+**That distinction is computable per host, and §10.3 now records it** as probe class `E`. The useful
+consequence is not that exclusions are worthless — it is that an `EXCLUDE` row states one of two
+quite different things, and it must now say which.
+
+**Sampling note, in the same spirit as §2.2.** The two Railway addresses were sampled five times
+over ~20 seconds and were identical every time (`69.46.46.75`, `69.46.46.14`), each a **single** A
+record — notably better than §7's caveat implies for a Railway host. **Blind spot: one resolver,
+one vantage point, twenty seconds.** That establishes "this hostname does not hand out a rotating
+pool per resolution"; it does **not** establish stability over weeks. If a Railway domain works
+after the rebuild and then stops mid-session, that is §7's failure mode and the fix is a container
+restart — the same runbook line §2.2 wrote for Nominatim, and it now covers three hosts.
+
+**The durable fix, named but not proposed.** Per-hostname egress control needs an SNI-aware proxy
+(or an `ipset` rebuilt continuously from DNS), not an IP allowlist.
+
+> **RE-TAKEN (2026-08-04, amendment 2).** The original text closed *"not justified by this project
+> today"*, and the review is right that I made that call without knowing the boundary was already
+> void — an easy judgement to reach when you think the gap is small. **Re-taken knowingly, the
+> answer is the same, but for a different and better reason:** under the threat model in §10.11 the
+> boundary exists to prevent *changes*, and an SNI proxy buys almost nothing against that goal. The
+> only write-capable Cloudflare-fronted API in scope is `api.clerk.com`, and it is already controlled
+> by ADL-33 §4 at the credential — the layer that actually holds (§10.11.3). Building an SNI proxy to
+> re-add a network layer under a credential control that is working would be effort spent on the
+> wrong boundary.
+>
+> **What I am not doing is settling it in a footnote, which is what the review objected to.**
+> Recommend the COO raise it as an open dialogue so the decision is on the record and re-openable —
+> particularly if the exfiltration goal is ever brought in scope, which is the case where the answer
+> flips (§10.11.4).
+
+## 10.9 What I could not establish — the UNVERIFIED register
+
+Collected in one place so a reviewer can attack them without hunting. Each is marked at its point
+of use as well.
+
+| # | Claim I did **not** establish | Probe I ran | Blind spot |
+|---|---|---|---|
+| 1 | That the live `ipset` matches what the script would build | Read both copies of `init-firewall.sh` and `diff`'d them | `ipset list` needs root; `sudo` here is restricted to `init-firewall.sh`. **REWRITTEN (amendment 2):** the original mitigation claimed *"probe A tests live kernel state, and it agrees with probe B in all 13 cases."* **That agreement was not corroboration** — A and B share a blind spot (F4), so they agreed because they were asking the same question, not because the answer was checked twice. Probe class `E` is what actually closes it |
+| 2 | An upper bound on the `productionresultssa<N>` shard namespace | Sampled `sa1`–`sa20`, `sa24`, `sa30`, `sa40`, `sa50` — all resolve | I stopped at 50. The claim is "no bound found", **not** "there are exactly N". The decision does not depend on the bound: unbounded-or-large is the same answer |
+| 3 | Which hosts `api.maptiler.com/maps/streets-v2/style.json` actually references | CSP wildcard `*.maptiler.com`; the single literal in `MapView.tsx:26` | The style document is unreadable from here. §10.6 |
+| 4 | That `gh run view --log-failed` is broken generally | Two failed runs, plus the underlying API call naming the cause | One `gh` version, one container, one repo. §10.5.4's own stamp |
+| 5 | Long-run stability of the Railway A records | 5 samples over ~20 s | One resolver, one minute. §10.8 |
+| 6 | Anything about GitHub Actions **runner** egress | — | Unchanged from §6.2, which already marks `ci.yml:76`'s claim UNVERIFIED. I did not probe a runner and did not edit that comment |
+| 7 | That the toolchain entries (`sentry.io`, `statsig.com`, the VS Code hosts) are still needed | Read them in the domain loop; traced them to the upstream devcontainer template | I did not test removing them. **RE-SCOPED (amendment 2) — the review is right that this entry was wearing the UNVERIFIED label to avoid the work (F8).** Under D17 it is not hygiene: **`registry.npmjs.org` is the source of the F1 bypass** (twelve Cloudflare edge addresses, pinned to support `npm ci`), and `sentry.io`/`statsig.com` are *telemetry egress* by function. A section titled "the complete enumeration" asked only *"what should go in?"* and never *"what is already in, and what does it cost?"* — sixteen candidates assessed, seven existing entries listed and not assessed. **Recommend the COO raise the removal review as its own tracked item** (§10.11.6) |
+
+## 10.10 My weakest points, named for the OP-27 reviewer
+
+> **REVIEWED (2026-08-04) — the OP-27 pass ran; see `20260804-ADL49-fresh-eyes-review.md` and
+> §10.11. Retained unedited below as the record of what I predicted, because the gap between what I
+> nominated and what was found is the useful artefact.**
+>
+> **The scoreboard is not flattering and should not be smoothed over.** I nominated Weakness B
+> (§10.4.2's ratchet) as the thing to attack first. The reviewer confirmed the diagnosis, then
+> correctly ranked it **below** four findings I did not anticipate at all — and observed that fixing
+> it changes nothing. The real weakest point was **§10.8's closing sentence**, which I wrote as a
+> reassurance immediately after discovering the fact that invalidates it, and then listed nowhere.
+>
+> **Weakness A deserves a specific note because it was half-right in an instructive way.** I worried
+> the three ADDs were "the three someone asked for", and defended by pointing at the load-bearing
+> exclusions. The reviewer's verdict: *"the self-check picked the right worry and validated it
+> against the wrong evidence — the exclusions were counted, not tested."* That is exactly right. Two
+> were already ineffective (F1), one becomes ineffective on application (F2), and the flagship
+> refusal rested on a false statement (F3). Counting exclusions is not evidence of rigour;
+> **probe class `E` exists because that is the test I should have run on my own defence.**
+>
+> All three ADD recommendations survived. The framework did not.
+
+The reviewer covers §1–§9 as well as this amendment (ADL-49 has never had a fresh-eyes pass). §9.2's
+three named weaknesses still stand except where §3.4's 2026-08-04 stamp closes the first half of
+Weakness 2. Three more from this section, in the order I would attack them:
+
+**Weakness A — I recommend ADD on three hosts and EXCLUDE on eleven, and the three I recommend are
+the three someone asked for.** That is the pattern a rubber stamp produces, so it deserves the
+scrutiny. My defence is that the exclusions are load-bearing rather than decorative — the single
+most-requested item (artifact storage, which QUAL-20 needs *right now*) is refused, and refused with
+a replacement that is better than the entry would have been. But **attack row 2 specifically**: the
+staging entry is the one I argue hardest for, and §10.4.1's "it grants no data access" rests on the
+container holding no Clerk credential *today*. If a Clerk credential is ever provisioned, that
+sentence stops being true and this entry's risk profile changes. **I noticed this while writing the
+weakness and closed it rather than only flagging it** — §10.7's comment block now carries a STANDING
+CONDITION recording the dependency where a future reader will actually be looking. What a reviewer
+should still test is whether the *rest* of §10.4.1's case survives without that sentence.
+
+**Weakness B — §10.4.2's consistency argument is the weakest reasoning in this section, and it is
+the kind that generalises badly.** *"We already granted X, so refusing Y is incoherent"* is a
+ratchet: it makes every past grant an argument for the next one, and applied repeatedly it approves
+everything. I believe it holds here on the specifics — an anonymous public GET really is less than
+a production DB SELECT — but a reviewer should check whether I reached for the shape of the argument
+because the specifics were thin. The prod entry has the weakest *need* case on this list; if
+anything gets cut, cut it.
+
+**Weakness C — I asserted the QUAL-20 CSP question is answerable from the run log, and I did not
+answer it.** §10.5.3 shows the log is retrievable and contains the console text. It does **not**
+contain `msg.location()` or the violated directive, because `shakedown.spec.ts:47-49` never captured
+them. So my claim is precisely *"the transport is not the blocker; the capture is"* — which is what
+QUAL-20's own tracker note already says. If a reviewer reads §10.5.3 as *"and therefore the CSP
+question is now settled"*, that is an over-read of what I established, and the classification should
+stay UNRESOLVED until the widened capture runs.
+
+**And one thing I disproved before filing, recorded because the negative direction is the
+trustworthy one.** I started writing §10.5 as *"allowlist the Actions blob host"* — it looked like a
+one-line entry and the tracker note framed it that way. The shard sampling killed it. Had I
+enumerated hosts from the tracker's description instead of running `gh run download` and reading the
+redirect, this amendment would have shipped a firewall entry that worked roughly one time in nine
+and would have been debugged as flake.
+
+---
+
+# 10.11 AMENDMENT 2 (2026-08-04) — the threat model, and re-pricing §10 against it
+
+**Trigger:** the OP-27 fresh-eyes review (`jobs/architect/tech/20260804-ADL49-fresh-eyes-review.md`,
+PR #395) plus a PO statement of the container's actual purpose that neither ADL-33 nor §10 had.
+**Verdict on §10 as it stood:** the three ADD recommendations survive; the framework used to price
+them did not. The review's diagnosis of the failure shape is correct and I adopt it verbatim:
+**every problem it found is a correct discovery whose consequences were not propagated backwards.**
+
+## 10.11.1 The threat model — stated, because §10 was priced against an assumed one
+
+Neither ADL-33 nor §10 ever wrote down what this firewall is *for*. Both proceeded on an implied
+model — roughly "reduce what a compromised agent can reach" — and §10.4.1 priced entries against it
+explicitly (*"every entry widens what a misbehaving one can reach"*). The PO has now stated it:
+
+> *"The purpose of the container is primarily to stop changes to sensitive information either on my
+> machine or not. There have to be exceptions to this in order for this project to be effective and
+> we restrict changes through API permissions. So it should be a least privilege model where a case
+> is made for any access required."*
+
+Three things follow, and they are not what §10 assumed:
+
+1. **The boundary exists to prevent *changes* — writes — not reads.** Read reachability and
+   exfiltration are explicitly not the primary goal.
+2. **Writes are restricted through API permissions**, i.e. **at the credential**, not at the
+   network. The network allowlist is a supporting control, not the mechanism.
+3. **Least privilege by *justification*:** "a case is made for any access required." Access is
+   granted per-host on argument, and an entry justified only by convenience should be refused.
+
+## 10.11.2 What this does to F1 — genuinely lower severity, but *conditional*, not simply "low"
+
+The review rated F1 **Critical**. That rating was reached without the threat model, which nobody had.
+Re-priced against the model above, F1 is **low severity today — and the reason it is low is a
+condition, not a property.** The distinction is the whole point and I do not want it read as a
+downgrade-and-move-on:
+
+- **F1 grants reads, and reads are out of scope.** Every Cloudflare-proxied origin is reachable, and
+  none of that is a *change* to anything. Under the stated model this is not a breach of the
+  boundary; it is outside what the boundary is for.
+- **F1 grants no write capability anywhere, today.** The one write-capable API it exposes is
+  `api.clerk.com`, which answers **`401`** — the host is reachable and the credential is absent.
+- **So F1's real effect is that it removes the network layer for Cloudflare-fronted write APIs**,
+  leaving the credential as the *sole* control rather than one of two. That is precisely the model's
+  own design (writes are restricted at API permissions), so it is coherent rather than broken — but
+  it means **the credential control now has no backstop**, which raises the importance of ADL-33 §4
+  rather than lowering it. §10.11.3.
+- **The exfiltration consequence, stated once so the trade is knowing rather than silent:** an agent
+  in this container can read anything in the bind-mounted workspace — including `.env.local` — and
+  reach an arbitrary Cloudflare-proxied receiver. The stated model puts that out of scope. I am not
+  campaigning to bring it in; I am recording that it *is* the trade, because "a case is made for any
+  access required" implies the PO wants to make these calls knowingly.
+
+**Where I disagree with the review.** It concludes F1 *"demolishes the exclusion-discipline frame."*
+It does not, and the threat model sharpens why. Exclusion discipline under this model is
+**least-privilege-by-justification** — a governance mechanism — and that survives F1 completely.
+What F1 kills is the narrower claim that an `EXCLUDE` row is a *kernel guarantee*. Those are
+different things, and conflating them would throw away the part that works.
+
+The honest repair is **per-row honesty about which kind of exclusion a row is**, which is computable
+and is now recorded as probe class `E` in §10.3:
+
+| Kind | Means | Examples |
+|---|---|---|
+| **Effective** | No allowlisted entry shares its CDN edge; the kernel does stop you | `api.turso.tech` (CloudFront), the Playwright CDNs, `pipelines.actions…`, the artifact blob pool |
+| **Nominal** | Reachable today via a shared CDN edge; the row states that no case has been made and nothing here may use it | `api.clerk.com`, `img.clerk.com`, `api.maptiler.com` |
+| **Rule-only** | Reachable *because of one of our own entries*; a repo rule, never a control | `*.tile.openstreetmap.org` after D1 (F2) |
+
+**And the single most important fact in this table, under this threat model:** `api.turso.tech` —
+the database **admin plane**, the one host in §10.3 where a write would be catastrophic and
+irreversible — is CloudFront-fronted with no allowlisted neighbour, and its exclusion is
+**effective**. I re-verified it independently (§10.8): pinned to the Cloudflare edge that reaches
+MapTiler, it **fails at TLS handshake**. The exclusion that matters most is the one that holds. That
+is a good outcome and it was invisible in the review's framing, which grouped all exclusions together.
+
+**F2 under this model.** Adding Nominatim makes the OSM tile servers reachable (same Fastly address,
+verified independently on this branch across five hostnames). No write is involved — the tile
+servers are read-only — so under the stated model this is not a security matter at all. It remains
+a **usage-policy** matter and a **documentation-honesty** matter, which is why the correction to
+§10.7's comment block was still mandatory: the diff must not commit a false claim into the running
+script. The prohibition survives as a repo rule, stated as one.
+
+## 10.11.3 What this does to ADL-33 §4 — the reviewer read it as a weakness; it is the mechanism
+
+The review treats ADL-33 §4's Clerk exclusion being credential-based rather than network-based as a
+gap — *"there is only ever one boundary here, and it is the credential."* Under §10.11.1 that
+sentence is **a description of the intended design**, not a finding against it. Writes are restricted
+through API permissions; that is the stated model. ADL-33 §4 declined the credential, which is the
+control the model actually calls for, and it is working — `api.clerk.com` answers `401`.
+
+**The consequence is a promotion, not a downgrade.** Because F1 removes any network backstop, the
+credential decision is now **load-bearing alone**. That makes the STANDING CONDITION more important
+than when I wrote it, and the review is right (F6) that a comment inside an unapplied firewall diff
+is the wrong home: the person provisioning a Clerk credential edits `.env.local`,
+`.env.agent-diagnostics` or a Railway variable set, and will never read `init-firewall.sh`.
+
+**Action taken:** the condition is removed from §10.7's diff comment and recorded in **ADL-33 §4**,
+the decision someone re-opens when they want Clerk access. The diff comment now points at it rather
+than restating it. The review independently verified the premise with three probes (no
+`CLERK_SECRET_KEY`, no `sk_*` pattern, no `@clerk/backend` consumer), which matches my own reading.
+
+## 10.11.4 Re-pricing the §0 decisions
+
+| # | Verdict before | Verdict now | Confidence then → now | Why |
+|---|---|---|---|---|
+| D1 Nominatim | ADOPT | **ADOPT** | High → **High** | Unchanged. F2 adds a side effect to disclose, not a reason to refuse |
+| D10 staging | ADOPT | **ADOPT** | High → **High** | Argument re-based on OP-32 (F7). F1 makes the containment objection moot, so it is *cheaper* than argued |
+| D11 production | ADOPT, second | **ADOPT, second** | Medium-High → **High** | The ratchet is replaced by a subset argument that stands alone; F1 removes the marginal-cost objection. Still second on *need* |
+| D12 artifacts | EXCLUDE — "cannot be expressed" | **EXCLUDE — refused at 2,709×** | High → **High** | Headline was false (F3). Verdict survives on a measured number I re-computed myself |
+| D14 MapTiler | DEFER | **DEFER — more strongly** | High → **High** | It is already reachable (F1), so the entry grants almost nothing while making a nominal exclusion look decided |
+| D17 IP-not-hostname | "does not change any verdict" | **Withdrawn and replaced** | High → **High (restated)** | The property was right; the reassurance attached to it was false |
+| — | *(new)* | **D18: this list is an availability/accident control, not a containment boundary** | — → **High** | §10.8, measured |
+| — | *(new)* | **D19: exclusions are `effective` / `nominal` / `rule-only`; rows must say which** | — → **High** | §10.11.2 |
+
+**Nothing in §5 (replay fixtures), §6 (GE-17) or §7 (the BUG-76 probe) is touched by any of this.**
+§6.5 — the tail places being absent from the gazetteer datasets too — remains the most important
+finding in the document and the review explicitly did not disturb it.
+
+## 10.11.5 What I got wrong, plainly
+
+Four things, and the pattern connecting them is worth more than the list:
+
+1. **§10.3 row 5 asserted an absence with no probe** — *"Azure blob storage is not in GitHub's meta
+   ranges at all"* — and it is false. In a section whose method note lectures about two probes for
+   negative claims. This is the one I mind.
+2. **§10.5.2 called three reasons "independent" when they shared a premise.** The project has a
+   memory for exactly this shape (*an argument **for** is an absence claim in disguise*); I cited
+   neighbouring rules and missed this one.
+3. **§10.8 derived D17 and then reassured the reader it changed nothing**, two sections after
+   building an evidence column that D17 invalidates.
+4. **§10.1's probe A / probe B were not independent** — both assume hostnames are the unit of
+   reachability. The rule's own words are *"a single wrong assumption cannot produce both results"*.
+
+**The pattern:** each is a *correct* finding whose consequences stop one step early. That is not
+carelessness and it is not fixed by more care — it is what happens when a document grows by
+amendment and each amendment is graded against its own brief rather than against the document it is
+joining.
+
+### 10.11.5.1 The structural fix, stated for lifting into CLAUDE.md
+
+> **AN AMENDMENT MUST RE-WALK THE SECTIONS IT DID NOT INTEND TO CHANGE.**
+>
+> When an amendment establishes a new general fact — a mechanism, a constraint, a property of the
+> system — that fact is retroactive. It applies to every claim the document already made, including
+> the ones the amendment was not written to touch. **The amendment is not complete until those
+> earlier claims have been re-checked against it**, and any that no longer hold are corrected or
+> stamped in the same change.
+>
+> **The failure mode this prevents** is not a wrong answer; it is a *right* answer whose
+> consequences stop one step early. It is invisible to ordinary review because every individual
+> sentence was true when written, and it is systematically produced by the way amendments are
+> graded — against the brief that commissioned them, rather than against the document they are
+> joining.
+>
+> **Concretely, when an amendment establishes a new fact, ask three questions before filing:**
+> 1. **Does it invalidate any earlier *verdict*?** (§10.8's D17 flipped three rows of §10.3 and I
+>    wrote "this does not change any verdict".)
+> 2. **Does it invalidate any earlier *method*?** (D17 also broke §10.1's claim that probes A and B
+>    were independent — they share the assumption D17 disproves.)
+> 3. **Does it invalidate any earlier *reason*, even where the verdict survives?** (D12's refusal
+>    was right; its stated reason — "cannot be expressed" — was false, and a false reason
+>    forecloses re-examination in a way a priced refusal does not.)
+>
+> **Reviewer-side corollary, since this is what caught it here:** an OP-27 fresh-eyes pass over an
+> amended document should review the *document*, not the amendment. The reviewer of this ADL was
+> given §1–§10 rather than §10 alone, and every one of F1–F4 lives in the seam between them.
+
+Probe class `E` exists because that re-walk was not done here.
+
+## 10.11.6 Follow-ups for the COO — new items, not ADL edits
+
+1. **Raise the allowlist *removal* review as its own tracked item.** Under D17/D18 the **existing**
+   entries, not the proposed ones, determine what a misbehaving agent can reach — `registry.npmjs.org`
+   is the source of the bypass, and `sentry.io`/`statsig.com` are telemetry egress by function. I am
+   **not** recommending removals: `npm` is obviously required, and I have not established that the VS
+   Code or telemetry entries are unused (not probed, not claimed). The point is that the question has
+   changed character and is currently unowned. Highest-leverage follow-up in this document.
+2. **Record the SNI-proxy decision as an open dialogue**, per §10.8's re-take — so it is on the
+   record and re-openable rather than settled in a footnote, particularly if exfiltration is ever
+   brought in scope.
+3. **`api.turso.tech` deserves an explicit standing note.** It is the one *effective* exclusion
+   protecting a write-capable admin plane (§10.11.2). If Turso ever moves it behind Cloudflare, that
+   exclusion silently becomes nominal with no change on our side and no signal. Worth a periodic
+   re-probe rather than an assumption — one `dig` answers it.
+4. **`gh run view --log-failed` is instructed in 11 places, not 2** (review F5), including eight role
+   system prompts and — more seriously — `.claude/skills/coo-startup/SKILL.md:169`, where it is used
+   in the **session-start audit for a red `main`**. A command that exits 0 with empty output at a
+   *gate* reports nothing to fix. That is D13's shape one level up and it is the more consequential
+   instance. **Per COO instruction I have not touched any of those files.**
+5. **F9 — a live MapTiler key in a container that can now be shown to reach MapTiler.**
+   `.env.local` carries `VITE_MAPTILER_KEY`. §3.4(c) establishes carefully that *CI* has no key and
+   concludes an allowlist entry would not help CI — correct, and it never asks the *local* question.
+   Combined with F1, an agent here can spend the PO's MapTiler quota today. Small, bounded by the
+   key's own quota, out of scope under §10.11.1 (no *change* to sensitive information), and **not
+   caused by this ADL** — recorded because §3.4(c) is where a reader would look for it.
