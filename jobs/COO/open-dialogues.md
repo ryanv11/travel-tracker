@@ -25,6 +25,67 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-23: Enumerate the container's CREDENTIALS, the way we just enumerated its hosts
+**Raised:** 2026-08-04 · **Status:** proposed by the COO, flagged to the PO, not commissioned.
+
+The ENV-01 work enumerated every external **host** this container can and cannot reach. The PO's
+stated threat model ([[project_container_threat_model]]) is that the container exists to stop
+**changes**, with access restricted through API permissions and *"a case made for any access
+required."* If that is the model, then **the network is a coarse accident control and the real
+boundary is credential scope** — and nobody has enumerated the credentials as a set.
+
+The same move, one layer down: for each token or credential present in this container, what can it
+**change**, and what is the case for it holding that power? Known starting points, none verified as
+a set: the Turso diagnostic token (recorded as read-only by ADL-33 §5 design), GitHub write access
+(agents push branches, open PRs, create issues — the largest write surface, deliberate), the
+Anthropic API key, and whatever `.env.local` holds.
+
+Sharpened by two findings from the same session. **QUAL-28** established that the allowlist is
+IP-matched and bypassable to any Cloudflare-fronted origin, so for those hosts the credential is
+already the *sole* control with no network backstop. And ADL-33 §4's Clerk exclusion turns out to be
+credential-based rather than network-based — which under this threat model is *correct*, but means
+the standing condition attached to it has to be somewhere a person provisioning a credential will
+actually read. It was moved into ADL-33 §4 for exactly that reason.
+
+**Not a tracker entry yet** — it is a proposal for a piece of work, not scoped work. Needs a PO
+decision on whether it is worth an Architect round.
+
+### D-24: `ci-wait.sh` reported PASS against a stale SHA — one instance, watching
+**Raised:** 2026-08-04 · **Status:** observation only, deliberately not filed as a defect.
+
+`scripts/ci-wait.sh pr 398` reported *"PASS — all 18 check(s) green @ 6ca669d"* seconds after a push
+had moved the head to `0f6d99d`. Caught by re-checking the real head via `gh pr view` before merging;
+the branch was genuinely green on the new head too, so nothing bad happened.
+
+**Most likely a race** from invoking it immediately after `git push`, before GitHub's PR head
+propagated — it behaved correctly on three subsequent runs that session, matching the real head each
+time. **Recorded rather than filed because one instance is not a class**, which is the exact mistake
+made on BUG-76 (closed on a single positive instance, reopened 40 minutes later).
+
+Why it is worth watching anyway: `ci-wait.sh` is the project's primary CI gate, it is relied on by
+every role, and a PASS against the wrong SHA is a **fail-open** — the same shape as QUAL-27, found
+the same day. If it recurs, file it; the fix would be to re-resolve and compare the head SHA after
+the watch completes rather than pinning it at start.
+
+### D-25: Two structural rules proposed this session, both awaiting a home in CLAUDE.md
+**Raised:** 2026-08-04 · **Status:** proposed by Architect agents, COO agrees, not yet adopted.
+
+Both came out of the ADL-49 round and are captured in **ADL-49 §10.11.5.1** as liftable text. Neither
+is in CLAUDE.md yet, and adding a mandatory rule is a PO-facing change rather than COO housekeeping.
+
+1. **"An amendment must re-walk the sections it did not intend to change."** Every one of the four
+   findings against ADL-49 §10 had the same shape — *a correct discovery whose consequences stopped
+   one step early*. §10.8 derived that the allowlist matches IPs, then closed by reassuring the reader
+   it changed no earlier verdict; it changed several. The proposed check is three questions before
+   filing an amendment: does it invalidate an earlier **verdict**, an earlier **method**, or an
+   earlier **reason**?
+2. **Reviewer-side corollary: an OP-27 pass over an amended document reviews the *document*, not the
+   amendment.** All four blocking findings lived in the *seam* between §1–§9 and the new §10, and
+   would have been invisible to a reviewer handed §10 alone. This session only caught them because
+   the review brief happened to scope the whole document — which was luck, not policy.
+
+The second is the more valuable of the two and the less obvious.
+
 ### D-22: BUG-75 — is "four Newports" a data-model problem or a product one? Plus the GE-16/GE-17 conflict the COO created
 **Raised:** 2026-08-03/04 · **Status:** two PO decisions outstanding; **both block any further identity work.**
 Nothing is dispatched against either, so nothing is at risk of being wasted while they sit.
@@ -690,7 +751,26 @@ guardrail (Architect review before COO acts) it should get a brief Architect pas
 implementation. Ryan said to leave it as an open note for now, not act on it.
 
 ### D-06: Add prod Railway domain to this container's firewall allowlist
-**Raised:** 2026-07-21
+**Raised:** 2026-07-21 · **RESOLVED 2026-08-04 — ADOPTED, both domains.** Kept in place rather than
+moved to Resolved below only until the post-rebuild verification confirms it; move it then.
+
+> **Outcome:** `travel-tracker-staging.up.railway.app` **and**
+> `travel-tracker-production-241f.up.railway.app` were both added to
+> `.devcontainer/init-firewall.sh` on PO approval, via ADL-49 §10.7's consolidated diff.
+> **Takes effect at the next container rebuild.**
+>
+> **This sat open for fourteen days and recurred four times** — the BRD-NF09 shakedown below, the
+> QUAL-20 shakedown having to live in a GitHub Action, the BUG-76 Railway-log diagnosis loop, and
+> the undownloadable Playwright trace. What finally carried it was not a new argument about
+> convenience but a **change in the facts**: the PO now tests staging only, in a host browser
+> ([[project_po_tests_staging_only]]), so nobody inside the container could observe the single
+> surface the project is judged on. The ENV-01 enumeration ranked it **above the geocoder** on
+> that basis.
+>
+> Worth keeping as a process datum: the request as originally filed argued from COO inconvenience
+> and stalled for two weeks. The same request framed as *"the only human verification loop has no
+> in-container observer"* was approved the day it was put that way. **The ask did not change; the
+> justification did.**
 
 During the BRD-NF09 deploy shakedown (white screen → CSP fixes → API base URL bug), COO
 repeatedly couldn't verify the live site directly — `curl https://travel-tracker-
