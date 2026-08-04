@@ -1,0 +1,164 @@
+ARCHITECT PARK DOCUMENT — 2026-08-04
+OP-27 fresh-eyes review of ADL-49 (§1–§10), PR #394 / issue #393
+Branch: chore/adl49-op27-review
+================================================================================
+
+WHAT THIS THREAD WAS
+--------------------
+Second, fresh-context Architect dispatched under OP-27 to critique and stress-test
+ADL-49 as it stands on PR #394 (branch chore/env01-allowlist-enumeration). §1–§9
+shipped in PR #376 and had never had an OP-27 pass; §10 is the ENV-01 complete host
+enumeration added by #394. Both in scope. I did not author any part of ADL-49.
+
+Deliverable: jobs/architect/tech/20260804-ADL49-fresh-eyes-review.md
+
+Constraints honoured: ADL-49 not edited. .devcontainer/init-firewall.sh untouched.
+Nothing under src/ changed. No scanner suppression. No bare git stash. Working
+directory confirmed by pwd + git rev-parse --show-toplevel before any other command;
+npm install run in the worktree (fresh worktrees do not inherit node_modules).
+
+VERDICT
+-------
+Does not stand as briefable AS WRITTEN — narrowly. All three ADD recommendations
+(D1 Nominatim, D10 staging, D11 production) survive and are right; finding F1 makes
+D10/D11 cheaper than the document argues. What fails is the framework used to price
+them. Three blocking corrections: F1, F2, F3.
+
+THE PROBES THAT MATTER (re-runnable)
+------------------------------------
+The trap respected throughout: DNS/UDP-53 stays open through lockdown
+(init-firewall.sh:52-53), so no successful dig is used as evidence of reachability
+anywhere. Every reachability claim is a completed TLS handshake with an HTTP status.
+
+F1 — the live bypass. The ipset matches destination IP only
+(init-firewall.sh:83, :73, :160-168); no SNI or Host inspection exists in the file.
+
+  curl --resolve api.maptiler.com:443:104.16.0.34 https://api.maptiler.com/   -> 301
+  curl --resolve api.clerk.com:443:104.18.34.146 https://api.clerk.com/v1/users -> 401
+  curl --resolve www.cloudflare.com:443:104.16.0.34 https://www.cloudflare.com/ -> 200
+
+  104.16.0.34 is one of TWELVE Cloudflare edge addresses pinned by
+  registry.npmjs.org; 104.18.34.146 is pinned by just-raptor-89.clerk.accounts.dev.
+  9 Cloudflare-proxied hosts tested, 9 reachable, identical from both edges.
+  Negative controls: pypi.org (Fastly, 151.101.x.223) and api.turso.tech
+  (CloudFront, 143.204.160.x) BOTH fail at TLS handshake. So the finding is exactly
+  "every Cloudflare-proxied zone", not "everything".
+  api.maptiler.com's 301 carries server: cloudflare, a cf-ray, and
+  location: https://docs.maptiler.com/cloud/api/ — MapTiler's own origin.
+  api.maptiler.com/maps/streets-v2/style.json?key=invalid -> 403 (MapTiler
+  rejecting the key), i.e. the API itself is reachable.
+
+F2 — dig +short nominatim.openstreetmap.org       -> 151.101.21.91
+     dig +short tile.openstreetmap.org            -> 151.101.21.91
+     dig +short a.tile.openstreetmap.org          -> 151.101.21.91
+  Identical. Applying D1 makes the OSM tile servers reachable, and §10.7's diff
+  would commit "*.tile.openstreetmap.org STILL DELIBERATELY EXCLUDED" as a false
+  statement into the running script.
+
+F3 — curl -s https://api.github.com/meta | jq '(.actions)' , then IP membership:
+     20.209.227.33 (the ADL's OWN gh run download error IP) IS in .actions,
+       range 20.209.226.0/23.
+     20.150.83.4 (vscode.blob.core.windows.net) IS in .actions, 20.150.83.0/24.
+     Neither is in .web+.api+.git (92 CIDRs, 30,800 addresses).
+     .actions = 5,658 IPv4 CIDRs, 3,944 collapsed, 27,901,673 addresses (~900x).
+  So §10.3 row 5's "Azure blob storage is not in GitHub's meta ranges at all" is
+  FALSE and unprobed, and D12's "cannot be expressed in this script at all" is
+  therefore false — the .actions CIDR path is a mechanism the script already
+  implements at line 126. Verdict (refuse) survives; refuse on the 27.9M number.
+
+F5 — grep -rn -- "--log-failed" over *.md/*.txt/*.sh/*.json (excl. node_modules)
+  returns 11 hits: CLAUDE.md:352, .claude/skills/coo-startup/SKILL.md:169
+  (a SECOND, gate-shaped fail-open — session-start red-main audit), 8 role system
+  prompts, and one historical reference in jobs/COO/open-dialogues.md:994.
+
+F6 — .env.local key names carry no CLERK_SECRET_KEY; no sk_test_/sk_live_ pattern
+  in .env.local, .env.example or .env.agent-diagnostics; no @clerk/backend or
+  clerkClient in non-test backend source. The ADL's premise is TRUE. The placement
+  is what fails — a shell comment in a file nobody provisioning a credential edits.
+
+F10 — gh api "repos/ryanv11/travel-tracker/actions/runs/1/logs" -> exit 1,
+  "gh: Not Found (HTTP 404)" on stderr, 138 bytes of JSON error body on stdout.
+  Fail-LOUD, so D13's replacement is sound. Two refinements only (exit-code check;
+  per-run unzip directory).
+
+FINDINGS I FORMED AND KILLED (all six in §11 of the review)
+-----------------------------------------------------------
+K1 scripts/ci-wait.sh fail-open — KILLED, it fails CLOSED by design (read all 287
+   lines; BUG-64 header documents three historical fail-opens already fixed;
+   "Absence of evidence is treated as failure, not success").
+K2 A Clerk credential already in the container — KILLED (three probes).
+K3 §10.7's quoted diff malformed/stale — KILLED. Extracted the fenced block and ran
+   git apply --check -> exit 0. Hunk arithmetic 15 -> 69 checks out; context at
+   lines 137-151 matches the live file. The author's verification claim is accurate.
+   (Note: the SUPERSEDED §3.5 diff does have an inconsistent hunk header, but it is
+   retained for history and not the one to apply.)
+K4 IPv6 hole — KILLED, re-verified independently (only ::1/128 on lo, empty
+   ip -6 route, curl -6 -> 000 vs curl -4 -> 200 same URL same second).
+K5 Railway edge is a big shared collision surface — NOT ESTABLISHED, and it cuts
+   the ADL's way: staging 69.46.46.75, prod 69.46.46.14, up.railway.app 69.46.46.126,
+   railway.com 69.46.46.46 — distinct single addresses, per-domain allocation.
+   UNVERIFIED whether one Railway edge serves other tenants by Host header
+   (untestable while blocked). §10.8's Railway row may OVERstate.
+K6 api.turso.tech's exclusion is nominal too — KILLED. CloudFront-fronted, no
+   CloudFront address in the allowlist, SNI attempt through a CF edge fails at
+   handshake. That exclusion is EFFECTIVE, and it is the control that keeps F1
+   calibrated.
+
+WHAT I CHECKED AND FOUND ACCURATE (credit, not politeness)
+-----------------------------------------------------------
+- server.ts:86 SERVE_STATIC gated on NODE_ENV=production — correct.
+- server.ts:269-273 BYPASS_AUTH throws under NODE_ENV=production — correct.
+- server.ts CSP: imgSrc/connectSrc carry the *.maptiler.com WILDCARD while
+  MapView.tsx names only api.maptiler.com — §10.6's new finding is correct.
+- post-deploy-shakedown.yml:32-34 workflow_dispatch base_url input; line 78 defaults
+  SHAKEDOWN_BASE_URL to the staging URL — correct (and see F7: this is an existing
+  partial path for STAGING that §10.4.2 credits only for prod).
+- §10.2's sourcing is exemplary; §10.9's register is honest on 6 of 7 entries.
+- §6.5 (the tail places are absent from the gazetteer datasets too) is untouched by
+  this review and remains the most important finding in the document.
+
+THE PATTERN, IF ONLY ONE THING IS CARRIED FORWARD
+--------------------------------------------------
+Every problem I found is one type: A CORRECT DISCOVERY WHOSE CONSEQUENCES WERE NOT
+PROPAGATED BACKWARDS. D17 was derived and never applied to §10.3. The CIDR mechanism
+was used in §10.5.2's own paragraph and never considered as the answer to §10.5.2's
+own question. The exclusions were COUNTED as evidence of rigour and never TESTED.
+That is what happens when a document grows by amendment and the amendment is graded
+against the brief that produced it rather than against the document it is joining.
+
+Generalisable process note for the next OP-27 reviewer: the author's self-named
+weakest point (here §10.10 Weakness B) was real but low-severity. The actual weakest
+point was a one-sentence reassurance written IMMEDIATELY AFTER the discovery that
+invalidates it — §10.8's "This does not change any verdict in §10.3." Look for the
+sentence that closes down a finding, not the argument that defends one.
+
+NEXT ACTIONS (all COO/PO, none mine)
+-------------------------------------
+Blocking before the diff is applied or anything downstream is briefed:
+  1. §10.8 — replace the "does not change any verdict" sentence; re-take the
+     SNI-proxy judgement knowingly.
+  2. §10.7 — fix the OSM tile line in the diff comment. DO NOT APPLY AS WRITTEN.
+  3. §0 D12 / §10.3 row 5 / §10.5.2 — restate as a risk refusal with the 27.9M
+     number; correct the false meta-ranges claim.
+Same-edit corrections: §10.3 probe class E; §10.4.1 re-based on OP-32; §10.4.2 as a
+  subset argument.
+New COO items: D13's remediation spans 11 files not 1 (incl. a second fail-open in
+  /coo-startup); the STANDING CONDITION needs a home in ADL-33 §4; raise the
+  allowlist REMOVAL review as its own tracked item.
+
+Endorsed unchanged: D1, D10, D11, D12's outcome, D14, D15, D16, all of §5's
+replay-fixture design, and §6.5.
+
+OPEN / UNVERIFIED FROM MY OWN WORK
+-----------------------------------
+1. Could not read the live ipset (sudo restricted to init-firewall.sh) — same blind
+   spot §10.9 entry 1 records. F1 does not depend on it: a completed handshake is
+   direct evidence of live kernel state.
+2. F1 is 9 hosts from 2 edges. I did not enumerate Cloudflare's estate.
+3. The exfiltration step ("an adversary-provisionable receiver is reachable") is an
+   INFERENCE from a demonstrated fact plus a public signup page. Nothing was sent.
+4. F2 is a prediction about post-application state (DNS identity + demonstrated
+   mechanism + reading line 83), not a request to an OSM host.
+5. K5 Railway collision surface — unverified in both directions.
+6. No GitHub Actions runner probed; §6.2's UNVERIFIED stamp on ci.yml:76 stands.
+7. F10's "/runs/{id}/logs returns latest attempt only" — unprobed, flagged.
