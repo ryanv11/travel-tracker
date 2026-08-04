@@ -1858,3 +1858,75 @@ DIFF WAS TESTED WITHOUT BEING APPLIED: git apply --check exit 0; patch applied t
 OPEN FOR THE OP-27 REVIEWER: this is ADL-49's FIRST fresh-eyes review and it covers §1-§9 too.
   My three named weaknesses are in §10.10. The one I would attack first is Weakness B — §10.4.2's
   "we already granted X so refusing Y is incoherent" is a ratchet argument and generalises badly.
+
+--------------------------------------------------------------------------------
+2026-08-04 (later) — AMENDMENT 2 to ADL-49, after the OP-27 review (PR #395) + a PO threat model.
+Same branch/PR (#394). ADL-49 §10.11 added; ADL-33 §4 amended. init-firewall.sh still untouched.
+--------------------------------------------------------------------------------
+
+REVIEW VERDICT: "does not stand as briefable, narrowly." All three ADDs (D1/D10/D11) survived.
+  THE FRAMEWORK THAT PRICED THEM DID NOT. Reviewer's diagnosis, which I adopt verbatim and which is
+  the single most useful sentence in the whole exchange: EVERY PROBLEM IT FOUND IS A CORRECT
+  DISCOVERY WHOSE CONSEQUENCES WERE NOT PROPAGATED BACKWARDS.
+
+WHAT I GOT WRONG (4, all mine, listed in §10.11.5):
+  1. §10.3 row 5 asserted "Azure blob storage is not in GitHub's meta ranges at all" WITH NO PROBE.
+     FALSE — 20.209.227.33 is in .actions (20.209.226.0/23). I verified it myself this pass. A
+     no-probe absence claim, in a section that lectures about two probes. This is the one I mind.
+  2. §10.5.2 called three reasons "independent" when all three share one premise (that the entry
+     must be a HOSTNAME). The CIDR path at line 126 defeats all three at once. Exactly the
+     memory: feedback_arguments_for_are_absence_claims_too.
+  3. §10.8 derived D17 (IP-not-hostname) then wrote "this does not change any verdict" — a
+     reassurance written immediately after discovering the fact that invalidates it. WITHDRAWN.
+  4. §10.1's probe A and probe B ARE NOT INDEPENDENT — both assume hostnames are the unit of
+     reachability. Added PROBE CLASS E (test against the allowlisted ADDRESS SPACE, not the name).
+
+F1 — THE ALLOWLIST IS BYPASSABLE TO ANY CLOUDFLARE-PROXIED ORIGIN. Confirmed independently:
+  api.maptiler.com blocked by name (curl 7); pinned to 104.16.5.34 (a registry.npmjs.org address)
+  -> HTTP 301. NEGATIVE CONTROL: api.turso.tech pinned to the same edge -> TLS handshake failure
+  (it is CloudFront, api.turso.io -> 143.204.160.109). So it is every CLOUDFLARE zone, not everything.
+
+F2 — ADDING NOMINATIM MAKES THE OSM TILE SERVERS REACHABLE. Verified: nominatim, tile.,
+  a/b/c.tile.openstreetmap.org ALL -> 151.101.21.91. My diff would have committed
+  "*.tile.openstreetmap.org STILL DELIBERATELY EXCLUDED" into the running script as a FALSE
+  statement. Reworded: it is now disclosed as a side effect and stated as a REPO RULE, not a control.
+
+THE THREAT MODEL (PO, new — neither ADL-33 nor §10 had it): the container exists to STOP CHANGES to
+  sensitive info, not to stop reads/exfil; changes are restricted THROUGH API PERMISSIONS; least
+  privilege where A CASE IS MADE FOR ANY ACCESS REQUIRED. Consequences I worked through in §10.11.2-3:
+  - F1 is LOW severity but CONDITIONAL, not simply low. It grants reads and NO write capability.
+    Its real effect: it removes the network layer for CF-fronted write APIs, leaving the CREDENTIAL
+    as the SOLE control. That PROMOTES ADL-33 §4 rather than excusing it. Do not read "low" as "fine".
+  - api.turso.tech is THE most important row in the table — DB ADMIN PLANE, where a write is
+    catastrophic — and its exclusion is EFFECTIVE (CloudFront, no allowlisted neighbour). The one
+    that matters holds. The reviewer's framing grouped all exclusions together and missed this.
+  - ADL-33 §4's credential-based Clerk exclusion is the CORRECT MECHANISM under this model, not the
+    weakness the reviewer read it as. Writes are controlled at API permissions BY DESIGN.
+
+WHERE I DISAGREED WITH THE REVIEW (and argued it in §10.11.2): it says F1 "demolishes the
+  exclusion-discipline frame." IT DOES NOT. Exclusion discipline here is least-privilege-by-
+  JUSTIFICATION (governance), which survives intact. What dies is the claim that an EXCLUDE row is a
+  KERNEL GUARANTEE. Repair = per-row honesty: EFFECTIVE / NOMINAL / RULE-ONLY (D19). Conflating the
+  two would throw away the half that works.
+
+ALSO CORRECTED THE REVIEW'S ARITHMETIC (in the direction that STRENGTHENS its own conclusion): it
+  priced the .actions widening at ~900x using 30,800 for the current set. 30,800 DOUBLE-COUNTS —
+  .api and .git largely repeat .web and the ipset dedupes. Distinct: 10,300 today vs 27,901,673.
+  LIKE-FOR-LIKE IT IS 2,709x. D12 verdict unchanged (refuse) but now on a measured number, and
+  "cannot be expressed" is dropped — it CAN be, via the meta-CIDR path, and "impossible" forecloses
+  re-examination where "priced and refused" invites it.
+
+MOVED: the STANDING CONDITION out of the firewall comment into ADL-33 §4 (D21). A condition filed
+  where the triggering action never looks is a record, not a control — the person provisioning a
+  Clerk key edits .env.local, not init-firewall.sh.
+
+STILL OPEN / HANDED TO COO (§10.11.6): allowlist REMOVAL review (registry.npmjs.org is the source of
+  the bypass; sentry.io/statsig.com are telemetry egress BY FUNCTION — the review is right that my
+  §10.9 entry 7 was wearing the UNVERIFIED label to avoid the work); SNI-proxy decision as an open
+  dialogue; a periodic re-probe of api.turso.tech's CDN (if Turso moves to Cloudflare that exclusion
+  silently becomes nominal with NO signal); --log-failed is in 11 files incl. coo-startup's RED-MAIN
+  GATE (worse than D13 — a gate that fails open); F9 live MapTiler key locally reachable.
+
+LESSON I WOULD KEEP BEYOND THIS THREAD: an amendment must RE-WALK THE SECTIONS IT DID NOT INTEND TO
+  CHANGE. Every failure above is a late discovery not pushed backwards through earlier text, and it
+  happens because each amendment gets graded against its own brief rather than the document it joins.

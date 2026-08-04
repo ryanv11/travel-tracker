@@ -221,3 +221,86 @@ My three new weaknesses are §10.10; the UNVERIFIED register is §10.9 (7 entrie
 in one place so they can be attacked without hunting). Attack Weakness B first — §10.4.2's
 "we already granted X so refusing Y is incoherent" is a RATCHET argument that generalises
 badly, and it is the weakest reasoning in the section.
+
+
+================================================================================
+AMENDMENT 2 — 2026-08-04 (later, same branch/PR #394)
+Post-OP-27-review correction pass. ADL-49 §10.11 added; ADL-33 §4 amended.
+Review under response: jobs/architect/tech/20260804-ADL49-fresh-eyes-review.md (PR #395, merged)
+================================================================================
+
+VERDICT ON MY OWN WORK: "does not stand as briefable, narrowly." All 3 ADDs survived. The FRAMEWORK
+that priced them did not. Reviewer's diagnosis, adopted verbatim because it is exactly right:
+EVERY PROBLEM IT FOUND IS A CORRECT DISCOVERY WHOSE CONSEQUENCES WERE NOT PROPAGATED BACKWARDS.
+
+FOUR THINGS I GOT WRONG (§10.11.5) --------------------------------------------
+1. §10.3 row 5: "Azure blob storage is not in GitHub's meta ranges at all" — ASSERTED WITH NO PROBE,
+   AND FALSE. 20.209.227.33 IS in .actions (20.209.226.0/23). I re-verified it myself. A no-probe
+   absence claim inside a section that lectures about the two-probe rule. This is the one I mind.
+2. §10.5.2 called three reasons "independent"; all three assume the entry must be a HOSTNAME. The
+   CIDR path at line 126 (which the script already uses) defeats all three at once.
+   Memory: feedback_arguments_for_are_absence_claims_too. I cited neighbouring rules and missed this.
+3. §10.8 derived D17 then wrote "this does not change any verdict" — a reassurance written
+   immediately after discovering the fact that invalidates it. WITHDRAWN, quoted in place.
+4. §10.1's probe A and probe B were NOT independent. Both assume hostnames are the unit of
+   reachability. Added PROBE CLASS E (test against the allowlisted ADDRESS SPACE, not the name).
+
+WHAT I VERIFIED MYSELF RATHER THAN INHERIT ------------------------------------
+F1 (bypass): api.maptiler.com blocked by name (curl 7) but HTTP 301 pinned to 104.16.5.34, an
+  address registry.npmjs.org resolves to. NEGATIVE CONTROL: api.turso.tech pinned to the same edge
+  -> TLS handshake failure. So: every CLOUDFLARE-proxied zone, not everything.
+F2 (tile servers): nominatim + tile. + a/b/c.tile.openstreetmap.org ALL -> 151.101.21.91. My diff
+  would have committed a FALSE exclusion statement into the running script.
+F3 (meta ranges): confirmed, and I RECOMPUTED THE PRICING — the review's ~900x uses 30,800 for the
+  current set, which DOUBLE-COUNTS (.api and .git largely repeat .web; the ipset dedupes).
+  Distinct: 10,300 today vs 27,901,673 = 2,709x. The refusal is STRONGER than the review stated.
+
+THE THREAT MODEL (new; neither ADL-33 nor §10 had one) ------------------------
+PO: container exists to STOP CHANGES to sensitive info, not reads/exfil; changes restricted THROUGH
+API PERMISSIONS; least privilege where A CASE IS MADE FOR ANY ACCESS REQUIRED.
+  - F1 is LOW severity but CONDITIONAL, NOT SIMPLY LOW. It grants reads, no write capability. Its
+    real effect is removing the network layer for CF-fronted write APIs, leaving the CREDENTIAL as
+    the SOLE control. That PROMOTES ADL-33 §4. Do not let "low" propagate as "fine".
+  - api.turso.tech (DB ADMIN PLANE — the one place a write is catastrophic) is CloudFront-fronted
+    with no allowlisted neighbour: its exclusion is EFFECTIVE. THE ONE THAT MATTERS HOLDS.
+  - ADL-33 §4's credential-based Clerk exclusion is the CORRECT MECHANISM under this model, not the
+    weakness the reviewer read it as.
+
+WHERE I PUSHED BACK ON THE REVIEW ---------------------------------------------
+It claims F1 "demolishes the exclusion-discipline frame." IT DOES NOT, and I argued this in §10.11.2.
+Exclusion discipline here is LEAST-PRIVILEGE-BY-JUSTIFICATION (governance) and survives intact. What
+dies is the claim that an EXCLUDE row is a KERNEL GUARANTEE. Repair = per-row honesty, D19:
+  EFFECTIVE (kernel stops you) / NOMINAL (reachable; no case made) / RULE-ONLY (reachable BECAUSE OF
+  one of our own entries — the OSM tile servers after D1).
+Conflating the two would throw away the half that works. The review's grouping also HID the good news
+about api.turso.tech.
+
+STRUCTURAL CHANGES MADE -------------------------------------------------------
+- §10.3: "Blocked today" SPLIT into "by name" vs "effectively". Three rows flip.
+- Diff comment block: tile-server side effect DISCLOSED; exclusions relabelled "NOT ALLOWLISTED BY
+  NAME" with a caveat that for CF-fronted hosts this is a statement of no-case-made, not a control.
+- STANDING CONDITION MOVED out of the firewall comment into ADL-33 §4 (D21) — the person
+  provisioning a Clerk key edits .env.local, never init-firewall.sh. A condition filed where the
+  triggering action never looks is a record, not a control.
+- New decisions D18 (availability/accident control, not containment), D19, D20, D21.
+
+DIFF RE-VERIFIED AFTER EDITS: hunk now @@ -137,15 +137,82 @@; git apply --check exit 0; patched
+COPY outside the repo passes bash -n; repo file byte-identical to /usr/local/bin. STILL NOT APPLIED.
+
+HANDED TO COO, NOT TAKEN (§10.11.6) ------------------------------------------
+1. Allowlist REMOVAL review as a tracked item — registry.npmjs.org is the SOURCE of the bypass;
+   sentry.io/statsig.com are telemetry egress BY FUNCTION. The review is right that my §10.9 entry 7
+   was wearing an UNVERIFIED label to avoid the work. I am NOT recommending removals (not probed).
+2. SNI-proxy decision as an open dialogue. Re-taken knowingly: still no, but now because it would
+   re-add a network layer under a credential control that works. FLIPS if exfil comes in scope.
+3. Periodic re-probe of api.turso.tech's CDN — if Turso moves to Cloudflare that exclusion silently
+   becomes nominal with NO signal on our side. One dig answers it.
+4. --log-failed is in 11 FILES incl. .claude/skills/coo-startup/SKILL.md:169 — the RED-MAIN GATE.
+   A gate that fails open is worse than D13's debugging step. COO handling; I touched none of them.
+5. F9: VITE_MAPTILER_KEY is live here and MapTiler is reachable via F1 — quota spend, no write.
+
+LESSON WORTH KEEPING BEYOND THIS THREAD --------------------------------------
+AN AMENDMENT MUST RE-WALK THE SECTIONS IT DID NOT INTEND TO CHANGE. Every failure above is a late
+discovery not pushed backwards through earlier text. It happens because each amendment gets graded
+against its own brief rather than against the document it is joining. Probe class E exists precisely
+because that re-walk was not done the first time.
