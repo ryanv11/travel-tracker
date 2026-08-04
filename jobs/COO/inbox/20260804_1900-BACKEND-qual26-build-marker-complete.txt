@@ -1,4 +1,4 @@
-QUAL-26 · issue #396 · PR #TBD · BRD n/a (tooling) · branch feat/qual26-build-marker
+QUAL-26 · issue #396 · PR #399 · BRD n/a (tooling) · branch feat/qual26-build-marker
 
 WHAT WAS BUILT
 /health now returns {status, commit, commitFull, builtAt} — the running build's commit SHA,
@@ -47,7 +47,8 @@ file exists precisely so the feature does not depend on that claim being true.
 CI
 Full /pre-push run green: biome ci clean, type:check:all clean, backend 712 passed (696 baseline
 + 16 new), frontend 270 passed (266 baseline + 4 new), status:check up to date. npm run build
-green with prebuild wired. PR CI confirmed green via scripts/ci-wait.sh.
+green with prebuild wired. PR #399: all 18 checks green (scripts/ci-wait.sh pr 399), E2E included
+— the nav-bar change breaks no existing selector.
 
 TRACKER: QUAL-26 is new and has no tracker.json entry yet — tracker.json is COO-maintained, so
 it is left for you. Issue #396 already carries the ID in its title; the entry's notes field needs
