@@ -78,3 +78,29 @@ restated here.
    run THROUGH the new OP-33/OP-34 gates rather than around them.
 3. **BUG-76** — cheapest live P1, now measurable post-rebuild.
 4. **BUG-63 / UX-12** — the other two open P1s.
+
+================================================================================
+## POST-CLOSE ADDENDUM — 2026-08-05, D-22 RESOLVED, DISPATCH-READY
+================================================================================
+
+After the close above, the PO picked up D-22 (the GE-16/GE-17 identity conflict) and **resolved the
+requirements question**: distinct real-world places sharing name+country+region may coexist; only a
+true same-place repeat is a duplicate. The (name,country,region) key was an accidental
+over-specification. This is now written up and ready to dispatch.
+
+**FIRST DISPATCH NEXT SESSION** (ahead of the general UAT backlog, PO having advanced this thread):
+
+> **BUG-75 Round-4 identity design brief** — `jobs/architect/tech/20260805-BUG75-identity-round4-brief.md`.
+> Dispatch to **Architect, worktree-isolated** (`npm install` in the worktree first). It is a **spike-gated
+> design** per OP-33 — it produces a verified design, NOT shipped code. Then **OP-27 fresh-eyes review**
+> (second fresh Architect). Only if the P1/P2 premises clear and the review passes: the build brief +
+> the full GE-16 amendment (lifts the v3.18 spike-gate) + the migration.
+
+Recorded durably this session (all merged / committed): BRD **v3.18** (GE-16 clause stamped
+under-correction, changelog records the decision + the OP-33 gate); BUG-75 tracker entry (PO decision,
+unblocked, **raised P2→P1**, dispatch plan); D-22 → **Resolved** in open-dialogues. The brief carries the
+OP-33 verify-checklist — **do not re-open** the carried-not-derived core or revive the coordinate bucket;
+the one corner that must be answered is identity-when-the-lookup-hasn't-happened-yet (the pending state).
+
+This was the first real application of OP-33 and OP-34 — the PO's requirement is recorded as settled,
+the *mechanism* is held proposed-not-approved until the spike verifies its premises.

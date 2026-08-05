@@ -110,8 +110,17 @@ is in CLAUDE.md yet, and adding a mandatory rule is a PO-facing change rather th
 The second is the more valuable of the two and the less obvious.
 
 ### D-22: BUG-75 — is "four Newports" a data-model problem or a product one? Plus the GE-16/GE-17 conflict the COO created
-**Raised:** 2026-08-03/04 · **Status:** two PO decisions outstanding; **both block any further identity work.**
-Nothing is dispatched against either, so nothing is at risk of being wasted while they sit.
+**Raised:** 2026-08-03/04 · **Status: RESOLVED 2026-08-05** — PO decided the requirements question; promoted to
+BRD v3.18 (spike-gated per OP-33), BUG-75 (now P1, unblocked), and the dispatch-ready Round-4 brief
+`jobs/architect/tech/20260805-BUG75-identity-round4-brief.md`.
+
+> **RESOLUTION (2026-08-05).** The PO settled Item 1: *distinct real-world places sharing name+country+region
+> may coexist; only a true same-place repeat is a duplicate* — the three-field key was an accidental
+> over-specification. That decision **is** the frame re-examination Item 2 was waiting on, so a bounded Round 4
+> is now legitimate (not a re-litigation of the carried-not-derived core). The GE-16/GE-17 conflict dissolves:
+> GE-17 is withdrawn, and GE-16's duplicate clause is what changes (stamped under-correction in BRD v3.18, the
+> full rewrite deferred until the Round-4 design clears its OP-27 review). Nothing was dispatched while this sat,
+> so nothing was wasted. Historical discussion retained below.
 
 **Item 1 — a BRD conflict the COO created and must not leave buried.** Retiring GE-17 (BRD v3.16, on PO
 direction) removed the only clause permitting what BUG-75's fix requires. GE-16 says a city with the same
