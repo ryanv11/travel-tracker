@@ -298,6 +298,73 @@ ambiguous "done" in the tracker. Adopted 2026-07-07 after finding the project ha
 definition-of-done doc anywhere (the `objective.txt` stub meant to hold this was never
 filled in and has been deleted).
 
+### Spike-gate the BRD: no requirement enters as "approved" on an unverified premise (mandatory, OP-33)
+
+Adopted 2026-08-05 after the GE-17 retro. GE-17 was written into the BRD as approved-in-principle
+(v3.14) resting on four arguments — *"works offline,"* *"the only way to make the primary path
+testable,"* *"the only way to detect ambiguity,"* *"it covers the Scotland dogfood trip."* All four
+were **unverified premises**, two of them "only way" claims (absence claims in disguise — see the
+negative-findings rule). Within 48 hours the spike that should have gated them ran, all four
+collapsed, and the BRD corrected itself twice (v3.15, v3.16) and withdrew the requirement, having
+produced no code. The build layer never wheel-spun — where we have hard gates (tests, CI, fresh-eyes
+on ADLs) nothing churned. The **decision layer** did, because a premise reached a gate artifact
+before the probe that tests it.
+
+The retro's finding, stated as the rule's premise: this project's recent expensive churn is one
+repeated move — **a premise (usually an "only way" or absence claim) promoted to a gate artifact (a
+BRD requirement, a closed bug, a brief) before the probe that would test it has run.** It showed up
+at least three times in one window: GE-17 (above), BUG-76 (closed on one positive instance, reopened
+at P1 when Denver disproved it — #382), and the v3.15 "works offline" overclaim.
+
+**The rule:**
+
+1. A requirement whose case rests on a premise not yet established does **not** get version-bumped
+   into the BRD as *approved*. It enters a **proposed, spike-gated** state — recorded, but explicitly
+   not law.
+2. Before the spike starts, its **load-bearing premises are written down as a verify-checklist** —
+   each marked verified / unverified, with the probe that would settle it. *"This requirement rests
+   on X, Y, Z; each is currently unverified"* is the required artifact, not an afterthought.
+3. **BRD promotion waits for the checklist to clear.** A premise that fails takes the requirement
+   with it — that is the spike working as designed, not a failure to explain away.
+4. **"Only way / sole option / there is no alternative" justifications are premises, not
+   conclusions.** They get the two-probe treatment the negative-findings rule already mandates for
+   absence claims: an argument *for* something can lose half its planks and still look whole, so probe
+   each plank separately (memory: `feedback_arguments_for_are_absence_claims_too`).
+
+This is the decision-layer counterpart to "success criteria before dispatch": that gate stops an
+ambiguous *done*, this one stops an unverified *why*.
+
+### PO input is authoritative but not infallible — probe it like any other source (mandatory, OP-34)
+
+Adopted 2026-08-05 on PO direction: *"just because I'm the PO doesn't mean I always know best …
+everyone takes my words as the truth."* That is the exact hazard — a statement treated as ground
+truth is one nobody downstream probes, and an unprobed wrong one is expensive precisely because the
+authority suppresses the check. The BRD carried *"GE-17 works fully offline"* for a whole version
+because the COO propagated the PO's framing without a probe (v3.15 withdrew it as factually false) —
+the negative-findings failure applied to an inherited premise. Its positive-claim cousin is
+fabricating a PO ruling: an attributed decision is unarguable by design (memory:
+`feedback_never_attribute_an_inference_to_the_po`).
+
+PO input carries real authority and this rule does **not** dilute it — the PO still decides. It adds
+that PO input is *tested*, on two axes, before it becomes law or work:
+
+1. **Truth axis — factual claims.** A factual assertion from the PO (*"it works offline," "this used
+   to work," "there's no way to X"*) is not pre-verified. Before it enters a gate artifact (the BRD,
+   a brief, a tracker fact), probe it exactly as you would an agent's claim — the negative-findings
+   two-probe rule already binds, and the source being the PO does not exempt it. "It used to work"
+   in particular is decisive evidence for defect classification (OP-32) and must be *confirmed*, not
+   assumed.
+2. **Value axis — requests.** Not every request is worth building, and the PO has flagged that some
+   arrive as *"it would be nice if."* Before a discretionary or enhancement request is promoted to a
+   requirement or dispatched, the COO surfaces a proportionate **value assessment — impact, cost,
+   benefit** — with a recommendation. The three lenses are the default, **not a rigid template**: a
+   one-line ask gets a sentence, a large ask gets more. A clear defect or a P1 does not need this; a
+   *"wouldn't it be nice"* does. The PO decides with the assessment in front of them rather than the
+   COO building on the request alone.
+
+Both axes resolve to the move the team already owes every other source — **probe before promote.**
+This rule simply states that the PO is a source, not an exception.
+
 ### Document lifecycle (mandatory)
 Adopted 2026-07-07 after the doc-integrity audit (`audits/session-a-doc-integrity.md`)
 found that every HIGH-severity stale-doc failure traced to a missing closing step, not
