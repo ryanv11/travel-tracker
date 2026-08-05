@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (7)
+### P1 — Critical (8)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -35,9 +35,10 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | ⬜ Pending |
+| BUG-75 | D13 city identity key cannot represent two distinct same-name towns in the same region — live latent conflation | architect | ⬜ Pending |
 | BUG-76 | Our own SETTLEMENT_TYPES filter may discard legitimate tail places the geocoder does return | backend | ⬜ Pending |
 
-### P2 — Important (47)
+### P2 — Important (46)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -81,7 +82,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-72 | City search dropdown shows name + country only — user selects a specific city blind | backend | done_pending_uat |
 | BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | done_pending_uat |
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | ⬜ Pending |
-| BUG-75 | D13 city identity key cannot represent two distinct same-name towns in the same region — live latent conflation | architect | ⬜ Pending |
 | BUG-80 | Saved places render as name + country only — two different Newports in one trip are indistinguishable | backend | done_pending_uat |
 | BUG-79 | Region selector not narrowed for an ambiguous US city, though it is for the UK | frontend | done_pending_uat |
 | BUG-77 | 22 region-tier countries ship with zero regions — 22 latent BUG-30s (ADL-48 S1) | database | done_pending_uat |
