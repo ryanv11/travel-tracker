@@ -1,0 +1,80 @@
+COO SESSION PARK — 2026-08-05 ("RETRO + UAT SCRIPT")
+2 PRs merged · main green @ b34aabb · BRD v3.16 → v3.17 · staging unchanged
+================================================================================
+
+## READ THIS FIRST
+
+**The firewall rebuild is VERIFIED GOOD.** Last session applied the ADL-49 §10 allowlist
+diff but it could not take effect until a container rebuild. This session ran §10.7.1's
+five checks after the rebuild: nominatim / staging / prod all answer 200; api.maptiler.com
+and api.turso.tech still blocked; example.com still blocked. The change was additive, the
+exclusions hold. **No re-verification needed next session** — this is closed.
+
+The two ADL-49 obligations still ride with the Nominatim entry (≤1 req/s from one egress IP,
+identifying User-Agent) and the in-process limiter still does NOT span processes (§4.3) — so
+any capture/probe script bypasses it. Relevant the moment BUG-76's probe is run.
+
+## What the session was, in one paragraph
+
+Started as a COO pickup; the PO asked for a retro on "more mistakes in the last few days than
+since the project started." The read: the BUILD layer never wheel-spun — everything shipped is
+green and kept — the churn was all in the DECISION layer, concentrated on one thread (city
+identity / GE-17 / gazetteer), and every instance shared one shape: a premise promoted to a gate
+artifact before the probe that tests it. Some of the *felt* increase is a measurement effect —
+OP-26/27/28/29/32 were all adopted 2026-07-28, so we built the error-logging apparatus in the
+same window we're now reviewing. Two rules came out of it, then the PO asked for a consolidated
+UAT script for the 24 done_pending_uat items, which was authored and merged.
+
+## Shipped and merged this session
+
+| PR | What |
+|---|---|
+| **#402** | **OP-33** (spike-gate the BRD — no requirement enters "approved" on an unverified premise; premises are a verify-checklist before the spike; "only way" claims get two probes) + **OP-34** (PO input is authoritative but not infallible — factual PO claims get probed, discretionary requests get an impact/cost/benefit read; PO still decides). Both in CLAUDE.md. Plus **BRD v3.17** correcting v3.16's premature "Plockton settles BUG-76" claim (document-lifecycle rule #1, citing #382) |
+| **#403** | **jobs/PO/uat-execution-20260805.md** — one staging-executable script for all 24 done_pending_uat items, deduped from the three open uat-log.md sessions. Account / steps / expected / checkbox per case. Known-gap caveats boxed up front |
+
+## THE THING MOST WORTH CARRYING FORWARD
+
+**The retro's finding is now a rule, not a vibe.** The expensive churn of the last two weeks was
+ONE move — *premise promoted to a gate artifact before the probe that tests it* — seen at least
+3×: GE-17 (BRD-approved → corrected twice → withdrawn, no code), BUG-76 (closed on Plockton,
+reopened on Denver — #382), the "works offline" overclaim. OP-33 gates it at the source. OP-34
+names the PO as a source that gets probed too, not an exception — the PO explicitly asked for
+this ("everyone takes my words as the truth").
+
+## The UAT script — the biggest single unblock on the board
+
+23 items in the summary table (24 counting the doc's own header math): 19 browser cases + 4
+platform. **The PO runs this against staging in a host browser.** Two accounts needed (owner +
+non-owner) for BUG-62 and BUG-51. Caveats boxed at the top so a case isn't failed on tracked
+debt — chiefly BUG-63 (non-owner can't add a place → run all but BUG-62 as owner) and UX-12
+(GE-16's correction UI isn't built → it's a partial delivery). **QUAL-20 is flagged RED and must
+not be signed off** (its console check fails on the known Clerk CSP fragment). QUAL-25 (spike)
+recommended for close with no UAT.
+
+## Still live, untouched (durably tracked — will survive /clear)
+
+- **UAT backlog** — 24 done_pending_uat, now with an executable script. Nothing closes until the
+  PO runs it. Three untested UAT sessions in uat-log.md; 13 resolved [x] items still unarchived
+  (deliberate — archive rule only fires when findings were resolved that session; none were).
+- **Open P1s, untouched** — BUG-63 (non-owner add place, access-matrix change owned by Architect),
+  UX-12 (no city-correction UI), BUG-76 (now honestly P1 pending; probe is measurable post-rebuild
+  — ADL-49 §7.2/§7.4, and mind the §4.3 limiter caveat).
+- **QUAL-20 console check** — still deterministically red on the Clerk CSP fragment. Widening the
+  check's own capture is the only route (the Playwright trace is permanently undownloadable).
+- **Post-Deploy Shakedown** red on main for the same reason — known, tracked, not new.
+
+## Open threads
+
+See `jobs/COO/open-dialogues.md` — **D-22** (the GE-16/GE-17 BRD conflict the COO created; two PO
+decisions, blocks ALL identity work), **D-23** (enumerate credentials), **D-24** (ci-wait stale
+SHA, watch-only), **D-25** (two structural rules awaiting a CLAUDE.md home), **D-26** (spike
+effort-box — proposed this session, deliberately parked; adopt only on recurrence). One home; not
+restated here.
+
+## Suggested next, in priority order
+
+1. **PO runs the UAT script** — 24 items, the largest thing between here and closing anything.
+2. **D-22** — a PO decision that unblocks all remaining identity work; a clean first candidate to
+   run THROUGH the new OP-33/OP-34 gates rather than around them.
+3. **BUG-76** — cheapest live P1, now measurable post-rebuild.
+4. **BUG-63 / UX-12** — the other two open P1s.
