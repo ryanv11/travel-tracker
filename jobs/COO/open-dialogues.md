@@ -25,6 +25,29 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
+### D-26: Declare a spike's effort-box / kill-criterion up front
+**Raised:** 2026-08-05 · **Status:** proposed in the retro, **deliberately deferred** — hold unless the pattern recurs.
+
+Came out of the Jul 29–Aug 4 retro (the "we made more mistakes lately" review). The retro's core
+finding is now durable — the premise-before-probe gate is **OP-33** and the PO-is-not-infallible rule
+is **OP-34** (both in CLAUDE.md as of PR #402). This is the *third* fix considered and the one we chose
+**not** to adopt yet, logged here so it isn't silently lost.
+
+**The proposal.** When a thread is classified as a spike/investigation, it declares an effort-box up
+front — a maximum number of review rounds, or a decide-by point — and crossing it forces a go/no-go to
+the PO rather than another round. Rationale: the GE-17 spike ran ~4 days and ~15 design/review PRs with
+zero shipped code before being killed, and nobody was tracking the spend-vs-value ratio *while* it
+happened. OP-33 catches the bad premise; it does **not** catch wheel-spin in progress. An effort-box
+would.
+
+**Why deferred, not adopted.** (1) We are process-rich already and just added two rules the same
+session; adding a third gate risks overhead the team doesn't need. (2) The GE-17 spike was probably
+*net-positive* — it killed a 17 MB dataset + a permanent maintenance obligation and produced BUG-75/76
+— so we got a good ratio *without* a declared box, which weakens the urgency. (3) OP-33's premise-gate
+may prevent the runaway-spike class at the source, making this redundant. **Adopt only if a second
+uncontrolled spike shows up after OP-33 is in force.** COO recommendation: leave parked; revisit on
+recurrence.
+
 ### D-23: Enumerate the container's CREDENTIALS, the way we just enumerated its hosts
 **Raised:** 2026-08-04 · **Status:** proposed by the COO, flagged to the PO, not commissioned.
 
