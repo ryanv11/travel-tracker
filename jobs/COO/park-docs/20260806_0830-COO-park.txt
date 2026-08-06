@@ -1,0 +1,84 @@
+COO SESSION PARK — 2026-08-06 ("D-17 PROMOTION + THE BUG-75 CITY-IDENTITY BUILD")
+5 PRs merged (#406–#409 + the build) · main green · BRD v3.18 → v3.19 · staging redeploys with the migration
+================================================================================
+
+## READ THIS FIRST
+
+1. **BUG-75 shipped its infrastructure but is NOT fixed — and it stays OPEN.** The build (PR #409)
+   landed the full carry channel, the M-A duplicate-door close, the migration, and the shared
+   `CityPicker` — all green (740/740 backend, 273/273 frontend), all safe. But the **headline
+   spanning-region case is still broken**: `AddPlaceFlow.tsx:397` runs the region-selector and
+   place-picker branches mutually-exclusive, region-first, so a real "Newport" (spans GB-ENG + GB-WLS —
+   COO live-probed) never fires the picker and the specific place **auto-resolves silently to the wrong
+   Newport**. The PO's framing is the correct one: this is a **system auto-population defect, not a user
+   choice**. Full detail + 3 fix proposals (recommend #1: make the picker primary on ≥2 distinct
+   `osm_id`, before the region branch) are in the **BUG-75 tracker note** — read it. Route for the fix:
+   **Architect design pass** (it touches the D14/Springfield precedence) → QA-first → frontend.
+
+2. **gh auth is now self-healing (PR #407).** `~/.config/gh` is wiped on every container rebuild;
+   `.devcontainer/gh-auth-bridge.sh` (postAttachCommand) now re-auths gh from the live git credential on
+   every attach. If gh is ever logged out mid-session, run `bash .devcontainer/gh-auth-bridge.sh` or
+   inline `GH_TOKEN=$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill | sed -n 's/^password=//p')`.
+
+## What the session was, in one paragraph
+
+Started as a COO pickup; dispatched the BUG-75 Round-4 identity design (spike-gated). It took **three
+design rounds + four OP-27 reviews** (v1 found the carry channel didn't exist; v2 caught a false premise
+that had ridden through 3 artifacts; v3 delta-review found 2 build-defect gaps) — converging cleanly, not
+spiralling. The PO then greenlit the build and asked to promote **D-17 (ATDD-first)** which had passed
+its trial but was never ratified → now **OP-35 / ADL-50** (PR #406) with a warn-hook. Fixed the recurring
+gh-auth-on-rebuild problem (#407). Lifted GE-16's spike-gate to **BRD v3.19** + wrote the build brief
+(#408). Then ran the **first real ATDD-first build**: QA-first red tests (Opus 5) → Database → Backend +
+Frontend (parallel, Sonnet 5) → independent QA-verify (Opus 5) → #409 to main. The verify's live probe
+caught that the headline case isn't fixed — hence BUG-75 stays open.
+
+## Shipped & merged this session
+
+| PR | What |
+|---|---|
+| **#406** | **D-17 → OP-35 / ADL-50** — ATDD-first is now a standing rule (QA-first for Architect-spawned briefs; objective trigger = Architect involvement; mandatory mock-fidelity check). `atdd-first-guard.sh` warn-hook + startup canary. |
+| **#407** | **gh-auth bridge** — survives rebuilds (see READ THIS FIRST #2). |
+| **#408** | **BRD v3.19** (GE-16 spike-gate lifted, identity carried-not-derived, approved) + the **build brief** (ATDD-first). |
+| **#409** | **The BUG-75/GE-16 city-identity build** — carry channel + M-A/M-B/B2/F3 + F1 `/lookup` + migration 0016/0017 + shared `CityPicker`. Green; **BUG-75 stays open** (see #1). |
+
+## Still live / open (durably tracked)
+
+- **BUG-75 (P1, OPEN)** — the spanning-region picker-precedence fix. Full analysis + proposals in the
+  tracker note. **Architect design → QA-first → frontend.**
+- **UX-12 (P1, partial)** — the shared `CityPicker` exists; its "Change city" entry point is unbuilt.
+  Small frontend follow-up; natural to bundle with the BUG-75 picker fix (same component). Tracker note updated.
+- **Two QA-verify follow-ups** (in the BUG-75 note): (a) the "county-collapse protects Denver" narrative
+  is wrong — `address.county` is parsed-but-dead; it's `SETTLEMENT_TYPES` + branch order (doc fix). (b)
+  `mergeIntoWinner` is non-atomic + untested — harmless orphan row; wrap in `db.batch()` (proven safe on
+  `:memory:`, trips.ts:282) + add a test.
+- **BUG-63 (P1)** — still held; the access-matrix release entangled with this thread.
+- **UAT backlog** — 28 done_pending_uat; the new build adds to what needs a PO staging pass. Staging now
+  carries the migration (disposable data — no preservation concern).
+- **Design-doc lineage** — the v1/v2/v3 designs + 4 reviews are on un-merged branches
+  (`review/bug75-round4-design-v3` is the tip and contains the whole chain). NOT consolidated to main —
+  a cheap docs-PR cleanup for a future session; the build brief on main references them.
+
+## Process notes worth keeping
+
+- **ATDD-first (OP-35) earned its keep on its first real run.** The mock-fidelity gate caught **2
+  vacuous-greens** during QA authoring; the independent QA-verify (a live Nominatim probe) caught the
+  spanning-region gap the all-green suite hid. The green bar was not enough — the independent probe was.
+- **Model tiering held:** QA authoring + verify on **Opus 5** (PO's call, "wrong answer costs a
+  migration"); Database/Backend/Frontend on Sonnet 5. The Opus-5 QA calls are exactly where the two
+  highest-value catches came from.
+- **OP-20 near-miss:** the Backend agent ran a bare `git stash` while Frontend ran concurrently (popped
+  immediately, no loss). The shared-`refs/stash` hazard is real under parallel dispatch — **consider
+  hook-enforcing** the no-bare-stash rule (currently written-only). Logged against BUG-75's note.
+- **GHA infra blip:** #409's first CI run failed 3 jobs on "Failed to resolve action download info /
+  Service Unavailable" (GitHub-side, not code). `gh run rerun --failed` cleared it. Watch for this shape.
+
+## Suggested next, in priority order
+
+1. **BUG-75 picker-precedence fix** — Architect design pass on proposal #1 (picker primary on ≥2 distinct
+   `osm_id`; resolve the D14/Springfield precedence) → QA-first → frontend. This is what actually closes
+   the headline case.
+2. **UX-12 entry point** — bundle with #1 (same `CityPicker`).
+3. **The two QA follow-ups** — the Denver doc fix + `mergeIntoWinner` `db.batch()`.
+4. **UAT** — the PO's staging pass, now including the new build.
+
+================================================================================
