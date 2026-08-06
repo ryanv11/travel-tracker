@@ -154,9 +154,7 @@ export const cities = sqliteTable(
     // Partial WHERE osm_id IS NOT NULL means existing/legacy NULL-osm_id rows never collide here
     // (no BUG-33 reopen; no backfill needed — this key is additive, not a replacement of a
     // guarantee those rows relied on).
-    uniqueIndex('uniq_cities_osm_ref')
-      .on(t.osmType, t.osmId)
-      .where(sql`${t.osmId} IS NOT NULL`),
+    uniqueIndex('uniq_cities_osm_ref').on(t.osmType, t.osmId).where(sql`${t.osmId} IS NOT NULL`),
     // 2) Pending-per-creator identity — lets two different users each hold their own pending
     // row for the same (name, country, region) without colliding (v2 §7 creator-scoped pending),
     // now that the global index is gone. COALESCE(region_id, 0) collapses NULL region to a
