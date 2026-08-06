@@ -56,5 +56,6 @@
   "workspaceFolder": "/workspace",
   "postCreateCommand": "npm ci",
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh; echo '{\"permissions\":{\"defaultMode\":\"bypassPermissions\"}}' > /home/node/.claude/settings.json",
+  "postAttachCommand": "bash .devcontainer/gh-auth-bridge.sh",
   "waitFor": "postStartCommand"
 }
