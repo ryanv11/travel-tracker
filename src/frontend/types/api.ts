@@ -90,6 +90,19 @@ export interface GeocodeCandidate {
   region_iso: string | null;
   latitude: number;
   longitude: number;
+  /**
+   * BUG-75/UX-12 (v3 §B1/§2.1) — the OSM reference this candidate carries.
+   * Typed optional (not required) for the same reason `GeocodeResult.truncated`
+   * is optional: existing hand-written fixtures that predate this field
+   * (AddPlaceFlow.test.tsx's ADL-46 F1/F2 parity fixtures, bug71/bug78-79
+   * fixtures) construct candidates without it and must keep type-checking.
+   * When both are present, a distinct (osm_type, osm_id) pair is positive
+   * evidence of a distinct real place — see AddPlaceFlow.tsx's place-level
+   * ambiguity check, which only fires on that positive evidence rather than
+   * inferring distinctness from region_iso/display_name alone.
+   */
+  osm_type?: 'node' | 'way' | 'relation';
+  osm_id?: number;
 }
 
 /** Response shape of GET /api/geocode (ADL-46 D7/D14, GE-15). */
