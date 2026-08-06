@@ -1,0 +1,93 @@
+PARK DOCUMENT — Frontend — BUG-75 / UX-12 shared CityPicker
+Date: 2026-08-06
+Branch: feat/bug75-frontend (off origin/release/bug75-city-identity)
+
+TASK
+Implement the shared place-level CityPicker for BUG-75 (add-place ambiguity) and, where
+possible, UX-12 (change-city re-point), turning QA's ATDD RED test
+(AddPlaceFlow.city-picker.test.tsx) green without editing it. Reuse mandate: extend the
+existing D14 disambiguation logic and results-list pattern in AddPlaceFlow.tsx, do not fork.
+
+READ FIRST (for the next agent touching this area)
+- jobs/architect/tech/20260806-BUG75-build-brief.md — the dispatch brief, §1.3/§2.
+- feat/bug75-round4-identity-design-v3:jobs/architect/tech/20260806-BUG75-round4-identity-design-v3.md
+  — §A (settled core, cited not rewritten), §B4 (region_id carry), §B5 (reuse plan: PRESERVE /
+  REPLACE / CARRY ACROSS enumeration).
+- src/frontend/components/TripDetail/__tests__/AddPlaceFlow.city-picker.test.tsx — the QA red
+  test this brief targets. Still the executable spec; do not edit without a new brief.
+- src/frontend/components/TripDetail/__tests__/AddPlaceFlow.test.tsx — specifically the "ADL-46
+  F1/F2 parity" describe block (~line 227) — the regression-parity fixture that shaped the scope
+  decision below.
+
+WHAT SHIPPED
+1. src/frontend/components/shared/CityPicker.tsx (NEW) — generic candidate-list picker.
+   Props: candidates (GeocodeCandidate[]), onSelect, truncated?, disabled?. No AddPlaceFlow
+   coupling — designed for a second (UX-12) consumer, not yet wired to one (see OPEN below).
+2. src/frontend/types/api.ts — GeocodeCandidate gained optional osm_type/osm_id (matches the
+   backend's geocode proxy contract per the build brief §1; optional so every pre-existing
+   fixture without those fields still type-checks, same pattern as GeocodeResult.truncated).
+3. src/frontend/hooks/useCities.ts — CreateCityData gained optional osm_type/osm_id/display_name
+   (the carried-identity POST body per v3 §B4).
+4. src/frontend/components/TripDetail/AddPlaceFlow.tsx:
+   - New state: placePickerCandidates (GeocodeCandidate[] | null), reset alongside
+     candidateRegionIsos everywhere that already resets it (form-open, manual country change).
+   - handleOpenNewCityForm's D14 block: added a candidatesForCountry computation and a new
+     distinctOsmIds Set (keyed osm_type:osm_id). New branch order:
+       sameCountryRegionIsos.length > 1   -> existing multi-region <select> (UNCHANGED)
+       distinctOsmIds.size > 1            -> NEW: setPlacePickerCandidates (place-level picker)
+       else regionIso                     -> existing single-candidate auto-suggest (UNCHANGED)
+   - New handleSelectPickerCandidate: derives region_id from the pick's region_iso via
+     countryRegions.find(r => r.iso_3166_2 === candidate.region_iso)?.id (same pattern as the
+     existing UX-04 effect), builds CreateCityData with osm_type/osm_id/display_name when present,
+     calls createCity.mutateAsync then handleSelectCity — same success path as manual submit.
+   - Render: CityPicker replaces the region-dropdown block (mutually exclusive ternary) only
+     when placePickerCandidates is set; the region dropdown is otherwise rendered exactly as
+     before. Independent of showRegionDropdown/region_tier_enabled — place-level ambiguity is
+     about the candidates, not the country's region-tier config.
+5. jobs/COO/inbox/20260806_2320-FRONTEND-bug75-citypicker-complete.md — completion report.
+
+THE SCOPE DECISION (read this before touching the branch condition above)
+v3 §B5 says the OLD multi-region <select> narrowing "REPLACEs" for the whole ambiguous case and
+that AddPlaceFlow.bug78-79.test.tsx's tests "move" to assert the picker. Taken literally, that
+would make the picker fire for ANY 2+ candidate set regardless of region — which breaks a
+currently-green, deliberately-named test: AddPlaceFlow.test.tsx's "REGRESSION FIXTURE PARITY: two
+candidates sharing ONE region are NOT flagged ambiguous" (Denver + Denver County, same region_iso,
+no osm_id — models two Nominatim rows for the same real place at different granularities, tied to
+the backend's classifyCandidates step-4 parity contract, ADL-46 F1/F2 ruling). My dispatch brief's
+own Verify section required no regressions in existing AddPlaceFlow/city suites, which takes
+precedence for this specific brief's scope. Resolution: the picker only fires on POSITIVE identity
+evidence (>=2 distinct osm_id among the country-matching candidates) — never inferred from
+region_iso/display_name alone. Region-only ambiguity (different region_iso values, e.g. Springfield
+IL/MO/MA) keeps using the existing selector, completely untouched. This is narrower than what v3
+§B5's prose literally describes; flagged to COO/Architect in the completion report in case the
+broader replacement was actually intended (in which case bug78-79.test.tsx's fixtures would need
+deliberate rewriting under a new brief, not silently by me).
+
+VERIFICATION DONE
+- npx vitest run --config vitest.config.frontend.ts .../AddPlaceFlow.city-picker.test.tsx: 3/3 green.
+- npm run test:frontend: 273/273 green, 38 files (no regressions).
+- npm run type:check / type:check:all: clean.
+- npm run check (biome): clean (5 pre-existing infos in backend test files not touched by me —
+  cities.identity-carry.test.ts, geocoding.resolveByOsmId.test.ts — literal-key lint suggestions
+  from Backend/QA/Database's prior work already on the release branch).
+- git diff --stat: src/frontend only (types/api.ts, hooks/useCities.ts, AddPlaceFlow.tsx modified;
+  components/shared/CityPicker.tsx new). No backend/schema files touched.
+
+OPEN FLAGS FOR COO
+1. UX-12's "Change city" call site was NOT built. Verified by two probes (grep across
+   src/frontend for "Change city"/"ChangeCity"; directory listing of every Place-related
+   component) that no such UI exists anywhere in the frontend today — matches UX-12's own
+   tracker note, which reached the same conclusion via its own two probes. CityPicker's prop
+   surface is ready for it, but the modal/button/hook it would need is a separate, un-briefed
+   piece of work (UX-12, P1, pending, own UX spec). Not built here — would have meant inventing
+   UI with no red test governing it.
+2. The scope decision above (positive-osm_id-evidence gating vs. the design doc's broader
+   "replace the whole ambiguous case" prose) — see completion report for the full flag.
+
+NEXT STEPS (when resumed)
+- COO: review this branch's diff, confirm the scope decision, merge into
+  release/bug75-city-identity when Backend's carry-channel work lands (frontend already sends the
+  contract shape independently — no backend dependency for this branch's own tests).
+- If UX-12 is meant to ship in the same release, it needs its own brief: a "Change city" control
+  (PlaceSection or similar), a modal shell, and a useUpdatePlaceDates-adjacent hook that PATCHes
+  city_id — all consuming this CityPicker unchanged.
