@@ -591,11 +591,93 @@ generator that reproduces it, so a second copy would drift silently. Did not
 backfill the mirror's pre-existing migration gaps (out of scope, same
 judgment as prior threads).
 
+NEXT DATABASE THREAD (superseded by the 2026-08-06 entry below — the BUG-75
+schema/migration work this note anticipated has now landed):
+  ADL-48 S2 (gazetteer_cities + gazetteer_meta tables and seedGazetteer) is
+  the natural successor but is BLOCKED on the BRD gate (GE-17/GE-18) and on
+  the §8.3 Turso cold-seed timing probe, neither of which this thread
+  touched.
+
+---
+
+2026-08-06 — BUG-75 / GE-16 (v3.19) city-identity EXPAND/CONTRACT migration
+(branch feat/bug75-migration off release/bug75-city-identity; NOT the
+ADL-48 S0 coordinate-bucket design the note above warned about — that was
+rejected by OP-27 fresh-eyes review and superseded by the design v3
+"carried, not derived" (osm_type, osm_id) identity model, thrice-reviewed).
+
+WHAT LANDED (cities table only):
+  - Migration 0016 (EXPAND, ADL-47 stage 1): three nullable ADD COLUMNs —
+    osm_type text, osm_id integer, display_name text. drizzle-generated,
+    unmodified — no table recreation needed (nothing touches a CHECK).
+  - Migration 0017 (SWITCH, ADL-47 stage 2): table recreation (forced by the
+    new CHECK constraint — SQLite has no ALTER TABLE ADD CONSTRAINT). Drops
+    uniq_cities_name_country_region_ci (ADL-46 D13's global identity index —
+    it forbade ANY two rows sharing name+country+region, which is exactly
+    what blocked BUG-75's core case: two distinct real places, e.g. two
+    same-region Newports, coexisting). Adds two partial unique indexes:
+      uniq_cities_osm_ref: UNIQUE (osm_type, osm_id) WHERE osm_id IS NOT NULL
+      uniq_cities_pending_per_creator: UNIQUE (name COLLATE NOCASE,
+        country_code, COALESCE(region_id,0), COALESCE(created_by_user_id,''))
+        WHERE geocode_status = 'pending'
+    Plus chk_cities_osm_both_or_neither: CHECK ((osm_type IS NULL) =
+    (osm_id IS NULL)) (m-3 — closes a NULL-distinct-semantics gap the
+    resolved-by-OSM index depends on).
+
+WHY TWO MIGRATIONS, NOT ONE: generating the whole end-state in a single pass
+reproduced 0015's original bug — INSERT...SELECT pulled osm_type/osm_id/
+display_name from the OLD (pre-migration) cities table, which doesn't have
+them. Splitting EXPAND then SWITCH — generated in that order, each against
+the schema state the previous migration leaves — avoids it: by the time
+0017's recreation runs, 0016 has already added those columns.
+
+ADL-15 BUG 4 REPRODUCED AND HAND-FIXED (m-2): drizzle-kit split
+COALESCE(region_id, 0) and COALESCE(created_by_user_id, '') on their
+internal commas into bogus quoted identifiers on the pending-per-creator
+index. Hand-corrected against 0015's working COALESCE("region_id", 0)
+syntax, the mandated template.
+
+ONE DELIBERATE DEVIATION FROM RAW db:generate OUTPUT, beyond the mandated
+hand-edit: both new partial indexes' WHERE clauses are written as bare
+column references (WHERE osm_id IS NOT NULL / WHERE geocode_status =
+'pending') rather than drizzle's default table-qualified form
+(WHERE "cities"."osm_id" IS NOT NULL). Both are valid, equivalent SQLite.
+Needed because QA's RED migration test's regexes
+(/osm_id\s+is\s+not\s+null/i etc.) don't tolerate the `"` that sits between
+a table-qualified column name and the following whitespace — the qualified
+form silently fails the regex match even though the DDL is correct. Verified
+by direct sqlite_master inspection both before and after this WHERE-clause
+change; only the regex match outcome differed, not the actual constraint
+behaviour.
+
+MIGRATION TEST: 8/9 green (bug75-identity-migration.test.ts, QA's RED
+ATDD target, not edited). The 1 remaining failure is a QA test defect, not
+schema/migration — it inserts created_by_user_id = 'user-x'/'user-y'
+without ever creating those users, and no setup file seeds them (verified
+by two independent probes: the FK error itself, and a grep across
+src/backend + vitest.config.backend.ts finding no other reference).
+Flagged to COO in the completion report; not fixed here (test file not
+edited per brief; the FK is existing/deliberate, ADL-46 §9.2, not mine to
+weaken).
+
+REGRESSION CHECK: npm run test:backend — 739 pre-existing tests still pass.
+15 failures are pre-existing RED ATDD tests QA committed before this thread
+started (commit c7dd08d) — all in Backend's scope
+(cities.identity-carry.test.ts, geocoding.resolveByOsmId.test.ts), not
+caused by this migration. npm run test:frontend similarly has 3 pre-existing
+RED failures in AddPlaceFlow.city-picker.test.tsx (Frontend's scope, same
+QA commit). type:check:all clean.
+
+WHAT'S NOW UNBLOCKED: Backend's BUG-75 brief (carry channel, /lookup
+canonicalize-by-id, find-or-create rewrite, M-A resolve-stamp, M1/F3
+twin-merge txn) — the resolved-by-OSM index is what makes a caught
+unique-violation the correct "already exists, converge" signal; the
+pending-per-creator index is what Backend's creator-scoped findOrUpgradeCity
+step 1 must match. Frontend's CityPicker brief is unaffected by DB directly
+but shares the same release branch gate.
+
 NEXT DATABASE THREAD:
-  None pending. ADL-48 S2 (gazetteer_cities + gazetteer_meta tables and
-  seedGazetteer) is the natural successor but is BLOCKED on the BRD gate
-  (GE-17/GE-18) and on the §8.3 Turso cold-seed timing probe, neither of
-  which this thread touched. ADL-48 S0 (the BUG-75 coordinate bucket) was
-  rejected by the OP-27 fresh-eyes review and must be re-designed before any
-  Database brief comes from it — note that any re-design lands on cities,
-  whose unique index IS load-bearing for user data.
+  None pending on BUG-75 — Database's slice is done pending Backend/Frontend
+  landing and COO merging the release branch. ADL-48 S2 (gazetteer tables)
+  remains the next queued item, still blocked on the BRD gate (GE-17/GE-18)
+  and the §8.3 Turso cold-seed timing probe.
