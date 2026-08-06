@@ -19,11 +19,47 @@
  *
  * All Nominatim errors are caught and logged — never propagated to API callers.
  * GE-12: offline-safe — city creation never depends on the geocoder.
+ *
+ * BUG-75 v3 (2026-08-06) — city-identity carry channel additions:
+ *   - resolveByOsmId (§B1/F1): canonicalize a carried OSM ref by ID via
+ *     Nominatim /lookup, through the SAME chokepoint as nominatimSearch.
+ *   - resolveCity's carried-ref branch (§B1(4)): a pending row that already
+ *     carries an osm_type/osm_id is resolved deterministically via /lookup,
+ *     not the constrained name search — the carried ref IS the query.
+ *   - M-A (delta review, v2 §7 rule 2c restored): EVERY resolve — carried or
+ *     name-search — stamps the winning candidate's osm_type/osm_id/
+ *     display_name, not only carried-pick resolves. Otherwise a freshly
+ *     resolved non-carried row is invisible to the resolved-by-OSM unique
+ *     index and two users resolving the same non-ambiguous city land as
+ *     duplicate NULL-osm_id rows (the exact BUG-33 class this feature closes).
+ *   - M-B (delta review): a carried ref whose /lookup returns zero rows
+ *     (stale/deleted/reclassified OSM object) is a THIRD case, distinct from
+ *     disabled/error — on the pending-retry path (this file) it is terminal
+ *     'unresolvable' (a deleted object will not come back as a settlement);
+ *     the create path (cities.ts) treats the same signal as 'pending'
+ *     instead, so a transient classification blip self-heals on retry.
+ *   - M1/F3 (twin-merge): committing a resolve can collide with an
+ *     already-resolved twin under the resolved-by-OSM unique index. The
+ *     caught-violation branch repoints trip_places from the loser onto the
+ *     surviving winner and removes the loser — converge to ONE row, never a
+ *     500. (NOT wrapped in db.transaction(): a live probe against this
+ *     project's libSQL :memory: test client showed db.transaction() nulls
+ *     out the client's connection, breaking every subsequent query on it —
+ *     see repositories/trips.ts's same finding. A single INSERT/UPDATE is
+ *     already atomic w.r.t. the unique index in SQLite, so the catch +
+ *     re-select-and-reuse/merge pattern is correct without an explicit
+ *     transaction wrapper.)
  */
 
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
-import { cities, getDb, regions } from '../db/index.js';
-import { type NominatimCandidate, nominatimSearch } from './nominatim-client.js';
+import { cities, getDb, regions, tripPlaces } from '../db/index.js';
+import { isUniqueViolation } from './db-errors.js';
+import {
+  type NominatimCandidate,
+  type NominatimSearchResult,
+  nominatimLookup,
+  nominatimSearch,
+} from './nominatim-client.js';
 
 /** When GEOCODING_ENABLED=false, all geocoding is skipped (e.g. CI contract tests). */
 const geocodingEnabled = (): boolean => process.env.GEOCODING_ENABLED !== 'false';
@@ -206,6 +242,120 @@ export async function resolveCityName(
 }
 
 /**
+ * BUG-75 v3 §B1 (F1) — maps node/way/relation to Nominatim's type-prefixed
+ * `/lookup?osm_ids=` id form and runs it through the shared chokepoint.
+ * Returns the full NominatimSearchResult (not collapsed) so callers can apply
+ * ADL-46 D10's disabled/error/terminal classification — see resolveByOsmId
+ * for the simpler candidate-or-null contract most callers want instead.
+ */
+async function lookupByOsmId(
+  osmType: 'node' | 'way' | 'relation',
+  osmId: number,
+): Promise<NominatimSearchResult> {
+  const prefix = osmType === 'node' ? 'N' : osmType === 'way' ? 'W' : 'R';
+  return nominatimLookup([`${prefix}${osmId}`]);
+}
+
+/**
+ * BUG-75 v3 §B1.2 (F1) — canonicalize a carried OSM ref by ID. The carried
+ * ref IS the query — /lookup returns that exact object or nothing, so this
+ * can never re-derive an ambiguous verdict for an already-chosen place.
+ *
+ * Returns candidate-or-null: null covers disabled/error/zero-rows alike,
+ * which is the right granularity for the CREATE path (cities.ts) — offline
+ * and a stale/reclassified carried id both degrade to the same 'pending'
+ * outcome there (M-B). resolveCity below needs the finer distinction (a
+ * disabled/error result must NOT be treated as the M-B terminal case), so it
+ * calls lookupByOsmId directly instead of this wrapper.
+ */
+export async function resolveByOsmId(
+  osmType: 'node' | 'way' | 'relation',
+  osmId: number,
+): Promise<NominatimCandidate | null> {
+  if (!geocodingEnabled()) return null;
+  const result = await lookupByOsmId(osmType, osmId);
+  if (result.status !== 'ok') return null;
+  return result.candidates[0] ?? null;
+}
+
+/**
+ * BUG-75 v3 §B3/M1/F3 — commits a resolve (stamping the candidate's OSM ref
+ * on EVERY resolve, M-A / v2 §7 rule 2c) with the caught-unique-violation →
+ * merge fallback. This is the one place a resolve can collide with an
+ * already-resolved twin under the resolved-by-OSM partial unique index
+ * (`uniq_cities_osm_ref`) — the merge branch repoints trip_places from the
+ * loser onto the surviving winner and removes the loser, so two users
+ * resolving the same real place always converge to ONE row.
+ */
+async function commitResolvedOrMerge(
+  cityId: number,
+  candidate: NominatimCandidate,
+): Promise<boolean> {
+  const db = getDb();
+  const resolvedAt = new Date().toISOString();
+  try {
+    await db
+      .update(cities)
+      .set({
+        latitude: candidate.latitude,
+        longitude: candidate.longitude,
+        osmType: candidate.osmType ?? null,
+        osmId: candidate.osmId ?? null,
+        displayName: candidate.displayName ?? null,
+        geocodeStatus: 'resolved',
+        geocodeAttemptedAt: resolvedAt,
+        updatedAt: resolvedAt,
+      })
+      .where(eq(cities.id, cityId));
+    console.info(
+      `[GEO] Resolved city ${cityId} (${candidate.name}): ${candidate.latitude}, ${candidate.longitude}`,
+    );
+    return true;
+  } catch (err) {
+    if (!isUniqueViolation(err) || candidate.osmType == null || candidate.osmId == null) {
+      throw err;
+    }
+    return mergeIntoWinner(cityId, candidate.osmType, candidate.osmId);
+  }
+}
+
+/**
+ * BUG-75 v3 §B3/M1 — repoints trip_places from the loser city onto the
+ * surviving winner (the row already holding this (osm_type, osm_id)) and
+ * removes the loser. Degrades safely (leaves both rows in place, logs a
+ * warning) if the repoint/delete itself cannot complete — e.g. a trip that
+ * already has a trip_place for the winner city would collide with
+ * uniq_trip_places_trip_city on repoint; never throws out of here.
+ */
+async function mergeIntoWinner(loserId: number, osmType: string, osmId: number): Promise<boolean> {
+  const db = getDb();
+  const winnerRows = await db
+    .select({ id: cities.id })
+    .from(cities)
+    .where(and(eq(cities.osmType, osmType), eq(cities.osmId, osmId)))
+    .limit(1);
+  const winner = winnerRows[0];
+  if (!winner) {
+    // Should be unreachable — we only get here after catching a violation on
+    // this exact ref — but defensive: never let a merge crash the caller.
+    console.warn(
+      `[GEO] Merge target vanished for osm ref ${osmType}:${osmId} (loser city ${loserId})`,
+    );
+    return false;
+  }
+  try {
+    await db.update(tripPlaces).set({ cityId: winner.id }).where(eq(tripPlaces.cityId, loserId));
+    await db.delete(cities).where(eq(cities.id, loserId));
+  } catch (err) {
+    console.warn(
+      `[GEO] Merge repoint/delete incomplete for loser city ${loserId} -> winner ${winner.id}:`,
+      (err as Error).message,
+    );
+  }
+  return true;
+}
+
+/**
  * Attempts to resolve coordinates for a single EXISTING city row via Nominatim
  * (the geocode queue / on-create trigger path). Applies D10's classification.
  *
@@ -222,6 +372,8 @@ export async function resolveCity(cityId: number): Promise<boolean> {
       geocodeStatus: cities.geocodeStatus,
       countryCode: cities.countryCode,
       regionIso: regions.iso3166_2,
+      osmType: cities.osmType,
+      osmId: cities.osmId,
     })
     .from(cities)
     .leftJoin(regions, eq(regions.id, cities.regionId))
@@ -247,6 +399,51 @@ export async function resolveCity(cityId: number): Promise<boolean> {
     .set({ geocodeAttemptedAt: attemptedAt, updatedAt: attemptedAt })
     .where(eq(cities.id, cityId));
 
+  // BUG-75 v3 §B1(4)/F1 — a row carrying an osm ref is canonicalized
+  // deterministically by /lookup, NOT the constrained name search: the
+  // carried ref IS the query, so it can never re-derive an ambiguous verdict.
+  if (city.osmType != null && city.osmId != null) {
+    const osmType = city.osmType as 'node' | 'way' | 'relation';
+    const result = await lookupByOsmId(osmType, city.osmId);
+
+    if (result.status === 'disabled') {
+      // Global — no increment.
+      return false;
+    }
+    if (result.status === 'error') {
+      // Recoverable — increment, stay pending, retry later (up to cap).
+      await incrementAttempts(cityId);
+      return false;
+    }
+
+    const candidate = result.candidates[0];
+    if (!candidate) {
+      // M-B (delta review): the carried object no longer resolves to a
+      // settlement — deleted, or reclassified to a non-settlement type
+      // (HTTP 200, zero/filtered rows). Distinct from disabled/error above.
+      // TERMINAL: a deleted/reclassified OSM object will not come back as a
+      // settlement — degrade safely (never a wrong-town pin), never retried
+      // again, rather than looping pending forever.
+      const now = new Date().toISOString();
+      await db
+        .update(cities)
+        .set({ geocodeStatus: 'unresolvable', geocodeAttemptedAt: now, updatedAt: now })
+        .where(eq(cities.id, cityId));
+      console.info(
+        `[GEO] City ${cityId} (${city.name}) unresolvable — carried osm ref no longer resolves to a settlement`,
+      );
+      return false;
+    }
+
+    return commitResolvedOrMerge(cityId, candidate);
+  }
+
+  // Non-carried — the existing name-search path. M-A (delta review, v2 §7
+  // rule 2c): now ALSO stamps the winning candidate's osm ref on every
+  // resolve, not only carried-pick resolves (via commitResolvedOrMerge
+  // below) — otherwise a freshly-resolved row is invisible to the
+  // resolved-by-OSM merge mechanism and two users resolving the same
+  // non-ambiguous city land as duplicate NULL-osm_id rows.
   const result = await nominatimSearch({
     q: city.name,
     countrycodes: city.countryCode.toLowerCase(),
@@ -298,21 +495,7 @@ export async function resolveCity(cityId: number): Promise<boolean> {
   }
 
   // verdict.status === 'ok'
-  const best = verdict.best;
-  const resolvedAt = new Date().toISOString();
-  await db
-    .update(cities)
-    .set({
-      latitude: best.latitude,
-      longitude: best.longitude,
-      geocodeStatus: 'resolved',
-      geocodeAttemptedAt: resolvedAt,
-      updatedAt: resolvedAt,
-    })
-    .where(eq(cities.id, cityId));
-
-  console.info(`[GEO] Resolved city ${cityId} (${city.name}): ${best.latitude}, ${best.longitude}`);
-  return true;
+  return commitResolvedOrMerge(cityId, verdict.best);
 }
 
 /** ADL-46 D10: increment the recoverable-failure counter for a pending row. */

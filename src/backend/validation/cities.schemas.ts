@@ -5,13 +5,31 @@
 import { z } from 'zod';
 import { zCountryCode } from './common.js';
 
+/** BUG-75 v3 §2.3/§B1 — the carried OSM identity pair. */
+const zOsmType = z.enum(['node', 'way', 'relation']);
+
+// BUG-75 v3 §2.3/§2.4/§B4 — an optional carried pick from the frontend
+// CityPicker: {osm_type, osm_id, display_name, region_id}. The server NEVER
+// trusts client coordinates (no lat/lng field exists here, and .strict()
+// rejects one if sent — see §7 carry-over test) — it re-derives canonical
+// data from its OWN create-time /lookup and uses the carried ref only to
+// SELECT among its candidates. region_id travels over the existing field
+// (D12 rule 3 already treats it as user ground truth); the frontend is what
+// aligns it to the pick (F4) — no schema change needed for that half.
 export const CreateCitySchema = z
   .object({
     name: z.string().trim().min(1),
     country_code: zCountryCode,
     region_id: z.number().int().positive().nullable().optional(),
+    osm_type: zOsmType.optional(),
+    osm_id: z.number().int().positive().optional(),
+    display_name: z.string().trim().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => (data.osm_type == null) === (data.osm_id == null), {
+    message: 'osm_type and osm_id must be supplied together or not at all',
+    path: ['osm_type'],
+  });
 
 export const SearchCitiesQuerySchema = z.object({
   q: z.string().trim().min(2, 'Search query must be at least 2 characters'),

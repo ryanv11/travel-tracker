@@ -1,0 +1,133 @@
+DATABASE PARK DOCUMENT — 2026-08-06
+THREAD: BUG-75 / GE-16 (v3.19) — city-identity EXPAND/CONTRACT migration
+BRANCH: feat/bug75-migration (off origin/release/bug75-city-identity)
+ISSUE:  BUG-75 / UX-12   TRACKER: BUG-75   DEFECT CLASS: gap (spike-gated design, thrice-reviewed)
+
+================================================================================
+1. WHAT WAS ASKED, AND WHAT SHIPPED
+================================================================================
+Asked: implement design v3's §B2 migration (as corrected by review F2/m-1/m-2/m-3) — add
+osm_type/osm_id/display_name to cities, drop the global uniq_cities_name_country_region_ci
+index, add two partial unique indexes, add the m-3 both-or-neither CHECK. Do NOT redesign;
+implement to spec. Make QA's pre-authored RED migration test green.
+
+Shipped exactly that, staged as two ADL-47 migrations (EXPAND then SWITCH — the design's own
+staging, not a Database invention):
+
+  src/backend/migrations/0016_bug75_identity_expand.sql   NEW — 3 nullable ADD COLUMNs
+  src/backend/migrations/0017_bug75_identity_switch.sql   NEW — table recreation: drop old
+                                                            index, add 2 partial unique indexes
+                                                            + 1 CHECK
+  src/backend/migrations/meta/0016_snapshot.json           NEW
+  src/backend/migrations/meta/0017_snapshot.json            NEW
+  src/backend/migrations/meta/_journal.json                 UPDATED (2 new entries)
+  src/backend/db/schema.ts                                  UPDATED (Edit, not Write) — cities
+                                                              table: 3 new columns, 2 new
+                                                              uniqueIndex(...), 1 new check(...);
+                                                              old uniqueIndex(...) block removed
+
+No routes, services, or frontend touched — out of scope per brief (Backend/Frontend's briefs).
+
+================================================================================
+2. THE ONE THING A FUTURE READER MUST NOT GET WRONG
+================================================================================
+THE TWO NEW PARTIAL INDEXES' WHERE CLAUSES ARE BARE COLUMN REFERENCES ON PURPOSE.
+
+  uniq_cities_osm_ref:            ... WHERE osm_id IS NOT NULL
+  uniq_cities_pending_per_creator: ... WHERE geocode_status = 'pending'
+
+NOT `WHERE "cities"."osm_id" IS NOT NULL` — drizzle's own default table-qualified emission
+style, used elsewhere in this same migration (idx_cities_geocode, unchanged from prior
+migrations). Both forms are valid, equivalent SQLite. This migration's forms were HAND-CHOSEN
+to satisfy QA's RED test regexes (bug75-identity-migration.test.ts:75-100), which match
+`/osm_id\s+is\s+not\s+null/i` and `/geocode_status\s*=\s*'pending'/i` — the `"` that closes a
+table-qualified identifier sits directly between the column name and the following whitespace,
+which breaks `\s+`/`\s*` and makes the qualified form silently fail the regex even though the
+DDL is correct. Confirmed by direct sqlite_master inspection: functionally identical constraint
+behaviour before and after the WHERE-clause rewrite; only the test's string-match outcome
+changed.
+
+If a future migration touches these indexes (e.g. drizzle-kit regenerates them from schema.ts
+after an unrelated change elsewhere on cities), db:generate will very likely re-emit the
+table-qualified form. That's fine functionally, but if bug75-identity-migration.test.ts (or
+any test copying its regex style) is still live at that point, re-verify the regex still
+matches — or better, hand-restore the bare form in the same hand-edit pass that will already
+be needed for the COALESCE split (m-2's bug never goes away, it's structural to drizzle-kit
+0.31.9).
+
+================================================================================
+3. WHY TWO MIGRATIONS, NOT ONE (and the bug avoided by splitting)
+================================================================================
+First attempt: generate the whole end-state (columns + indexes + CHECK) as a single migration.
+drizzle-kit correctly forced a table recreation (the new CHECK needs one — SQLite has no
+ALTER TABLE ADD CONSTRAINT) but reproduced 0015's ORIGINAL documented bug: the INSERT ... SELECT
+pulled osm_type/osm_id/display_name FROM THE OLD `cities` TABLE, which doesn't have those
+columns pre-migration. Would have failed at runtime with "no such column: osm_type".
+
+Fix: generate EXPAND (0016, plain ADD COLUMNs, no recreation) FIRST, apply it, THEN generate
+SWITCH (0017) against the resulting schema state. By the time 0017's recreation's INSERT...
+SELECT runs, 0016 has already added the columns to the pre-recreation `cities` table, so the
+SELECT is valid. This is also the correct ADL-47 shape per design v3 §B2 itself (Stage 1
+EXPAND / Stage 2 SWITCH) — not just a bug workaround.
+
+Mechanically, this meant TEMPORARILY reverting schema.ts's index/CHECK additions, running
+db:generate once (clean 3-line ADD COLUMN migration, unmodified), then restoring the full
+schema.ts and running db:generate again (the SWITCH recreation). Both generate runs are
+reproducible from the current schema.ts + migrations state — nothing depends on the
+now-discarded intermediate schema.ts edit.
+
+================================================================================
+4. ADL-15 BUG 4 (COALESCE-comma-split) — REPRODUCED, NOT JUST CITED
+================================================================================
+On uniq_cities_pending_per_creator, drizzle-kit split COALESCE(region_id, 0) and
+COALESCE(created_by_user_id, '') on their INTERNAL commas, emitting bogus separate quoted
+identifiers:
+  `COALESCE("region_id"`, ` 0)`, `COALESCE("created_by_user_id"`, ` '')`
+— invalid SQL, would have failed at db:migrate time. Hand-corrected to
+  COALESCE("region_id", 0), COALESCE("created_by_user_id", '')
+against 0015_fluffy_payback.sql's working syntax, per m-2's mandate to hand-write these two
+indexes and not trust db:generate for them. uniq_cities_osm_ref (no COALESCE inside it) was
+emitted correctly and needed no comma fix — only its WHERE clause needed the bare-column
+rewrite from §2 above.
+
+================================================================================
+5. VERIFICATION PERFORMED (not just "ran the test")
+================================================================================
+- rm dev-migration.db; npm run db:migrate — applies clean from a fresh local SQLite file, both
+  migrations in sequence, no errors.
+- Direct sqlite_master inspection (SELECT type,name,sql FROM sqlite_master WHERE
+  tbl_name='cities') via a throwaway libsql client script — confirmed the exact DDL landed:
+  uniq_cities_name_country_region_ci ABSENT; both new partial indexes present with correct
+  columns/predicates; the CHECK present on the recreated table. Script deleted after use (not
+  committed — scratch verification only).
+- QA's bug75-identity-migration.test.ts: 8/9 green. The 1 failure is a QA test defect (FK
+  violation on unseeded 'user-x'/'user-y' created_by_user_id values — see the completion report
+  for the two-probe negative finding). Test file NOT edited.
+- npm run test:backend: 739 pre-existing pass, 0 regressions. 15 failures are QA's own
+  pre-existing RED ATDD tests for BACKEND's brief (cities.identity-carry.test.ts,
+  geocoding.resolveByOsmId.test.ts — both committed by QA at c7dd08d, before this thread
+  started; confirmed via git log on those exact files).
+- npm run test:frontend: 270 pass, 3 pre-existing RED failures in
+  AddPlaceFlow.city-picker.test.tsx — FRONTEND's brief, same QA commit, same reasoning.
+- npm run type:check:all: clean.
+- npm run check (biome): 1 real format issue (schema.ts) — fixed via npm run format, a second
+  commit. Remaining 5 "info"-level biome findings are unsafe-fix lint suggestions inside QA's
+  test files (not mine to touch) and do not fail `biome ci` (exit 0).
+- npm run status:check: STATUS.md already in sync, no action needed.
+
+================================================================================
+6. WHAT'S NOW UNBLOCKED
+================================================================================
+Backend's BUG-75 brief: cities.osmType/osmId/displayName are live nullable columns; the
+resolved-by-OSM unique index is what turns a concurrent same-place create/resolve into a
+caught-violation "already exists, converge" signal (M1/F3); the pending-per-creator index is
+what Backend's creator-scoped findOrUpgradeCity step 1 (v2 §7) must match on. Frontend's
+CityPicker brief is not DB-dependent but shares the release-branch merge gate.
+
+================================================================================
+7. NEXT DATABASE THREAD
+================================================================================
+None pending on BUG-75 — this slice is complete pending Backend/Frontend landing their briefs
+and COO merging release/bug75-city-identity. ADL-48 S2 (gazetteer tables) remains the next
+queued item, still blocked on the BRD gate (GE-17/GE-18) and the §8.3 Turso cold-seed timing
+probe — unchanged from the prior park doc, this thread did not touch it.

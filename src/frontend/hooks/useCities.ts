@@ -183,6 +183,17 @@ export interface CreateCityData {
   name: string;
   country_code: string;
   region_id?: number | null;
+  /**
+   * BUG-75/UX-12 (v3 §1/§B4) — the carried identity of a place-level
+   * CityPicker pick. The server re-derives canonical data from its own
+   * create-time lookup and uses this only to SELECT among its candidates
+   * (v3 §2.3) — never trusted as coordinates. Omitted entirely for a
+   * non-ambiguous create (single-candidate auto-fill or fully manual entry);
+   * the server stamps identity on those resolves itself (v3 §2 M-A).
+   */
+  osm_type?: 'node' | 'way' | 'relation';
+  osm_id?: number;
+  display_name?: string;
 }
 
 /**

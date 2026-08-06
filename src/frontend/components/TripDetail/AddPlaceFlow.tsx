@@ -20,7 +20,7 @@ import {
 } from '../../hooks/useCities';
 import { useAddPlace } from '../../hooks/usePlaces';
 import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
-import type { City } from '../../types/api';
+import type { City, GeocodeCandidate } from '../../types/api';
 import { resolveDefaultDate } from '../../utils/dateDefaults';
 // BUG-80: formatCitySubtitle used to live here (BUG-72, PR #353) as a
 // module-local function. Lifted to a shared util so every saved-place
@@ -29,6 +29,7 @@ import { resolveDefaultDate } from '../../utils/dateDefaults';
 import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { capitalizeFirst } from '../../utils/textFormat';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
+import { CityPicker } from '../shared/CityPicker';
 import { ErrorMessage } from '../shared/ErrorMessage';
 
 interface AddPlaceFlowProps {
@@ -75,6 +76,19 @@ export function AddPlaceFlow({
   // chooses from the (already-present) selector rather than being silently
   // guessed for. null means "no ambiguity — show the full country region list".
   const [candidateRegionIsos, setCandidateRegionIsos] = useState<string[] | null>(null);
+  // BUG-75/UX-12 (v3 §B5 m1 REPLACE): candidates whose carried OSM identity
+  // is distinct (>=2 distinct osm_id) among a resolved country's candidates
+  // — region-only narrowing (candidateRegionIsos above) cannot separate them
+  // when they share a region (the two GB-ENG Newports). Only set on that
+  // POSITIVE identity evidence, never inferred from region_iso/display_name
+  // alone — see the branch in handleOpenNewCityForm below. null means "no
+  // place-level ambiguity detected"; mutually exclusive with
+  // candidateRegionIsos (region-distinct ambiguity is still handled by the
+  // existing selector, PRESERVED unchanged) and with the single-candidate
+  // regionIsSuggested auto-fill (also PRESERVED unchanged).
+  const [placePickerCandidates, setPlacePickerCandidates] = useState<GeocodeCandidate[] | null>(
+    null,
+  );
   // BUG-71 stopgap: true only when the CURRENT region-select value was set by
   // the single-candidate auto-fill path below (autoRegionIso), never by an
   // explicit user pick. The mechanism that sets autoRegionIso cannot tell a
@@ -267,6 +281,45 @@ export function AddPlaceFlow({
     }
   };
 
+  /**
+   * BUG-75/UX-12 (v3 §1.3/§B4) — the shared CityPicker's onSelect target.
+   * Carries the chosen candidate's identity ({osm_type, osm_id,
+   * display_name}) into POST /api/cities, plus region_id DERIVED FROM the
+   * pick's region_iso via the seeded region map (same pattern as the UX-04
+   * auto-select effect below) — never the stale form-selector value (v3
+   * §B4's confirmed problem: a pick submitted with the selector's leftover
+   * region_id can disagree with the pick's own region). Respects the
+   * incomplete-seed fallback: a region_iso with no seeded row leaves
+   * region_id undefined rather than inventing one.
+   */
+  const handleSelectPickerCandidate = async (candidate: GeocodeCandidate) => {
+    if (!newCityName.trim()) return;
+    const countryCode = candidate.country_code ?? newCityCountryCode;
+    if (!countryCode) return;
+    const regionId = candidate.region_iso
+      ? (countryRegions.find((r) => r.iso_3166_2 === candidate.region_iso)?.id ?? undefined)
+      : undefined;
+    const data: CreateCityData = {
+      name: newCityName.trim(),
+      country_code: countryCode,
+      region_id: regionId,
+      ...(candidate.osm_type && candidate.osm_id != null
+        ? {
+            osm_type: candidate.osm_type,
+            osm_id: candidate.osm_id,
+            display_name: candidate.display_name,
+          }
+        : {}),
+    };
+    try {
+      const city = await createCity.mutateAsync(data);
+      setPlacePickerCandidates(null);
+      await handleSelectCity(city);
+    } catch {
+      /* shown via createCity.error — Retry button available (Class B, NR-06) */
+    }
+  };
+
   // UX-04: auto-select region once both ISO code and regions list are available
   useEffect(() => {
     if (!autoRegionIso || !countryRegions.length) return;
@@ -283,6 +336,7 @@ export function AddPlaceFlow({
     setNewCityRegionId(null);
     setAutoRegionIso(null);
     setCandidateRegionIsos(null);
+    setPlacePickerCandidates(null);
     setRegionIsSuggested(false);
     setLookupTruncated(false);
     setGeocodeLookupFailed(false);
@@ -310,19 +364,41 @@ export function AddPlaceFlow({
           // ambiguous within that country (Springfield IL vs Springfield MO) —
           // narrow the region selector to just those instead of auto-picking
           // the top candidate's region.
-          const sameCountryRegionIsos = countryCode
-            ? [
-                ...new Set(
-                  candidates
-                    .filter((c) => c.country_code === countryCode && c.region_iso)
-                    .map((c) => c.region_iso as string),
-                ),
-              ]
+          const candidatesForCountry = countryCode
+            ? candidates.filter((c) => c.country_code === countryCode)
             : [];
+          const sameCountryRegionIsos = [
+            ...new Set(
+              candidatesForCountry.filter((c) => c.region_iso).map((c) => c.region_iso as string),
+            ),
+          ];
+
+          // BUG-75/UX-12 (v3 §B5 m1 REPLACE, ask-to-choose #4): region-only
+          // narrowing is insufficient when 2+ candidates carry DISTINCT OSM
+          // identity but share one region (or none) — a region selector
+          // would collapse them into a false single choice (the two GB-ENG
+          // Newports). This is gated on POSITIVE identity evidence
+          // (>=2 distinct osm_id) rather than raw candidate count so it does
+          // NOT fire for the ADL-46 F1/F2 parity case (AddPlaceFlow.test.tsx)
+          // where two Nominatim rows for the same real place at different
+          // granularities (no osm_id on either, by that fixture's design)
+          // legitimately collapse to one non-ambiguous region — the frontend
+          // has no signal there to say otherwise, and byte-for-byte matching
+          // the backend's classifyCandidates "ok" verdict for that shape is
+          // the settled contract (ADL-46 F1/F2 ruling), unchanged by this brief.
+          const distinctOsmIds = new Set(
+            candidatesForCountry
+              .filter((c) => c.osm_id != null)
+              .map((c) => `${c.osm_type ?? ''}:${c.osm_id}`),
+          );
 
           if (sameCountryRegionIsos.length > 1) {
             setCandidateRegionIsos(sameCountryRegionIsos);
             // Ambiguous — leave newCityRegionId unset so the user must choose.
+          } else if (distinctOsmIds.size > 1) {
+            setPlacePickerCandidates(candidatesForCountry);
+            // Place-level ambiguity — leave newCityRegionId unset; the pick
+            // itself (handleSelectPickerCandidate) derives region_id.
           } else if (regionIso) {
             // BUG-71 stopgap: this branch cannot distinguish "genuinely one
             // region" from "collapsed to one by truncation upstream" — mark
@@ -518,6 +594,9 @@ export function AddPlaceFlow({
                   // A manual country change invalidates any D14 candidate
                   // narrowing computed for the previously auto-detected country.
                   setCandidateRegionIsos(null);
+                  // Same reasoning for the BUG-75 place-level picker — it was
+                  // computed for the auto-detected country's candidates.
+                  setPlacePickerCandidates(null);
                   // BUG-79: the truncation signal was computed for the
                   // auto-detected country's lookup — it says nothing about a
                   // country the user is now picking by hand.
@@ -550,41 +629,67 @@ export function AddPlaceFlow({
               )}
             </div>
 
-            {/* Region dropdown — shown only when country has region_tier_enabled */}
-            {showRegionDropdown && (
+            {/* BUG-75/UX-12 (v3 §1.3/§B5) — place-level CityPicker. Fires
+                instead of the region dropdown below when region-only
+                narrowing cannot disambiguate (2+ candidates carry distinct
+                OSM identity but share a region, or no region_iso at all).
+                Independent of showRegionDropdown/region_tier_enabled —
+                place-level ambiguity is about the candidates, not whether
+                the resolved country happens to configure a region tier. */}
+            {placePickerCandidates && placePickerCandidates.length > 1 ? (
               <div className="mb-4">
                 <label className={labelClass}>
-                  {regionLabel} <span className="font-normal text-gray-500">(optional)</span>
-                  {regionChoiceIsAmbiguous && (
-                    <span className="font-normal text-amber-600 text-xs">
-                      {' '}
-                      — multiple matches found, please choose
-                      {/* BUG-79: the narrowed set itself may be incomplete —
+                  Multiple places match "{newCityName}"
+                  <span className="font-normal text-amber-600 text-xs">
+                    {' '}
+                    — please choose the one you mean
+                  </span>
+                </label>
+                <CityPicker
+                  candidates={placePickerCandidates}
+                  onSelect={(candidate) => {
+                    void handleSelectPickerCandidate(candidate);
+                  }}
+                  truncated={lookupTruncated}
+                  disabled={createCity.isPending || addPlace.isPending}
+                />
+              </div>
+            ) : (
+              /* Region dropdown — shown only when country has region_tier_enabled */
+              showRegionDropdown && (
+                <div className="mb-4">
+                  <label className={labelClass}>
+                    {regionLabel} <span className="font-normal text-gray-500">(optional)</span>
+                    {regionChoiceIsAmbiguous && (
+                      <span className="font-normal text-amber-600 text-xs">
+                        {' '}
+                        — multiple matches found, please choose
+                        {/* BUG-79: the narrowed set itself may be incomplete —
                           say so rather than implying these are the only
                           matches that exist. */}
-                      {lookupTruncated && ' (there may be more not shown)'}
-                    </span>
-                  )}
-                </label>
-                <select
-                  className={inputClass}
-                  value={newCityRegionId ?? ''}
-                  onChange={(e) => {
-                    setNewCityRegionId(e.target.value ? Number(e.target.value) : null);
-                    // BUG-71: an explicit user pick is never "just a suggestion" —
-                    // tier 1 (UX spec §1): explicit selection always wins and is
-                    // never treated as tentative again.
-                    setRegionIsSuggested(false);
-                  }}
-                >
-                  <option value="">No {regionLabel.toLowerCase()} selected</option>
-                  {regionOptions.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-                {/* BUG-71 stopgap: the single-candidate auto-fill above cannot
+                        {lookupTruncated && ' (there may be more not shown)'}
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    className={inputClass}
+                    value={newCityRegionId ?? ''}
+                    onChange={(e) => {
+                      setNewCityRegionId(e.target.value ? Number(e.target.value) : null);
+                      // BUG-71: an explicit user pick is never "just a suggestion" —
+                      // tier 1 (UX spec §1): explicit selection always wins and is
+                      // never treated as tentative again.
+                      setRegionIsSuggested(false);
+                    }}
+                  >
+                    <option value="">No {regionLabel.toLowerCase()} selected</option>
+                    {regionOptions.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                  {/* BUG-71 stopgap: the single-candidate auto-fill above cannot
                     tell a genuine unambiguous match from a truncated one, so it
                     is surfaced as a visibly tentative suggestion (UX spec §3.2's
                     "Suggested:" treatment, applied here to the region field)
@@ -600,13 +705,14 @@ export function AddPlaceFlow({
                     produced this suggestion may have been truncated upstream
                     — the value stays "a suggestion", never presented as more
                     certain than the data actually supports. */}
-                {regionIsSuggested && !regionChoiceIsAmbiguous && suggestedRegionName && (
-                  <p className="mt-1 text-xs font-semibold text-gray-500">
-                    Suggested: {suggestedRegionName} — from "{newCityName}"
-                    {lookupTruncated && ' (other matches may exist)'}
-                  </p>
-                )}
-              </div>
+                  {regionIsSuggested && !regionChoiceIsAmbiguous && suggestedRegionName && (
+                    <p className="mt-1 text-xs font-semibold text-gray-500">
+                      Suggested: {suggestedRegionName} — from "{newCityName}"
+                      {lookupTruncated && ' (other matches may exist)'}
+                    </p>
+                  )}
+                </div>
+              )
             )}
 
             {/* UX-02: Optional date fields — shown in new-city form too */}

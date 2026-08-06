@@ -121,6 +121,16 @@ export const cities = sqliteTable(
     }),
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+    // BUG-75 / GE-16 (v3.19) identity carry channel (ADL-47 EXPAND, migration 0016).
+    // Carried, not derived: the geocoder's OSM (osm_type, osm_id) reference is the identity key;
+    // display_name is render payload only, never a match key (design v3 §0/§2.3). All three are
+    // DELIBERATELY NULLABLE at EXPAND — no code populates them yet, existing rows stay NULL, and
+    // the SWITCH stage (migration 0017) is what makes osm_id load-bearing via the new partial
+    // unique index below. osm_id is INTEGER (OSM node/way/relation ids are integers; osm_type
+    // distinguishes N/W/R namespaces, so the pair — not osm_id alone — is the identity key).
+    osmType: text('osm_type'),
+    osmId: integer('osm_id'),
+    displayName: text('display_name'),
   },
   (t) => [
     index('idx_cities_country').on(t.countryCode),
@@ -133,21 +143,39 @@ export const cities = sqliteTable(
       'chk_cities_geocode_status',
       sql`${t.geocodeStatus} IN ('pending', 'resolved', 'unresolvable')`,
     ),
-    // ADL-46 D13 (§4.2.1): city identity is (name, country_code, region). Replaces BUG-33's
-    // (name, country_code) key. region_id is nullable and SQLite treats NULLs as distinct in a
-    // unique index, so a naive UNIQUE(name, country_code, region_id) would re-open BUG-33 for every
-    // non-region-tier country. COALESCE(region_id, 0) collapses NULL to a sentinel: regions.id is
-    // AUTOINCREMENT from 1 and never issues 0, so the sentinel cannot collide with a real region.
-    // The new key is strictly more permissive than the old one, so no existing row can violate it
-    // (no backfill). For non-region-tier countries region_id is invariantly NULL, so the key
-    // degenerates to (name, country_code) — today's guarantee, unchanged. COLLATE NOCASE is
-    // SQLite's ASCII-only case fold; Backend's find-or-create lookup must match this collation and
-    // the COALESCE, or it will attempt duplicate inserts.
-    uniqueIndex('uniq_cities_name_country_region_ci').on(
-      sql`${t.name} COLLATE NOCASE`,
-      t.countryCode,
-      sql`COALESCE(${t.regionId}, 0)`,
-    ),
+    // BUG-75 / GE-16 (v3.19, design v3 §B2 SWITCH stage, migration 0017): the unconditional
+    // uniq_cities_name_country_region_ci index (ADL-46 D13) is REPLACED by two partial unique
+    // indexes below — it forbade any two rows sharing (name, country, region) at all, which is
+    // exactly what prevented distinct real places (e.g. two same-region Newports) from coexisting.
+    //
+    // 1) Resolved-by-OSM identity — one row per real OSM place. Covers pending AND resolved rows
+    // that carry an osm_id (any osm_id-writing site), which is what gives a concurrent same-place
+    // create/resolve its free merge-on-collision (M1/F3 caught-unique-violation discipline).
+    // Partial WHERE osm_id IS NOT NULL means existing/legacy NULL-osm_id rows never collide here
+    // (no BUG-33 reopen; no backfill needed — this key is additive, not a replacement of a
+    // guarantee those rows relied on).
+    uniqueIndex('uniq_cities_osm_ref').on(t.osmType, t.osmId).where(sql`${t.osmId} IS NOT NULL`),
+    // 2) Pending-per-creator identity — lets two different users each hold their own pending
+    // row for the same (name, country, region) without colliding (v2 §7 creator-scoped pending),
+    // now that the global index is gone. COALESCE(region_id, 0) collapses NULL region to a
+    // sentinel (regions.id AUTOINCREMENTs from 1, never issues 0 — carried forward from D13).
+    // COALESCE(created_by_user_id, '') collapses NULL creator to one sentinel that cannot collide
+    // with a real Clerk id. Partial WHERE geocode_status = 'pending' means resolved rows are
+    // governed only by the resolved-by-OSM index above, not this one.
+    uniqueIndex('uniq_cities_pending_per_creator')
+      .on(
+        sql`${t.name} COLLATE NOCASE`,
+        t.countryCode,
+        sql`COALESCE(${t.regionId}, 0)`,
+        sql`COALESCE(${t.createdByUserId}, '')`,
+      )
+      .where(sql`${t.geocodeStatus} = 'pending'`),
+    // m-3 (v3 delta review): both-or-neither guard on the identity pair. The resolved-by-OSM
+    // index above is keyed (osm_type, osm_id) — if a row ever had osm_id non-null with osm_type
+    // NULL, SQLite's NULL-distinct semantics would silently weaken uniqueness in the first key
+    // position. The Zod refine at the API boundary (design v3 §2.3) enforces this too; this CHECK
+    // closes it at the DB layer the index itself depends on.
+    check('chk_cities_osm_both_or_neither', sql`(${t.osmType} IS NULL) = (${t.osmId} IS NULL)`),
   ],
 );
 

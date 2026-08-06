@@ -23,7 +23,8 @@ import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
-import { resolveCity, resolveCityName } from '../services/geocoding.service.js';
+import { isUniqueViolation } from '../services/db-errors.js';
+import { resolveByOsmId, resolveCity, resolveCityName } from '../services/geocoding.service.js';
 import {
   CityItemsQuerySchema,
   CreateCitySchema,
@@ -32,6 +33,9 @@ import {
 } from '../validation/cities.schemas.js';
 
 export const citiesRouter = Router();
+
+/** A full cities row, as returned by a select()/insert().returning(). */
+type CityRow = typeof cities.$inferSelect;
 
 // ----------------------------------------------------------------
 // GET /api/cities  (search)
@@ -240,6 +244,144 @@ async function findOrUpgradeCity(
   return null;
 }
 
+/** BUG-75 v3 §B2/B3 — an existing row already carrying this exact OSM ref, if any. */
+async function findCityByOsmRef(
+  db: ReturnType<typeof getDb>,
+  osmType: string | null | undefined,
+  osmId: number | null | undefined,
+): Promise<CityRow | null> {
+  if (osmType == null || osmId == null) return null;
+  const rows = await db
+    .select()
+    .from(cities)
+    .where(and(eq(cities.osmType, osmType), eq(cities.osmId, osmId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * BUG-75 v3 §B3/M1/F3 — the caught-unique-violation → re-select-and-reuse
+ * pattern shared by every create-path INSERT (both the legacy resolved/
+ * pending inserts below and the carried-ref inserts in
+ * createOrReuseCarriedCity). A concurrent request for the same real place
+ * wins the INSERT race; the loser catches the violation, re-selects, and
+ * reuses the winner's row — never a 500, never a silent duplicate attempt.
+ *
+ * Not wrapped in db.transaction(): a single INSERT is already atomic w.r.t.
+ * the unique index in SQLite, and a live probe against this project's libSQL
+ * :memory: test client showed db.transaction() nulls out the client's
+ * connection, breaking every subsequent query on it (repositories/trips.ts
+ * documents the same finding) — the catch + re-select pattern here is
+ * correct without an explicit transaction wrapper.
+ */
+async function insertCityOrReuse(
+  insert: () => Promise<CityRow[]>,
+  reselect: () => Promise<CityRow | null | undefined>,
+): Promise<{ row: CityRow; created: boolean }> {
+  try {
+    const inserted = await insert();
+    return { row: inserted[0], created: true };
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    const existing = await reselect();
+    if (existing) return { row: existing, created: false };
+    throw err;
+  }
+}
+
+/**
+ * BUG-75 v3 §B1-B3 — find-or-create by the CARRIED OSM identity
+ * (osm_type, osm_id), bypassing the legacy (name, country, region) match
+ * entirely (B2: the legacy fallback fires only when the incoming pick has NO
+ * osm_id — firing it here would collapse distinct real places sharing
+ * (name, country, region) onto each other, exactly the coexistence case this
+ * feature exists to fix).
+ *
+ *   (a) an existing row already carrying this exact ref → reuse directly, no
+ *       /lookup call (bounds egress: a repeat create of an already-known
+ *       place costs zero additional Nominatim requests).
+ *   (b) miss → canonicalize by ID via resolveByOsmId (F1, /lookup?osm_ids=).
+ *       The server re-derives canonical coords/name from its OWN lookup; the
+ *       carried ref only SELECTS which real place this is (v3 §2.3 — no
+ *       client-trusted coordinates).
+ *   (c)/(d) INSERT — resolved if canonicalized, else PENDING carrying the ref
+ *       (M-B: covers BOTH genuinely offline/error AND a stale/reclassified
+ *       carried id the same way, since both degrade to the same self-healing
+ *       pending state on the create path — the standing 15-minute queue
+ *       picks it up via resolveCity's carried-ref branch, which is where the
+ *       two cases DO diverge, M-B's terminal 'unresolvable'). Both INSERTs
+ *       go through insertCityOrReuse (M1/F3).
+ */
+async function createOrReuseCarriedCity(
+  db: ReturnType<typeof getDb>,
+  input: {
+    osmType: 'node' | 'way' | 'relation';
+    osmId: number;
+    displayName: string | null;
+    name: string;
+    countryCode: string;
+    regionId: number | null;
+    userId: string;
+  },
+): Promise<{ city: CityRow; created: boolean }> {
+  const { osmType, osmId, displayName, name, countryCode, regionId, userId } = input;
+
+  const existingByRef = await findCityByOsmRef(db, osmType, osmId);
+  if (existingByRef) return { city: existingByRef, created: false };
+
+  const canonical = await resolveByOsmId(osmType, osmId);
+  const now = new Date().toISOString();
+
+  if (canonical) {
+    const { row, created } = await insertCityOrReuse(
+      () =>
+        db
+          .insert(cities)
+          .values({
+            name: canonical.name?.trim() || name,
+            countryCode,
+            regionId,
+            latitude: canonical.latitude,
+            longitude: canonical.longitude,
+            osmType: canonical.osmType ?? osmType,
+            osmId: canonical.osmId ?? osmId,
+            displayName: canonical.displayName ?? displayName,
+            geocodeStatus: 'resolved',
+            createdByUserId: userId,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning(),
+      () => findCityByOsmRef(db, osmType, osmId),
+    );
+    return { city: row, created };
+  }
+
+  // M-B: offline/error OR a stale/reclassified carried id — both degrade to
+  // a pending row retaining the carried ref so a later resolve (the
+  // standing queue) can canonicalize or terminally resolve it.
+  const { row, created } = await insertCityOrReuse(
+    () =>
+      db
+        .insert(cities)
+        .values({
+          name,
+          countryCode,
+          regionId,
+          osmType,
+          osmId,
+          displayName,
+          geocodeStatus: 'pending',
+          createdByUserId: userId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning(),
+    () => findCityByOsmRef(db, osmType, osmId),
+  );
+  return { city: row, created };
+}
+
 // ----------------------------------------------------------------
 // POST /api/cities
 // ADL-46 D4/D5/GE-16: city CREATION is a constrained, service-validated
@@ -263,7 +405,7 @@ citiesRouter.post(
   '/',
   validateBody(CreateCitySchema),
   asyncHandler(async (req, res) => {
-    const { name, country_code, region_id } = req.body;
+    const { name, country_code, region_id, osm_type, osm_id, display_name } = req.body;
     const userId = req.user!.id;
     const db = getDb();
 
@@ -295,6 +437,30 @@ citiesRouter.post(
       regionIso = regionRows[0].iso;
     }
 
+    // BUG-75 v3 §2.3/§B1-B3 — carried-pick branch. B2: a carried osm_id takes
+    // over the WHOLE find-or-create decision; the legacy (name, country,
+    // region) fallback below is for name-only input and must NOT fire here —
+    // it would collapse distinct real places sharing (name, country, region)
+    // onto each other via the name match instead of coexisting by osm_id
+    // (exactly the coexistence case this feature exists to fix). region_id
+    // (D12 rule 3) and display_name flow straight to createOrReuseCarriedCity
+    // unchanged — the server never trusts client coordinates (§2.3; none are
+    // even accepted by CreateCitySchema).
+    if (osm_type != null && osm_id != null) {
+      const result = await createOrReuseCarriedCity(db, {
+        osmType: osm_type,
+        osmId: osm_id,
+        displayName: display_name ?? null,
+        name,
+        countryCode: country_code,
+        regionId: region_id ?? null,
+        userId,
+      });
+      res.status(result.created ? 201 : 200).json(serializeCity(result.city));
+      return;
+    }
+
+    // ── Legacy (name, country, region) branch — unchanged shape ──
     // Pass 1 (§4.3 step 2) — find-or-create against the user's submitted name.
     const found1 = await findOrUpgradeCity(db, name, country_code, region_id ?? null, userId);
     if (found1) {
@@ -335,22 +501,38 @@ citiesRouter.post(
       // the user-supplied country_code / region_id with the lookup's — the user
       // has ground truth about where they went; the lookup supplies only coords
       // and the canonical name.
+      //
+      // M-A (delta review, v2 §7 rule 2c restored): stamp the candidate's OSM
+      // ref on EVERY resolve, not only carried-pick resolves — otherwise this
+      // row is invisible to the resolved-by-OSM merge mechanism and a second
+      // user converging on the same real place via a different name creates a
+      // duplicate NULL-osm_id row. F3: the INSERT is caught-violation →
+      // re-select-and-reuse (M1) — a concurrent same-place add merges instead
+      // of 500ing.
+      const best = resolution.best;
       const now = new Date().toISOString();
-      const inserted = await db
-        .insert(cities)
-        .values({
-          name: canonicalName,
-          countryCode: country_code,
-          regionId: region_id ?? null,
-          latitude: resolution.best.latitude,
-          longitude: resolution.best.longitude,
-          geocodeStatus: 'resolved',
-          createdByUserId: userId,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
-      res.status(201).json(serializeCity(inserted[0]));
+      const { row: insertedRow, created } = await insertCityOrReuse(
+        () =>
+          db
+            .insert(cities)
+            .values({
+              name: canonicalName,
+              countryCode: country_code,
+              regionId: region_id ?? null,
+              latitude: best.latitude,
+              longitude: best.longitude,
+              osmType: best.osmType ?? null,
+              osmId: best.osmId ?? null,
+              displayName: best.displayName ?? null,
+              geocodeStatus: 'resolved',
+              createdByUserId: userId,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .returning(),
+        () => findCityByOsmRef(db, best.osmType, best.osmId),
+      );
+      res.status(created ? 201 : 200).json(serializeCity(insertedRow));
       return;
     }
 
@@ -359,21 +541,27 @@ citiesRouter.post(
     // blocks creation (GE-12); the frontend's D14 candidate flow disambiguates
     // via the region selector, after which a re-submit with a region hits the
     // wildcard-upgrade path above.
+    //
+    // F3: caught-violation → re-select-and-reuse (M1) — a double-submit or
+    // concurrent request for the same (name, country, region, creator) pending
+    // key merges onto the existing row instead of 500ing.
     const now = new Date().toISOString();
-    const inserted = await db
-      .insert(cities)
-      .values({
-        name,
-        countryCode: country_code,
-        regionId: region_id ?? null,
-        geocodeStatus: 'pending',
-        createdByUserId: userId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
-
-    const city = inserted[0];
+    const { row: city, created } = await insertCityOrReuse(
+      () =>
+        db
+          .insert(cities)
+          .values({
+            name,
+            countryCode: country_code,
+            regionId: region_id ?? null,
+            geocodeStatus: 'pending',
+            createdByUserId: userId,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning(),
+      () => findOrUpgradeCity(db, name, country_code, region_id ?? null, userId),
+    );
 
     // Fire-and-forget the queue re-resolution so a legitimate city created while
     // the geocoder was unreachable is promoted to 'resolved' (and globally
@@ -387,14 +575,14 @@ citiesRouter.post(
     // answer there is genuinely unknown to this route. The 15-minute queue
     // still picks the pending ambiguous row up and spends its bounded retry
     // budget — that cost is intended, not a leak.
-    if (resolution.status !== 'ambiguous') {
+    if (created && resolution.status !== 'ambiguous') {
       resolveCity(city.id).catch(() => {
         /* handled internally — defensive catch */
       });
     }
 
     const fresh = await db.select().from(cities).where(eq(cities.id, city.id)).limit(1);
-    res.status(201).json(serializeCity(fresh[0] ?? city));
+    res.status(created ? 201 : 200).json(serializeCity(fresh[0] ?? city));
   }),
 );
 

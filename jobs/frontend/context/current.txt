@@ -831,3 +831,33 @@ touching that file at all). useCities.geocode.test.tsx extended with a
 retry-proof test (apiGet fails twice, succeeds on the 3rd call) and the
 `failed` discriminator across all existing cases. CI 18/18 green on PR #354.
 No backend files touched; BUG-72's city-search dropdown label untouched.
+
+UPDATE 2026-08-06 — BUG-75/UX-12 shared CityPicker (branch feat/bug75-frontend
+off release/bug75-city-identity, no PR — COO merges into release per the
+build brief). New src/frontend/components/shared/CityPicker.tsx: generic
+place-level candidate picker (candidates/onSelect/truncated/disabled props,
+no AddPlaceFlow coupling), extended into AddPlaceFlow.tsx's existing D14
+handleOpenNewCityForm branch (NOT forked) — fires when 2+ country-matching
+candidates carry distinct osm_id (positive identity evidence), leaving the
+existing multi-region <select> (cross-region ambiguity) and single-candidate
+regionIsSuggested auto-fill completely untouched. Scope decision flagged to
+COO: v3 design §B5 says the old narrowing "REPLACEs" for the whole ambiguous
+case and bug78-79.test.tsx's tests "move" to the picker — taken literally
+that breaks a currently-green regression-parity test
+(AddPlaceFlow.test.tsx's Denver/Denver-County "two candidates sharing ONE
+region are NOT flagged ambiguous", tied to the backend's classifyCandidates
+ADL-46 F1/F2 parity contract), so I gated on osm_id-distinctness instead of
+raw candidate count — narrower than the design doc's prose, deliberately,
+per my dispatch's own no-regressions requirement. GeocodeCandidate gained
+optional osm_type/osm_id (types/api.ts); CreateCityData gained optional
+osm_type/osm_id/display_name (useCities.ts) — both optional so every
+pre-existing fixture without them still type-checks (same pattern as
+GeocodeResult.truncated). Target RED test (AddPlaceFlow.city-picker.test.tsx)
+green, not edited, 3/3. Full suite 273/273 green (38 files) — no regressions.
+type:check/type:check:all/biome check all clean. UX-12's actual "Change
+city" call site NOT built — verified by two probes (grep + component
+directory listing) that no such UI exists anywhere in the frontend yet;
+CityPicker's contract is ready for it but building the modal/button/hook
+itself is separate, un-briefed work (UX-12, P1, own UX spec). Full detail:
+jobs/frontend/park-docs/20260806-FRONTEND-bug75-citypicker-park.txt and
+jobs/frontend/tech/20260806-bug75-citypicker.md.
