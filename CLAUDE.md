@@ -365,6 +365,39 @@ that PO input is *tested*, on two axes, before it becomes law or work:
 Both axes resolve to the move the team already owes every other source — **probe before promote.**
 This rule simply states that the PO is a source, not an exception.
 
+### ATDD-first for Architect-spawned briefs (mandatory, OP-35)
+
+Adopted 2026-08-05 (ADL-50), promoting open-dialogue D-17 after its trial passed on the ADL-46 release.
+**For an implementation brief that an Architect spec spawns, the COO dispatches QA FIRST** — QA turns the
+success criteria into *red* acceptance/integration tests, handed to the implementer as the executable
+definition of done, before the implementation brief runs. This is acceptance-test-first (independent
+specification of behaviour), not the per-developer TDD inner loop implementers already do; its value is
+breaking the closed loop where the implementer writes both the code and the tests that certify it — the
+same principle as OP-27 fresh-eyes and the negative-findings two-probe rule.
+
+**The trigger is objective — keyed to Architect involvement, not a subjective "complexity" call.** Required
+for the implementation briefs an Architect spec spawns; not required for briefs that never reach the
+Architect. "Goes to Architect" already gates the high-stakes classes: access-matrix / ownership-scoping
+(ADL-27), data-integrity invariants (schema / migration / uniqueness / FK / dedup), a multi-brief release
+exposing a shared contract, and any risk the Architect named as "get this wrong and it breaks silently."
+Principle: apply it when a wrong implementation would be *silent-and-plausible* and the behaviour is
+*precisely specifiable up front*. One deliberate, recorded coverage gap: complex *frontend* work that never
+sees the Architect (visible/recoverable failures) is excluded — revisit if UAT starts catching such logic
+bugs.
+
+**Mock-fidelity is part of the rule, not optional.** The trial's ATDD suite was partly green for the wrong
+reason — a mock omitted a function the route called, the try/catch swallowed the error, and tests passed
+without exercising anything (QUAL-22). So an ATDD brief must verify its test doubles export/behave like the
+real dependency; a suite that can pass vacuously has specified nothing. The honest claim ATDD earns is
+narrow: writing tests first stops them being bent to fit the code — it does not by itself make them good
+tests.
+
+**Mechanics.** The Architect marks each brief its spec spawns `ATDD-first: yes/no` (in the Architect system
+prompt, so it reaches the COO pre-set); the COO's duty is one line — when a brief is marked ATDD-first,
+dispatch QA before the implementer. A warn-hook (`.claude/hooks/atdd-first-guard.sh`) backs this up on the
+`gh`-issue / brief-file channels (it cannot see Agent-tool dispatch prompts — the marking + COO duty are the
+primary controls there). Full record + verdict + the honest qualification: ADL-50.
+
 ### Document lifecycle (mandatory)
 Adopted 2026-07-07 after the doc-integrity audit (`audits/session-a-doc-integrity.md`)
 found that every HIGH-severity stale-doc failure traced to a missing closing step, not

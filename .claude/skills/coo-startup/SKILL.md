@@ -127,6 +127,18 @@ echo '{"tool_name":"Edit","tool_input":{"file_path":"/workspace/jobs/COO/open-di
   | bash /workspace/.claude/hooks/no-wholesale-rewrite.sh | grep -q "no-wholesale-rewrite" \
   && echo "FAIL: no-wholesale-rewrite guard fires on Edit (should be silent)" \
   || echo "no-wholesale-rewrite guard (Edit path) OK"
+
+# atdd-first guard (OP-35 / ADL-50) must warn on a brief touching a high-stakes trigger
+# (schema/migration/auth-gate) with no stated ATDD decision...
+echo '{"tool_name":"Bash","tool_input":{"command":"gh issue create --body \"add a NOT NULL column to schema.ts and a migration\""}}' \
+  | bash /workspace/.claude/hooks/atdd-first-guard.sh | grep -q "atdd-first-guard" \
+  && echo "atdd-first guard OK" || echo "FAIL: atdd-first guard broken"
+
+# ...and must stay silent once an ATDD decision is stated (the correct way to clear it)
+echo '{"tool_name":"Bash","tool_input":{"command":"gh issue create --body \"migration to schema.ts. ATDD-first: yes\""}}' \
+  | bash /workspace/.claude/hooks/atdd-first-guard.sh | grep -q "atdd-first-guard" \
+  && echo "FAIL: atdd-first guard fires when ATDD stated (should be silent)" \
+  || echo "atdd-first guard (ATDD-stated path) OK"
 ```
 
 Any FAIL → fix the hook before doing anything else this session. Secondary tell for the

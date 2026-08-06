@@ -4254,3 +4254,78 @@ host"* is the load-bearing premise of the MapTiler deferral and is **inferred fr
 topology, not observed**. A third, offered because a self-named weakness is a hypothesis rather than
 a confession: §5.6's fixture-honesty mechanisms may be theatre around the real property, which is
 simply that a genuine 40-field Nominatim response is expensive to fake convincingly.
+
+---
+
+## ADL-50 — ATDD-first (independent acceptance tests before implementation) for Architect-spawned briefs
+
+**Date:** 2026-08-05 · **Author:** COO (promoting open-dialogue D-17 on PO ratification) ·
+**Status:** ADOPTED & implemented in this entry's PR — CLAUDE.md OP-35, the Architect-prompt marking,
+and the `atdd-first-guard.sh` warn-hook. Supersedes the "ON TRIAL" state of open-dialogue D-17.
+
+**Trigger.** D-17 ran ATDD-first as a trial across the ADL-46 access-model release (2026-07-30 →
+close 2026-08-01) and reached a positive-but-qualified verdict; the formal verdict + promotion was due
+at release close and was never written. PO confirmed 2026-08-05 (*"trial passed, we just didn't promote
+it"*). This entry writes the verdict and promotes the rule.
+
+**The rule.** For an implementation brief that an Architect spec spawns, the COO dispatches **QA first**
+to turn the success criteria into *red* acceptance/integration tests — handed to the implementer as the
+executable definition of done — before the implementation brief runs. This is ATDD / acceptance-test-first
+(independent specification of behaviour), **not** the per-developer TDD inner loop implementers already do.
+Its value is breaking the closed loop where the implementer writes both the code and the tests that certify
+it: an independent QA author means a misread of the spec cannot produce code and tests that agree with each
+other while both diverge from intent — the same principle as OP-27 fresh-eyes and the negative-findings
+two-probe rule.
+
+**The trigger is objective — keyed to Architect involvement, not a subjective "complexity" judgement.**
+Required for the implementation briefs an Architect spec spawns; not required for briefs that never reach
+the Architect. "Goes to Architect" already gates exactly the high-stakes classes: access-matrix /
+ownership-scoping changes (ADL-27), data-integrity invariants (schema / migration / uniqueness / FK /
+dedup), a multi-brief release exposing a contract other briefs consume, and any risk the Architect
+explicitly named as "get this wrong and it breaks silently." Underlying principle: apply it when *a wrong
+implementation would be silent-and-plausible* AND *the intended behaviour is precisely specifiable in
+advance* — Architect-involvement is the objective proxy, and it self-widens (more routes → bigger access
+matrix, more tables → more integrity invariants).
+
+**Deliberate coverage gap (recorded, not hidden).** Complex *frontend/behavioural* work that legitimately
+never sees the Architect (filter logic, date-defaults, cross-screen behaviour) is excluded: its failures
+are visible and recoverable — they surface in UAT — not silent-and-costly, so ATDD's extra dispatch round
+does not pay back there; it leans on implementer tests + UAT + OP-32 (which forces the test the *second*
+time it breaks). Revisit trigger: if UAT starts catching complex-frontend logic bugs that slipped
+implementer tests, promote this trigger back.
+
+**Verdict (the honest finding, which the promoted rule must carry).** Both promotion conditions were met:
+QA-first caught at least one behavioural divergence the implementer's own tests would have missed (the HC-06
+spec-inventory gap; the D13 reverse single-match duplicate, caught by layered review even where QA's own
+suite missed it), and the cost — one QA dispatch + one fix-cycle, no rebuilds — was proportionate.
+**QUALIFIED:** on the same release the 32-test ATDD suite was partly "green for the wrong reason" — a
+geocoding mock omitted `resolveCityName`, so the route's try/catch swallowed the resulting TypeError and a
+group of tests passed without exercising what they claimed (QUAL-22). The honest claim is therefore
+narrower than "ATDD works": *writing tests first prevented them being bent to fit the implementation, which
+is worth having; it did not by itself make them good tests.* **Consequence for the rule — an ATDD brief
+must carry a mock-fidelity check:** the test doubles must export/behave like the real dependency, so a
+suite cannot pass vacuously.
+
+**Placement (implemented this entry).**
+- **CLAUDE.md OP-35** — the operating rule, the objective trigger, the mock-fidelity requirement, and the
+  COO's one-line duty (dispatch QA before the implementer when a spec marks a brief ATDD-first).
+- **Architect system prompt** (`jobs/architect/architect-system-prompt.txt`) — the Architect marks each
+  implementation brief its spec spawns `ATDD-first: yes/no`, so the flag reaches the COO pre-set. Home
+  chosen so the rule is loaded only when the Architect runs — i.e. only for the complex work it governs.
+- **Warn-hook backstop** (`.claude/hooks/atdd-first-guard.sh`, registered PostToolUse) — fires when a
+  brief authored into a `gh issue create` / `gh pr create` body, or into a `*brief*` file under `jobs/**`,
+  touches `schema.ts`, `migrations/`, or `require(Owner|Auth)` WITHOUT a stated ATDD decision. Warn-not-block
+  (OP-26/OP-28 precedent). **Known blind spot, stated honestly:** PostToolUse hooks see `Write`/`Edit`/`Bash`,
+  NOT Agent-tool dispatch prompts, so a brief dispatched directly through the Agent tool is invisible to this
+  hook — the Architect-prompt marking + the COO duty are the primary controls there; the hook backs up the
+  `gh`-issue and brief-file channels. Canary added to `/coo-startup`.
+
+**Alternatives considered.** (1) Blanket TDD on every brief — rejected: pure ceremony where failures are
+visible/recoverable (the coverage gap above). (2) A subjective "enough complexity" threshold — rejected: it
+would be re-litigated every session; the Architect-involvement proxy is objective and self-widening. (3)
+Keeping the rule out of CLAUDE.md (the trial-era placement idea, to avoid an always-on read cost) — narrowed:
+a short CLAUDE.md handle (OP-35) is added for discoverability and one-canonical-home, with the full record
+here and the operational marking in the Architect prompt.
+
+**Implementation status.** IMPLEMENTED in this PR. First application: the BUG-75 Round-4 build
+(Architect-spec'd, schema + migration, access-adjacent) — QA-first, on Opus 5.
