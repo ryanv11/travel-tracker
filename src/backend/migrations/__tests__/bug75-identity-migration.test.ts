@@ -169,6 +169,17 @@ describe('BUG-75 SWITCH behaviour — coexistence succeeds, same-osm_id collides
     await db.run(
       sql`INSERT INTO countries (country_code, name, region_tier_enabled) VALUES ('GB','United Kingdom',1)`,
     );
+    // cities.created_by_user_id is an FK to users.id (schema.ts:119). Seed the two
+    // creators before referencing them, or the inserts die on FK enforcement
+    // (PRAGMA foreign_keys = ON in createTestDb) before the index assertion is reached.
+    await db.run(
+      sql`INSERT INTO users (id, clerk_id, email, created_at, updated_at)
+          VALUES ('user-x','user_x','user-x@example.com',0,0)`,
+    );
+    await db.run(
+      sql`INSERT INTO users (id, clerk_id, email, created_at, updated_at)
+          VALUES ('user-y','user_y','user-y@example.com',0,0)`,
+    );
     // Two legacy/pending rows with NULL osm_id, different creators — the resolved-by-OSM
     // index must not fire (it is partial), so this must succeed.
     await db.run(
