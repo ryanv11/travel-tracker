@@ -26,9 +26,22 @@
  * search through this same chokepoint, so an interactive request interleaves
  * naturally rather than queueing behind the entire pending set. D10's give-up
  * rule bounds how large the batch can ever get.
+ *
+ * BUG-75 v3 §B1/§D (2026-08-06): a second endpoint, `nominatimLookup` (Nominatim
+ * `/lookup?osm_ids=`, canonicalize-by-id — F1), was added alongside `nominatimSearch`.
+ * Both funnel through the SAME extracted `enqueue()` chokepoint function below —
+ * one physical code path owns `chain`/`lastRequestAt`, so a second endpoint could
+ * not silently become a second, uncoordinated egress site (the risk the delta
+ * review's §D flagged as the one thing a careless build must not get wrong).
  */
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';
+/**
+ * BUG-75 v3 §B1(1) — the /lookup endpoint, canonicalize-by-id. A DIFFERENT
+ * path from the search chokepoint above, but routed through the exact same
+ * serialized `enqueue()` below — see the m-2 hardening note there.
+ */
+const NOMINATIM_LOOKUP_BASE = 'https://nominatim.openstreetmap.org/lookup';
 const USER_AGENT = 'TravelTracker/1.0 (personal-use-app)';
 /** 100ms above Nominatim's 1 req/s policy (ADL-10). */
 const REQUEST_DELAY_MS = 1100;
@@ -63,6 +76,21 @@ export interface NominatimCandidate {
   /** Nominatim class/type — used to filter to settlements. */
   class?: string;
   type?: string;
+  /**
+   * BUG-75 v3 (§0/§2.3) — the carried identity pair. Optional (not `null`
+   * defaulted to a required field) because some existing fixtures/callers in
+   * this codebase predate BUG-75 and never populate it; a real Nominatim
+   * response always includes both. `null` means the raw response omitted
+   * the field; `undefined` means the caller's fixture never set it.
+   */
+  osmType?: 'node' | 'way' | 'relation' | null;
+  osmId?: number | null;
+  /**
+   * BUG-75 v3 (M2 discriminator, §B1) — address.county, falling back to
+   * address.state_district. Render/disambiguation aid only, NEVER a match
+   * key (display_name/county are payload, not identity — v3 §0).
+   */
+  county?: string | null;
 }
 
 interface RawNominatimResult {
@@ -72,9 +100,16 @@ interface RawNominatimResult {
   name?: string;
   class?: string;
   type?: string;
+  /** BUG-75 v3 §B1/§2.1 — the carried identity pair, straight off Nominatim. */
+  osm_type?: string;
+  osm_id?: number;
   address?: {
     country_code?: string;
     'ISO3166-2-lvl4'?: string;
+    /** BUG-75 v3 (M2 discriminator). */
+    county?: string;
+    /** BUG-75 v3 (M2 discriminator, fallback when county is absent). */
+    state_district?: string;
   };
 }
 
@@ -114,6 +149,58 @@ export type NominatimSearchResult =
   | { status: 'error' };
 
 /**
+ * BUG-75 v3 §D / delta review m-2 — THE serialized chokepoint, physically
+ * extracted (it used to live inline inside nominatimSearch, pre-BUG-75) so
+ * every Nominatim call site — search AND lookup — enqueues its `run` closure
+ * onto this ONE module-level `chain`/`lastRequestAt` pair. This is what makes
+ * "same chokepoint, not a parallel fetch" a property of the code rather than
+ * a convention a future caller could get wrong (the #1 risk the v3 delta
+ * review's §D flagged for a careless build). Owns ONLY the delay-wait +
+ * chain-append serialization; the fetch/parse/error-shaping is the caller's.
+ */
+function enqueue<T>(run: () => Promise<T>): Promise<T> {
+  const timedRun = async (): Promise<T> => {
+    // Space requests: wait out the remainder of the delay window since the last
+    // request START, application-wide.
+    const elapsed = Date.now() - lastRequestAt;
+    if (elapsed < REQUEST_DELAY_MS) {
+      await sleep(REQUEST_DELAY_MS - elapsed);
+    }
+    lastRequestAt = Date.now();
+    return run();
+  };
+
+  // Append to the serialized chain; swallow errors so one failure never breaks
+  // the chain for the next caller.
+  const result = chain.then(timedRun, timedRun);
+  chain = result.catch(() => undefined);
+  return result;
+}
+
+/** Fetches one Nominatim URL with the shared timeout/User-Agent/abort handling.
+ * Throws on a non-2xx response or a network/timeout failure — callers (both
+ * nominatimSearch and nominatimLookup) catch this and translate it into their
+ * own {status:'error'} result, matching this module's pre-BUG-75 behaviour. */
+async function fetchNominatim(url: string): Promise<RawNominatimResult[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: controller.signal,
+    });
+    if (!resp.ok) {
+      // Recoverable (4xx/5xx/429) — caller keeps the row pending and retries.
+      console.warn(`[GEO] Nominatim HTTP ${resp.status}`);
+      throw new Error(`Nominatim HTTP ${resp.status}`);
+    }
+    return (await resp.json()) as RawNominatimResult[];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Runs one Nominatim search through the serialized chokepoint. Never throws.
  *
  * @param params - Query entries (q, countrycodes, limit, etc.). The module
@@ -124,61 +211,64 @@ export async function nominatimSearch(
 ): Promise<NominatimSearchResult> {
   if (!geocodingEnabled()) return { status: 'disabled' };
 
-  const run = async (): Promise<NominatimSearchResult> => {
-    // Space requests: wait out the remainder of the delay window since the last
-    // request START, application-wide.
-    const elapsed = Date.now() - lastRequestAt;
-    if (elapsed < REQUEST_DELAY_MS) {
-      await sleep(REQUEST_DELAY_MS - elapsed);
-    }
-    lastRequestAt = Date.now();
+  const search = new URLSearchParams({ ...params, format: 'json', addressdetails: '1' });
+  const url = `${NOMINATIM_BASE}?${search}`;
 
-    const search = new URLSearchParams({
-      ...params,
-      format: 'json',
-      addressdetails: '1',
-    });
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-      const resp = await fetch(`${NOMINATIM_BASE}?${search}`, {
-        headers: { 'User-Agent': USER_AGENT },
-        signal: controller.signal,
-      });
-      if (!resp.ok) {
-        // Recoverable (4xx/5xx/429) — caller keeps the row pending and retries.
-        console.warn(`[GEO] Nominatim HTTP ${resp.status}`);
-        return { status: 'error' };
-      }
-      const data = (await resp.json()) as RawNominatimResult[];
-      // BUG-79: preserve the pre-filter signal before the settlement-type/
-      // parse filter below discards it. Compared against the LIMIT WE
-      // REQUESTED, not an assumed cap on Nominatim's side (its actual max is
-      // unverified and irrelevant here) — if the raw response is at least as
-      // large as what we asked for, there may be more matches beyond it.
-      const requestedLimit = Number(params.limit);
-      const truncated = Number.isFinite(requestedLimit) && data.length >= requestedLimit;
-      const candidates = data
-        .map(parseCandidate)
-        .filter(
-          (c): c is NominatimCandidate =>
-            c !== null && (c.type == null || SETTLEMENT_TYPES.has(c.type)),
-        );
-      return { status: 'ok', candidates, truncated };
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-
-  // Append to the serialized chain; swallow errors so one failure never breaks
-  // the chain for the next caller.
-  const result = chain.then(run, run);
-  chain = result.catch(() => undefined);
   try {
-    return await result;
+    const data = await enqueue(() => fetchNominatim(url));
+    // BUG-79: preserve the pre-filter signal before the settlement-type/
+    // parse filter below discards it. Compared against the LIMIT WE
+    // REQUESTED, not an assumed cap on Nominatim's side (its actual max is
+    // unverified and irrelevant here) — if the raw response is at least as
+    // large as what we asked for, there may be more matches beyond it.
+    const requestedLimit = Number(params.limit);
+    const truncated = Number.isFinite(requestedLimit) && data.length >= requestedLimit;
+    const candidates = data
+      .map(parseCandidate)
+      .filter(
+        (c): c is NominatimCandidate =>
+          c !== null && (c.type == null || SETTLEMENT_TYPES.has(c.type)),
+      );
+    return { status: 'ok', candidates, truncated };
   } catch (err) {
     console.warn('[GEO] Nominatim request failed:', (err as Error).message);
+    return { status: 'error' };
+  }
+}
+
+/**
+ * BUG-75 v3 §B1 (F1) — canonicalize-by-id via Nominatim's `/lookup` endpoint,
+ * through the SAME serialized chokepoint as nominatimSearch. Unlike a name
+ * search, `/lookup` is queried BY the exact object(s) requested — it cannot
+ * exclude the pick the way a constrained top-N name search can (the gap F1
+ * closes; v3 §B1's live probe). No `truncated` concept: the response can
+ * never exceed the ids requested.
+ *
+ * @param osmIds - Type-prefixed ids, e.g. `['N26700978', 'W123']`
+ *                 (node→N, way→W, relation→R). Never throws.
+ */
+export async function nominatimLookup(osmIds: string[]): Promise<NominatimSearchResult> {
+  if (!geocodingEnabled()) return { status: 'disabled' };
+  if (osmIds.length === 0) return { status: 'ok', candidates: [] };
+
+  const search = new URLSearchParams({
+    osm_ids: osmIds.join(','),
+    format: 'json',
+    addressdetails: '1',
+  });
+  const url = `${NOMINATIM_LOOKUP_BASE}?${search}`;
+
+  try {
+    const data = await enqueue(() => fetchNominatim(url));
+    const candidates = data
+      .map(parseCandidate)
+      .filter(
+        (c): c is NominatimCandidate =>
+          c !== null && (c.type == null || SETTLEMENT_TYPES.has(c.type)),
+      );
+    return { status: 'ok', candidates };
+  } catch (err) {
+    console.warn('[GEO] Nominatim lookup failed:', (err as Error).message);
     return { status: 'error' };
   }
 }
@@ -189,6 +279,11 @@ function parseCandidate(raw: RawNominatimResult): NominatimCandidate | null {
   if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
   const displayName = raw.display_name ?? raw.name ?? '';
   const name = raw.name ?? displayName.split(',')[0]?.trim() ?? '';
+  const osmType =
+    raw.osm_type === 'node' || raw.osm_type === 'way' || raw.osm_type === 'relation'
+      ? raw.osm_type
+      : null;
+  const osmId = typeof raw.osm_id === 'number' ? raw.osm_id : null;
   return {
     displayName,
     name,
@@ -198,6 +293,9 @@ function parseCandidate(raw: RawNominatimResult): NominatimCandidate | null {
     regionIso: raw.address?.['ISO3166-2-lvl4'] ?? null,
     class: raw.class,
     type: raw.type,
+    osmType,
+    osmId,
+    county: raw.address?.county ?? raw.address?.state_district ?? null,
   };
 }
 

@@ -97,6 +97,10 @@ geocodeRouter.get(
 
     res.json({
       // Full candidate list (D14) — labelled by region for the selector.
+      // BUG-75 v3 §1/§B1: osm_type/osm_id are the carried identity a picked
+      // candidate's create request sends back (§2.3/§B1); display_name was
+      // already surfaced. Never a match key on this side either — just
+      // render/carry payload for the frontend CityPicker.
       candidates: candidates.map((c) => ({
         name: c.name,
         display_name: c.displayName,
@@ -104,6 +108,8 @@ geocodeRouter.get(
         region_iso: c.regionIso,
         latitude: c.latitude,
         longitude: c.longitude,
+        osm_type: c.osmType ?? null,
+        osm_id: c.osmId ?? null,
       })),
       // GE-15 auto-populate convenience — the top candidate's country/region.
       country_code: candidates[0]?.countryCode ?? null,
