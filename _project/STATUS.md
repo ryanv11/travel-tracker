@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (85)
+## Open work (88)
 
 ### P0 — Blockers (1)
 
@@ -38,7 +38,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-75 | D13 city identity key cannot represent two distinct same-name towns in the same region — live latent conflation | architect | ⬜ Pending |
 | BUG-76 | Our own SETTLEMENT_TYPES filter may discard legitimate tail places the geocoder does return | backend | ⬜ Pending |
 
-### P2 — Important (46)
+### P2 — Important (47)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -87,9 +87,10 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-77 | 22 region-tier countries ship with zero regions — 22 latent BUG-30s (ADL-48 S1) | database | done_pending_uat |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
+| QUAL-29 | Admin name-list resource (categories/activities/companions) triplicated across four layers — an admin-list factory that used to exist was unwound by the per-user migrations | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
-### P3 — Minor (30)
+### P3 — Minor (32)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -123,6 +124,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-70 | Companion.is_active typed number but serialized boolean (third instance of the class) | frontend | ⬜ Pending |
 | BUG-78 | 'Suggested:' region caption not bold enough to read as a value needing checking | frontend | done_pending_uat |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
+| QUAL-30 | DesktopTripsLayout and MobileTripsLayout duplicate ~130 lines of controller logic — proven drift (BUG-80 fixed in both) | frontend | ⬜ Pending |
+| QUAL-31 | Modal-overlay shell hand-repeated across 6+ sites — extract a shared <ModalOverlay> | frontend | ⬜ Pending |
 
 ## Coverage by type
 
@@ -132,7 +135,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `████████████░░░░░░░░` 45/76 | 45 | 31 | 3 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `████████▓░░░░░░░░░░░` 14/36 | 14 | 22 | 1 |
+| chore | `███████▓░░░░░░░░░░░░` 14/39 | 14 | 25 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -166,4 +169,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_137 done · 9 deferred · 5 closed · 85 open — 236 tracked items_
+_137 done · 9 deferred · 5 closed · 88 open — 239 tracked items_

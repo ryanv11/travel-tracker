@@ -890,7 +890,13 @@ PR #327 has that same `notes` field open on another branch** — a separate edit
 guaranteed a merge conflict on one JSON string (the D-13 failure shape). Fold it into the
 tracker once #327 merges, then strike this paragraph.
 
-### D-17: ATDD-first (independent acceptance tests before implementation) — ON TRIAL this release
+### D-17: ATDD-first (independent acceptance tests before implementation) — RESOLVED / PROMOTED
+> RESOLVED (2026-08-05) — PROMOTED to **ADL-50** + **CLAUDE.md OP-35** (trial passed on the ADL-46
+> release; PO-ratified 2026-08-05, *"trial passed, we just didn't promote it"*). Operational home: the
+> Architect-prompt `ATDD-first: yes/no` marking + the `.claude/hooks/atdd-first-guard.sh` warn-hook +
+> the startup canary. The promoted rule carries the honest qualification the trial surfaced — writing
+> tests first stops them being bent to the code, but a mock-fidelity check is required so a suite can't
+> pass vacuously (QUAL-22). The trial history below is retained in place for the record.
 **Raised:** 2026-07-30 · **Status:** TRIAL — **interim verdict POSITIVE (2026-07-31)**, pending
 release close (UAT). Promote to ADL on a positive verdict; narrow or drop on a negative one.
 
@@ -1078,6 +1084,12 @@ park doc, not the park doc itself.
 close-out review. COO recommends adopting. Deferred to a session with token headroom.
 
 ## Resolved
+
+### D-17: ATDD-first — PROMOTED 2026-08-05
+Trial passed on the ADL-46 release; promoted to **ADL-50** + **CLAUDE.md OP-35** + the Architect-prompt
+`ATDD-first: yes/no` marking + `.claude/hooks/atdd-first-guard.sh` + a startup canary. Full trial history
+retained in the Open section above, stamped RESOLVED in place (not moved — a 120-line cut is exactly the
+wholesale-rewrite OP-28 warns against). First application: the BUG-75 Round-4 build (QA-first, Opus 5).
 
 ### D-03: OP-21 process-kill guardrail (proposed, dropped)
 **Raised:** 2026-07-20 · **Resolved:** 2026-07-20
