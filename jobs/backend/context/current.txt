@@ -1,4 +1,44 @@
-BACKEND CONTEXT — 2026-08-04 (QUAL-26 thread, latest)
+BACKEND CONTEXT — 2026-08-07 (BUG-76/BUG-74 thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: implemented BUG-76 (P1, geocoder accept-rule) + BUG-74 (P2,
+  empty-vs-failed response contract) on branch feat/bug76-accept-rule-fix-impl,
+  branched off QA's pre-pushed feat/bug76-accept-rule-fix (holding the red ATDD
+  suite, OP-35). Turned all 18 assertions (AC-0..AC-13) green. Classification
+  (design doc, ADL-51): latent gap, not a regression — Denver has no OSM
+  settlement place-node, only an admin-boundary relation the old filter dropped.
+  1. src/backend/services/nominatim-client.ts: parseCandidate now captures
+     addressType: raw.addresstype (present under format=json&addressdetails=1 —
+     production request shape UNCHANGED, per design doc §9.1's correction that
+     switching to jsonv2 would BREAK parseCandidate's raw.class read). New
+     shared predicate isAcceptedSettlement(candidate) keys admission on
+     addressType (city/town/village/hamlet/municipality), with the
+     "discriminator absent -> admit" passthrough retained for legacy
+     fixtures/the /lookup canonicalize-by-id path. Replaces the old
+     SETTLEMENT_TYPES.has(c.type) gate — type/class carried as metadata only,
+     no longer the admission decision — at BOTH nominatimSearch and
+     nominatimLookup (two independent probes — grep across src/backend +
+     reading geocoding.service.ts — confirmed nothing else reads
+     candidate.type/.class, so re-keying has no other blast radius).
+  2. src/backend/routes/geocode.ts: GET /api/geocode now serializes
+     status: 'ok'|'error'|'disabled' onto the response body (mirrors
+     NominatimSearchResult), always HTTP 200, additive/back-compat. This is
+     what made BUG-76 invisible — Denver's empty-candidates-at-200 was
+     indistinguishable from an upstream Nominatim failure. Frontend banner
+     mapping (error/disabled -> failed:true) is a SEPARATE follow-up, not
+     built here.
+  3. src/backend/services/__tests__/nominatim-client.test.ts: the pre-existing
+     BUG-79 truncation test's rawResult() helper simulated "filtered out" rows
+     via type:'administrative' (the OLD discriminator) — re-keyed to
+     addresstype:'county' to preserve the test's actual intent (truncated
+     computed pre-filter) under the corrected discriminator. Declared here per
+     OP-28: a targeted edit to a pre-existing test, not a QA ATDD file, not a
+     wholesale rewrite.
+  All of npm run check / type:check:all / test:backend (758/758) /
+  test:frontend (302/302) / status:check green. PR not yet opened as of this
+  entry — see park doc for status. Full detail:
+  jobs/backend/park-docs/20260807-BACKEND-park.txt
+
+BACKEND CONTEXT — 2026-08-04 (QUAL-26 thread)
 PROJECT: Travel Tracker
 CURRENT STATUS: implemented QUAL-26 (GitHub #396) on branch
   feat/qual26-build-marker off main. /health now identifies the running

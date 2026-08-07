@@ -1,0 +1,118 @@
+BACKEND PARK DOC — 2026-08-07
+THREAD: BUG-76 (P1, geocoder accept-rule) + BUG-74 (P2, empty-vs-failed contract)
+BRANCH: feat/bug76-accept-rule-fix-impl (branched off origin/feat/bug76-accept-rule-fix, QA's)
+
+SCOPE
+Implement to QA's already-written RED ATDD suite (OP-35 ATDD-first), per the Architect
+design doc jobs/architect/tech/20260807-BUG76-accept-rule-design.md (ADL-51, §9 corrected
+design-of-record). Two defects bundled per the brief:
+  - BUG-76 (P1): the geocoder's settlement filter keyed on Nominatim's `type`/`class`
+    fields, which cannot distinguish a city modelled as an OSM admin-boundary relation
+    (type=administrative) from a county or state (also type=administrative). Denver has
+    no settlement place-node in OSM — only the admin-boundary relation — so it was NEVER
+    geocodable through the old filter. Classification: latent gap, not a regression.
+  - BUG-74 (P2, ride-along): GET /api/geocode collapsed every non-'ok' NominatimSearchResult
+    to candidates:[] at HTTP 200, making "upstream failed" indistinguishable from "genuine
+    no-match" — this is the exact mechanism that made BUG-76 invisible to the frontend/PO.
+
+WHAT WAS BUILT
+
+1. src/backend/services/nominatim-client.ts
+   - RawNominatimResult gains `addresstype?: string` (the raw Nominatim field).
+   - NominatimCandidate gains `addressType?: string` (parsed/carried).
+   - parseCandidate captures `addressType: raw.addresstype`. `class`/`type` are still
+     captured (cost nothing, other code doesn't read them per two independent probes —
+     see below) but are no longer read by the admission gate.
+   - New: SETTLEMENT_ADDRESSTYPES = {city, town, village, hamlet, municipality} (replaces
+     SETTLEMENT_TYPES, same five values, different field it's checked against).
+   - New: isAcceptedSettlement(candidate) — THE single shared admission predicate.
+     `candidate.addressType == null || SETTLEMENT_ADDRESSTYPES.has(candidate.addressType)`.
+     The null-passthrough is retained for two reasons (design doc §3.1): legacy
+     fixtures/callers that never set addressType, and the /lookup canonicalize-by-id path
+     where a discriminator-absent row is a deliberately-picked place, not noise.
+   - Both nominatimSearch's filter (was :230) and nominatimLookup's filter (was :267) now
+     call `isAcceptedSettlement(c)` — the old `c.type == null || SETTLEMENT_TYPES.has(c.type)`
+     literal is gone from both sites. One predicate, both call sites — DoD requirement met.
+   - Production request shape UNCHANGED: still format=json&addressdetails=1 (AC-0 pins
+     this; design doc §9.1 — jsonv2 would BREAK parseCandidate's raw.class read, was
+     considered and explicitly rejected).
+
+2. src/backend/routes/geocode.ts
+   - `const status = result.status;` captured right after `nominatimSearch()` returns,
+     alongside the existing `candidates`/`truncated` derivation (which are UNCHANGED —
+     still `[]`/`false` when status !== 'ok', same values, now just labelled).
+   - `res.json({ status, candidates: [...], country_code, region_iso, truncated })` —
+     `status` is a new first field, additive. HTTP 200 in all three cases (unchanged).
+   - No change to the D12 region_iso narrowing logic, no change to DISCOVERY_LIMIT/
+     CONSTRAINED_LIMIT, no change to the candidate serialization shape per row.
+
+3. src/backend/services/__tests__/nominatim-client.test.ts (pre-existing BUG-79 suite,
+   NOT one of QA's 3 ATDD files)
+   - This file's `rawResult()` helper simulated "rows the settlement filter drops" via
+     `type: 'administrative'` — the OLD discriminator. Under the new addressType-keyed
+     rule, those synthetic rows (which never set addresstype) would hit the null-
+     passthrough and be admitted, breaking the one test
+     ("computes truncation from the PRE-FILTER raw count...") that relies on 3/5 rows
+     being dropped to prove `truncated` reads the pre-filter count.
+   - Fix: `rawResult()` gained an `addresstype` override (default 'city', so every other
+     row in the file keeps passing unless a test overrides it), and the 3 "Admin" rows in
+     the truncation test now also set `addresstype: 'county'` — a real non-settlement
+     value — restoring the test's actual intent under the corrected discriminator. This
+     is a small, targeted, declared edit (OP-28) — not a QA ATDD file, not a wholesale
+     rewrite of the test file (single function signature + 2 call sites touched).
+
+WHY NOT TOUCHED
+- src/frontend/types/api.ts's GeocodeResult interface — does not yet type `status`. The
+  brief scoped the frontend banner mapping (error/disabled -> failed:true) as a SEPARATE
+  follow-up; adding the type without the consumer logic felt like scope creep into
+  Frontend's file for no behavioural gain (the field is present on the wire either way —
+  TS typing it is the follow-up's first step, paired with the actual mapping).
+- geocode.ts's `truncated`/D12 narrowing/DISCOVERY_LIMIT — untouched per design doc §5
+  (D7): country-constraining the discovery query is explicitly out of scope and must not
+  be bundled with the accept-rule fix.
+
+NEGATIVE-FINDINGS PROBES RUN
+"Nothing outside the filter reads candidate.type/.class" (design doc's D1 justification
+for re-keying with no other blast radius) — re-verified with two independent probes before
+touching the filter:
+  (a) `grep -rn '\.type\b|\.class\b' src/backend --include='*.ts'` excluding __tests__ —
+      only hits at the filter lines themselves and the parseCandidate assignment lines.
+  (b) Read geocoding.service.ts's NominatimCandidate consumption directly — only reads
+      latitude/longitude/osmType/osmId/displayName/name/regionIso, never .type/.class.
+Two probes, different methods, same result — re-keying the gate is confirmed safe.
+
+VERIFICATION
+- `npx vitest run --config vitest.config.backend.ts` on the 3 ATDD files: 18/18 pass
+  (was 8 passed/10 failed pre-fix, matching QA's mapping doc exactly).
+- `npm run test:backend`: 758/758 pass (45 files), including the corrected
+  nominatim-client.test.ts.
+- `npm run test:frontend`: 302/302 pass (no frontend files touched; confirms no
+  collateral breakage).
+- `npm run type:check:all`: clean.
+- `npm run check` (Biome): clean (0 errors; 5 pre-existing infos in
+  geocoding.resolveByOsmId.test.ts, a file this thread never touched — unrelated).
+- `npm run status:check`: STATUS.md up to date, no regen needed.
+- Accept-rule spot-check against the fixtures (design doc §9.3 table), confirmed by the
+  AC-1/AC-3/AC-4/AC-5/AC-8/AC-8b assertions passing: Denver 4/4 admitted, Springfield US
+  19/20 (census dropped, city twin kept), Cook County 0, Colorado 0, Paradise NV census
+  relation dropped + town node twin admitted.
+
+SECURITY CHECKLIST (route modified: GET /api/geocode)
+1. Auth middleware — requireAuth applied GLOBALLY via `app.use('/api/', requireAuth)` in
+   server.ts; geocode.ts's existing `// nosemgrep` comment at the route documents this
+   (pre-existing annotation, not touched). Confirmed still true — no route-level bypass
+   introduced.
+2. userId scoping — n/a. The geocode proxy reads no user-owned table; it's a stateless
+   Nominatim proxy (tier-1 reference lookup, per the route's own header comment). No new
+   query was added.
+3. FK notNull — n/a. No schema change in this thread.
+
+NOTHING FLAGGED TO COO beyond what's in the completion report — no AC looked wrong, no
+premise needed re-litigating, no scanner suppression needed.
+
+NEXT STEPS FOR OTHER JOBS
+- Frontend: BUG-74's other half — map `status: 'error'|'disabled'` to `failed:true` in
+  lookupCityCountry (useCities.ts), then BUG-71 owns the three-state copy on top of that
+  signal. GeocodeResult in src/frontend/types/api.ts needs the `status` field added first.
+- COO: open PR is feat/bug76-accept-rule-fix-impl -> main; tracker BUG-76/BUG-74 status
+  update happens at merge per standard flow (tracker.json is COO-maintained).
