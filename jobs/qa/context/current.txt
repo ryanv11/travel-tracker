@@ -214,3 +214,43 @@ NEXT STEPS (for incoming QA)
   Full design + per-check proves/does-not-prove table + trigger reasoning +
   cost: jobs/qa/tech/20260804-post-deploy-shakedown.md
   Completion report: jobs/COO/inbox/
+
+================================================================================
+2026-08-07 — BUG-76 (P1) / BUG-74 (P2) ATDD RED ACCEPTANCE SUITE (OP-35)
+================================================================================
+
+  Branch: feat/bug76-accept-rule-fix (off main, pushed, NO PR — brief
+  explicitly withheld a PR since a red PR would show red CI by design;
+  Backend branches from this pushed lineage and turns it green).
+
+  Turned the Architect's BUG-76 accept-rule design
+  (jobs/architect/tech/20260807-BUG76-accept-rule-design.md §7/§9.9,
+  AC-0..AC-13) into 18 assertions across 3 new files BEFORE Backend
+  implements anything:
+    - src/backend/services/__tests__/bug76-accept-rule.test.ts (AC-0,1,3-10)
+    - src/backend/routes/__tests__/bug76-geocode-e2e.test.ts (AC-2)
+    - src/backend/routes/__tests__/bug76-geocode-contract.test.ts (AC-11-13)
+
+  Result: 10/18 RED for the right reason (clean AssertionErrors, zero
+  exceptions/import errors) against main. 8/18 already pass on main — flagged
+  explicitly in-file and in the tech doc as regression guards, NOT red specs:
+  the current bug over-rejects (keys on `type`, drops every
+  type=administrative row wholesale, including the county/state/suburb/
+  census/statistical rows those 8 assertions guard against), so the negative
+  cases already hold, for the wrong reason. No production code touched.
+  Full breakdown: jobs/qa/tech/20260807-bug76-atdd-red-tests.md
+
+  Mock-fidelity (OP-35/QUAL-22): accept-rule + e2e files mock at the
+  `global.fetch` boundary with the real committed format=json fixtures
+  (never pre-parsed candidates), matching the existing nominatim-client.test.ts
+  pattern; the BUG-74 contract file mocks nominatimSearch at the service
+  boundary (matches the existing, accepted geocode.test.ts/BUG-79 pattern —
+  justified in the tech doc, not a shortcut). Every test asserts
+  fetch-called-exactly-once as a sanity check the double is actually
+  exercised.
+
+  NEXT: Backend implements against this branch (§3 addressType-keyed rule,
+  §6 status contract) until all 18 assertions are green + type:check:all
+  clean + no other backend suite regresses. Full detail + AC mapping:
+  jobs/qa/tech/20260807-bug76-atdd-red-tests.md
+  Completion report: jobs/COO/inbox/
