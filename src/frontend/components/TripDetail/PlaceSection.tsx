@@ -32,6 +32,7 @@
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BADGE_HUE_CLASSES, BADGE_SHAPE_CLASSES, BADGE_TEXT_CLASSES } from '../../design/badges';
 import { useCountries } from '../../hooks/useAdmin';
 import {
   applyRatingSortFilter,
@@ -43,8 +44,10 @@ import type { Item, TripPlace } from '../../types/api';
 import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { formatDate } from '../../utils/formatDate';
 import { resolvePlaceDateRange } from '../../utils/resolvePlaceDateRange';
+import { EditIcon } from '../icons';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { RatingSortFilterControls } from '../shared/RatingSortFilterControls';
+import { ChangeCityModal } from './ChangeCityModal';
 import { ItemCard } from './ItemCard';
 import { ItemForm } from './ItemForm';
 import { PlaceDateForm } from './PlaceDateForm';
@@ -93,6 +96,8 @@ export function PlaceSection({
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [showEditDates, setShowEditDates] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  // UX-12/BUG-75 (design §8.1): standing correction entry point.
+  const [showChangeCity, setShowChangeCity] = useState(false);
   // IT-08: local, per-place — see module doc for why this is client state
   // rather than a query param.
   const [ratingSortFilter, setRatingSortFilter] = useState<RatingSortFilterState>(
@@ -183,6 +188,19 @@ export function PlaceSection({
             )}
           </p>
 
+          {/* UX-12/BUG-75 (design §8.3, AC-11): "Location not confirmed"
+              badge — shown whenever the city's geocode hasn't resolved,
+              regardless of isLocked (a passive discoverability signal for
+              the Change-city control, not a write action). Reuses the
+              existing `locked` hue — no new hue (UX spec §12.2 MVP). */}
+          {place.city.geocode_status !== 'resolved' && (
+            <span
+              className={`mt-1.5 inline-block whitespace-nowrap ${BADGE_HUE_CLASSES.locked.bg} ${BADGE_HUE_CLASSES.locked.text} ${BADGE_SHAPE_CLASSES.chip} ${BADGE_TEXT_CLASSES}`}
+            >
+              Location not confirmed
+            </span>
+          )}
+
           {/* Activity tags */}
           {place.activities.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
@@ -208,6 +226,23 @@ export function PlaceSection({
               title="Edit arrival / departure dates"
             >
               {hasExplicitDates ? 'Edit dates' : 'Set dates'}
+            </button>
+          )}
+
+          {/* UX-12/BUG-75 (design §8.1, AC-8): standing correction control —
+              visible on every unlocked place regardless of geocode_status
+              (the correction right is not conditional on location status);
+              hidden under the same isLocked rule as Remove. */}
+          {!isLocked && (
+            <button
+              type="button"
+              onClick={() => setShowChangeCity(true)}
+              aria-label="Change city"
+              className="font-ui text-xs rounded-wp px-2.5 py-1.5 bg-wp-bg-surface text-wp-ink border border-wp-border hover:bg-wp-bg-subtle cursor-pointer inline-flex items-center gap-1.5"
+              title="Change the city for this place"
+            >
+              <EditIcon size={12} />
+              Change city
             </button>
           )}
 
@@ -323,6 +358,15 @@ export function PlaceSection({
           cityName={place.city.name}
           citySubtitle={citySubtitle}
           onClose={() => setShowEditDates(false)}
+        />
+      )}
+
+      {/* UX-12/BUG-75: Change-city correction modal (design §8.2) */}
+      {showChangeCity && (
+        <ChangeCityModal
+          tripId={tripId}
+          placeId={place.id}
+          onClose={() => setShowChangeCity(false)}
         />
       )}
 

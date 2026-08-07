@@ -250,7 +250,12 @@ describe('AddPlaceFlow — BUG-78 (bold Suggested caption) + BUG-79 (US region n
       .getByRole('option', { name: /no state selected/i })
       .closest('select') as HTMLSelectElement;
     expect(regionSelect).toHaveValue('');
-    expect(screen.queryByText(/suggested:/i)).not.toBeInTheDocument();
+    // BUG-75/UX-12 build note: narrowed to the region-specific captions — the
+    // country field now also gets its own, unrelated tentative caption
+    // (MAJOR-2, AC-13), which would false-positive a broad /suggested:/i check.
+    expect(screen.queryByText(/suggested: illinois/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/suggested: missouri/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/suggested: massachusetts/i)).not.toBeInTheDocument();
   });
 
   it('BUG-79 regression check: ambiguous UK case ("newport") behaves exactly as it did before this fix — England/Wales narrowing + hint, unaffected', async () => {

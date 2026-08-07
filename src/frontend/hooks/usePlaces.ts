@@ -123,6 +123,42 @@ export function useUpdatePlaceDates() {
 }
 
 /**
+ * Re-points a place to a corrected city via PATCH /api/trips/:tripId/places/:placeId
+ * (ADL-46 D11, city_id-only). UX-12's "Change city" correction path — a thin
+ * sibling of `useUpdatePlaceDates` issuing the same PATCH endpoint with only
+ * `city_id` in the body (items, notes, and activity tags are preserved
+ * server-side; already asserted by `place-repoint.test.ts`). Kept as a
+ * separate hook rather than overloading `useUpdatePlaceDates` with an
+ * optional `cityId` param — the two write intents (editing dates vs.
+ * correcting the city) are distinct call sites (`PlaceDateForm` vs.
+ * `ChangeCityModal`) and this keeps each hook's argument list to what its
+ * caller actually has in hand.
+ *
+ * @returns useMutation result. Call mutateAsync({ tripId, placeId, cityId }).
+ */
+export function useChangeCity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      tripId,
+      placeId,
+      cityId,
+    }: {
+      tripId: number;
+      placeId: number;
+      cityId: number;
+    }) =>
+      apiPatch<UpdatePlaceDatesResult>(`/api/trips/${tripId}/places/${placeId}`, {
+        city_id: cityId,
+      }),
+    onSuccess: (_result, vars) => {
+      void qc.invalidateQueries({ queryKey: ['trips', vars.tripId] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
+    },
+  });
+}
+
+/**
  * Executes the carry-forward action for a place (AC-17, IT-07).
  * POST /api/trips/:tripId/places/:placeId/carry-forward
  *
