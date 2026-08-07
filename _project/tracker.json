@@ -1351,6 +1351,17 @@
       "notes": "Found 2026-07-26 — Dependency Vulnerability Scan red on main again on an unrelated tracker-only diff (PR #248/#249), same symptom shape as DEP-01. GitHub issue #250. RESOLVED same day: npm audit fix (non-breaking) — body-parser 2.2.2→2.3.0 (GHSA-v422-hmwv-36x6, DoS via invalid limit value), postcss 8.5.16→8.5.23 (GHSA-r28c-9q8g-f849, high, path-traversal .map disclosure). Verified drizzle-kit stayed pinned at 0.31.9 (ADL-15 patch intact) and react-router-dom stayed at 6.30.4 — neither breaking upgrade taken. Full verification: type:check:all clean, backend tests 580/581 (1 pre-existing skip), frontend tests 154/154, npm audit --audit-level=high exits 0. Two moderate clusters remain, both below the CI gate: esbuild/drizzle-kit (re-affirmed ACCEPTED, unchanged from DEP-01 — fix would break ADL-15 patch) and react-router (newly DEFERRED — fix requires react-router-dom@7.18.1 major bump, needs its own routing/e2e verification pass before scheduling). security-backlog.md bumped to v1.2 with the DEP-02 section + updated change log, same PR. Issue #250 closed on merge."
     },
     {
+      "id": "DEP-03",
+      "type": "task",
+      "title": "npm audit — third calendar-based drift: nanoid high newly published, fixed non-breaking",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-07 — Dependency Vulnerability Scan (required check) red on main again, same calendar-based mechanism as DEP-01/DEP-02/ADL-40: Security Checks was green on main at #418 (21:06 UTC) and red at 22:12 UTC on the identical dependency tree (caught on PR #419, a docs+fixtures diff that changed no dependencies), because GHSA-2v37-7h3g-55p8 (nanoid, high — custom generators can loop indefinitely when size is zero) published in between. RESOLVED same session: npm audit fix (non-breaking) bumped nanoid 3.3.16 → 3.3.18 (transitive), dropping the HIGH count to 0 so npm audit --audit-level=high exits 0. The 6 remaining moderates are the already-dispositioned clusters, both below the gate: esbuild/drizzle-kit (ACCEPTED, unchanged since DEP-01 — fix breaks the ADL-15 drizzle-kit 0.31.9 patch) and react-router (DEFERRED, unchanged since DEP-02 — needs the react-router-dom@7 major + routing/e2e pass). drizzle-kit stayed pinned 0.31.9; react-router-dom not bumped. Full verification: biome clean, type:check:all clean, backend 740/740, frontend 302/302, status:check in sync. security-backlog.md bumped to v1.4 with the DEP-03 section, same PR per document-lifecycle rule. No GitHub issue raised (fixed within the session that found it); PR carries the DEP-03 tag."
+    },
+    {
       "id": "OP-08",
       "type": "requirement",
       "title": "Security enforcement mechanisms for new work — regression suite + Semgrep rules",

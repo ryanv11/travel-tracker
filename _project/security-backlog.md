@@ -1,6 +1,6 @@
 # Travel Tracker — Security Backlog
-**Version:** 1.3
-**Date:** 2026-07-26
+**Version:** 1.4
+**Date:** 2026-08-07
 **Author:** COO
 **Source:** BACKEND security report (20260308_1000-BACKEND-security-report.txt)
 
@@ -108,6 +108,28 @@ went red on main again on a docs/tracker-only diff (advisories published post-DE
 Gate status after this pass: `npm audit --audit-level=high` exits 0 (6 moderate
 vulnerabilities remain — the 4 already-accepted esbuild/drizzle-kit findings plus the
 2 new, deferred react-router findings — both below the gate threshold).
+
+---
+
+## npm audit — DEP-03 (2026-08-07)
+
+Third occurrence of the DEP-01/DEP-02 pattern (tracker DEP-03). `npm audit --audit-level=high`
+went red on main again from an advisory published after the last green run — the same
+calendar-based mechanism ADL-40 documents: `Security Checks` was green on `main` at #418
+(21:06 UTC) and red at 22:12 UTC on the identical tree (the PR that caught it, #419, changed
+no dependencies). 1 fixed via `npm audit fix` (non-breaking):
+
+| Advisory | Package | Severity | Disposition |
+|----------|---------|----------|-------------|
+| GHSA-2v37-7h3g-55p8 | nanoid <3.3.8 (transitive) | High-gate-triggering | **FIXED** — 3.3.16 → 3.3.18, non-breaking transitive bump via `npm audit fix`. |
+| GHSA-67mh-4wv8-2f99, GHSA-g7r4-m6w7-qqqr | esbuild via drizzle-kit → @esbuild-kit chain | Moderate | **ACCEPTED (unchanged from DEP-01/DEP-02)** — dev-only, below the gate, drizzle-kit stays pinned 0.31.9 (ADL-15 patch). No new action. |
+| GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg | react-router / react-router-dom | Moderate | **DEFERRED (unchanged from DEP-02)** — still needs the react-router-dom@7 major bump + routing/e2e verification pass; below the gate, not blocking. Not yet scheduled. |
+
+Gate status after this pass: `npm audit --audit-level=high` exits 0 (6 moderate vulnerabilities
+remain — the already-accepted esbuild/drizzle-kit cluster plus the deferred react-router cluster,
+both below the gate threshold). Full verification: biome clean, type:check:all clean, backend
+740/740, frontend 302/302, status:check in sync. drizzle-kit stayed pinned at 0.31.9;
+react-router-dom not bumped.
 
 ---
 
