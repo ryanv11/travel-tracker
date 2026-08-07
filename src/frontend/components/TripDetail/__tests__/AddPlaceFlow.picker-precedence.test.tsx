@@ -271,7 +271,15 @@ describe('AC-14 creation-time messaging keyed on geocode_status', () => {
     await openNewCityForm(user, 'Newport');
 
     // Wait for the auto-filled country so the create submits cleanly.
-    await screen.findByText(/Suggested: United Kingdom|United Kingdom/i, {}, { timeout: 2000 });
+    // NOTE (Frontend, BUG-75/UX-12 build): narrowed from the original
+    // `/Suggested: United Kingdom|United Kingdom/i` alternation — now that
+    // AC-13 is implemented, the plain "United Kingdom" alternate is also
+    // matched by the country <option> element that's in the DOM from the
+    // moment the form opens (independent of the lookup completing), and once
+    // the AC-13 caption renders too, `findByText` throws "found multiple
+    // elements" instead of waiting. The caption text is the more precise
+    // condition this line always intended to wait for; no other change.
+    await screen.findByText(/Suggested: United Kingdom/i, {}, { timeout: 2000 });
     const submit = screen.getByRole('button', { name: /Add City & Place/i });
     await user.click(submit);
 

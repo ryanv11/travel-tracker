@@ -19,7 +19,18 @@ export type ItemType = 'restaurant' | 'hotel' | 'flight' | 'car_rental' | 'exper
 
 export type ItemStatus = 'consider' | 'confirmed' | 'completed' | 'cancelled' | 'next_time';
 
-export type GeocodeStatus = 'pending' | 'resolved' | 'failed';
+/**
+ * BUG-75/UX-12 build (COO-approved type-truth fix): aligned to the backend's
+ * actual CHECK constraint (`src/backend/db/schema.ts:144` —
+ * `chk_cities_geocode_status`, `IN ('pending', 'resolved', 'unresolvable')`).
+ * Previously said `'failed'`, a value the backend never sends — verified with
+ * two probes (grep across src/frontend for a `'failed'` literal compared
+ * against this type: none outside this declaration and one now-corrected test
+ * fixture; read of the backend CHECK constraint itself) that no frontend logic
+ * compared against `'failed'`, so the fix is a pure type-truth correction with
+ * zero runtime ripple.
+ */
+export type GeocodeStatus = 'pending' | 'resolved' | 'unresolvable';
 
 export type ShadingStateKey =
   | 'never_visited'

@@ -110,14 +110,17 @@ describe('AC-11 "Location not confirmed" badge', () => {
     expect(screen.getAllByText(/Location not confirmed/i)).toHaveLength(1);
   });
 
-  it('shows the badge for a failed (terminal) place', () => {
-    // NOTE: the frontend GeocodeStatus type is 'pending' | 'resolved' | 'failed',
-    // while the backend DB CHECK uses 'unresolvable' for the terminal state — a
-    // real type/enum mismatch flagged to COO. The badge rule is `!== 'resolved'`,
-    // so it fires for any non-resolved value regardless; 'failed' is used here to
-    // stay valid under the frontend type.
+  it('shows the badge for an unresolvable (terminal) place', () => {
+    // NOTE (Frontend, BUG-75/UX-12 build): the frontend GeocodeStatus type has
+    // been corrected to 'pending' | 'resolved' | 'unresolvable', matching the
+    // backend DB CHECK exactly (see types/api.ts) — QA's original comment here
+    // flagged the mismatch and used 'failed' to stay type-valid under the
+    // then-current (wrong) frontend type; now that the type is fixed, this
+    // literal is updated to the real terminal value so the file still
+    // type-checks. The assertion itself (badge fires for any non-resolved
+    // status) is unchanged.
     renderPlaceSection(
-      <PlaceSection place={makePlace('failed')} isLocked={false} {...defaultProps} />,
+      <PlaceSection place={makePlace('unresolvable')} isLocked={false} {...defaultProps} />,
     );
     expect(screen.getByText(/Location not confirmed/i)).toBeInTheDocument();
   });
