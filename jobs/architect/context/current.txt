@@ -1,3 +1,31 @@
+=============================================================================
+BUG-76 ACCEPT-RULE DESIGN BLOCK — PREPENDED 2026-08-07, DOES NOT REPLACE ANY BLOCK BELOW
+=============================================================================
+Deliverable: jobs/architect/tech/20260807-BUG76-accept-rule-design.md (ADL-51 in the main log).
+Fixtures committed (real live Nominatim captures, NOT mocks): src/backend/services/__tests__/fixtures/nominatim/bug76/.
+
+CORE RULING: the geocoder filter keys on the WRONG field. parseCandidate sets type=raw.type
+  (class-type 'administrative'); prominent cities are admin-boundary relations
+  (type=administrative, addresstype=city), so Denver (no place-node in OSM at all) and the
+  famous Springfields are silently dropped. FIX: re-key to `addresstype`, admit
+  {city,town,village,hamlet,municipality}, keep the null-passthrough, one shared predicate at
+  BOTH nominatimSearch(:230) and nominatimLookup(:267). place_rank is NOT a discriminator —
+  Denver CO and Cook County are both rank 12 (fixtures prove it; AC-6 guards a lazy rank fix).
+
+EDGE CASES: reject suburb (sub-municipal; reversible), reject census (CDP artifact, dupes a
+  real city row in-fixture), admit municipality. Discovery query left UNCONSTRAINED (can't
+  constrain the call whose job is to discover the country; product-wrong for a travel app).
+
+BUG-74 RIDE-ALONG: add status:'ok'|'error'|'disabled' to /api/geocode (additive, HTTP 200
+  kept); route stops collapsing result.status to []. Frontend maps error/disabled->failed;
+  copy stays BUG-71's.
+
+UNVERIFIED (flagged in design §3.4): whether /lookup carries addresstype — no /lookup fixture
+  captured (firewall). Null-passthrough makes the rule correct either way; blind spot stated.
+
+HANDOFF: needs OP-27 fresh-eyes (2nd Architect) BEFORE dispatch. ATDD-first: YES. No new BRD
+  requirement ID introduced; COO to confirm a BRD home per the standing gate before dispatch.
+
 --- concurrent Wave 0 session block ---
 =============================================================================
 S1 / ADL-41 BLOCK — PREPENDED 2026-07-27, DOES NOT REPLACE THE S2 BLOCK BELOW

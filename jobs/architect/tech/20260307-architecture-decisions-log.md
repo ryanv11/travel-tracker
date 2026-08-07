@@ -4348,3 +4348,65 @@ here and the operational marking in the Architect prompt.
 
 **Implementation status.** IMPLEMENTED in this PR. First application: the BUG-75 Round-4 build
 (Architect-spec'd, schema + migration, access-adjacent) — QA-first, on Opus 5.
+
+---
+
+## ADL-51 — Geocoder accept-rule re-keyed to `addresstype`, and the BUG-74 `/api/geocode` status contract
+
+**Date:** 2026-08-07 · **Author:** Architect · **Status:** DESIGN — pending OP-27 fresh-eyes
+review, then ATDD-first implementation. NOT yet implemented. Full design + fixtures:
+`jobs/architect/tech/20260807-BUG76-accept-rule-design.md`; ground-truth captures at
+`src/backend/services/__tests__/fixtures/nominatim/bug76/`.
+
+**Trigger.** BUG-76 (P1), root cause verified 2026-08-07 by a live Nominatim probe. The
+geocoder's settlement filter (`nominatim-client.ts:116/230/267`) keys on Nominatim's
+class-`type` (`administrative`), while prominent cities are OSM admin-boundary relations
+(`type=administrative`, `addresstype=city`) — so Denver (which has *no* place-node in OSM)
+and the famous Springfields (IL/MO/MA/OH) are silently discarded and never geocode. BUG-74
+(P2) rides along: `geocode.ts:86` maps a non-ok/empty client result to `[]` at HTTP 200, so
+"upstream failed" / "filtered everything out" / "no such city" are indistinguishable — which
+is *why* BUG-76 was invisible.
+
+**Decision.**
+1. **Re-key the accept-rule from `type` to `addresstype`.** Capture `addresstype` in
+   `parseCandidate`; admit `addresstype ∈ {city, town, village, hamlet, municipality}`,
+   retaining the "discriminator absent → admit" passthrough. Apply via one shared predicate
+   at *both* the search (`:230`) and lookup (`:267`) call sites — the bug is present at both.
+2. **Edge cases:** reject `suburb` (sub-municipal; reversible/tunable) and `census` (a US CDP
+   artifact that in-fixture duplicates a real `city` row); admit `municipality`.
+3. **Discovery query stays unconstrained** — country-constraining it is structurally
+   impossible on the discovery path and product-wrong for an international app; independent of
+   and not bundled with the accept-rule fix.
+4. **BUG-74 contract:** add `status: 'ok' | 'error' | 'disabled'` to the `/api/geocode` body
+   (additive, backward-compatible), keep HTTP 200 in all three cases; the frontend half maps
+   `error`/`disabled` → `failed:true`. Exact three-state *copy* remains BUG-71's.
+
+**Alternatives considered.** `place_rank` as discriminator — **rejected**: Denver CO
+(`city`) and Cook County (`county`) are both `place_rank=12`, so no rank threshold separates
+them (guarded by success-criterion AC-6). `admin_level` — rejected: absent from our payload,
+would need a request-shape change for a signal `addresstype` already gives. HTTP 502/503 for
+the error/disabled states — rejected: collapses "our backend unreachable" and "upstream
+unreachable" into one signal; always-200-plus-`status` keeps the layers distinct.
+
+**Implementation implications.**
+- `src/backend/services/nominatim-client.ts`: add `addressType` to `NominatimCandidate` and
+  `addresstype` to `RawNominatimResult`; replace `SETTLEMENT_TYPES` gate with a shared
+  `isAcceptedSettlement` predicate keyed on `addressType`; `NominatimSearchResult.status`
+  already exists and is what the route must stop discarding.
+- `src/backend/routes/geocode.ts:86`: stop collapsing `result.status`; serialize `status`.
+- `src/frontend/types/api.ts`: add `status` to `GeocodeResult`. Frontend consumption
+  (`useCities.ts` `lookupCityCountry` → `failed`) is BUG-74's frontend half.
+- Blast radius verified small: nothing outside the filter reads `candidate.type`/`.class`
+  (`geocoding.service.ts` uses only name/coords/osm identity).
+- **UNVERIFIED:** whether the `/lookup` response carries `addresstype` (no `/lookup` fixture
+  captured; firewall). The null-passthrough makes the rule correct either way; blind spot and
+  probe stated in the design doc §3.4.
+
+**Supersession / open questions.** Reinforces ADL-48 §2.1/§15.1 (geocoder-as-tail) by
+removing a filter defect that would have partially undermined it — no ADL-48 decision
+re-opened. Settles the BUG-76 "is it a regression" question: no — latent gap (OP-32). No BRD
+requirement ID is introduced by this design; COO to confirm a BRD home before dispatch per
+the standing BRD-gate rule.
+
+**Spawns implementation brief — `ATDD-first: yes`** (Architect-involved, silent-and-plausible
+geocode failure, precisely specifiable against committed real fixtures — OP-35 trigger met).
