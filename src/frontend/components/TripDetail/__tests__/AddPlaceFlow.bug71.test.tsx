@@ -176,7 +176,13 @@ describe('AddPlaceFlow — BUG-71 stopgap: single-candidate region auto-fill is 
       .closest('select') as HTMLSelectElement;
     await user.selectOptions(regionSelect, 'Missouri');
 
-    expect(screen.queryByText(/suggested:/i)).not.toBeInTheDocument();
+    // BUG-75/UX-12 build note: the country field now ALSO gets a "Suggested:"
+    // tentative caption (MAJOR-2, AC-13) — a broad /suggested:/i check would
+    // now false-positive on that unrelated caption. Narrowed to the region's
+    // own caption (the thing this test actually regresses on) — the assertion
+    // this test protects (explicit region pick clears the REGION suggestion)
+    // is unchanged.
+    expect(screen.queryByText(/suggested: virginia/i)).not.toBeInTheDocument();
     expect(regionSelect).toHaveValue('2');
   });
 
@@ -212,7 +218,11 @@ describe('AddPlaceFlow — BUG-71 stopgap: single-candidate region auto-fill is 
     await waitFor(() => {
       expect(screen.getByText(/multiple matches found, please choose/i)).toBeInTheDocument();
     });
-    expect(screen.queryByText(/suggested:/i)).not.toBeInTheDocument();
+    // BUG-75/UX-12 build note: narrowed to the region-specific captions (see
+    // the sibling narrowing above) — the country field's own tentative
+    // caption is a separate, unrelated mechanism (MAJOR-2, AC-13).
+    expect(screen.queryByText(/suggested: missouri/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/suggested: colorado/i)).not.toBeInTheDocument();
   });
 
   it('shows no "Suggested:" caption when the lookup legitimately finds nothing (zero candidates — unrelated to the suggestion mechanism)', async () => {

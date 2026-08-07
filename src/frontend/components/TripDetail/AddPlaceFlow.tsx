@@ -21,7 +21,13 @@ import {
 import { useAddPlace } from '../../hooks/usePlaces';
 import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
 import type { City, GeocodeCandidate } from '../../types/api';
+// BUG-75/UX-12 (design §9/§6, review MAJOR-1/MINOR-1): the shared
+// precedence decision and the shared candidate->city identity-carry mapping,
+// each extracted to exactly one place so AddPlace and ChangeCityModal cannot
+// drift. See each module's doc comment for the full rationale.
+import { buildCreateCityDataFromCandidate } from '../../utils/buildCreateCityDataFromCandidate';
 import { resolveDefaultDate } from '../../utils/dateDefaults';
+import { decideCityDisambiguation } from '../../utils/decideCityDisambiguation';
 // BUG-80: formatCitySubtitle used to live here (BUG-72, PR #353) as a
 // module-local function. Lifted to a shared util so every saved-place
 // surface reuses the same formatter instead of a second one drifting out of
@@ -113,6 +119,15 @@ export function AddPlaceFlow({
   // regionIsSuggested still can't and shouldn't be narrowed to "only when
   // truncated."
   const [regionIsSuggested, setRegionIsSuggested] = useState(false);
+  // BUG-75/UX-12 (MAJOR-2, AC-13, UX spec §3.2/§12.2 item 3): the country
+  // field used to be silently committed the moment the lookup resolved one
+  // (line below, now removed) — the only field with the BUG-71 "Suggested:"
+  // tentative treatment was the region. A wrong auto-detected country is
+  // exactly the "confidently-wrong-result" class §3.2 exists to prevent, so
+  // the country now gets the identical tentative treatment as the region:
+  // pre-filled but visibly a suggestion, cleared the moment the user
+  // explicitly picks a country themselves (tier 1, same rule as region).
+  const [countryIsSuggested, setCountryIsSuggested] = useState(false);
   // BUG-79 (#379): true only when the geocode lookup's raw upstream response
   // may have had more matches than `candidates` shows (nominatim-client.ts's
   // pre-filter count hit the requested limit) — see useCities.ts/geocode.ts.
@@ -145,6 +160,12 @@ export function AddPlaceFlow({
   );
   const [dateValidationError, setDateValidationError] = useState<string | null>(null);
   const [placeWarnings, setPlaceWarnings] = useState<string[]>([]);
+  // BUG-75/UX-12 (MAJOR-2, AC-14, UX spec §3.4/§12.2 item 4): status-conditional
+  // guidance shown once a place is created for a city that isn't resolved yet
+  // — on `main` a successful non-resolved create just sat there (or closed)
+  // with no explanation. Mutually exclusive with placeWarnings (set only when
+  // there are no backend warnings to show instead).
+  const [creationStatusMessage, setCreationStatusMessage] = useState<string | null>(null);
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -259,6 +280,14 @@ export function AddPlaceFlow({
       // NR-06: queue geocoding retry if city wasn't resolved yet
       if (city.geocode_status !== 'resolved') {
         geocodeRetryQueue.add(city);
+        // BUG-75/UX-12 (MAJOR-2, AC-14, UX spec §3.4): tell the user the
+        // location isn't confirmed yet rather than leaving them to guess why
+        // nothing further happened.
+        setCreationStatusMessage(
+          city.geocode_status === 'unresolvable'
+            ? "We couldn't automatically confirm this location. The place has still been added — you can try Change city later if this doesn't look right."
+            : "We're still confirming this location — it'll update automatically once it resolves. The place has been added.",
+        );
       }
     } catch {
       /* shown via addPlace.error */
@@ -294,23 +323,16 @@ export function AddPlaceFlow({
    */
   const handleSelectPickerCandidate = async (candidate: GeocodeCandidate) => {
     if (!newCityName.trim()) return;
-    const countryCode = candidate.country_code ?? newCityCountryCode;
-    if (!countryCode) return;
-    const regionId = candidate.region_iso
-      ? (countryRegions.find((r) => r.iso_3166_2 === candidate.region_iso)?.id ?? undefined)
-      : undefined;
-    const data: CreateCityData = {
-      name: newCityName.trim(),
-      country_code: countryCode,
-      region_id: regionId,
-      ...(candidate.osm_type && candidate.osm_id != null
-        ? {
-            osm_type: candidate.osm_type,
-            osm_id: candidate.osm_id,
-            display_name: candidate.display_name,
-          }
-        : {}),
-    };
+    // BUG-75/UX-12 (review MAJOR-1): the identity-carry mapping now lives in
+    // exactly one place, shared with ChangeCityModal — see the module doc
+    // comment on buildCreateCityDataFromCandidate.ts.
+    const data = buildCreateCityDataFromCandidate(
+      candidate,
+      newCityName.trim(),
+      countryRegions,
+      newCityCountryCode,
+    );
+    if (!data) return;
     try {
       const city = await createCity.mutateAsync(data);
       setPlacePickerCandidates(null);
@@ -338,8 +360,10 @@ export function AddPlaceFlow({
     setCandidateRegionIsos(null);
     setPlacePickerCandidates(null);
     setRegionIsSuggested(false);
+    setCountryIsSuggested(false);
     setLookupTruncated(false);
     setGeocodeLookupFailed(false);
+    setCreationStatusMessage(null);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
       lookupCityCountry(cityName.trim())
@@ -357,55 +381,46 @@ export function AddPlaceFlow({
           // false single survivor, and both need the same "don't claim
           // certainty" caveat.
           setLookupTruncated(truncated);
-          if (countryCode) setNewCityCountryCode(countryCode);
+          // BUG-75/UX-12 (MAJOR-2, AC-13): the country used to be committed
+          // here with no tentative signal at all. Now mirrors the region's
+          // BUG-71 treatment — pre-filled, but visibly a suggestion until the
+          // user explicitly confirms it (by leaving it as-is IS an implicit
+          // confirmation in the existing region pattern's spirit — the same
+          // stopgap trade-off BUG-71 already made, applied to a second field).
+          if (countryCode) {
+            setNewCityCountryCode(countryCode);
+            setCountryIsSuggested(true);
+          }
 
-          // D14: collect the distinct region_iso values among candidates that
-          // share the resolved country. More than one means the city name is
-          // ambiguous within that country (Springfield IL vs Springfield MO) —
-          // narrow the region selector to just those instead of auto-picking
-          // the top candidate's region.
+          // BUG-75/UX-12 (design §6/§9, review MINOR-1): the reordered
+          // precedence — positive osm_id identity evidence wins over region
+          // ambiguity — now lives in exactly one place, shared with
+          // ChangeCityModal. See decideCityDisambiguation.ts's doc comment
+          // for the full "why" (this is the actual BUG-75 headline fix).
           const candidatesForCountry = countryCode
             ? candidates.filter((c) => c.country_code === countryCode)
             : [];
-          const sameCountryRegionIsos = [
-            ...new Set(
-              candidatesForCountry.filter((c) => c.region_iso).map((c) => c.region_iso as string),
-            ),
-          ];
-
-          // BUG-75/UX-12 (v3 §B5 m1 REPLACE, ask-to-choose #4): region-only
-          // narrowing is insufficient when 2+ candidates carry DISTINCT OSM
-          // identity but share one region (or none) — a region selector
-          // would collapse them into a false single choice (the two GB-ENG
-          // Newports). This is gated on POSITIVE identity evidence
-          // (>=2 distinct osm_id) rather than raw candidate count so it does
-          // NOT fire for the ADL-46 F1/F2 parity case (AddPlaceFlow.test.tsx)
-          // where two Nominatim rows for the same real place at different
-          // granularities (no osm_id on either, by that fixture's design)
-          // legitimately collapse to one non-ambiguous region — the frontend
-          // has no signal there to say otherwise, and byte-for-byte matching
-          // the backend's classifyCandidates "ok" verdict for that shape is
-          // the settled contract (ADL-46 F1/F2 ruling), unchanged by this brief.
-          const distinctOsmIds = new Set(
-            candidatesForCountry
-              .filter((c) => c.osm_id != null)
-              .map((c) => `${c.osm_type ?? ''}:${c.osm_id}`),
-          );
-
-          if (sameCountryRegionIsos.length > 1) {
-            setCandidateRegionIsos(sameCountryRegionIsos);
-            // Ambiguous — leave newCityRegionId unset so the user must choose.
-          } else if (distinctOsmIds.size > 1) {
-            setPlacePickerCandidates(candidatesForCountry);
-            // Place-level ambiguity — leave newCityRegionId unset; the pick
-            // itself (handleSelectPickerCandidate) derives region_id.
-          } else if (regionIso) {
-            // BUG-71 stopgap: this branch cannot distinguish "genuinely one
-            // region" from "collapsed to one by truncation upstream" — mark
-            // every auto-fill from here as a tentative suggestion (see the
-            // regionIsSuggested declaration above) rather than assuming either.
-            setAutoRegionIso(regionIso);
-            setRegionIsSuggested(true);
+          const disambiguation = decideCityDisambiguation(candidatesForCountry, regionIso);
+          switch (disambiguation.mode) {
+            case 'picker':
+              setPlacePickerCandidates(disambiguation.candidates);
+              // Place-level ambiguity — leave newCityRegionId unset; the pick
+              // itself (handleSelectPickerCandidate) derives region_id.
+              break;
+            case 'region':
+              setCandidateRegionIsos(disambiguation.regionIsos);
+              // Ambiguous — leave newCityRegionId unset so the user must choose.
+              break;
+            case 'suggested':
+              // BUG-71 stopgap: this branch cannot distinguish "genuinely one
+              // region" from "collapsed to one by truncation upstream" — mark
+              // every auto-fill from here as a tentative suggestion (see the
+              // regionIsSuggested declaration above) rather than assuming either.
+              setAutoRegionIso(disambiguation.regionIso);
+              setRegionIsSuggested(true);
+              break;
+            case 'none':
+              break;
           }
           setCountryLookupPending(false);
         })
@@ -435,6 +450,35 @@ export function AddPlaceFlow({
         candidates={carryForwardCandidates}
         onClose={onClose}
       />
+    );
+  }
+
+  // BUG-75/UX-12 (AC-14): status-conditional guidance for a non-resolved
+  // create. Mutually exclusive with placeWarnings — handleSelectCity only
+  // sets this when there were no backend warnings to show instead.
+  if (creationStatusMessage) {
+    return (
+      <div
+        className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-lg p-6 w-[480px] max-w-[95vw] shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Place Added</h2>
+          <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800 text-sm">
+            <p>{creationStatusMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 cursor-pointer"
+          >
+            OK
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -588,6 +632,11 @@ export function AddPlaceFlow({
                 value={newCityCountryCode}
                 onChange={(e) => {
                   setNewCityCountryCode(e.target.value);
+                  // BUG-71: an explicit user pick is never "just a suggestion" —
+                  // tier 1 (UX spec §1): explicit selection always wins and is
+                  // never treated as tentative again. Same rule now applied to
+                  // the country field (MAJOR-2, AC-13).
+                  setCountryIsSuggested(false);
                   setNewCityRegionId(null);
                   setAutoRegionIso(null);
                   setRegionIsSuggested(false);
@@ -611,6 +660,17 @@ export function AddPlaceFlow({
                   </option>
                 ))}
               </select>
+              {/* BUG-75/UX-12 (MAJOR-2, AC-13): country tentative caption,
+                  mirroring the region's BUG-71 "Suggested:" treatment exactly
+                  — see that block's doc comment below for the full rationale.
+                  Country name resolved via the countries list rather than a
+                  literal string so it always matches what the <select>'s own
+                  options render. */}
+              {countryIsSuggested && selectedCountry && (
+                <p className="mt-1 text-xs font-semibold text-gray-500">
+                  Suggested: {selectedCountry.name} — from "{newCityName}"
+                </p>
+              )}
               {/* BUG-73: non-blocking, visible failure state — retries are
                   already exhausted by the time this renders (lookupCityCountry
                   handles retry internally). The form stays fully usable;

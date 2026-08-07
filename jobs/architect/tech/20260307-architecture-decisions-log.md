@@ -3701,6 +3701,25 @@ consequence six days later.
     usable `pending` record. The smaller alternative (auto-accept the top candidate) is recorded as
     the first thing to cut if the release must shrink.
 
+    > **SUPERSEDED (2026-08-06) in part** — ADL-46 §4.3.2 (D14) established that ambiguous city
+    > disambiguation is **region-first** (narrow the region `<select>` to the candidate regions). For
+    > the branch where the geocode lookup returns **positive identity evidence** (≥2 candidates carrying
+    > distinct `(osm_type, osm_id)`), the place-level `CityPicker` is now **primary** and the region
+    > `<select>` no longer pre-empts it. D14's region-narrowing `<select>` is **retained unchanged** as
+    > the fallback for the **no-`osm_id`** case (legacy / partial responses / ADL-46 F1/F2 parity).
+    > Rationale and evidence:
+    > `jobs/architect/tech/20260806-BUG75-pickerprecedence-and-ux12-entry.md` §5–§6, reviewed
+    > `jobs/architect/tech/20260806-BUG75-pickerprecedence-design-review.md`. Region-first was
+    > structurally unable to separate two distinct places sharing one region (the two GB-ENG Newports),
+    > which is the BUG-75 defect. The reorder shipped in the PR that lands this stamp (BUG-75/UX-12
+    > build) as `src/frontend/utils/decideCityDisambiguation.ts`. Retained for history.
+    >
+    > **Open-questions closure check (document-lifecycle rule, item 4):** two probes run — a grep of
+    > `_project/travel-tracker-BRD.md`'s Open Questions table (OQ-01..OQ-05) for any entry referencing
+    > D14/picker-precedence, and a grep of this ADL-46 section for a "resolves OQ-" note tied to D14 —
+    > neither found one. D14 was PO-raised with both answers explicitly permitted (see above), not an
+    > answer to an open BRD question, so there is no open-questions section for this stamp to close.
+
 **Framing correction adopted 2026-07-30 (PO: *"I don't want to be architecting based on the current
 user base"*).** "Acceptable at two users" had been used to justify at least four judgements in this
 ADL; the justification is withdrawn wherever it appeared. Each was re-weighed to either a real fix
