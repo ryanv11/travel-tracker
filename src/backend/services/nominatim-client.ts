@@ -73,9 +73,19 @@ export interface NominatimCandidate {
   countryCode: string | null;
   /** ISO 3166-2 subdivision code (e.g. 'US-CO'), if present. */
   regionIso: string | null;
-  /** Nominatim class/type — used to filter to settlements. */
+  /** Nominatim class/type — carried metadata only; NOT the admission gate (BUG-76). */
   class?: string;
   type?: string;
+  /**
+   * BUG-76 — Nominatim's `addresstype` field (present under `format=json&
+   * addressdetails=1`, the request shape this module always sends). THE
+   * admission-gate discriminator (see `isAcceptedSettlement` below):
+   * `type`/`class` cannot distinguish a city modelled as an OSM admin-boundary
+   * relation (`type=administrative`) from a county or state (also
+   * `type=administrative`), but `addresstype` can (`city` vs `county` vs
+   * `state`). `undefined` when the caller's fixture predates this field.
+   */
+  addressType?: string;
   /**
    * BUG-75 v3 (§0/§2.3) — the carried identity pair. Optional (not `null`
    * defaulted to a required field) because some existing fixtures/callers in
@@ -100,6 +110,8 @@ interface RawNominatimResult {
   name?: string;
   class?: string;
   type?: string;
+  /** BUG-76 — the admission-gate discriminator; see NominatimCandidate.addressType. */
+  addresstype?: string;
   /** BUG-75 v3 §B1/§2.1 — the carried identity pair, straight off Nominatim. */
   osm_type?: string;
   osm_id?: number;
@@ -113,7 +125,31 @@ interface RawNominatimResult {
   };
 }
 
-const SETTLEMENT_TYPES = new Set(['city', 'town', 'village', 'hamlet', 'municipality']);
+/**
+ * BUG-76 (ADL-51 §3.1/§9.3) — the settlement discriminator, keyed on
+ * Nominatim's `addresstype` field, NOT `type`/`class`. `type=administrative`
+ * is shared by cities, counties, and states alike (both Denver CO and Cook
+ * County are `type=administrative`, `place_rank=12` — AC-6 pins this),  so it
+ * cannot discriminate; `addresstype` can (`city` vs `county` vs `state`).
+ *
+ * `census`/`statistical` (US Census/statistical artifacts) and `suburb`
+ * (sub-municipal) are deliberately excluded — reversible/tunable per design
+ * doc §9.4/§9.5, not a deep invariant. Do not blanket-add them back without
+ * re-reading §9.5 (a naive add reintroduces an un-dedupable duplicate for
+ * every place with both a statistical row and a settlement twin).
+ */
+const SETTLEMENT_ADDRESSTYPES = new Set(['city', 'town', 'village', 'hamlet', 'municipality']);
+
+/**
+ * BUG-76 (ADL-51 §3.4/§9.8) — THE single admission-gate predicate, shared by
+ * both nominatimSearch (:230-ish) and nominatimLookup (:267-ish) so the two
+ * call sites cannot drift apart again. Admits when the discriminator is
+ * absent (legacy fixtures; a deliberately-picked /lookup id — §3.1) or is a
+ * recognized settlement addresstype.
+ */
+function isAcceptedSettlement(candidate: NominatimCandidate): boolean {
+  return candidate.addressType == null || SETTLEMENT_ADDRESSTYPES.has(candidate.addressType);
+}
 
 /**
  * Discriminated result of one search (ADL-46 D10 §4.4.1): the caller must
@@ -225,10 +261,7 @@ export async function nominatimSearch(
     const truncated = Number.isFinite(requestedLimit) && data.length >= requestedLimit;
     const candidates = data
       .map(parseCandidate)
-      .filter(
-        (c): c is NominatimCandidate =>
-          c !== null && (c.type == null || SETTLEMENT_TYPES.has(c.type)),
-      );
+      .filter((c): c is NominatimCandidate => c !== null && isAcceptedSettlement(c));
     return { status: 'ok', candidates, truncated };
   } catch (err) {
     console.warn('[GEO] Nominatim request failed:', (err as Error).message);
@@ -262,10 +295,7 @@ export async function nominatimLookup(osmIds: string[]): Promise<NominatimSearch
     const data = await enqueue(() => fetchNominatim(url));
     const candidates = data
       .map(parseCandidate)
-      .filter(
-        (c): c is NominatimCandidate =>
-          c !== null && (c.type == null || SETTLEMENT_TYPES.has(c.type)),
-      );
+      .filter((c): c is NominatimCandidate => c !== null && isAcceptedSettlement(c));
     return { status: 'ok', candidates };
   } catch (err) {
     console.warn('[GEO] Nominatim lookup failed:', (err as Error).message);
@@ -293,6 +323,7 @@ function parseCandidate(raw: RawNominatimResult): NominatimCandidate | null {
     regionIso: raw.address?.['ISO3166-2-lvl4'] ?? null,
     class: raw.class,
     type: raw.type,
+    addressType: raw.addresstype,
     osmType,
     osmId,
     county: raw.address?.county ?? raw.address?.state_district ?? null,

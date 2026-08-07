@@ -1706,6 +1706,72 @@ Rename a region.
 
 ---
 
+## Geocode Proxy
+
+First-party backend proxy for Nominatim lookups (ADL-46 D7 §5.1). Added to this document
+2026-08-07 (BUG-76/BUG-74, ADL-51).
+
+### GET /api/geocode?q=...&country_code=...&region_iso=...
+
+Auth: `requireAuth` (applied globally, `app.use('/api/', requireAuth)` in `server.ts`). No
+`userId` scoping — reads no user-owned table, it's a stateless Nominatim proxy.
+
+Query params: `q` (required, search text), `country_code` (optional, ISO 3166-1 alpha-2 —
+when supplied, constrains the Nominatim query and narrows candidates to that country),
+`region_iso` (optional, ISO 3166-2 — narrows `candidates` to matches after the fact, never
+fabricates a result when none match).
+
+Response body:
+
+```json
+{
+  "status": "ok",
+  "candidates": [
+    {
+      "name": "Denver",
+      "display_name": "Denver, Colorado, United States",
+      "country_code": "US",
+      "region_iso": "US-CO",
+      "latitude": 39.7392364,
+      "longitude": -104.984862,
+      "osm_type": "relation",
+      "osm_id": 1411339
+    }
+  ],
+  "country_code": "US",
+  "region_iso": "US-CO",
+  "truncated": false
+}
+```
+
+- **`status`** (`'ok' | 'error' | 'disabled'`, BUG-74, ADL-51 §6): mirrors the internal
+  `NominatimSearchResult` union. **Always HTTP 200 regardless of `status`** — a non-2xx was
+  considered and rejected (it would collapse "our backend is unreachable" and "our backend
+  answered, but upstream Nominatim is the problem" into one signal, which is strictly less
+  information than the body carries). `'error'` = upstream Nominatim failure (network,
+  timeout, non-2xx, 429). `'disabled'` = `GEOCODING_ENABLED=false` (CI/non-prod only, never
+  prod). `candidates`/`country_code`/`region_iso` are `[]`/`null`/`null` whenever
+  `status !== 'ok'` — the same shape as a genuine no-match, now *labelled* so the two are
+  distinguishable. Consumers written before this field existed continue to work unmodified
+  (additive; the field is simply absent from their parsed response if they don't read it).
+- `candidates[]` — meaningful ONLY when `status === 'ok'`. Each entry: `osm_type`/`osm_id`
+  are the carried OSM identity (BUG-75 v3) a picked candidate's create request sends back —
+  optional on older fixtures, always present on a real Nominatim response.
+- `country_code`/`region_iso` (top-level) — the TOP candidate's values, for GE-15
+  auto-populate convenience. `null` under any non-`'ok'` status or a genuine empty result.
+- `truncated` (BUG-79) — `true` when Nominatim's raw response (pre settlement-filter) was
+  at least as large as the `limit` requested — there may be more matches upstream than
+  `candidates` shows. Always `false` under `status !== 'ok'`.
+
+**Settlement filter (BUG-76, ADL-51 §3):** candidates are admitted when Nominatim's
+`addresstype` is one of `city`/`town`/`village`/`hamlet`/`municipality`, or is absent
+(passthrough — legacy rows / a deliberately-picked `/lookup` id). Rejects `county`/`state`/
+`region`/`river`/`suburb`/`census`/`statistical`. This is why a Denver-style query now
+resolves: OSM models it as an admin-boundary relation, and the accept-rule is keyed on
+`addresstype`, not the class-`type` field a county/state also carries.
+
+---
+
 ## Static Assets
 
 GeoJSON boundary files for map rendering. Served directly as static files.

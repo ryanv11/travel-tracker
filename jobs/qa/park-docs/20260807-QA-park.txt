@@ -1,0 +1,90 @@
+QA PARK DOCUMENT — 2026-08-07
+================================================================================
+THREAD: BUG-76 (P1) / BUG-74 (P2) — ATDD-first RED acceptance suite (OP-35)
+STATUS: COMPLETE — handed off to Backend
+
+WHAT WAS DONE
+--------------------------------------------------------------------------------
+Turned the Architect's success criteria
+(jobs/architect/tech/20260807-BUG76-accept-rule-design.md §7, amended §9.9,
+AC-0..AC-13) into a RED, pre-implementation acceptance suite — ATDD-first per
+OP-35, since this brief was Architect-spawned (BUG-76 root cause was a
+design-level accept-rule change; BUG-74 rides along as the response-contract
+half).
+
+Branch: feat/bug76-accept-rule-fix, off main, pushed to origin. NO PR opened
+— the brief was explicit that a red PR would show red CI by design, and
+Backend is expected to branch from this pushed lineage rather than merge it
+as-is.
+
+3 new test files, 18 assertions total:
+  - src/backend/services/__tests__/bug76-accept-rule.test.ts
+  - src/backend/routes/__tests__/bug76-geocode-e2e.test.ts
+  - src/backend/routes/__tests__/bug76-geocode-contract.test.ts
+
+Zero production code touched (git diff confirms only new test files added).
+
+RESULT
+--------------------------------------------------------------------------------
+10/18 RED against main for the right reason — clean AssertionErrors
+(expected value vs. undefined/0/[]), zero import errors, zero thrown
+exceptions, zero broken mocks. Verified via:
+  npx vitest run --config vitest.config.backend.ts <3 new files>
+  → 10 failed, 8 passed (18 total)
+
+Full backend suite (npm run test:backend): 748/758 passing — the 10 new
+failures are exactly the 3 new files; the other 42 pre-existing test files
+are unaffected (no collateral damage). type:check:backend and npm run check
+(Biome) both clean.
+
+8/18 assertions already PASS on main — flagged explicitly, not hidden as a
+false green. Root cause: the CURRENT bug over-rejects (keys on Nominatim's
+`type` field, drops every type=administrative row wholesale — both the false
+positives AND the true positives). The 8 negative-case ACs (AC-0 x2, AC-4,
+AC-5, AC-7, AC-8 x2, AC-8b) test rows that were already being dropped today,
+for the wrong reason. They are legitimate regression guards for the
+corrected addressType-keyed rule (pin against a future over-widening that
+admits a county/state/suburb/census row) — not red specs of this fix. Full
+reasoning + per-AC breakdown: jobs/qa/tech/20260807-bug76-atdd-red-tests.md
+
+The genuinely red, load-bearing spec: AC-1, AC-2, AC-3, AC-6, AC-9, AC-10
+(admission side) + AC-11/AC-12/AC-13 (BUG-74 status field, absent entirely
+today).
+
+MOCK-FIDELITY (OP-35/QUAL-22)
+--------------------------------------------------------------------------------
+accept-rule + e2e files mock at the global `fetch` boundary (the exact
+surface fetchNominatim calls), loading the real committed
+format=json&addressdetails=1 fixtures off disk verbatim — never
+hand-authored or pre-parsed. Every test asserts fetch-called-exactly-once as
+a direct sanity check the double is actually exercised (the QUAL-22
+antidote: a silently-never-hit mock can still produce a result that looks
+plausible). AC-0 additionally proves the mock is wired to the REAL
+constructed URL, not bypassed. The contract file (AC-11-13) mocks at the
+nominatimSearch service boundary instead — deliberate, matches the existing
+accepted geocode.test.ts/BUG-79 pattern, justified in the tech doc (testing
+route serialization of an already-typed union, not raw-JSON parsing).
+
+OPEN ISSUES / BLOCKERS
+--------------------------------------------------------------------------------
+None. Suite is complete, pushed, and ready for Backend to implement against.
+
+ARTIFACTS
+--------------------------------------------------------------------------------
+- Branch: feat/bug76-accept-rule-fix (pushed, no PR)
+- Tech doc (full AC mapping + red-run evidence): jobs/qa/tech/20260807-bug76-atdd-red-tests.md
+- Context updated: jobs/qa/context/current.txt (appended, not rewritten)
+- Completion report: jobs/COO/inbox/
+
+NEXT (for incoming QA / whoever verifies Backend's fix)
+--------------------------------------------------------------------------------
+1. Once Backend's implementation branch is up, re-run the exact same 3 files
+   and confirm all 18 assertions are green (not just the 10 that were red —
+   the 8 already-green ones must STAY green post-fix, that's the regression
+   guard doing its job).
+2. Confirm type:check:all clean and no other backend suite regressed.
+3. The design doc's Definition of Done (§9.9) also requires: parseCandidate
+   reads addressType: raw.addresstype; the shared isAcceptedSettlement
+   predicate is the ONLY admission gate at both nominatimSearch and
+   nominatimLookup; no production request-format change (still format=json).
+   Spot-check these structurally, not just via the test suite passing.

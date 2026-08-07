@@ -20,7 +20,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __resetChokepointForTests, nominatimSearch } from '../nominatim-client.js';
 
-function rawResult(overrides: { name?: string; type?: string } = {}) {
+function rawResult(overrides: { name?: string; type?: string; addresstype?: string } = {}) {
   return {
     lat: '1.0',
     lon: '1.0',
@@ -28,6 +28,10 @@ function rawResult(overrides: { name?: string; type?: string } = {}) {
     name: overrides.name ?? 'Testville',
     class: 'place',
     type: overrides.type ?? 'city',
+    // BUG-76: addresstype is the admission-gate discriminator (nominatim-client.ts
+    // isAcceptedSettlement), not type/class — default 'city' so existing rows
+    // in this file keep passing the filter unless a test overrides it.
+    addresstype: overrides.addresstype ?? 'city',
     address: { country_code: 'us', 'ISO3166-2-lvl4': 'US-XX' },
   };
 }
@@ -80,17 +84,18 @@ describe('nominatimSearch — BUG-79 truncation signal', () => {
 
   it('computes truncation from the PRE-FILTER raw count, not the post-settlement-filter survivor count', async () => {
     // 5 raw rows at limit=5 (truncated should read true from the raw count),
-    // but 3 of them are 'administrative' areas the SETTLEMENT_TYPES filter
-    // drops — only 2 survive into `candidates`. Proves the signal survives
-    // the exact discard point the brief named (nominatim-client.ts's
-    // .filter() call), rather than being derived after the fact from a
-    // post-filter count that could never legitimately exceed the limit.
+    // but 3 of them are 'county' addresstype rows the isAcceptedSettlement
+    // filter drops (BUG-76: keyed on addresstype, not type/class) — only 2
+    // survive into `candidates`. Proves the signal survives the exact
+    // discard point the brief named (nominatim-client.ts's .filter() call),
+    // rather than being derived after the fact from a post-filter count that
+    // could never legitimately exceed the limit.
     mockFetchOnce([
       rawResult({ name: 'City1' }),
       rawResult({ name: 'City2' }),
-      rawResult({ name: 'Admin1', type: 'administrative' }),
-      rawResult({ name: 'Admin2', type: 'administrative' }),
-      rawResult({ name: 'Admin3', type: 'administrative' }),
+      rawResult({ name: 'Admin1', type: 'administrative', addresstype: 'county' }),
+      rawResult({ name: 'Admin2', type: 'administrative', addresstype: 'county' }),
+      rawResult({ name: 'Admin3', type: 'administrative', addresstype: 'county' }),
     ]);
 
     const promise = nominatimSearch({ q: 'springfield', limit: '5' });
