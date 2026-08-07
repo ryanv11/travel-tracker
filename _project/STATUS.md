@@ -36,7 +36,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | done_pending_uat |
 | BUG-75 | D13 city identity key cannot represent two distinct same-name towns in the same region — live latent conflation | architect | done_pending_uat |
-| BUG-76 | Our own SETTLEMENT_TYPES filter may discard legitimate tail places the geocoder does return | backend | ⬜ Pending |
+| BUG-76 | Our own SETTLEMENT_TYPES filter may discard legitimate tail places the geocoder does return | backend | done_pending_uat |
 
 ### P2 — Important (47)
 
