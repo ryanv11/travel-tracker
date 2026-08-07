@@ -4348,3 +4348,101 @@ here and the operational marking in the Architect prompt.
 
 **Implementation status.** IMPLEMENTED in this PR. First application: the BUG-75 Round-4 build
 (Architect-spec'd, schema + migration, access-adjacent) — QA-first, on Opus 5.
+
+---
+
+## ADL-51 — Geocoder accept-rule re-keyed to `addresstype`, and the BUG-74 `/api/geocode` status contract
+
+**Date:** 2026-08-07 · **Author:** Architect · **Status:** DESIGN — pending OP-27 fresh-eyes
+review, then ATDD-first implementation. NOT yet implemented. Full design + fixtures:
+`jobs/architect/tech/20260807-BUG76-accept-rule-design.md`; ground-truth captures at
+`src/backend/services/__tests__/fixtures/nominatim/bug76/`.
+
+**Trigger.** BUG-76 (P1), root cause verified 2026-08-07 by a live Nominatim probe. The
+geocoder's settlement filter (`nominatim-client.ts:116/230/267`) keys on Nominatim's
+class-`type` (`administrative`), while prominent cities are OSM admin-boundary relations
+(`type=administrative`, `addresstype=city`) — so Denver (which has *no* place-node in OSM)
+and the famous Springfields (IL/MO/MA/OH) are silently discarded and never geocode. BUG-74
+(P2) rides along: `geocode.ts:86` maps a non-ok/empty client result to `[]` at HTTP 200, so
+"upstream failed" / "filtered everything out" / "no such city" are indistinguishable — which
+is *why* BUG-76 was invisible.
+
+**Decision.**
+1. **Re-key the accept-rule from `type` to `addresstype`.** Capture `addresstype` in
+   `parseCandidate`; admit `addresstype ∈ {city, town, village, hamlet, municipality}`,
+   retaining the "discriminator absent → admit" passthrough. Apply via one shared predicate
+   at *both* the search (`:230`) and lookup (`:267`) call sites — the bug is present at both.
+2. **Edge cases:** reject `suburb` (sub-municipal; reversible/tunable) and `census` (a US CDP
+   artifact that in-fixture duplicates a real `city` row); admit `municipality`.
+3. **Discovery query stays unconstrained** — country-constraining it is structurally
+   impossible on the discovery path and product-wrong for an international app; independent of
+   and not bundled with the accept-rule fix.
+4. **BUG-74 contract:** add `status: 'ok' | 'error' | 'disabled'` to the `/api/geocode` body
+   (additive, backward-compatible), keep HTTP 200 in all three cases; the frontend half maps
+   `error`/`disabled` → `failed:true`. Exact three-state *copy* remains BUG-71's.
+
+**Alternatives considered.** `place_rank` as discriminator — **rejected**: Denver CO
+(`city`) and Cook County (`county`) are both `place_rank=12`, so no rank threshold separates
+them (guarded by success-criterion AC-6). `admin_level` — rejected: absent from our payload,
+would need a request-shape change for a signal `addresstype` already gives. HTTP 502/503 for
+the error/disabled states — rejected: collapses "our backend unreachable" and "upstream
+unreachable" into one signal; always-200-plus-`status` keeps the layers distinct.
+
+**Implementation implications.**
+- `src/backend/services/nominatim-client.ts`: add `addressType` to `NominatimCandidate` and
+  `addresstype` to `RawNominatimResult`; replace `SETTLEMENT_TYPES` gate with a shared
+  `isAcceptedSettlement` predicate keyed on `addressType`; `NominatimSearchResult.status`
+  already exists and is what the route must stop discarding.
+- `src/backend/routes/geocode.ts:86`: stop collapsing `result.status`; serialize `status`.
+- `src/frontend/types/api.ts`: add `status` to `GeocodeResult`. Frontend consumption
+  (`useCities.ts` `lookupCityCountry` → `failed`) is BUG-74's frontend half.
+- Blast radius verified small: nothing outside the filter reads `candidate.type`/`.class`
+  (`geocoding.service.ts` uses only name/coords/osm identity).
+- **UNVERIFIED:** whether the `/lookup` response carries `addresstype` (no `/lookup` fixture
+  captured; firewall). The null-passthrough makes the rule correct either way; blind spot and
+  probe stated in the design doc §3.4.
+
+**Supersession / open questions.** Reinforces ADL-48 §2.1/§15.1 (geocoder-as-tail) by
+removing a filter defect that would have partially undermined it — no ADL-48 decision
+re-opened. Settles the BUG-76 "is it a regression" question: no — latent gap (OP-32). No BRD
+requirement ID is introduced by this design; COO to confirm a BRD home before dispatch per
+the standing BRD-gate rule.
+
+**Spawns implementation brief — `ATDD-first: yes`** (Architect-involved, silent-and-plausible
+geocode failure, precisely specifiable against committed real fixtures — OP-35 trigger met).
+
+**CORRECTION (2026-08-07, post-OP-27 fresh-eyes review).** The OP-27 review
+(`20260807-BUG76-accept-rule-design-OP27-review.md`) was reconciled by the COO against live
+Nominatim probes; the corrected design-of-record is design-doc §9. Amendments to this entry:
+
+1. **Fixtures are `format=json`, and production stays on `format=json`.** The OP-27 review's
+   C1 (switch production to `format=jsonv2`) is **wrong** and is NOT adopted: `format=json&
+   addressdetails=1` (production's exact params, `nominatim-client.ts:214`/`:256`) *does*
+   return `addresstype` (Denver→`city`, Cook County→`county`, Colorado→`state`), and
+   `parseCandidate` reads `raw.class` (`:294`) — a `json` field that `jsonv2` renames to
+   `category`, so switching would break it. The genuine defect was that the *committed
+   fixtures* had been captured as jsonv2; they are **replaced with the `format=json` set**
+   (carrying `class`/`addresstype`/`address`). No production request-shape change. Verified
+   accept-rule under json: Denver 4/4, Springfield US 19/20 (census dropped, city twin
+   survives), Cook County 0, Colorado 0, all four CDP twins survive.
+2. **`parseCandidate` must read `addressType: raw.addresstype`**; the ATDD mock-fidelity
+   gate must assert the outgoing URL carries `format=json&addressdetails=1` (new AC-0).
+3. **Edge cases (Decision 2), corrected:** reject `addresstype ∈ {census, statistical}` —
+   `statistical` is a real second variant (found on Bethesda/Silver Spring MD). Confidence
+   **downgraded from high to reversible/tunable**, grounded in four live CDP probes
+   (Paradise NV, McLean VA, Bethesda MD, Silver Spring MD) each retaining a `town`/`city`
+   twin. The affirmative reason to reject: the statistical row (a `relation`) and its
+   settlement twin (a `node`) have **different `(osm_type, osm_id)`**, so BUG-75 dedup
+   cannot merge them — admitting both yields an un-dedupable duplicate. The reverse-widen,
+   if ever needed, is **candidate-set-aware** (admit census/statistical only when no
+   settlement twin exists in the same result set), NOT a blanket add. Paradise NV fixture +
+   AC-8b pin this. (Original §4 D5 "dedup handles it" rationale was circular — corrected.)
+4. **UNVERIFIED `/lookup` `addresstype` — RESOLVED.** The lookup call site sets
+   `addressdetails: '1'` identically to search, so `/lookup` returns `addresstype`; the
+   shared predicate applies cleanly at both sites. The "UNVERIFIED" implementation
+   implication above is superseded by this.
+5. **Townships — explicit ADMIT ruling** added (they carry a settlement `addresstype` under
+   json); see §9.7.
+
+This correction is an incorporation of settled OP-27 findings; it did **not** require a
+second OP-27 pass.
