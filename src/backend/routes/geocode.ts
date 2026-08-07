@@ -85,6 +85,17 @@ geocodeRouter.get(
     const result = await nominatimSearch(params);
     let candidates = result.status === 'ok' ? result.candidates : [];
     const truncated = result.status === 'ok' ? (result.truncated ?? false) : false;
+    // BUG-74 (design doc §6/§9.9 AC-11/12/13): propagate the status the
+    // client already computed instead of discarding it. Before this, 'error'
+    // (Nominatim down), 'disabled' (GEOCODING_ENABLED=false), and 'ok' with a
+    // genuine no-match all collapsed to an indistinguishable candidates:[] at
+    // HTTP 200 — this is exactly why BUG-76 was invisible (Denver returned
+    // candidates:[] at 200, identical to a real miss). Always HTTP 200; the
+    // frontend distinguishes "our backend unreachable" (apiGet throws) from
+    // "our backend answered, upstream geocoder is the problem" (status field)
+    // — collapsing those into a non-2xx would lose that distinction. Additive
+    // field — existing consumers that don't read `status` are unaffected.
+    const status = result.status;
 
     // D12 step 2: if a region ISO was supplied and any candidate matches it,
     // narrow to those — but never fabricate a result when none match.
@@ -96,6 +107,11 @@ geocodeRouter.get(
     }
 
     res.json({
+      // BUG-74 (NEW): 'ok' | 'error' | 'disabled', mirroring the client's
+      // NominatimSearchResult union. Meaningful only when status==='ok' is
+      // `candidates` a genuine (possibly empty) result — see the comment
+      // above where `status` is captured.
+      status,
       // Full candidate list (D14) — labelled by region for the selector.
       // BUG-75 v3 §1/§B1: osm_type/osm_id are the carried identity a picked
       // candidate's create request sends back (§2.3/§B1); display_name was
