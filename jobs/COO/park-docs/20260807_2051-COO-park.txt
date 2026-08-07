@@ -1,0 +1,92 @@
+COO SESSION PARK — 2026-08-07 ("BUG-75 PICKER SHIPPED + UAT-VALIDATED; BUG-76 ROOT CAUSE CRACKED")
+6 PRs merged (#411–#416) · main green · BUG-75/UX-12 done_pending_uat · BUG-76 verified + teed up (not dispatched)
+================================================================================
+
+## READ THIS FIRST
+
+1. **BUG-76 (P1) is the next thing to build, and it is DISPATCH-READY but deliberately NOT dispatched.**
+   The PO's instruction: dispatch it from a FRESH session. Its root cause is now VERIFIED (not
+   hypothesised — the firewall recovered mid-session and Nominatim was probed directly): our
+   `SETTLEMENT_TYPES` filter (nominatim-client.ts:230/:267, keyed on the raw `type`) discards
+   `boundary/administrative` rows — which is exactly how OSM models prominent cities. **Denver has NO
+   OSM place-node at all** → ungeocodable; the famous Springfields (IL/MO/MA) are admin boundaries →
+   dropped. The full verified evidence + the dispatch-ready plan (route, the Architect design question,
+   fixtures to capture early, success criteria) live in the **BUG-76 tracker note** — read it. Route:
+   **Architect accept-rule design → OP-27 fresh-eyes → QA-first ATDD → Backend**, with **BUG-74**
+   (empty-list-as-200) riding along. ATDD-first: yes. FIRST ACTION next session: capture real Denver +
+   Springfield-IL Nominatim fixtures EARLY (the firewall is flaky — see below).
+
+2. **The firewall self-heals AND self-breaks — re-probe, never assume.** Egress to Nominatim + Railway
+   staging was unreachable for the agents mid-session, then reachable again on its own with no manual
+   action (PO confirmed untouched). New memory `project_firewall_intermittent_regression` captures it:
+   treat "unreachable" as a point-in-time probe result, not a fact. This recovery is what let us VERIFY
+   BUG-76 (three prior sessions couldn't). Passwordless sudo is NOT available, so you can't manually
+   re-run init-firewall; a reattach/rebuild or simply re-probing is the recovery.
+
+## What the session was, in one paragraph
+
+Started as a COO pickup after `/clear`. Drove the BUG-75 headline (spanning/same-region picker-precedence)
++ UX-12 through the full ATDD-first cycle: Architect design (#411) → OP-27 fresh-eyes review (#412,
+safe-to-build-with-corrections, converged) → QA red ATDD → Frontend green → merged as #413. PO folded
+MAJOR-2 (country never silently auto-committed + creation messaging) into the build. Un-skipped the last
+`.skip` (AC-3 Springfield) against a REAL captured fixture once the firewall recovered (#415). Then the PO
+ran live UAT on staging and it did exactly what UAT is for: the picker mechanism PASSED (after a stale-bundle
+hard-refresh red herring), and a deeper, pre-existing coverage bug (BUG-76) surfaced — whose root cause we
+then VERIFIED via direct Nominatim probes. Recorded BUG-76 + a dispatch-ready plan (#416), and closed out.
+
+## Shipped & merged this session
+
+| PR | What |
+|---|---|
+| **#413** | **BUG-75/UX-12 build** — picker-precedence reorder (picker primary on ≥2 distinct osm_id), shared `decideCityDisambiguation` + `buildCreateCityDataFromCandidate` (MAJOR-1 anti-drift), `ChangeCityModal` + "Change city" control + "Location not confirmed" badge, MAJOR-2 (country tentative + creation messaging), GeocodeStatus type-truth fix, D14 supersession stamp. |
+| **#414** | Tracker sync — BUG-75 + UX-12 → `done_pending_uat`. |
+| **#415** | AC-3 Springfield un-skipped with a REAL captured fixture (no defect; picker logic handled it). |
+| **#416** | BUG-76 verified root cause + dispatch-ready plan (NOT dispatched). |
+| **#411 / #412** | The BUG-75 design + OP-27 review records (docs), merged for cleanliness. |
+
+## State of play / still open (durably tracked)
+
+- **BUG-76 (P1)** — root cause VERIFIED, dispatch-ready, **NOT dispatched** (PO wants a fresh session). THE
+  next build. See tracker note + READ THIS FIRST #1.
+- **BUG-74 (P?)** — geocode.ts:86 maps non-ok/empty → [] with HTTP 200, hiding BUG-76 from user + frontend.
+  Fix ALONGSIDE BUG-76.
+- **BUG-75 / UX-12 (done_pending_uat)** — picker + country-suggestion UAT-VALIDATED on staging this session.
+  The UAT session (jobs/PO/uat-log.md, 2026-08-07) stays OPEN until BUG-76 is fixed and re-tested, because
+  BUG-76 is upstream of the picker (it can only disambiguate cities that survive the filter).
+- **Two BUG-75 QA follow-ups** (in the BUG-75 note): (a) the "county-collapse protects Denver" doc-fix;
+  (b) `mergeIntoWinner` `db.batch()` + test.
+- **BUG-63 (P1)** — still held.
+- **UAT backlog** — the broader `done_pending_uat` set awaits the PO's staging passes.
+
+## Process notes worth keeping
+
+- **UAT earned its keep, twice over.** It validated the picker AND cracked BUG-76 — a bug three prior
+  sessions could only hypothesise, because they couldn't reach Nominatim to verify it. The firewall's
+  recovery was the unlock.
+- **Stale-bundle red herring.** The picker "not firing" was a cached browser bundle after a mid-session
+  staging redeploy (f7b36b8 → 4e77594). A hard refresh fixed it. When a deployed fix "isn't working,"
+  check the deployed bundle (`curl` the /assets/*.js and grep for the new strings/logic) AND the browser
+  cache before assuming a code bug. Verified the deployed bundle contained the correct logic before
+  (correctly) concluding it was a cache issue.
+- **Probe before recording.** I nearly recorded "the backend drops osm_id" as BUG-75's failure — held it
+  pending the actual /api/geocode response, which showed osm_id present. The inference was wrong; not
+  recording it saved a false root cause. Same discipline that verified BUG-76.
+- **STATUS.md is generated from tracker.json.** A tracker status change makes STATUS.md stale and the
+  `status:check` gate (correctly) fails CI. Run `npm run status` after any tracker status edit — /pre-push
+  covers this; I skipped /pre-push once and the gate caught it on #414.
+- **Double-trigger + strict branch protection** keeps leaving stale failed/cancelled duplicate runs that
+  block merges even when required checks are green. Fix: rerun the stale run's failed jobs, or update the
+  branch. `gh api --method PUT /repos/.../pulls/N/update-branch` cleanly re-syncs a behind PR server-side.
+
+## Suggested next, in priority order
+
+1. **BUG-76 fix** — dispatch from a fresh session. Capture Denver + Springfield-IL fixtures FIRST (firewall
+   permitting), then Architect accept-rule design → OP-27 → QA-first → Backend; fold in BUG-74. Everything
+   needed is in the BUG-76 tracker note.
+2. **The two BUG-75 QA follow-ups** — Denver doc-fix + `mergeIntoWinner` `db.batch()`.
+3. **UAT** — re-test BUG-75/BUG-76 on staging once BUG-76 ships; the 2026-08-07 UAT session is open for it.
+
+================================================================================
+
+## Open threads
+See `jobs/COO/open-dialogues.md` (D-26 the effort-box proposal, etc.) — not restated here.
