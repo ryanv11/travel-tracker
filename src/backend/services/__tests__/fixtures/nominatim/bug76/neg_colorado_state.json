@@ -1,1 +1,64 @@
-[{"place_id":330954659,"licence":"Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright","osm_type":"relation","osm_id":161961,"lat":"38.7251776","lon":"-105.6077160","category":"boundary","type":"administrative","place_rank":8,"importance":0.7654305450485025,"addresstype":"state","name":"Colorado","display_name":"Colorado, United States","address":{"state":"Colorado","ISO3166-2-lvl4":"US-CO","country":"United States","country_code":"us"},"boundingbox":["36.9925245","41.0034002","-109.0601879","-102.0415850"]},{"place_id":314845853,"licence":"Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright","osm_type":"relation","osm_id":1837771,"lat":"29.6099609","lon":"-96.5478826","category":"boundary","type":"administrative","place_rank":12,"importance":0.5928464578483361,"addresstype":"county","name":"Colorado County","display_name":"Colorado County, Texas, United States","address":{"county":"Colorado County","state":"Texas","ISO3166-2-lvl4":"US-TX","country":"United States","country_code":"us"},"boundingbox":["29.2470601","29.9621741","-96.8742671","-96.1755329"]},{"place_id":331244672,"licence":"Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright","osm_type":"relation","osm_id":2718127,"lat":"36.8436730","lon":"-111.5474456","category":"waterway","type":"river","place_rank":18,"importance":0.5895916977095847,"addresstype":"river","name":"Colorado River","display_name":"Colorado River, United States","address":{"river":"Colorado River","country":"United States","country_code":"us"},"boundingbox":["31.8164206","40.4766487","-115.2020627","-105.8168859"]}]
+[
+  {
+    "place_id": 331241897,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "relation",
+    "osm_id": 161961,
+    "lat": "38.7251776",
+    "lon": "-105.6077160",
+    "class": "boundary",
+    "type": "administrative",
+    "place_rank": 8,
+    "importance": 0.7654305450485025,
+    "addresstype": "state",
+    "name": "Colorado",
+    "display_name": "Colorado, United States",
+    "address": {
+      "state": "Colorado",
+      "ISO3166-2-lvl4": "US-CO",
+      "country": "United States",
+      "country_code": "us"
+    },
+    "boundingbox": ["36.9925245", "41.0034002", "-109.0601879", "-102.0415850"]
+  },
+  {
+    "place_id": 315462554,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "relation",
+    "osm_id": 1837771,
+    "lat": "29.6099609",
+    "lon": "-96.5478826",
+    "class": "boundary",
+    "type": "administrative",
+    "place_rank": 12,
+    "importance": 0.5928464578483361,
+    "addresstype": "county",
+    "name": "Colorado County",
+    "display_name": "Colorado County, Texas, United States",
+    "address": {
+      "county": "Colorado County",
+      "state": "Texas",
+      "ISO3166-2-lvl4": "US-TX",
+      "country": "United States",
+      "country_code": "us"
+    },
+    "boundingbox": ["29.2470601", "29.9621741", "-96.8742671", "-96.1755329"]
+  },
+  {
+    "place_id": 330767526,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "relation",
+    "osm_id": 2718127,
+    "lat": "36.8436730",
+    "lon": "-111.5474456",
+    "class": "waterway",
+    "type": "river",
+    "place_rank": 18,
+    "importance": 0.5895916977095847,
+    "addresstype": "river",
+    "name": "Colorado River",
+    "display_name": "Colorado River, United States",
+    "address": { "river": "Colorado River", "country": "United States", "country_code": "us" },
+    "boundingbox": ["31.8164206", "40.4766487", "-115.2020627", "-105.8168859"]
+  }
+]

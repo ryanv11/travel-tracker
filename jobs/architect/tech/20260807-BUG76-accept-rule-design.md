@@ -16,6 +16,16 @@ filter is deliberate (it keeps non-settlement noise out of city results), so the
 implementation fails silently-and-plausibly + behaviour is precisely specifiable against
 the committed fixtures — meets the OP-35 trigger squarely).
 
+> **CORRECTED DESIGN-OF-RECORD (2026-08-07, post-OP-27).** This design has been through
+> OP-27 fresh-eyes review (`20260807-BUG76-accept-rule-design-OP27-review.md`) and its
+> corrections — reconciled by the COO against **live Nominatim probes** — are folded in at
+> **§9**. Where §9 supersedes a specific claim above, that claim carries an inline
+> `> SUPERSEDED` stamp pointing to §9. **Read §9 for the current truth.** The single most
+> important correction: **production stays on `format=json`** — the OP-27 review's C1
+> conclusion to switch to `jsonv2` was wrong (jsonv2 returns `category`, breaking
+> `parseCandidate`'s `raw.class` read); the real defect was that the *fixtures* were
+> captured as jsonv2, and they have been replaced with the `format=json` set.
+
 ---
 
 ## 1. Summary table
@@ -127,6 +137,11 @@ drops it. The fix must:
    predicate) used by both filters, so the two sites cannot drift apart later.
 2. Apply the addresstype rule at both.
 
+> SUPERSEDED (2026-08-07) by §9.8 — the `/lookup` `addresstype` question is **RESOLVED**,
+> not unverified: the lookup call site (`nominatim-client.ts:256-258`) sets
+> `addressdetails: '1'` identically to search, so `/lookup` returns `addresstype` too. The
+> shared predicate applies cleanly at both sites. Retained for history.
+
 **UNVERIFIED — flagged for the implementer.** I have no `/lookup` fixture (firewall was up
 only long enough to capture `/search`). It is *plausible but unconfirmed* that the `/lookup`
 response carries `addresstype` per row. Two independent reasons this does not endanger the
@@ -164,6 +179,12 @@ success criteria (§6) pin the *reject* behaviour so a future widening is a deli
 tested decision rather than drift.
 
 ### D5 — `addresstype=census` → **REJECT** (High confidence)
+
+> SUPERSEDED (2026-08-07) by §9.4–§9.6 — the ruling (reject) stands, but the **confidence
+> is downgraded to reversible/tunable** (now grounded in four live CDP probes, not one
+> in-fixture instance), `statistical` is added as a second rejected variant, and the dedup
+> rationale below is **corrected** (it was circular/backwards; the affirmative reason is in
+> §9.6). Retained for history.
 
 Springfield VA appears as **two** rows: a `census` row (`type=census`, rank 25) *and* a real
 `city` row (`type=city`, rank 16). A `census` addresstype is a US Census Designated Place —
@@ -292,6 +313,12 @@ not build it now; noted so the field name is reserved and the future extension i
 
 ## 7. Success criteria — the ATDD spec (testable, against the committed fixtures)
 
+> AMENDED (2026-08-07) by §9.9 — the ACs below run against the **`format=json`** fixtures
+> (the committed fixtures were replaced from jsonv2; §9.1). §9.9 adds **AC-0** (assert the
+> outgoing request URL carries `format=json&addressdetails=1` — the QUAL-22 mock-fidelity
+> gate), **AC-8b** (Paradise NV: census relation rejected, town node twin admitted), and
+> amends AC-8 (also `statistical`) and AC-10 (`/lookup` hedge removed).
+
 The fixtures live at `src/backend/services/__tests__/fixtures/nominatim/bug76/`. Each
 criterion is an assertion the QA ATDD suite writes **red first**. **Mock-fidelity rule
 (OP-35/QUAL-22):** the test double for `fetchNominatim` must return these *exact captured
@@ -373,3 +400,158 @@ clean; the shared `isAcceptedSettlement` predicate is the only admission gate at
   explicit and AC-6 guards against a future implementer "fixing" it with a rank threshold.
 - **Nothing in D-21, ADL-46, or BUG-71 is re-decided.** BUG-71's copy ownership is respected
   (§6.3); BUG-79's `truncated`/limit choices are untouched (§5).
+
+---
+
+## 9. CORRECTIONS FOLDED IN (2026-08-07, post-OP-27) — the corrected design-of-record
+
+This section amends §§2–8 per the OP-27 fresh-eyes review
+(`20260807-BUG76-accept-rule-design-OP27-review.md`) as reconciled by the COO against
+**live Nominatim probes** (2026-08-07, firewall up). The text above is retained for
+history; superseded claims carry inline `> SUPERSEDED`/`> AMENDED` stamps pointing here.
+The corrections are settled — this is an incorporation, not a re-design, and did not go
+through a second OP-27 pass.
+
+### 9.1 Format fidelity — production stays on `format=json`; the *fixtures* were wrong, not the format (corrects OP-27 C1)
+
+OP-27 C1 concluded the fix must switch production to `format=jsonv2`. **That conclusion is
+wrong and must NOT be implemented.** Two probes with production's exact params
+(`format=json&addressdetails=1` — the strings built at `nominatim-client.ts:214` and
+`:256`) settle it:
+
+- **`format=json&addressdetails=1` DOES return `addresstype`.** Denver→`city`, Cook
+  County→`county`, Colorado→`state`. The C1 premise that `addresstype` is absent under
+  `json` is false. *(Probe A: live capture of every committed fixture with these exact
+  params — all carry `addresstype`. Probe B: the committed json fixtures on disk all carry
+  `addresstype` **and** `class`, none carry `category` — two lines a single wrong
+  assumption cannot both produce.)*
+- **Switching to jsonv2 would BREAK `parseCandidate`.** It reads `raw.class` (`:294`);
+  `format=json` returns `class`, `format=jsonv2` returns `category` instead — under jsonv2,
+  `raw.class` is `undefined`. jsonv2 is not merely unnecessary; it is actively harmful.
+
+**The genuine defect C1 detected, with the wrong cause diagnosed:** the *committed
+fixtures* had been captured as `format=jsonv2` (carrying `category`, not `class`) while
+production speaks `json` — a real QUAL-22 mock-fidelity gap. **Resolution: the fixtures are
+replaced with the `format=json` set** (carrying `class`, `addresstype`, `address`),
+captured/verified live against production's exact params. **No production request-shape
+change is made by this fix.**
+
+### 9.2 parseCandidate + mock-fidelity (implementation-binding)
+
+- `parseCandidate` must additionally capture `addressType: raw.addresstype`. The accept
+  predicate keys on `addressType` (§3.1) — the field is present under `json`.
+- **Mock-fidelity clause (OP-35 / QUAL-22), corrected:** the ATDD suite must assert the
+  **outgoing request URL contains `format=json` and `addressdetails=1`** (not `jsonv2`),
+  and the test doubles must feed `parseCandidate` the raw `format=json` shape — an object
+  carrying `class`, `addresstype`, and the `address{}` block — never a pre-parsed candidate
+  stub. A suite that stubs already-parsed candidates, or that asserts `jsonv2`, specifies
+  the wrong contract.
+
+### 9.3 Verified accept-rule results under `format=json` (the committed fixtures)
+
+Recomputed row-by-row against the json fixtures now on disk (rule: admit when
+`addressType == null || addressType ∈ {city, town, village, hamlet, municipality}`):
+
+| Fixture | Rows | Admitted | Notes |
+|---|---|---|---|
+| `denver_us.json` | 4 | **4** | 1 `city` + 3 `village`; Denver CO resolves |
+| `springfield_us.json` | 20 | **19** | only the 1 `census` row dropped; a `city` twin (8 city rows present) survives |
+| `springfield_global.json` | 36 | **31** | drops 3 `suburb` + 1 `county` + 1 `census` |
+| `springfield_il.json` | 1 | 1 | canonical false-negative now admitted |
+| `neg_cook_county.json` | 3 | **0** | all `county` |
+| `neg_colorado_state.json` | 3 | **0** | `state`/`county`/`river` |
+| `cdp_paradise_nv.json` | 2 | 1 | `census` relation dropped, `town` node twin admitted |
+| `cdp_mclean_va.json` | 2 | 1 | `census` relation dropped, `town` node twin admitted |
+| `cdp_bethesda_md.json` | 2 | 1 | `statistical` relation dropped, `city` node twin admitted |
+| `cdp_silverspring_md.json` | 2 | 1 | `statistical` relation dropped, `city` node twin admitted |
+
+### 9.4 census / statistical reject — data-grounded, reversible/tunable (corrects OP-27 C2; supersedes §4 D5 "High confidence")
+
+D5's "High confidence" on a single in-fixture instance is **downgraded to
+reversible/tunable**, matching D4 — and its grounding is now empirical:
+
+- **Reject `addresstype ∈ {census, statistical}`.** `statistical` is a real variant D5 did
+  not list; live probes found it on Bethesda MD and Silver Spring MD. Both are US
+  statistical artifacts (CDP boundaries), not settlements.
+- **Empirical grounding (four probes, not one):** the four highest-profile US CDPs —
+  Paradise NV, McLean VA, Bethesda MD, Silver Spring MD — each returned a surviving
+  `town`/`city` twin alongside the census/statistical row. Rejecting census/statistical
+  therefore does **not** drop these places; the settlement twin resolves them.
+- **Residual risk, stated honestly (OP-33):** four probes is not exhaustive. A
+  *census-only* community — a CDP with no settlement twin in the same result set — could
+  still be dropped. Hence reversible, with the correct widen specified in §9.5.
+
+### 9.5 The reversibility knob is candidate-set-aware, not a blanket add (supersedes any "one-line widen" framing)
+
+The knob is **not free in both directions.** A blanket "add census/statistical to the
+accepted set" is one line but **reintroduces an un-dedupable duplicate for every place that
+has both a statistical row and a settlement twin** (§9.6). Should UAT surface a genuinely
+census-only destination being dropped, the correct widen is a **candidate-set-aware rule**:
+admit a `census`/`statistical` row **only when no settlement-addresstype twin exists in the
+same result set.** State it this way so no future reader flips it blindly.
+
+### 9.6 Why reject census/statistical — dedup rationale corrected (corrects OP-27 C4; supersedes §4 D5's "interacts cleanly with dedup")
+
+§4 D5's original rationale ("the accept-rule drops the census row before dedup ever sees
+it… interacts cleanly with BUG-75's dedup") was **circular and factually backwards.** The
+verified facts:
+
+- The statistical row and its settlement twin have **different `(osm_type, osm_id)`
+  identity** — the census/statistical row is a `relation`, the twin a `node`:
+  Paradise NV `relation 170053` vs `node 3139480510`; McLean VA `relation 206832` vs
+  `node 158521719`; Springfield VA `census relation 206834` vs `node 158396042`;
+  Bethesda MD `relation 133482` vs `node 158248181`; Silver Spring MD `relation 133501`
+  vs `node 158521614`. *(Verified against the committed fixtures.)*
+- BUG-75 dedup keys on the carried `(osmType, osmId)`. Different identity → **dedup does
+  NOT merge them.** Admitting both would produce a *visible, un-dedupable duplicate* — same
+  place, two pickable rows.
+- **This is the affirmative reason to reject `census`/`statistical` at the filter:** not
+  "dedup handles it" (it cannot), but "admitting both yields a duplicate dedup cannot
+  collapse, and the settlement twin already represents the place." Rejecting the statistical
+  relation leaves exactly one correct pickable row.
+
+### 9.7 Townships — explicit ruling: ADMIT (resolves OP-27 C3)
+
+Under `format=json`, US townships carry `addresstype ∈ {town, city, village}` (e.g.
+"Springfield Township, …, Pennsylvania" → `town`/`city`) and are therefore **admitted —
+intentionally.** A township OSM tags with a settlement `addresstype` is a populated place;
+admitting it is consistent with the "admit settlements, reject super-/sub-settlement units"
+philosophy (far lower-harm than a county). A deliberate, low-harm inclusion — now ruled on
+rather than left implicit. (This corrects the implied completeness of §3.2/§4: the township
+class was not individually walked before; it is now. I have not re-walked *every* row of the
+36-row global fixture and do not claim to — the settlement/non-settlement split there is
+established by the §9.3 admitted-count reconciliation, not a per-row narrative.)
+
+### 9.8 /lookup — UNVERIFIED gap RESOLVED (supersedes §3.4 UNVERIFIED)
+
+The §3.4 "does `/lookup` return `addresstype`?" caveat is **resolved.** The lookup call
+site (`nominatim-client.ts:256-258`) sets `addressdetails: '1'` **identically** to search —
+same params, same response shape — so `/lookup` returns `addresstype` too. The shared
+`isAcceptedSettlement` predicate applies cleanly at both sites with no per-site divergence.
+A dedicated `/lookup` fixture is a nice-to-have, not required: the params are provably
+identical by reading the two call sites.
+
+### 9.9 Corrected acceptance criteria (amends §7)
+
+The §7 ACs stand **except** that they run against the **`format=json`** fixtures (not
+jsonv2). In addition:
+
+- **AC-0 (format fidelity — NEW; the mock-fidelity gate).** The outgoing request URL built
+  by `nominatimSearch` and `nominatimLookup` contains `format=json` and `addressdetails=1`.
+  This is what makes the suite non-vacuous with respect to production — the QUAL-22 guard
+  the jsonv2 fixtures silently defeated.
+- **AC-8 (census/statistical), amended.** Covers both `census` and `statistical`. From
+  `springfield_us.json`, Springfield VA appears exactly once — the `city` node, not the
+  `census` relation.
+- **AC-8b (CDP twin survives — NEW; Paradise fixture).** From `cdp_paradise_nv.json`, the
+  `census` relation (osm_id 170053) is **rejected** AND the `town` node twin (osm_id
+  3139480510) is **admitted** — the place still resolves. This turns the census/statistical
+  ruling into tested behaviour.
+- **AC-10 (lookup), amended.** The `/lookup` UNVERIFIED hedge is removed — `/lookup`
+  returns `addresstype` (same params as search); the shared predicate applies at both sites.
+
+**Definition of done (amended):** AC-0…AC-13 (incl. AC-8b) green against the committed
+**`format=json`** fixtures; `type:check:all` clean; `parseCandidate` reads
+`addressType: raw.addresstype`; the shared `isAcceptedSettlement` predicate keyed on
+`addressType` is the only admission gate at both call sites; the AC-0 format assertion
+holds; **no production request-format change.**

@@ -4410,3 +4410,39 @@ the standing BRD-gate rule.
 
 **Spawns implementation brief — `ATDD-first: yes`** (Architect-involved, silent-and-plausible
 geocode failure, precisely specifiable against committed real fixtures — OP-35 trigger met).
+
+**CORRECTION (2026-08-07, post-OP-27 fresh-eyes review).** The OP-27 review
+(`20260807-BUG76-accept-rule-design-OP27-review.md`) was reconciled by the COO against live
+Nominatim probes; the corrected design-of-record is design-doc §9. Amendments to this entry:
+
+1. **Fixtures are `format=json`, and production stays on `format=json`.** The OP-27 review's
+   C1 (switch production to `format=jsonv2`) is **wrong** and is NOT adopted: `format=json&
+   addressdetails=1` (production's exact params, `nominatim-client.ts:214`/`:256`) *does*
+   return `addresstype` (Denver→`city`, Cook County→`county`, Colorado→`state`), and
+   `parseCandidate` reads `raw.class` (`:294`) — a `json` field that `jsonv2` renames to
+   `category`, so switching would break it. The genuine defect was that the *committed
+   fixtures* had been captured as jsonv2; they are **replaced with the `format=json` set**
+   (carrying `class`/`addresstype`/`address`). No production request-shape change. Verified
+   accept-rule under json: Denver 4/4, Springfield US 19/20 (census dropped, city twin
+   survives), Cook County 0, Colorado 0, all four CDP twins survive.
+2. **`parseCandidate` must read `addressType: raw.addresstype`**; the ATDD mock-fidelity
+   gate must assert the outgoing URL carries `format=json&addressdetails=1` (new AC-0).
+3. **Edge cases (Decision 2), corrected:** reject `addresstype ∈ {census, statistical}` —
+   `statistical` is a real second variant (found on Bethesda/Silver Spring MD). Confidence
+   **downgraded from high to reversible/tunable**, grounded in four live CDP probes
+   (Paradise NV, McLean VA, Bethesda MD, Silver Spring MD) each retaining a `town`/`city`
+   twin. The affirmative reason to reject: the statistical row (a `relation`) and its
+   settlement twin (a `node`) have **different `(osm_type, osm_id)`**, so BUG-75 dedup
+   cannot merge them — admitting both yields an un-dedupable duplicate. The reverse-widen,
+   if ever needed, is **candidate-set-aware** (admit census/statistical only when no
+   settlement twin exists in the same result set), NOT a blanket add. Paradise NV fixture +
+   AC-8b pin this. (Original §4 D5 "dedup handles it" rationale was circular — corrected.)
+4. **UNVERIFIED `/lookup` `addresstype` — RESOLVED.** The lookup call site sets
+   `addressdetails: '1'` identically to search, so `/lookup` returns `addresstype`; the
+   shared predicate applies cleanly at both sites. The "UNVERIFIED" implementation
+   implication above is superseded by this.
+5. **Townships — explicit ADMIT ruling** added (they carry a settlement `addresstype` under
+   json); see §9.7.
+
+This correction is an incorporation of settled OP-27 findings; it did **not** require a
+second OP-27 pass.

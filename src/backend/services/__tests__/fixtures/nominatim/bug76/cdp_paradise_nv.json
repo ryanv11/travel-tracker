@@ -1,0 +1,52 @@
+[
+  {
+    "place_id": 322318064,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "relation",
+    "osm_id": 170053,
+    "lat": "36.0724299",
+    "lon": "-115.1474758",
+    "class": "boundary",
+    "type": "census",
+    "place_rank": 25,
+    "importance": 0.5972005028559073,
+    "addresstype": "census",
+    "name": "Paradise",
+    "display_name": "Paradise, Clark County, Nevada, United States",
+    "address": {
+      "census": "Paradise",
+      "town": "Paradise",
+      "county": "Clark County",
+      "state": "Nevada",
+      "ISO3166-2-lvl4": "US-NV",
+      "country": "United States",
+      "country_code": "us"
+    },
+    "boundingbox": ["36.0132297", "36.1317090", "-115.2081640", "-115.0639310"]
+  },
+  {
+    "place_id": 319594414,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "node",
+    "osm_id": 3139480510,
+    "lat": "36.1010292",
+    "lon": "-115.1499047",
+    "class": "place",
+    "type": "town",
+    "place_rank": 18,
+    "importance": 0.5972005028559073,
+    "addresstype": "town",
+    "name": "Paradise",
+    "display_name": "Paradise, Clark County, Nevada, 89154, United States",
+    "address": {
+      "town": "Paradise",
+      "county": "Clark County",
+      "state": "Nevada",
+      "ISO3166-2-lvl4": "US-NV",
+      "postcode": "89154",
+      "country": "United States",
+      "country_code": "us"
+    },
+    "boundingbox": ["36.0610292", "36.1410292", "-115.1899047", "-115.1099047"]
+  }
+]
