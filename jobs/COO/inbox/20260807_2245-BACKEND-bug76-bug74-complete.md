@@ -1,7 +1,7 @@
 # BACKEND — BUG-76 (P1) / BUG-74 (P2) complete
 
 Tracker: BUG-76, BUG-74 · BRD GE-11/GE-16 · Branch: `feat/bug76-accept-rule-fix-impl`
-PR: (see below — opening after this report is written)
+PR: #421 — https://github.com/ryanv11/travel-tracker/pull/421
 
 ## What was built
 Re-keyed the geocoder's settlement accept-rule from Nominatim's `type`/`class` fields to
@@ -22,9 +22,9 @@ All 18 assertions across the 3 ATDD files: **PASS**. Verified: 10 previously-red
 3. FK notNull: n/a — no schema change.
 
 ## CI
-Not yet run — PR opening next; will confirm `gh pr checks <PR#>` green before considering
-this thread closed. (Report sent now per brief structure; PR # and CI status follow
-immediately after in the same session unless something breaks.)
+All 18 checks green (`scripts/ci-wait.sh pr 421` → PASS) at commit `5ea9a6b`: Backend
+Tests, Frontend Tests, Type Check, Biome, Contract Tests, E2E Tests, Dependency
+Vulnerability Scan, Secret Scanning, Static Analysis — no failures, no suppressions added.
 
 ## Also touched (declared, OP-28)
 `src/backend/services/__tests__/nominatim-client.test.ts` (pre-existing BUG-79 suite, not
