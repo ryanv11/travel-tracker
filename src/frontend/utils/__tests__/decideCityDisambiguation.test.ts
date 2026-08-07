@@ -43,6 +43,7 @@ import {
   singleUnambiguousDenver,
   spanningRegionNewports,
 } from '../../components/TripDetail/__tests__/fixtures/newportGeocode';
+import { capturedSpringfields } from '../../components/TripDetail/__tests__/fixtures/springfieldGeocode';
 import type { GeocodeCandidate } from '../../types/api';
 // RED: this module does not exist on `main`. Frontend creates it (see header).
 import { decideCityDisambiguation } from '../decideCityDisambiguation';
@@ -76,20 +77,52 @@ describe('decideCityDisambiguation — AC-2 same-region twins', () => {
   });
 });
 
-describe('decideCityDisambiguation — AC-3 Springfield many-region (PENDING real capture)', () => {
-  // BUILD-BLOCKER (review): AC-3 must NOT be authored against an invented
-  // Springfield fixture — that reproduces exactly the QUAL-22 vacuous-pass class
-  // this suite exists to prevent. Nominatim is unreachable from this container
-  // (firewall-regressed; connection-refused on two prior probes), so a REAL
-  // captured Springfield /lookup response cannot be taken this session. A
-  // post-rebuild session must capture it, drop it into the fixtures module, and
-  // un-skip this test. Structure retained so the DoD is visible and enforceable.
-  it.skip('returns mode "picker" listing all N Springfields by region-qualified display_name — PENDING real Nominatim capture', () => {
-    // const springfields = capturedSpringfields(); // TODO: real capture, N>=2 distinct osm_id across N regions
-    // const result = decideCityDisambiguation(springfields, 'US-IL');
-    // expect(result.mode).toBe('picker');
-    // if (result.mode !== 'picker') return;
-    // expect(result.candidates).toHaveLength(springfields.length);
+describe('decideCityDisambiguation — AC-3 Springfield many-region', () => {
+  // Un-skipped 2026-08-07 (QA, BUG-75 close-out) against a REAL captured
+  // Nominatim response — see fixtures/springfieldGeocode.ts's provenance
+  // header for the two independent captures (COO's + QA's own, byte-for-byte
+  // identical). The realistic post-filter Springfield set is 4 settlements
+  // in 4 states — Springfield, Illinois is an OSM administrative relation
+  // and is correctly dropped by the app's own SETTLEMENT_TYPES filter before
+  // it ever reaches this function; it is deliberately NOT in the fixture.
+  it('returns mode "picker" listing all N Springfields by region-qualified display_name', () => {
+    const springfields = capturedSpringfields();
+    const result = decideCityDisambiguation(springfields, 'US-VA');
+    expect(result.mode).toBe('picker');
+    if (result.mode !== 'picker') return;
+    expect(result.candidates).toHaveLength(springfields.length);
+    const osmIds = result.candidates.map((c: GeocodeCandidate) => c.osm_id).sort();
+    expect(osmIds).toEqual([153356201, 153751916, 157579394, 158396042]);
+    // Row count == candidate count, and each candidate is independently
+    // selectable by its own region-qualified display_name (the picker UI's
+    // job downstream; this asserts the decision-table output it renders
+    // from carries every distinct region-qualified name, not a collapsed
+    // subset).
+    const displayNames = result.candidates.map((c: GeocodeCandidate) => c.display_name);
+    expect(displayNames).toEqual([
+      'Springfield, Fairfax County, Virginia, 22150, United States',
+      'Springfield, Hampshire County, West Virginia, 26763, United States',
+      'Springfield, LaPorte County, Indiana, United States',
+      'Springfield, Town of Lyons, Walworth County, Wisconsin, 53176, United States',
+    ]);
+  });
+
+  it("selecting one candidate (Springfield, Virginia) carries THAT candidate's own (osm_type, osm_id)", () => {
+    const springfields = capturedSpringfields();
+    const result = decideCityDisambiguation(springfields, 'US-VA');
+    expect(result.mode).toBe('picker');
+    if (result.mode !== 'picker') return;
+    const picked = result.candidates.find((c: GeocodeCandidate) => c.region_iso === 'US-VA');
+    expect(picked).toBeDefined();
+    expect(picked?.osm_type).toBe('node');
+    expect(picked?.osm_id).toBe(158396042);
+    // And it is distinct from every other candidate in the same set — the
+    // whole point of AC-3 is that these are 4 different real places, not
+    // one place with 4 name spellings.
+    const otherIds = result.candidates
+      .filter((c: GeocodeCandidate) => c.region_iso !== 'US-VA')
+      .map((c: GeocodeCandidate) => c.osm_id);
+    expect(otherIds).not.toContain(picked?.osm_id);
   });
 });
 
