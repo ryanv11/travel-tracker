@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (88)
+## Open work (89)
 
 ### P0 — Blockers (1)
 
@@ -90,7 +90,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-29 | Admin name-list resource (categories/activities/companions) triplicated across four layers — an admin-list factory that used to exist was unwound by the per-user migrations | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
-### P3 — Minor (32)
+### P3 — Minor (33)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -126,6 +126,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 | QUAL-30 | DesktopTripsLayout and MobileTripsLayout duplicate ~130 lines of controller logic — proven drift (BUG-80 fixed in both) | frontend | ⬜ Pending |
 | QUAL-31 | Modal-overlay shell hand-repeated across 6+ sites — extract a shared <ModalOverlay> | frontend | ⬜ Pending |
+| QUAL-32 | Stale local git branches + agent worktrees accumulating — careful prune needed | coo | ⬜ Pending |
 
 ## Coverage by type
 
@@ -135,7 +136,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `████████████░░░░░░░░` 45/76 | 45 | 31 | 3 |
 | task | `████████████████████` 9/9 | 9 | 0 | 0 |
-| chore | `███████▓░░░░░░░░░░░░` 14/39 | 14 | 25 | 1 |
+| chore | `███████▓░░░░░░░░░░░░` 14/40 | 14 | 26 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -169,4 +170,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_137 done · 9 deferred · 5 closed · 88 open — 239 tracked items_
+_137 done · 9 deferred · 5 closed · 89 open — 240 tracked items_
