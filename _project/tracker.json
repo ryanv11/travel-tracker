@@ -2765,6 +2765,18 @@
     },
 
     {
+      "id": "QUAL-32",
+      "type": "chore",
+      "title": "Stale local git branches + agent worktrees accumulating — careful prune needed",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Raised 2026-08-07 at session close after the COO wrongly asserted this debt was 'already tracked' — it was NOT: the project-worktree-cleanup-debt memory describes a cleanup COMPLETED 2026-07-07 (not a standing task), and open-dialogues D-09 is about a cleanup-vs-agent-process RACE, not this backlog. CURRENT STATE (2026-08-07): 33 non-main local branches + 5 live worktrees under .claude/worktrees/agent-*, accumulated across the BUG-75 thread's many dispatches — squash-merges leave the local branch behind and agent worktrees are not auto-removed. THIS IS NOT A BLANKET DELETE: some branches hold content NOT on main — specifically the un-merged Round-4 design lineage (feat/bug75-round4-identity-design v1/v2/v3, review/bug75-round4-design v1/v2/v3), which prior park docs flagged as un-consolidated design records. VERIFY each branch is merged via a PR, an ancestor of main, or safely on the remote BEFORE deleting (the 2026-07-07 cleanup verified all 79 branches first — that method is the template). Also `git worktree prune` + `git worktree remove` the done agents' worktrees (mind D-09: leave a beat after a completion notification so no live subprocess remains). DoD: `git branch` shows only main (+ any open-PR branches); `git worktree list` shows only the main checkout; nothing unmerged lost. Low priority, but it makes every session-close 'branches clean' DoD honest instead of carrying a silent caveat."
+    },
+
+    {
       "id": "ENV-02",
       "type": "chore",
       "title": "Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out",
