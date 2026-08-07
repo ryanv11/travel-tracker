@@ -51,6 +51,36 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-08-07 (BUG-75/UX-12 city-identity picker + Change-city — PARTIAL)
+
+**Scope:** PO live UAT on staging (build 4e77594) of the ATDD-first BUG-75/UX-12 build — the
+city-disambiguation place-picker, the country-suggestion, and the coverage of the geocode search.
+**Build:** 4e77594 (`/health`-confirmed).
+**Verdict:** PARTIAL — the picker mechanism PASSES; a pre-existing coverage defect (BUG-76) surfaced.
+
+#### Findings
+
+- [x] **Place-picker fires and disambiguates (BUG-75 headline) — PASS.** Searching "Springfield" now
+      shows "Multiple places match — please choose the one you mean" with distinguishable region-qualified
+      rows (Fairfax County, Virginia / LaPorte County, Indiana), instead of the old silent auto-resolve.
+      The MAJOR-2 country-suggestion ("Suggested: United States of America — from 'Springfield'") also shows.
+      NOTE: a first pass appeared to show the old region dropdown — that was a **stale cached browser
+      bundle** (staging had redeployed f7b36b8 → 4e77594 mid-session); a hard refresh loaded the new
+      frontend and the picker rendered correctly. Not a product bug.
+
+- [ ] **Geocode coverage — the cities people mean are missing (BUG-76, P1, tracked).** The Springfield
+      picker only offers the minor place-node towns (VA/IN); the famous Springfields (IL/MO/MA) and
+      **Denver** never appear — Denver doesn't populate country/state at all. Root cause VERIFIED this
+      session (firewall recovered → Nominatim probed directly): our `SETTLEMENT_TYPES` filter discards
+      `boundary/administrative` rows, which is how OSM models prominent cities. Denver has no OSM place-node
+      at all. Dispatch-ready fix plan recorded in BUG-76's tracker note; **not yet dispatched** (PO: dispatch
+      from a fresh session). BUG-74 (empty-list-as-200 hiding it) rides along.
+
+#### Notes / Observations
+The picker fix is genuinely working; BUG-76 is UPSTREAM of it (the picker can only disambiguate among the
+cities that survive the filter), so it's the blocker for a trustworthy geocode experience. This UAT session
+stays open until BUG-76 is fixed and re-tested.
+
 ### UAT Session — 2026-08-01 (BRD-GE16 / ADL-46 release — PO deployment shakedown, FAIL)
 
 **Scope:** PO's own shakedown of the ADL-46 release on staging, run unprompted at session pickup.
