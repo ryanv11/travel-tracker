@@ -25,28 +25,9 @@ tracker.json but also weren't safe to let vanish.
 
 ## Open
 
-### D-26: Declare a spike's effort-box / kill-criterion up front
-**Raised:** 2026-08-05 · **Status:** proposed in the retro, **deliberately deferred** — hold unless the pattern recurs.
-
-Came out of the Jul 29–Aug 4 retro (the "we made more mistakes lately" review). The retro's core
-finding is now durable — the premise-before-probe gate is **OP-33** and the PO-is-not-infallible rule
-is **OP-34** (both in CLAUDE.md as of PR #402). This is the *third* fix considered and the one we chose
-**not** to adopt yet, logged here so it isn't silently lost.
-
-**The proposal.** When a thread is classified as a spike/investigation, it declares an effort-box up
-front — a maximum number of review rounds, or a decide-by point — and crossing it forces a go/no-go to
-the PO rather than another round. Rationale: the GE-17 spike ran ~4 days and ~15 design/review PRs with
-zero shipped code before being killed, and nobody was tracking the spend-vs-value ratio *while* it
-happened. OP-33 catches the bad premise; it does **not** catch wheel-spin in progress. An effort-box
-would.
-
-**Why deferred, not adopted.** (1) We are process-rich already and just added two rules the same
-session; adding a third gate risks overhead the team doesn't need. (2) The GE-17 spike was probably
-*net-positive* — it killed a 17 MB dataset + a permanent maintenance obligation and produced BUG-75/76
-— so we got a good ratio *without* a declared box, which weakens the urgency. (3) OP-33's premise-gate
-may prevent the runaway-spike class at the source, making this redundant. **Adopt only if a second
-uncontrolled spike shows up after OP-33 is in force.** COO recommendation: leave parked; revisit on
-recurrence.
+> **Curated 2026-08-08 (PO direction).** This file holds only genuinely *undecided, not-yet-tracked*
+> topics. Anything being worked on, on hold, closed, or that is a rule/learning has been moved to its
+> real home (tracker / ADL / CLAUDE.md / memory) and left as a one-line pointer under **Resolved** below.
 
 ### D-23: Enumerate the container's CREDENTIALS, the way we just enumerated its hosts
 **Raised:** 2026-08-04 · **Status:** proposed by the COO, flagged to the PO, not commissioned.
@@ -73,23 +54,6 @@ actually read. It was moved into ADL-33 §4 for exactly that reason.
 **Not a tracker entry yet** — it is a proposal for a piece of work, not scoped work. Needs a PO
 decision on whether it is worth an Architect round.
 
-### D-24: `ci-wait.sh` reported PASS against a stale SHA — one instance, watching
-**Raised:** 2026-08-04 · **Status:** observation only, deliberately not filed as a defect.
-
-`scripts/ci-wait.sh pr 398` reported *"PASS — all 18 check(s) green @ 6ca669d"* seconds after a push
-had moved the head to `0f6d99d`. Caught by re-checking the real head via `gh pr view` before merging;
-the branch was genuinely green on the new head too, so nothing bad happened.
-
-**Most likely a race** from invoking it immediately after `git push`, before GitHub's PR head
-propagated — it behaved correctly on three subsequent runs that session, matching the real head each
-time. **Recorded rather than filed because one instance is not a class**, which is the exact mistake
-made on BUG-76 (closed on a single positive instance, reopened 40 minutes later).
-
-Why it is worth watching anyway: `ci-wait.sh` is the project's primary CI gate, it is relied on by
-every role, and a PASS against the wrong SHA is a **fail-open** — the same shape as QUAL-27, found
-the same day. If it recurs, file it; the fix would be to re-resolve and compare the head SHA after
-the watch completes rather than pinning it at start.
-
 ### D-25: Two structural rules proposed this session, both awaiting a home in CLAUDE.md
 **Raised:** 2026-08-04 · **Status:** proposed by Architect agents, COO agrees, not yet adopted.
 
@@ -108,240 +72,6 @@ is in CLAUDE.md yet, and adding a mandatory rule is a PO-facing change rather th
    the review brief happened to scope the whole document — which was luck, not policy.
 
 The second is the more valuable of the two and the less obvious.
-
-### D-21: Firewall allowlist for external data sources (Nominatim, MapTiler) + recorded-fixture testing
-**Raised:** 2026-08-01 (PO: *"do we need to get you hooked up to nominatim or any other services
-to improve our local testing and development?"*) · **Status:** COO recommendation given, PO has
-not decided. **Escalated in importance the same session** — see the Plockton note below.
-
-**The COO's answer, in short: yes to Nominatim, but not so tests can call it live.** Live-calling
-tests would be non-deterministic (Nominatim's data and ranking change), rate-limited at ~1 req/s
-with the client's own comment warning a violation *"blocks the whole app"*, and an abuse of a free
-public service that risks an IP ban. The valuable thing an allowlist entry buys is the ability to
-**record real responses once** and commit them as replay fixtures — deterministic, fast, and
-*faithful because recorded rather than invented*.
-
-**The argument for it.** What actually failed in BUG-71 was not reachability but fidelity: the
-defect passed 32 purpose-written ATDD acceptance tests and green CI because the mocks encoded what
-we *assumed* Nominatim returns. That is QUAL-22 verbatim — a group green for the wrong reason.
-A recorded-fixture set closes the class; more mock-writing inside the wrong environment cannot.
-
-**Honest scope limit, stated up front so it isn't oversold.** This does **not** fix the
-environment-parity class. The worst parity defect this project has had (BUG-55, Nominatim
-CSP-blocked in production) would not have been caught by any allowlist entry — it is a *topology*
-difference (prod serves the document from Express with helmet's CSP; E2E serves it from `vite
-preview` with no CSP header at all), which is QUAL-18's job and needs no firewall change.
-
-**COO's spend ranking if forced to choose:** QUAL-20 (post-deploy smoke — automates the manual
-shakedown that found four defects on 2026-08-01) → Nominatim allowlist + fixtures → QUAL-18/19 →
-MapTiler (unblocks visual map testing; BUG-49 and BUG-34 are currently unobservable).
-
-**Why this got MORE important, not less, after ADL-48.** The COO initially advised parking the
-Nominatim half on the grounds that a bundled gazetteer might make it moot. **That advice was
-wrong and is withdrawn.** ADL-48's recommendation is gazetteer-*first*, not gazetteer-*only* — the
-geocoder is retained for the coverage tail. Both ADL-48 and its OP-27 review then flag, as the
-single load-bearing unverified item behind decision G6, that **nobody knows whether Nominatim even
-has Plockton, Shieldaig or Dornie** — the very places the gazetteer was shown to miss. ENV-01
-blocks the probe (re-confirmed by two independent probes in the review). If Nominatim lacks them
-too, the tail strategy must be retaken and part of ADL-48 reopens.
-
-**AMENDED 2026-08-02 (QUAL-25 feasibility spike) — the probe design must change, or it gives a
-false pass.** The spike re-confirmed the reachability block (a third path, `WebFetch`, was also
-non-functional, verified against a control host) and left the coverage question UNVERIFIED as
-expected. But it found something neither ADL-48 nor its review saw, and it reframes the question:
-**`src/backend/services/nominatim-client.ts:81` filters every candidate to
-`SETTLEMENT_TYPES = {city, town, village, hamlet, municipality}`** (applied at line 141,
-COO-verified independently). Several of the tail places — Torridon, Gairloch, Applecross, Braemar —
-are OSM *features* as well as settlements. So the real risk is not only "Nominatim lacks them" but
-**"Nominatim returns them and our own filter discards them"**, which is a defect we own and can fix
-without any allowlist change at all. Consequence: **a probe that only asks whether Nominatim
-returns a result gives a false pass.** It must record the returned `type` for each name and check
-it against that set. Tracked as BUG-76.
-
-**Governance.** The allowlist is governed by **ADL-33/OP-21**, which documented its exclusions with
-reasoning (`api.turso.tech` and `api.clerk.com` deliberately excluded). Adding domains should
-**amend that ADL**, not quietly edit `.devcontainer/init-firewall.sh`. Note the practical asymmetry
-already recorded in ADL-48: an npm-distributed dataset is reachable from this environment and from
-CI; a direct third-party download is not.
-
-**Also note:** `init-firewall.sh` runs at container start, so any change needs a container rebuild
-and cannot help an in-flight session.
-
-**Next step if adopted:** an Architect brief amending ADL-33 to cover Nominatim (+ MapTiler if the
-PO wants visual map testing), plus the fixture-capture and drift-check design. Cheap; ready to
-execute whenever the container next rebuilds.
-
-> **DESIGNED 2026-08-03 — ADL-49, branch `chore/adl33-nominatim-allowlist`. Still the PO's call;
-> nothing applied.** `jobs/architect/tech/ADL-49-geocoder-allowlist-and-replay-fixtures.md` + the
-> main-log entry. The `init-firewall.sh` diff is **quoted, not applied** (needs a rebuild). Four
-> things in this entry the design changed rather than confirmed:
-> 1. **MapTiler: recommended DEFER, and the stated rationale does not hold.** The container firewall
->    never reached the PO's browser (it runs on the host); **BUG-34 is `done` and BUG-49 is
->    `done_pending_uat`**, so neither is an open bug awaiting observation; and in CI the blocker is a
->    missing `VITE_MAPTILER_KEY` — `ci.yml` consumes no repository secrets at all — not the firewall.
-> 2. **"Queried at `limit=10` globally" is false for two of three call sites.** `resolveCityName` and
->    `resolveCity` already pass `countrycodes`; only the *discovery* call is global, and that is the
->    path BUG-71 travelled. Three one-line changes close most of the ambiguity gap without a dataset.
-> 3. **The ten tail places are absent from the gazetteer datasets too** (ADL-48 §2's own words), so
->    they resolve only via the geocoder under *either* architecture — which makes **BUG-76 the
->    highest-value and cheapest item on this whole thread**.
-> 4. **ENV-01 should be reopened.** Its `accepted` / "no fix needed" resolution is what let an
->    environment constraint become an argument for a 170,540-row dataset.
->
-> Recommended sequence before re-taking GE-17 S2/S3: apply the diff → rebuild → run the BUG-76 probe
-> (~60 s of egress) → widen the filter + land the query changes → land the fixtures. ~a day.
-
----
-
-### D-19: Constrain city lookup by the trip's declared countries + shortlist-not-filter selection
-**Raised:** 2026-08-01 (PO) · **Status:** ~~DESIGNED, deferred behind an MVP~~ → **DEFERRAL
-NO LONGER JUSTIFIED (amended 2026-08-01, same day).** Needs a BRD home before any brief.
-UX spec written and merged; Architect design not started.
-
-> **AMENDMENT (2026-08-01) — the deferral rested on a premise that was disproved within hours.**
-> This was parked as "probably edge-case territory until measured," on two stated grounds: that the
-> COO's sense of the problem was inflated by a since-fixed defect, and that **nobody could measure
-> the real rate** because `geocode_status` had only just reached main. Both were fair at the time.
->
-> What happened next: the COO queried `geocode_status` at the next session pickup and found three
-> rows, all `resolved` — no volume, so still unmeasured — and additionally read one correctly-shaped
-> `Springfield → Virginia` row as evidence the live path *worked*. The PO then ran a real browser
-> against staging and found that same row had been produced by the defect: "springfield" silently
-> auto-populates State = Virginia with **no indication another Springfield exists** (now **BUG-71**,
-> P1, with screenshot + code-read confirmation).
->
-> **The measurement arrived by other means.** One user, the first city typed, wrong result, no
-> recourse. The unconstrained global `limit:'10'` lookup this entry exists to fix is a direct
-> contributing cause: it starves the ambiguity discriminator of the evidence it needs to fire.
-> Two lessons worth keeping separately from the decision: **a correct-looking row is not a correct
-> flow** (the COO's read was wrong, and a DB query was the wrong instrument), and **"unmeasured"
-> is not a synonym for "rare"** — it was treated as one here.
->
-> **This does not auto-promote D-19 to a brief** — it still needs a BRD home and the PO's call on
-> scope. It does mean the *edge-case* framing should not be reused as the reason to defer it, and
-> that QUAL-21 (F4 route-level coverage), named a prerequisite if D-19 proceeds, is now live.
-
-**The problem.** Adding a place on a US trip and typing "Rome" resolves to Rome, Italy. The
-frontend calls `GET /api/geocode?q=…` with **no constraint at all**, even though the backend
-proxy already accepts `country_code` and `region_iso` and implements D12's constrained resolve.
-The capability exists on both ends; nothing joins them.
-
-**What the PO proposed, across several turns:**
-1. **Trip countries constrain the suggestions.** `trip_countries` already exists as a *set*
-   (optional, many-to-many), so multi-country trips work without change. Explicitly for autofill
-   and proposed options only — never restricting what the user can pick.
-2. **Shortlist, don't filter.** Likely matches at the top of the dropdown, a separator, then the
-   complete list below — `<optgroup>` expresses this natively. This came directly from the D14
-   defect this release shipped and fixed, where a *narrowed* selector could collapse to zero
-   options. Nothing is ever removed, so that failure mode becomes unrepresentable rather than
-   handled. **This supersedes the fix landed in PR #341**, which replaces the option list rather
-   than promoting within it — safe as-is, but inconsistent with this pattern; fold in when this lands.
-3. **Agreement promotes to `resolved`.** Whatever the user selects gets geocode-checked, and only
-   if the two agree does the city enter the shared catalogue; a selection the geocoder cannot
-   confirm stays `pending`. This is a materially stronger definition than today's "the geocoder's
-   first guess", and it would let GE-16 drop its own footnote that *"resolved means the service
-   returned a match, not that the match has been verified as correct."*
-4. **Three-tier precedence** (COO, adopted by the UX spec): explicit place-level selection wins and
-   is never overwritten by geocoding (GE-16 already mandates this) > trip countries constrain when
-   no place-level choice exists > unconstrained discovery only when neither does.
-
-**What was decided against.** A user-dropped map pin — private display coordinates on the user's
-own record. Rejected on: GE-16's unqualified "coordinates are never client-supplied" would need a
-carve-out; placing a pin accurately is far more effort than a one-tap answer; and it resolves the
-user's view while leaving the catalogue record permanently unresolved, so the list starts tracking
-*places I dealt with* rather than *cities that are resolved*. UX agreed independently, on
-catalogue-drift grounds rather than deference — while noting the COO's effort argument is weakest
-for the terminal village case, where the alternative is "point at a nearby town", not one tap.
-
-**Canonicalisation (Rome vs Roma) — answered NO.** The PO raised it as genuinely open. UX rejected
-a canonical-name-plus-aliases data model as real complexity for a cosmetic want that works against
-the convergence resolve-then-create exists for. Recommended instead: a one-time disclosure ("Saved
-as 'Roma'…"), plus a cheap non-UX mitigation — set `accept-language=en` on the Nominatim request.
-**That parameter was deliberately kept out of the F1/F2 fix**: it changes which canonical names come
-back, which changes identity-key values for newly created cities, and that implication deserves
-considering with this work rather than bundling into a correctness fix.
-
-**Why deferred.** The PO's read, which the COO shares: this is probably edge-case territory — a
-user should be selecting or correcting to the right place the large majority of the time. Two
-things support that. The COO's framing of the problem's size was **inflated by a defect** (the
-happy path was producing `pending` rows because `resolveCityName` marked any two same-region
-candidates ambiguous; fixed in #346). And **nobody can measure the real rate yet** — `geocode_status`
-arrives with migration `0015`, which only reached `main` on 2026-08-01, so no production data
-exists. Both "this matters" and "this is edge case" are currently unmeasured intuitions.
-
-**What ships instead:** UX-12 — the UX spec's MVP (a standing "Change city" control plus one
-undifferentiated "Location not confirmed" badge). UX named both as *not safe to cut*.
-
-**Triggers to revisit** (from the UX spec §12, concrete by design): a non-resolved rate above ~5%
-once production data exists; a UAT or user report of a missing or wrong pin; or the ISO 3166-2
-adoption landing, which changes the region-data completeness this design has to assume.
-
-**Sequencing if picked up:** BRD home first (likely a GE-15 amendment rather than a new ID — it
-refines country autopopulate rather than adding a capability, but write it before deciding),
-then Architect data-model design against the merged UX spec, then Backend + Frontend. **QUAL-21
-becomes a prerequisite rather than a follow-on** — this change makes the untested
-resolve-then-create path primary.
-
-**Artifacts:** `jobs/ux/tech/20260801-UX-city-entry-and-disambiguation-spec.md` (merged, PR #344) ·
-tracker UX-12, QUAL-21 · BRD GE-15/GE-16.
-
-> **RE-SCOPED (2026-08-01) by ADL-48 §6.9 — not closed, and still needs the PO's scope call.**
-> ADL-48 decides to bundle a local city gazetteer (170,540 rows) queried before Nominatim. Against a
-> local table, D-19's design problem collapses to a single clause:
-> `ORDER BY (country_code IN (/* trip countries */)) DESC, name`. That **is** the PO's
-> shortlist-not-filter pattern exactly — nothing is removed, likely matches sort first — with no
-> rate-limit interaction, no extra egress and no truncation risk, and the UX spec's `<optgroup>`
-> presentation sits on top unchanged. Two consequences worth recording: **QUAL-21 stops being a
-> prerequisite** in the form stated above (the primary path is a SQL query, not the untested
-> resolve-then-create path), and the *"a selection the geocoder cannot confirm stays pending"* item 3
-> becomes cheap because a complete local set can positively confirm. **D-19 should be picked up as a
-> consequence of ADL-48 stage S3 rather than designed separately** — designing it independently now
-> risks a second, incompatible lookup path. See `jobs/architect/tech/ADL-48-bundled-gazetteer.md`.
-
----
-
-### D-20: Shared-record append collisions — the per-agent-region fix identified in Wave 0 and never adopted
-**Raised:** 2026-08-01 · **Status:** PROPOSED, not adopted. Recurrence count is the argument.
-
-**Four collisions in one session** (2026-08-01), on top of the documented history:
-`jobs/architect/context/current.txt` (twice — two Architect agents, then the review branch against
-the ruling branch), the ADL log (`20260307-architecture-decisions-log.md`, ADL-46 amendment vs the
-ADL-47 entry), and `.planning/drift-ledger.jsonl` (two branches appending concurrently).
-
-**The point that matters: every one of these was two parties correctly following OP-28.** The rule
-says append or amend, never wholesale replace — and all four did exactly that. Appending to the
-*same location* still conflicts. OP-28 prevents silent data loss, which was its actual purpose and
-it works; it does not prevent the conflicts, and nothing has ever claimed it would. So this is not
-a compliance problem and should not be addressed by tightening the rule.
-
-**Prior art, unactioned twice.** The Wave 0 concurrency notes (2026-07-27) recorded the same file
-colliding in 3 of 4 concurrent agents and proposed the fix: **per-thread context files
-(`context/<ID>-current.txt`) with `current.txt` as an index**, or making the park doc the only
-per-thread state since it is already uniquely named and collision-free. OP-28 (2026-07-28) then
-recorded a second occurrence. Neither adopted the structural fix. This is the third recording.
-
-**Cost so far is contained but real:** every collision has been hand-resolved by the COO mid-session,
-each costs context and carries a small chance of resolving wrongly, and the ADL-log one directly
-caused a *false negative finding* — an Architect agent correctly grepped its own branch, found no
-ADL-47, and flagged a doc-lifecycle gap that did not exist on `main`. The COO then asserted the
-agent was wrong, having probed a different branch. Neither party was careless; the file genuinely
-differed by branch.
-
-**Options, unranked pending a decision:**
-- Per-agent region files with an index (the Wave 0 proposal) — fixes context docs, not the ADL log
-  or the ledger.
-- Retire `current.txt` entirely and rely on uniquely-named park docs, which never collide.
-- Accept it and standardise the resolution instead: for genuinely append-only files (the ledger is
-  literally JSONL) a union-and-sort merge driver is mechanical and safe — the COO did this by hand
-  today and verified 2,521 lines, valid JSON, monotonic timestamps.
-
-**Recommendation (COO):** adopt the third for `.planning/drift-ledger.jsonl` immediately — a
-`.gitattributes` merge driver removes an entire class of conflict for a file with no semantic
-ordering beyond timestamp — and take the second for role context docs, since the park doc already
-does that job and `current.txt` is the file that keeps colliding. The ADL log is genuinely
-sequential and probably has to stay hand-resolved.
-
-**Trigger if not adopted now:** the next collision. There will be one.
 
 ### D-14: Trip country search matches full names only — should ISO codes ("US"/"USA") be added?
 **Raised:** 2026-07-28
@@ -374,217 +104,6 @@ work; leave tier 3 parked with BUG-45. Suggested as a follow-up item rather than
 BUG-52, since the shipped behaviour is correct as far as it goes. **Not yet decided** — awaiting
 Ryan. If adopted it needs a small TR-13 amendment, since TR-13 currently forbids exactly this.
 
-### D-13: Two concurrent COO sessions collided three times in one day — does this need a rule, or was standing one down enough?
-**Raised:** 2026-07-28
-
-Two COO sessions ran in parallel for most of 2026-07-28 (this one on Wave 1 dispatch, the
-other on OP-25 scheduled-health-check hygiene). The previous park doc had already flagged
-the risk — "BOTH sessions can write tracker.json, MEMORY.md and open-dialogues.md… worth a
-rule if concurrent COO sessions become normal rather than a one-off." It became real.
-
-Three collisions actually fired:
-
-1. **Shared `/workspace` HEAD.** Both sessions operate in the *same* working tree — the
-   thing `isolation: "worktree"` was adopted to prevent for agents has no equivalent for
-   COOs. At startup this session found HEAD on a stale (already-merged) branch and moved it
-   to `main`; later the other session had HEAD on its own branch, and this session had to do
-   its guardrail work in a scratch worktree specifically to avoid moving HEAD under it.
-   Nothing was lost — every commit was already on origin — but this is the OP-19 failure
-   mode one level up.
-2. **`OP-28` allocated twice, independently, on the same day.** This session used it for the
-   no-wholesale-rewrite rule; the other for GitHub App setup. Mine reached `main` first
-   (PR #310) and became immutable, so theirs was renumbered to **OP-31** when its PR was
-   merged. Cheap this time because one was still unmerged; had both landed, the tracker would
-   have carried two `OP-28` entries with nothing flagging it.
-3. **An accidental direct-to-main commit** on the other session's side (captured after the
-   fact by its PR #307), against a standing rule that COOs never commit directly to main.
-
-**Resolved for the day, not structurally.** Ryan asked whether one session should stop; the
-other stood down and handed over its open PR, which this session merged after the renumber.
-Zero open PRs and a clean tree at close.
-
-The open question is whether concurrent COO sessions should be **supported** or **prevented**:
-
-- *Prevent* — simplest, and arguably correct: the COO role is a serialisation point by design
-  (it reviews and merges serially anyway, per the clearance plan's own reasoning about why
-  Wave 1 runs in sub-waves). A second COO buys parallelism the merge queue can't use.
-- *Support* — needs at minimum: ID pre-allocation for tracker entries (the pattern already
-  proven for concurrent ADL numbers in Wave 0), and a convention that each COO session works
-  in its own worktree rather than sharing `/workspace`.
-
-Not decided — raised for Ryan. The precedent question is D-03's: is one day of contained
-collisions enough signal to add a standing rule, or does it only matter if it recurs? Note
-this one differs from D-03 in that it fired *three distinct ways* in a single day, and one of
-them (duplicate tracker IDs) would have been silent rather than caught.
-
-### D-12: Four BRD contradictions surfaced by the QUAL-05 sweep that need a PO (and in one case Architect) decision
-**Raised:** 2026-07-26
-
-The QUAL-05 state-language sweep (PR #259) was scoped to fix prose that decays and to
-**flag, not resolve**, anything where the fix would pre-empt a product or architecture
-decision. Four items came back flagged. They are recorded in QUAL-05's tracker note and in
-the Docs completion report (`jobs/COO/inbox/read/20260726_2234-DOCS-state-language-sweep-
-complete.txt`), but neither surfaces at `/coo-startup`, which is why they are here.
-
-None is urgent. All four are wording-level in the BRD — the shipped app is unaffected.
-
-> **UPDATE (2026-07-28) — item 1 is now the exception to both sentences above, and is urgent.**
-> The shipped app *is* affected. Ryan reproduced **BUG-63** on staging as a non-owner: three
-> deterministic 403s (`GET /api/admin/categories/active`, `GET /api/admin/activities/active`,
-> `POST /api/cities`) mean a non-owner **cannot add a place to a trip at all**. Raised to
-> **P1**, owner **Architect**. Item 1 called this two days early — it predicted BUG-63 could
-> not be correctly specified until SE-01/SE-03 say what the intended model is, and that is now
-> the blocking path, not a wording nicety. Items 2–4 are unchanged and remain non-urgent.
->
-> Two further facts for whoever picks this up. First, `security.access-matrix.test.ts` asserts
-> the offending 403s as **correct** (lines ~383 and ~414), so the suite is green while
-> encoding the defect as the intended contract — the spec must move before the code, which is
-> exactly the SE-01/SE-03 decision this item describes. Second, `BRD-AD09`'s tracker note
-> independently recorded the same over-restriction (creation "more restrictive than AD-09
-> specifies, not less", parked per ADL-28 Q5); that parked gap and BUG-63 are one defect filed
-> twice. Recommended scope for the Architect pass: SE-01/SE-03 + AD-09 + BUG-63 + BUG-55
-> together, since all four are the single question of which surfaces are reachable by whom.
-
-> **RESOLVED (2026-07-30) — item 1 only, by ADL-46 → BRD v3.13.** SE-01 rewritten to a
-> resource-tier × role model, SE-03 rescoped to instance administration (country/region config
-> + shared-catalogue curation), AD-09 rewritten to per-user lists, and GE-16 added for
-> constrained city find-or-create. This is the SE-01/SE-03/AD-09 decision item 1 said BUG-62/63
-> were blocked on. Spec merged as PR #327 (+ OP-27 review #328); BRD gate applied in the v3.13
-> bump. Item 1 is closed here; **items 2–4 remain open and unchanged.** The code has not shipped
-> yet — GE-16/BRD tracker work and the Database → Backend → Frontend briefs are the remaining path.
-
-1. **§5.11 SE-01/SE-03 — the three-role model has drifted from reality.** AD-07 and AD-08
-   moved map shading and companions to per-user with `requireAuth`, and non-owner users
-   create their own trips in production, but SE-03 still describes authenticated-but-
-   ungranted users receiving 403 on admin operations. **BUG-61/62/63 are live symptoms of
-   this drift, not independent bugs.** This is a semantic change to a *security*
-   requirement, so it needs PO **and Architect** — explicitly out of scope for a doc sweep.
-   Of the four, this is the one with real consequences: BUG-62 and BUG-63 are both open and
-   arguably cannot be correctly specified until SE-01/SE-03 say what the intended model is.
-2. **§7 and §11 — historical import.** Both state import tooling is out of scope and manual
-   entry is the answer. Import requirements IM-01–33 are drafted but **not approved**.
-   Deleting those lines would pre-empt the PO decision; leaving them is fine until IM is
-   either approved or dropped.
-3. **§5.15 MB-01 — mobile scope.** The §5.15 preamble ("the phone is a reference device,
-   not an editing surface") was stamped SUPERSEDED by WP-04 in v3.7, but MB-01's own
-   requirement text still scopes mobile to the read path only, while WP-04 shipped a fully
-   editable mobile layout. Whether to widen MB-01's stated scope — and whether that implies
-   anything about offline support — is a product call, not a wording fix.
-4. **§5.7 PH-02 vs IM-06.** PH-02 says "the app does not store or copy photos"; IM-06
-   (client-side EXIF import) will read as contradicting it. Consistent in substance today.
-   **Conditional — only needs resolving if import is approved**, i.e. it collapses into
-   item 2.
-
-Suggested handling: item 1 alongside the BUG-62/63 work rather than as a separate pass;
-items 2 and 4 together whenever the import decision is made; item 3 whenever mobile scope
-next comes up. Not blocking the backlog clearance plan's waves.
-
-### D-11: `.claude/settings.local.json` disappeared from disk mid-session — root cause unknown, and it's gitignored so a `git clone` migration won't carry it
-**Raised:** 2026-07-23
-
-Mid-session, Ryan reported desktop notifications had stopped firing. Investigation found
-`.claude/settings.local.json` — the untracked, gitignored, personal-only file that wires
-`.claude/hooks/notify.sh` to `PreToolUse(AskUserQuestion)`, `PreToolUse(ExitPlanMode)`,
-`Notification`, and `Stop` (see `project_macos_notification_bridge.md`) — was completely
-absent from `/workspace/.claude/`. `notify.sh` itself was intact and worked correctly
-when invoked directly; the queue directory was simply empty because Claude Code had
-nothing telling it to call the hook at all.
-
-**Root cause not found.** Checked and ruled out: no `git clean` in recent shell history;
-the file was never actually committed with hook content (its last *tracked* version,
-visible in `git show f79dba7`, only ever held a permissions allowlist, predating the
-hooks — the hooks were added to the working copy in the same PR that untracked the
-file, so they never touched git history at all and aren't recoverable that way).
-`/workspace` is a genuine host bind mount, so an ordinary container restart shouldn't
-touch it. COO recreated the file from the architecture documented in
-`project_macos_notification_bridge.md` and confirmed `notify.sh` fires correctly again;
-whether Claude Code needs a session/window reload to pick up a hooks file rewritten
-mid-session (vs. re-reading it live) is also untested — Ryan confirmed "working again"
-afterward, but the mechanism wasn't isolated.
-
-**Direct implication for D-10 (OneDrive migration, in progress):** because this file is
-gitignored by design, the recommended `git clone` migration method will **not** bring it
-along automatically — same category as `.env.local`, which the runbook already handles
-via manual copy. **The runbook needs this same manual-copy step added for
-`.claude/settings.local.json`**, or the new clone will have the identical
-notifications-silently-stop symptom on first use, indistinguishable from a recurrence of
-this same mystery. Not yet added to the runbook as of this entry — do before Ryan
-executes step 4 (the `.env.local` copy step).
-
-Not actioned beyond the immediate recreate-and-verify — raised for awareness given it
-happened once already with no clear cause, and the migration is about to change the
-exact filesystem layer (OneDrive bind mount → plain local disk) that's the prime
-remaining suspect if it recurs.
-
-**Update 2026-07-23 (D-10 executed):** the runbook gap this entry flagged was closed
-before Ryan ran the migration — the manual-copy step for `.claude/settings.local.json`
-was added, Ryan copied it alongside `.env.local`, and it verified byte-identical
-(same size and mtime) at the new path. Notifications worked immediately post-migration
-with no recurrence of the disappearance. This is one clean data point *against* the
-filesystem-layer theory (OneDrive bind mount → plain local disk is now the active
-layer, and the file has stayed put since) but one clean session isn't enough to close
-the root-cause question outright — leaving this open for continued observation rather
-than marking resolved. The immediate practical risk (migration losing the file) is
-gone either way.
-
-### D-09: COO worktree cleanup can race an agent's own lingering post-report process
-**Raised:** 2026-07-22
-
-During the BUG-61 Architect dispatch, the agent's task-notification fired "completed" with
-a full self-report (CI still pending at that point, flagged as an open item for COO to
-verify). COO acted on that notification independently — checked `gh pr checks 227` directly,
-reviewed the diff, merged, then ran routine `git worktree remove` on the agent's worktree as
-part of normal close-out. A second, delayed notification then arrived from the *same* agent
-reporting that its "execution environment was removed out from under it" mid-poll — i.e. the
-agent's own shell was still alive (apparently still trying to poll CI status in the
-background) after its first "completed" notification had already fired and been acted on.
-
-No harm resulted — all commits were already pushed before the removal, and COO's own
-independent CI check (not the agent's) was what actually gated the merge. But this is a new
-variant in the same family as D-08/OP-20: a task-notification marked "completed" does not
-guarantee zero live subprocesses remain in that agent's worktree, so cleaning up immediately
-after acting on that notification can still collide with something. Open question: does
-routine worktree cleanup need a beat of delay after a completion notification (e.g. confirm
-no second notification arrives within some window before removing), or is "no harm, agent's
-own commits were already safely on origin" sufficient evidence this doesn't need a process
-change — per D-03's precedent (single contained incident, not automatically a new rule)? Not
-yet decided — raised for Ryan, not actioned.
-
-### D-08: Mid-thread `/workspace` leak — does the isolation guardrail need a fourth clause?
-**Raised:** 2026-07-21
-
-During the WP-02 Frontend dispatch (worktree-isolated per the mandatory rule), the agent's
-own report flagged that a later `cd /workspace &&`-prefixed `npm install` briefly ran
-against the shared COO checkout instead of its assigned worktree — not the first action
-(already guarded by the existing "confirm cwd first" rule from OP-20), but a command
-mid-thread that explicitly re-targeted `/workspace`. Left stray uncommitted
-`package.json`/`package-lock.json` changes in the shared tree; the sandbox's own
-worktree-isolation guard caught it and blocked the agent from touching `/workspace`
-further (including its own cleanup), so COO reverted the leak by hand
-(`git checkout -- package.json package-lock.json`) — no data lost, nothing committed or
-pushed from the wrong tree.
-
-This is the same family as OP-20's two 2026-07-20 near-misses, but a new variant: OP-20's
-"working-directory confusion" rule only mandates a cwd check as the dispatched agent's
-*first* action, which doesn't cover a later command that explicitly hardcodes
-`/workspace` in its own invocation. Open question: does this warrant a fourth OP-20-style
-guardrail (e.g. "agents must never issue a command with a literal `/workspace` path
-prefix — always operate relative to the confirmed worktree cwd"), or is one contained
-incident insufficient signal to add another mandatory rule, per D-03's precedent (a
-single-incident proposal Ryan declined to adopt)? Not yet decided — raised for Ryan, not
-actioned.
-
-### D-04: Clerk API version upgrade practice
-**Raised:** 2026-07-21
-
-Ryan noticed the app is pinned to Clerk API version `2025-11-10` while `2026-05-12` is
-current. Not a specific upgrade request — Ryan wants this kept as a general note about
-upgrade practice (periodically checking for Clerk API version drift and weighing whether
-to move), not a scoped task to bump to the latest version now. COO doesn't have visibility
-into what actually changed between those two versions (Clerk's docs site isn't in this
-container's firewall allowlist) — would need to check Clerk's changelog before any real
-upgrade decision. No action until Ryan revisits this.
-
 ### D-05: Separate prod/staging Clerk applications
 **Raised:** 2026-07-21
 
@@ -596,23 +115,6 @@ dynamic per-PR preview URLs Railway generates) — that's about the app's origin
 which app backs it. This is an auth-topology change, so per the standing infra/runtime
 guardrail (Architect review before COO acts) it should get a brief Architect pass before
 implementation. Ryan said to leave it as an open note for now, not act on it.
-
-### D-07: `gh` CLI has no persistent auth in this container
-**Raised:** 2026-07-21
-
-`gh` was unauthenticated all session — `devcontainer.json` forwards `${localEnv:GH_TOKEN}`
-from the host, but it arrived empty (`GH_TOKEN=` with no value), so `gh pr create`/`gh pr
-merge` all failed with "not logged into any GitHub hosts" until COO bridged it: extracted
-the token VS Code's own git-credential-helper already uses for `git push`/`git pull`
-(`git credential fill` for `https://github.com`) and fed it directly to `gh auth login
---hostname github.com --with-token`. That worked for the rest of this session, but it's a
-workaround, not a fix — the underlying gap (why `GH_TOKEN` isn't reaching the container
-from Ryan's host) is unresolved, and the bridged `gh` auth state may not survive a
-container rebuild (untested). Two possible real fixes, neither actioned: (a) Ryan sets
-`GH_TOKEN` in his host shell environment before the container starts, so the existing
-devcontainer.json passthrough actually has something to forward; (b) bake the
-credential-helper-bridge trick into container startup so it's automatic rather than an
-ad-hoc COO workaround each session. Not yet decided which, if either, Ryan wants.
 
 ### D-16: OP-27 says who reviews and when, but not that the spec's own open questions must be closed first
 **Raised:** 2026-07-28
@@ -652,82 +154,6 @@ target looks identical to a review that genuinely found nothing. Same family as 
 Counter-argument worth stating: it adds a PO round-trip before every review, which on a spec
 with no open questions is pure latency — so the rule should read "resolve **if any**", not
 "always pause".
-
-**Related, recorded here so it survives the session boundary rather than being lost:
-BUG-63 has no time pressure.** Ryan, 2026-07-28: *"i've told my friend i'll let him know when
-he can test again there is no rush."* BUG-63 stays **P1 on severity** — core function is
-completely broken for every non-owner — but there is **no urgency**, and a future session
-should not read "P1 + a blocked external user" and panic-dispatch a narrow fix around the
-ADL-46 migration. The PO explicitly chose all-in-one delivery knowing the P1 stays live for
-the whole build. **This belongs in BUG-63's tracker note and is parked here only because
-PR #327 has that same `notes` field open on another branch** — a separate edit would have
-guaranteed a merge conflict on one JSON string (the D-13 failure shape). Fold it into the
-tracker once #327 merges, then strike this paragraph.
-
-### D-18: Startup/close-out feel heavy on a bare context-flush `/clear` — gate the audit on "did anything change?"
-**Raised:** 2026-07-31 (PO)
-
-**Deciding dimension:** proportionality of a fixed-cost safety audit to variable actual risk — the
-audit is priced for the *worst* pickup (cold, unattended, drifted) but runs identically on the
-*cheapest* one (a mid-work `/clear` to flush context where nothing changed since the last look).
-
-**The observation.** `/coo-startup` runs 8 checks and inlines a large block of state every pickup
-regardless of whether anything changed. Measured token cost of the unconditionally-inlined state
-(2026-07-31): UAT log ~7,000 tok (28KB), open-dialogues ~10,650 tok (42KB), drift-ledger tail
-~3,000 tok (80 lines), park doc ~1,930 tok, SKILL body ~3,000 tok ≈ **~25.7k tokens inlined at every
-startup.** The operational cost (≈4 gh/bash probes + 7 hook-canary probes) is modest; the felt weight
-is the token load plus reporting on 8 sections that are mostly no-ops on a clean flush.
-
-**Why it's uniform today.** A freshly `/clear`'d instance cannot introspect whether it's a flush or a
-cold start, so the audit trusts nothing and re-derives everything. Correct as a floor — agents only
-live during sessions, so an unsurfaced red main / cron flag has no other detector. But the "did the
-world change?" signal is cheap to read from durable state, and most checks are defending against a
-mutation that one probe against the last `reviewed` sentinel can detect.
-
-**Proposal — gate each heavy check on a cheap trigger probe; keep the two irreducible ones always:**
-
-| Check | Trigger probe (vs last `reviewed`) | If probe empty |
-|---|---|---|
-| Hook canary (7 probes) | `git diff --name-only <reviewed> -- .claude/hooks/` | skip (or weekly) |
-| Drift/subagent audit | ledger scan for `subagent_stop` since reviewed | one-line no-op |
-| BRD coverage + lifecycle | `git log <park-base>..origin/main` (anything merged?) | one-line no-op |
-| UAT log (de-inline) | grep open `[ ]` / non-PASS **before** reading | don't load full log |
-| drift-ledger tail | load entries since last `reviewed`, not fixed 80 | usually <20 lines |
-
-**open-dialogues bloat is a content problem, not a load-gate.** Measured 2026-07-31: Resolved is only
-56 lines (3 entries, none moved since 2026-07-20); the 42KB is **oversized Open entries** (D-14 alone
-is ~370 lines). So "load Open only" saves ~1k, not the ~5k first estimated. The real fixes are
-process, and they're the same discipline that keeps startup lean:
-- **Actually run the move-on-resolution step at close-out** (it has lapsed — only D-01/02/03 ever
-  moved), and archive resolved entries to a **separate `open-dialogues-archive.md`** (the
-  `uat-archive.md` pattern) so the loaded file is Open-only by construction.
-- **Keep Open entries terse** — the full analysis lives in the promoted home (ADL/tracker/BRD); the
-  entry is a pointer + status, not the essay. Retrofit the existing oversized entries once.
-
-**Always-run floor (never gate):** main-CI status and open cron-flags — one `gh` call each, and the
-two things nothing else catches.
-
-**Estimated saving:** from load-gating alone, **~8k tokens/pickup** (UAT log grep-gate ~5–6k +
-ledger-since-reviewed ~2k; open-dialogues load-gate only ~1k). Reaching the ~50%/~13k mark requires
-the *content* cleanup above — archiving resolved entries out and trimming oversized Open entries —
-which is a one-time fix plus a maintained close-out step, not a load-gate. On a clean flush the audit
-collapses to three things: main CI, cron-flags, park doc. On a genuine cold pickup the insurance is
-unchanged.
-
-**Does it require the PO to declare "this is a flush"?** No — and it must not depend on that. The
-durable-state probes are the objective detector and fail *safe* (a forgotten declaration falls to the
-heavy path, never skips the audit). A volunteered "just cleared, starting fresh" is welcome as a
-corroborating hint that lets the COO trust empty probes faster, but it is never load-bearing, and it
-can't lower the always-run floor.
-
-**Matched-pair caveat.** Startup and `/coo-merge-and-close` are a pair — the park doc + restart
-preview are what let the next startup trust rather than re-derive. Do not lean out the park doc to
-save startup cost; if trimming close-out, trim the tracker/STATUS restatement that duplicates the
-park doc, not the park doc itself.
-
-**Status:** analysis complete, not implemented. It's a change to a mandatory skill → wants a D-entry
-→ ADL, then edits to `coo-startup/SKILL.md` (de-inline UAT + open-dialogues, add trigger gates) and a
-close-out review. COO recommends adopting. Deferred to a session with token headroom.
 
 ## Resolved
 
@@ -820,3 +246,43 @@ verification work — CI-anomaly probes, drift-ledger checks, etc., not this int
 session) stay on Haiku 4.5, per Ryan's explicit instruction to let COO make that call
 itself. The live interactive COO session's own model (this conversation) is out of
 scope for agent-definition frontmatter — Ryan sets it himself via `/model`.
+
+### D-26: Declare a spike's effort-box / kill-criterion up front — PARKED 2026-08-08
+Decided: defer, do not adopt a third process gate; **OP-33** already catches the bad-premise class at source. Revisit only if a second uncontrolled spike appears after OP-33 is in force. (Was a rule proposal.)
+
+### D-24: `ci-wait.sh` reported PASS against a stale SHA — WATCH-ONLY 2026-08-08
+One instance, not a class; a fail-open (QUAL-27 cousin). If it recurs, file it as a defect — fix would be to re-resolve and compare the head SHA after the watch completes. No tracked work until then.
+
+### D-21: Nominatim/MapTiler firewall allowlist + replay fixtures — TRACKED 2026-08-08
+Designed as **ADL-49**; promoted to tracker **OP-33** (apply on next container rebuild). The PO's go/no-go now lives on that item. The highest-value item on the thread (BUG-76 settlement-filter fix) already shipped.
+
+### D-19: Constrain city lookup by trip countries + shortlist-not-filter — SUPERSEDED 2026-08-08
+Overtaken by the shipped city-identity work: **UX-12 + QUAL-21 done, BUG-71/75/76 shipped**. The remaining lookup-constraint folds into **ADL-48 stage S3** (against the bundled gazetteer, `ORDER BY (country_code IN trip-countries) DESC` *is* the shortlist-not-filter pattern). Pick it up as an ADL-48 S3 consequence, not a separate design. Homes: ADL-48, UX spec (PR #344), BRD GE-15/16.
+
+### D-20: Shared-record append collisions — TRACKED 2026-08-08
+Promoted to tracker **QUAL-34** (union-merge driver for `.planning/drift-ledger.jsonl` + per-agent context files with `current.txt` as an index). Relates QUAL-12.
+
+### D-13: Two concurrent COO sessions collided three times in one day — PARKED 2026-08-08
+Resolved for the day (one session stood down and handed over its PR); no standing rule adopted, per the D-03 single-incident precedent. Revisit if concurrent COO sessions become normal. The fix if adopted: tracker-ID pre-allocation + a per-session worktree rather than sharing `/workspace`.
+
+### D-12: Four BRD contradictions from the QUAL-05 sweep — SPLIT 2026-08-08
+Item 1 (SE-01/SE-03 three-role drift) resolved by **ADL-46 → BRD v3.13**. Items 2–4 (import scope §7/§11 + PH-02/IM-06; MB-01 mobile scope) promoted to tracker **QUAL-36** so they surface at startup; each becomes a BRD bump when the PO decides import / mobile scope.
+
+### D-11: `.claude/settings.local.json` vanished mid-session — CLOSED 2026-08-08
+Practical risk closed at the OneDrive→local migration (runbook manual-copy step landed; file verified byte-identical afterward, no recurrence). Root cause never isolated, but nothing actionable remains. Home: **ADL-39** / memory `project_onedrive_dehydration`.
+
+### D-09: COO worktree cleanup can race an agent's lingering process — PARKED 2026-08-08
+Single contained incident (no harm; the agent's commits were already on origin). No rule adopted, per the D-03 precedent. Revisit on recurrence. Distinct from QUAL-32 (worktree-backlog prune, done).
+
+### D-08: Mid-thread `/workspace` leak — fourth isolation clause? — PARKED 2026-08-08
+Single contained incident (the sandbox guard caught it; COO reverted by hand). No fourth OP-20 clause adopted, per the D-03 precedent. Revisit on recurrence.
+
+### D-07: `gh` CLI has no persistent auth in the container — TRACKED 2026-08-08
+Promoted to tracker **OP-34** (host `GH_TOKEN` passthrough, or bake the credential-bridge into container startup — PO to choose). The per-session workaround (`git credential fill` → `gh auth login --with-token`) is documented there.
+
+### D-04: Clerk API version drift — MOVED TO MEMORY 2026-08-08
+Standing watch-note (pinned `2025-11-10`; check the changelog before any bump — Clerk docs not in the allowlist). Home: memory `reference_clerk_api_version_drift`. Not a live discussion.
+
+### D-18: Lean the /coo-startup audit — TRACKED 2026-08-08
+Promoted to tracker **QUAL-35** (gate heavy checks on a change-probe against the last `reviewed` sentinel; de-inline UAT + open-dialogues; archive Resolved to a separate file). PO-raised 2026-07-31; analysis complete, COO recommends adopting.
+

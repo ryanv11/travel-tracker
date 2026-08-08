@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (77)
+## Open work (82)
 
 ### P0 — Blockers (1)
 
@@ -35,7 +35,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (46)
+### P2 — Important (47)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -85,8 +85,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
+| OP-33 | Apply ADL-49 — Nominatim (+optional MapTiler) firewall allowlist + recorded replay fixtures, on next container rebuild | coo | ⬜ Pending |
 
-### P3 — Minor (25)
+### P3 — Minor (29)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -115,6 +116,10 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-78 | 'Suggested:' region caption not bold enough to read as a value needing checking | frontend | done_pending_uat |
 | BUG-82 | CityPicker rows keyboard-inaccessible (bare div onClick) + disabled has no visual state — a11y | frontend | ⬜ Pending |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
+| QUAL-34 | Shared-record append collisions — union-merge driver for the ledger + per-agent context files (never adopted, 3rd recording) | coo | ⬜ Pending |
+| QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |
+| OP-34 | gh CLI has no persistent auth in the devcontainer — bridged by hand each session | coo | ⬜ Pending |
+| QUAL-36 | Three BRD-wording open questions from the QUAL-05 sweep — import scope + MB-01 mobile scope, awaiting PO decision | coo | ⬜ Pending |
 
 ## Coverage by type
 
@@ -124,7 +129,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `████████████░░░░░░░░` 48/80 | 48 | 32 | 3 |
 | task | `████████████████████` 11/11 | 11 | 0 | 0 |
-| chore | `█████████████░░░░░░░` 26/40 | 26 | 14 | 1 |
+| chore | `████████████░░░░░░░░` 26/45 | 26 | 19 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -158,4 +163,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_155 done · 9 deferred · 5 closed · 77 open — 246 tracked items_
+_155 done · 9 deferred · 5 closed · 82 open — 251 tracked items_
