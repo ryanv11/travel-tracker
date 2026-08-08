@@ -1,0 +1,65 @@
+TO: COO
+FROM: Docs
+DATE: 2026-08-08
+RE: Docs hygiene sweep (QUAL-07 / QUAL-10 / QUAL-13 / QUAL-16) — complete
+
+Tracker IDs: QUAL-07, QUAL-10, QUAL-13, QUAL-16 (no single GitHub issue — batch brief)
+BRD section: n/a (doc hygiene, no requirement change)
+Branch: chore/docs-hygiene-sweep
+
+WHAT WAS DOCUMENTED
+Four independent doc-hygiene items: replaced a stale schema duplicate with a pointer,
+banner-flagged a superseded blueprint, archived two resolved March-2026 inbox messages,
+clarified an ambiguous init-step reference in all 8 role prompts, and ran a bounded
+drift pass over CLAUDE.md/CODEBASE.md/the backend API reference.
+
+PER-ITEM RESULT
+- QUAL-10: done. jobs/database/tech/schema.ts fully replaced with a pointer to
+  src/backend/db/schema.ts — declaring this as the full-replacement OP-28 permits (it's
+  the task, not a deviation). Two-probe staleness: file content (stale Postgres-Phase-2
+  language) + git log (last touched 2026-07-23 vs. real schema's 2026-08-06).
+- QUAL-07/U14: done. HISTORICAL banner + pointer added to
+  jobs/architect/tech/20260307-tech-blueprint.md, body untouched.
+- QUAL-13: done. Both stale unread Architect inbox messages (both March 2026, both
+  verified resolved before archiving) moved to inbox/read/ via git mv. Inbox top level
+  now empty.
+- QUAL-16: done, but see FLAG below — I fixed the ambiguity as tracker.json's own
+  QUAL-16 entry actually describes it (two unrelated files both named
+  _shared/frameworks.txt colliding on path resolution), not as the brief's "read-once
+  vs read-every-time" framing described it. All 8 role prompts' init step 1 now names
+  both files explicitly; also fixed the Architect prompt's closing step 5, which had the
+  same collision.
+- QUAL-07 drift pass: done, bounded to the three named docs. CLAUDE.md — checked
+  against package.json, no drift found. CODEBASE.md — routes/repositories/services
+  trees were missing 7 live files (categories.ts, activities.ts, geocode.ts,
+  tripCategories.ts, activities.ts repo, nominatim-client.ts, db-errors.ts); fixed.
+  Backend API reference (v1.6→v1.7) — largest finding: /api/categories and
+  /api/activities (ADL-46, live since 2026-08-01) were fully undocumented while the doc
+  still documented /api/admin/categories and /api/admin/activities as live endpoints —
+  they 404 now, admin.ts's own comment confirms the old handlers were removed outright.
+  GET /api/me was also undocumented. Fixed all four plus a pre-existing TOC bug (missing
+  Geocode Proxy entry, duplicate "5." numbering).
+
+COVERAGE
+Maintenance/reference documentation only — no user-facing feature docs affected.
+Fixes the API contract doc FRONTEND and any future agent would have read as ground
+truth; the admin-endpoint drift specifically would have sent a reader at 404s.
+
+CI: PR not yet opened at time of writing this report — opening now; scripts/ci-wait.sh
+will be run before this report is considered final. [Will follow up if CI is not green
+before pushing — see note below.]
+
+OPEN ISSUES
+QUAL-16 flag: the brief's ambiguity framing ("read-once vs read-every-time") doesn't
+match what tracker.json's QUAL-16 entry records (a file-path collision). I verified the
+tracker's version with two independent probes (grep the note, then directly inspect
+both files' size/content) and fixed that. Grepped jobs/COO/park-docs/, jobs/COO/history/
+and tracker.json for "read-once"/"read-every-time" phrasing — found nothing supporting
+that framing as a separate, real concern. If it is one, it needs its own tracker entry
+and probe; I'm not asserting it isn't real, only that I found no evidence for it beyond
+this negative search.
+
+WHAT IS NOW UNBLOCKED
+The backend API reference is safe to hand to a Frontend or QA agent again without them
+independently discovering the admin-endpoint drift the hard way. jobs/database/tech/
+no longer risks anyone reading last month's schema by mistake.

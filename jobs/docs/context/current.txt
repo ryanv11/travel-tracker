@@ -9,3 +9,23 @@ OPEN ISSUES: See park doc — §4 report-only findings not fixed in-scope (proje
   resolved; README.md's Data storage section has no hosted-deployment mention). Recommend
   a standing docs-vs-code audit as a follow-on brief (not started).
 LAST PARK DOC: jobs/docs/park-docs/20260726-DOCS-state-language-sweep-park.txt
+
+---
+DOCS CONTEXT — 2026-08-08 (updated)
+PROJECT: Travel Tracker
+CURRENT STATUS: Docs hygiene sweep (QUAL-07/10/13/16) complete, PR open on
+  chore/docs-hygiene-sweep, awaiting COO merge
+ACTIVE TASKS: None (thread closed pending merge)
+PENDING MESSAGES TO COO: Completion report filed in jobs/COO/inbox/; QUAL-16 flag —
+  the brief's framing ("read-once vs read-every-time") didn't match tracker.json's own
+  recorded QUAL-16 finding (a path collision between two files both named
+  frameworks.txt); fixed the verified issue, flagged the mismatch, see report
+OPEN ISSUES: None blocking. QUAL-07 drift pass found and fixed a real gap in
+  jobs/backend/tech/20260307-api-reference.md — /api/categories and /api/activities
+  (their own routers since ADL-46, 2026-08-01) were entirely undocumented while the
+  doc still described /api/admin/categories and /api/admin/activities as live
+  endpoints (they 404 now); GET /api/me was also undocumented. Both fixed in this PR.
+  CODEBASE.md's routes/repositories/services trees were missing the same files plus
+  nominatim-client.ts and db-errors.ts; fixed. No further docs-vs-code drift audit
+  queued — this pass was scoped to CLAUDE.md/CODEBASE.md/API reference per brief.
+LAST PARK DOC: jobs/docs/park-docs/20260808-DOCS-hygiene-sweep-park.txt
