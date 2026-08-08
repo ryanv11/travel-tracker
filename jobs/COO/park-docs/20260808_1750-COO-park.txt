@@ -1,0 +1,77 @@
+COO SESSION PARK — 2026-08-08 ("BUG-76 P1 SHIPPED + UAT-PASSED; PICKER READABILITY; 4-AGENT CLEANUP WAVE")
+18 PRs merged (#419–#436) · main green throughout · pruned to only-main / zero-worktrees
+================================================================================
+
+## READ THIS FIRST
+
+1. **BUG-76 (P1) is DONE and UAT-PASSED on staging.** The geocoder accept-rule now keys on
+   `addresstype` (not Nominatim class-`type`), so admin-boundary cities (Denver, the Springfield
+   state capitals) resolve instead of being silently dropped. Design ADL-51; shipped #421;
+   PO UAT PASS on build 758ef15 (Denver auto-populates US+Colorado; Springfield surfaces IL/MA/MO/OH).
+
+2. **Two duplicate-tracker-ID slips happened this session** (picker item filed as BUG-77 which was
+   taken → renamed BUG-81; nanoid audit filed as DEP-03 which was taken → renamed DEP-06). Both
+   fixed. New hard rule in memory `feedback_grep_tracker_id_is_free_before_assigning`: **grep the
+   whole prefix and take max+1 before assigning any tracker ID** — never assume next-sequential.
+   Git does not catch duplicate IDs.
+
+3. **A parallel sub-agent fleet works well but has real concurrency hazards.** The 4-agent Wave-1
+   cleanup ran clean, but produced two self-caught near-misses (a `git checkout main -- .` pulling
+   concurrent main state; an unscoped `biome --write .`) — folded into QUAL-12's note. The mitigation
+   that worked: **agents did NOT touch tracker.json** (COO did all tracker updates post-merge,
+   serialized), which sidestepped both the shared-file collision and the dup-ID race.
+
+## What the session was, in one paragraph
+
+COO pickup after `/clear`. Drove BUG-76 (P1) through the full ATDD-first route (Architect design →
+OP-27 fresh-eyes → QA-first ATDD → Backend), caught + corrected the OP-27 reviewer's OWN
+negative-findings error via a live Nominatim probe (its "switch to jsonv2" fix was wrong; format=json
+already returns addresstype), grounded the census/statistical reject on 4 live CDP probes. Cleared a
+calendar-based red main (nanoid, DEP-06) to unblock the merge path. PO UAT-passed BUG-76, then found
+the picker rows hard to skim → BUG-81/BUG-74 (clean collision-aware "City, State, Country" rows +
+geocoder-failure banner), UX theme-reviewed (verdict: theme-consistent; a11y finding → BUG-82).
+Curated open-dialogues (D-17 cut). Then authored a cleanup-wave-plan and ran a 4-agent Wave-1 fleet
+(backend hygiene, frontend dedup, docs, test-coverage — 13 items resolved). Closed with a full
+branch/worktree prune (QUAL-32 done).
+
+## Shipped & merged (18 PRs, #419–#436) — highlights
+
+| Area | PRs | What |
+|---|---|---|
+| BUG-76 | #419/#421/#422 | accept-rule design+fixtures (ADL-51), the fix (isAcceptedSettlement, addresstype-keyed, both call sites) + BUG-74 backend status contract, tracker sync |
+| Unblock | #420 | DEP-06 nanoid audit fix (red-main hotfix) |
+| UAT close | #423 | BUG-76/75/UX-12 → done; BUG-81 logged |
+| BUG-81/74 | #424/#427 | structured state/country/county names + collision-aware picker labels + scroll cap + geocoder banner |
+| ID fixes | #425/#430 | BUG-77→BUG-81, DEP-03→DEP-06 dedup |
+| UX review | #429 | theme-consistent verdict; BUG-82 a11y backlogged |
+| Cleanup | #431/#432/#433/#434/#435/#436 | wave plan + 4-lane fleet (QUAL-33, BUG-83, QUAL-29/30/31/04/02/07/10/13/16) + sync |
+
+## State of play (durably tracked — see STATUS.md / tracker.json)
+
+- **Done_pending_uat, awaiting PO staging UAT:** BUG-81 (picker readability), BUG-74 (geocoder banner).
+  Note: BUG-81 is a FRONTEND bundle change — hard-refresh staging when testing.
+- **Next-session candidates (deferred per PO 'leave the rest for afterwards'):**
+  - **BUG-84** (P2) — requireAuth catch{} swallows all errors into unlogged 401 (U1, real bug; own tested brief).
+  - Decision-gated cleanup U7/U8/U10/U13/U15 + **QUAL-08** — dispositions in the cleanup-wave-plan doc.
+  - **QUAL-18/QUAL-19** — CSP env-parity (its own effort).
+  - **BUG-63** (P1) — non-owner add-place, still held for a live repro/lead.
+  - BUG-82 (a11y, backlog); the two BUG-75 QA follow-ups (in the BUG-75 note).
+
+## Process notes worth keeping
+
+- **UAT earned its keep again** — PASSED BUG-76 and surfaced the picker-readability follow-on (BUG-81),
+  and the PO caught that dropping county would break same-state disambiguation (question-the-frame).
+- **A reviewer's load-bearing negative claim needs the two-probe treatment** too — the OP-27 reviewer's
+  "must switch to jsonv2" was itself an unverified absence claim; a live probe disproved it. Memory:
+  `feedback_reviewers_negative_claims_need_probing_too`.
+- **Grep before assigning a tracker ID** (two dup-ID slips this session). Memory written; a duplicate-ID
+  guard hook is a candidate (noted in the memory, not yet built).
+- **Parallel fleets:** keep agents OUT of tracker.json; file-partition the lanes; expect update-branch
+  churn (behind-main) and merge serially with main-CI verification each time.
+
+================================================================================
+
+## Open threads
+See `jobs/COO/open-dialogues.md` (curated this session — D-17 cut, 4 threads moved to Resolved).
+The cleanup backlog plan lives in `jobs/COO/20260808-cleanup-wave-plan.md` (Wave-1 done; decision-gated
++ CSP waves remain).
