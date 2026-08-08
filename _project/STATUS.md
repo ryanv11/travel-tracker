@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (88)
+## Open work (77)
 
 ### P0 — Blockers (1)
 
@@ -35,7 +35,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (48)
+### P2 — Important (45)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -73,8 +73,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
 | QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | done_pending_uat |
 | DEP-05 | ip-address SSRF/trust-boundary advisories (HIGH, runtime via express-rate-limit) — fixed; react-router moderates deferred | coo | done_pending_uat |
-| QUAL-21 | Resolve-then-create success path has zero route-level test coverage (review F4) | qa | ⬜ Pending |
-| QUAL-22 | QA ATDD suite's geocoding mock drifted — one group is green for the wrong reason (review F8) | qa | ⬜ Pending |
 | BUG-71 | Ambiguous city name silently auto-resolves and pre-fills a state — no disambiguation offered (GE-16 violation) | frontend | done_pending_uat |
 | BUG-72 | City search dropdown shows name + country only — user selects a specific city blind | backend | done_pending_uat |
 | BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | done_pending_uat |
@@ -85,10 +83,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-81 | Disambiguation picker rows hard to skim — raw display_name shows county + postcode noise | frontend | done_pending_uat |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
-| QUAL-29 | Admin name-list resource (categories/activities/companions) triplicated across four layers — an admin-list factory that used to exist was unwound by the per-user migrations | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
-### P3 — Minor (34)
+### P3 — Minor (26)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -96,8 +93,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | FUTURE-01 | Import booking confirmations — flights, hotels, etc. | coo | ⬜ Pending |
 | BUG-37 | Flaky test — CarryForwardModal 'calls onClose immediately when Skip is clicked' | frontend | ⬜ Pending |
 | FUTURE-02 | Companion endorsements — tag who added place/item, allow endorsements | coo | ⬜ Pending |
-| QUAL-02 | Test assertion strength and edge case gaps (QA follow-up) | backend | ◐ Partial |
-| QUAL-04 | Dead code and one stale source comment left by the WP reskin and the ADL-28 companions migration | frontend | ⬜ Pending |
 | BRD-LB02 | Stats and patterns view (LB-02, Phase 2) | frontend | ⬜ Pending |
 | BRD-LB03 | Shareable recommendations link (LB-03, Phase 3) | architect | ⬜ Pending |
 | BRD-IT10 | Optional Google Maps URL per item — one-click directions (IT-10) | architect | done_pending_uat |
@@ -109,22 +104,16 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-47 | Auto-populate activities from trip/place content instead of manual pre-selection | architect | ⬜ Pending |
 | BUG-54 | Category/activity color customization | ux | ⬜ Pending |
 | BUG-56 | City name not auto-capitalized on entry | frontend | done_pending_uat |
-| QUAL-07 | Standing docs-vs-code audit — recurring Docs brief to catch prose/reality drift before someone trips over it | docs | ⬜ Pending |
 | BUG-67 | Locked-trip delete refusal is decided from client-held status, not re-checked at confirm time | frontend | ⬜ Pending |
 | BUG-68 | Clerk's telemetry endpoint is CSP-blocked in deployed environments — console noise, no functional impact | unassigned | ⬜ Pending |
 | DEP-03 | GitHub Actions pinned to v4 target Node.js 20 — deprecated, force-run on Node 24 | unassigned | ⬜ Pending |
-| QUAL-10 | jobs/database/tech/schema.ts is an unmaintained copy of the real schema | docs | ⬜ Pending |
-| QUAL-13 | Stale unread COO->Architect inbox messages from March 2026 | coo | ⬜ Pending |
 | QUAL-14 | MapView.tsx comment documents zoom >= 4 while the constant is 3 | frontend | ⬜ Pending |
-| QUAL-16 | Role system prompts' 'Read _shared/frameworks.txt' init step is ambiguous — two different docs share that filename | coo | ⬜ Pending |
 | QUAL-23 | Migration 0014 preconditions are manual-only; zero-owner DB commits dangling FKs silently (review F3) | database | ⬜ Pending |
 | BUG-69 | geocodeRetryQueue polls 'unresolvable' cities forever — no terminal branch | frontend | ⬜ Pending |
 | BUG-70 | Companion.is_active typed number but serialized boolean (third instance of the class) | frontend | ⬜ Pending |
 | BUG-78 | 'Suggested:' region caption not bold enough to read as a value needing checking | frontend | done_pending_uat |
 | BUG-82 | CityPicker rows keyboard-inaccessible (bare div onClick) + disabled has no visual state — a11y | frontend | ⬜ Pending |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
-| QUAL-30 | DesktopTripsLayout and MobileTripsLayout duplicate ~130 lines of controller logic — proven drift (BUG-80 fixed in both) | frontend | ⬜ Pending |
-| QUAL-31 | Modal-overlay shell hand-repeated across 6+ sites — extract a shared <ModalOverlay> | frontend | ⬜ Pending |
 | QUAL-32 | Stale local git branches + agent worktrees accumulating — careful prune needed | coo | ⬜ Pending |
 
 ## Coverage by type
@@ -133,9 +122,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 30/57 | 30 | 27 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `████████████░░░░░░░░` 47/78 | 47 | 31 | 3 |
-| task | `████████████████████` 10/10 | 10 | 0 | 0 |
-| chore | `███████▓░░░░░░░░░░░░` 14/40 | 14 | 26 | 1 |
+| bug | `████████████░░░░░░░░` 48/79 | 48 | 31 | 3 |
+| task | `████████████████████` 11/11 | 11 | 0 | 0 |
+| chore | `█████████████░░░░░░░` 25/40 | 25 | 15 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -169,4 +158,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_141 done · 9 deferred · 5 closed · 88 open — 243 tracked items_
+_154 done · 9 deferred · 5 closed · 77 open — 245 tracked items_
