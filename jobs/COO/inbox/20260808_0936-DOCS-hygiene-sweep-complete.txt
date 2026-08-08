@@ -45,9 +45,8 @@ Maintenance/reference documentation only — no user-facing feature docs affecte
 Fixes the API contract doc FRONTEND and any future agent would have read as ground
 truth; the admin-endpoint drift specifically would have sent a reader at 404s.
 
-CI: PR not yet opened at time of writing this report — opening now; scripts/ci-wait.sh
-will be run before this report is considered final. [Will follow up if CI is not green
-before pushing — see note below.]
+PR: #434 (chore/docs-hygiene-sweep -> main)
+CI: 18/18 checks green (scripts/ci-wait.sh pr 434, confirmed at commit fab9084)
 
 OPEN ISSUES
 QUAL-16 flag: the brief's ambiguity framing ("read-once vs read-every-time") doesn't
