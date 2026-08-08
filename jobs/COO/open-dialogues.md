@@ -109,53 +109,6 @@ is in CLAUDE.md yet, and adding a mandatory rule is a PO-facing change rather th
 
 The second is the more valuable of the two and the less obvious.
 
-### D-22: BUG-75 — is "four Newports" a data-model problem or a product one? Plus the GE-16/GE-17 conflict the COO created
-**Raised:** 2026-08-03/04 · **Status: RESOLVED 2026-08-05** — PO decided the requirements question; promoted to
-BRD v3.18 (spike-gated per OP-33), BUG-75 (now P1, unblocked), and the dispatch-ready Round-4 brief
-`jobs/architect/tech/20260805-BUG75-identity-round4-brief.md`.
-
-> **RESOLUTION (2026-08-05).** The PO settled Item 1: *distinct real-world places sharing name+country+region
-> may coexist; only a true same-place repeat is a duplicate* — the three-field key was an accidental
-> over-specification. That decision **is** the frame re-examination Item 2 was waiting on, so a bounded Round 4
-> is now legitimate (not a re-litigation of the carried-not-derived core). The GE-16/GE-17 conflict dissolves:
-> GE-17 is withdrawn, and GE-16's duplicate clause is what changes (stamped under-correction in BRD v3.18, the
-> full rewrite deferred until the Round-4 design clears its OP-27 review). Nothing was dispatched while this sat,
-> so nothing was wasted. Historical discussion retained below.
-
-**Item 1 — a BRD conflict the COO created and must not leave buried.** Retiring GE-17 (BRD v3.16, on PO
-direction) removed the only clause permitting what BUG-75's fix requires. GE-16 says a city with the same
-name, country **and region** is *"rejected as a duplicate."* GE-17 said such places must be *"individually
-selectable and do not collapse into one record."* Four distinct Newports exist in GB-ENG. **The BRD now
-forbids the thing we are trying to build.** Found by the OP-27 review of the 2026-08-04 identity design (its
-F1), not by the COO, who checked that GE-18 survived the withdrawal independently and never checked what
-GE-16 was leaning on. One of the two clauses has to change; that is a PO call, not an Architect one.
-
-**Item 2 — the reframe, and it may retire most of the remaining work.** From the same review:
-
-> *"This is a product question in a data-model costume. Three designs have asked 'what key makes two Newports
-> different rows?' The BRD asks what the user is shown before anything is written. **GE-16's answer to four
-> Newports is not four rows — it is one question.**"*
-
-GE-16 **already** specifies that *"where a lookup returns more than one candidate the user is asked to choose
-rather than one being selected for them."* So the fix may be a product behaviour we specified and never
-built, rather than a schema change. **This would be the fourth time on this thread that the answer was a
-reframe rather than a better mechanism** — and on the previous three the reframe came from the PO, not from
-a review. Worth taking seriously before commissioning a fourth design round.
-
-**Why this is an open dialogue and not a tracker entry:** BUG-75 already exists and carries the technical
-history. What is unresolved here is a requirements decision and a framing question, neither of which is
-scoped, ticketed work yet.
-
-**State of the technical work, so nobody re-derives it:** three designs have been rejected — coordinate
-bucket, hashed `place_ref`, and the 2026-08-04 carried-identity design. The last one's central finding is
-correct and new and should NOT be re-litigated: `classifyCandidates` (`geocoding.service.ts:122-157`) decides
-ambiguity by counting distinct **regions**, not distinct **places**, so four Newports in one region return
-`ok` with an arbitrary `best` — **before any row exists**, on an empty table, with no index involved. Its
-review then showed that fixing that alone does not fix BUG-75, because `findOrUpgradeCity` still decides
-which row a second user receives. Both halves are true.
-
----
-
 ### D-21: Firewall allowlist for external data sources (Nominatim, MapTiler) + recorded-fixture testing
 **Raised:** 2026-08-01 (PO: *"do we need to get you hooked up to nominatim or any other services
 to improve our local testing and development?"*) · **Status:** COO recommendation given, PO has
@@ -390,67 +343,6 @@ sequential and probably has to stay hand-resolved.
 
 **Trigger if not adopted now:** the next collision. There will be one.
 
----
-
-### D-15: A green PR earned against a stale base merged into a red main — does the merge step need a mandatory re-check?
-**Raised:** 2026-07-28 · **Status: ANSWERED 2026-08-01 — mechanically, by branch protection.**
-
-> **RESOLVED.** `main` now requires branches to be **up to date before merging**
-> (`required_status_checks.strict: true`), alongside required PR, 9 required checks,
-> `enforce_admins`, linear history and no force pushes. Configured by the PO with COO guidance in
-> the parallel read-only session; **independently verified by the COO via
-> `gh api repos/ryanv11/travel-tracker/branches/main/protection`** rather than taken from the
-> write-up. `production` is deliberately left unprotected — direct fast-forward push is its
-> promotion path (ADL-35).
->
-> This is the exact B7+B8 failure this entry described: `strict: true` forces the stale base to be
-> updated and CI re-run *before* the merge button works, so two individually-green PRs can no
-> longer compose into a red main without someone seeing a re-run first. No process rule was needed.
->
-> **Confirmed in live use the same day** — the ADL-46 release PR (#348) was 4 commits behind `main`
-> and was blocked until updated, which also surfaced that the integration branch had never been
-> refreshed since it was cut. The cost is one `update-branch` plus a ~85s CI re-run per stale PR,
-> which is the intended trade. Remaining follow-ups from the same change are queued in
-> `jobs/COO/20260731-review-execution-queue.md` item 8 (skill-doc updates, and recording the
-> decision per `/record-decision`).
-
-Wave 1 sub-wave B produced a **red main from two individually-green PRs**. B8 (#318) and B7
-(#319) had no textual conflict, were each 18/18 green, and were partitioned by file surface
-exactly as `backlog-clearance-plan.md` §4 intends. They broke only in combination, because
-B7's CI ran against a base that predated B8.
-
-Two layers, the second hidden behind the first:
-1. B7's `TripDetail.test.tsx` used a **total** `vi.mock` of `hooks/useItems`, listing only the
-   exports that existed when B7 branched. B8 added `DEFAULT_RATING_SORT_FILTER`, which
-   `PlaceSection` consumes — absent under a total mock, so `PlaceSection` threw.
-2. Fixing that let `PlaceSection` genuinely mount, which exposed that B8's new per-city `Link`
-   to `/cities/:id` needs router context the test never provided.
-
-Fixed in PR #322 (partial mock via `importOriginal`, plus `MemoryRouter`), and the identical
-latent pattern in `MobileTripDetailView.test.tsx` fixed preventively — it passes today only
-because no test there mounts a place.
-
-**The general point.** The plan's conflict analysis reasons about *file overlap*. This was a
-**shared-module contract** break — invisible to that check, and it will recur for as long as
-sub-waves run concurrently. The cheap mitigation, applied by hand this session for B4 (#320)
-and shown to work: before merging the second and subsequent PRs of a wave, update the branch
-against current `main` and re-run its CI, rather than trusting a green earned against a stale
-base. GitHub's `pulls/:n/update-branch` API does this in one call.
-
-Open question: make that a standing step in `/coo-merge-and-close`, or rely on the existing
-mandatory post-merge `ci-wait.sh branch main` to catch it after the fact? The post-merge check
-*did* catch it, and fixing forward took one PR. So the honest framing is prevention-vs-detection
-cost, not a safety gap — main was never left red unowned. Note this is BUG-24's known class,
-which is already why the post-merge check is mandatory; what's new is a concrete, cheap
-prevention step rather than another instance.
-
-**Second, smaller item raised by the same wave, recorded here rather than as its own entry:**
-B4's agent (#320) merged with **all four of its tracker items still at their pre-brief status**
-— it updated `jobs/**` but never `_project/tracker.json`, while B7 and B8 both did. Caught by a
-post-merge COO check, not by the agent's own completion report, which claimed done. Fixed in
-#323. One agent's miss, not obviously systemic — flagged to watch for recurrence before it
-earns a rule.
-
 ### D-14: Trip country search matches full names only — should ISO codes ("US"/"USA") be added?
 **Raised:** 2026-07-28
 
@@ -635,83 +527,6 @@ the root-cause question outright — leaving this open for continued observation
 than marking resolved. The immediate practical risk (migration losing the file) is
 gone either way.
 
-### D-10: Move the project off OneDrive — Ryan flagged this a priority (recurrence)
-**Raised:** 2026-07-23
-
-Second occurrence of the OneDrive Files-On-Demand dehydration issue first documented
-2026-07-02 (see memory `project_onedrive_dehydration.md`) — this time it corrupted git's
-own internals rather than just regular project files: 213 local branch refs got silently
-rewritten to the null SHA, which blocked `git fetch`/`git pull` outright
-(`fatal: bad object refs/heads/<branch>`) until COO diagnosed and fixed it in-session
-(raw `rm -f`/`xargs` on the corrupted ref files, since even `git update-ref -d` hit the
-same underlying `EDEADLK` the corrupted files themselves throw on read). Notably, Ryan
-had already applied the documented Finder-level workaround ("Always Keep on This Device"
-at the top level) after the first occurrence, and it recurred anyway — so that fix is not
-durable, just a stopgap.
-
-Ryan's direct instruction this session: "let's make that a priority to move off onedrive."
-
-**Update 2026-07-23 (later, new session):** Planning pass done, execution pending on
-Ryan's host. Target path confirmed: `~/Projects/travel-tracker`. Architect-reviewed via
-**ADL-39** (`jobs/architect/tech/20260307-architecture-decisions-log.md`, PR #234,
-merged) — confirms `devcontainer.json` needs no edit (`workspaceMount` uses
-`${localWorkspaceFolder}`), recommends a fresh `git clone` over a physical `mv` (avoids
-dragging along the ref-corruption class and 1.7 GB / 33 dirs of orphaned worktrees under
-`.claude/worktrees/` — checked this session, none hold unpushed commits), and flagged
-two follow-ups: F1 (the notify bridge's hardcoded `WATCH_DIR` — fixed this session, PR
-#235, merged) and F2 (the devcontainer's config Docker volume is keyed by
-`devcontainerId`, which can re-key on a path move and orphan `/home/node/.claude`
-including auto-memory — needs a backup-before/verify-after step, not yet done since
-that's host-side). Full step-by-step runbook (backup config volume → clone → copy
-`.env.local` → reopen VS Code → verify → reinstall notify bridge → decommission old
-folder) handed to Ryan. **Blocking on host-side execution** — everything actionable
-from inside the container is done; the physical move, config-volume backup, and VS
-Code reopen are all steps only Ryan can run. Not yet closed.
-
-**CLOSED 2026-07-23.** Ryan executed the migration on the host: fresh clone to
-`~/Projects/travel-tracker` (confirmed at `a671268`, current main tip at the time),
-all four gitignored files manually copied and verified byte-identical to the
-OneDrive source (`.env.local`, `.env.agent-diagnostics`, `dev.db`,
-`.claude/settings.local.json` — the last one closing D-11's runbook gap, see below),
-notify bridge reinstalled and confirmed firing from the new `WATCH_DIR`. Reopened VS
-Code at the new path and rebuilt the devcontainer.
-
-**F2 materialized exactly as predicted** — the config Docker volume re-keyed on the
-path change: the fresh volume mounted at `/home/node/.claude` had a working
-`.credentials.json`/`.claude.json` (re-authenticated this session) but a default-only
-`settings.json` (52 bytes) and a completely empty `projects/-workspace/memory/`
-directory (`MEMORY.md` and all accumulated user/feedback/project/reference memory
-gone). No pre-move backup tarball existed, so recovery went through the orphaned
-volume directly: `docker volume ls` surfaced *three* `claude-code-config-*` volumes,
-not the expected two (a third, older, unrelated stale orphan with no memory dir at
-all — separate cleanup debt, not investigated further). Identified the correct
-volumes deterministically via `docker inspect <container_id> --format
-'{{range .Mounts}}...'` on both the current and the old (pre-migration,
-OneDrive-bind-mounted) containers, rather than trusting ambiguous IDs surfaced via
-the Docker Desktop GUI (container ID vs. volume ID vs. image digest all look similar
-and were each offered in turn before the deterministic mount-inspection settled it —
-see memory `feedback_docker_identity_via_inspect`). Recovered `MEMORY.md` + all 20
-memory files via a throwaway `alpine` container bind-mounting both the old (`:ro`)
-and new volumes and `cp -a`'ing the memory directory across; diffed the old
-`settings.json` against the new default and found them identical, so no loss there
-beyond the transient scare.
-
-Post-recovery verification from inside the new container: `git status` clean (bar
-one pre-existing benign `drift-ledger.jsonl` line), `npm run type:check:all` clean,
-backend tests 538 passed/1 skipped, frontend tests 154 passed. Ryan renamed the old
-OneDrive folder with an `OLD-` prefix rather than deleting it immediately — kept, along
-with the recovered-from docker volume, as a safety net for a few days before final
-decommission (ADL-39's own runbook step). The unrelated third stale docker volume is
-noted but not cleaned up as part of this closure.
-
-**Net outcome:** migration complete and verified; F2's risk was real, not
-theoretical, and the ADL's own mitigation path (find the old volume, recover
-memory/settings) worked as designed once a deterministic identification method was
-used instead of the GUI. Worth remembering for any *future* devcontainer/host
-migration on this or another project: back up the config volume tarball **before**
-the move next time, per ADL-39 F2, rather than relying on post-hoc orphan recovery —
-it worked here but only because the old volume happened not to have been pruned yet.
-
 ### D-09: COO worktree cleanup can race an agent's own lingering post-report process
 **Raised:** 2026-07-22
 
@@ -781,47 +596,6 @@ dynamic per-PR preview URLs Railway generates) — that's about the app's origin
 which app backs it. This is an auth-topology change, so per the standing infra/runtime
 guardrail (Architect review before COO acts) it should get a brief Architect pass before
 implementation. Ryan said to leave it as an open note for now, not act on it.
-
-### D-06: Add prod Railway domain to this container's firewall allowlist
-**Raised:** 2026-07-21 · **RESOLVED 2026-08-04 — ADOPTED, both domains.** Kept in place rather than
-moved to Resolved below only until the post-rebuild verification confirms it; move it then.
-
-> **Outcome:** `travel-tracker-staging.up.railway.app` **and**
-> `travel-tracker-production-241f.up.railway.app` were both added to
-> `.devcontainer/init-firewall.sh` on PO approval, via ADL-49 §10.7's consolidated diff.
-> **Takes effect at the next container rebuild.**
->
-> **This sat open for fourteen days and recurred four times** — the BRD-NF09 shakedown below, the
-> QUAL-20 shakedown having to live in a GitHub Action, the BUG-76 Railway-log diagnosis loop, and
-> the undownloadable Playwright trace. What finally carried it was not a new argument about
-> convenience but a **change in the facts**: the PO now tests staging only, in a host browser
-> ([[project_po_tests_staging_only]]), so nobody inside the container could observe the single
-> surface the project is judged on. The ENV-01 enumeration ranked it **above the geocoder** on
-> that basis.
->
-> Worth keeping as a process datum: the request as originally filed argued from COO inconvenience
-> and stalled for two weeks. The same request framed as *"the only human verification loop has no
-> in-container observer"* was approved the day it was put that way. **The ask did not change; the
-> justification did.**
-
-During the BRD-NF09 deploy shakedown (white screen → CSP fixes → API base URL bug), COO
-repeatedly couldn't verify the live site directly — `curl https://travel-tracker-
-production-241f.up.railway.app` is blocked by this container's own outbound firewall
-(`.devcontainer/init-firewall.sh`'s static domain allowlist doesn't include the app's own
-public Railway domain, only the diagnostic hosts from ADL-33/OP-21). Every round of
-debugging this session depended on Ryan pasting browser console output back and forth.
-Adding the domain would let COO fetch the actual served HTML/JS directly next time
-(read-only GET requests to a public page — much lower-stakes than the Turso/Railway
-credentialed access ADL-33 already granted). Not yet decided — raised, not confirmed
-either way by Ryan.
-
-**Update 2026-07-21 (later same day):** hit the same limitation again diagnosing BUG-59
-(staging white screen) — worked around it via `railway-query.sh`'s new `logs` subcommand
-(deployment console output) plus `turso-query.mjs` instead of hitting the site directly,
-and it was sufficient to find the exact root cause without needing the domain allowlisted.
-Doesn't resolve the open question, but is a second data point: the Turso/Railway-metadata
-diagnostic path has now twice been enough on its own, which may be relevant to how much
-this is actually worth adding.
 
 ### D-07: `gh` CLI has no persistent auth in this container
 **Raised:** 2026-07-21
@@ -1090,6 +864,34 @@ Trial passed on the ADL-46 release; promoted to **ADL-50** + **CLAUDE.md OP-35**
 `ATDD-first: yes/no` marking + `.claude/hooks/atdd-first-guard.sh` + a startup canary. Full trial history
 retained in the Open section above, stamped RESOLVED in place (not moved — a 120-line cut is exactly the
 wholesale-rewrite OP-28 warns against). First application: the BUG-75 Round-4 build (QA-first, Opus 5).
+
+### D-22: BUG-75 "four Newports" data-model-vs-product + the GE-16/GE-17 conflict — RESOLVED 2026-08-05
+**Raised:** 2026-08-03/04 · **Resolved:** 2026-08-05
+PO settled the requirements question (distinct real-world places sharing name+country+region may coexist;
+only a true same-place repeat is a duplicate). GE-17 withdrawn; GE-16's duplicate clause stamped
+under-correction in BRD v3.18 (BRD now at v3.19). Homes: BUG-75 tracker entry (P1, unblocked), BRD GE-16,
+and the dispatch-ready Round-4 brief `jobs/architect/tech/20260805-BUG75-identity-round4-brief.md`.
+
+### D-15: green PR on a stale base merged into a red main — ANSWERED 2026-08-01
+**Raised:** 2026-07-28 · **Resolved:** 2026-08-01
+Answered mechanically by branch protection rather than a new process rule: `main` requires branches
+up-to-date before merging (`required_status_checks.strict: true`) alongside required PR review and
+`enforce_admins`. Home: GitHub branch-protection config on `main` (re-verified via
+`gh api …/branches/main/protection` 2026-08-07 — strict, required reviews, enforce_admins all true).
+
+### D-10: Move the project off OneDrive — CLOSED 2026-07-23
+**Raised:** 2026-07-23 · **Resolved:** 2026-07-23
+Migration to `~/Projects/travel-tracker` executed on the host and verified (fresh clone, gitignored files
+copied byte-identical, notify bridge reinstalled, tests green). Canonical home: **ADL-39** (incl. the F2
+config-volume re-key follow-up, which materialised and was recovered as designed). The related
+settings.local.json root-cause observation remains open as D-11.
+
+### D-06: Add prod/staging Railway domains to this container's firewall allowlist — RESOLVED 2026-08-04 (ADOPTED)
+**Raised:** 2026-07-21 · **Resolved:** 2026-08-04
+Both `travel-tracker-staging.up.railway.app` and `travel-tracker-production-241f.up.railway.app` were added
+to `.devcontainer/init-firewall.sh` (confirmed present at lines 214-215) on PO approval via ADL-49 §10.7's
+consolidated diff. The allowlist change is landed in the repo and takes effect at the next container rebuild
+— the original entry's "kept in place until post-rebuild verification confirms it" caveat is preserved here.
 
 ### D-03: OP-21 process-kill guardrail (proposed, dropped)
 **Raised:** 2026-07-20 · **Resolved:** 2026-07-20
