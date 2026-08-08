@@ -500,6 +500,30 @@ a wrong eight-delete design when it was skipped once. Same shape as the negative
 rule above: a single reasoning chain, even given a chance to double back, tends to
 re-confirm its own premise — genuinely independent eyes catch what a self-check doesn't.
 
+**Two refinements adopted 2026-08-08 (PO direction; ADL-52).** Both prevent the same silent
+failure — a review that comes back clean because it spent itself on the wrong target looks
+identical to one that genuinely found nothing.
+
+1. **Resolve the authoring agent's own flagged open questions before dispatching the
+   reviewer — *if any*.** When the author deliberately flags open items rather than guessing,
+   take the PO decisions and amend the spec *first*, so the reviewer receives a settled spec
+   and spends its one pass on blind spots, not on gaps the author already surfaced. The
+   *if any* is load-bearing: a spec with no open questions skips this and adds zero latency.
+   Trigger: the ADL-46 review — the COO was about to dispatch the reviewer at a spec carrying
+   three author-flagged items and a phasing plan the PO then overrode; the PO stopped it
+   (*"before dispatching the second architect, let's make sure there aren't any outstanding
+   questions or concerns from the first"*).
+
+2. **A review of an *amended* document reviews the whole document, not just the amendment —
+   and explicitly checks the seam.** Hand a reviewer only the new section and every finding
+   that lives in the contradiction between the amendment and the sections it *didn't* touch
+   is invisible by construction. So scope the entire document, and ask specifically whether
+   the amendment invalidated an earlier **verdict**, **method**, or **reason** in a section
+   it never edited — an amendment's consequences routinely stop one step early (the discovery
+   is correct; its knock-ons aren't walked). Trigger: all four blocking findings against
+   ADL-49 §10 lived in the seam between §1–§9 and the new §10, caught only because the review
+   brief happened to scope the whole document — luck, not policy.
+
 ## COO operating mode
 
 ### Autonomy on pre-cleared mechanical work (adopted 2026-07-28, OP-24)

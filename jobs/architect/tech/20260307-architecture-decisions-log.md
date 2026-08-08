@@ -4446,3 +4446,42 @@ Nominatim probes; the corrected design-of-record is design-doc §9. Amendments t
 
 This correction is an incorporation of settled OP-27 findings; it did **not** require a
 second OP-27 pass.
+
+## ADL-52 — OP-27 refinements: settle the author's open questions before fresh-eyes; review the whole amended document
+
+**Date:** 2026-08-08 · **Author:** COO (PO direction) · **Status:** IMPLEMENTED this PR —
+CLAUDE.md OP-27 section amended and the OP-27 tracker note updated. No code change.
+
+**Trigger.** The open-dialogues curation (PO direction: that file holds only
+undecided/untracked topics) surfaced two adopted-in-principle process refinements that had
+sat as open-dialogues **D-16** and **D-25**. The PO ruled: adopt both, and fold D-25's first
+clause in as the second's *rationale* rather than as a separate gate.
+
+**Decision.** Two clauses added to OP-27 (the Architect fresh-eyes review rule). Both prevent
+one silent failure — a review that comes back clean because it spent itself on the wrong
+target is indistinguishable from one that genuinely found nothing:
+
+1. *(from D-16)* Before dispatching the fresh-eyes reviewer, resolve the authoring agent's own
+   flagged open questions — PO decisions taken, spec amended — **if any**. Origin: the ADL-46
+   review, where the PO stopped the COO from dispatching the reviewer at a spec carrying three
+   author-flagged items and a phasing plan the PO then overrode.
+2. *(from D-25 2b)* A review of an **amended** document reviews the whole document and
+   explicitly checks the **seam** between the amendment and the sections it did not touch —
+   asking whether the amendment invalidated an earlier **verdict**, **method**, or **reason**
+   there. Origin: all four blocking findings against ADL-49 §10 lived in that seam, caught
+   only because the review brief happened to scope the whole document.
+
+**Alternatives considered.**
+- *D-25 2a as a standalone amendment-time gate* ("an amendment must re-walk the sections it
+  didn't intend to change"). **Declined as a separate gate** — the team is already
+  process-rich (the same reasoning deferred D-26 this cycle) and it overlaps OP-28 + the
+  negative-findings discipline. Its substance (the verdict/method/reason check) is **folded
+  into clause 2 as its rationale**, keeping the "why" without a distinct checkpoint.
+- *Mint a new OP number for the refinement.* Declined — it refines OP-27, so it amends OP-27
+  in place (CLAUDE.md section + the OP-27 tracker note) rather than standing up OP-38.
+
+**Implementation implications.**
+- CLAUDE.md `### Architect fresh-eyes review (mandatory, OP-27)` carries both clauses (this PR).
+- OP-27's tracker note records the 2026-08-08 refinement and this ADL (this PR).
+- open-dialogues **D-16** and **D-25** move from Open → Resolved, pointing here (this PR).
+- No behaviour/code change; it binds COO dispatch sequencing and reviewer-brief scoping.

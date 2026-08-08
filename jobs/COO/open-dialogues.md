@@ -54,25 +54,6 @@ actually read. It was moved into ADL-33 §4 for exactly that reason.
 **Not a tracker entry yet** — it is a proposal for a piece of work, not scoped work. Needs a PO
 decision on whether it is worth an Architect round.
 
-### D-25: Two structural rules proposed this session, both awaiting a home in CLAUDE.md
-**Raised:** 2026-08-04 · **Status:** proposed by Architect agents, COO agrees, not yet adopted.
-
-Both came out of the ADL-49 round and are captured in **ADL-49 §10.11.5.1** as liftable text. Neither
-is in CLAUDE.md yet, and adding a mandatory rule is a PO-facing change rather than COO housekeeping.
-
-1. **"An amendment must re-walk the sections it did not intend to change."** Every one of the four
-   findings against ADL-49 §10 had the same shape — *a correct discovery whose consequences stopped
-   one step early*. §10.8 derived that the allowlist matches IPs, then closed by reassuring the reader
-   it changed no earlier verdict; it changed several. The proposed check is three questions before
-   filing an amendment: does it invalidate an earlier **verdict**, an earlier **method**, or an
-   earlier **reason**?
-2. **Reviewer-side corollary: an OP-27 pass over an amended document reviews the *document*, not the
-   amendment.** All four blocking findings lived in the *seam* between §1–§9 and the new §10, and
-   would have been invisible to a reviewer handed §10 alone. This session only caught them because
-   the review brief happened to scope the whole document — which was luck, not policy.
-
-The second is the more valuable of the two and the less obvious.
-
 ### D-14: Trip country search matches full names only — should ISO codes ("US"/"USA") be added?
 **Raised:** 2026-07-28
 
@@ -115,45 +96,6 @@ dynamic per-PR preview URLs Railway generates) — that's about the app's origin
 which app backs it. This is an auth-topology change, so per the standing infra/runtime
 guardrail (Architect review before COO acts) it should get a brief Architect pass before
 implementation. Ryan said to leave it as an open note for now, not act on it.
-
-### D-16: OP-27 says who reviews and when, but not that the spec's own open questions must be closed first
-**Raised:** 2026-07-28
-
-**Trigger, and it was a PO correction of the COO.** Having dispatched the ADL-46 spec brief
-(issue #326), the COO announced it would dispatch the OP-27 fresh-eyes reviewer as soon as the
-authoring Architect closed out. Ryan stopped it: *"before dispatching the second architect,
-let's make sure there aren't any outstanding questions or concerns from the first."*
-
-He was right, and OP-27 as written does not say this. It specifies **who** reviews (a second,
-freshly dispatched Architect) and **when** relative to the author (after it closes out fully,
-so context is genuinely fresh), but says nothing about the spec's own flagged-open items being
-resolved first.
-
-**Why it matters.** ADL-46 shipped with three items the author had deliberately flagged rather
-than guessed: a deactivation-scope ambiguity, the pending-city containment rule, and its own
-phasing recommendation. Dispatched immediately, the reviewer would have spent its pass
-rediscovering questions the author had already surfaced — and worse, reviewing a **D9 the PO
-then overrode**, since Ryan chose one-release delivery over the author's phased dispatch. The
-whole value of fresh eyes is catching what *nobody* saw; spending it on known gaps is waste.
-
-What actually happened instead: the three items went to the PO, all three were decided, the
-authoring Architect amended the spec, and only then was the reviewer dispatched — against a
-settled plan, with its §13 confidence register **re-aimed** at what remained genuinely
-uncertain. Two of the author's originally-weakest points had been closed by the PO decisions,
-so the register would otherwise have pointed the reviewer at resolved questions.
-
-**Proposed amendment to OP-27**, not adopted, for Ryan to accept or reject:
-
-> Before dispatching the fresh-eyes reviewer, resolve the authoring agent's own flagged open
-> questions — PO decisions taken, spec amended. The reviewer receives a settled spec, so its
-> pass is spent on blind spots rather than on gaps the author already identified.
-
-**COO recommendation: adopt.** It is one sentence, it cost nothing to follow, and the failure
-it prevents is silent — a review that comes back clean because it spent itself on the wrong
-target looks identical to a review that genuinely found nothing. Same family as OP-27 itself.
-Counter-argument worth stating: it adds a PO round-trip before every review, which on a spec
-with no open questions is pure latency — so the rule should read "resolve **if any**", not
-"always pause".
 
 ## Resolved
 
@@ -254,7 +196,7 @@ Decided: defer, do not adopt a third process gate; **OP-33** already catches the
 One instance, not a class; a fail-open (QUAL-27 cousin). If it recurs, file it as a defect — fix would be to re-resolve and compare the head SHA after the watch completes. No tracked work until then.
 
 ### D-21: Nominatim/MapTiler firewall allowlist + replay fixtures — TRACKED 2026-08-08
-Designed as **ADL-49**; promoted to tracker **OP-33** (apply on next container rebuild). The PO's go/no-go now lives on that item. The highest-value item on the thread (BUG-76 settlement-filter fix) already shipped.
+Designed as **ADL-49**; promoted to tracker **OP-36** (apply on next container rebuild). The PO's go/no-go now lives on that item. The highest-value item on the thread (BUG-76 settlement-filter fix) already shipped.
 
 ### D-19: Constrain city lookup by trip countries + shortlist-not-filter — SUPERSEDED 2026-08-08
 Overtaken by the shipped city-identity work: **UX-12 + QUAL-21 done, BUG-71/75/76 shipped**. The remaining lookup-constraint folds into **ADL-48 stage S3** (against the bundled gazetteer, `ORDER BY (country_code IN trip-countries) DESC` *is* the shortlist-not-filter pattern). Pick it up as an ADL-48 S3 consequence, not a separate design. Homes: ADL-48, UX spec (PR #344), BRD GE-15/16.
@@ -278,11 +220,17 @@ Single contained incident (no harm; the agent's commits were already on origin).
 Single contained incident (the sandbox guard caught it; COO reverted by hand). No fourth OP-20 clause adopted, per the D-03 precedent. Revisit on recurrence.
 
 ### D-07: `gh` CLI has no persistent auth in the container — TRACKED 2026-08-08
-Promoted to tracker **OP-34** (host `GH_TOKEN` passthrough, or bake the credential-bridge into container startup — PO to choose). The per-session workaround (`git credential fill` → `gh auth login --with-token`) is documented there.
+Promoted to tracker **OP-37** (host `GH_TOKEN` passthrough, or bake the credential-bridge into container startup — PO to choose). The per-session workaround (`git credential fill` → `gh auth login --with-token`) is documented there.
 
 ### D-04: Clerk API version drift — MOVED TO MEMORY 2026-08-08
 Standing watch-note (pinned `2025-11-10`; check the changelog before any bump — Clerk docs not in the allowlist). Home: memory `reference_clerk_api_version_drift`. Not a live discussion.
 
 ### D-18: Lean the /coo-startup audit — TRACKED 2026-08-08
 Promoted to tracker **QUAL-35** (gate heavy checks on a change-probe against the last `reviewed` sentinel; de-inline UAT + open-dialogues; archive Resolved to a separate file). PO-raised 2026-07-31; analysis complete, COO recommends adopting.
+
+### D-16: Settle a spec's own open questions before the fresh-eyes review — ADOPTED 2026-08-08
+PO adopted. Now **OP-27** clause 1 (CLAUDE.md), recorded in **ADL-52**: before dispatching the fresh-eyes reviewer, resolve the author's own flagged open questions — PO decisions taken, spec amended — *if any*.
+
+### D-25: Two amendment/review rules from the ADL-49 round — ADOPTED (2b) / FOLDED (2a) 2026-08-08
+PO adopted clause **2b** as **OP-27** clause 2 (CLAUDE.md), recorded in **ADL-52**: a review of an *amended* document reviews the whole document and checks the seam between the amendment and the sections it didn't touch (verdict/method/reason). Clause **2a** folded in as that clause's rationale rather than a separate gate.
 
