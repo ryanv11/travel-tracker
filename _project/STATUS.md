@@ -85,7 +85,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
-| OP-33 | Apply ADL-49 — Nominatim (+optional MapTiler) firewall allowlist + recorded replay fixtures, on next container rebuild | coo | ⬜ Pending |
+| OP-36 | Apply ADL-49 — Nominatim (+optional MapTiler) firewall allowlist + recorded replay fixtures, on next container rebuild | coo | ⬜ Pending |
 
 ### P3 — Minor (29)
 
@@ -118,7 +118,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 | QUAL-34 | Shared-record append collisions — union-merge driver for the ledger + per-agent context files (never adopted, 3rd recording) | coo | ⬜ Pending |
 | QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |
-| OP-34 | gh CLI has no persistent auth in the devcontainer — bridged by hand each session | coo | ⬜ Pending |
+| OP-37 | gh CLI has no persistent auth in the devcontainer — bridged by hand each session | coo | ⬜ Pending |
 | QUAL-36 | Three BRD-wording open questions from the QUAL-05 sweep — import scope + MB-01 mobile scope, awaiting PO decision | coo | ⬜ Pending |
 
 ## Coverage by type
