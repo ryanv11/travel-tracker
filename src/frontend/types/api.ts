@@ -143,6 +143,19 @@ export interface GeocodeResult {
    * it where the truncation behaviour isn't what they're testing.
    */
   truncated?: boolean;
+  /**
+   * BUG-74 (ADL-51 §6) — mirrors the backend's internal `NominatimSearchResult`
+   * union (`src/backend/routes/geocode.ts`). Distinguishes "our backend
+   * answered, but the upstream geocoder failed or is disabled" (`'error'` /
+   * `'disabled'`) from a genuine no-match (`'ok'` with empty `candidates`) —
+   * previously both collapsed to an indistinguishable `candidates: []` at
+   * HTTP 200, which is exactly why BUG-76 was invisible to the user. Always
+   * HTTP 200 regardless of `status` (see the backend route doc comment for
+   * why a non-2xx was rejected). Typed optional for the same reason
+   * `truncated` is: existing hand-written fixtures that predate this field
+   * must keep type-checking; the real backend always sends it.
+   */
+  status?: 'ok' | 'error' | 'disabled';
 }
 
 // Minimal association shapes used inside trip responses
