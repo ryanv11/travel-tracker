@@ -260,3 +260,4 @@ merge sessions and two UAT rounds.
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-07-26 | Initial plan. Approved by PO. Phase 4 closed in the same PR; the 21 dogfooding items re-phased 4 → 6. |
+| — | 2026-08-08 | Pointer: post-audit **code-hygiene / QUAL** cleanup is a distinct effort with its own plan — see `jobs/COO/20260808-cleanup-wave-plan.md` (the 15 untracked audit findings U1–U15 + the tracked QUAL/DEP backlog, file-partitioned parallel sweeps). This doc stays the home for the dogfooding *feature* backlog. |
