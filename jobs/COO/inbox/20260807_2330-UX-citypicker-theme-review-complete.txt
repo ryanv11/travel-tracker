@@ -1,4 +1,4 @@
-BUG-81/BUG-74 · GE-16 · Branch: docs/ux-citypicker-theme-review · PR: TBD (see below)
+BUG-81/BUG-74 · GE-16 · PR #429 · Branch: docs/ux-citypicker-theme-review
 
 Reviewed the shipped city-disambiguation picker (CityPicker.tsx) and both call sites
 (AddPlaceFlow.tsx, ChangeCityModal.tsx) for adherence with the app's established design
@@ -30,8 +30,7 @@ FINDINGS (full detail + file:line + direction in jobs/ux/tech/20260807-UX-citypi
 All three should-fix-or-higher items are accessibility/feedback gaps in inherited or
 shared code, not new colour/spacing divergences BUG-81 introduced.
 
-CI: PR not yet opened — opening now, will confirm green before this report is considered
-closed (see follow-up push below).
+CI: all 18 checks green (scripts/ci-wait.sh pr 429 — PASS @ 7e3c8f1).
 
 Open issues: none blocking. COO decision needed on whether findings 1-3 become their own
 tracker item(s) before/alongside PO UAT of BUG-81's readability fix — flagged in the tech
