@@ -1,10 +1,17 @@
 # Backlog Clearance Plan
 
+> **HISTORICAL — snapshot as of 2026-07-26, executed and retired 2026-08-08. Not maintained.**
+> Waves 0 and 1 were dispatched and merged; every item this plan sequenced lives in
+> `_project/tracker.json` (which is, and always was, the authority for status). The §8b Wave-2
+> BRD gate is superseded by each bug's own tracker note carrying its owed BRD ID (BUG-45→FL-06/CR-03,
+> BUG-53→DP-07, UX-11→DP-08, BUG-47→TR-16). Kept in place, rather than deleted, because it is cited
+> across the ADL log, ADL-41 and the BRD changelog as decision history. Do not treat anything below
+> as current — it is a record of how the backlog was cleared, not a live plan.
+
 **Version:** 1.0
 **Date:** 2026-07-26
 **Author:** COO
-**Status:** LIVE — approved by PO 2026-07-26. Update wave status here as briefs land; this
-document is presumed current until stamped otherwise (CLAUDE.md → Document lifecycle).
+**Status:** ~~LIVE~~ **HISTORICAL (retired 2026-08-08)** — see banner above.
 
 Sequencing plan for clearing the entire open bug backlog plus the feature items that share
 its code surface. Ordered for **throughput, not priority** — PO's explicit instruction was
