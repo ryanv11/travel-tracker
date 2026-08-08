@@ -1,33 +1,32 @@
 # COO ↔ PO Open Dialogues
 
-Lightweight register for topics under discussion but not yet decided or actioned.
-**Not authoritative** — nothing here is policy, a commitment, or tracked work until
-it's promoted to CLAUDE.md, a tracker.json entry, an ADL, or a BRD section. This file
-exists so a real discussion thread survives `/clear` without prematurely cluttering
-those documents with half-formed proposals.
+Lightweight register for topics under active discussion but **not yet decided or tracked**.
+**Not authoritative** — nothing here is policy, a commitment, or tracked work. This file exists
+so a live discussion thread survives `/clear` without prematurely cluttering the canonical
+documents (CLAUDE.md, tracker.json, an ADL, the BRD) with half-formed proposals.
 
-Adopted 2026-07-19, prompted by the first live run of the Restart Preview
-(`/coo-merge-and-close`) surfacing genuine open threads that didn't belong in
-tracker.json but also weren't safe to let vanish.
+Adopted 2026-07-19; scope tightened 2026-08-08 (PO direction) to a **temporary staging area
+only** — see below.
 
 ## How to use
 
-- New entry when a discussion produces a real proposal or plan that isn't yet
-  confirmed — not for every passing remark.
-- Update the entry's status as the conversation progresses across sessions.
-- On resolution: promote to its real home (tracker/ADL/CLAUDE.md/BRD/skill file)
-  citing this entry's ID, then move the entry to **Resolved** below with a pointer.
-  If dropped without action, move it to Resolved noting why.
-- Checked at every `/coo-startup` pickup and referenced by the Restart Preview step
-  in `/coo-merge-and-close` — an item in the Restart Preview's "not captured" tier
-  that's genuinely still a discussion (not a clear-cut missing artifact) belongs here,
-  not in the park doc's prose.
+This file has exactly two sections, and nothing else lives here:
+
+- **Open** — a genuinely undecided, not-yet-tracked topic. New entry when a discussion produces
+  a real proposal that isn't yet confirmed — not for every passing remark. Keep entries terse;
+  the full analysis belongs in the artifact it eventually promotes to.
+- **Parked** — a topic decided *not now / watch for recurrence* that has **no other home** (not
+  tracked, not a rule, didn't resolve into a doc). Kept only so it can be re-raised if it recurs.
+
+**On resolution, delete the entry.** Once a topic is promoted to its real home
+(tracker/ADL/CLAUDE.md/BRD/skill file) or otherwise resolved, remove it from this file entirely —
+the canonical home is the record and git history preserves the discussion. Do **not** leave a
+pointer behind; a second, non-authoritative copy only goes stale. The one exception is Parked,
+which by definition has no other home.
+
+Checked at every `/coo-startup` pickup and by the Restart Preview step in `/coo-merge-and-close`.
 
 ## Open
-
-> **Curated 2026-08-08 (PO direction).** This file holds only genuinely *undecided, not-yet-tracked*
-> topics. Anything being worked on, on hold, closed, or that is a rule/learning has been moved to its
-> real home (tracker / ADL / CLAUDE.md / memory) and left as a one-line pointer under **Resolved** below.
 
 ### D-23: Enumerate the container's CREDENTIALS, the way we just enumerated its hosts
 **Raised:** 2026-08-04 · **Status:** proposed by the COO, flagged to the PO, not commissioned.
@@ -97,140 +96,47 @@ which app backs it. This is an auth-topology change, so per the standing infra/r
 guardrail (Architect review before COO acts) it should get a brief Architect pass before
 implementation. Ryan said to leave it as an open note for now, not act on it.
 
-## Resolved
+## Parked
 
-### D-17: ATDD-first — PROMOTED 2026-08-05
-Trial passed on the ADL-46 release; promoted to **ADL-50** + **CLAUDE.md OP-35** + the Architect-prompt
-`ATDD-first: yes/no` marking + `.claude/hooks/atdd-first-guard.sh` + a startup canary. Full trial history
-lives in **ADL-50** (canonical home); the Open-section trial log was cut 2026-08-07 on PO direction, the
-record being durable in ADL-50. First application: the BUG-75 Round-4 build (QA-first, Opus 5).
+_Decided not-now / watch-for-recurrence, with no other home. Each stays only so it can be
+re-raised if the pattern shows up again. The shared lesson (D-03): a single contained incident
+is not enough for a standing rule._
 
-### D-22: BUG-75 "four Newports" data-model-vs-product + the GE-16/GE-17 conflict — RESOLVED 2026-08-05
-**Raised:** 2026-08-03/04 · **Resolved:** 2026-08-05
-PO settled the requirements question (distinct real-world places sharing name+country+region may coexist;
-only a true same-place repeat is a duplicate). GE-17 withdrawn; GE-16's duplicate clause stamped
-under-correction in BRD v3.18 (BRD now at v3.19). Homes: BUG-75 tracker entry (P1, unblocked), BRD GE-16,
-and the dispatch-ready Round-4 brief `jobs/architect/tech/20260805-BUG75-identity-round4-brief.md`.
+### D-03: OP-21 process-kill guardrail — dropped, watch
+2026-07-20. An agent's blind `pkill`-style command took down the real `dev:api` server (OS
+process space is shared across every worktree). Self-remediated, no data lost. COO proposed a
+"confirm exact PID/ownership before any kill" guardrail; the PO dropped it — *"I don't touch the
+dev server while you guys are working."* No rule adopted. **This is the precedent the entries below
+cite.** Revisit only if a recurrence affects a live PO session.
 
-### D-15: green PR on a stale base merged into a red main — ANSWERED 2026-08-01
-**Raised:** 2026-07-28 · **Resolved:** 2026-08-01
-Answered mechanically by branch protection rather than a new process rule: `main` requires branches
-up-to-date before merging (`required_status_checks.strict: true`) alongside required PR review and
-`enforce_admins`. Home: GitHub branch-protection config on `main` (re-verified via
-`gh api …/branches/main/protection` 2026-08-07 — strict, required reviews, enforce_admins all true).
+### D-08: Mid-thread `/workspace` leak — a fourth isolation clause? — watch
+2026-07-21. A worktree-isolated agent ran a `cd /workspace &&`-prefixed command mid-thread against
+the shared tree (OP-20 only mandates a cwd check as the *first* action, not on every later command).
+The sandbox guard caught it; COO reverted by hand, nothing pushed. No fourth OP-20 clause adopted
+(D-03 precedent). Revisit on recurrence.
 
-### D-10: Move the project off OneDrive — CLOSED 2026-07-23
-**Raised:** 2026-07-23 · **Resolved:** 2026-07-23
-Migration to `~/Projects/travel-tracker` executed on the host and verified (fresh clone, gitignored files
-copied byte-identical, notify bridge reinstalled, tests green). Canonical home: **ADL-39** (incl. the F2
-config-volume re-key follow-up, which materialised and was recovered as designed). The related
-settings.local.json root-cause observation remains open as D-11.
+### D-09: COO worktree cleanup can race an agent's lingering process — watch
+2026-07-22. After a "completed" notification, a routine `git worktree remove` collided with the
+agent's still-alive poll subprocess. No harm — the agent's commits were already on origin. Open
+question if ever revisited: leave a beat after a completion notification before removing. No rule
+adopted (D-03 precedent). Revisit on recurrence.
 
-### D-06: Add prod/staging Railway domains to this container's firewall allowlist — RESOLVED 2026-08-04 (ADOPTED)
-**Raised:** 2026-07-21 · **Resolved:** 2026-08-04
-Both `travel-tracker-staging.up.railway.app` and `travel-tracker-production-241f.up.railway.app` were added
-to `.devcontainer/init-firewall.sh` (confirmed present at lines 214-215) on PO approval via ADL-49 §10.7's
-consolidated diff. The allowlist change is landed in the repo and takes effect at the next container rebuild
-— the original entry's "kept in place until post-rebuild verification confirms it" caveat is preserved here.
+### D-13: Two concurrent COO sessions collided three times in one day — watch
+2026-07-28. Shared `/workspace` HEAD, an OP number allocated twice independently, and an accidental
+direct-to-main commit — all in one day of two parallel COO sessions. Resolved for the day (one stood
+down and handed over its PR). No standing rule; the fix if ever adopted is tracker-ID pre-allocation
++ a per-session worktree rather than sharing `/workspace`. Revisit if concurrent COO sessions become
+normal rather than a one-off.
 
-### D-03: OP-21 process-kill guardrail (proposed, dropped)
-**Raised:** 2026-07-20 · **Resolved:** 2026-07-20
+### D-24: `ci-wait.sh` reported PASS against a stale SHA — watch
+2026-08-04. One instance: `ci-wait.sh pr 398` reported green against the pre-push head seconds after
+a push moved it; caught by re-checking the real head before merge, and it behaved correctly on three
+later runs the same session. Most likely a race between `git push` and PR-head propagation — but it
+is a **fail-open** on the project's primary CI gate (QUAL-27 cousin). If it recurs, file it; the fix
+would re-resolve and compare the head SHA *after* the watch completes rather than pinning it at start.
 
-During the 2026-07-20 UAT-triage merge batch, an agent resolving a PR conflict ran a
-blind `pkill`-style kill matching a generic process pattern and took down the real
-`dev:api` server (not worktree-scoped — OS process space is shared across every
-worktree in this container). It self-remediated (restarted the server, verified
-healthy, no data loss), but COO proposed a fourth guardrail in the OP-19/OP-20 family
-(agents must confirm exact PID/ownership before any kill command, not match on a
-broad pattern) and separately asked whether the killed process had disrupted Ryan's
-own work. Ryan's answer to both: drop it — "I don't touch the dev server while you
-guys are working," so the specific exposure this incident showed doesn't apply to his
-usage pattern. No CLAUDE.md change made; unlike OP-19/OP-20 (both confirmed as
-standing rules), this one didn't clear the bar for adoption. Not re-raised unless a
-recurrence actually affects a live PO session.
-
-### D-01: Role system-prompt refresh + `.claude/agents/` custom definitions
-**Raised:** 2026-07-19 · **Resolved:** 2026-07-20
-
-Both parts of the proposed fix were carried out in full, all 8 roles (architect,
-backend, database, frontend, qa, docs, ux, integrations):
-1. Refreshed the git/completion-report sections of every `jobs/<role>/<role>-system-
-   prompt.txt` — `git push origin main` direct-to-main replaced with the branch → 
-   `/pre-push` → PR (`Closes #N` + BRD section) → CI-log-read (`gh run list` /
-   `gh run view --log-failed`) → no-self-merge workflow from CLAUDE.md. Added a
-   COMPLETION REPORT FORMAT section (header block: Tracker ID · issue/PR # · BRD
-   section · branch) to the 5 roles that lacked one (architect, database, ux, docs,
-   integrations) — modelled on the real format already in use in `jobs/COO/inbox/`.
-   Backend's format also gained the mandatory security-checklist bullet (auth
-   middleware, userId scoping, FK `.notNull()`, referencing OP-06 §2 / ADL-27).
-2. Created `.claude/agents/{architect,backend,database,frontend,qa,docs,ux,
-   integrations}.md` — each a thin wrapper: frontmatter pins `name` + `model`, body
-   gives a one-sentence persona summary and directs the agent to read the full
-   `jobs/<role>/<role>-system-prompt.txt` for the complete protocol. Deliberately
-   thin rather than duplicating the full persona, so the system-prompt.txt stays the
-   single source of truth and can't drift from the agent definition.
-
-Dispatch is now `subagent_type: "<role>"` instead of `general-purpose` + COO
-hand-typing an inline persona. Depended on D-02's model-tier decision, resolved
-alongside it in the same PR.
-
-### D-02: Model tiering policy
-**Raised:** 2026-07-19 · **Resolved:** 2026-07-20
-
-Ratified: implementation roles (backend, database, frontend, qa, docs, ux,
-integrations) run on Sonnet 5, encoded in each role's `.claude/agents/<role>.md`
-frontmatter. Architect runs on Opus 4.8 — Ryan's call after COO laid out the actual
-Opus-vs-Fable tradeoff (cost, positioning, fit for bounded-consultation work vs.
-long-horizon autonomous work); Fable 5 was considered and set aside as disproportionate
-to Architect's actual job shape here (bounded design review/ADL output, not open-ended
-autonomous runs). COO-lane background tasks dispatched via the Agent tool (mechanical/
-verification work — CI-anomaly probes, drift-ledger checks, etc., not this interactive
-session) stay on Haiku 4.5, per Ryan's explicit instruction to let COO make that call
-itself. The live interactive COO session's own model (this conversation) is out of
-scope for agent-definition frontmatter — Ryan sets it himself via `/model`.
-
-### D-26: Declare a spike's effort-box / kill-criterion up front — PARKED 2026-08-08
-Decided: defer, do not adopt a third process gate; **OP-33** already catches the bad-premise class at source. Revisit only if a second uncontrolled spike appears after OP-33 is in force. (Was a rule proposal.)
-
-### D-24: `ci-wait.sh` reported PASS against a stale SHA — WATCH-ONLY 2026-08-08
-One instance, not a class; a fail-open (QUAL-27 cousin). If it recurs, file it as a defect — fix would be to re-resolve and compare the head SHA after the watch completes. No tracked work until then.
-
-### D-21: Nominatim/MapTiler firewall allowlist + replay fixtures — TRACKED 2026-08-08
-Designed as **ADL-49**; promoted to tracker **OP-36** (apply on next container rebuild). The PO's go/no-go now lives on that item. The highest-value item on the thread (BUG-76 settlement-filter fix) already shipped.
-
-### D-19: Constrain city lookup by trip countries + shortlist-not-filter — SUPERSEDED 2026-08-08
-Overtaken by the shipped city-identity work: **UX-12 + QUAL-21 done, BUG-71/75/76 shipped**. The remaining lookup-constraint folds into **ADL-48 stage S3** (against the bundled gazetteer, `ORDER BY (country_code IN trip-countries) DESC` *is* the shortlist-not-filter pattern). Pick it up as an ADL-48 S3 consequence, not a separate design. Homes: ADL-48, UX spec (PR #344), BRD GE-15/16.
-
-### D-20: Shared-record append collisions — TRACKED 2026-08-08
-Promoted to tracker **QUAL-34** (union-merge driver for `.planning/drift-ledger.jsonl` + per-agent context files with `current.txt` as an index). Relates QUAL-12.
-
-### D-13: Two concurrent COO sessions collided three times in one day — PARKED 2026-08-08
-Resolved for the day (one session stood down and handed over its PR); no standing rule adopted, per the D-03 single-incident precedent. Revisit if concurrent COO sessions become normal. The fix if adopted: tracker-ID pre-allocation + a per-session worktree rather than sharing `/workspace`.
-
-### D-12: Four BRD contradictions from the QUAL-05 sweep — SPLIT 2026-08-08
-Item 1 (SE-01/SE-03 three-role drift) resolved by **ADL-46 → BRD v3.13**. Items 2–4 (import scope §7/§11 + PH-02/IM-06; MB-01 mobile scope) promoted to tracker **QUAL-36** so they surface at startup; each becomes a BRD bump when the PO decides import / mobile scope.
-
-### D-11: `.claude/settings.local.json` vanished mid-session — CLOSED 2026-08-08
-Practical risk closed at the OneDrive→local migration (runbook manual-copy step landed; file verified byte-identical afterward, no recurrence). Root cause never isolated, but nothing actionable remains. Home: **ADL-39** / memory `project_onedrive_dehydration`.
-
-### D-09: COO worktree cleanup can race an agent's lingering process — PARKED 2026-08-08
-Single contained incident (no harm; the agent's commits were already on origin). No rule adopted, per the D-03 precedent. Revisit on recurrence. Distinct from QUAL-32 (worktree-backlog prune, done).
-
-### D-08: Mid-thread `/workspace` leak — fourth isolation clause? — PARKED 2026-08-08
-Single contained incident (the sandbox guard caught it; COO reverted by hand). No fourth OP-20 clause adopted, per the D-03 precedent. Revisit on recurrence.
-
-### D-07: `gh` CLI has no persistent auth in the container — TRACKED 2026-08-08
-Promoted to tracker **OP-37** (host `GH_TOKEN` passthrough, or bake the credential-bridge into container startup — PO to choose). The per-session workaround (`git credential fill` → `gh auth login --with-token`) is documented there.
-
-### D-04: Clerk API version drift — MOVED TO MEMORY 2026-08-08
-Standing watch-note (pinned `2025-11-10`; check the changelog before any bump — Clerk docs not in the allowlist). Home: memory `reference_clerk_api_version_drift`. Not a live discussion.
-
-### D-18: Lean the /coo-startup audit — TRACKED 2026-08-08
-Promoted to tracker **QUAL-35** (gate heavy checks on a change-probe against the last `reviewed` sentinel; de-inline UAT + open-dialogues; archive Resolved to a separate file). PO-raised 2026-07-31; analysis complete, COO recommends adopting.
-
-### D-16: Settle a spec's own open questions before the fresh-eyes review — ADOPTED 2026-08-08
-PO adopted. Now **OP-27** clause 1 (CLAUDE.md), recorded in **ADL-52**: before dispatching the fresh-eyes reviewer, resolve the author's own flagged open questions — PO decisions taken, spec amended — *if any*.
-
-### D-25: Two amendment/review rules from the ADL-49 round — ADOPTED (2b) / FOLDED (2a) 2026-08-08
-PO adopted clause **2b** as **OP-27** clause 2 (CLAUDE.md), recorded in **ADL-52**: a review of an *amended* document reviews the whole document and checks the seam between the amendment and the sections it didn't touch (verdict/method/reason). Clause **2a** folded in as that clause's rationale rather than a separate gate.
-
+### D-26: Declare a spike's effort-box / kill-criterion up front — watch
+2026-08-05. Proposed after the GE-17 spike ran ~4 days / ~15 design-review PRs with zero shipped code
+before being killed. Deferred, not adopted: the team is already process-rich, and **OP-33** (the
+premise-before-probe gate) may catch the runaway-spike class at its source, making this redundant.
+Revisit only if a second uncontrolled spike appears after OP-33 is in force.
