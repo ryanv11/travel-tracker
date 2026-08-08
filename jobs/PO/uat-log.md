@@ -69,6 +69,46 @@ flights / multi-companion (BUG-41/42), trip-list shows country not state (BUG-53
 
 ---
 
+### ▶ FIRST-PASS OWNER RESULTS — 2026-08-08 (PO, as owner)
+
+_Non-owner testing still to come (PO doing it separately — non-owner burned us last time). COO triage in
+the tabled response of the same date; tracker status-flips and new-bug IDs deferred to the post-UAT bundle
+so they're created once, cleanly, with PO framing on the city-thread items. Nothing here is lost — this
+block is the capture of record._
+
+**Clean owner PASS:** BUG-50, BRD-GE16, BUG-56, BUG-78, BUG-80, BRD-DP06, BUG-57, BUG-44, BRD-IT10,
+BUG-49, BUG-51. · **PASS-with-idea:** BUG-77 (works; PO: commonly-misspelled country names give no
+result — typed "Caymen islands" → nothing; wants spell-tolerant/keystroke lookup — NEW idea). ·
+**PASS (PO leaned pass, slight uncertainty):** BUG-79 (long list but all distinct real places; "we
+shouldn't drop real places, so a pass").
+
+**PARTIAL / FAIL / open:**
+- **BUG-58 — PARTIAL.** Locking a trip **deselects the trip entirely** instead of showing the locked trip
+  (moving between other statuses keeps it selected). [same as finding 1.4 below]
+- **BUG-71 — PARTIAL.** (a) Scotland still not in the add-trip **country** list [by-design: ISO countries
+  only; Scotland is region GB-SCT — D-14/OQ-06 thread]. (b) Searching **"Newport" on a UK trip returns only
+  USA Newports** — PO expected narrowing by the trip's country [GAP: picker narrows by geocoder-auto-detected
+  country, not the trip's declared countries — the spike's "not day one" narrowing signal, unbuilt]. (c) NEW
+  requirement: on the picker screen the **city name should be greyed out** — it was entered on the previous
+  screen, editing it here doesn't re-run the lookup; user must go back.
+- **BUG-72/81 — PARTIAL.** Picker **shouldn't show coordinates** (e.g. "Newport, Sullivan County"); and
+  **two indistinguishable/identical-looking rows** for it [not DB duplicates — staging has 3 real Newports,
+  none Sullivan County; these are indistinguishable *geocoder candidates* = BUG-72's open "which one?" gap].
+- **BUG-62 — FAIL.** Companion list **isn't seeded from a global starting list** [confirmed: 0 companions in
+  seed-data]. Add companion + assign to trips + rename-in-admin-with-propagation all **work** (that half passes).
+- **BRD-IT08/09 — no verdict recorded** (PO left blank — needs a result).
+
+**NEW findings surfaced during BUG-50 (owner setup):**
+1. Airline / flight-number / airport fields are **free text** — PO suggests ISO-list lookups (like the
+   country lookup). [NEW enhancement idea]
+2. **A USA place can be added to an Argentinian trip** — no country-consistency guard. [needs PO intent
+   call: multi-country trips are legitimate, so is this a bug or by-design?]
+3. Post-trip review has **no overall trip rating or place rating** — only item-level ratings within a place.
+   [NEW scope question — is trip/place rating in the BRD?]
+4. Locking a trip **deselects the trip** (= BUG-58 partial above).
+5. **"Back to trip"** button in review status just deselects the trip; PO expects it to return to the
+   **active** status view. [NEW UI bug]
+
 #### Group 1 — Trips & list
 
 1. **[BUG-50] Delete an entire trip.**
