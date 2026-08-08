@@ -125,9 +125,9 @@ passes flipped `done_pending_uat` → `done`.**
   if it needs fixing'), not tracked as a bug pending a PO decision.
 - **BUG-58 → reopened (pending).** Locking a trip deselects it (owner + non-owner). Original fix covered
   *backward* moves; the *lock* transition still deselects. Sibling of BUG-86.
-- **BUG-62 → held.** Its own scope (non-owner Companions access) **passed**; the PO's fail was the
-  out-of-scope 'not seeded from a global list' → split to **BUG-92** (open product question: per-user model
-  vs global seed). Awaiting PO confirm to flip → done.
+- **BUG-62 → done.** Its own scope (non-owner Companions access) **passed**; the out-of-scope 'not seeded
+  from a global list' is split to **BUG-92**. PO confirmed 2026-08-08: accept the access-scope pass, and
+  **yes** pre-seed a generic starter companion list per new user (BUG-92 unblocked).
 
 **Still PARTIAL (open):** BUG-71, BUG-72, BUG-81 (city-picker cluster — sub-findings now tracked as
 BUG-87/BUG-90/UX-13). BUG-73/74 not exercised (geocode-failure signal only fires on a real failure).
