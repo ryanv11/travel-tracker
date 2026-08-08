@@ -1,12 +1,14 @@
-BACKEND CONTEXT — 2026-08-07 (BUG-77 thread, latest)
+BACKEND CONTEXT — 2026-08-07 (BUG-81 thread, latest)
 PROJECT: Travel Tracker
-CURRENT STATUS: implemented BUG-77 (P2 per brief, BRD GE-16) on branch
-  feat/bug77-geocode-candidate-names off main. Additive: GET /api/geocode
-  candidates now carry `state`/`country`/`county` (human-readable NAMES,
-  distinct from the existing `country_code`/`region_iso` ISO codes) so the
-  frontend can render "City, State, Country" picker rows without parsing
-  display_name. Presentation (label composition, same-state collision-county
-  rule, scroll cap) is a FRONTEND follow-up, not built here.
+CURRENT STATUS: implemented BUG-81 (P2 per brief, BRD GE-16) on branch
+  feat/bug77-geocode-candidate-names off main (branch name left as-is per
+  COO direction — cosmetic, content renamed to BUG-81 throughout). Additive:
+  GET /api/geocode candidates now carry `state`/`country`/`county`
+  (human-readable NAMES, distinct from the existing `country_code`/
+  `region_iso` ISO codes) so the frontend can render "City, State, Country"
+  picker rows without parsing display_name. Presentation (label composition,
+  same-state collision-county rule, scroll cap) is a FRONTEND follow-up, not
+  built here.
   1. src/backend/services/nominatim-client.ts: RawNominatimResult.address
      gains state/country (confirmed present in the raw Nominatim payload via
      the committed bug76 fixtures). NominatimCandidate gains
@@ -18,17 +20,22 @@ CURRENT STATUS: implemented BUG-77 (P2 per brief, BRD GE-16) on branch
   3. src/frontend/types/api.ts: GeocodeCandidate gains state?/country?/
      county? (optional, type-only — no consumption logic, that's the
      frontend follow-up's job).
-  4. src/backend/routes/__tests__/bug77-geocode-names-e2e.test.ts (new):
-     real-fixture, fetch-boundary-mocked (QUAL-22 mock-fidelity) e2e test —
-     Denver CO/IA + Springfield IL fixtures, asserts state/country/county
-     land correctly alongside unchanged pre-existing fields.
-  FLAG FOR COO: the brief's tracker ID "BUG-77" is ALREADY ASSIGNED (two
-  independent probes: tracker.json grep + `gh issue list --search`) to a
-  closed, unrelated issue (#367, ADL-48 S1 region seeding). Did NOT write
-  "Closes #367" in the PR. COO needs to assign a correct ID. Full detail:
-  jobs/backend/park-docs/20260807-BACKEND-bug77-park.txt
+  4. src/backend/routes/__tests__/bug81-geocode-names-e2e.test.ts (new,
+     renamed from bug77-...): real-fixture, fetch-boundary-mocked (QUAL-22
+     mock-fidelity) e2e test — Denver CO/IA + Springfield IL fixtures,
+     asserts state/country/county land correctly alongside unchanged
+     pre-existing fields.
+  TRACKER-ID RESOLVED: originally built under the brief's assigned ID
+  "BUG-77"; two independent probes (tracker.json grep + `gh issue list
+  --search`) showed BUG-77 was already assigned to a closed, unrelated
+  issue (#367, ADL-48 S1 region seeding) — flagged to COO. COO confirmed
+  BUG-77 through BUG-80 were all already taken and reassigned this work to
+  BUG-81; every BUG-77 reference in this thread's own files (test filename,
+  source comments, park doc, this entry, completion report) was renamed to
+  BUG-81 accordingly. PR #424 title/body updated to match. Full detail:
+  jobs/backend/park-docs/20260807-BACKEND-bug81-park.txt
   All of npm run check / type:check:all / test:backend (762/762) /
-  test:frontend (302/302) / status:check green.
+  test:frontend (302/302) / status:check green post-rename.
 
 BACKEND CONTEXT — 2026-08-07 (BUG-76/BUG-74 thread, latest)
 PROJECT: Travel Tracker

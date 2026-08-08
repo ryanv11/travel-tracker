@@ -1,7 +1,8 @@
 BACKEND PARK DOC — 2026-08-07
-THREAD: BUG-77 (P2, per brief) — structured state/country/county names on
+THREAD: BUG-81 (P2, per brief) — structured state/country/county names on
 GET /api/geocode candidates. BRD GE-16.
-BRANCH: feat/bug77-geocode-candidate-names (off main)
+BRANCH: feat/bug77-geocode-candidate-names (off main — name left as-is,
+  cosmetic, per COO direction; content renamed to BUG-81 throughout)
 
 SCOPE
 Backend-only half of the picker-precedence work: expose structured
@@ -10,23 +11,17 @@ render "City, State, Country" rows instead of parsing Nominatim's noisy
 display_name. Presentation (label composition, same-state collision-county
 rule, picker scroll cap) is explicitly a FRONTEND follow-up, not built here.
 
-TRACKER-ID FLAG (read first — this is the one thing COO needs to act on)
-The brief assigns this work the ID "BUG-77". Two independent probes —
-(a) `grep '"id": "BUG-77"' _project/tracker.json`, (b) `gh issue list
---search "BUG-77"` — both show BUG-77 is ALREADY ASSIGNED, to a closed,
-unrelated bug: "22 region-tier countries ship with zero regions — 22 latent
-BUG-30s (ADL-48 S1)", GitHub issue #367, status done_pending_uat, owner
-database. That work is about region seed data, not geocoding. Per the
-negative-findings rule this is now established (not just single-probed):
-the ID in this brief does not belong to this work.
-  I proceeded with the requested implementation (it's correct, tested, and
-  matches the picker-precedence design threads referenced in recent commits
-  — jobs/architect/tech/20260806-BUG75-pickerprecedence-and-ux12-entry.md —
-  though that doc itself doesn't name this exact backend delta or assign it
-  an ID either). I did NOT write "Closes #367" anywhere (would incorrectly
-  re-touch an unrelated, already-closed issue) and kept the commit/PR title
-  as instructed since changing it unilaterally is a COO call, not mine.
-  COO should assign a correct tracker ID/GitHub issue before or at merge.
+TRACKER-ID RESOLVED
+Originally implemented under the brief's assigned ID "BUG-77", which two
+independent probes (tracker.json grep + `gh issue list --search`) showed was
+already assigned to a closed, unrelated bug (region seeding, #367). Flagged
+to COO in the first completion report. COO confirmed the collision (BUG-77
+through BUG-80 all already taken) and reassigned this work to BUG-81. This
+thread (test file, source comments, park doc, context doc, completion
+report) was renamed BUG-77 -> BUG-81 throughout on COO instruction; the
+branch name itself (`feat/bug77-geocode-candidate-names`) was left as-is
+per COO direction — cosmetic, not worth a re-push. PR #424 title/body
+updated to reference BUG-81.
 
 WHAT WAS BUILT
 
@@ -58,7 +53,7 @@ WHAT WAS BUILT
      are (existing hand-written fixtures predate the field). Type-only change
      — no frontend consumption logic added; that's the follow-up brief's job.
 
-4. src/backend/routes/__tests__/bug77-geocode-names-e2e.test.ts (new)
+4. src/backend/routes/__tests__/bug81-geocode-names-e2e.test.ts (new)
    - Follows the bug76-geocode-e2e.test.ts pattern (QUAL-22 mock-fidelity):
      only global.fetch is stubbed with the exact committed fixture bodies
      (denver_us.json, springfield_us.json) — the real route, real
@@ -105,14 +100,13 @@ VERIFICATION
   never touched that file; unrelated pre-existing lint suggestions.
 - `npm run status:check`: STATUS.md up to date, no regen needed.
 
-NOTHING ELSE FLAGGED TO COO beyond the tracker-ID mismatch above — no AC
-looked wrong, no scanner suppression needed, no premise needed relitigating
-beyond the ID check itself.
+NOTHING ELSE FLAGGED TO COO — the tracker-ID question is resolved (see
+above); no AC looked wrong, no scanner suppression needed, no other premise
+needed relitigating.
 
 NEXT STEPS FOR OTHER JOBS
 - Frontend: consume `state`/`country`/`county` in the picker row (label
   composition "City, State, Country", add county only on same-state
   collision, respect the existing scroll cap) — this is the presentation
   half the brief explicitly deferred.
-- COO: resolve the BUG-77 tracker-ID collision (assign a correct ID/GitHub
-  issue for this work; #367 stays closed and unrelated) before merge.
+- COO: BUG-81 is ready to merge (PR #424, CI green) once reviewed.
