@@ -51,12 +51,14 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
-### UAT Session — 2026-08-07 (BUG-75/UX-12 city-identity picker + Change-city — PARTIAL)
+### UAT Session — 2026-08-07 (BUG-75/UX-12 city-identity picker + Change-city — PASS, CLOSED)
 
 **Scope:** PO live UAT on staging (build 4e77594) of the ATDD-first BUG-75/UX-12 build — the
 city-disambiguation place-picker, the country-suggestion, and the coverage of the geocode search.
-**Build:** 4e77594 (`/health`-confirmed).
-**Verdict:** PARTIAL — the picker mechanism PASSES; a pre-existing coverage defect (BUG-76) surfaced.
+**Build:** 4e77594; re-tested on **758ef15** after the BUG-76 fix.
+**Verdict:** PASS — closed 2026-08-07. The picker mechanism PASSES, and BUG-76 (the coverage defect
+it surfaced) is now fixed, deployed, and re-tested PASS on build 758ef15. BUG-75, UX-12, BUG-76 → done.
+A follow-on picker READABILITY finding surfaced during the re-test → tracked as **BUG-77** (new).
 
 #### Findings
 
@@ -68,18 +70,23 @@ city-disambiguation place-picker, the country-suggestion, and the coverage of th
       bundle** (staging had redeployed f7b36b8 → 4e77594 mid-session); a hard refresh loaded the new
       frontend and the picker rendered correctly. Not a product bug.
 
-- [ ] **Geocode coverage — the cities people mean are missing (BUG-76, P1, tracked).** The Springfield
-      picker only offers the minor place-node towns (VA/IN); the famous Springfields (IL/MO/MA) and
-      **Denver** never appear — Denver doesn't populate country/state at all. Root cause VERIFIED this
-      session (firewall recovered → Nominatim probed directly): our `SETTLEMENT_TYPES` filter discards
-      `boundary/administrative` rows, which is how OSM models prominent cities. Denver has no OSM place-node
-      at all. Dispatch-ready fix plan recorded in BUG-76's tracker note; **not yet dispatched** (PO: dispatch
-      from a fresh session). BUG-74 (empty-list-as-200 hiding it) rides along.
+- [x] **Geocode coverage — the cities people mean are missing (BUG-76, P1) — RESOLVED & re-tested PASS
+      2026-08-07 (build 758ef15).** Was: the Springfield picker only offered minor place-node towns (VA/IN);
+      the famous Springfields (IL/MO/MA) and **Denver** never appeared. Fixed in PR #421 — the accept-rule
+      now keys on `addresstype` instead of `type`, so `boundary/administrative` cities (how OSM models
+      prominent places) are admitted. Re-test: Denver auto-populates United States + Colorado and offers
+      Denver CO distinctly; Springfield surfaces IL/MA/MO/OH etc. BUG-74's backend half (empty-vs-failed
+      `status` contract) shipped in the same PR; its frontend banner remains a discrete follow-up.
+
+- [ ] **Picker readability (BUG-77, P2, NEW — non-blocking).** With the coverage fix surfacing full lists,
+      the picker rows (raw Nominatim `display_name`) are hard to skim — county + postcode noise
+      ("Springfield, Fairfax County, Virginia, 22150, United States"). Agreed fix: rows read "City, State,
+      Country", county added only to disambiguate same-state duplicates, postcode never; + list height cap.
+      Bundled with the BUG-74 frontend banner; UX to review the picker for theme adherence after build.
 
 #### Notes / Observations
-The picker fix is genuinely working; BUG-76 is UPSTREAM of it (the picker can only disambiguate among the
-cities that survive the filter), so it's the blocker for a trustworthy geocode experience. This UAT session
-stays open until BUG-76 is fixed and re-tested.
+The picker fix is genuinely working; BUG-76 was UPSTREAM of it and is now fixed and re-tested, so this
+session is CLOSED PASS. The only residual is the BUG-77 readability polish (tracked, non-blocking).
 
 ### UAT Session — 2026-08-01 (BRD-GE16 / ADL-46 release — PO deployment shakedown, FAIL)
 
