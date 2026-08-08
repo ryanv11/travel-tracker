@@ -35,7 +35,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (45)
+### P2 — Important (46)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -81,11 +81,12 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-79 | Region selector not narrowed for an ambiguous US city, though it is for the UK | frontend | done_pending_uat |
 | BUG-77 | 22 region-tier countries ship with zero regions — 22 latent BUG-30s (ADL-48 S1) | database | done_pending_uat |
 | BUG-81 | Disambiguation picker rows hard to skim — raw display_name shows county + postcode noise | frontend | done_pending_uat |
+| BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
-### P3 — Minor (26)
+### P3 — Minor (25)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -114,7 +115,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-78 | 'Suggested:' region caption not bold enough to read as a value needing checking | frontend | done_pending_uat |
 | BUG-82 | CityPicker rows keyboard-inaccessible (bare div onClick) + disabled has no visual state — a11y | frontend | ⬜ Pending |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
-| QUAL-32 | Stale local git branches + agent worktrees accumulating — careful prune needed | coo | ⬜ Pending |
 
 ## Coverage by type
 
@@ -122,9 +122,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 30/57 | 30 | 27 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `████████████░░░░░░░░` 48/79 | 48 | 31 | 3 |
+| bug | `████████████░░░░░░░░` 48/80 | 48 | 32 | 3 |
 | task | `████████████████████` 11/11 | 11 | 0 | 0 |
-| chore | `█████████████░░░░░░░` 25/40 | 25 | 15 | 1 |
+| chore | `█████████████░░░░░░░` 26/40 | 26 | 14 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -158,4 +158,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_154 done · 9 deferred · 5 closed · 77 open — 245 tracked items_
+_155 done · 9 deferred · 5 closed · 77 open — 246 tracked items_
