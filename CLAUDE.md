@@ -150,114 +150,54 @@ all**. Every `connect-src` violation is therefore unobservable in CI. The test s
 weak — the environment could not express the failure.
 
 ### Negative findings need two probes (mandatory)
-Adopted 2026-07-28 after three confidently-stated false premises came out of one wave of
-Architect work (Wave 0), each caught only because someone later re-ran the probe:
+Adopted 2026-07-28 after three confidently-stated false premises (a "`PRAGMA foreign_keys`
+is off" that wasn't; a "no `router.delete` in `trips.ts`" that missed on a naming
+assumption — it's `tripsRouter.delete` at `src/backend/routes/trips.ts:429`; a "firewall
+reaches no Turso host" that ignored the allowlisted diagnostic path) each got built on
+before anyone re-ran the probe. Positive findings self-verify — the thing is there, you can
+see it. Negative findings don't, and they are disproportionately load-bearing because
+designs get built on "X doesn't exist" without anyone checking again.
 
-1. **"`PRAGMA foreign_keys` is off at runtime"** — false. `@libsql/client` enables FK
-   enforcement by default (a libSQL divergence from stock SQLite). The design built on it
-   proposed eight hand-ordered deletes duplicating the FK graph in application code.
-2. **"There is no `router.delete` in `trips.ts`"** — false. `tripsRouter.delete('/:id')`
-   exists at `src/backend/routes/trips.ts:429`. The probe grepped `router.delete` against a
-   router actually named `tripsRouter`. The COO then propagated it into a tracker note
-   without re-verifying, and it mis-sized a brief until corrected.
-3. **"This environment's firewall reaches no Turso host"** — false. The ADL-33 / OP-21
-   diagnostic path is allowlisted; `scripts/agent-diagnostics/turso-query.mjs` reaches
-   staging fine. An open question sat recorded as unanswerable for a day.
+**The rule.** Any claim that something does not exist, is not enabled, is unreachable, or is
+not implemented must either:
+- be established by **two independent probes that could fail differently** — a grep *and*
+  reading the file; a network probe *and* checking the allowlist; a code search *and*
+  running the thing — where a single wrong assumption cannot produce both results; **or**
+- be **explicitly marked `UNVERIFIED`**, stating the probe that was run and its blind spot.
 
-All three share a shape: **an agent probes once, gets a negative result, and reports the
-absence as established fact.** A grep that missed on a naming assumption, a probe that
-covered one driver, a connection attempt that didn't use the allowlisted path. Positive
-findings self-verify — the thing is there, you can see it. Negative findings don't, and
-they are disproportionately load-bearing because designs get built on top of "X doesn't
-exist" without anyone thinking to check again.
+"I grepped for X and found nothing" is a finding; "X does not exist" is a claim — never
+silently upgrade one into the other. **Binds every role, explicitly including the COO**
+propagating a finding into a tracker note, brief, or plan: a claim inherited from an
+existing project doc is *not* pre-verified, age is not evidence, and this has caught
+COO-authored false premises more than once (OP-29).
 
-**The rule.** Any claim that something does not exist, is not enabled, is unreachable, or
-is not implemented must either:
-- be established by **two independent probes** that could fail differently — e.g. a grep
-  *and* reading the file; a network probe *and* checking the allowlist config; a code
-  search *and* running the thing — where "independent" means a single wrong assumption
-  cannot produce both results; **or**
-- be **explicitly marked unverified** in the deliverable, with the probe that was run and
-  its known blind spot stated, so the next reader knows what was and wasn't checked.
-
-Never silently upgrade a single negative probe into a stated fact. "I grepped for X and
-found nothing" is a finding; "X does not exist" is a claim, and it needs the second probe.
-
-This binds **agents writing deliverables** and **the COO propagating agent findings into
-tracker notes, briefs, or plans** — failure 2 above was a COO failure, not an agent one.
-Applies to every role. Briefs should not need to restate it, but a brief whose core task is
-to establish an absence should call it out explicitly.
-
-**Hook-enforced, not just written (adopted 2026-07-28, OP-26).** PO direction after the
-above: local-environment quirks in this project (firewall allowlist, patched drizzle-kit,
-remote libSQL transport behavior) make a single negative probe disproportionately likely to
-be an environment artifact rather than a true absence — this rule needs to catch that
-mechanically, not rely on an agent remembering it mid-task. A `PostToolUse` hook scans new
-writes under `jobs/**` and tracker notes for absence-language patterns ("does not exist,"
-"not found," "unreachable," "cannot be verified," "not implemented," "is off/disabled") and
-flags any that lack an adjacent second-probe or `UNVERIFIED` marker. Starts as **warn, not
-block** — regex against natural language will false-positive (e.g. an agent quoting this
-very rule), and a hard block stalls an agent mid-task for no reason. Revisit block-vs-warn
-once the false-positive rate from real use is known.
-
-**The rule binds the whole team, and the hook now reaches the COO too (2026-07-28, OP-29).**
-It fired again on the very next wave: brief B2 (issue #298) asserted that *"AD-09's
-owner-only deactivation is not enforced on the backend today"* and bundled a "go enforce it"
-task on that premise. It was false — `adminRouter.use(requireOwner)` already gated every
-categories/activities route, and `security.access-matrix.test.ts` already had passing
-non-owner-403 tests for exactly that. The claim came out of a planning doc and the COO
-propagated it into the brief without a second probe. Only the brief's own instruction to
-double-probe caught it, before any code was written.
-
-Two things follow, both adopted on PO direction:
-
-1. **No role is exempt — explicitly including the COO.** The rule applies to every artifact
-   any role produces: deliverables, tracker notes, ADLs, plans, completion reports, **and
-   COO-authored briefs**. A claim inherited from an existing project document is *not*
-   pre-verified; age is not evidence. If you are about to build on "X doesn't exist," probe
-   it again yourself.
-2. **Enforcement had a COO-shaped hole and it has been closed.** The OP-26 hook matched only
-   `Write|Edit`, but the COO does not write briefs to files — it writes them into GitHub
-   issue bodies via Bash. The single highest-leverage place for a false absence was the one
-   place the hook could not see. It now also scans `gh issue create` / `gh pr create` /
-   `gh issue comment` bodies. The pattern set was widened at the same time: testing showed it
-   missed *both* phrasings that actually caused this project's false premises — "is not
-   enforced" and "there is no X" — so absence-of-enforcement language is now covered.
+**Hook-enforced (OP-26/OP-29, warn-only).** `.claude/hooks/negative-findings-guard.sh` scans
+new `jobs/**` writes, tracker notes, and `gh issue/pr` bodies (the COO writes briefs via
+Bash, not files) for absence-language lacking an adjacent second-probe or `UNVERIFIED`
+marker. Warn, not block — regex on prose false-positives (e.g. quoting this rule). War
+stories and blind-spots: memories [[feedback_negative_findings_hook_enforcement]],
+[[feedback_negative_probe_scope]], [[feedback_reviewers_negative_claims_need_probing_too]].
 
 ### No wholesale rewrites of shared records (mandatory, OP-28)
 
-Adopted 2026-07-28 on PO direction: *"agents should never fully rewrite anything — if a full
-rewrite is required there is a fundamental issue/deviation and I'd want it double checked."*
-
-Trigger: two concurrent Frontend agents (B1 and B2) each rewrote
-`jobs/frontend/context/current.txt` in full on the same day. Each rewrite was individually
-reasonable and each silently dropped the other's thread record; it surfaced only as a merge
-conflict the COO hand-resolved. This was a **recurrence** — the Wave 0 concurrency notes
-record the same file colliding in 3 of 4 concurrent agents for the same reason, and the fix
-identified then was never adopted. Twice across two waves is a pattern, not an accident.
+Adopted 2026-07-28 on PO direction (*"agents should never fully rewrite anything — if a full
+rewrite is required there is a fundamental issue/deviation and I'd want it double checked"*),
+after two concurrent agents each rewrote `jobs/frontend/context/current.txt` in full and
+silently dropped the other's thread record — a recurrence of a Wave 0 collision.
 
 **The rule, scoped by file class:**
+- **Shared-record files — append or amend only, never wholesale replacement.** They accumulate
+  entries across agents and sessions, so replacing one destroys other people's records:
+  `jobs/**`, `_project/tracker.json`, the BRD, the ADL log, `.planning/**`, `CLAUDE.md`.
+  Mechanically: **use `Edit`, not `Write`, on any that already exists.** A deliberate bulk
+  restructure (e.g. the whole-file reshape of a doc) is legitimate but declare it and preserve
+  the content.
+- **Source code — a full-file rewrite is allowed but must be declared** in the completion report
+  with the reason, so the COO can confirm it was deliberate, not a deviation.
 
-- **Shared-record files — append or amend only, never wholesale replacement.** These
-  accumulate entries across many agents and sessions, so replacing one destroys other
-  people's records: `jobs/**` (context docs, park docs, inbox, role tech docs),
-  `_project/tracker.json`, the BRD, the ADL log, the backlog clearance plan, `.planning/**`,
-  and `CLAUDE.md`. Mechanically: **use `Edit`, not `Write`, on any of these that already
-  exists.** Add a new dated entry; leave prior entries in place.
-- **Source code — a full-file rewrite is allowed, but must be declared.** A small module
-  legitimately changing in full is normal work and blocking it would be noise. But if you
-  replace a source file wholesale, **say so explicitly in your completion report with the
-  reason**, so the COO can double-check that it was a deliberate choice and not a deviation
-  from the brief.
-
-A blanket "never rewrite anything" was considered and deliberately narrowed to this split —
-the PO invited that calibration. Generated files, stubs a brief says to replace, and small
-modules changing entirely are all legitimate; the accumulating-record case is the one where
-a rewrite is nearly always wrong.
-
-**Hook-enforced (warn, not block).** `.claude/hooks/no-wholesale-rewrite.sh` fires on a
-`Write` to an already-tracked file under the shared-record paths and points the agent at
-`Edit`. Warn-only, following OP-26's precedent; revisit once the false-positive rate is known.
+**Hook-enforced (warn, not block).** `.claude/hooks/no-wholesale-rewrite.sh` fires on a `Write`
+to an already-tracked shared-record file and points at `Edit`. Memory
+[[feedback_no_wholesale_rewrites]].
 
 ### Scanner suppressions need COO sign-off (mandatory, OP-30)
 
@@ -303,103 +243,62 @@ filled in and has been deleted).
 
 ### Spike-gate the BRD: no requirement enters as "approved" on an unverified premise (mandatory, OP-33)
 
-Adopted 2026-08-05 after the GE-17 retro. GE-17 was written into the BRD as approved-in-principle
-(v3.14) resting on four arguments — *"works offline,"* *"the only way to make the primary path
-testable,"* *"the only way to detect ambiguity,"* *"it covers the Scotland dogfood trip."* All four
-were **unverified premises**, two of them "only way" claims (absence claims in disguise — see the
-negative-findings rule). Within 48 hours the spike that should have gated them ran, all four
-collapsed, and the BRD corrected itself twice (v3.15, v3.16) and withdrew the requirement, having
-produced no code. The build layer never wheel-spun — where we have hard gates (tests, CI, fresh-eyes
-on ADLs) nothing churned. The **decision layer** did, because a premise reached a gate artifact
-before the probe that tests it.
-
-The retro's finding, stated as the rule's premise: this project's recent expensive churn is one
-repeated move — **a premise (usually an "only way" or absence claim) promoted to a gate artifact (a
-BRD requirement, a closed bug, a brief) before the probe that would test it has run.** It showed up
-at least three times in one window: GE-17 (above), BUG-76 (closed on one positive instance, reopened
-at P1 when Denver disproved it — #382), and the v3.15 "works offline" overclaim.
+Adopted 2026-08-05 after the GE-17 retro: a requirement was BRD-approved (v3.14) on four unverified
+premises — two of them "only way" claims — and the spike that should have gated them collapsed all
+four within 48h, producing no code. The pattern behind this project's expensive churn: **a premise
+(usually an "only way" or absence claim) promoted to a gate artifact — a BRD requirement, a closed
+bug, a brief — before the probe that tests it runs.**
 
 **The rule:**
+1. A requirement resting on an unestablished premise does **not** get version-bumped into the BRD as
+   *approved* — it enters a **proposed, spike-gated** state, recorded but not law.
+2. Before the spike, its load-bearing premises are written as a **verify-checklist** (each
+   verified/unverified, with the probe that settles it) — the required artifact, not an afterthought.
+3. **BRD promotion waits for the checklist to clear.** A premise that fails takes the requirement with it.
+4. **"Only way / sole option" justifications are premises, not conclusions** — probe each plank
+   separately (an argument *for* something can lose half its planks and still look whole).
 
-1. A requirement whose case rests on a premise not yet established does **not** get version-bumped
-   into the BRD as *approved*. It enters a **proposed, spike-gated** state — recorded, but explicitly
-   not law.
-2. Before the spike starts, its **load-bearing premises are written down as a verify-checklist** —
-   each marked verified / unverified, with the probe that would settle it. *"This requirement rests
-   on X, Y, Z; each is currently unverified"* is the required artifact, not an afterthought.
-3. **BRD promotion waits for the checklist to clear.** A premise that fails takes the requirement
-   with it — that is the spike working as designed, not a failure to explain away.
-4. **"Only way / sole option / there is no alternative" justifications are premises, not
-   conclusions.** They get the two-probe treatment the negative-findings rule already mandates for
-   absence claims: an argument *for* something can lose half its planks and still look whole, so probe
-   each plank separately (memory: `feedback_arguments_for_are_absence_claims_too`).
-
-This is the decision-layer counterpart to "success criteria before dispatch": that gate stops an
-ambiguous *done*, this one stops an unverified *why*.
+Decision-layer counterpart to "success criteria before dispatch": that stops an ambiguous *done*,
+this stops an unverified *why*. Full record: tracker OP-33, memory
+[[feedback_arguments_for_are_absence_claims_too]].
 
 ### PO input is authoritative but not infallible — probe it like any other source (mandatory, OP-34)
 
-Adopted 2026-08-05 on PO direction: *"just because I'm the PO doesn't mean I always know best …
-everyone takes my words as the truth."* That is the exact hazard — a statement treated as ground
-truth is one nobody downstream probes, and an unprobed wrong one is expensive precisely because the
-authority suppresses the check. The BRD carried *"GE-17 works fully offline"* for a whole version
-because the COO propagated the PO's framing without a probe (v3.15 withdrew it as factually false) —
-the negative-findings failure applied to an inherited premise. Its positive-claim cousin is
-fabricating a PO ruling: an attributed decision is unarguable by design (memory:
-`feedback_never_attribute_an_inference_to_the_po`).
+Adopted 2026-08-05 on PO direction (*"just because I'm the PO doesn't mean I always know best"*): a
+statement treated as ground truth is one nobody downstream probes, so an unprobed wrong one is
+expensive precisely because the authority suppresses the check (the BRD carried *"GE-17 works
+offline"* for a whole version this way). PO input still decides — but it is **tested on two axes
+before it becomes law or work**:
 
-PO input carries real authority and this rule does **not** dilute it — the PO still decides. It adds
-that PO input is *tested*, on two axes, before it becomes law or work:
+1. **Truth — factual claims** (*"it works offline," "this used to work"*) are probed exactly as an
+   agent's claim; the negative-findings two-probe rule binds, the source being the PO does not exempt
+   it. "It used to work" is decisive for defect classification (OP-32) and must be *confirmed*.
+2. **Value — requests.** A discretionary / *"wouldn't it be nice"* request gets a proportionate
+   **impact-cost-benefit** assessment with a recommendation before it's promoted or dispatched (a
+   one-line ask gets a sentence; a clear defect / P1 needs none).
 
-1. **Truth axis — factual claims.** A factual assertion from the PO (*"it works offline," "this used
-   to work," "there's no way to X"*) is not pre-verified. Before it enters a gate artifact (the BRD,
-   a brief, a tracker fact), probe it exactly as you would an agent's claim — the negative-findings
-   two-probe rule already binds, and the source being the PO does not exempt it. "It used to work"
-   in particular is decisive evidence for defect classification (OP-32) and must be *confirmed*, not
-   assumed.
-2. **Value axis — requests.** Not every request is worth building, and the PO has flagged that some
-   arrive as *"it would be nice if."* Before a discretionary or enhancement request is promoted to a
-   requirement or dispatched, the COO surfaces a proportionate **value assessment — impact, cost,
-   benefit** — with a recommendation. The three lenses are the default, **not a rigid template**: a
-   one-line ask gets a sentence, a large ask gets more. A clear defect or a P1 does not need this; a
-   *"wouldn't it be nice"* does. The PO decides with the assessment in front of them rather than the
-   COO building on the request alone.
-
-Both axes resolve to the move the team already owes every other source — **probe before promote.**
-This rule simply states that the PO is a source, not an exception.
+Both resolve to **probe before promote** — the PO is a source, not an exception. Full record: tracker
+OP-34, memory [[feedback_never_attribute_an_inference_to_the_po]].
 
 ### ATDD-first for Architect-spawned briefs (mandatory, OP-35)
 
-Adopted 2026-08-05 (ADL-50), promoting open-dialogue D-17 after its trial passed on the ADL-46 release.
-**For an implementation brief that an Architect spec spawns, the COO dispatches QA FIRST** — QA turns the
-success criteria into *red* acceptance/integration tests, handed to the implementer as the executable
-definition of done, before the implementation brief runs. This is acceptance-test-first (independent
-specification of behaviour), not the per-developer TDD inner loop implementers already do; its value is
-breaking the closed loop where the implementer writes both the code and the tests that certify it — the
-same principle as OP-27 fresh-eyes and the negative-findings two-probe rule.
+Adopted 2026-08-05 (ADL-50). **For an implementation brief that an Architect spec spawns, the COO
+dispatches QA FIRST** — QA turns the success criteria into *red* acceptance/integration tests, handed
+to the implementer as the executable definition of done, before the implementation runs. It breaks
+the closed loop where the implementer writes both the code and the tests that certify it (same
+principle as OP-27 fresh-eyes).
 
-**The trigger is objective — keyed to Architect involvement, not a subjective "complexity" call.** Required
-for the implementation briefs an Architect spec spawns; not required for briefs that never reach the
-Architect. "Goes to Architect" already gates the high-stakes classes: access-matrix / ownership-scoping
-(ADL-27), data-integrity invariants (schema / migration / uniqueness / FK / dedup), a multi-brief release
-exposing a shared contract, and any risk the Architect named as "get this wrong and it breaks silently."
-Principle: apply it when a wrong implementation would be *silent-and-plausible* and the behaviour is
-*precisely specifiable up front*. One deliberate, recorded coverage gap: complex *frontend* work that never
-sees the Architect (visible/recoverable failures) is excluded — revisit if UAT starts catching such logic
-bugs.
-
-**Mock-fidelity is part of the rule, not optional.** The trial's ATDD suite was partly green for the wrong
-reason — a mock omitted a function the route called, the try/catch swallowed the error, and tests passed
-without exercising anything (QUAL-22). So an ATDD brief must verify its test doubles export/behave like the
-real dependency; a suite that can pass vacuously has specified nothing. The honest claim ATDD earns is
-narrow: writing tests first stops them being bent to fit the code — it does not by itself make them good
-tests.
-
-**Mechanics.** The Architect marks each brief its spec spawns `ATDD-first: yes/no` (in the Architect system
-prompt, so it reaches the COO pre-set); the COO's duty is one line — when a brief is marked ATDD-first,
-dispatch QA before the implementer. A warn-hook (`.claude/hooks/atdd-first-guard.sh`) backs this up on the
-`gh`-issue / brief-file channels (it cannot see Agent-tool dispatch prompts — the marking + COO duty are the
-primary controls there). Full record + verdict + the honest qualification: ADL-50.
+- **Trigger is objective** — keyed to Architect involvement, not a subjective "complexity" call.
+  "Goes to Architect" already gates the high-stakes classes (access-matrix, data-integrity invariants
+  like schema/migration/uniqueness/FK/dedup, shared-contract releases). Principle: apply when a wrong
+  build would be *silent-and-plausible* and the behaviour is *precisely specifiable up front*.
+  Deliberate gap: complex *frontend* work that never reaches the Architect is excluded.
+- **Mock-fidelity is part of the rule** — a test double must export/behave like the real dependency; a
+  suite that can pass vacuously has specified nothing (QUAL-22). ATDD stops tests being bent to fit
+  the code; it does not by itself make them good tests.
+- **Mechanics:** the Architect marks each brief `ATDD-first: yes/no`; the COO dispatches QA before the
+  implementer when marked. Warn-hook `.claude/hooks/atdd-first-guard.sh` backs it on the gh/brief
+  channels (it can't see Agent-tool dispatch). Full record: ADL-50, tracker OP-35.
 
 ### Document lifecycle (mandatory)
 Adopted 2026-07-07 after the doc-integrity audit (`audits/session-a-doc-integrity.md`)
