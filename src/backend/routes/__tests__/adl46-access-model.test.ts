@@ -35,6 +35,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
 import { createTestDb, type TestDb } from '../../repositories/__tests__/test-db.js';
+import type { CityResolution } from '../../services/geocoding.service.js';
 
 // ----------------------------------------------------------------
 // Test user constants
@@ -51,6 +52,23 @@ let testDb: TestDb | null = null;
 let mockIsOwner = 1;
 let mockUserId = USER_A_ID;
 let mockAuthEnabled = true;
+
+// QUAL-22 (review finding F8): the resolveCityName result the mocked
+// geocoding service returns from POST /api/cities's resolve-then-create step.
+// Defaults to 'disabled' — the same terminal outcome the route's own
+// try/catch produced when this mock omitted resolveCityName entirely (a
+// TypeError swallowed by cities.ts's catch), so every test that does not
+// explicitly set this keeps its original, already-verified behaviour. Group
+// B tests that exist specifically to prove the 'ambiguous' verdict is
+// handled (B4) now set this to a real 'ambiguous' CityResolution instead of
+// relying on that accidental fallback — see B4 below.
+let mockCityResolution: CityResolution = { status: 'disabled', candidates: [] };
+// Spies so a test can assert resolveCityName/resolveCity were actually
+// INVOKED (and with what), not just infer it from downstream DB state —
+// QUAL-22's own point is that an un-exercised mock can still produce a
+// result that "looks plausible", so the fix asserts the call itself.
+const resolveCityNameSpy = vi.fn(async (): Promise<CityResolution> => mockCityResolution);
+const resolveCitySpy = vi.fn(async () => undefined);
 
 // ----------------------------------------------------------------
 // Module mocks — must be declared before any imports that use them
@@ -87,11 +105,23 @@ vi.mock('../../middleware/auth.js', () => ({
   },
 }));
 
-// resolveCity is a no-op in this suite — none of these tests depend on the
-// geocoder actually resolving anything (that is S2's proxy work), only on the
-// find-or-create / containment logic around it.
+// QUAL-22 (review finding F8) — the drifted mock. This factory used to export
+// ONLY resolveCity, but cities.ts's POST handler also imports resolveCityName
+// and resolveByOsmId (routes/cities.ts:27). Calling an undefined export threw
+// a TypeError that the route's own try/catch around resolveCityName silently
+// swallowed into `{ status: 'disabled', candidates: [] }` — so every Group B
+// test exercised the disabled/pending fallback path regardless of what it
+// claimed to test, and resolveByOsmId would have thrown uncaught if any test
+// had exercised the carried-ref branch. Both are now exported for real,
+// matching the module's actual surface (verified against
+// services/geocoding.service.ts's `export` lines, not assumed).
 vi.mock('../../services/geocoding.service.js', () => ({
-  resolveCity: async () => undefined,
+  resolveCity: resolveCitySpy,
+  resolveCityName: resolveCityNameSpy,
+  // Group B never sends osm_type/osm_id (see file header), so the carried-ref
+  // branch that calls this is never reached here — exported anyway so a
+  // future test cannot silently repeat the same drift by adding one.
+  resolveByOsmId: async () => null,
 }));
 
 vi.mock('../../services/shading.service.js', () => ({
@@ -215,6 +245,9 @@ beforeEach(async () => {
   mockAuthEnabled = true;
   mockIsOwner = 1;
   mockUserId = USER_A_ID;
+  mockCityResolution = { status: 'disabled', candidates: [] };
+  resolveCitySpy.mockClear();
+  resolveCityNameSpy.mockClear();
 });
 
 afterEach(() => {
@@ -222,6 +255,7 @@ afterEach(() => {
   mockAuthEnabled = true;
   mockIsOwner = 1;
   mockUserId = USER_A_ID;
+  mockCityResolution = { status: 'disabled', candidates: [] };
 });
 
 // ================================================================
@@ -528,9 +562,48 @@ describe('ADL-46 Group B — D13 find-or-create invariants (POST /api/cities)', 
     const il = await seedCity(testDb!, { countryCode: 'US', name: 'Springfield', regionId: ilId });
     const mo = await seedCity(testDb!, { countryCode: 'US', name: 'Springfield', regionId: moId });
 
+    // QUAL-22 fix: before the mock exported resolveCityName at all, calling it
+    // threw and the route's catch degraded to 'disabled' — this test then
+    // "passed" via the pending-fallback branch (step 4c) without ever
+    // exercising resolveCityName's 'ambiguous' verdict, which is the thing its
+    // own name and comment claim to prove. Now the geocoder double is told to
+    // actually return 'ambiguous' (two distinct region_iso candidates,
+    // multi-region — the real shape classifyCandidates would produce for two
+    // real Springfields with no region requested).
+    mockCityResolution = {
+      status: 'ambiguous',
+      reason: 'multi-region',
+      candidates: [
+        {
+          displayName: 'Springfield, Illinois, United States',
+          name: 'Springfield',
+          latitude: 39.8,
+          longitude: -89.64,
+          countryCode: 'US',
+          regionIso: 'US-IL',
+          addressType: 'city',
+        },
+        {
+          displayName: 'Springfield, Missouri, United States',
+          name: 'Springfield',
+          latitude: 37.21,
+          longitude: -93.29,
+          countryCode: 'US',
+          regionIso: 'US-MO',
+          addressType: 'city',
+        },
+      ],
+    };
+
     const res = await supertest(app)
       .post('/api/cities')
       .send({ name: 'Springfield', country_code: 'US' }); // no region_id
+
+    // Non-vacuous check: resolveCityName was actually called (not skipped via
+    // an early pass-1 match) and with the arguments D12 §4.3.1 requires —
+    // the user's submitted name/country, no region. Without this the test
+    // could still pass by short-circuiting before ever reaching the mock.
+    expect(resolveCityNameSpy).toHaveBeenCalledWith('Springfield', 'US', { regionIso: null });
 
     // Judgement call (flagged in QA report): ADL-46 states this case explicitly
     // has "no safe automatic answer" and must not guess, but does not prescribe
@@ -554,6 +627,16 @@ describe('ADL-46 Group B — D13 find-or-create invariants (POST /api/cities)', 
       .where(eq(schema.cities.regionId, moId));
     expect(ilRows).toHaveLength(1);
     expect(moRows).toHaveLength(1);
+
+    // ADL-46 F1/F2 ruling §2.6 (route comment, cities.ts:570-577): an
+    // 'ambiguous' verdict must SKIP the fire-and-forget resolveCity
+    // re-resolution — the route already holds the verdict; re-firing it burns
+    // a second Nominatim request for a provably identical answer. This is the
+    // one behavioural difference between the 'ambiguous' and 'disabled'
+    // outcomes that the pre-fix accidental fallback could never distinguish
+    // (both landed in the same step-4c pending-insert branch), so it is the
+    // most direct proof this test now exercises 'ambiguous' for real.
+    expect(resolveCitySpy).not.toHaveBeenCalled();
   });
 
   it('B5 — exactly one row matches name+country with no region requested → returns it (no regression)', async () => {

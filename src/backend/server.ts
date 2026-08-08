@@ -6,7 +6,7 @@
  *   2. cors        — CORS allowlist (SEC-02)
  *   3. json/urlencoded with 100kb limit (SEC-05)
  *   4. rate limiter (SEC-07)
- *   5. auth stub (SEC-09)
+ *   5. auth — requireAuth verifies Clerk JWTs via JWKS, applied globally (SEC-09)
  *   6. route handlers
  *   7. global error handler — LAST (SEC-06)
  *
@@ -152,8 +152,7 @@ app.use(
       }
     },
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'], // Authorization reserved for Phase 2
-    credentials: true, // Reserved for Phase 2 session cookies
+    allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 );
 

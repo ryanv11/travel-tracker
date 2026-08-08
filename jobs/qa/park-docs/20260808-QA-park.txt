@@ -1,0 +1,100 @@
+QA PARK DOCUMENT — 2026-08-08
+================================================================================
+THREAD: QUAL-02 / QUAL-21 / QUAL-22 — test-coverage sweep
+STATUS: COMPLETE — PR #433 open, 18/18 CI green, not yet merged (COO merges)
+
+WHAT WAS DONE
+--------------------------------------------------------------------------------
+Independent test-coverage lane, three items:
+
+QUAL-22 (do first per brief — real correctness gap in the suite): fixed a
+drifted mock in adl46-access-model.test.ts. The geocoding.service mock
+exported only resolveCity; cities.ts's POST handler also calls
+resolveCityName/resolveByOsmId, so the undefined export threw and the
+route's own try/catch silently swallowed it to 'disabled'. Every Group B
+test exercised the accidental disabled/pending fallback regardless of what
+it claimed to test. Mock now exports resolveCityName/resolveByOsmId for
+real as vi.fn spies; B4 (the test that specifically claims to prove the
+'ambiguous' verdict is handled) now configures a genuine 'ambiguous'
+CityResolution and asserts two non-vacuous things: resolveCityName was
+called with the right args, and resolveCity's fire-and-forget re-resolution
+is correctly SKIPPED for 'ambiguous' (ADL-46 F1/F2 ruling §2.6) — the one
+real behavioural difference the old accidental fallback could never
+distinguish.
+
+QUAL-21: new file cities.resolve-then-create.test.ts. Every existing
+POST /api/cities suite mocks resolveCityName to 'disabled', so the
+resolve-then-create SUCCESS path (resolution.status === 'ok') had zero
+route-level coverage — named as the root cause of two shipped defects.
+Mocks only global.fetch with a real committed Nominatim fixture
+(springfield_il.json), letting the real resolveCityName/classifyCandidates/
+accept-rule run — same fetch-boundary pattern as bug76-geocode-e2e.test.ts.
+Two tests: resolves to an existing record (pass-2 canonical match), and
+creates a new record (both passes miss, insert from canonical response).
+Mutation-tested (forced GEOCODING_ENABLED=false) to confirm both fail for
+the right reason.
+
+QUAL-02: re-probed the tracker's "findings 1/2 already fixed" note rather
+than inheriting it — confirmed true (filter-inversion and GET /api/trips
+sort-order are both already strong). Strengthened two genuinely-remaining
+weak spots: trips.crud.test.ts's response-shape test (was toHaveProperty-
+only, now seeds real data and asserts type+value) and a new sort-order test
+for GET /api/cities/:id/carry-forward (desc(trips.endDate) — zero prior
+coverage, every existing test seeds ≤1 item).
+
+RESULT
+--------------------------------------------------------------------------------
+4 files touched: adl46-access-model.test.ts, cities.carry-forward.test.ts,
+trips.crud.test.ts (modified), cities.resolve-then-create.test.ts (new).
+None overlap the brief's avoid-list (shading.service.ts tests, cities.ts
+rating-sort test — that lives in items.rating-sort-filter.test.ts, not
+touched).
+
+Full local verification (post-merge with origin/main's PR #432/QUAL-33,
+which this branch picked up mid-thread with zero conflicts):
+  npm run check           — clean (5 pre-existing INFO lint notices,
+                             confirmed pre-existing, in files not touched)
+  npm run type:check:all  — clean
+  npm run test:backend    — 762/762 passing
+  npm run test:frontend   — 321/321 passing
+  npm run status:check    — STATUS.md up to date
+
+PR #433, 18/18 CI checks green (Backend Tests, Frontend Tests, E2E Tests,
+Contract Tests, Type Check, Biome, Semgrep, Gitleaks, Dependency Scan — all
+pass). Did NOT merge (QA doesn't merge its own PR — COO's job).
+
+MOCK-FIDELITY NOTE (the throughline across all three items)
+--------------------------------------------------------------------------------
+QUAL-22 is the textbook OP-35/QUAL-22 failure mode itself: a mock that
+silently omits an export a route depends on can still produce a plausible-
+looking green suite, because the route's own defensive error handling
+absorbs the gap. QUAL-21 was written to deliberately NOT repeat this —
+rather than mock resolveCityName's return value (which would just relocate
+the same "pre-decided result" problem one level up), it mocks only the
+actual network boundary (global.fetch) with a real, previously-captured
+Nominatim response, so the real resolver logic is what's under test. Both
+new/fixed test groups were mutation-tested (temporarily broken on purpose)
+to confirm they fail for the right reason before being trusted as green.
+
+OPEN ISSUES / BLOCKERS
+--------------------------------------------------------------------------------
+None. PR ready for COO review/merge. Did not touch _project/tracker.json
+per the brief (COO updates tracker post-merge — parallel sweeps running
+this round, per the brief's explicit instruction).
+
+ARTIFACTS
+--------------------------------------------------------------------------------
+- Branch: chore/qa-coverage-sweep (pushed, PR #433 open)
+- Tech doc (full per-item detail + verification evidence):
+  jobs/qa/tech/20260808-qual-coverage-sweep.md
+- Context updated: jobs/qa/context/current.txt (appended, not rewritten)
+- Completion report: jobs/COO/inbox/
+
+NEXT (for COO)
+--------------------------------------------------------------------------------
+1. Review + merge PR #433 (squash, per standard workflow).
+2. Update _project/tracker.json for QUAL-02 (partial -> further-partial or
+   done depending on whether findings 3/4 are considered fully closed —
+   finding 4 (cross-trip item isolation) was NOT touched by this thread,
+   still open), QUAL-21 (pending -> done), QUAL-22 (pending -> done).
+3. Post-merge: scripts/ci-wait.sh branch main to confirm main stays green.

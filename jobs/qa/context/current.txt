@@ -254,3 +254,68 @@ NEXT STEPS (for incoming QA)
   clean + no other backend suite regresses. Full detail + AC mapping:
   jobs/qa/tech/20260807-bug76-atdd-red-tests.md
   Completion report: jobs/COO/inbox/
+
+================================================================================
+2026-08-08 — QUAL-02 / QUAL-21 / QUAL-22 TEST-COVERAGE SWEEP
+================================================================================
+
+  Branch: chore/qa-coverage-sweep (off main, merged origin/main mid-thread to
+  pick up concurrent PR #432/QUAL-33 with no conflicts). PR #433, 18/18 CI
+  checks green.
+
+  QUAL-22 (mock-fidelity, review finding F8) — FIXED. adl46-access-model.
+  test.ts's geocoding.service mock exported only resolveCity; cities.ts's
+  POST handler also calls resolveCityName/resolveByOsmId, so calling the
+  undefined export threw a TypeError the route's own try/catch silently
+  swallowed to 'disabled'. Every Group B test exercised the accidental
+  disabled/pending fallback regardless of what it claimed to test. Mock now
+  exports resolveCityName/resolveByOsmId for real (as vi.fn spies),
+  defaulting to the same 'disabled' outcome so B1/B2/B3/B5/B6 (status-
+  independent) are behaviourally unchanged. B4 (the test that specifically
+  claims to prove the 'ambiguous' verdict) now sets a genuine 'ambiguous'
+  CityResolution and asserts (a) resolveCityName was actually called with
+  the right args, (b) the fire-and-forget resolveCity re-resolution is
+  correctly SKIPPED for 'ambiguous' per ADL-46 F1/F2 ruling §2.6 — the one
+  real behavioural difference the old accidental fallback could never
+  distinguish, since 'ambiguous' and 'disabled' both landed in the same
+  pending-insert branch pre-fix.
+
+  QUAL-21 (route coverage, review finding F4) — new file cities.
+  resolve-then-create.test.ts. Every existing POST /api/cities suite mocks
+  resolveCityName to 'disabled', so resolution.status === 'ok' — the whole
+  point of resolve-then-create — had never been reached by a green
+  route-level test (root-caused two shipped defects per the tracker note).
+  Mocks ONLY global.fetch with a real committed Nominatim fixture
+  (springfield_il.json, single unambiguous candidate so no region_id is
+  needed to disambiguate); the real resolveCityName/classifyCandidates/
+  accept-rule all run — same fetch-boundary pattern as the existing
+  bug76-geocode-e2e.test.ts. Branch A: pass-1 misses on a typo, pass-2
+  canonical lookup finds a pre-existing row (200, no insert). Branch B: both
+  passes miss, row inserted from the canonical response (201, geocode_
+  status=resolved, OSM ref stamped). resolveCity's fire-and-forget is
+  mocked to a no-op (irrelevant to this file, and left real would race the
+  fetch-call-count assertions). Mutation-tested (forced GEOCODING_
+  ENABLED=false) to confirm both tests fail for the right reason, not
+  vacuously.
+
+  QUAL-02 (assertion strength) — tracker note: findings 1/2 (filter-
+  inversion, sort-order) were already fixed in PR #320; this closes two
+  further weak spots under the same finding. trips.crud.test.ts's
+  response-shape test seeded only 1 trip and asserted toHaveProperty(key)
+  with no value/type check on categories/companions/activities/places/
+  countries — rewritten to seed real association data and assert type
+  (array) + value. cities.carry-forward.test.ts had zero coverage of its
+  desc(trips.endDate) sort (every existing test seeds ≤1 item) — added a
+  3-trip, seeded-out-of-order test asserting exact descending order.
+
+  Files touched: adl46-access-model.test.ts, cities.carry-forward.test.ts,
+  trips.crud.test.ts (all modified), cities.resolve-then-create.test.ts
+  (new). None overlap the brief's avoid-list (shading.service.ts tests,
+  cities.ts rating-sort test).
+
+  765→762 backend tests locally before/after the origin/main merge (QUAL-33
+  removed some now-redundant shading tests, unrelated to this thread) — all
+  passing. type:check:all clean, biome clean (5 pre-existing INFO-level
+  lint notices in untouched files, confirmed pre-existing via diff against
+  main). Full detail: jobs/qa/tech/20260808-qual-coverage-sweep.md
+  Completion report: jobs/COO/inbox/

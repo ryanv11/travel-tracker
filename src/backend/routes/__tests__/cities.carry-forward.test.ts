@@ -280,6 +280,67 @@ describe('GET /api/cities/:id/carry-forward — BUG-17 status filter removed', (
     expect(res.body).toHaveLength(0);
   });
 
+  // QUAL-02 (sort-order gap): the route orders by desc(trips.endDate)
+  // (cities.ts:731) but this file had no test asserting that order — every
+  // existing test seeds at most one item, so an unsorted or ASC-sorted query
+  // would pass identically. Three trips against the SAME city, seeded
+  // out of order so a passing assertion can't be explained by insertion-order
+  // coincidence (same pattern as trips.crud.test.ts's QUAL-02 finding 2 fix).
+  it('orders results by source trip end_date DESCENDING, not insertion order (QUAL-02 sort-order gap)', async () => {
+    const db = testDb!;
+    await db
+      .insert(schema.countries)
+      .values({ countryCode: 'IE', name: 'Ireland' })
+      .onConflictDoNothing();
+    const [city] = await db
+      .insert(schema.cities)
+      .values({ name: 'Dublin', countryCode: 'IE', geocodeStatus: 'resolved' })
+      .returning();
+
+    async function seedTripWithNextTimeItem(endDate: string, tripName: string) {
+      const [trip] = await db
+        .insert(schema.trips)
+        .values({
+          name: tripName,
+          startDate: '2025-01-01',
+          endDate,
+          status: 'locked',
+          userId: TEST_USER_ID,
+        })
+        .returning();
+      const [place] = await db
+        .insert(schema.tripPlaces)
+        .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID })
+        .returning();
+      await db.insert(schema.items).values({
+        tripId: trip.id,
+        tripPlaceId: place.id,
+        itemType: 'restaurant',
+        status: 'next_time',
+        userId: TEST_USER_ID,
+      });
+    }
+
+    // Seeded MIDDLE, EARLIEST, LATEST — deliberately not already in date order.
+    await seedTripWithNextTimeItem('2025-06-01', 'Middle Trip');
+    await seedTripWithNextTimeItem('2025-01-01', 'Earliest Trip');
+    await seedTripWithNextTimeItem('2025-12-01', 'Latest Trip');
+
+    const res = await supertest(app).get(`/api/cities/${city.id}/carry-forward`).expect(200);
+
+    expect(res.body).toHaveLength(3);
+    expect(res.body.map((r: { source_trip_name: string }) => r.source_trip_name)).toEqual([
+      'Latest Trip',
+      'Middle Trip',
+      'Earliest Trip',
+    ]);
+    expect(res.body.map((r: { source_trip_end_date: string }) => r.source_trip_end_date)).toEqual([
+      '2025-12-01',
+      '2025-06-01',
+      '2025-01-01',
+    ]);
+  });
+
   it('returns 200 empty array for a city with no next_time items', async () => {
     const db = testDb!;
     await db
