@@ -111,9 +111,11 @@ vulnerabilities remain — the 4 already-accepted esbuild/drizzle-kit findings p
 
 ---
 
-## npm audit — DEP-03 (2026-08-07)
+## npm audit — DEP-06 (2026-08-07)
 
-Third occurrence of the DEP-01/DEP-02 pattern (tracker DEP-03). `npm audit --audit-level=high`
+Third occurrence of the DEP-01/DEP-02 pattern (tracker DEP-06 — the ID was first filed as
+DEP-03 by mistake, a duplicate of the existing GitHub-Actions DEP-03; renamed to DEP-06).
+`npm audit --audit-level=high`
 went red on main again from an advisory published after the last green run — the same
 calendar-based mechanism ADL-40 documents: `Security Checks` was green on `main` at #418
 (21:06 UTC) and red at 22:12 UTC on the identical tree (the PR that caught it, #419, changed

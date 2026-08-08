@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (87)
+## Open work (88)
 
 ### P0 — Blockers (1)
 
@@ -88,7 +88,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-29 | Admin name-list resource (categories/activities/companions) triplicated across four layers — an admin-list factory that used to exist was unwound by the per-user migrations | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 
-### P3 — Minor (33)
+### P3 — Minor (34)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -121,6 +121,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-69 | geocodeRetryQueue polls 'unresolvable' cities forever — no terminal branch | frontend | ⬜ Pending |
 | BUG-70 | Companion.is_active typed number but serialized boolean (third instance of the class) | frontend | ⬜ Pending |
 | BUG-78 | 'Suggested:' region caption not bold enough to read as a value needing checking | frontend | done_pending_uat |
+| BUG-82 | CityPicker rows keyboard-inaccessible (bare div onClick) + disabled has no visual state — a11y | frontend | ⬜ Pending |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 | QUAL-30 | DesktopTripsLayout and MobileTripsLayout duplicate ~130 lines of controller logic — proven drift (BUG-80 fixed in both) | frontend | ⬜ Pending |
 | QUAL-31 | Modal-overlay shell hand-repeated across 6+ sites — extract a shared <ModalOverlay> | frontend | ⬜ Pending |
@@ -132,7 +133,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `███████████▓░░░░░░░░` 30/57 | 30 | 27 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `████████████░░░░░░░░` 47/77 | 47 | 30 | 3 |
+| bug | `████████████░░░░░░░░` 47/78 | 47 | 31 | 3 |
 | task | `████████████████████` 10/10 | 10 | 0 | 0 |
 | chore | `███████▓░░░░░░░░░░░░` 14/40 | 14 | 26 | 1 |
 
@@ -168,4 +169,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_141 done · 9 deferred · 5 closed · 87 open — 242 tracked items_
+_141 done · 9 deferred · 5 closed · 88 open — 243 tracked items_
