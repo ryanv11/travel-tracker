@@ -26,7 +26,10 @@ Run `/pre-push` before every `git push` and iterate until all checks pass.
 ## Git workflow
 
 ### Branching (adopted 2026-03-21)
-- **Never commit directly to `main`**
+- **Never commit directly to `main`** (or `production`) — hard-blocked by
+  `.claude/hooks/no-protected-commit.sh` (PreToolUse). Emergency override:
+  prefix the command with `ALLOW_PROTECTED_COMMIT=1`. The prod promotion uses
+  `git merge --ff-only` (no commit) and is unaffected.
 - Each agent brief gets its own branch:
   - `feat/<slug>` — new features (e.g. `feat/nr14-backend-auth`)
   - `fix/<slug>` — bug fixes (e.g. `fix/d04-country-name`)
@@ -437,6 +440,13 @@ When raising a GitHub issue for something that has a tracker entry, include the 
 in the issue title — e.g. `fix(BUG-15): wrap executeCarryForward in a transaction`.
 The tracker entry's `notes` field must include the GitHub issue number in return.
 This applies to all new issues — bugs, features, chores — anything with a tracker entry.
+
+**Tracker integrity is machine-enforced.** Before assigning a new ID, take max+1 of the
+whole prefix across BOTH `tracker.json` and CLAUDE.md governance IDs (OP-NN rules also live
+in the tracker — it is the complete OP registry). `npm run tracker:check` (in `/pre-push`
+and CI) hard-fails on any duplicate ID, missing required field, or `brdRefs` value that
+isn't a real BRD requirement ID. A duplicate tracker ID has slipped three times and git
+never catches it — this gate does.
 
 ### Opening a PR
 ```bash
