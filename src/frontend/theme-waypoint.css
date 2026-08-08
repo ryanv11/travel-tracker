@@ -1,12 +1,13 @@
 /**
  * Waypoint design-system tokens (WP-02, BRD §5.16, jobs/ux/tech/20260721-UX-waypoint-spec.md §1-2).
  *
- * PHASE 1 ONLY — these tokens are defined-but-unused. Nothing in the current app
- * references them yet (except the icon-swap exception, which lives in
- * src/frontend/components/icons/ and does not depend on this file). Wiring them into
- * existing screens (StatusBadge, buttons, inputs, global body font) is Phase 2 work —
- * see the spec's "Scope and non-goals" section for why partial application is worse
- * than no application.
+ * WIRED (WP-03/WP-04, GitHub #205) — no longer Phase-1-only. These tokens are
+ * actively consumed across the app: design/Button.tsx, design/Input.tsx,
+ * design/badges.ts -> StatusBadge.tsx, TripCard.tsx, DesktopTripsLayout.tsx,
+ * MobileTripsLayout.tsx, TripDetail.tsx, and others (QUAL-04, 2026-08-08 —
+ * this comment previously said the tokens were "defined-but-unused" and
+ * wiring them was future Phase 2 work; that stopped being true once
+ * WP-03/WP-04 shipped the Trips reskin, and nobody updated the comment).
  *
  * Values are copied verbatim from the spec's §1 (color) and §2 (typography) tables —
  * do not round or approximate. If a value here ever needs to change, change the spec

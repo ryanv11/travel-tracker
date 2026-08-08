@@ -13,6 +13,7 @@ import { useCarryForward } from '../../hooks/usePlaces';
 import type { CarryForwardCandidate } from '../../types/api';
 import { ITEM_TYPE_ICONS, NoteIcon } from '../icons';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { ModalOverlay } from '../shared/ModalOverlay';
 
 interface CarryForwardModalProps {
   tripId: number;
@@ -24,15 +25,6 @@ interface CarryForwardModalProps {
   onClose: () => void;
 }
 
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  backgroundColor: 'rgba(0,0,0,0.45)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 800,
-};
 const modalStyle: React.CSSProperties = {
   background: '#fff',
   borderRadius: '8px',
@@ -101,123 +93,124 @@ export function CarryForwardModal({
   };
 
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
-        <h2 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700 }}>
-          Carry-forward suggestions
-        </h2>
-        <p style={{ margin: '0 0 16px', fontSize: '14px', color: '#4B5563' }}>
-          You've been here before. Select items to add to this trip as "Consider":
-        </p>
+    // NOTE: no onClose/backdrop-dismiss — this modal is only dismissed via
+    // its own Skip button or the post-success setTimeout(onClose, 1500)
+    // above, unchanged pre-existing behaviour (QUAL-31 investigation flagged
+    // this as the one real behavioural divergence among the modal-shell
+    // sites, so it's preserved explicitly rather than silently "fixed").
+    <ModalOverlay zIndex={800} closeOnBackdropClick={false} panelStyle={modalStyle}>
+      <h2 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700 }}>
+        Carry-forward suggestions
+      </h2>
+      <p style={{ margin: '0 0 16px', fontSize: '14px', color: '#4B5563' }}>
+        You've been here before. Select items to add to this trip as "Consider":
+      </p>
 
-        {successMessage ? (
+      {successMessage ? (
+        <div
+          style={{
+            padding: '14px',
+            background: '#D1FAE5',
+            borderRadius: '6px',
+            color: '#065F46',
+            fontWeight: 600,
+          }}
+        >
+          ✓ {successMessage}
+        </div>
+      ) : (
+        <>
           <div
-            style={{
-              padding: '14px',
-              background: '#D1FAE5',
-              borderRadius: '6px',
-              color: '#065F46',
-              fontWeight: 600,
-            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}
           >
-            ✓ {successMessage}
-          </div>
-        ) : (
-          <>
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}
-            >
-              {candidates.map((c) => {
-                const TypeIcon = ITEM_TYPE_ICONS[c.item_type] ?? NoteIcon;
-                return (
-                  <label
-                    key={c.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '10px',
-                      padding: '10px 12px',
-                      border: '1px solid #E5E7EB',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      background: selectedIds.has(c.id) ? '#EFF6FF' : '#fff',
-                      borderColor: selectedIds.has(c.id) ? '#93C5FD' : '#E5E7EB',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(c.id)}
-                      onChange={() => toggleId(c.id)}
-                      style={{ marginTop: '2px', flexShrink: 0 }}
-                    />
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <TypeIcon size={16} />
-                        <span style={{ fontWeight: 600, fontSize: '14px' }}>
-                          {candidateLabel(c)}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
-                        From: {c.source_trip_name} ({c.source_trip_end_date.slice(0, 7)})
-                      </div>
-                      {c.notes && (
-                        <div
-                          style={{
-                            fontSize: '12px',
-                            color: '#6B7280',
-                            fontStyle: 'italic',
-                            marginTop: '2px',
-                          }}
-                        >
-                          {c.notes.slice(0, 80)}
-                        </div>
-                      )}
+            {candidates.map((c) => {
+              const TypeIcon = ITEM_TYPE_ICONS[c.item_type] ?? NoteIcon;
+              return (
+                <label
+                  key={c.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    padding: '10px 12px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    background: selectedIds.has(c.id) ? '#EFF6FF' : '#fff',
+                    borderColor: selectedIds.has(c.id) ? '#93C5FD' : '#E5E7EB',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(c.id)}
+                    onChange={() => toggleId(c.id)}
+                    style={{ marginTop: '2px', flexShrink: 0 }}
+                  />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <TypeIcon size={16} />
+                      <span style={{ fontWeight: 600, fontSize: '14px' }}>{candidateLabel(c)}</span>
                     </div>
-                  </label>
-                );
-              })}
-            </div>
+                    <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                      From: {c.source_trip_name} ({c.source_trip_end_date.slice(0, 7)})
+                    </div>
+                    {c.notes && (
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: '#6B7280',
+                          fontStyle: 'italic',
+                          marginTop: '2px',
+                        }}
+                      >
+                        {c.notes.slice(0, 80)}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
 
-            {carryForward.error && <ErrorMessage error={carryForward.error} />}
+          {carryForward.error && <ErrorMessage error={carryForward.error} />}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  padding: '8px 16px',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: '6px',
-                  background: '#fff',
-                  cursor: 'pointer',
-                }}
-              >
-                Skip
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleCarryForward();
-                }}
-                disabled={selectedIds.size === 0 || carryForward.isPending}
-                style={{
-                  padding: '8px 18px',
-                  background: selectedIds.size === 0 ? '#9CA3AF' : '#2563EB',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: selectedIds.size === 0 ? 'not-allowed' : 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                {carryForward.isPending
-                  ? 'Adding…'
-                  : `Carry Forward ${selectedIds.size > 0 ? `(${selectedIds.size})` : ''}`}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '8px 16px',
+                border: '1px solid #D1D5DB',
+                borderRadius: '6px',
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              Skip
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleCarryForward();
+              }}
+              disabled={selectedIds.size === 0 || carryForward.isPending}
+              style={{
+                padding: '8px 18px',
+                background: selectedIds.size === 0 ? '#9CA3AF' : '#2563EB',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: selectedIds.size === 0 ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              {carryForward.isPending
+                ? 'Adding…'
+                : `Carry Forward ${selectedIds.size > 0 ? `(${selectedIds.size})` : ''}`}
+            </button>
+          </div>
+        </>
+      )}
+    </ModalOverlay>
   );
 }

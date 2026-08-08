@@ -19,6 +19,7 @@ import type { Item, ItemStatus, ItemType } from '../../types/api';
 import { resolveDefaultDate, resolveDefaultDateTime } from '../../utils/dateDefaults';
 import { ITEM_TYPE_ICONS } from '../icons';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { ModalOverlay } from '../shared/ModalOverlay';
 import { RatingStars } from '../shared/RatingStars';
 
 interface ItemFormProps {
@@ -306,265 +307,261 @@ export function ItemForm({
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[600]"
-      onClick={onClose}
+    <ModalOverlay
+      onClose={onClose}
+      zIndex={600}
+      panelClassName="p-7 w-[560px] max-w-[95vw] max-h-[90vh] overflow-y-auto"
     >
-      <div
-        className="bg-white rounded-lg p-7 w-[560px] max-w-[95vw] max-h-[90vh] overflow-y-auto shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+      <h2 className="m-0 mb-5 text-lg font-bold text-gray-900">
+        {isEditing ? 'Edit Item' : 'Add Item'}
+      </h2>
+
+      <form
+        onSubmit={(e) => {
+          void handleSubmit(e);
+        }}
       >
-        <h2 className="m-0 mb-5 text-lg font-bold text-gray-900">
-          {isEditing ? 'Edit Item' : 'Add Item'}
-        </h2>
-
-        <form
-          onSubmit={(e) => {
-            void handleSubmit(e);
-          }}
-        >
-          {/* Step 1: type selection (create only) */}
-          {!isEditing && !itemType && (
-            <div>
-              <p className="m-0 mb-3.5 text-sm text-gray-600">Select item type:</p>
-              <div className="grid grid-cols-3 gap-2.5">
-                {selectableTypes.map((t) => {
-                  const TypeIcon = ITEM_TYPE_ICONS[t.value];
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setItemType(t.value)}
-                      className="p-3.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 cursor-pointer text-center"
-                    >
-                      <div className="flex justify-center">
-                        <TypeIcon size={22} className="text-gray-700" />
-                      </div>
-                      <div className="text-xs mt-1 text-gray-700">{t.label}</div>
-                    </button>
-                  );
-                })}
-              </div>
+        {/* Step 1: type selection (create only) */}
+        {!isEditing && !itemType && (
+          <div>
+            <p className="m-0 mb-3.5 text-sm text-gray-600">Select item type:</p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {selectableTypes.map((t) => {
+                const TypeIcon = ITEM_TYPE_ICONS[t.value];
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setItemType(t.value)}
+                    className="p-3.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 cursor-pointer text-center"
+                  >
+                    <div className="flex justify-center">
+                      <TypeIcon size={22} className="text-gray-700" />
+                    </div>
+                    <div className="text-xs mt-1 text-gray-700">{t.label}</div>
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Step 2: fields (once type selected or editing) */}
-          {(isEditing || itemType) && (
-            <>
-              {/* Common fields */}
-              <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
-                <select
-                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as ItemStatus)}
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {STATUS_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        {/* Step 2: fields (once type selected or editing) */}
+        {(isEditing || itemType) && (
+          <>
+            {/* Common fields */}
+            <div className="mb-3.5">
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+              <select
+                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as ItemStatus)}
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS_LABELS[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              {/* Restaurant-specific */}
-              {itemType === 'restaurant' && (
-                <>
-                  <Field label="Restaurant Name" value={name} onChange={setName} />
-                  <Field
-                    label="Neighbourhood / Area"
-                    value={neighbourhoodArea}
-                    onChange={setNeighbourhoodArea}
-                  />
-                  <Field label="Cuisine Type" value={cuisineType} onChange={setCuisineType} />
-                  <Field label="How you heard about it" value={source} onChange={setSource} />
-                </>
-              )}
-
-              {/* Hotel-specific */}
-              {itemType === 'hotel' && (
-                <>
-                  <Field label="Property Name" value={propertyName} onChange={setPropertyName} />
-                  <Field label="Address" value={address} onChange={setAddress} />
-                  <div className="grid grid-cols-2 gap-2.5 mb-3.5">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Check-in Date
-                      </label>
-                      <input
-                        type="date"
-                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        value={checkInDate}
-                        onChange={(e) => setCheckInDate(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Check-out Date
-                      </label>
-                      <input
-                        type="date"
-                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        value={checkOutDate}
-                        min={checkInDate}
-                        onChange={(e) => setCheckOutDate(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  {hotelDuration && (
-                    <div className="mb-3 text-xs text-emerald-600">Duration: {hotelDuration}</div>
-                  )}
-                  <Field
-                    label="Booking Reference"
-                    value={bookingReference}
-                    onChange={setBookingReference}
-                  />
-                  <Field
-                    label="Confirmation Number"
-                    value={confirmationNumber}
-                    onChange={setConfirmationNumber}
-                  />
-                </>
-              )}
-
-              {/* Flight-specific */}
-              {itemType === 'flight' && (
-                <>
-                  <div className="grid grid-cols-2 gap-2.5 mb-3.5">
-                    <Field label="Airline" value={airline} onChange={setAirline} />
-                    <Field label="Flight Number" value={flightNumber} onChange={setFlightNumber} />
-                    <Field
-                      label="Departure Airport"
-                      value={departureAirport}
-                      onChange={setDepartureAirport}
-                      placeholder="e.g. LHR"
-                    />
-                    <Field
-                      label="Arrival Airport"
-                      value={arrivalAirport}
-                      onChange={setArrivalAirport}
-                      placeholder="e.g. CDG"
-                    />
-                    <Field
-                      label="Departure"
-                      value={departureDatetime}
-                      onChange={handleDepartureDatetimeChange}
-                      type="datetime-local"
-                    />
-                    <Field
-                      label="Arrival"
-                      value={arrivalDatetime}
-                      onChange={handleArrivalDatetimeChange}
-                      type="datetime-local"
-                    />
-                  </div>
-                  <Field
-                    label="Booking Reference"
-                    value={bookingReference}
-                    onChange={setBookingReference}
-                  />
-                  <Field label="Seat" value={seat} onChange={setSeat} />
-                </>
-              )}
-
-              {/* Car rental-specific */}
-              {itemType === 'car_rental' && (
-                <>
-                  <Field label="Provider" value={provider} onChange={setProvider} />
-                  <Field
-                    label="Pickup Location"
-                    value={pickupLocation}
-                    onChange={setPickupLocation}
-                  />
-                  <Field
-                    label="Drop-off Location"
-                    value={dropoffLocation}
-                    onChange={setDropoffLocation}
-                  />
-                  <div className="grid grid-cols-2 gap-2.5 mb-3.5">
-                    <Field
-                      label="Pick-up"
-                      value={pickupDatetime}
-                      onChange={setPickupDatetime}
-                      type="datetime-local"
-                    />
-                    <Field
-                      label="Drop-off"
-                      value={dropoffDatetime}
-                      onChange={setDropoffDatetime}
-                      type="datetime-local"
-                    />
-                  </div>
-                  <Field
-                    label="Booking Reference"
-                    value={bookingReference}
-                    onChange={setBookingReference}
-                  />
-                  <Field label="Vehicle Class" value={vehicleClass} onChange={setVehicleClass} />
-                </>
-              )}
-
-              {/* Rating + post-visit notes (restaurant / hotel / experience when completed) */}
-              {showRating && (
-                <>
-                  <div className="mb-3.5">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Rating</label>
-                    <RatingStars value={rating} onChange={setRating} />
-                  </div>
-                  <div className="mb-3.5">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Post-visit Notes
-                    </label>
-                    <textarea
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-y h-20"
-                      value={postVisitNotes}
-                      onChange={(e) => setPostVisitNotes(e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Map URL — base field, all types (IT-10, ADL-45) */}
-              <Field
-                label="Map URL"
-                value={mapUrl}
-                onChange={setMapUrl}
-                type="url"
-                placeholder="https://maps.google.com/…"
-              />
-
-              {/* Notes — all types */}
-              <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
-                <textarea
-                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-y h-[70px]"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+            {/* Restaurant-specific */}
+            {itemType === 'restaurant' && (
+              <>
+                <Field label="Restaurant Name" value={name} onChange={setName} />
+                <Field
+                  label="Neighbourhood / Area"
+                  value={neighbourhoodArea}
+                  onChange={setNeighbourhoodArea}
                 />
-              </div>
+                <Field label="Cuisine Type" value={cuisineType} onChange={setCuisineType} />
+                <Field label="How you heard about it" value={source} onChange={setSource} />
+              </>
+            )}
 
-              {mutationError && <ErrorMessage error={mutationError} />}
+            {/* Hotel-specific */}
+            {itemType === 'hotel' && (
+              <>
+                <Field label="Property Name" value={propertyName} onChange={setPropertyName} />
+                <Field label="Address" value={address} onChange={setAddress} />
+                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Check-in Date
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      value={checkInDate}
+                      onChange={(e) => setCheckInDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Check-out Date
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      value={checkOutDate}
+                      min={checkInDate}
+                      onChange={(e) => setCheckOutDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {hotelDuration && (
+                  <div className="mb-3 text-xs text-emerald-600">Duration: {hotelDuration}</div>
+                )}
+                <Field
+                  label="Booking Reference"
+                  value={bookingReference}
+                  onChange={setBookingReference}
+                />
+                <Field
+                  label="Confirmation Number"
+                  value={confirmationNumber}
+                  onChange={setConfirmationNumber}
+                />
+              </>
+            )}
 
-              <div className="flex justify-end gap-2.5 mt-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {isSubmitting ? 'Saving…' : isEditing ? 'Save' : 'Add Item'}
-                </button>
-              </div>
-            </>
-          )}
-        </form>
-      </div>
-    </div>
+            {/* Flight-specific */}
+            {itemType === 'flight' && (
+              <>
+                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
+                  <Field label="Airline" value={airline} onChange={setAirline} />
+                  <Field label="Flight Number" value={flightNumber} onChange={setFlightNumber} />
+                  <Field
+                    label="Departure Airport"
+                    value={departureAirport}
+                    onChange={setDepartureAirport}
+                    placeholder="e.g. LHR"
+                  />
+                  <Field
+                    label="Arrival Airport"
+                    value={arrivalAirport}
+                    onChange={setArrivalAirport}
+                    placeholder="e.g. CDG"
+                  />
+                  <Field
+                    label="Departure"
+                    value={departureDatetime}
+                    onChange={handleDepartureDatetimeChange}
+                    type="datetime-local"
+                  />
+                  <Field
+                    label="Arrival"
+                    value={arrivalDatetime}
+                    onChange={handleArrivalDatetimeChange}
+                    type="datetime-local"
+                  />
+                </div>
+                <Field
+                  label="Booking Reference"
+                  value={bookingReference}
+                  onChange={setBookingReference}
+                />
+                <Field label="Seat" value={seat} onChange={setSeat} />
+              </>
+            )}
+
+            {/* Car rental-specific */}
+            {itemType === 'car_rental' && (
+              <>
+                <Field label="Provider" value={provider} onChange={setProvider} />
+                <Field
+                  label="Pickup Location"
+                  value={pickupLocation}
+                  onChange={setPickupLocation}
+                />
+                <Field
+                  label="Drop-off Location"
+                  value={dropoffLocation}
+                  onChange={setDropoffLocation}
+                />
+                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
+                  <Field
+                    label="Pick-up"
+                    value={pickupDatetime}
+                    onChange={setPickupDatetime}
+                    type="datetime-local"
+                  />
+                  <Field
+                    label="Drop-off"
+                    value={dropoffDatetime}
+                    onChange={setDropoffDatetime}
+                    type="datetime-local"
+                  />
+                </div>
+                <Field
+                  label="Booking Reference"
+                  value={bookingReference}
+                  onChange={setBookingReference}
+                />
+                <Field label="Vehicle Class" value={vehicleClass} onChange={setVehicleClass} />
+              </>
+            )}
+
+            {/* Rating + post-visit notes (restaurant / hotel / experience when completed) */}
+            {showRating && (
+              <>
+                <div className="mb-3.5">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Rating</label>
+                  <RatingStars value={rating} onChange={setRating} />
+                </div>
+                <div className="mb-3.5">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Post-visit Notes
+                  </label>
+                  <textarea
+                    className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-y h-20"
+                    value={postVisitNotes}
+                    onChange={(e) => setPostVisitNotes(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Map URL — base field, all types (IT-10, ADL-45) */}
+            <Field
+              label="Map URL"
+              value={mapUrl}
+              onChange={setMapUrl}
+              type="url"
+              placeholder="https://maps.google.com/…"
+            />
+
+            {/* Notes — all types */}
+            <div className="mb-3.5">
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
+              <textarea
+                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-y h-[70px]"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+
+            {mutationError && <ErrorMessage error={mutationError} />}
+
+            <div className="flex justify-end gap-2.5 mt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isSubmitting ? 'Saving…' : isEditing ? 'Save' : 'Add Item'}
+              </button>
+            </div>
+          </>
+        )}
+      </form>
+    </ModalOverlay>
   );
 }

@@ -37,6 +37,7 @@ import { capitalizeFirst } from '../../utils/textFormat';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { CityPicker } from '../shared/CityPicker';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { ModalOverlay } from '../shared/ModalOverlay';
 
 interface AddPlaceFlowProps {
   tripId: number;
@@ -458,298 +459,279 @@ export function AddPlaceFlow({
   // sets this when there were no backend warnings to show instead.
   if (creationStatusMessage) {
     return (
-      <div
-        className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
-        onClick={onClose}
-      >
-        <div
-          className="bg-white rounded-lg p-6 w-[480px] max-w-[95vw] shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Place Added</h2>
-          <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800 text-sm">
-            <p>{creationStatusMessage}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 cursor-pointer"
-          >
-            OK
-          </button>
+      <ModalOverlay onClose={onClose} zIndex={700} panelClassName="p-6 w-[480px] max-w-[95vw]">
+        <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Place Added</h2>
+        <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800 text-sm">
+          <p>{creationStatusMessage}</p>
         </div>
-      </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 cursor-pointer"
+        >
+          OK
+        </button>
+      </ModalOverlay>
     );
   }
 
   // UX-02: if we have warnings from the backend, show them and let user close
   if (placeWarnings.length > 0) {
     return (
-      <div
-        className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
-        onClick={onClose}
-      >
-        <div
-          className="bg-white rounded-lg p-6 w-[480px] max-w-[95vw] shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Place Added</h2>
-          <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
-            <p className="font-semibold mb-1">Warning</p>
-            <ul className="list-disc list-inside space-y-0.5">
-              {placeWarnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 cursor-pointer"
-          >
-            OK
-          </button>
+      <ModalOverlay onClose={onClose} zIndex={700} panelClassName="p-6 w-[480px] max-w-[95vw]">
+        <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Place Added</h2>
+        <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
+          <p className="font-semibold mb-1">Warning</p>
+          <ul className="list-disc list-inside space-y-0.5">
+            {placeWarnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
         </div>
-      </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 cursor-pointer"
+        >
+          OK
+        </button>
+      </ModalOverlay>
     );
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
-      onClick={onClose}
+    <ModalOverlay
+      onClose={onClose}
+      zIndex={700}
+      panelClassName="p-6 w-[480px] max-w-[95vw] max-h-[85vh] overflow-y-auto"
     >
-      <div
-        className="bg-white rounded-lg p-6 w-[480px] max-w-[95vw] max-h-[85vh] overflow-y-auto shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Add Place</h2>
+      <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Add Place</h2>
 
-        {!showNewCityForm ? (
-          <>
+      {!showNewCityForm ? (
+        <>
+          <input
+            className={inputClass}
+            placeholder="Search city name…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+
+          {searching && query.length >= 2 && (
+            <div className="py-2 text-xs text-gray-500">Searching…</div>
+          )}
+
+          {debouncedQuery.length >= 2 && (
+            <div className="border border-gray-200 rounded-md mt-2 overflow-hidden">
+              {searchResults.map((city) => (
+                <div
+                  key={city.id}
+                  data-testid={`city-search-result-${city.id}`}
+                  className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50"
+                  onClick={() => {
+                    void handleSelectCity(city);
+                  }}
+                >
+                  {city.name}{' '}
+                  <span className="text-gray-500">— {formatCitySubtitle(city, countries)}</span>
+                </div>
+              ))}
+              <div
+                className="px-3 py-2.5 cursor-pointer text-sm text-teal-600 font-semibold hover:bg-teal-50 border-b border-gray-100 last:border-b-0"
+                onClick={() => handleOpenNewCityForm(query)}
+              >
+                + Add new: "{query}"
+              </div>
+            </div>
+          )}
+
+          {/* UX-02: Optional date fields for place creation */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-3">
+              Optional: set arrival / departure dates for this place.
+            </p>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className={labelClass}>
+                  Arrival date <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={arrivedOn}
+                  onChange={(e) => {
+                    setArrivedOn(e.target.value);
+                    setDateValidationError(null);
+                  }}
+                />
+              </div>
+              <div className="flex-1">
+                <label className={labelClass}>
+                  Departure date <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={departedOn}
+                  onChange={(e) => {
+                    setDepartedOn(e.target.value);
+                    setDateValidationError(null);
+                  }}
+                />
+              </div>
+            </div>
+            {dateValidationError && (
+              <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs">
+                {dateValidationError}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            void handleCreateCity(e);
+          }}
+        >
+          <div className="mb-3.5">
+            <label className={labelClass}>City Name</label>
             <input
               className={inputClass}
-              placeholder="Search city name…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoFocus
+              value={newCityName}
+              onChange={(e) => setNewCityName(capitalizeFirst(e.target.value))}
+              required
             />
-
-            {searching && query.length >= 2 && (
-              <div className="py-2 text-xs text-gray-500">Searching…</div>
-            )}
-
-            {debouncedQuery.length >= 2 && (
-              <div className="border border-gray-200 rounded-md mt-2 overflow-hidden">
-                {searchResults.map((city) => (
-                  <div
-                    key={city.id}
-                    data-testid={`city-search-result-${city.id}`}
-                    className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50"
-                    onClick={() => {
-                      void handleSelectCity(city);
-                    }}
-                  >
-                    {city.name}{' '}
-                    <span className="text-gray-500">— {formatCitySubtitle(city, countries)}</span>
-                  </div>
-                ))}
-                <div
-                  className="px-3 py-2.5 cursor-pointer text-sm text-teal-600 font-semibold hover:bg-teal-50 border-b border-gray-100 last:border-b-0"
-                  onClick={() => handleOpenNewCityForm(query)}
-                >
-                  + Add new: "{query}"
-                </div>
-              </div>
-            )}
-
-            {/* UX-02: Optional date fields for place creation */}
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-3">
-                Optional: set arrival / departure dates for this place.
-              </p>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className={labelClass}>
-                    Arrival date <span className="font-normal text-gray-400">(optional)</span>
-                  </label>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={arrivedOn}
-                    onChange={(e) => {
-                      setArrivedOn(e.target.value);
-                      setDateValidationError(null);
-                    }}
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className={labelClass}>
-                    Departure date <span className="font-normal text-gray-400">(optional)</span>
-                  </label>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={departedOn}
-                    onChange={(e) => {
-                      setDepartedOn(e.target.value);
-                      setDateValidationError(null);
-                    }}
-                  />
-                </div>
-              </div>
-              {dateValidationError && (
-                <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs">
-                  {dateValidationError}
-                </div>
+          </div>
+          <div className="mb-4">
+            <label className={labelClass}>
+              Country{' '}
+              {countryLookupPending && (
+                <span className="font-normal text-gray-400 text-xs">detecting…</span>
               )}
-            </div>
-          </>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              void handleCreateCity(e);
-            }}
-          >
-            <div className="mb-3.5">
-              <label className={labelClass}>City Name</label>
-              <input
-                className={inputClass}
-                value={newCityName}
-                onChange={(e) => setNewCityName(capitalizeFirst(e.target.value))}
-                required
-              />
-            </div>
-            <div className="mb-4">
-              <label className={labelClass}>
-                Country{' '}
-                {countryLookupPending && (
-                  <span className="font-normal text-gray-400 text-xs">detecting…</span>
-                )}
-              </label>
-              <select
-                className={inputClass}
-                value={newCityCountryCode}
-                onChange={(e) => {
-                  setNewCityCountryCode(e.target.value);
-                  // BUG-71: an explicit user pick is never "just a suggestion" —
-                  // tier 1 (UX spec §1): explicit selection always wins and is
-                  // never treated as tentative again. Same rule now applied to
-                  // the country field (MAJOR-2, AC-13).
-                  setCountryIsSuggested(false);
-                  setNewCityRegionId(null);
-                  setAutoRegionIso(null);
-                  setRegionIsSuggested(false);
-                  // A manual country change invalidates any D14 candidate
-                  // narrowing computed for the previously auto-detected country.
-                  setCandidateRegionIsos(null);
-                  // Same reasoning for the BUG-75 place-level picker — it was
-                  // computed for the auto-detected country's candidates.
-                  setPlacePickerCandidates(null);
-                  // BUG-79: the truncation signal was computed for the
-                  // auto-detected country's lookup — it says nothing about a
-                  // country the user is now picking by hand.
-                  setLookupTruncated(false);
-                }}
-                required
-              >
-                <option value="">Select country…</option>
-                {countries.map((c) => (
-                  <option key={c.country_code} value={c.country_code}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              {/* BUG-75/UX-12 (MAJOR-2, AC-13): country tentative caption,
+            </label>
+            <select
+              className={inputClass}
+              value={newCityCountryCode}
+              onChange={(e) => {
+                setNewCityCountryCode(e.target.value);
+                // BUG-71: an explicit user pick is never "just a suggestion" —
+                // tier 1 (UX spec §1): explicit selection always wins and is
+                // never treated as tentative again. Same rule now applied to
+                // the country field (MAJOR-2, AC-13).
+                setCountryIsSuggested(false);
+                setNewCityRegionId(null);
+                setAutoRegionIso(null);
+                setRegionIsSuggested(false);
+                // A manual country change invalidates any D14 candidate
+                // narrowing computed for the previously auto-detected country.
+                setCandidateRegionIsos(null);
+                // Same reasoning for the BUG-75 place-level picker — it was
+                // computed for the auto-detected country's candidates.
+                setPlacePickerCandidates(null);
+                // BUG-79: the truncation signal was computed for the
+                // auto-detected country's lookup — it says nothing about a
+                // country the user is now picking by hand.
+                setLookupTruncated(false);
+              }}
+              required
+            >
+              <option value="">Select country…</option>
+              {countries.map((c) => (
+                <option key={c.country_code} value={c.country_code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {/* BUG-75/UX-12 (MAJOR-2, AC-13): country tentative caption,
                   mirroring the region's BUG-71 "Suggested:" treatment exactly
                   — see that block's doc comment below for the full rationale.
                   Country name resolved via the countries list rather than a
                   literal string so it always matches what the <select>'s own
                   options render. */}
-              {countryIsSuggested && selectedCountry && (
-                <p className="mt-1 text-xs font-semibold text-gray-500">
-                  Suggested: {selectedCountry.name} — from "{newCityName}"
-                </p>
-              )}
-              {/* BUG-73: non-blocking, visible failure state — retries are
+            {countryIsSuggested && selectedCountry && (
+              <p className="mt-1 text-xs font-semibold text-gray-500">
+                Suggested: {selectedCountry.name} — from "{newCityName}"
+              </p>
+            )}
+            {/* BUG-73: non-blocking, visible failure state — retries are
                   already exhausted by the time this renders (lookupCityCountry
                   handles retry internally). The form stays fully usable;
                   country/region can still be picked manually below. */}
-              {geocodeLookupFailed && (
-                <div className="mt-2 px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs flex items-center justify-between gap-2">
-                  <span>Automatic lookup failed — you can select country and region manually.</span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenNewCityForm(newCityName)}
-                    className="shrink-0 text-teal-700 font-semibold underline hover:text-teal-800 cursor-pointer"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
-            </div>
+            {geocodeLookupFailed && (
+              <div className="mt-2 px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs flex items-center justify-between gap-2">
+                <span>Automatic lookup failed — you can select country and region manually.</span>
+                <button
+                  type="button"
+                  onClick={() => handleOpenNewCityForm(newCityName)}
+                  className="shrink-0 text-teal-700 font-semibold underline hover:text-teal-800 cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
 
-            {/* BUG-75/UX-12 (v3 §1.3/§B5) — place-level CityPicker. Fires
+          {/* BUG-75/UX-12 (v3 §1.3/§B5) — place-level CityPicker. Fires
                 instead of the region dropdown below when region-only
                 narrowing cannot disambiguate (2+ candidates carry distinct
                 OSM identity but share a region, or no region_iso at all).
                 Independent of showRegionDropdown/region_tier_enabled —
                 place-level ambiguity is about the candidates, not whether
                 the resolved country happens to configure a region tier. */}
-            {placePickerCandidates && placePickerCandidates.length > 1 ? (
+          {placePickerCandidates && placePickerCandidates.length > 1 ? (
+            <div className="mb-4">
+              <label className={labelClass}>
+                Multiple places match "{newCityName}"
+                <span className="font-normal text-amber-600 text-xs">
+                  {' '}
+                  — please choose the one you mean
+                </span>
+              </label>
+              <CityPicker
+                candidates={placePickerCandidates}
+                onSelect={(candidate) => {
+                  void handleSelectPickerCandidate(candidate);
+                }}
+                truncated={lookupTruncated}
+                disabled={createCity.isPending || addPlace.isPending}
+              />
+            </div>
+          ) : (
+            /* Region dropdown — shown only when country has region_tier_enabled */
+            showRegionDropdown && (
               <div className="mb-4">
                 <label className={labelClass}>
-                  Multiple places match "{newCityName}"
-                  <span className="font-normal text-amber-600 text-xs">
-                    {' '}
-                    — please choose the one you mean
-                  </span>
-                </label>
-                <CityPicker
-                  candidates={placePickerCandidates}
-                  onSelect={(candidate) => {
-                    void handleSelectPickerCandidate(candidate);
-                  }}
-                  truncated={lookupTruncated}
-                  disabled={createCity.isPending || addPlace.isPending}
-                />
-              </div>
-            ) : (
-              /* Region dropdown — shown only when country has region_tier_enabled */
-              showRegionDropdown && (
-                <div className="mb-4">
-                  <label className={labelClass}>
-                    {regionLabel} <span className="font-normal text-gray-500">(optional)</span>
-                    {regionChoiceIsAmbiguous && (
-                      <span className="font-normal text-amber-600 text-xs">
-                        {' '}
-                        — multiple matches found, please choose
-                        {/* BUG-79: the narrowed set itself may be incomplete —
+                  {regionLabel} <span className="font-normal text-gray-500">(optional)</span>
+                  {regionChoiceIsAmbiguous && (
+                    <span className="font-normal text-amber-600 text-xs">
+                      {' '}
+                      — multiple matches found, please choose
+                      {/* BUG-79: the narrowed set itself may be incomplete —
                           say so rather than implying these are the only
                           matches that exist. */}
-                        {lookupTruncated && ' (there may be more not shown)'}
-                      </span>
-                    )}
-                  </label>
-                  <select
-                    className={inputClass}
-                    value={newCityRegionId ?? ''}
-                    onChange={(e) => {
-                      setNewCityRegionId(e.target.value ? Number(e.target.value) : null);
-                      // BUG-71: an explicit user pick is never "just a suggestion" —
-                      // tier 1 (UX spec §1): explicit selection always wins and is
-                      // never treated as tentative again.
-                      setRegionIsSuggested(false);
-                    }}
-                  >
-                    <option value="">No {regionLabel.toLowerCase()} selected</option>
-                    {regionOptions.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                  {/* BUG-71 stopgap: the single-candidate auto-fill above cannot
+                      {lookupTruncated && ' (there may be more not shown)'}
+                    </span>
+                  )}
+                </label>
+                <select
+                  className={inputClass}
+                  value={newCityRegionId ?? ''}
+                  onChange={(e) => {
+                    setNewCityRegionId(e.target.value ? Number(e.target.value) : null);
+                    // BUG-71: an explicit user pick is never "just a suggestion" —
+                    // tier 1 (UX spec §1): explicit selection always wins and is
+                    // never treated as tentative again.
+                    setRegionIsSuggested(false);
+                  }}
+                >
+                  <option value="">No {regionLabel.toLowerCase()} selected</option>
+                  {regionOptions.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+                {/* BUG-71 stopgap: the single-candidate auto-fill above cannot
                     tell a genuine unambiguous match from a truncated one, so it
                     is surfaced as a visibly tentative suggestion (UX spec §3.2's
                     "Suggested:" treatment, applied here to the region field)
@@ -765,85 +747,84 @@ export function AddPlaceFlow({
                     produced this suggestion may have been truncated upstream
                     — the value stays "a suggestion", never presented as more
                     certain than the data actually supports. */}
-                  {regionIsSuggested && !regionChoiceIsAmbiguous && suggestedRegionName && (
-                    <p className="mt-1 text-xs font-semibold text-gray-500">
-                      Suggested: {suggestedRegionName} — from "{newCityName}"
-                      {lookupTruncated && ' (other matches may exist)'}
-                    </p>
-                  )}
-                </div>
-              )
-            )}
-
-            {/* UX-02: Optional date fields — shown in new-city form too */}
-            <div className="mb-4 pt-3 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-3">
-                Optional: set arrival / departure dates for this place.
-              </p>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className={labelClass}>
-                    Arrival date <span className="font-normal text-gray-400">(optional)</span>
-                  </label>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={arrivedOn}
-                    onChange={(e) => {
-                      setArrivedOn(e.target.value);
-                      setDateValidationError(null);
-                    }}
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className={labelClass}>
-                    Departure date <span className="font-normal text-gray-400">(optional)</span>
-                  </label>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={departedOn}
-                    onChange={(e) => {
-                      setDepartedOn(e.target.value);
-                      setDateValidationError(null);
-                    }}
-                  />
-                </div>
+                {regionIsSuggested && !regionChoiceIsAmbiguous && suggestedRegionName && (
+                  <p className="mt-1 text-xs font-semibold text-gray-500">
+                    Suggested: {suggestedRegionName} — from "{newCityName}"
+                    {lookupTruncated && ' (other matches may exist)'}
+                  </p>
+                )}
               </div>
-              {dateValidationError && (
-                <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs">
-                  {dateValidationError}
-                </div>
-              )}
-            </div>
+            )
+          )}
 
-            {mutationError && <ErrorMessage error={mutationError} />}
-            <div className="flex gap-2.5 mt-1">
-              <button
-                type="button"
-                onClick={() => setShowNewCityForm(false)}
-                className="px-3.5 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-              >
-                Back
-              </button>
-              {/* NR-06 Class B: when there's an error, button becomes "Retry" affordance */}
-              <button
-                type="submit"
-                disabled={createCity.isPending || addPlace.isPending}
-                className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
-              >
-                {createCity.isPending || addPlace.isPending
-                  ? 'Adding…'
-                  : mutationError
-                    ? 'Retry'
-                    : 'Add City & Place'}
-              </button>
+          {/* UX-02: Optional date fields — shown in new-city form too */}
+          <div className="mb-4 pt-3 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-3">
+              Optional: set arrival / departure dates for this place.
+            </p>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className={labelClass}>
+                  Arrival date <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={arrivedOn}
+                  onChange={(e) => {
+                    setArrivedOn(e.target.value);
+                    setDateValidationError(null);
+                  }}
+                />
+              </div>
+              <div className="flex-1">
+                <label className={labelClass}>
+                  Departure date <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={departedOn}
+                  onChange={(e) => {
+                    setDepartedOn(e.target.value);
+                    setDateValidationError(null);
+                  }}
+                />
+              </div>
             </div>
-          </form>
-        )}
+            {dateValidationError && (
+              <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs">
+                {dateValidationError}
+              </div>
+            )}
+          </div>
 
-        {mutationError && !showNewCityForm && <ErrorMessage error={mutationError} />}
-      </div>
-    </div>
+          {mutationError && <ErrorMessage error={mutationError} />}
+          <div className="flex gap-2.5 mt-1">
+            <button
+              type="button"
+              onClick={() => setShowNewCityForm(false)}
+              className="px-3.5 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+            >
+              Back
+            </button>
+            {/* NR-06 Class B: when there's an error, button becomes "Retry" affordance */}
+            <button
+              type="submit"
+              disabled={createCity.isPending || addPlace.isPending}
+              className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
+            >
+              {createCity.isPending || addPlace.isPending
+                ? 'Adding…'
+                : mutationError
+                  ? 'Retry'
+                  : 'Add City & Place'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {mutationError && !showNewCityForm && <ErrorMessage error={mutationError} />}
+    </ModalOverlay>
   );
 }

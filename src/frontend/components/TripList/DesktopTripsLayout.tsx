@@ -19,198 +19,55 @@
  * Every one of these behaviors (bulk delete/undo, sort, per-status counts,
  * map-filter badge) has no counterpart in the Waypoint mockup — preserved
  * per spec C7, reskinned with the new tokens only.
+ *
+ * QUAL-30: the state/derived-values/handlers this shares byte-for-byte with
+ * MobileTripsLayout now live in useTripsController — this file keeps only
+ * its own distinct markup (the fixed two-panel layout + <Outlet/>).
  */
-import { useCallback, useMemo, useState } from 'react';
-import { Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useCountries } from '../../hooks/useAdmin';
-import { type TripFilters, useDeleteTrip, useTrips } from '../../hooks/useTrips';
+import { Outlet } from 'react-router-dom';
+import { type SortOption, STATUS_CHIPS, useTripsController } from '../../hooks/useTripsController';
 import type { TripStatus } from '../../types/api';
-import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { ErrorMessage } from '../shared/ErrorMessage';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { TripForm } from '../TripDetail/TripForm';
 import { TripCard } from './TripCard';
-import { filterAndSortTrips } from './TripList';
-
-/** Status chip definitions for F-07 */
-const STATUS_CHIPS: { value: TripStatus | ''; label: string }[] = [
-  { value: '', label: 'All' },
-  { value: 'planning', label: 'Planning' },
-  { value: 'active', label: 'Active' },
-  { value: 'review_pending', label: 'Review' },
-  { value: 'locked', label: 'Locked' },
-];
-
-type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc';
 
 /**
  * Two-panel trips layout shell for desktop (≥768px). Left panel owns the trip
  * list; right panel is the <Outlet />.
  */
 export function DesktopTripsLayout() {
-  const [filters, setFilters] = useState<TripFilters>({});
-  const [showForm, setShowForm] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [sortBy, setSortBy] = useState<SortOption>('date_desc');
-
-  // FEAT-BD: Multi-select delete state
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<Error | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<{
-    ids: Set<number>;
-    timer: ReturnType<typeof setTimeout>;
-  } | null>(null);
-
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { id: selectedId } = useParams<{ id?: string }>();
-
-  // Map filter params from URL (set by clicking map layers)
-  const countryFilter = searchParams.get('country');
-  const regionFilter = searchParams.get('region');
-  const cityFilter = searchParams.get('city') ? Number(searchParams.get('city')) : null;
-
-  const { data: trips, isLoading, error } = useTrips(filters);
-  const { data: allTrips = [] } = useTrips(); // no filters — for counts only
-  const { data: countries = [] } = useCountries();
-  const deleteTrip = useDeleteTrip();
-
-  const handleFormClose = () => {
-    setShowForm(false);
-  };
-
-  const clearMapFilter = () => {
-    navigate('/trips', { replace: true });
-  };
-
-  const displayedTrips = useMemo(
-    () =>
-      filterAndSortTrips(trips ?? [], searchText, sortBy, countryFilter, regionFilter, cityFilter),
-    [trips, searchText, sortBy, countryFilter, regionFilter, cityFilter],
-  );
-
-  // BUG-80: this filter already targets one specific city_id (unambiguous by
-  // definition), but the label used to show only the bare name — two
-  // different "Newport" pins on the map would both read "City: Newport"
-  // after being clicked. Derive the full city object (not just its name) so
-  // the label can carry the same region/country subtitle every other
-  // saved-place surface now shows.
-  const cityInfo = useMemo(() => {
-    if (cityFilter === null) return null;
-    for (const trip of trips ?? []) {
-      for (const place of trip.places) {
-        if (place.city_id === cityFilter) return place.city;
-      }
-    }
-    return null;
-  }, [trips, cityFilter]);
-
-  const mapFilterLabel = useMemo(() => {
-    if (cityFilter !== null) {
-      if (!cityInfo) return `City: ${cityFilter}`;
-      const subtitle = formatCitySubtitle(
-        cityInfo,
-        countries,
-        cityInfo.country_name ?? cityInfo.country_code,
-      );
-      return `City: ${cityInfo.name}, ${subtitle}`;
-    }
-    if (regionFilter) return `Region: ${regionFilter}`;
-    if (countryFilter) return `Country: ${countryFilter}`;
-    return null;
-  }, [cityFilter, regionFilter, countryFilter, cityInfo, countries]);
-
-  const tripCount = displayedTrips.length;
-
-  // NTH-03: Per-status counts for filter chips
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const t of allTrips) {
-      counts[t.status] = (counts[t.status] ?? 0) + 1;
-    }
-    return counts;
-  }, [allTrips]);
-
-  // FEAT-BD: Selectable trips are those that are not locked
-  const selectableTrips = useMemo(
-    () => displayedTrips.filter((t) => t.status !== 'locked'),
-    [displayedTrips],
-  );
-
-  // FEAT-BD: Enter / exit selection mode
-  const enterSelectionMode = () => {
-    setSelectionMode(true);
-    setSelectedIds(new Set());
-  };
-
-  const exitSelectionMode = () => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  };
-
-  // FEAT-BD: Checkbox toggle handler
-  const handleCheckChange = useCallback((id: number, checked: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(id);
-      } else {
-        next.delete(id);
-      }
-      return next;
-    });
-  }, []);
-
-  // FEAT-BD: Select all (only selectable / non-locked trips)
-  const handleSelectAll = () => {
-    setSelectedIds(new Set(selectableTrips.map((t) => t.id)));
-  };
-
-  // FEAT-BD / NTH-01: Bulk delete with 5-second undo window
-  const handleBulkDelete = () => {
-    const count = selectedIds.size;
-    if (count === 0) return;
-
-    const confirmed = window.confirm(
-      `Delete ${count} trip${count === 1 ? '' : 's'}? This cannot be undone.`,
-    );
-    if (!confirmed) return;
-
-    // Snapshot the selected IDs before exiting selection mode
-    const ids = new Set(selectedIds);
-
-    const timer = setTimeout(() => {
-      setIsDeleting(true);
-      void (async () => {
-        try {
-          for (const id of ids) {
-            await deleteTrip.mutateAsync(id);
-          }
-          // If the currently viewed trip was deleted, navigate away
-          if (selectedId && ids.has(Number(selectedId))) {
-            navigate('/trips', { replace: true });
-          }
-        } catch (err) {
-          setDeleteError(err instanceof Error ? err : new Error(String(err)));
-        } finally {
-          setIsDeleting(false);
-          setPendingDelete(null);
-        }
-      })();
-    }, 5000);
-
-    setPendingDelete({ ids, timer });
-    exitSelectionMode();
-  };
-
-  // NTH-01: Undo bulk delete
-  const handleUndoDelete = () => {
-    if (!pendingDelete) return;
-    clearTimeout(pendingDelete.timer);
-    setPendingDelete(null);
-  };
+  const {
+    filters,
+    setFilters,
+    showForm,
+    setShowForm,
+    searchText,
+    setSearchText,
+    sortBy,
+    setSortBy,
+    selectionMode,
+    selectedIds,
+    isDeleting,
+    deleteError,
+    pendingDelete,
+    selectedId,
+    trips,
+    isLoading,
+    error,
+    displayedTrips,
+    mapFilterLabel,
+    tripCount,
+    statusCounts,
+    handleFormClose,
+    clearMapFilter,
+    enterSelectionMode,
+    exitSelectionMode,
+    handleCheckChange,
+    handleSelectAll,
+    handleBulkDelete,
+    handleUndoDelete,
+  } = useTripsController();
 
   return (
     <div className="flex h-full overflow-hidden">

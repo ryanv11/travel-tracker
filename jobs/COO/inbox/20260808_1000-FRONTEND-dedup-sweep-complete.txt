@@ -1,0 +1,64 @@
+FRONTEND COMPLETION REPORT
+
+Header: BUG-83 / QUAL-29 / QUAL-30 / QUAL-31 / QUAL-04 · PR TBD (see below) · BRD n/a (refactor + bugfix batch, no BRD requirement) · Branch chore/frontend-dedup-sweep
+
+WHAT WAS BUILT
+Fixed BUG-83 (useUpdateTrip was missing map-shading cache invalidation).
+Extracted three shared abstractions to kill duplication: AdminNameListTab
+(QUAL-29, admin CRUD list UI), useTripsController (QUAL-30, trips-list
+controller logic), ModalOverlay (QUAL-31, modal shell). Removed three
+confirmed-dead-code items from the WP reskin / ADL-28 era (QUAL-04).
+
+ACCEPTANCE CRITERIA
+- BUG-83: useUpdateTrip invalidates ['map','shading'] — PASS (test:
+  hooks/__tests__/useTrips.mutations.test.tsx)
+- QUAL-29: CategoryTab/ActivityTab/CompanionTab share one implementation,
+  behaviour identical — PASS (new test coverage added, none existed before)
+- QUAL-30: DesktopTripsLayout/MobileTripsLayout share one controller,
+  markup stays distinct — PASS (new test coverage added, none existed
+  before)
+- QUAL-31: shared <ModalOverlay> adopted at 8 sites (6+ required) — PASS
+- QUAL-04: dead code removed, each verified with two independent probes —
+  PASS (TripsPage.tsx deleted, COMPANIONS const removed, theme-waypoint.css
+  comment corrected)
+- Behaviour unchanged except BUG-83 — PASS (full suite green, no
+  functional test assertions changed, only additions)
+- Full frontend suite green — PASS (346/346, +25 new)
+
+CI: PR not yet opened — pushing branch and opening PR now, will run
+scripts/ci-wait.sh and report the PR number + CI result in a follow-up
+message once green. All local pre-push checks already green: npm run
+check (biome ci src/, clean), type:check:all (clean), test:backend
+(762/762), test:frontend (346/346), status:check (up to date).
+
+FULL-FILE REWRITES DECLARED (OP-28)
+CategoryTab.tsx, ActivityTab.tsx, CompanionTab.tsx rewritten wholesale
+(Write, not Edit) — each collapses to a ~20-line wrapper around the new
+shared AdminNameListTab by design; no meaningful partial edit exists here.
+Source code, not a shared-record file, so OP-28's Edit-only rule doesn't
+bind, but declaring per its "must be declared" clause. All other files
+were targeted Edits.
+
+CROSS-BOUNDARY TOUCH FLAGGED
+QUAL-04's COMPANIONS-const item lives in src/backend/db/seed-data.ts (a
+backend file) — outside normal Frontend scope. Touched it because the
+brief named this exact target by path and it was independently confirmed
+dead with two probes (repo-wide grep + reading its two named consumers,
+seed.ts and startup.service.ts, neither of which imports it). Not a
+unilateral scope expansion — flagging so this is visible, not buried.
+
+OPEN ISSUES OR BLOCKERS
+None. One process note recorded in the park doc: an unscoped
+`biome check --write .` briefly reformatted ~20 files outside src/ (this
+project's npm run check only scopes biome to src/) — caught via git status
+before committing, fully reverted, no harm done. Recording so the next
+agent scopes any biome --write to src/.
+
+WHAT IS NOW UNBLOCKED
+Nothing was blocked on this thread. QUAL-29/30/31/04 tracker entries and
+BUG-83 can be closed once COO reviews/merges. AdminNameListTab,
+useTripsController, and ModalOverlay are now the canonical
+implementations for their patterns — see
+jobs/frontend/tech/20260808-dedup-sweep-shared-components.md for the API
+reference before extending any of the three areas (adding a 4th admin
+name-list resource, a third trips-list surface, or a 9th modal site).

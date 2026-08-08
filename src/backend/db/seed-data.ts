@@ -45,17 +45,6 @@ export const ACTIVITIES = [
   { name: 'Other' },
 ] as const;
 
-/** Default companions (7 rows) */
-export const COMPANIONS = [
-  { name: 'Solo' },
-  { name: 'Partner' },
-  { name: 'Partner + Friends' },
-  { name: 'Family' },
-  { name: 'Friends' },
-  { name: 'Work / Conference' },
-  { name: 'Other' },
-] as const;
-
 /**
  * Default map shading configuration (6 rows).
  * 'never_visited' is intentionally absent — no shading (MP-05).

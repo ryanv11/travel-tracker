@@ -88,7 +88,9 @@ export function useCreateTrip() {
 
 /**
  * Updates an existing trip via PATCH /api/trips/:id.
- * On success, invalidates the trips list and the specific trip detail.
+ * On success, invalidates the trips list, the specific trip detail, and map
+ * shading — a trip edit can change country_codes, which the map shading
+ * queries derive from, so shading must be refetched too (BUG-83).
  *
  * @returns useMutation result. Call mutateAsync({ id, data }) to submit.
  */
@@ -100,6 +102,7 @@ export function useUpdateTrip() {
     onSuccess: (_result, vars) => {
       void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['trips', vars.id] });
+      void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });
 }

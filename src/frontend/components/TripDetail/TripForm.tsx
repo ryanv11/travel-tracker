@@ -17,6 +17,7 @@ import {
 import { type TripFormData, useCreateTrip, useUpdateTrip } from '../../hooks/useTrips';
 import type { TripSummary } from '../../types/api';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { ModalOverlay } from '../shared/ModalOverlay';
 
 interface TripFormProps {
   /** When set, the form is in edit mode and pre-populated with this trip's data. */
@@ -134,232 +135,223 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
       : 'px-2.5 py-1 rounded-full text-xs cursor-pointer border border-gray-300 bg-white text-gray-700 hover:border-gray-400';
 
   return (
-    <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[500]"
-      onClick={onClose}
+    <ModalOverlay
+      onClose={onClose}
+      zIndex={500}
+      panelClassName="p-7 w-[560px] max-w-[95vw] max-h-[90vh] overflow-y-auto"
     >
-      <div
-        className="bg-white rounded-lg p-7 w-[560px] max-w-[95vw] max-h-[90vh] overflow-y-auto shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="m-0 mb-5 text-lg font-bold text-gray-900">
-          {isEditing ? 'Edit Trip' : 'New Trip'}
-        </h2>
+      <h2 className="m-0 mb-5 text-lg font-bold text-gray-900">
+        {isEditing ? 'Edit Trip' : 'New Trip'}
+      </h2>
 
-        <form
-          onSubmit={(e) => {
-            void handleSubmit(e);
-          }}
-        >
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Name *</label>
+      <form
+        onSubmit={(e) => {
+          void handleSubmit(e);
+        }}
+      >
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-gray-700 mb-1.5">Name *</label>
+          <input
+            className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={NAME_MAX_LENGTH}
+            required
+          />
+          {name.length >= NAME_MAX_LENGTH && (
+            <div
+              className="mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs"
+              role="alert"
+            >
+              {NAME_MAX_LENGTH} character limit reached
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Start Date *</label>
             <input
+              type="date"
               className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={NAME_MAX_LENGTH}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
               required
             />
-            {name.length >= NAME_MAX_LENGTH && (
-              <div
-                className="mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-xs"
-                role="alert"
-              >
-                {NAME_MAX_LENGTH} character limit reached
-              </div>
-            )}
           </div>
-
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Start Date *
-              </label>
-              <input
-                type="date"
-                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">End Date *</label>
-              <input
-                type="date"
-                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                value={endDate}
-                min={startDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">End Date *</label>
+            <input
+              type="date"
+              className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              required
+            />
           </div>
+        </div>
 
-          {/* Country picker */}
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Countries</label>
+        {/* Country picker */}
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-gray-700 mb-1.5">Countries</label>
 
-            {/* Selected country chips */}
-            {selectedCountryCodes.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {selectedCountryCodes.map((code) => {
-                  const country = allCountries.find((c) => c.country_code === code);
-                  return (
-                    <span
-                      key={code}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border-2 border-teal-600 bg-teal-100 text-teal-800 font-medium"
+          {/* Selected country chips */}
+          {selectedCountryCodes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {selectedCountryCodes.map((code) => {
+                const country = allCountries.find((c) => c.country_code === code);
+                return (
+                  <span
+                    key={code}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border-2 border-teal-600 bg-teal-100 text-teal-800 font-medium"
+                  >
+                    {country?.name ?? code}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedCountryCodes(selectedCountryCodes.filter((c) => c !== code))
+                      }
+                      className="ml-0.5 text-teal-700 hover:text-teal-900 leading-none cursor-pointer"
+                      aria-label={`Remove ${country?.name ?? code}`}
                     >
-                      {country?.name ?? code}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedCountryCodes(selectedCountryCodes.filter((c) => c !== code))
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Search input */}
+          <div className="relative">
+            <input
+              className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              placeholder="Search countries…"
+              value={countrySearch}
+              onChange={(e) => setCountrySearch(e.target.value)}
+            />
+
+            {/* Dropdown — only shown when search text is non-empty */}
+            {countrySearch && (
+              <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                {filteredCountries.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-500">No countries match</div>
+                ) : (
+                  filteredCountries.slice(0, 20).map((country) => (
+                    <button
+                      key={country.country_code}
+                      type="button"
+                      onClick={() => {
+                        if (!selectedCountryCodes.includes(country.country_code)) {
+                          setSelectedCountryCodes([...selectedCountryCodes, country.country_code]);
                         }
-                        className="ml-0.5 text-teal-700 hover:text-teal-900 leading-none cursor-pointer"
-                        aria-label={`Remove ${country?.name ?? code}`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  );
-                })}
+                        setCountrySearch('');
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-teal-50 cursor-pointer"
+                    >
+                      <span>{country.name}</span>
+                      <span className="text-xs text-gray-400 ml-2">{country.country_code}</span>
+                    </button>
+                  ))
+                )}
               </div>
             )}
+          </div>
+        </div>
 
-            {/* Search input */}
-            <div className="relative">
-              <input
-                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="Search countries…"
-                value={countrySearch}
-                onChange={(e) => setCountrySearch(e.target.value)}
-              />
+        {/* Photo album — edit only */}
+        {isEditing && (
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              Photo Album URL (optional)
+            </label>
+            <input
+              className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              value={photoRef}
+              onChange={(e) => setPhotoRef(e.target.value)}
+              placeholder="https://..."
+            />
+          </div>
+        )}
 
-              {/* Dropdown — only shown when search text is non-empty */}
-              {countrySearch && (
-                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                  {filteredCountries.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-gray-500">No countries match</div>
-                  ) : (
-                    filteredCountries.slice(0, 20).map((country) => (
-                      <button
-                        key={country.country_code}
-                        type="button"
-                        onClick={() => {
-                          if (!selectedCountryCodes.includes(country.country_code)) {
-                            setSelectedCountryCodes([
-                              ...selectedCountryCodes,
-                              country.country_code,
-                            ]);
-                          }
-                          setCountrySearch('');
-                        }}
-                        className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-teal-50 cursor-pointer"
-                      >
-                        <span>{country.name}</span>
-                        <span className="text-xs text-gray-400 ml-2">{country.country_code}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
+        {/* Multi-select: Categories */}
+        {categories.length > 0 && (
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Categories</label>
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => toggleId(selectedCategoryIds, setSelectedCategoryIds, cat.id)}
+                  className={chipClass(selectedCategoryIds.includes(cat.id))}
+                >
+                  {cat.name}
+                </button>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* Photo album — edit only */}
-          {isEditing && (
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Photo Album URL (optional)
-              </label>
-              <input
-                className="w-full px-2.5 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                value={photoRef}
-                onChange={(e) => setPhotoRef(e.target.value)}
-                placeholder="https://..."
-              />
+        {/* Multi-select: Companions */}
+        {companions.length > 0 && (
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Companions</label>
+            <div className="flex flex-wrap gap-1.5">
+              {companions.map((comp) => (
+                <button
+                  key={comp.id}
+                  type="button"
+                  onClick={() => toggleId(selectedCompanionIds, setSelectedCompanionIds, comp.id)}
+                  className={chipClass(selectedCompanionIds.includes(comp.id))}
+                >
+                  {comp.name}
+                </button>
+              ))}
             </div>
-          )}
-
-          {/* Multi-select: Categories */}
-          {categories.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Categories</label>
-              <div className="flex flex-wrap gap-1.5">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => toggleId(selectedCategoryIds, setSelectedCategoryIds, cat.id)}
-                    className={chipClass(selectedCategoryIds.includes(cat.id))}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Multi-select: Companions */}
-          {companions.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Companions</label>
-              <div className="flex flex-wrap gap-1.5">
-                {companions.map((comp) => (
-                  <button
-                    key={comp.id}
-                    type="button"
-                    onClick={() => toggleId(selectedCompanionIds, setSelectedCompanionIds, comp.id)}
-                    className={chipClass(selectedCompanionIds.includes(comp.id))}
-                  >
-                    {comp.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Multi-select: Activities — edit only */}
-          {isEditing && activities.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Activities</label>
-              <div className="flex flex-wrap gap-1.5">
-                {activities.map((act) => (
-                  <button
-                    key={act.id}
-                    type="button"
-                    onClick={() => toggleId(selectedActivityIds, setSelectedActivityIds, act.id)}
-                    className={chipClass(selectedActivityIds.includes(act.id))}
-                  >
-                    {act.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {validationError && <ErrorMessage error={validationError} />}
-          {mutationError && <ErrorMessage error={mutationError} />}
-
-          <div className="flex justify-end gap-2.5 mt-5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4.5 py-2.5 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4.5 py-2.5 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {isSubmitting ? 'Saving…' : isEditing ? 'Save Changes' : 'Create Trip'}
-            </button>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {/* Multi-select: Activities — edit only */}
+        {isEditing && activities.length > 0 && (
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Activities</label>
+            <div className="flex flex-wrap gap-1.5">
+              {activities.map((act) => (
+                <button
+                  key={act.id}
+                  type="button"
+                  onClick={() => toggleId(selectedActivityIds, setSelectedActivityIds, act.id)}
+                  className={chipClass(selectedActivityIds.includes(act.id))}
+                >
+                  {act.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {validationError && <ErrorMessage error={validationError} />}
+        {mutationError && <ErrorMessage error={mutationError} />}
+
+        <div className="flex justify-end gap-2.5 mt-5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4.5 py-2.5 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-4.5 py-2.5 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {isSubmitting ? 'Saving…' : isEditing ? 'Save Changes' : 'Create Trip'}
+          </button>
+        </div>
+      </form>
+    </ModalOverlay>
   );
 }

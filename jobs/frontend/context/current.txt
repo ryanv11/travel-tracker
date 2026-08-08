@@ -1,3 +1,173 @@
+FRONTEND CONTEXT — as of 2026-08-08 (QUAL-29/30/31/04 dedup sweep + BUG-83
+fix, chore/frontend-dedup-sweep branch)
+
+STATUS: chore/frontend-dedup-sweep branch off main, PR open (see completion
+  report for #), CI green, not yet merged. COO-dispatched batch of frontend
+  dedup/refactor cleanups plus one real bug fix, independent of other
+  parallel lanes. Full details in the 2026-08-08 park doc.
+
+  BUG-83 (real bug, only behavior change in this thread): useTrips.ts
+  useUpdateTrip's onSuccess only invalidated ['trips'] and ['trips', id] —
+  missing ['map', 'shading'], unlike every sibling trip mutation in the same
+  file (create/status/lock/unlock/delete, all of which already invalidate
+  map shading). A trip edit can change country_codes, which the map shading
+  queries derive from, so the map was going stale after an edit until
+  something else forced a refetch. Fixed by adding the same invalidation the
+  siblings already had. New test:
+  hooks/__tests__/useTrips.mutations.test.tsx — asserts useUpdateTrip's full
+  invalidation set (the fix) plus a regression guard over the five siblings
+  that already had it right.
+
+  QUAL-29 (admin name-list triplication): CategoryTab.tsx, ActivityTab.tsx,
+  CompanionTab.tsx were near-byte-identical copies of the same add/rename/
+  deactivate/re-activate CRUD list UI (only the resource noun and hook names
+  differed) — confirmed via a dedicated Explore-agent investigation before
+  touching anything. Extracted components/Admin/AdminNameListTab.tsx (the
+  one shared implementation, generic over a NameListItem shape covering
+  Category/Activity/Companion despite Companion.is_active being `number`
+  where the other two are `boolean` on the wire type — handled via
+  `boolean | number` rather than "fixing" that pre-existing, out-of-scope
+  mismatch). Each Tab component is now a ~20-line wrapper passing its
+  resource-specific hooks + copy. useAdmin.ts's create/update/delete/list
+  hook BODIES (not just the Tab UI) were the 4th duplicated location —
+  factored through useNameList/useActiveNameList/useCreateNameListItem/
+  useUpdateNameListItem/useDeleteNameListItem helpers; exported hook names,
+  query keys and endpoints are byte-identical to before, so this is a pure
+  dedup. Companions' extra BUG-51 `['trips']` invalidation preserved via an
+  `extraInvalidateKeys` param (categories/activities pass none). NO test
+  existed for any of the three Tab components before this thread
+  (AdminPanel.test.tsx stubs them out entirely) — new coverage:
+  components/Admin/__tests__/AdminNameListTab.test.tsx (10 cases: loading/
+  error states, add, rename+save, cancel, deactivate, re-activate,
+  create-error).
+
+  QUAL-30 (trips layout controller dup): DesktopTripsLayout.tsx and
+  MobileTripsLayout.tsx duplicated ~130-160 lines of state, memoized derived
+  values (displayedTrips, cityInfo/mapFilterLabel — BUG-80, statusCounts,
+  selectableTrips) and handlers (selection mode, bulk-delete-with-5s-undo —
+  FEAT-BD/NTH-01). Extracted hooks/useTripsController.ts as the one shared
+  implementation; both layouts call it identically and keep their own
+  distinct markup. Mobile's genuinely mobile-only extras (useTrip/useMe/
+  renderDetailContent/slide-transition state — it has no <Outlet/>, see its
+  own module doc comment) stay local to MobileTripsLayout, reusing the
+  hook's `selectedId`/`navigate` rather than re-deriving them. NO test
+  existed for either layout before this thread (only App.test.tsx, which
+  mocks TripsLayout out entirely) — new coverage:
+  hooks/__tests__/useTripsController.test.tsx (9 cases: tripCount/
+  statusCounts derivation, search filtering, country/city map-filter label
+  derivation including BUG-80's subtitle, selection-mode toggling,
+  select-all excluding locked trips, bulk-delete-then-undo with fake timers,
+  bulk-delete-with-nothing-selected no-op).
+
+  QUAL-31 (modal-overlay shell dup): the fixed-backdrop + centered white
+  panel + backdrop-click-to-close + stopPropagation pattern was hand-repeated
+  at 8 render sites across 7 files. Extracted
+  components/shared/ModalOverlay.tsx and adopted it at: ConfirmDialog
+  (already a shared component, but bundled its own copy of the shell —
+  unified onto the new one), TripForm, ItemForm, PlaceDateForm,
+  ChangeCityModal, AddPlaceFlow (3 separate early-return branches in one
+  file), and CarryForwardModal (the one outlier — inline React.CSSProperties
+  instead of Tailwind, AND the one site with no backdrop-dismiss at all).
+  Each site keeps its own z-index/panel-sizing/close-behavior via props —
+  z-index is passed via `style={{ zIndex }}`, not a `z-[N]` Tailwind class,
+  because Tailwind's JIT scanner needs a complete static class string in
+  source and a template-literal-interpolated arbitrary value would silently
+  fail to generate CSS in a production build (would have been an invisible
+  regression). CarryForwardModal's no-backdrop-close behavior preserved
+  explicitly via `closeOnBackdropClick={false}`, and its exact original
+  box-shadow (subtly different from Tailwind's shadow-2xl) preserved via a
+  new `panelStyle` prop rather than letting the extraction silently change
+  it. Deliberately did NOT add ESC-key handling, focus trap, or
+  role="dialog"/aria-modal to the shared component — none of the 8 original
+  sites had these, so adding them would be new behavior introduced by a
+  refactor that's supposed to be behavior-preserving (flagged as a possible
+  future UX/accessibility follow-up, not built here).
+
+  QUAL-04 (dead code, WP-reskin/ADL-28 leftovers) — each item verified with
+  TWO independent probes before deletion, per the negative-findings rule:
+    - src/frontend/pages/TripsPage.tsx (whole file, deleted): its own doc
+      comment already called itself "legacy". Probe 1: App.tsx's route table
+      imports TripsLayout directly, never TripsPage. Probe 2: repo-wide grep
+      for "TripsPage" hits only its own definition line, no route/test/
+      barrel-export reference anywhere.
+    - COMPANIONS const in src/backend/db/seed-data.ts (removed — NOTE: this
+      is a backend file; flagging the cross-boundary touch explicitly per
+      OP-28, done because the brief named this exact target and it was
+      confirmed dead, not a unilateral scope expansion). Probe 1: repo-wide
+      grep for "COMPANIONS" hits only its own definition plus an unrelated
+      section-header comment in useAdmin.ts. Probe 2: read seed.ts and
+      startup.service.ts (the two files seed-data.ts's own header comment
+      says consume these constants) — neither imports COMPANIONS; both carry
+      an explicit ADL-28 comment stating companions have no default list
+      post-migration. Contrast check: sibling MAP_SHADING_CONFIG, same file,
+      same era, IS still live (shadingConfig.ts imports and uses it) — so
+      this wasn't "nothing in this file is used," specifically COMPANIONS is
+      the orphan.
+    - theme-waypoint.css header comment (corrected, not deleted — the
+      Waypoint token block itself is very much alive): the comment said
+      "PHASE 1 ONLY — defined-but-unused, wiring into screens is Phase 2
+      work." Probe 1: git log on the file shows a later WP-03/WP-04 commit
+      ("Waypoint Trips reskin") landed after the comment was written. Probe
+      2: fresh grep for wp-* token usage hits 10+ files (Button.tsx,
+      Input.tsx, badges.ts -> StatusBadge.tsx, TripCard.tsx, both
+      TripsLayout files, TripDetail.tsx, etc.) — badges.ts's own doc comment
+      literally says "WIRED (WP-03/WP-04, GitHub #205)". Comment rewritten
+      to state the tokens are wired and name where; the @theme token values
+      themselves untouched.
+
+  VERIFICATION: npm run check (biome ci src/) — clean, only 5 pre-existing
+  infos in a backend test file this thread never touched (same ones the
+  BUG-81 park doc already noted). npm run type:check:all — clean. npm run
+  test:backend — 762/762 (unchanged count from before this thread; touched
+  seed-data.ts but removed a completely unconsumed export, so no test
+  should have been exercising it and none broke). npm run test:frontend —
+  346/346 (+25 new: 6 useTrips.mutations, 10 AdminNameListTab, 9
+  useTripsController). npm run status:check — up to date, no tracker.json
+  edit made (COO's job per the brief, parallel sweeps running concurrently).
+
+  CAUTION during `npm run check --write`: running biome's write mode
+  unscoped (`biome check --write .` from repo root) reformatted ~20 files
+  entirely outside src/ (data/*.json, scripts/*, tests/contract/*,
+  tsconfig*.json, vite.config.ts, .devcontainer/devcontainer.json,
+  biome.json) — this project's actual `npm run check` script only scopes
+  biome to `src/` (`biome ci src/`), so those files have never been
+  biome-normalized and a repo-root `--write` pulls in a large unrelated
+  diff. Caught before committing (git status showed the extra files; all
+  reverted via `git checkout --`) — noting here so the next agent doesn't
+  repeat it: scope any `biome check --write` to `src/`, never run it
+  bare against the repo root.
+
+  KEY FILE LOCATIONS (new/changed this thread)
+    src/frontend/hooks/useTrips.ts (BUG-83 fix)
+    src/frontend/hooks/__tests__/useTrips.mutations.test.tsx (new)
+    src/frontend/components/Admin/AdminNameListTab.tsx (new)
+    src/frontend/components/Admin/CategoryTab.tsx / ActivityTab.tsx /
+      CompanionTab.tsx (now thin wrappers)
+    src/frontend/components/Admin/__tests__/AdminNameListTab.test.tsx (new)
+    src/frontend/hooks/useAdmin.ts (category/activity/companion CRUD hooks
+      now factored through shared helpers)
+    src/frontend/hooks/useTripsController.ts (new)
+    src/frontend/hooks/__tests__/useTripsController.test.tsx (new)
+    src/frontend/components/TripList/DesktopTripsLayout.tsx /
+      MobileTripsLayout.tsx (now consume useTripsController)
+    src/frontend/components/shared/ModalOverlay.tsx (new)
+    src/frontend/components/shared/ConfirmDialog.tsx, TripDetail/TripForm.tsx
+      / ItemForm.tsx / PlaceDateForm.tsx / ChangeCityModal.tsx /
+      AddPlaceFlow.tsx, CarryForward/CarryForwardModal.tsx (all now consume
+      ModalOverlay)
+    src/frontend/pages/TripsPage.tsx (deleted)
+    src/backend/db/seed-data.ts (COMPANIONS const removed)
+    src/frontend/theme-waypoint.css (stale header comment corrected)
+
+  NEXT STEPS (when resumed)
+    COO: review PR (see completion report for #), merge via
+    /coo-merge-and-close when CI is green.
+
+========================================================================
+PRIOR THREAD — retained in full below per this file's established
+newest-first pattern.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-08-03 (BUG-78 + BUG-79, GitHub #379, PO UAT follow-up)
 
 STATUS: fix/bug78-79-suggested-bold-region-narrowing branch, GitHub issue
