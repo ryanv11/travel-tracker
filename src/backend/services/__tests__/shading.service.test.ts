@@ -114,6 +114,10 @@ describe('computeState()', () => {
 // computeCountryState() — simplified any-visit rule (MAP-01)
 // Country is highlighted whenever any city in the country has a trip,
 // regardless of region tier. Region detail shown via RegionLayer at zoom >= 4.
+//
+// QUAL-33: the region-coverage second parameter was dead (computed by a query
+// whose result was never read) and has been dropped from the signature along
+// with the unused *Unregioned row fields — see audits/session-b-code-safety.md.
 // ----------------------------------------------------------------
 
 const baseRow = {
@@ -121,9 +125,6 @@ const baseRow = {
   hasActive: 0,
   completedCount: 0,
   planningCount: 0,
-  hasActiveUnregioned: 0,
-  completedUnregioned: 0,
-  planningUnregioned: 0,
 };
 
 describe('computeCountryState()', () => {
@@ -131,87 +132,54 @@ describe('computeCountryState()', () => {
   describe('region_tier_enabled = 0 (non-region-tier country)', () => {
     it('returns "visited_once" when one completed trip', () => {
       const row = { ...baseRow, regionTierEnabled: 0, completedCount: 1 };
-      expect(computeCountryState(row, undefined)).toBe('visited_once');
+      expect(computeCountryState(row)).toBe('visited_once');
     });
 
     it('returns "planned" when only planning trips', () => {
       const row = { ...baseRow, regionTierEnabled: 0, planningCount: 2 };
-      expect(computeCountryState(row, undefined)).toBe('planned');
+      expect(computeCountryState(row)).toBe('planned');
     });
 
     it('returns "active" when active trip', () => {
       const row = { ...baseRow, regionTierEnabled: 0, hasActive: 1 };
-      expect(computeCountryState(row, undefined)).toBe('active');
+      expect(computeCountryState(row)).toBe('active');
     });
 
     it('returns "never_visited" when no trips', () => {
-      expect(computeCountryState(baseRow, undefined)).toBe('never_visited');
+      expect(computeCountryState(baseRow)).toBe('never_visited');
     });
   });
 
   // Region-tier countries (US, AU, CA): shade on any visit — same as non-region-tier
   describe('region_tier_enabled = 1 (region-tier country, e.g. US/AU/CA)', () => {
-    it('returns "visited_once" when one completed trip, even with partial region coverage', () => {
+    it('returns "visited_once" when one completed trip', () => {
       const row = { ...baseRow, regionTierEnabled: 1, completedCount: 1 };
-      const partialCoverage = { totalRegions: 50, visitedRegions: 1 };
-      expect(computeCountryState(row, partialCoverage)).toBe('visited_once');
+      expect(computeCountryState(row)).toBe('visited_once');
     });
 
-    it('returns "visited_once" when one completed trip and coverage is undefined', () => {
-      const row = { ...baseRow, regionTierEnabled: 1, completedCount: 1 };
-      expect(computeCountryState(row, undefined)).toBe('visited_once');
-    });
-
-    it('returns "visited_multiple" when multiple completed trips, partial coverage', () => {
+    it('returns "visited_multiple" when multiple completed trips', () => {
       const row = { ...baseRow, regionTierEnabled: 1, completedCount: 3 };
-      const partialCoverage = { totalRegions: 50, visitedRegions: 2 };
-      expect(computeCountryState(row, partialCoverage)).toBe('visited_multiple');
+      expect(computeCountryState(row)).toBe('visited_multiple');
     });
 
-    it('returns "planned" when only planning trips, partial coverage', () => {
+    it('returns "planned" when only planning trips', () => {
       const row = { ...baseRow, regionTierEnabled: 1, planningCount: 2 };
-      const partialCoverage = { totalRegions: 50, visitedRegions: 0 };
-      expect(computeCountryState(row, partialCoverage)).toBe('planned');
+      expect(computeCountryState(row)).toBe('planned');
     });
 
-    it('returns "active" when active trip, partial coverage', () => {
+    it('returns "active" when active trip', () => {
       const row = { ...baseRow, regionTierEnabled: 1, hasActive: 1 };
-      const partialCoverage = { totalRegions: 50, visitedRegions: 1 };
-      expect(computeCountryState(row, partialCoverage)).toBe('active');
+      expect(computeCountryState(row)).toBe('active');
     });
 
-    it('returns "never_visited" when no trips, even with full region coverage', () => {
+    it('returns "never_visited" when no trips', () => {
       const row = { ...baseRow, regionTierEnabled: 1 };
-      const fullCoverage = { totalRegions: 3, visitedRegions: 3 };
-      expect(computeCountryState(row, fullCoverage)).toBe('never_visited');
+      expect(computeCountryState(row)).toBe('never_visited');
     });
 
-    it('returns "visited_multiple" when all regions visited and multiple completed trips', () => {
+    it('returns "visited_multiple" when multiple completed trips', () => {
       const row = { ...baseRow, regionTierEnabled: 1, completedCount: 3 };
-      const fullCoverage = { totalRegions: 3, visitedRegions: 3 };
-      expect(computeCountryState(row, fullCoverage)).toBe('visited_multiple');
-    });
-
-    it('uses all-city stats regardless of unregioned stats', () => {
-      // Visiting Colorado (region_id set) shows up in completedCount, not completedUnregioned.
-      // The country should still be highlighted.
-      const row = {
-        ...baseRow,
-        regionTierEnabled: 1,
-        completedCount: 1,
-        completedUnregioned: 0, // city has a region_id — would fail old case (b) check
-      };
-      const partialCoverage = { totalRegions: 50, visitedRegions: 1 };
-      expect(computeCountryState(row, partialCoverage)).toBe('visited_once');
-    });
-
-    it('coverage parameter is ignored — same result with or without coverage', () => {
-      const row = { ...baseRow, regionTierEnabled: 1, completedCount: 2 };
-      const partialCoverage = { totalRegions: 50, visitedRegions: 1 };
-      const fullCoverage = { totalRegions: 50, visitedRegions: 50 };
-      expect(computeCountryState(row, partialCoverage)).toBe('visited_multiple');
-      expect(computeCountryState(row, fullCoverage)).toBe('visited_multiple');
-      expect(computeCountryState(row, undefined)).toBe('visited_multiple');
+      expect(computeCountryState(row)).toBe('visited_multiple');
     });
   });
 });

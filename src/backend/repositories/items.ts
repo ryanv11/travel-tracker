@@ -44,14 +44,12 @@ export const itemRepository = {
       minRating?: number;
     },
   ): Promise<Record<string, unknown>[]> {
-    const { and: drizzleAnd, eq: drizzleEq } = await import('drizzle-orm');
+    const conditions: SQL[] = [eq(items.tripId, tripId), eq(items.userId, userId)];
+    if (filters?.placeId) conditions.push(eq(items.tripPlaceId, Number(filters.placeId)));
+    if (filters?.type) conditions.push(eq(items.itemType, filters.type));
+    if (filters?.status) conditions.push(eq(items.status, filters.status));
 
-    const conditions: SQL[] = [drizzleEq(items.tripId, tripId), drizzleEq(items.userId, userId)];
-    if (filters?.placeId) conditions.push(drizzleEq(items.tripPlaceId, Number(filters.placeId)));
-    if (filters?.type) conditions.push(drizzleEq(items.itemType, filters.type));
-    if (filters?.status) conditions.push(drizzleEq(items.status, filters.status));
-
-    return fetchItemsWithExtensions(drizzleAnd(...conditions), {
+    return fetchItemsWithExtensions(and(...conditions), {
       sortBy: filters?.sortBy,
       sortOrder: filters?.sortOrder,
       minRating: filters?.minRating,
@@ -63,9 +61,8 @@ export const itemRepository = {
    * Returns null if not found or not owned.
    */
   async findById(userId: string, itemId: number): Promise<Record<string, unknown> | null> {
-    const { and: drizzleAnd, eq: drizzleEq } = await import('drizzle-orm');
     const results = await fetchItemsWithExtensions(
-      drizzleAnd(drizzleEq(items.id, itemId), drizzleEq(items.userId, userId)),
+      and(eq(items.id, itemId), eq(items.userId, userId)),
     );
     return results[0] ?? null;
   },
@@ -144,8 +141,7 @@ export const itemRepository = {
     const item = inserted[0];
     await insertExtension(item.id, data.itemType, extensionBody);
 
-    const { eq: drizzleEq } = await import('drizzle-orm');
-    const result = await fetchItemsWithExtensions(drizzleEq(items.id, item.id));
+    const result = await fetchItemsWithExtensions(eq(items.id, item.id));
     return result[0];
   },
 
@@ -181,8 +177,7 @@ export const itemRepository = {
 
     await updateExtension(itemType, itemId, extensionBody);
 
-    const { eq: drizzleEq } = await import('drizzle-orm');
-    const result = await fetchItemsWithExtensions(drizzleEq(items.id, itemId));
+    const result = await fetchItemsWithExtensions(eq(items.id, itemId));
     return result[0] ?? null;
   },
 
