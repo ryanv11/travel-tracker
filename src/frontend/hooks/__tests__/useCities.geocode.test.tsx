@@ -218,4 +218,65 @@ describe('lookupCityCountry', () => {
       vi.useRealTimers();
     }
   });
+
+  // BUG-74 (ADL-51 §6): the backend now labels an upstream geocoder failure or
+  // a disabled geocoder distinctly from a genuine no-match, both previously
+  // an indistinguishable candidates:[] at HTTP 200 — this is why BUG-76 was
+  // invisible to the user. lookupCityCountry must map both non-'ok' statuses
+  // to failed:true so the existing BUG-73 banner surfaces.
+  describe('BUG-74: status -> failed mapping', () => {
+    it('status:"error" (upstream Nominatim failure) maps to failed:true even though our backend answered 200', async () => {
+      const result: GeocodeResult = {
+        status: 'error',
+        candidates: [],
+        country_code: null,
+        region_iso: null,
+      };
+      vi.mocked(apiGet).mockResolvedValue(result);
+
+      const { failed, candidates, countryCode, regionIso } = await lookupCityCountry('Denver');
+
+      expect(failed).toBe(true);
+      expect(candidates).toEqual([]);
+      expect(countryCode).toBeNull();
+      expect(regionIso).toBeNull();
+    });
+
+    it('status:"disabled" (GEOCODING_ENABLED=false) maps to failed:true', async () => {
+      const result: GeocodeResult = {
+        status: 'disabled',
+        candidates: [],
+        country_code: null,
+        region_iso: null,
+      };
+      vi.mocked(apiGet).mockResolvedValue(result);
+
+      const { failed } = await lookupCityCountry('Denver');
+
+      expect(failed).toBe(true);
+    });
+
+    it('status:"ok" with empty candidates stays a genuine no-match — failed:false, no error banner', async () => {
+      const result: GeocodeResult = {
+        status: 'ok',
+        candidates: [],
+        country_code: null,
+        region_iso: null,
+      };
+      vi.mocked(apiGet).mockResolvedValue(result);
+
+      const { failed } = await lookupCityCountry('Zzznotacity');
+
+      expect(failed).toBe(false);
+    });
+
+    it('an omitted status (pre-BUG-74 response shape) defaults to failed:false — additive field, no regression', async () => {
+      const result: GeocodeResult = { candidates: [], country_code: null, region_iso: null };
+      vi.mocked(apiGet).mockResolvedValue(result);
+
+      const { failed } = await lookupCityCountry('Springfield');
+
+      expect(failed).toBe(false);
+    });
+  });
 });

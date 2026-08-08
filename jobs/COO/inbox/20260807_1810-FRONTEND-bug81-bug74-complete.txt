@@ -1,0 +1,38 @@
+FRONTEND completion report
+Tracker: BUG-81, BUG-74 · PR #427 · BRD GE-16, GE-15 · Branch: feat/bug81-picker-readability
+
+WHAT WAS BUILT
+CityPicker rows now compose "City, State, Country" from structured GeocodeCandidate
+fields (county added only to colliding rows, coordinate discriminator as rare last
+resort, cleaned display_name as fallback when structured fields are entirely absent) via
+new src/frontend/utils/composeCandidateLabel.ts, plus a max-h-72/overflow-y-auto scroll
+cap on the list. lookupCityCountry (useCities.ts) now maps status:'error'|'disabled' to
+failed:true, surfacing the existing BUG-73 banner for upstream geocoder failures.
+
+ACCEPTANCE CRITERIA
+- Default "City, State, Country", no county, no postcode, non-colliding candidate: PASS
+- Collision rule adds county only to colliding (name+state+country) rows: PASS
+- Missing state renders "City, Country", no empty comma: PASS
+- Rare fallback (still-identical after county) gets a discriminator, never identical: PASS
+- Legacy fixtures (no structured fields) fall back to cleaned display_name: PASS
+- List container has max-h/scroll class, long list scrolls in-picker: PASS
+- Existing truncated/onSelect/disabled contract unchanged: PASS
+- status:'error'/'disabled' -> failed:true -> existing banner shows: PASS
+- status:'ok' + empty candidates -> failed:false, no error banner: PASS
+- No new banner copy invented (BUG-71/73 text reused verbatim): PASS
+
+CI: gh pr checks 427 — 18/18 green (scripts/ci-wait.sh pr 427 confirmed PASS).
+
+OPEN ISSUES / BLOCKERS
+None. Two decisions made without a brief callout, flagged here:
+1. "Structured fields entirely absent" (fallback trigger) = state/country/county ALL
+   null/undefined — any one present routes through the structured composer.
+2. Rare-fallback discriminator chosen as rounded lat/long (not display_name) to keep
+   label style consistent within a list — brief offered either.
+Full rationale in the park doc.
+
+WHAT IS NOW UNBLOCKED
+PR ready for COO review/merge. Per the tracker note, UX reviews CityPicker (both call
+sites — AddPlaceFlow and the now-existing ChangeCityModal) for theme adherence next.
+
+Full detail: jobs/frontend/park-docs/20260807-FRONTEND-bug81-bug74-park.txt

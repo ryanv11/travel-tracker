@@ -32,9 +32,22 @@ that file ~:422-444) — a deliberate visual-consistency reuse, not a code extra
 underlying data shape: post-creation `City` rows with an `id` vs. pre-creation
 `GeocodeCandidate`s that don't have one yet).
 
+> **UPDATED 2026-08-07 (BUG-81, PR #427)** — the row label described above as "renders
+> `candidate.display_name`" is superseded. Rows now render a label composed from the
+> candidate's structured `name`/`state`/`country` fields (with `county` added only for
+> colliding rows, `display_name` kept as the fallback when structured fields are entirely
+> absent) via `composeCandidateLabels` (`src/frontend/utils/composeCandidateLabel.ts`) —
+> raw `display_name` crammed in postcode/county cruft that made a long list (Springfield
+> ~20 US rows) hard to skim. The outer bordered container also gained an inner
+> `max-h-72 overflow-y-auto` scroll wrapper (outer `rounded-md overflow-hidden` unchanged)
+> so a long list scrolls within the picker instead of the page. Full detail:
+> `jobs/frontend/park-docs/20260807-FRONTEND-bug81-bug74-park.txt`. The rest of this
+> section (key strategy, visual-consistency reuse rationale) is unaffected and still
+> accurate.
+
 When `truncated` is true, renders "There may be more matches not shown." below the list —
 the BUG-79 caveat, same phrasing family as the region-select/Suggested-caption caveats
-elsewhere in `AddPlaceFlow.tsx`.
+elsewhere in `AddPlaceFlow.tsx`. (Unaffected by the 2026-08-07 update above.)
 
 ## AddPlaceFlow's ambiguity-detection trigger (where the caller decides to render it)
 
@@ -46,6 +59,12 @@ trigger would be (a currently-green regression-parity test — Denver/Denver Cou
 region with no `osm_id` — requires it).
 
 ## Extending to a second call site (UX-12)
+
+> **SUPERSEDED (2026-08-07)** — UX-12's "Change city" call site now exists:
+> `src/frontend/components/TripDetail/ChangeCityModal.tsx`, consuming `CityPicker`
+> unchanged per the plan below. Retained for history/rationale; not itself out of date
+> (the BUG-81 label-composition update above applies automatically to this consumer too,
+> with no changes required to `ChangeCityModal.tsx`).
 
 When UX-12 is briefed:
 1. Build the "Change city" control + modal shell (UX spec

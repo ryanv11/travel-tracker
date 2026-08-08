@@ -78,9 +78,12 @@ async function fetchGeocodeResultWithRetry(cityName: string): Promise<GeocodeRes
  * @param cityName - The city name to look up.
  * @returns Upper-cased country code (e.g. "FR"), region ISO (e.g. "US-CA"),
  *   both nullable, the full candidate list (empty on any failure), `failed` —
- *   true only when retries were exhausted without a successful response
- *   (never true for a successful "no match" response) — and `truncated`
- *   (BUG-79) — true when the backend's raw Nominatim response may have had
+ *   true when retries were exhausted without a successful response, OR
+ *   (BUG-74) when the backend answered but reported `status: 'error'` or
+ *   `'disabled'` — the upstream geocoder itself failed rather than our
+ *   backend being unreachable. Never true for a genuine `status: 'ok'`
+ *   no-match — that stays a real "found nothing", not an error. `truncated`
+ *   (BUG-79) is true when the backend's raw Nominatim response may have had
  *   more matches than `candidates` shows, false on any failure (nothing was
  *   truncated; nothing was returned at all).
  */
@@ -93,11 +96,17 @@ export async function lookupCityCountry(cityName: string): Promise<{
 }> {
   try {
     const result = await fetchGeocodeResultWithRetry(cityName);
+    // BUG-74: an upstream geocoder failure ('error') or a disabled geocoder
+    // ('disabled') is a failed lookup for the caller's purposes — same
+    // user-visible banner as a retries-exhausted network failure — even
+    // though our own backend answered with HTTP 200. `status` undefined
+    // (pre-BUG-74 fixtures/mocks) or 'ok' both leave `failed` false here.
+    const upstreamFailed = result.status === 'error' || result.status === 'disabled';
     return {
       countryCode: result.country_code?.toUpperCase() ?? null,
       regionIso: result.region_iso ?? null,
       candidates: result.candidates,
-      failed: false,
+      failed: upstreamFailed,
       truncated: result.truncated ?? false,
     };
   } catch {
