@@ -861,3 +861,37 @@ CityPicker's contract is ready for it but building the modal/button/hook
 itself is separate, un-briefed work (UX-12, P1, own UX spec). Full detail:
 jobs/frontend/park-docs/20260806-FRONTEND-bug75-citypicker-park.txt and
 jobs/frontend/tech/20260806-bug75-citypicker.md.
+
+UPDATE 2026-08-07 — BUG-81/BUG-74 picker readability + geocoder-failure
+banner (branch feat/bug81-picker-readability, PR #427, off main — the
+BUG-81 backend fields (state/country/county) and the BUG-74 status field
+were already merged to main as separate backend work before this brief).
+New src/frontend/utils/composeCandidateLabel.ts: pure label-composition
+function CityPicker now maps candidates through by index — default
+"City, State, Country" from structured fields (never postcode, which was
+never in those fields anyway), county added only to rows colliding on
+(name, state, country) case-insensitively, a rounded-coordinate
+discriminator as the rare last-resort if still identical, and a cleaned
+display_name (postcode-looking segments stripped) fallback for candidates
+with no structured fields at all — this last path is what keeps the
+existing BUG-75/UX-12 ATDD suites (AddPlaceFlow.city-picker.test.tsx,
+ChangeCityModal.test.tsx) green unmodified, since their fixtures predate
+BUG-81 and carry no state/country/county. CityPicker.tsx's list container
+also gained a max-h-72/overflow-y-auto inner scroll wrapper (outer rounded
+border/overflow-hidden kept) so a long list (Springfield ~20) scrolls
+within the picker instead of the page. BUG-74: lookupCityCountry
+(useCities.ts) now maps the backend's status:'error'|'disabled' to
+failed:true — reusing the existing BUG-73 amber banner text verbatim, no
+new copy invented, since AddPlaceFlow.tsx and ChangeCityModal.tsx both
+already render that banner off the same `failed` flag with no further
+changes needed. status:'ok' with empty candidates stays failed:false (a
+genuine no-match). GeocodeResult gained optional `status` in types/api.ts
+(same optional/additive pattern as `truncated`). New tests:
+composeCandidateLabel.test.ts (9), CityPicker.test.tsx (7, new file — no
+prior CityPicker unit test existed), 4 new cases in
+useCities.geocode.test.tsx. Full suite 321/321 green, backend 762/762
+untouched, type:check:all clean, biome clean (same 5 pre-existing infos
+noted in the BUG-75 park doc). Not built: the copy-decision question in
+the brief was pre-answered (reuse BUG-71/73 text verbatim) so nothing was
+invented there. Full detail:
+jobs/frontend/park-docs/20260807-FRONTEND-bug81-bug74-park.txt.
