@@ -51,6 +51,149 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### UAT Session — 2026-08-08 (Scotland dogfood trial — batched UAT of the planning-first build)
+
+**Scope:** Every shipped-but-unverified change (26 `done_pending_uat` items). Run top to bottom — the
+order roughly follows planning a real trip, so it doubles as a dogfood of the Scotland trip.
+**Build:** staging `c6023f9` — confirmed current via `/health` (built 2026-08-08 20:26). Hard-refresh
+staging before starting (frontend bundle changes).
+**Verdict:** _(fill in at end)_
+
+**How to record — checkboxes don't tick in VS Code, so ignore `[ ]` style.** For each numbered item,
+reply with `N PASS` or `N FAIL: <what you saw>` (or type it on the `Result:` line). `N N/A` to skip.
+You don't have to do them in one sitting — the numbers are stable.
+
+**Known-pending friction — do NOT log these, they're already tracked as open:** activities selector
+missing in trip *create* (BUG-46), map shading laggy (BUG-48), place-delete prompt (BUG-40), multi-leg
+flights / multi-companion (BUG-41/42), trip-list shows country not state (BUG-53).
+
+---
+
+#### Group 1 — Trips & list
+
+1. **[BUG-50] Delete an entire trip.**
+   Steps: open a trip → find the delete control in the trip *detail* view → read the confirmation → delete. Then try to delete a **Locked** trip.
+   Expected: a delete affordance exists in the detail view; the confirmation names the trip and what's lost; deleting removes the trip + its places/items; a Locked trip is refused.
+   Result:
+
+2. **[BUG-58] Moving a trip backward keeps it selected.**
+   Steps: select a trip in the left panel → move it *backward* through the status workflow (e.g. Confirmed → Planning).
+   Expected: the trip stays selected/visible in the left panel (it must not deselect and force you to re-find it).
+   Result:
+
+3. **[BUG-52] Trip search matches on country name.**
+   Steps: in trip search, type a full country name present in your trips (e.g. "United Kingdom").
+   Expected: trips with a place in that country match even if the country isn't in the title. (Full names only — "UK"/ISO codes are deliberately excluded.)
+   Result:
+
+4. **[BRD-IT08/09] Rating sort + filter in item lists.**
+   Steps: open a trip's item list → sort by rating (asc, then desc) → apply a minimum-rating filter. If you use the cross-trip "by city" item view, try it there too.
+   Expected: items reorder by rating; the min-rating filter hides lower-rated items.
+   Result:
+
+#### Group 2 — Adding places & city identity (the big cluster)
+
+5. **[BRD-GE16] Add a brand-new city (as owner).**
+   Steps: add a place to a trip, typing a city not yet in the catalogue (a Scottish village is ideal) → complete the flow.
+   Expected: added in one uninterrupted flow, no error; country/region resolve automatically; re-adding the same city returns the existing one (no duplicate row).
+   Result:
+
+6. **[BUG-56] City name auto-capitalises.**
+   Steps: add a place typing the city in lowercase (e.g. "glasgow").
+   Expected: it saves capitalised ("Glasgow").
+   Result:
+
+7. **[BUG-71] Ambiguous city offers disambiguation.**
+   Steps: add a place, type an ambiguous name — "Springfield".
+   Expected: you're offered a choice (candidates / region pick) — NOT a silent auto-fill of one state with no indication another exists.
+   Result:
+
+8. **[BUG-72] Dropdown rows show enough to pick.**
+   Steps: look at the Add-Place autocomplete rows for an ambiguous city.
+   Expected: each row distinguishes the options (city + state/region + country), not just "name country".
+   Result:
+
+9. **[BUG-81] Picker rows are clean.**
+   Steps: trigger the disambiguation picker (ambiguous city).
+   Expected: rows read as "City, State, Country" — no county/postcode/raw address noise.
+   Result:
+
+10. **[BUG-78] "Suggested:" region caption is bold enough.**
+    Steps: add a place where a region is *suggested* (auto-filled but flagged to check).
+    Expected: the "Suggested:" value is visually bold enough to read as something to verify, not accept blindly.
+    Result:
+
+11. **[BUG-79] Region list narrowed for an ambiguous US city.**
+    Steps: add "Springfield" (US) → open the state/region selector.
+    Expected: the state list is narrowed to the real candidates (IL/MA/MO/OH…), not the full 50-state list.
+    Result:
+
+12. **[BUG-80] Two same-name places are distinguishable.**
+    Steps: in one trip, save two different "Newport"s (e.g. Newport in Wales and Newport in Scotland/Fife).
+    Expected: they display distinguishably ("Newport, Scotland" vs "Newport, Wales"), not both "Newport United Kingdom".
+    Result:
+
+13. **[BRD-DP06] First place inherits the trip's dates.**
+    Steps: create a trip with a date range → add the **first** place.
+    Expected: that place's arrival/departure pre-fill from the trip start/end.
+    Result:
+
+14. **[BUG-77] Places in previously-empty region countries.**
+    Steps (niche): add a place in a country that used to have no regions (e.g. Argentina, Brazil, India).
+    Expected: a region list is available / the flow handles it gracefully — no broken empty selector.
+    Result:
+
+15. **[BUG-73 / BUG-74] Geocode-failure signal (only if you hit it).**
+    Steps: hard to force on purpose — if a city lookup ever fails or hangs, note what you saw.
+    Expected: a visible banner/signal that the lookup failed (not a silent "found nothing"), covering both a backend hop failure and an upstream geocoder no-match.
+    Result:
+
+#### Group 3 — Items (flights, hotels, car rental, activities)
+
+16. **[BUG-57] Item dates default to the trip's start.**
+    Steps: with a trip date range set, add a hotel/activity, then a flight.
+    Expected: item date(s) default to the trip's start (not today); a flight's arrival defaults to its departure date; any edit you make is never re-defaulted over.
+    Result:
+
+17. **[BUG-44] Car-rental pickup location as subtext.**
+    Steps: add/view a car-rental item with a pickup location.
+    Expected: the pickup location shows as subtext under the provider name (like an airline + flight number on a flight).
+    Result:
+
+18. **[BRD-IT10] Optional Google Maps URL → directions link.**
+    Steps: edit an item → set the optional Google Maps URL → view the item. Then view an item with no URL.
+    Expected: a one-click map/directions link renders when a URL is set; nothing when it's empty.
+    Result:
+
+#### Group 4 — Map
+
+19. **[BUG-49] City markers render on top of state shading.**
+    Steps: on the map, view a trip where state/region shading is active and city markers are present.
+    Expected: city markers stay visible on top of the shading layer (not hidden behind it).
+    Result:
+
+#### Group 5 — Admin panel
+
+20. **[BUG-51] Companion rename propagates to all trips.**
+    Steps: in the admin panel, rename a companion who appears on 2+ trips → check every trip they're on.
+    Expected: the new name shows everywhere immediately (no stale value needing a manual refresh).
+    Result:
+
+21. **[BUG-62] Non-owner can reach the Companions tab.** _(needs a second, non-owner account)_
+    Steps: sign in as a non-owner → open the admin panel.
+    Expected: the Companions tab is reachable (per-tab gating, not a whole-panel owner lock).
+    Note: needs a non-owner login; if you can't test solo, mark `21 N/A` — it's coupled to the still-open BUG-63.
+    Result:
+
+#### Group 6 — Internal / infra (no manual step — informational only)
+
+22. **QUAL-20 / QUAL-26 / QUAL-25 / DEP-05** — post-deploy smoke check, build-SHA in `/health` (confirmed serving `c6023f9`), the gazetteer spike (doc-only), and a security dependency fix. All verified by CI/automation, nothing to click. Listed so the record is complete.
+
+#### Notes / Observations
+_(anything that felt off but isn't clearly a bug — friction, confusing flows, etc.)_
+
+---
+
 ### UAT Session — 2026-08-07 (BUG-75/UX-12 city-identity picker + Change-city — PASS, CLOSED)
 
 **Scope:** PO live UAT on staging (build 4e77594) of the ATDD-first BUG-75/UX-12 build — the
