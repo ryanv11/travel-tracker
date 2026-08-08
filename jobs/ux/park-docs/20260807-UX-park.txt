@@ -1,0 +1,116 @@
+UX PARK DOCUMENT — 2026-08-07
+================================================================================
+
+THREAD: City-disambiguation picker theme review (BUG-81/BUG-74), PO direction 2026-08-07,
+review-only — no code changed, no implementation dispatched.
+
+DELIVERABLE
+  jobs/ux/tech/20260807-UX-citypicker-theme-review.md
+
+SCOPE COVERED
+  Reviewed the shipped picker (CityPicker.tsx) and both call sites (AddPlaceFlow.tsx,
+  ChangeCityModal.tsx) plus composeCandidateLabel.ts (BUG-81's label-composition util) for
+  adherence with the app's established design theme: visual consistency (spacing,
+  typography, borders, row height, hover/active/selected/cursor states), colour usage (the
+  amber caveat/banner vocabulary, light/dark handling), the new max-h-72 scroll container
+  and its interaction with the "more matches not shown" caveat, readability of composed
+  labels including collision/coordinate-fallback variants, consistency across the two call
+  sites, and accessibility basics (focus, keyboard, contrast).
+
+METHOD
+  Compared against real sibling components rather than an invented bar, per the brief's
+  explicit instruction: TripForm.tsx (a `<button>`-based selectable-list precedent),
+  Admin/CountryTab.tsx (a bordered scrollable list precedent), PlaceDateForm.tsx and
+  ErrorMessage.tsx (amber/red banner vocabulary precedents), plus the Waypoint
+  design-system primitives (design/Button.tsx, design/Input.tsx, design/badges.ts,
+  theme-waypoint.css) to establish which of the app's TWO live component families (legacy
+  raw-Tailwind vs. wp-* tokens) this picker actually belongs to before judging it against
+  either.
+
+KEY FINDING — the app has two live design families, not one, and that's expected
+  design/Button.tsx and design/Input.tsx both self-document as "PHASE 1 ONLY... not yet
+  swapped into any existing call site" — confirmed by grepping wp- usage across
+  src/frontend/components (17 files use it: App.tsx, TripDetail furniture, TripCard,
+  ItemCard, CityItemsPage, etc.; AddPlaceFlow/ChangeCityModal/CityPicker are not among
+  them). This was already flagged as known debt in the 2026-08-01 UX park doc. Judged the
+  picker against its OWN family (the un-migrated legacy Tailwind modals), which is what the
+  brief's "don't invent a new system" instruction actually requires — judging it against
+  the wp-* tokens instead would have manufactured a false divergence out of a known,
+  already-tracked, deliberately-phased rollout.
+
+FINDINGS SUMMARY (full detail + file:line + direction in the tech doc)
+  [BLOCKER] Picker rows are bare <div onClick>, unreachable by keyboard — no tabIndex,
+    role, or onKeyDown. Diverges from TripForm.tsx:253-262's own <button>-based pattern for
+    the identical "pick one row from a filtered list" interaction. Inherited from
+    AddPlaceFlow's pre-existing city-search rows (which CityPicker's own doc comment says
+    it deliberately copied), not newly introduced by BUG-81 — named as inherited, not
+    blamed on this build.
+  [SHOULD-FIX] `disabled` prop only gates the click handler (CityPicker.tsx:96), not the
+    row's visual state — no opacity/cursor change, diverging from Button.tsx's
+    disabled:opacity-60/cursor-not-allowed pair used by every other actionable control in
+    this file family.
+  [SHOULD-FIX] text-amber-600 (used for "please choose"/"more matches" captions, all
+    pre-existing across AddPlaceFlow+ChangeCityModal except the picker's own reuse of the
+    same vocabulary) computes to ~3.2:1 contrast on white — below WCAG AA's 4.5:1 for
+    normal-size text. Flagged as a shared-pattern fix (5 usages across 2 files), not a
+    picker-only patch.
+  [Consistent, confirmed — no action] Row spacing/typography/container styling matches the
+    AddPlaceFlow rows CityPicker was modeled on almost byte-for-byte; amber colour
+    vocabulary matches PlaceDateForm/AddPlaceFlow/ChangeCityModal exactly; the two call
+    sites render the picker + heading + failure banner near identically (compared JSX
+    line-by-line, not just "looks similar").
+  [Nice-to-have] max-h-72 (288px) / row height (~41px) ≈ 7.02 rows — cutoff lands close to
+    a row boundary, weak partial-row "scroll hint"; the truncated-caveat and
+    "list has more rows than fit" are separate signals that can both be silent at once.
+    Flagged as reasoned pixel math, not a rendered screenshot — noted as such.
+  [Nice-to-have] No truncate/line-clamp on rows — long collision/coordinate-fallback labels
+    wrap to 2 lines, uneven row height. Recommended AGAINST truncating (would hide the
+    exact disambiguating info the collision rule exists to surface) rather than prescribing
+    a fix — a real trade-off, not a clean defect.
+  [Nice-to-have, secondary to the theme ask] ChangeCityModal has no post-repoint status
+    banner (AddPlaceFlow's creationStatusMessage has no ChangeCityModal equivalent) — a
+    behavioural cross-call-site inconsistency, not a colour/spacing one; flagged as
+    discretionary scope per OP-34, not sized unprompted.
+  [Not applicable, confirmed by two probes each] No light/dark theming system anywhere in
+    the app (grep dark:/darkMode — zero hits; grep prefers-color-scheme — zero hits;
+    index.css hardcodes one light palette). No :active mousedown states anywhere in the
+    app's button/row vocabulary (grepped app-wide; Button.tsx/Input.tsx read in full show
+    only hover/focus/disabled). Both axes the brief asked about don't apply — not a gap.
+
+BUGS DISCOVERED (per _shared/frameworks.txt rule 30)
+  None new. Every finding is either a pre-existing pattern the picker inherits consistently,
+  or an already-tracked known-debt item (the non-Waypoint token family) restated only to
+  confirm it isn't new. No TRIVIAL/MINOR/MAJOR/CRITICAL classification applies since none of
+  these are functional defects in the picker's own new code — they're either accessibility
+  gaps in inherited markup or contrast values in a pre-existing shared colour token.
+
+NEGATIVE-FINDINGS COMPLIANCE
+  Two claims of absence made in the tech doc, both cleared on two independent probes each:
+  (1) "no light/dark theming system" — grep for `dark:`/`darkMode` (zero hits) AND grep for
+  `prefers-color-scheme` (zero hits) AND direct read of index.css (one hardcoded palette).
+  (2) "no `:active` states anywhere" — grep for `active:` Tailwind variants across
+  components/ and design/ (zero hits outside unrelated `is_active` data fields) AND direct
+  read of Button.tsx/Input.tsx in full (only hover/focus/disabled variants defined).
+
+OPEN ITEMS FOR COO
+  1. Decide whether findings 1-3 (keyboard reachability, disabled-state affordance, amber
+     contrast) become their own tracker item(s) before or alongside PO UAT of BUG-81's
+     readability fix — finding 1 in particular fully blocks a keyboard-only user from
+     completing the "choose the one you mean" disambiguation flow, with no alternative path
+     once the picker is showing.
+  2. Finding 10 (ChangeCityModal's missing post-repoint status feedback) is flagged as
+     discretionary/secondary to the theme-adherence ask per OP-34's value-axis note — my
+     call was to surface it, not size or recommend it unprompted.
+  3. No new dependency, no scanner suppression, no schema change — nothing else needs COO
+     sign-off beyond the above.
+
+WHAT'S NOW UNBLOCKED
+  COO has the full findings set to decide tracker disposition. Frontend: nothing dispatched
+  from this review — per the brief, findings route through COO, not directly to Frontend.
+
+GIT
+  Branch: docs/ux-citypicker-theme-review (docs-only commit: jobs/ux/tech/ review doc +
+  jobs/ housekeeping — context, this park doc, completion report).
+  PR number and CI status: see completion report in jobs/COO/inbox/.
+
+================================================================================

@@ -1,3 +1,46 @@
+UX CONTEXT — 2026-08-07 — CityPicker theme review (BUG-81/BUG-74), review-only thread
+================================================================================
+PROJECT: Travel Tracker
+CURRENT STATUS: Complete. PO direction 2026-08-07 (tracker BUG-81 note): after the BUG-81
+readability fix + BUG-74 frontend banner shipped (PR #427), review the picker "as a whole"
+for adherence with the app's overall design theme. Deliverable:
+jobs/ux/tech/20260807-UX-citypicker-theme-review.md. Branch
+docs/ux-citypicker-theme-review, PR TBD (see completion report in jobs/COO/inbox/ for the
+number and CI status).
+
+Reviewed CityPicker.tsx, its two call sites (AddPlaceFlow.tsx, ChangeCityModal.tsx), and
+composeCandidateLabel.ts against sibling patterns in the same non-Waypoint component family
+(TripForm.tsx, Admin/CountryTab.tsx, PlaceDateForm.tsx) plus the Waypoint primitives
+(design/Button.tsx, design/Input.tsx, design/badges.ts) to establish what "the app's theme"
+actually is rather than inventing a new bar.
+
+VERDICT: theme-consistent on spacing/typography/container/colour-vocabulary axes (all
+confirmed against a real sibling precedent, not assumed) and the two call sites render
+near byte-identically. Three real gaps, all accessibility/feedback rather than new
+colour/spacing divergences: (1) BLOCKER — picker rows are bare `<div onClick>`, unreachable
+by keyboard, diverging from TripForm.tsx's own `<button>`-based pattern for the identical
+"pick one row from a filtered list" interaction; inherited from AddPlaceFlow's pre-existing
+city-search rows, not newly introduced by BUG-81. (2) SHOULD-FIX — the `disabled` prop only
+gates the click handler, not the row's visual state, diverging from Button.tsx's
+opacity-60/cursor-not-allowed disabled vocabulary used everywhere else in this file family.
+(3) SHOULD-FIX — text-amber-600 (used for "please choose"/"more matches" captions,
+pre-existing across AddPlaceFlow+ChangeCityModal, not new) computes to ~3.2:1 contrast on
+white, below WCAG AA's 4.5:1 for normal text. Remainder are nice-to-have polish or
+"not applicable" (confirmed: the app has no light/dark theming system at all, and no
+`:active` mousedown states anywhere — both by two independent probes, so the picker
+following the same omissions is consistent, not a gap). Full findings + severities +
+file:line in the tech doc; distinguishes theme-adherence (PO's actual ask) from general
+polish throughout.
+
+BUGS DISCOVERED: none new — all findings are pre-existing patterns the picker inherits
+consistently (see tech doc's per-finding "diverges from established pattern" vs.
+"pre-existing, app-wide" framing).
+
+WHAT'S NOW UNBLOCKED: COO has the findings to decide whether findings 1-3 become their own
+tracker items (keyboard reachability especially — it fully blocks a keyboard-only user from
+completing the disambiguation flow) before or alongside PO UAT of BUG-81's readability fix.
+
+================================================================================
 UX CONTEXT — 2026-08-01 (updated twice same day — city entry/disambiguation spec delivered,
 then extended with a resolution design + MVP scope after PO follow-up)
 PROJECT: Travel Tracker
