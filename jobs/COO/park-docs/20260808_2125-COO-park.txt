@@ -1,0 +1,93 @@
+COO SESSION PARK — 2026-08-08 ("GOVERNANCE HARDENING + DOC RETIREMENT + DOGFOOD UAT SET UP")
+8 PRs merged (#438–#445) · main green throughout · clean tree, only-main · UAT staged, awaiting PO
+================================================================================
+
+## READ THIS FIRST
+
+1. **A full dogfood UAT is staged and waiting for the PO.** `jobs/PO/uat-log.md` top session
+   ("Scotland dogfood trial", 2026-08-08) is a batched UAT of all **26 done_pending_uat** items —
+   **21 numbered checks** in planning-flow order, each with Steps/Expected/**Result:** line. The PO
+   runs it against staging (`c6023f9`, confirmed current via /health) and replies "N PASS" / "N FAIL:
+   …" / "N N/A" (checkboxes don't tick in the PO's VS Code — the format is numbered, not `[ ]`).
+   **On results: PASS → flip that item done_pending_uat→done; FAIL → open a fresh bug with the repro.**
+   Known-pending friction is pre-listed as do-not-log (BUG-46/48/40/41/42/53).
+
+2. **Three governance guards are now MECHANICAL, not just written** (#440):
+   - `.claude/hooks/no-protected-commit.sh` (PreToolUse) HARD-BLOCKS a `git commit` on main/production
+     (override: `ALLOW_PROTECTED_COMMIT=1`; the ff-only prod promotion is unaffected).
+   - `npm run tracker:check` (in /pre-push + CI) HARD-FAILS on duplicate tracker IDs, missing fields,
+     or a brdRef not in the BRD. A dup tracker ID had slipped 3× and git never caught it.
+   - Root-cause fix: **OP-33/34/35 were governance rules with no tracker entry** — that's why a
+     tracker-only grep re-used OP-33/34 as dup IDs mid-session. Backfilled, so the tracker is now the
+     complete OP registry (OP-01..38) and the dup gate covers the CLAUDE-vs-tracker collision.
+   - Both have /coo-startup canaries. **Lesson tightened in memory `feedback_grep_tracker_id_is_free`:
+     grep CLAUDE.md governance IDs too, not just tracker.json.**
+
+3. **Three standalone plan docs were retired — two deleted, one stamped.** Method depends on how
+   woven-in the doc is (a real call, not rote): execution-queue + cleanup-wave-plan were disposable
+   parallel-session lists → DELETED, contents folded into the tracker (#442/#443). backlog-clearance-plan
+   drove Waves 0/1 and is cited 13× across immutable decision history (ADL log, ADL-41, BRD changelog)
+   → **HISTORICAL banner, kept in place** (#444), per the document-lifecycle rule. Nothing lost either way.
+
+## What the session was, in one paragraph
+
+COO pickup after /clear, then a long governance/hygiene arc on PO direction. Curated open-dialogues to
+a strict two-section (Open/Parked) staging file, deleting all tracked/resolved pointers. Adopted two
+OP-27 refinements (ADL-52). Built the dup-ID + no-main-commit hard guards the recurring dup-ID pattern
+demanded. Compressed CLAUDE.md 588→493 by moving war-stories to memory/tracker (no rule weakened).
+Reviewed & retired all three standalone plan docs against the whole tracked backlog — folding ~13
+unique items into new tracker entries (QUAL-37–42, DEP-07) + existing bugs (BUG-84 bundle, BUG-53,
+BUG-82, QUAL-35/08), and 2 PO-decision proposals into open-dialogues (D-27/28). Assessed dogfood
+readiness (staging current, owner flow shippable) and scaffolded the 21-check UAT run-list. Caught and
+fixed one self-introduced OP dup-ID mid-session via the record-decision numbering guard.
+
+## Shipped & merged (8 PRs, #438–#445)
+
+| # | What |
+|---|---|
+| #438 | open-dialogues → undecided/untracked-only (Open/Parked); 13 items promoted/folded |
+| #439 | OP-27 refinements (ADL-52) + fixed OP-33/34 tracker dup-IDs → OP-36/37 |
+| #440 | hard-block guards: no-protected-commit hook + tracker-check gate + OP-33/34/35 backfill + canaries |
+| #441 | CLAUDE.md compression 588→493 (negative-findings, OP-33/34/35, no-wholesale → directive+pointer) |
+| #442 | curated 2026-07-31 review-execution-queue — dropped 6 completed items, trimmed 3 |
+| #443 | retired execution-queue + cleanup-wave-plan into the tracker (QUAL-37–42/DEP-07 + folds + D-27/28) |
+| #444 | backlog-clearance-plan → HISTORICAL banner (13 decision-history citations kept valid) |
+| #445 | Scotland dogfood UAT session scaffolded (21 checks) |
+
+## State of play (durable — tracker.json / STATUS.md / open-dialogues)
+
+- **AWAITING PO NOW:** the dogfood UAT (26 done_pending_uat items). This is the next action.
+- **P1s open:** BUG-63 (non-owner add-place, held for ADL-46 access-model), QUAL-18 (CSP E2E env-parity).
+- **New tracked work, no dispatch yet:** QUAL-37 backup posture · 38 Goal-6 scorecard · 39 PO-journey
+  Playwright pack · 40 RHF+shared-zod (Architect ADL first; absorbs the ItemForm/SEC-12/sanitiseUrl
+  cleanup) · 41 coverage visibility · 42 Architect review batch (U10/U13/U15) · DEP-07 dep batch bump ·
+  OP-36 apply-ADL-49-allowlist · OP-37 gh-CLI-auth.
+- **BUG-84 backend-hygiene bundle** — the coherent next Backend brief: item 11 layering + U7/U8 +
+  QUAL-08 backend (photo_album_ref validation). Security checklist applies.
+- **open-dialogues Open (undecided, untracked):** D-23 container-credential enumeration · D-14 ISO-code
+  country search · D-05 separate prod/staging Clerk apps · D-27 prod telemetry (Sentry) · D-28 UAT WIP
+  limit. Parked (watch-if-recurs): D-03/08/09/13/24/26.
+
+## Process notes worth keeping
+
+- **A written rule that gets violated 3× wants a hook, not a 4th reminder.** Dup-ID and
+  direct-to-main are now mechanical. The general principle held: only ~2-3 rules were both
+  mechanically checkable AND had a violation history; the rest stay prose (a hook there just false-positives).
+- **Mechanically-enforced rules shed their CLAUDE.md rationale** — the OP-33/34/35 sections shrank
+  precisely because their full record now lives in the backfilled tracker entries. Mechanization became
+  the compression lever.
+- **Retirement method scales with how woven-in a doc is** — delete a disposable list; HISTORICAL-banner
+  a doc cited across immutable decision history (don't rewrite ADL/changelog entries to scrub a ref).
+- **"Assess against ALL tracked work, not just this doc"** (PO) — the queues largely duplicated or
+  overlapped existing tracker items; folding beats re-creating.
+- **The record-decision numbering guard earned its keep** — caught the OP-33/34 dup I introduced,
+  before it spread.
+
+================================================================================
+
+## Open threads
+See `jobs/COO/open-dialogues.md` (Open = 5 undecided items; Parked = 6 watch-if-recurs). All plan docs
+now retired; the tracker is the single home, guarded by tracker-check.
+
+Suggested next after UAT: log the PO's results (flip PASS→done, bug the FAILs), then the BUG-84
+backend-hygiene bundle or QUAL-18/19 CSP env-parity are the highest-value ready work.
