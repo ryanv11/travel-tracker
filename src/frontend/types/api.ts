@@ -115,7 +115,7 @@ export interface GeocodeCandidate {
   osm_type?: 'node' | 'way' | 'relation';
   osm_id?: number;
   /**
-   * BUG-77 — structured NAMES (not codes) for a clean "City, State, Country"
+   * BUG-81 — structured NAMES (not codes) for a clean "City, State, Country"
    * picker row, distinct from `country_code`/`region_iso` above. `county` is
    * a disambiguation aid only (add to the label to distinguish two
    * same-state candidates), not identity. Typed optional for the same

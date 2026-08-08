@@ -1,5 +1,5 @@
 /**
- * BUG-77 (P2) — structured state/country/county NAMES on GET /api/geocode
+ * BUG-81 (P2) — structured state/country/county NAMES on GET /api/geocode
  * candidates, end-to-end. BRD GE-16.
  *
  * Backend-only scope: this proves the response CONTRACT carries the names
@@ -33,7 +33,7 @@ function loadFixture(name: string): unknown {
   return JSON.parse(readFileSync(path.join(FIXTURE_DIR, name), 'utf-8'));
 }
 
-const mockUserId = 'geocode-bug77-user-0000-0000-000000000000';
+const mockUserId = 'geocode-bug81-user-0000-0000-000000000000';
 
 vi.mock('../../middleware/auth.js', () => ({
   requireAuth: (
@@ -43,8 +43,8 @@ vi.mock('../../middleware/auth.js', () => ({
   ) => {
     (req as import('express').Request & { user?: unknown }).user = {
       id: mockUserId,
-      clerkId: 'clerk_geocode_bug77',
-      email: 'geocode-bug77@example.com',
+      clerkId: 'clerk_geocode_bug81',
+      email: 'geocode-bug81@example.com',
       isOwner: 0,
     };
     next();
@@ -65,7 +65,7 @@ function stubFetch(body: unknown) {
   );
 }
 
-describe('GET /api/geocode — BUG-77 structured state/country/county names', () => {
+describe('GET /api/geocode — BUG-81 structured state/country/county names', () => {
   beforeEach(() => {
     __resetChokepointForTests();
     vi.stubEnv('GEOCODING_ENABLED', 'true');

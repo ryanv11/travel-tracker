@@ -126,7 +126,7 @@ geocodeRouter.get(
         longitude: c.longitude,
         osm_type: c.osmType ?? null,
         osm_id: c.osmId ?? null,
-        // BUG-77 — structured NAMES (not codes) for a clean "City, State,
+        // BUG-81 — structured NAMES (not codes) for a clean "City, State,
         // Country" picker row, distinct from the country_code/region_iso
         // codes above. county is disambiguation-only payload (never a match
         // key — same rule as county already carries on NominatimCandidate).
