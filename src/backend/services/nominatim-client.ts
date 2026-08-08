@@ -101,6 +101,20 @@ export interface NominatimCandidate {
    * key (display_name/county are payload, not identity — v3 §0).
    */
   county?: string | null;
+  /**
+   * BUG-77 — address.state, the human-readable state/province NAME (e.g.
+   * "Colorado"), distinct from `regionIso` (the ISO 3166-2 CODE, e.g.
+   * "US-CO"). Render payload for the frontend picker only, never a match
+   * key. `null` when the raw response omitted it.
+   */
+  stateName?: string | null;
+  /**
+   * BUG-77 — address.country, the human-readable country NAME (e.g. "United
+   * States"), distinct from `countryCode` (the ISO 3166-1 alpha-2 code, e.g.
+   * "US"). Render payload for the frontend picker only, never a match key.
+   * `null` when the raw response omitted it.
+   */
+  countryName?: string | null;
 }
 
 interface RawNominatimResult {
@@ -122,6 +136,10 @@ interface RawNominatimResult {
     county?: string;
     /** BUG-75 v3 (M2 discriminator, fallback when county is absent). */
     state_district?: string;
+    /** BUG-77 — human-readable state/province name (e.g. "Colorado"). */
+    state?: string;
+    /** BUG-77 — human-readable country name (e.g. "United States"). */
+    country?: string;
   };
 }
 
@@ -327,6 +345,8 @@ function parseCandidate(raw: RawNominatimResult): NominatimCandidate | null {
     osmType,
     osmId,
     county: raw.address?.county ?? raw.address?.state_district ?? null,
+    stateName: raw.address?.state ?? null,
+    countryName: raw.address?.country ?? null,
   };
 }
 
