@@ -1,0 +1,233 @@
+PARK DOCUMENT — Frontend — QUAL-29/30/31/04 dedup sweep + BUG-83 fix
+Date: 2026-08-08
+Branch: chore/frontend-dedup-sweep (off main)
+PR: see completion report for #, CI green, not merged (COO merges)
+
+TASK
+A batch of dedup/refactor cleanups plus one real bug fix, all frontend,
+dispatched as independent of other parallel lanes running the same session.
+Five items: BUG-83 (real bug), QUAL-29 (admin CRUD triplication), QUAL-30
+(trips layout controller dup), QUAL-31 (modal-overlay shell dup), QUAL-04
+(dead code from the WP reskin / ADL-28 companion migration).
+
+READ FIRST (for the next agent touching this area)
+- src/frontend/hooks/useTripsController.ts — the shared /trips list
+  controller. Both DesktopTripsLayout and MobileTripsLayout call this
+  identically; mobile layers its own detail-view plumbing on top (see the
+  hook's own doc comment for exactly what stayed local and why).
+- src/frontend/components/Admin/AdminNameListTab.tsx — the shared admin
+  CRUD list-editor. CategoryTab/ActivityTab/CompanionTab are now ~20-line
+  wrappers around it.
+- src/frontend/components/shared/ModalOverlay.tsx — the shared modal shell.
+  Read its doc comment before adding a 9th modal to the app or touching any
+  of the 8 existing sites — it explains the z-index-via-inline-style
+  decision (Tailwind JIT can't see a dynamically interpolated `z-[N]` class)
+  and why CarryForwardModal gets `panelStyle`/`closeOnBackdropClick={false}`
+  instead of the default props.
+
+WHAT SHIPPED
+
+1. BUG-83 (the one real bug in this thread) — src/frontend/hooks/useTrips.ts
+   useUpdateTrip's onSuccess only invalidated ['trips'] and ['trips', id].
+   Every OTHER trip mutation in the same file (create/status/lock/unlock/
+   delete) already also invalidated ['map', 'shading'] — useUpdateTrip was
+   the one outlier, and a trip edit changing country_codes is exactly the
+   case that needs it (country_codes drives map shading). One-line fix:
+   added the same `qc.invalidateQueries({ queryKey: ['map', 'shading'] })`
+   call the siblings already had. Confirmed the query key by reading
+   useMapShading.ts directly (useMapShading/useRegionShading both key under
+   ['map', 'shading', ...], so this invalidation call's prefix match covers
+   both).
+   Test: hooks/__tests__/useTrips.mutations.test.tsx — 6 cases. One asserts
+   useUpdateTrip's full invalidation set (the fix itself); five are a
+   regression guard confirming the other five mutations still invalidate
+   map shading (so a future refactor touching this file can't silently
+   un-fix BUG-83 or regress a sibling without a red test).
+
+2. QUAL-29 — components/Admin/AdminNameListTab.tsx (new) + useAdmin.ts
+   refactor. CategoryTab/ActivityTab/CompanionTab were near-byte-identical
+   (add-form + list + inline-rename + deactivate/re-activate), confirmed via
+   a dedicated Explore-agent investigation before writing any code (per this
+   project's fresh-eyes/two-probe habits, even for a refactor task). The
+   shared component is generic over `NameListItem { id, name, is_active:
+   boolean | number }` — the `boolean | number` union exists because
+   Companion.is_active is typed `number` on the wire (types/api.ts) while
+   Category/Activity are `boolean`; this is a PRE-EXISTING type
+   inconsistency, out of this brief's scope to "fix," so the shared
+   component just accepts either rather than forcing a silent behavior
+   change into an unrelated type.
+   useAdmin.ts: the 4th duplicated location was the hook BODIES themselves
+   (create/update/delete/list, ~12 near-identical functions). Factored
+   through useNameList/useActiveNameList/useCreateNameListItem/
+   useUpdateNameListItem/useDeleteNameListItem private helpers.
+   Every exported hook name, query key, and endpoint path is UNCHANGED —
+   verified by grepping every call site of useCategories/useActiveCategories/
+   useCreateCategory/etc. across the frontend (TripForm.tsx uses the
+   useActive* variants) before touching the file, confirming nothing else
+   needed to change. Companions' BUG-51 extra `['trips']` invalidation
+   preserved via an `extraInvalidateKeys` param passed only for companions.
+   Test coverage gap closed: NONE of the three original Tab components had
+   a dedicated test (AdminPanel.test.tsx stubs them out as data-testid
+   shells). New: components/Admin/__tests__/AdminNameListTab.test.tsx, 10
+   cases (loading, error, render active+inactive rows, add with trim,
+   add-empty no-op, rename+save+exits-edit-mode, cancel-no-op, deactivate,
+   re-activate, create-error rendering).
+
+3. QUAL-30 — hooks/useTripsController.ts (new). DesktopTripsLayout and
+   MobileTripsLayout duplicated filter/search/sort state, the multi-select
+   bulk-delete-with-5s-undo state machine (FEAT-BD/NTH-01), and five
+   memoized derived values (displayedTrips, cityInfo/mapFilterLabel — BUG-80,
+   tripCount, statusCounts, selectableTrips — this last one stayed
+   internal to the hook since neither layout ever read it directly, only
+   handleSelectAll did). Both layouts now call useTripsController()
+   identically and destructure what they need; each keeps 100% of its own
+   markup. Mobile-only pieces (useTrip/useMe/renderDetailContent/the
+   slide-transition listPanelClass/detailPanelClass state — mobile has no
+   <Outlet/>, see its own module doc comment for why) stay local to
+   MobileTripsLayout; it reuses the hook's `selectedId`/`navigate` instead
+   of calling useParams/useNavigate a second time.
+   Test coverage gap closed: NEITHER layout had a dedicated test before
+   (only App.test.tsx, which mocks TripsLayout out entirely). New:
+   hooks/__tests__/useTripsController.test.tsx, 9 cases covering
+   tripCount/statusCounts derivation, search-text filtering, country- and
+   city-scoped map-filter label derivation (including BUG-80's
+   region/country subtitle), selection-mode enter/exit + checkbox toggling,
+   select-all excluding locked trips, bulk-delete -> 5s fake-timer ->
+   deletes-each-id -> clears pendingDelete, undo-cancels-the-timer, and
+   bulk-delete-no-op-when-nothing-selected.
+
+4. QUAL-31 — components/shared/ModalOverlay.tsx (new), adopted at 8 sites
+   across 7 files: ConfirmDialog (had its own bundled copy — unified),
+   TripForm, ItemForm, PlaceDateForm, ChangeCityModal, AddPlaceFlow (3
+   separate early-return branches: creationStatusMessage, placeWarnings,
+   the main add-place form), CarryForwardModal.
+   Design decisions worth flagging:
+   - z-index goes through `style={{ zIndex }}`, NOT a `z-[${n}]` Tailwind
+     class. Tailwind's JIT content-scanner needs a complete, static class
+     string in source to generate the CSS rule; a template-literal
+     interpolation defeats that scanner and the site would silently lose
+     its stacking order in a production build — a real, easy-to-miss
+     regression class this sidesteps entirely. Confirmed there's no
+     tailwind.config.js (Tailwind v4, CSS-based @theme config per
+     theme-waypoint.css) so this isn't a config-level content-glob issue,
+     it's inherent to how JIT scanning works regardless of config style.
+   - CarryForwardModal was the one outlier: inline React.CSSProperties
+     instead of Tailwind, AND the one site with genuinely different
+     behavior — no backdrop-click-dismiss at all (only its own Skip button
+     or the post-success setTimeout). Preserved via
+     `closeOnBackdropClick={false}` (no onClose passed at all) plus a new
+     `panelStyle` prop carrying its exact original inline styles verbatim —
+     specifically to avoid silently swapping its custom box-shadow for
+     Tailwind's shadow-2xl (subtly different blur/spread values). A comment
+     at the call site explains this is deliberate, not an oversight.
+   - Deliberately did NOT add ESC-key handling, a focus trap, or
+     role="dialog"/aria-modal to the shared component. None of the 8
+     original sites had any of these — adding them here would be new
+     behavior introduced by what's supposed to be a behavior-preserving
+     refactor. Flagging as a good candidate for a future UX-driven
+     accessibility pass across all 8 sites at once (their consistency is
+     exactly what this extraction now makes cheap), not built here since
+     it wasn't asked for and would need a UX call on focus-trap/ESC
+     semantics per site.
+   Verified all 8 sites still type-check and the full frontend suite (which
+   exercises TripForm/ItemForm/ChangeCityModal/AddPlaceFlow/CarryForwardModal
+   indirectly through their existing integration tests) stayed green.
+
+5. QUAL-04 — three items, each verified with two independent probes before
+   deletion (this project's negative-findings rule):
+   - src/frontend/pages/TripsPage.tsx — DELETED (whole file, 8 lines, its
+     own doc comment already called itself "legacy"). Probe 1: App.tsx's
+     route table imports TripsLayout directly at the /trips route, never
+     TripsPage. Probe 2: repo-wide grep for "TripsPage" hits only its own
+     definition line — no route, test, or barrel-export reference anywhere.
+   - COMPANIONS const, src/backend/db/seed-data.ts — REMOVED. NOTE: this is
+     a backend file, flagged here explicitly since it's outside normal
+     Frontend scope — done because the brief named this exact target by
+     path/name and it was independently confirmed dead, not a unilateral
+     scope expansion into Backend's lane. Probe 1: repo-wide grep for
+     "COMPANIONS" hits only its own definition plus an unrelated
+     `// COMPANIONS` section-header comment in useAdmin.ts. Probe 2: read
+     seed.ts and startup.service.ts in full (the two files seed-data.ts's
+     own header comment names as consumers) — neither imports COMPANIONS;
+     both carry an explicit ADL-28 comment stating companions have no
+     default list post-migration. Contrast check for calibration: sibling
+     MAP_SHADING_CONFIG in the same file, same era, IS still live
+     (shadingConfig.ts imports and uses it) — so this wasn't "the whole
+     file is unused," specifically COMPANIONS is the orphan.
+   - theme-waypoint.css header comment — CORRECTED, not deleted (the
+     @theme token block itself is fully live and untouched). The comment
+     said "PHASE 1 ONLY — defined-but-unused, wiring into screens is Phase
+     2 work." Probe 1: git log on the file shows a later WP-03/WP-04 commit
+     ("Waypoint Trips reskin") landed after the comment was written. Probe
+     2: fresh grep for wp-* token class usage hits 10+ files (Button.tsx,
+     Input.tsx, badges.ts -> StatusBadge.tsx, TripCard.tsx, both
+     TripsLayout files, TripDetail.tsx, etc.) — badges.ts's own doc comment
+     literally already says "WIRED (WP-03/WP-04, GitHub #205)". Rewrote the
+     comment to state current reality and name where the tokens are
+     consumed.
+
+FULL-FILE REWRITES DECLARED (OP-28)
+- src/frontend/components/Admin/CategoryTab.tsx, ActivityTab.tsx,
+  CompanionTab.tsx — each rewritten wholesale (Write, not Edit). Reason:
+  QUAL-29's entire point is collapsing each ~150-line file to a ~20-line
+  wrapper around the new shared AdminNameListTab — there is no meaningful
+  partial edit here, the whole body changes by design. Not shared-record
+  files (source code, not jobs/**), so OP-28's Edit-only rule doesn't apply;
+  declaring per its "must be declared" clause anyway since it's a 100%
+  rewrite.
+All other file changes in this thread (useTrips.ts, useAdmin.ts, the two
+TripsLayout files, all 7 ModalOverlay-adopting files, seed-data.ts,
+theme-waypoint.css) were targeted Edits, not rewrites.
+
+BUGS DISCOVERED (frameworks.txt §30 tracking)
+- [none new] — BUG-83 was the pre-existing bug this thread was dispatched
+  to fix, not one discovered during the work. No other bugs surfaced.
+
+MISTAKE CAUGHT MID-THREAD (worth recording so it doesn't recur)
+Ran `npx biome check --write .` from the repo root to clean up formatting
+after the QUAL-31 edits. This project's actual `npm run check` script only
+scopes biome to `src/` (`"check": "biome ci src/"` in package.json) — the
+rest of the repo (data/*.json, scripts/*, tests/contract/*, tsconfig*.json,
+vite.config.ts, .devcontainer/devcontainer.json, biome.json itself) has
+never been biome-normalized against this config and was never meant to be.
+The unscoped `--write .` reformatted ~20 files entirely outside my task.
+Caught via `git status` before committing — none of it was staged or
+committed, all reverted with `git checkout -- <files>`. Re-ran scoped to
+`src/` only, which is what should have been done from the start. No harm
+done, but flagging so the next agent doesn't repeat it: never run
+`biome check --write` bare against the repo root in this project.
+
+VERIFICATION DONE
+- npm run check (biome ci src/): clean — 5 pre-existing infos in
+  src/backend/services/__tests__/geocoding.resolveByOsmId.test.ts, not
+  touched by this thread (same ones the BUG-81 park doc already recorded).
+- npm run type:check:all: clean (frontend + backend).
+- npm run test:backend: 762/762 (unchanged count — seed-data.ts's removed
+  export had zero consumers, confirmed before removal, so nothing could
+  have been exercising it).
+- npm run test:frontend: 346/346 (+25 new: 6 useTrips.mutations, 10
+  AdminNameListTab, 9 useTripsController — up from the 321 baseline
+  recorded in the prior BUG-81 park doc).
+- npm run status:check: up to date. tracker.json NOT touched (COO's job
+  per the brief — parallel sweeps running concurrently this session).
+- git status: clean working tree after both commits, nothing left
+  uncommitted.
+
+NOT BUILT / OUT OF SCOPE
+- ESC-key handling / focus trap / role="dialog" on ModalOverlay — see
+  QUAL-31 above, deliberately deferred as a UX-driven follow-up.
+- Did not "fix" Companion.is_active's boolean/number type mismatch — noted
+  in AdminNameListTab's own doc comment as pre-existing and out of scope.
+- Did not touch useActiveCategories/useActiveActivities/useActiveCompanions'
+  own small duplication (3x identical 5-line active-list query hooks) —
+  the brief's "~4 locations" count for QUAL-29 matches CategoryTab +
+  ActivityTab + CompanionTab + the CRUD hook bodies exactly; the separate
+  active-list hooks weren't named and are low-risk enough not to fold in
+  speculatively.
+
+NEXT STEPS (when resumed)
+- COO: review PR (see completion report for #), merge via
+  /coo-merge-and-close when CI is green, then update tracker.json for
+  BUG-83/QUAL-29/QUAL-30/QUAL-31/QUAL-04 per this thread's brief
+  instruction not to touch it directly.
+- Nothing else blocks on this thread.
