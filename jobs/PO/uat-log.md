@@ -58,7 +58,7 @@ city-disambiguation place-picker, the country-suggestion, and the coverage of th
 **Build:** 4e77594; re-tested on **758ef15** after the BUG-76 fix.
 **Verdict:** PASS — closed 2026-08-07. The picker mechanism PASSES, and BUG-76 (the coverage defect
 it surfaced) is now fixed, deployed, and re-tested PASS on build 758ef15. BUG-75, UX-12, BUG-76 → done.
-A follow-on picker READABILITY finding surfaced during the re-test → tracked as **BUG-77** (new).
+A follow-on picker READABILITY finding surfaced during the re-test → tracked as **BUG-81** (new).
 
 #### Findings
 
@@ -78,7 +78,7 @@ A follow-on picker READABILITY finding surfaced during the re-test → tracked a
       Denver CO distinctly; Springfield surfaces IL/MA/MO/OH etc. BUG-74's backend half (empty-vs-failed
       `status` contract) shipped in the same PR; its frontend banner remains a discrete follow-up.
 
-- [ ] **Picker readability (BUG-77, P2, NEW — non-blocking).** With the coverage fix surfacing full lists,
+- [ ] **Picker readability (BUG-81, P2, NEW — non-blocking).** With the coverage fix surfacing full lists,
       the picker rows (raw Nominatim `display_name`) are hard to skim — county + postcode noise
       ("Springfield, Fairfax County, Virginia, 22150, United States"). Agreed fix: rows read "City, State,
       Country", county added only to disambiguate same-state duplicates, postcode never; + list height cap.
@@ -86,7 +86,7 @@ A follow-on picker READABILITY finding surfaced during the re-test → tracked a
 
 #### Notes / Observations
 The picker fix is genuinely working; BUG-76 was UPSTREAM of it and is now fixed and re-tested, so this
-session is CLOSED PASS. The only residual is the BUG-77 readability polish (tracked, non-blocking).
+session is CLOSED PASS. The only residual is the BUG-81 readability polish (tracked, non-blocking).
 
 ### UAT Session — 2026-08-01 (BRD-GE16 / ADL-46 release — PO deployment shakedown, FAIL)
 

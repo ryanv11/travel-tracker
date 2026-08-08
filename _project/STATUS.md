@@ -82,7 +82,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-80 | Saved places render as name + country only — two different Newports in one trip are indistinguishable | backend | done_pending_uat |
 | BUG-79 | Region selector not narrowed for an ambiguous US city, though it is for the UK | frontend | done_pending_uat |
 | BUG-77 | 22 region-tier countries ship with zero regions — 22 latent BUG-30s (ADL-48 S1) | database | done_pending_uat |
-| BUG-77 | Disambiguation picker rows hard to skim — raw display_name shows county + postcode noise | frontend | ⬜ Pending |
+| BUG-81 | Disambiguation picker rows hard to skim — raw display_name shows county + postcode noise | frontend | ⬜ Pending |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | QUAL-29 | Admin name-list resource (categories/activities/companions) triplicated across four layers — an admin-list factory that used to exist was unwound by the per-user migrations | architect | ⬜ Pending |
