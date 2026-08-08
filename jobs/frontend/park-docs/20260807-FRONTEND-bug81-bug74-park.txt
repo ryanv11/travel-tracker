@@ -1,0 +1,143 @@
+PARK DOCUMENT — Frontend — BUG-81 (picker readability) / BUG-74 (geocoder-failure banner)
+Date: 2026-08-07
+Branch: feat/bug81-picker-readability (off main)
+PR: #427 — CI 18/18 green, not merged (COO merges)
+
+TASK
+Two bundled UI fixes on the geocode/place-picker surface. BUG-81: CityPicker's raw
+display_name rows are noisy (postcode/county cruft) and uncapped-height. BUG-74: an
+upstream geocoder failure was indistinguishable from a genuine no-match. Both backend
+halves (structured state/country/county fields; the status field) were already merged
+to main before this brief — this thread is FRONTEND-only.
+
+READ FIRST (for the next agent touching this area)
+- src/frontend/utils/composeCandidateLabel.ts — the label-composition rule, doc comment
+  states the full algorithm.
+- src/frontend/components/shared/CityPicker.tsx — consumer; doc comment updated to point
+  at composeCandidateLabel.ts rather than re-describing the rule.
+- Tracker BUG-81 note — the PO-agreed rule this implements verbatim (Springfield PA
+  Delaware-County-vs-Bucks-County is the worked collision example, taken directly from
+  the PO's own framing).
+- src/frontend/components/TripDetail/__tests__/AddPlaceFlow.city-picker.test.tsx and
+  .../ChangeCityModal.test.tsx + fixtures/newportGeocode.ts — the two existing ATDD
+  consumers of CityPicker. Their fixtures predate BUG-81 and carry NO state/country/
+  county fields, so they exercise the "structured fields entirely absent" fallback path
+  (cleaned display_name) — this is WHY they stayed green unmodified. If you ever add
+  state/country/county to those fixtures, the picker output for those rows will change
+  from full display_name to the composed "City, ..." form — re-check those assertions
+  if you do.
+
+WHAT SHIPPED
+
+1. src/frontend/utils/composeCandidateLabel.ts (NEW) — pure function
+   composeCandidateLabels(candidates: GeocodeCandidate[]): string[], aligned by index.
+   Algorithm (see its own doc comment for the full rationale):
+     a. hasStructuredFields(c) = state != null || country != null || county != null.
+     b. Structured candidates: base label = [name, state, country] joined, skipping
+        empty parts. Never includes postcode (postcode was never in these fields).
+     c. Non-structured candidates: base label = cleanDisplayName(display_name) — strips
+        postcode-looking segments via two regexes (numeric \d{3,10}; UK-style
+        alphanumeric like "PO30 1JU") — falling back to the raw display_name if
+        stripping would leave nothing.
+     d. Collision pass: structured candidates sharing (name, state, country)
+        case-insensitively get county inserted: [name, county, state, country].
+     e. Rare-fallback pass: anything STILL identical (case-insensitive) after (d) gets
+        a rounded-coordinate suffix " (lat, long)".
+     f. Absolute-last-resort pass: anything still colliding (should not happen in
+        practice) gets a positional suffix " (2)", " (3)", ... — guarantees the "no two
+        rows are ever identical" requirement outright rather than leaving a
+        theoretical gap.
+   Deliberately pure/stateless (no React) so it's unit-testable on its own; CityPicker
+   just maps candidates through it by index.
+
+2. src/frontend/components/shared/CityPicker.tsx — row label now `labels[index]` from
+   composeCandidateLabels instead of `candidate.display_name`. List container
+   restructured: outer `border border-gray-200 rounded-md overflow-hidden` div kept (for
+   the rounded-corner clip), NEW inner `max-h-72 overflow-y-auto` div wraps the row map
+   — chose max-h-72 (18rem, ~6-8 rows at the existing px-3 py-2.5 row height) per the
+   brief's suggested range. onSelect/disabled/truncated contract unchanged. Doc comment
+   updated (not rewritten) to point at composeCandidateLabel.ts.
+
+3. src/frontend/types/api.ts — GeocodeResult gained optional `status?: 'ok' | 'error' |
+   'disabled'`, same optional/additive pattern as `truncated` (existing fixtures that
+   predate the field keep type-checking; the real backend always sends it per
+   jobs/backend/tech/20260307-api-reference.md's Geocode Proxy section, confirmed by
+   reading both the doc and src/backend/routes/geocode.ts directly — the doc matches the
+   code exactly, no drift to flag).
+
+4. src/frontend/hooks/useCities.ts — lookupCityCountry now computes
+   `upstreamFailed = result.status === 'error' || result.status === 'disabled'` and
+   returns that as `failed` (previously always `false` on any non-throwing response).
+   `status === 'ok'` (or omitted, for pre-BUG-74 mocks/fixtures) leaves `failed: false`
+   unchanged. NO changes to AddPlaceFlow.tsx or ChangeCityModal.tsx — both already read
+   `failed` off this same function (AddPlaceFlow.tsx:374/431, ChangeCityModal.tsx via
+   useCityDisambiguation.ts:61) and already render the exact BUG-73 banner text
+   ("Automatic lookup failed — you can select country and region manually.") for
+   `failed:true`, so the status-mapping fix flows through to both consumers with zero
+   further code changes. This is also why the brief's copy-decision question
+   ("if unclear, keep the existing BUG-73 banner text") didn't actually need a judgment
+   call — reusing it wasn't a choice against inventing new copy, it was the only
+   consistent outcome of not touching two working, tested UI blocks.
+
+5. Tests — composeCandidateLabel.test.ts (9 cases: default label, collision+county,
+   non-colliding-neighbor-unaffected, missing-state no-empty-comma, no-postcode,
+   legacy-fallback matching the real Newport IOW/Telford ATDD fixture text, rare-fallback
+   coordinate discriminator, label-count-matches-candidate-count). CityPicker.test.tsx
+   (NEW file — no prior CityPicker unit test existed; 7 cases covering the same ground at
+   the render layer plus the max-h-72/overflow-y-auto class assertion and the
+   onSelect/disabled/truncated contract). useCities.geocode.test.tsx — 4 new cases under
+   a new "BUG-74: status -> failed mapping" describe block (error, disabled, ok-empty,
+   status-omitted).
+
+VERIFICATION DONE
+- npx vitest run (targeted): 3 files, 28/28 green.
+- npm run test:frontend: 321/321 green, 45 files — includes the existing BUG-75/UX-12
+  ATDD suites (AddPlaceFlow.city-picker.test.tsx, ChangeCityModal.test.tsx), unmodified
+  and passing via the legacy-fallback path (see READ FIRST above).
+- npm run test:backend: 762/762 green (untouched, backend already shipped separately).
+- npm run type:check:all: clean.
+- npm run check (biome): clean after `biome check --write` fixed 3 formatting-only
+  findings (import order in CityPicker.tsx, two multi-line-array formattings in the new
+  test files) — no lint errors. 5 pre-existing infos remain in backend test files not
+  touched by this brief (same ones noted in the BUG-75 park doc — literal-key lint
+  suggestions in cities.identity-carry.test.ts / geocoding.resolveByOsmId.test.ts).
+- npm run status:check: up to date, no doc changes required (no status/verdict doc
+  asserted a fact this PR changes).
+- PR #427: 18/18 CI checks green (scripts/ci-wait.sh pr 427).
+- git diff --stat: 7 files, all src/frontend (types/api.ts, hooks/useCities.ts,
+  hooks/__tests__/useCities.geocode.test.tsx, components/shared/CityPicker.tsx modified;
+  components/shared/__tests__/CityPicker.test.tsx, utils/composeCandidateLabel.ts,
+  utils/__tests__/composeCandidateLabel.test.ts new). No backend/schema files touched.
+
+DECISIONS FLAGGED TO COO (see completion report for the short version)
+1. "Structured fields entirely absent" trigger for the display_name fallback is
+   `state == null && country == null && county == null` — i.e. ANY one of the three
+   present routes a candidate through the structured composer instead. This wasn't
+   explicit in the brief; picked because it's the natural reading of "entirely absent"
+   and it's exactly what keeps the existing ATDD fixtures (which have none of the three)
+   on the fallback path while a real backend response (which per the API doc always
+   sends at least `country`) always uses the structured path.
+2. Postcode-stripping in the display_name fallback is a heuristic (two regexes: numeric,
+   UK-style alphanumeric) — not a full postcode validator. Good enough for the observed
+   cases (US ZIP, UK postcodes in the tracker note's own examples) but could
+   false-negative on a postcode format that looks like ordinary text elsewhere in a
+   display_name. Low risk: worst case is a postcode slipping through on the FALLBACK
+   path only, which is itself a legacy/rare path once real API responses (which always
+   carry structured fields) dominate.
+3. Rare-fallback discriminator chosen as rounded lat/long over "fall back to
+   display_name" (the brief offered both) — kept the label style consistent
+   (structured labels stay structured-looking) rather than mixing formats mid-list.
+
+NOT BUILT / OUT OF SCOPE
+- No copy was invented for BUG-74 — confirmed this needed no judgment call (see WHAT
+  SHIPPED item 4).
+- UX review of the picker's overall theme adherence — explicitly deferred to UX per the
+  tracker note ("AFTER build: UX reviews the picker as a whole for adherence with the
+  app's overall theme").
+
+NEXT STEPS (when resumed)
+- COO: merge PR #427 once reviewed.
+- UX: review CityPicker (and the picker-precedence composition generally) for theme
+  adherence, per the PO's 2026-08-07 direction recorded in the BUG-81 tracker note.
+- Nothing else blocks on this thread — BUG-76/BUG-75/BUG-74/BUG-81's frontend layer is
+  now fully shipped pending merge + UAT.
