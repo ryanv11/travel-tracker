@@ -1,4 +1,12 @@
 # Travel Tracker — Technology Blueprint
+
+> HISTORICAL — snapshot as of 2026-03-07, superseded; not maintained. It still describes
+> `better-sqlite3` (the driver is now libSQL/Turso), a packaged-Electron target with no
+> auth and no Tailwind — none of which reflect the current build. Do not implement from
+> this document. For current facts, see CLAUDE.md, the architecture-decisions-log and
+> ADL-* files in this directory, and the real schema at `src/backend/db/schema.ts`.
+> (QUAL-07/U14)
+
 **Version:** 1.0
 **Date:** 2026-03-07
 **Author:** Architect

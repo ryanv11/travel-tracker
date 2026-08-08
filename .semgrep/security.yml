@@ -43,9 +43,12 @@ rules:
   # resulting in every chained query being flagged regardless of whether userId
   # scoping is present somewhere in the chain.
   #
-  # The shading.service.ts queries (trips, tripPlaces) are intentionally unscoped —
-  # they aggregate across all users to compute map shading states, applied via JOIN
-  # condition rather than WHERE clause. A reliable rule would need to either:
+  # The live shading.service.ts queries (trips, tripPlaces) ARE user-scoped — the
+  # userId condition is applied via a JOIN (`.leftJoin(trips, and(eq(trips.id, ...),
+  # eq(trips.userId, userId)))`) rather than a WHERE clause, which is exactly what
+  # defeats simple WHERE-based pattern matching below. (The one genuinely unscoped
+  # shading query, getRegionCoverageMap, was dead code — its result was never read
+  # — and has been removed under QUAL-33.) A reliable rule would need to either:
   #   (a) Use taint tracking (semgrep Pro), or
   #   (b) Be narrowed to only flag direct .where()-less terminations with no chain at all
   #

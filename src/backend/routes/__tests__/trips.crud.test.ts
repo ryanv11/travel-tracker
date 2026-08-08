@@ -159,23 +159,86 @@ describe('GET /api/trips', () => {
     expect(names).toContain('Trip B');
   });
 
-  it('each trip in list has expected response shape', async () => {
+  // QUAL-02 finding 3 (response-shape assertions too shallow): the original
+  // version of this test only asserted `toHaveProperty(key)` for
+  // categories/companions/activities/places/countries — a route that
+  // returned `{ categories: null }` or `{ categories: 'oops' }` would still
+  // pass, since toHaveProperty alone does not check type or value. Every
+  // association is now seeded with real data and asserted by TYPE (array)
+  // and by VALUE (the seeded id/name/shape survives serialization correctly,
+  // including the snake_case field mapping and the nested place.city object).
+  it('each trip in list has expected response shape, including value/type checks on every association (QUAL-02 finding 3)', async () => {
     const db = testDb!;
-    await seedTrip(db, { name: 'Shape Trip' });
+    const trip = await seedTrip(db, {
+      name: 'Shape Trip',
+      startDate: '2026-05-01',
+      endDate: '2026-05-08',
+      status: 'planning',
+    });
+
+    const [category] = await db
+      .insert(schema.tripCategories)
+      .values({ userId: TEST_USER_ID, name: 'Adventure' })
+      .returning();
+    await db.insert(schema.tripCategoriesMap).values({ tripId: trip.id, categoryId: category.id });
+
+    const [companion] = await db
+      .insert(schema.companions)
+      .values({ userId: TEST_USER_ID, name: 'Alex' })
+      .returning();
+    await db
+      .insert(schema.tripCompanionsMap)
+      .values({ tripId: trip.id, companionId: companion.id });
+
+    const [activity] = await db
+      .insert(schema.activities)
+      .values({ userId: TEST_USER_ID, name: 'Hiking' })
+      .returning();
+    await db.insert(schema.tripActivitiesMap).values({ tripId: trip.id, activityId: activity.id });
+
+    const city = await seedCityWithRegion(db, 'Newport', 'Wales', 'GB-WLS');
+    await db
+      .insert(schema.tripPlaces)
+      .values({ tripId: trip.id, cityId: city.id, userId: TEST_USER_ID });
+
+    await db.insert(schema.tripCountries).values({ tripId: trip.id, countryCode: 'GB' });
 
     const res = await supertest(app).get('/api/trips').expect(200);
+    const body = res.body[0];
 
-    const trip = res.body[0];
-    expect(trip).toHaveProperty('id');
-    expect(trip).toHaveProperty('name', 'Shape Trip');
-    expect(trip).toHaveProperty('start_date');
-    expect(trip).toHaveProperty('end_date');
-    expect(trip).toHaveProperty('status');
-    expect(trip).toHaveProperty('categories');
-    expect(trip).toHaveProperty('companions');
-    expect(trip).toHaveProperty('activities');
-    expect(trip).toHaveProperty('places');
-    expect(trip).toHaveProperty('countries');
+    // Scalars — VALUE-checked, not merely present.
+    expect(body.id).toBe(trip.id);
+    expect(body.name).toBe('Shape Trip');
+    expect(body.start_date).toBe('2026-05-01');
+    expect(body.end_date).toBe('2026-05-08');
+    expect(body.status).toBe('planning');
+
+    // Associations — TYPE (array, not null/object/string) AND VALUE (the
+    // seeded row survives serialization with the right shape and content).
+    expect(Array.isArray(body.categories)).toBe(true);
+    expect(body.categories).toEqual([{ id: category.id, name: 'Adventure' }]);
+
+    expect(Array.isArray(body.companions)).toBe(true);
+    expect(body.companions).toEqual([{ id: companion.id, name: 'Alex' }]);
+
+    expect(Array.isArray(body.activities)).toBe(true);
+    expect(body.activities).toEqual([{ id: activity.id, name: 'Hiking' }]);
+
+    expect(Array.isArray(body.countries)).toBe(true);
+    expect(body.countries).toEqual([{ country_code: 'GB', name: 'United Kingdom' }]);
+
+    expect(Array.isArray(body.places)).toBe(true);
+    expect(body.places).toHaveLength(1);
+    expect(body.places[0]).toMatchObject({
+      city_id: city.id,
+      city: {
+        id: city.id,
+        name: 'Newport',
+        country_code: 'GB',
+        region_name: 'Wales',
+        region_iso: 'GB-WLS',
+      },
+    });
   });
 
   it('does not return trips belonging to another user', async () => {

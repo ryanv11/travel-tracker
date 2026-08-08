@@ -810,11 +810,7 @@ citiesRouter.get(
     // sort_order=asc flips the direction.
     const useRatingSort = !sort_by || sort_by === 'rating';
     const rows = await query.orderBy(
-      useRatingSort
-        ? sort_order === 'asc'
-          ? asc(effectiveRatingSql)
-          : desc(effectiveRatingSql)
-        : desc(effectiveRatingSql),
+      useRatingSort && sort_order === 'asc' ? asc(effectiveRatingSql) : desc(effectiveRatingSql),
     );
 
     // Apply min_rating filter in JS (simpler than raw SQL for this case)
