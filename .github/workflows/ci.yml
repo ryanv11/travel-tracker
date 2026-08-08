@@ -20,6 +20,8 @@ jobs:
       - run: npm run check
       - name: STATUS.md freshness
         run: npm run status:check
+      - name: tracker.json integrity
+        run: npm run tracker:check
 
   typecheck:
     name: Type Check

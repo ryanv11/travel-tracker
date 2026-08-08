@@ -139,6 +139,24 @@ echo '{"tool_name":"Bash","tool_input":{"command":"gh issue create --body \"migr
   | bash /workspace/.claude/hooks/atdd-first-guard.sh | grep -q "atdd-first-guard" \
   && echo "FAIL: atdd-first guard fires when ATDD stated (should be silent)" \
   || echo "atdd-first guard (ATDD-stated path) OK"
+
+# no-protected-commit guard must DENY a git commit on a protected branch. Tested in a
+# throwaway repo on `main` so it never touches this checkout's branch/state.
+canary_tmp=$(mktemp -d); git -C "$canary_tmp" init -q -b main 2>/dev/null \
+  || (git -C "$canary_tmp" init -q && git -C "$canary_tmp" checkout -q -b main)
+( cd "$canary_tmp" && echo '{"tool_input":{"command":"git commit -m x"}}' \
+  | bash /workspace/.claude/hooks/no-protected-commit.sh | grep -q '"deny"' ) \
+  && echo "no-protected-commit guard OK" || echo "FAIL: no-protected-commit guard broken"
+( cd "$canary_tmp" && git checkout -q -b fix/canary 2>/dev/null; echo '{"tool_input":{"command":"git commit -m x"}}' \
+  | bash /workspace/.claude/hooks/no-protected-commit.sh | grep -q '"deny"' ) \
+  && echo "FAIL: no-protected-commit fires on a feature branch (should be silent)" \
+  || echo "no-protected-commit guard (feature-branch path) OK"
+rm -rf "$canary_tmp"
+
+# tracker-check must pass on the live tracker (fail-closed gate: a non-zero exit is a real
+# integrity problem — duplicate ID, missing field, or a brdRef not present in the BRD).
+npm run --silent tracker:check >/dev/null 2>&1 \
+  && echo "tracker-check OK" || echo "FAIL: tracker-check reports a tracker.json integrity problem"
 ```
 
 Any FAIL → fix the hook before doing anything else this session. Secondary tell for the

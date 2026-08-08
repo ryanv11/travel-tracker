@@ -2909,6 +2909,43 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "Promoted 2026-08-08 from open-dialogues D-12 (items 2-4). The QUAL-05 state-language sweep (PR #259) was scoped to FLAG, not resolve, anything whose fix would pre-empt a product/architecture decision; four BRD contradictions came back flagged. ITEM 1 (SE-01/SE-03 three-role drift) is RESOLVED — ADL-46 -> BRD v3.13 rewrote SE-01/SE-03/AD-09, and BUG-61/62/63 are its live symptoms. THESE THREE REMAIN — all wording-level, the shipped app is unaffected, none urgent: (2) §7 and §11 state import tooling is out of scope and manual entry is the answer, but import requirements IM-01-33 are DRAFTED-not-approved, so deleting those lines pre-empts the PO's import decision while leaving them is fine until IM is approved or dropped; (3) §5.15 MB-01's requirement text still scopes mobile to the read path only while WP-04 shipped a fully editable mobile layout (the §5.15 preamble was already stamped SUPERSEDED by WP-04 in v3.7, but MB-01 itself was not) — whether to widen MB-01's stated scope, and whether that implies anything about offline support, is a product call; (4) §5.7 PH-02 ('the app does not store or copy photos') vs IM-06 (client-side EXIF import) will read as contradicting once import exists — conditional, collapses into item 2, only needs resolving if import is approved. HANDLING: items 2+4 together whenever the import decision is made; item 3 whenever mobile scope next comes up. Each resolution is itself a BRD change to §10 / the relevant requirement and bumps the BRD version AT THAT POINT — this tracker item is deliberately NOT a BRD bump; it exists so the questions surface at /coo-startup instead of only living in the done QUAL-05 note. Relates QUAL-05."
+    },
+
+    // ─── GOVERNANCE-RULE BACKFILL (2026-08-08) — OP rules that were adopted into CLAUDE.md ──
+    // ─── without a tracker entry; backfilled so the tracker is the complete OP-id registry ──
+    // ─── and tracker-check's dup-id gate covers the CLAUDE.md-vs-tracker OP collision. ──────
+    {
+      "id": "OP-33",
+      "type": "chore",
+      "title": "Spike-gate the BRD — no requirement enters as approved on an unverified premise",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Governance rule, adopted 2026-08-05 (PR #402) from the Jul29-Aug4 retro (GE-17, BUG-76, the v3.15 'works offline' overclaim). BACKFILLED to the tracker 2026-08-08: it had no tracker entry, which is the exact reason OP-33/34 got re-used as duplicate ids this session (a tracker-only grep maxed at OP-32). Rule text lives in CLAUDE.md '### Spike-gate the BRD'. Substance: a requirement whose case rests on a premise not yet established enters the BRD as PROPOSED + spike-gated, not approved; its load-bearing premises are written down as a verify-checklist before the spike; BRD promotion waits for the checklist to clear; 'only way / sole option / there is no alternative' justifications are premises, not conclusions, and get the negative-findings two-probe treatment. Decision-layer counterpart to 'success criteria before dispatch'. Now enforced against recurrence by scripts/tracker-check.js (dup-id gate)."
+    },
+    {
+      "id": "OP-34",
+      "type": "chore",
+      "title": "PO input is authoritative but not infallible — probe it like any other source",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Governance rule, adopted 2026-08-05 (PR #402) on PO direction ('just because I'm the PO doesn't mean I always know best'). BACKFILLED to the tracker 2026-08-08 (see OP-33 — the missing entry caused this session's dup-id slip). Rule text in CLAUDE.md '### PO input is authoritative but not infallible'. Substance: PO input is tested on two axes before it becomes law/work — TRUTH (a factual claim like 'it works offline' / 'this used to work' is probed exactly as an agent's claim; the negative-findings two-probe rule binds; the PO being the source does not exempt it) and VALUE (a discretionary / 'wouldn't it be nice' request gets a proportionate impact-cost-benefit assessment with a recommendation before promotion). Both resolve to probe-before-promote; the PO is a source, not an exception."
+    },
+    {
+      "id": "OP-35",
+      "type": "chore",
+      "title": "ATDD-first for Architect-spawned briefs — QA writes red acceptance tests before the implementer runs",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Governance rule, adopted 2026-08-05 (ADL-50), promoting open-dialogue D-17 after its trial on the ADL-46 release. BACKFILLED to the tracker 2026-08-08 (see OP-33). Rule text in CLAUDE.md '### ATDD-first for Architect-spawned briefs'. Substance: for an implementation brief an Architect spec spawns, the COO dispatches QA FIRST to turn the success criteria into RED acceptance/integration tests, handed to the implementer as the executable definition of done — breaking the closed loop where the implementer writes both the code and the tests that certify it. Trigger is objective (keyed to Architect involvement, not a subjective complexity call). Mock-fidelity is part of the rule: a suite that can pass vacuously has specified nothing (QUAL-22). Backed by .claude/hooks/atdd-first-guard.sh + a startup canary. Full record + honest qualification: ADL-50."
     }
 
   ]

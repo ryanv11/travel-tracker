@@ -11,6 +11,7 @@ npm run type:check:all     # TypeScript (frontend + backend)
 npm run test:backend       # Backend unit tests
 npm run test:frontend      # Frontend unit tests
 npm run status:check       # _project/STATUS.md in sync with tracker.json
+npm run tracker:check      # tracker.json integrity — no duplicate IDs, brdRefs valid
 ```
 
 If `status:check` fails, run `npm run status` and commit the regenerated
