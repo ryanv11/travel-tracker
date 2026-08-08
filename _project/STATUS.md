@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (89)
+## Open work (87)
 
 ### P0 — Blockers (1)
 
@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (8)
+### P1 — Critical (5)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -34,11 +34,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-51 | Companion name edits in admin panel don't consistently propagate to trips | frontend | done_pending_uat |
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
-| UX-12 | GE-16 correction-by-re-point has no UI — a user cannot fix a wrong city (UX spec MVP) | frontend | done_pending_uat |
-| BUG-75 | D13 city identity key cannot represent two distinct same-name towns in the same region — live latent conflation | architect | done_pending_uat |
-| BUG-76 | Our own SETTLEMENT_TYPES filter may discard legitimate tail places the geocoder does return | backend | done_pending_uat |
 
-### P2 — Important (47)
+### P2 — Important (48)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -85,6 +82,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-80 | Saved places render as name + country only — two different Newports in one trip are indistinguishable | backend | done_pending_uat |
 | BUG-79 | Region selector not narrowed for an ambiguous US city, though it is for the UK | frontend | done_pending_uat |
 | BUG-77 | 22 region-tier countries ship with zero regions — 22 latent BUG-30s (ADL-48 S1) | database | done_pending_uat |
+| BUG-77 | Disambiguation picker rows hard to skim — raw display_name shows county + postcode noise | frontend | ⬜ Pending |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | QUAL-29 | Admin name-list resource (categories/activities/companions) triplicated across four layers — an admin-list factory that used to exist was unwound by the per-user migrations | architect | ⬜ Pending |
@@ -132,9 +130,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `██████████▓░░░░░░░░░` 29/57 | 29 | 28 | 4 |
+| feature | `███████████▓░░░░░░░░` 30/57 | 30 | 27 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `████████████░░░░░░░░` 45/76 | 45 | 31 | 3 |
+| bug | `████████████░░░░░░░░` 47/77 | 47 | 30 | 3 |
 | task | `████████████████████` 10/10 | 10 | 0 | 0 |
 | chore | `███████▓░░░░░░░░░░░░` 14/40 | 14 | 26 | 1 |
 
@@ -170,4 +168,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_138 done · 9 deferred · 5 closed · 89 open — 241 tracked items_
+_141 done · 9 deferred · 5 closed · 87 open — 242 tracked items_
