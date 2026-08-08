@@ -1,3 +1,35 @@
+BACKEND CONTEXT — 2026-08-07 (BUG-77 thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: implemented BUG-77 (P2 per brief, BRD GE-16) on branch
+  feat/bug77-geocode-candidate-names off main. Additive: GET /api/geocode
+  candidates now carry `state`/`country`/`county` (human-readable NAMES,
+  distinct from the existing `country_code`/`region_iso` ISO codes) so the
+  frontend can render "City, State, Country" picker rows without parsing
+  display_name. Presentation (label composition, same-state collision-county
+  rule, scroll cap) is a FRONTEND follow-up, not built here.
+  1. src/backend/services/nominatim-client.ts: RawNominatimResult.address
+     gains state/country (confirmed present in the raw Nominatim payload via
+     the committed bug76 fixtures). NominatimCandidate gains
+     stateName/countryName. parseCandidate populates both from
+     raw.address?.state / raw.address?.country. county already existed
+     (BUG-75 v3), untouched.
+  2. src/backend/routes/geocode.ts: candidates.map(...) gains state/country/
+     county on the wire; all pre-existing fields unchanged.
+  3. src/frontend/types/api.ts: GeocodeCandidate gains state?/country?/
+     county? (optional, type-only — no consumption logic, that's the
+     frontend follow-up's job).
+  4. src/backend/routes/__tests__/bug77-geocode-names-e2e.test.ts (new):
+     real-fixture, fetch-boundary-mocked (QUAL-22 mock-fidelity) e2e test —
+     Denver CO/IA + Springfield IL fixtures, asserts state/country/county
+     land correctly alongside unchanged pre-existing fields.
+  FLAG FOR COO: the brief's tracker ID "BUG-77" is ALREADY ASSIGNED (two
+  independent probes: tracker.json grep + `gh issue list --search`) to a
+  closed, unrelated issue (#367, ADL-48 S1 region seeding). Did NOT write
+  "Closes #367" in the PR. COO needs to assign a correct ID. Full detail:
+  jobs/backend/park-docs/20260807-BACKEND-bug77-park.txt
+  All of npm run check / type:check:all / test:backend (762/762) /
+  test:frontend (302/302) / status:check green.
+
 BACKEND CONTEXT — 2026-08-07 (BUG-76/BUG-74 thread, latest)
 PROJECT: Travel Tracker
 CURRENT STATUS: implemented BUG-76 (P1, geocoder accept-rule) + BUG-74 (P2,
