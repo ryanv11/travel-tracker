@@ -198,10 +198,17 @@ src/
     │   ├── items.ts
     │   ├── items-helper.ts     Shared items-with-extensions query logic (used by items.ts and trips.ts)
     │   ├── cities.ts
-    │   ├── admin.ts
+    │   ├── admin.ts             Instance-admin only now: countries + regions (categories/activities
+    │   │                       moved out, see below — ADL-46)
     │   ├── map.ts
     │   ├── trip-countries.ts
     │   ├── companions.ts       Per-user companions CRUD, requireAuth only (BRD-AD08)
+    │   ├── categories.ts       Per-user trip categories CRUD, requireAuth only, moved off
+    │   │                       /api/admin/categories (ADL-46/AD-09, same move as companions)
+    │   ├── activities.ts       Per-user activities CRUD, requireAuth only, moved off
+    │   │                       /api/admin/activities (ADL-46/AD-09)
+    │   ├── geocode.ts          User-interactive geocode proxy — requireAuth, routed through the
+    │   │                       nominatim-client.ts egress chokepoint (ADL-46 D7)
     │   └── me.ts               GET /api/me — authenticated identity + isOwner flag (BUG-26)
     ├── repositories/           DB query layer — called by routes
     │   ├── trips.ts
@@ -209,11 +216,18 @@ src/
     │   ├── items.ts
     │   ├── users.ts
     │   ├── companions.ts       Per-user companions, every query scoped to userId (BRD-AD08)
+    │   ├── tripCategories.ts   Per-user trip categories, every query scoped to userId (ADL-46)
+    │   ├── activities.ts       Per-user activities, every query scoped to userId (ADL-46)
     │   └── shadingConfig.ts    Per-user map shading config, lazily seeded on first access (BRD-AD07)
     ├── services/               Business logic that spans multiple repositories
     │   ├── shading.service.ts  Map shading state computation (country + region)
     │   ├── items.service.ts    Carry-forward and item transaction logic
     │   ├── geocoding.service.ts Nominatim geocoding queue
+    │   ├── nominatim-client.ts Single serialized Nominatim egress chokepoint — every geocode call
+    │   │                       site (queue, city create, proxy route) goes through this one module
+    │   │                       (ADL-46 §5.1.1/D7)
+    │   ├── db-errors.ts        isUniqueViolation() — shared UNIQUE-constraint detection across the
+    │   │                       raw libsql client and drizzle-orm's wrapped error shape (BUG-75 v3)
     │   ├── startup.service.ts  DB seeding (countries, regions, defaults)
     │   └── build-info.ts       Deployed commit SHA for /health + the nav build stamp (QUAL-26)
     ├── middleware/             Auth middleware (Clerk JWT verification)
@@ -463,4 +477,6 @@ drives.
 
 ---
 
-*Last updated by Docs — 2026-07-26 (QUAL-05 state-language sweep). Agent-specific sections appended as agents contribute.*
+*Last updated by Docs — 2026-08-08 (QUAL-07 docs-drift pass: routes/repositories/services trees
+refreshed against src/backend/ — categories.ts, activities.ts, geocode.ts, tripCategories.ts
+repository, nominatim-client.ts and db-errors.ts services were all live and undocumented). Agent-specific sections appended as agents contribute.*

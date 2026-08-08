@@ -1,0 +1,117 @@
+PARK DOCUMENT — Docs
+Date: 2026-08-08
+Branch: chore/docs-hygiene-sweep
+Dispatch: COO brief — docs hygiene sweep, QUAL-07 / QUAL-10 / QUAL-13 / QUAL-16 (no
+  single GitHub issue; batch of independent doc-hygiene items)
+
+WHAT WAS DONE
+
+1. QUAL-10 — jobs/database/tech/schema.ts (stale duplicate schema)
+Two probes established staleness: read the file (still describes a "Phase 2: PostgreSQL"
+migration path — the project is on libSQL/Turso, no Postgres anywhere) AND `git log`
+(last touched 2026-07-23, PR #240; the real schema was touched again on 2026-08-06,
+PR #409 — 77-line drift). Replaced the full file contents with a pointer to
+src/backend/db/schema.ts plus a short "why this happened" note and cross-references
+to the ER doc, the ADL log, and CLAUDE.md's migrate workflow. This is a full rewrite
+of the copy file — declared per OP-28: it is the point of the task, not a deviation.
+
+2. QUAL-07/U14 — jobs/architect/tech/20260307-tech-blueprint.md (stale blueprint)
+Two probes: read the doc (better-sqlite3, no auth, no Tailwind, "implement from this
+document") AND checked CLAUDE.md + package.json (libSQL/Turso, Clerk auth, Tailwind v4
+all confirmed current). Added a HISTORICAL banner per the document-lifecycle rule —
+banner + one-line pointer only, body untouched as instructed.
+
+3. QUAL-13 — stale Architect inbox
+jobs/architect/inbox/ held exactly two unread top-level messages, both March 2026
+(20260321 dual-db typing question, 20260323 ADL-27/OP-06 corrections). Verified both
+were long since resolved before archiving — not just old: ADL-27-admin-role-model.md,
+OP-06-hardening-checklist.md and HC-07b-backfill.sql all exist and are cited as current
+throughout CLAUDE.md, which is what the second correction brief asked Architect to
+produce. `git mv` into inbox/read/, matching the existing archive convention (filename
+unchanged). inbox/ top level is now empty.
+
+4. QUAL-16 — ambiguous frameworks.txt init step
+The brief characterised the ambiguity as "read-once vs read-every-time." Before editing
+I checked tracker.json's own QUAL-16 entry (found via grep) and it records a different,
+more specific finding: two unrelated files both answer to the name `_shared/frameworks.txt`
+— /_shared/frameworks.txt (30 numbered shared standards, 8397 bytes) and
+/jobs/_shared/frameworks.txt (tech-stack doc, 1562 bytes) — and a bare relative reference
+is genuinely ambiguous depending on which directory an agent resolves it from. Verified
+both files exist with exactly those byte counts (second probe, direct `ls`/`read`) before
+trusting the tracker note over the brief's paraphrase. Fixed the verified issue: all 8 role
+system prompts' init step 1 now names both files explicitly by path from repo root, with a
+one-line description of each and a note to read both fresh each thread (per the tracker's
+own stated success criteria — "name targets by explicit path... probably both files").
+Also fixed the Architect prompt's closing step 5 ("update _shared/frameworks.txt on a
+stack decision"), which meant the tech-stack file but didn't say so — same collision,
+same file. See OPEN ISSUES below — flagging the brief/tracker mismatch to COO rather
+than silently picking one framing.
+
+5. QUAL-07 — targeted drift pass (CLAUDE.md, CODEBASE.md, API reference)
+CLAUDE.md: checked its "Schema changes" and tech-stack claims against package.json and
+the patches/ dir — all current (drizzle-kit 0.31.9 patch present and matches package.json;
+libSQL, Express v5, React 18, Tailwind v4, Zod v4, TanStack Query v5, React Router v6 all
+verified against package.json versions). No drift found; no edit needed.
+
+CODEBASE.md: the routes/repositories/services file trees under src/backend/ (last refreshed
+2026-07-26) were missing six files that exist and are live: routes/categories.ts,
+routes/activities.ts, routes/geocode.ts, repositories/tripCategories.ts,
+repositories/activities.ts, services/nominatim-client.ts, services/db-errors.ts (seven,
+not six — corrected count). Verified via `ls` against each directory (positive finding,
+self-verifying) then read each new file's header comment for an accurate one-line
+description rather than guessing from the filename. Fixed the admin.ts one-liner too —
+it still implied categories/activities live there; added a note that they moved out
+(ADL-46) with a forward pointer. Footer timestamp updated.
+
+Backend API reference (jobs/backend/tech/20260307-api-reference.md, v1.6 → v1.7): this
+was the largest finding. Two probes (grep across the doc + read server.ts's route
+mounts) confirmed:
+  - `/api/categories` and `/api/activities` (their own routers since ADL-46, AD-09,
+    shipped 2026-08-01 PR #348 — verified via `git log` on admin.ts) were **entirely
+    undocumented** — no TOC entry, no section, nothing.
+  - The doc's "Admin" section still fully documented `GET/POST/PATCH/DELETE
+    /api/admin/categories` and `/api/admin/activities` as live endpoints, with request/
+    response examples. They are not live — admin.ts's own header comment states the old
+    admin-list CRUD factory serving them "has been removed, NOT left as scaffolding"; a
+    non-owner gets 403, an owner now gets 404. A reader following this doc as written
+    would have called endpoints that don't exist.
+  - `GET /api/me` (BUG-26/SE-02, mounted in server.ts, fully implemented, own header
+    comment) had zero documentation anywhere in the file.
+  - The Geocode Proxy section existed and was current but was missing from the Table of
+    Contents.
+Fixed all four: added Categories and Activities sections (Companions-shaped: table,
+response shape, POST/PATCH bodies, errors), rewrote the Admin section to describe only
+its current scope (countries/regions), removed the stale category/activity detail
+blocks, added a Me (Identity) section, fixed the TOC (added the four missing entries,
+also fixed a pre-existing duplicate "5." numbering bug found in the same pass), and
+bumped the version header with a changelog line.
+
+CI / VERIFICATION
+- npm run check — pass (5 pre-existing infos in an unrelated backend test file, not
+  introduced by this change, not errors)
+- npm run type:check:all — pass
+- npm run test:backend — 762 passed
+- npm run test:frontend — 321 passed
+- npm run status:check — pass (this PR touches no tracker/status facts; tracker.json
+  itself was not edited per the brief's guardrail)
+
+OPEN ISSUES / FLAGGED FOR COO
+QUAL-16: the brief's framing of the ambiguity didn't match what tracker.json's own
+QUAL-16 entry actually records. I verified the tracker's version with two probes and
+fixed that (the real, documented file-path collision) rather than guessing at a
+"read-once vs read-every-time" semantic distinction that no artifact in the repo
+actually asserts. If "read-once vs read-every-time" was a separate, real concern the
+COO wants addressed, it needs its own tracker entry and probe — I did not find any
+evidence for it and am not asserting it doesn't exist beyond the two probes above
+(grep across jobs/COO/park-docs/, jobs/COO/history/, and tracker.json for the phrase
+and its variants — none found).
+
+NOT FIXED — NOT MY SCOPE
+CODEBASE.md's middleware/ and validation/ directories remain one-line summaries (not
+itemized) — this matches the doc's own established, deliberate granularity convention
+noted in the 2026-07-26 CODEBASE.md refresh park doc, not a gap.
+
+NEXT SESSION
+Nothing queued for Docs. Recommend COO create tracker entries or fold this work under
+QUAL-07/10/13/16 as appropriate (tracker.json was not touched by this thread per the
+brief's guardrail — parallel sweep running).

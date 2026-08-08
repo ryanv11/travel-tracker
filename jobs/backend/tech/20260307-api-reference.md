@@ -1,9 +1,15 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.6
-**Date:** 2026-08-04 (updated: QUAL-26 — `GET /health` documented, now returning the running
-build's commit SHA alongside `status`)
-**Previously:** 1.5, 2026-07-23 (ADL-28 AD-07/AD-08 — companions moved to /api/companions
+**Version:** 1.7
+**Date:** 2026-08-08 (updated: QUAL-07 docs-drift pass — `/api/categories` and
+`/api/activities` documented as their own routers (ADL-46, shipped 2026-08-01, PR #348);
+the stale `/api/admin/categories` / `/api/admin/activities` sections describing routes that
+no longer exist were removed; `GET /api/me` documented (was live, entirely undocumented,
+BUG-26/SE-02); Geocode Proxy added to the Table of Contents (section existed, was never
+listed))
+**Previously:** 1.6, 2026-08-04 (QUAL-26 — `GET /health` documented, now returning the
+running build's commit SHA alongside `status`)
+**Earlier:** 1.5, 2026-07-23 (ADL-28 AD-07/AD-08 — companions moved to /api/companions
 requireAuth-only; map shading routes dropped requireOwner for requireAuth + per-user scoping)
 **Base URL:** `http://localhost:3001`
 **Author:** BACKEND
@@ -19,13 +25,17 @@ This document is the authoritative contract between BACKEND and FRONTEND. FRONTE
 3. [Places (nested under Trips)](#places)
 4. [Trip Countries (nested under Trips)](#trip-countries)
 5. [Items (nested under Trips)](#items)
-5. [Cities](#cities)
-6. [Map Shading](#map-shading)
-7. [Companions](#companions)
-8. [Admin](#admin)
-9. [Static Assets](#static-assets)
-10. [Health](#health)
-11. [Error Reference](#error-reference)
+6. [Cities](#cities)
+7. [Map Shading](#map-shading)
+8. [Companions](#companions)
+9. [Categories](#categories)
+10. [Activities](#activities)
+11. [Admin](#admin)
+12. [Geocode Proxy](#geocode-proxy)
+13. [Me (Identity)](#me-identity)
+14. [Static Assets](#static-assets)
+15. [Health](#health)
+16. [Error Reference](#error-reference)
 
 ---
 
@@ -1507,98 +1517,84 @@ companion may genuinely exist, just under a different account). See ADL-28 R4.
 
 ---
 
-## Admin
+## Categories
 
-Admin endpoints manage the reference lists used throughout the app: trip categories, activities, countries, and regions — all owner-only (SE-03). **Companions moved out of this
-group** as of ADL-28 (AD-08, 2026-07-23) — see the [Companions](#companions) section above;
-they are no longer an admin/owner-only resource.
-
-### Admin List Pattern
-
-Categories and activities share the same CRUD pattern:
+Per-user list of trip categories (e.g. "Ski Trip", "Honeymoon"). **Moved off
+`/api/admin/categories` to its own router as of ADL-46 (AD-09, D3)** — a tier-2 (per-user)
+resource on the owner-gated admin router was the structural error behind BUG-63, the same
+class of fix ADL-28 already made for companions. **requireAuth only, not owner-gated.**
+Every route is scoped to the caller (`req.user.id`); two users may each have a category of
+the same name without conflict (`UNIQUE(user_id, name)`). Soft-delete only (`is_active = 0`,
+AD-06). Defaults are lazily seeded per-user on first access (`ensureSeeded`, either a GET or
+a POST) rather than at signup — a user whose very first action is a POST still gets the
+default list alongside their custom entry (ADL-46 §3.2.1).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/admin/{resource}` | List all (active + inactive) |
-| `GET` | `/api/admin/{resource}/active` | List active only |
-| `POST` | `/api/admin/{resource}` | Create new |
-| `PATCH` | `/api/admin/{resource}/:id` | Update name or active status |
-| `DELETE` | `/api/admin/{resource}/:id` | Soft-delete (set `is_active = 0`) |
+| `GET` | `/api/categories` | List all (active + inactive) owned by the caller |
+| `GET` | `/api/categories/active` | List active only, owned by the caller |
+| `POST` | `/api/categories` | Create, owned by the caller |
+| `PATCH` | `/api/categories/:id` | Update name or active status — 404 if owned by another user |
+| `DELETE` | `/api/categories/:id` | Soft-delete — 404 if owned by another user |
 
-**Resources:** `categories`, `activities`
-
----
-
-### GET /api/admin/categories
-
-List all trip categories (active + inactive).
-
-**Response: `200 OK`**
-```json
-[
-  { "id": 1, "name": "Ski Trip", "is_active": 1, "created_at": "...", "updated_at": "..." },
-  { "id": 2, "name": "Honeymoon", "is_active": 1, "created_at": "...", "updated_at": "..." }
-]
-```
-
-**GET /api/admin/categories/active** — same shape, only items where `is_active = 1`.
-
----
-
-### POST /api/admin/categories
-
-Create a new trip category.
-
-**Request Body:**
-```json
-{ "name": "Backpacking" }
-```
-
-**Response: `201 Created`** — created category object
-
-**Errors:**
-- `400` — name missing or empty
-- `409` — name already exists
-
----
-
-### PATCH /api/admin/categories/:id
-
-Update a category's name or active status.
-
-**Request Body:**
+**Response shape (all routes):**
 ```json
 {
-  "name": "Ski & Snowboard",
-  "is_active": false
+  "id": 1,
+  "name": "Ski Trip",
+  "is_active": true,
+  "created_at": "2026-03-07T14:00:00.000Z",
+  "updated_at": "2026-03-07T14:00:00.000Z"
 }
 ```
 
-**Response: `200 OK`** — updated category object
+**POST body:** `{ "name": "Backpacking" }` — `name` required, 1–75 chars.
+**PATCH body:** `{ "name"?: string, "is_active"?: boolean }` — at least one field, both optional.
 
 **Errors:**
-- `400` — validation failure
-- `404` — not found
+- `400` — validation failure, or DELETE on an already-inactive category
+- `404` — not found, or owned by a different user (opaque, per SE-05)
+- `409` — duplicate `name` for the caller (a different user with the same name is fine)
 
 ---
 
-### DELETE /api/admin/categories/:id
+## Activities
 
-Soft-delete a category (sets `is_active = 0`). Cannot hard-delete.
+Per-user list of trip activities (e.g. "Skiing", "Dining", "Hiking"). Same move, same
+reasoning, same shape as [Categories](#categories) — ADL-46 (AD-09, D3), off
+`/api/admin/activities` to its own router. **requireAuth only, not owner-gated.**
+`UNIQUE(user_id, name)`; soft-delete only; lazily seeded per-user on first access.
 
-**Response: `200 OK`** — updated category with `is_active: 0`
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/activities` | List all (active + inactive) owned by the caller |
+| `GET` | `/api/activities/active` | List active only, owned by the caller |
+| `POST` | `/api/activities` | Create, owned by the caller |
+| `PATCH` | `/api/activities/:id` | Update name or active status — 404 if owned by another user |
+| `DELETE` | `/api/activities/:id` | Soft-delete — 404 if owned by another user |
 
-**Errors:**
-- `400` — already inactive
-- `404` — not found
+**Response shape, POST/PATCH bodies, and errors:** identical in shape to
+[Categories](#categories) above — same validation (`name` 1–75 chars), same 400/404/409
+semantics.
 
 ---
 
-The same pattern applies identically to:
-- **`/api/admin/activities`** — activities (e.g. Skiing, Dining, Hiking)
+## Admin
 
-(Companion types, e.g. Solo/Partner/Family, use the same shape but live at
-`/api/companions` — requireAuth only, not owner-gated. See [Companions](#companions).)
+Admin endpoints now manage only instance-wide reference data: countries and regions
+(ADL-46 D1 tier-3 "instance administration") — owner-only (SE-03). **Companions moved out
+of this group as of ADL-28** (AD-08, 2026-07-23) and **categories/activities moved out as
+of ADL-46** (AD-09, D3, 2026-08-01) — see [Companions](#companions), [Categories](#categories)
+and [Activities](#activities) above. `GET/POST/PATCH/DELETE /api/admin/categories` and
+`/api/admin/activities` no longer exist: the router-level `requireOwner` guard still runs
+first, so a non-owner hits 403; an owner now gets 404 since the routes were removed
+outright, not left as scaffolding (ADL-46 §9.1/§9.3 — this is the documented fail-closed
+behaviour, verified by the access-matrix test suite, ADL-46 §8.2).
+
+The router is owner-gated by default via a router-level `requireOwner` guard, **except**
+the two global reference-data GET routes below (`/api/admin/countries` and
+`/api/admin/countries/:countryCode/regions`), which are registered above the guard and
+require only authentication (BUG-61 / ADL-38).
 
 ---
 
@@ -1769,6 +1765,29 @@ Response body:
 `region`/`river`/`suburb`/`census`/`statistical`. This is why a Denver-style query now
 resolves: OSM models it as an admin-boundary relation, and the accept-rule is keyed on
 `addresstype`, not the class-`type` field a county/state also carries.
+
+---
+
+## Me (Identity)
+
+The authenticated caller's own identity — added BUG-26/SE-02, previously undocumented.
+
+### GET /api/me
+
+Returns who the caller is, including the `isOwner` flag the frontend uses to gate
+owner-only UI (the Admin panel). **requireAuth only, deliberately not requireOwner** —
+every authenticated user may ask who they are; the response is only ever the caller's own
+identity. No repository query: `req.user` is already fully resolved by the global
+`requireAuth` middleware (`userRepository.findOrCreateByClerkId`), so this route is pure
+read-from-request.
+
+**Response: `200 OK`**
+```json
+{ "id": 7, "email": "ryan@example.com", "isOwner": true }
+```
+
+**Errors:** `401` only, from the global `requireAuth` middleware — there is no
+identity-specific failure mode.
 
 ---
 
