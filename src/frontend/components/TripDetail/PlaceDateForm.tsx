@@ -10,6 +10,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { useUpdatePlaceDates } from '../../hooks/usePlaces';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { ModalOverlay } from '../shared/ModalOverlay';
 
 interface PlaceDateFormProps {
   tripId: number;
@@ -97,95 +98,87 @@ export function PlaceDateForm({
   const labelClass = 'block text-xs font-semibold text-gray-700 mb-1';
 
   return (
-    <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-lg p-6 w-[400px] max-w-[95vw] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">
-          Dates — {cityName}
-          {citySubtitle && <span className="font-normal text-gray-500">, {citySubtitle}</span>}
-        </h2>
+    <ModalOverlay onClose={onClose} zIndex={700} panelClassName="p-6 w-[400px] max-w-[95vw]">
+      <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">
+        Dates — {cityName}
+        {citySubtitle && <span className="font-normal text-gray-500">, {citySubtitle}</span>}
+      </h2>
 
-        {/* Backend warnings callout */}
-        {warnings.length > 0 && (
-          <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
-            <p className="font-semibold mb-1">Warning</p>
-            <ul className="list-disc list-inside space-y-0.5">
-              {warnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
+      {/* Backend warnings callout */}
+      {warnings.length > 0 && (
+        <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
+          <p className="font-semibold mb-1">Warning</p>
+          <ul className="list-disc list-inside space-y-0.5">
+            {warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={handleDismissWarningsAndClose}
+            className="mt-3 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 cursor-pointer"
+          >
+            OK, close
+          </button>
+        </div>
+      )}
+
+      {warnings.length === 0 && (
+        <form
+          onSubmit={(e) => {
+            void handleSubmit(e);
+          }}
+        >
+          <div className="mb-3.5">
+            <label className={labelClass}>
+              Arrival date <span className="font-normal text-gray-400">(optional)</span>
+            </label>
+            <input
+              type="date"
+              className={inputClass}
+              value={arrivedOn}
+              onChange={(e) => setArrivedOn(e.target.value)}
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className={labelClass}>
+              Departure date <span className="font-normal text-gray-400">(optional)</span>
+            </label>
+            <input
+              type="date"
+              className={inputClass}
+              value={departedOn}
+              onChange={(e) => setDepartedOn(e.target.value)}
+            />
+          </div>
+
+          {validationError && (
+            <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm">
+              {validationError}
+            </div>
+          )}
+
+          {updateDates.error && <ErrorMessage error={updateDates.error} />}
+
+          <div className="flex gap-2.5 mt-1">
             <button
               type="button"
-              onClick={handleDismissWarningsAndClose}
-              className="mt-3 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 cursor-pointer"
+              onClick={onClose}
+              className="px-3.5 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
             >
-              OK, close
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updateDates.isPending}
+              className="px-4 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
+            >
+              {updateDates.isPending ? 'Saving…' : 'Save dates'}
             </button>
           </div>
-        )}
-
-        {warnings.length === 0 && (
-          <form
-            onSubmit={(e) => {
-              void handleSubmit(e);
-            }}
-          >
-            <div className="mb-3.5">
-              <label className={labelClass}>
-                Arrival date <span className="font-normal text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="date"
-                className={inputClass}
-                value={arrivedOn}
-                onChange={(e) => setArrivedOn(e.target.value)}
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className={labelClass}>
-                Departure date <span className="font-normal text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="date"
-                className={inputClass}
-                value={departedOn}
-                onChange={(e) => setDepartedOn(e.target.value)}
-              />
-            </div>
-
-            {validationError && (
-              <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm">
-                {validationError}
-              </div>
-            )}
-
-            {updateDates.error && <ErrorMessage error={updateDates.error} />}
-
-            <div className="flex gap-2.5 mt-1">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-3.5 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={updateDates.isPending}
-                className="px-4 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
-              >
-                {updateDates.isPending ? 'Saving…' : 'Save dates'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+        </form>
+      )}
+    </ModalOverlay>
   );
 }

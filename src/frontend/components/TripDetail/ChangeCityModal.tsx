@@ -30,6 +30,7 @@ import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { capitalizeFirst } from '../../utils/textFormat';
 import { CityPicker } from '../shared/CityPicker';
 import { ErrorMessage } from '../shared/ErrorMessage';
+import { ModalOverlay } from '../shared/ModalOverlay';
 
 interface ChangeCityModalProps {
   tripId: number;
@@ -167,202 +168,196 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
   const disambiguation = cityDisambig.disambiguation;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[700]"
-      onClick={onClose}
+    <ModalOverlay
+      onClose={onClose}
+      zIndex={700}
+      panelClassName="p-6 w-[480px] max-w-[95vw] max-h-[85vh] overflow-y-auto"
     >
-      <div
-        className="bg-white rounded-lg p-6 w-[480px] max-w-[95vw] max-h-[85vh] overflow-y-auto shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Change City</h2>
+      <h2 className="m-0 mb-4 text-lg font-bold text-gray-900">Change City</h2>
 
-        {!showNewCityForm ? (
-          <>
+      {!showNewCityForm ? (
+        <>
+          <input
+            className={inputClass}
+            placeholder="Search city name…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+
+          {searching && query.length >= 2 && (
+            <div className="py-2 text-xs text-gray-500">Searching…</div>
+          )}
+
+          {debouncedQuery.length >= 2 && (
+            <div className="border border-gray-200 rounded-md mt-2 overflow-hidden">
+              {searchResults.map((city) => (
+                <div
+                  key={city.id}
+                  data-testid={`city-search-result-${city.id}`}
+                  className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50"
+                  onClick={() => {
+                    void handleSelectExistingCity(city);
+                  }}
+                >
+                  {city.name}{' '}
+                  <span className="text-gray-500">— {formatCitySubtitle(city, countries)}</span>
+                </div>
+              ))}
+              <div
+                className="px-3 py-2.5 cursor-pointer text-sm text-teal-600 font-semibold hover:bg-teal-50 border-b border-gray-100 last:border-b-0"
+                onClick={() => handleOpenNewCityForm(query)}
+              >
+                + Add new: "{query}"
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            void handleCreateAndRepoint(e);
+          }}
+        >
+          <div className="mb-3.5">
+            <label className={labelClass}>City Name</label>
             <input
               className={inputClass}
-              placeholder="Search city name…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoFocus
+              value={newCityName}
+              onChange={(e) => setNewCityName(capitalizeFirst(e.target.value))}
+              required
             />
-
-            {searching && query.length >= 2 && (
-              <div className="py-2 text-xs text-gray-500">Searching…</div>
+          </div>
+          <div className="mb-4">
+            <label className={labelClass}>
+              Country{' '}
+              {cityDisambig.pending && (
+                <span className="font-normal text-gray-400 text-xs">detecting…</span>
+              )}
+            </label>
+            <select
+              className={inputClass}
+              value={newCityCountryCode}
+              onChange={(e) => {
+                setNewCityCountryCode(e.target.value);
+                setCountryIsSuggested(false);
+                setNewCityRegionId(null);
+                setRegionIsSuggested(false);
+              }}
+              required
+            >
+              <option value="">Select country…</option>
+              {countries.map((c) => (
+                <option key={c.country_code} value={c.country_code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {countryIsSuggested && selectedCountry && (
+              <p className="mt-1 text-xs font-semibold text-gray-500">
+                Suggested: {selectedCountry.name} — from "{newCityName}"
+              </p>
             )}
-
-            {debouncedQuery.length >= 2 && (
-              <div className="border border-gray-200 rounded-md mt-2 overflow-hidden">
-                {searchResults.map((city) => (
-                  <div
-                    key={city.id}
-                    data-testid={`city-search-result-${city.id}`}
-                    className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50"
-                    onClick={() => {
-                      void handleSelectExistingCity(city);
-                    }}
-                  >
-                    {city.name}{' '}
-                    <span className="text-gray-500">— {formatCitySubtitle(city, countries)}</span>
-                  </div>
-                ))}
-                <div
-                  className="px-3 py-2.5 cursor-pointer text-sm text-teal-600 font-semibold hover:bg-teal-50 border-b border-gray-100 last:border-b-0"
-                  onClick={() => handleOpenNewCityForm(query)}
+            {cityDisambig.failed && (
+              <div className="mt-2 px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs flex items-center justify-between gap-2">
+                <span>Automatic lookup failed — you can select country and region manually.</span>
+                <button
+                  type="button"
+                  onClick={() => handleOpenNewCityForm(newCityName)}
+                  className="shrink-0 text-teal-700 font-semibold underline hover:text-teal-800 cursor-pointer"
                 >
-                  + Add new: "{query}"
-                </div>
+                  Retry
+                </button>
               </div>
             )}
-          </>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              void handleCreateAndRepoint(e);
-            }}
-          >
-            <div className="mb-3.5">
-              <label className={labelClass}>City Name</label>
-              <input
-                className={inputClass}
-                value={newCityName}
-                onChange={(e) => setNewCityName(capitalizeFirst(e.target.value))}
-                required
-              />
-            </div>
+          </div>
+
+          {disambiguation.mode === 'picker' ? (
             <div className="mb-4">
               <label className={labelClass}>
-                Country{' '}
-                {cityDisambig.pending && (
-                  <span className="font-normal text-gray-400 text-xs">detecting…</span>
-                )}
+                Multiple places match "{newCityName}"
+                <span className="font-normal text-amber-600 text-xs">
+                  {' '}
+                  — please choose the one you mean
+                </span>
               </label>
-              <select
-                className={inputClass}
-                value={newCityCountryCode}
-                onChange={(e) => {
-                  setNewCityCountryCode(e.target.value);
-                  setCountryIsSuggested(false);
-                  setNewCityRegionId(null);
-                  setRegionIsSuggested(false);
+              <CityPicker
+                candidates={disambiguation.candidates}
+                onSelect={(candidate) => {
+                  void handleSelectPickerCandidate(candidate);
                 }}
-                required
-              >
-                <option value="">Select country…</option>
-                {countries.map((c) => (
-                  <option key={c.country_code} value={c.country_code}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              {countryIsSuggested && selectedCountry && (
-                <p className="mt-1 text-xs font-semibold text-gray-500">
-                  Suggested: {selectedCountry.name} — from "{newCityName}"
-                </p>
-              )}
-              {cityDisambig.failed && (
-                <div className="mt-2 px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs flex items-center justify-between gap-2">
-                  <span>Automatic lookup failed — you can select country and region manually.</span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenNewCityForm(newCityName)}
-                    className="shrink-0 text-teal-700 font-semibold underline hover:text-teal-800 cursor-pointer"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
+                truncated={cityDisambig.truncated}
+                disabled={createCity.isPending || changeCity.isPending}
+              />
             </div>
-
-            {disambiguation.mode === 'picker' ? (
+          ) : (
+            showRegionDropdown && (
               <div className="mb-4">
                 <label className={labelClass}>
-                  Multiple places match "{newCityName}"
-                  <span className="font-normal text-amber-600 text-xs">
-                    {' '}
-                    — please choose the one you mean
-                  </span>
+                  {regionLabel} <span className="font-normal text-gray-500">(optional)</span>
+                  {disambiguation.mode === 'region' && (
+                    <span className="font-normal text-amber-600 text-xs">
+                      {' '}
+                      — multiple matches found, please choose
+                      {cityDisambig.truncated && ' (there may be more not shown)'}
+                    </span>
+                  )}
                 </label>
-                <CityPicker
-                  candidates={disambiguation.candidates}
-                  onSelect={(candidate) => {
-                    void handleSelectPickerCandidate(candidate);
+                <select
+                  className={inputClass}
+                  value={newCityRegionId ?? ''}
+                  onChange={(e) => {
+                    setNewCityRegionId(e.target.value ? Number(e.target.value) : null);
+                    setRegionIsSuggested(false);
                   }}
-                  truncated={cityDisambig.truncated}
-                  disabled={createCity.isPending || changeCity.isPending}
-                />
+                >
+                  <option value="">No {regionLabel.toLowerCase()} selected</option>
+                  {(disambiguation.mode === 'region'
+                    ? countryRegions.filter((r) => disambiguation.regionIsos.includes(r.iso_3166_2))
+                    : countryRegions
+                  ).map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+                {regionIsSuggested &&
+                  disambiguation.mode === 'suggested' &&
+                  suggestedRegionName && (
+                    <p className="mt-1 text-xs font-semibold text-gray-500">
+                      Suggested: {suggestedRegionName} — from "{newCityName}"
+                      {cityDisambig.truncated && ' (other matches may exist)'}
+                    </p>
+                  )}
               </div>
-            ) : (
-              showRegionDropdown && (
-                <div className="mb-4">
-                  <label className={labelClass}>
-                    {regionLabel} <span className="font-normal text-gray-500">(optional)</span>
-                    {disambiguation.mode === 'region' && (
-                      <span className="font-normal text-amber-600 text-xs">
-                        {' '}
-                        — multiple matches found, please choose
-                        {cityDisambig.truncated && ' (there may be more not shown)'}
-                      </span>
-                    )}
-                  </label>
-                  <select
-                    className={inputClass}
-                    value={newCityRegionId ?? ''}
-                    onChange={(e) => {
-                      setNewCityRegionId(e.target.value ? Number(e.target.value) : null);
-                      setRegionIsSuggested(false);
-                    }}
-                  >
-                    <option value="">No {regionLabel.toLowerCase()} selected</option>
-                    {(disambiguation.mode === 'region'
-                      ? countryRegions.filter((r) =>
-                          disambiguation.regionIsos.includes(r.iso_3166_2),
-                        )
-                      : countryRegions
-                    ).map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                  {regionIsSuggested &&
-                    disambiguation.mode === 'suggested' &&
-                    suggestedRegionName && (
-                      <p className="mt-1 text-xs font-semibold text-gray-500">
-                        Suggested: {suggestedRegionName} — from "{newCityName}"
-                        {cityDisambig.truncated && ' (other matches may exist)'}
-                      </p>
-                    )}
-                </div>
-              )
-            )}
+            )
+          )}
 
-            {mutationError && <ErrorMessage error={mutationError} />}
-            <div className="flex gap-2.5 mt-1">
-              <button
-                type="button"
-                onClick={() => setShowNewCityForm(false)}
-                className="px-3.5 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={createCity.isPending || changeCity.isPending}
-                className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
-              >
-                {createCity.isPending || changeCity.isPending
-                  ? 'Saving…'
-                  : mutationError
-                    ? 'Retry'
-                    : 'Change City'}
-              </button>
-            </div>
-          </form>
-        )}
+          {mutationError && <ErrorMessage error={mutationError} />}
+          <div className="flex gap-2.5 mt-1">
+            <button
+              type="button"
+              onClick={() => setShowNewCityForm(false)}
+              className="px-3.5 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+            >
+              Back
+            </button>
+            <button
+              type="submit"
+              disabled={createCity.isPending || changeCity.isPending}
+              className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
+            >
+              {createCity.isPending || changeCity.isPending
+                ? 'Saving…'
+                : mutationError
+                  ? 'Retry'
+                  : 'Change City'}
+            </button>
+          </div>
+        </form>
+      )}
 
-        {mutationError && !showNewCityForm && <ErrorMessage error={mutationError} />}
-      </div>
-    </div>
+      {mutationError && !showNewCityForm && <ErrorMessage error={mutationError} />}
+    </ModalOverlay>
   );
 }

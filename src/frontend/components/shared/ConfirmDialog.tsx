@@ -1,4 +1,5 @@
 import { ErrorMessage } from './ErrorMessage';
+import { ModalOverlay } from './ModalOverlay';
 
 interface ConfirmDialogProps {
   /** Whether the dialog is visible. */
@@ -48,40 +49,32 @@ export function ConfirmDialog({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center z-[1000]"
-      onClick={onCancel}
-    >
-      <div
-        className="bg-white rounded-lg p-6 max-w-sm w-[90%] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="m-0 mb-3 text-base font-semibold text-gray-900">{title}</h3>
-        <p className="m-0 text-gray-600 leading-relaxed text-sm">{message}</p>
-        {error && (
-          <div className="mt-3">
-            <ErrorMessage error={error} />
-          </div>
-        )}
-        <div className="flex gap-3 justify-end mt-5">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isConfirming}
-            className="px-4 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 cursor-pointer"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isConfirming}
-            className="px-4 py-2 border-none rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-60 cursor-pointer"
-          >
-            {isConfirming ? (confirmingLabel ?? `${confirmLabel}…`) : confirmLabel}
-          </button>
+    <ModalOverlay onClose={onCancel} zIndex={1000} panelClassName="p-6 max-w-sm w-[90%]">
+      <h3 className="m-0 mb-3 text-base font-semibold text-gray-900">{title}</h3>
+      <p className="m-0 text-gray-600 leading-relaxed text-sm">{message}</p>
+      {error && (
+        <div className="mt-3">
+          <ErrorMessage error={error} />
         </div>
+      )}
+      <div className="flex gap-3 justify-end mt-5">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isConfirming}
+          className="px-4 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 cursor-pointer"
+        >
+          {cancelLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={isConfirming}
+          className="px-4 py-2 border-none rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-60 cursor-pointer"
+        >
+          {isConfirming ? (confirmingLabel ?? `${confirmLabel}…`) : confirmLabel}
+        </button>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

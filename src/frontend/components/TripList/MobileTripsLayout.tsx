@@ -19,14 +19,18 @@
  *
  * No horizontal scrolling anywhere except the status filter chip row (the one
  * documented exception — 5 status chips can't fit one mobile-width line).
+ *
+ * QUAL-30: the list-panel state/derived-values/handlers this shares
+ * byte-for-byte with DesktopTripsLayout now live in useTripsController — this
+ * file keeps its own distinct markup plus the detail-view plumbing
+ * (useTrip/useMe/renderDetailContent/slide-transition state) that has no
+ * desktop counterpart.
  */
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useCountries } from '../../hooks/useAdmin';
+import { useCallback } from 'react';
 import { useMe } from '../../hooks/useMe';
-import { type TripFilters, useDeleteTrip, useTrip, useTrips } from '../../hooks/useTrips';
+import { useTrip } from '../../hooks/useTrips';
+import { type SortOption, STATUS_CHIPS, useTripsController } from '../../hooks/useTripsController';
 import type { TripStatus } from '../../types/api';
-import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 import { AdminIcon, LocationPinIcon, SuitcaseIcon } from '../icons';
 import { ReviewPanel } from '../PostTripReview/ReviewPanel';
 import { ErrorMessage } from '../shared/ErrorMessage';
@@ -34,53 +38,50 @@ import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { MobileTripDetailView } from '../TripDetail/MobileTripDetailView';
 import { TripForm } from '../TripDetail/TripForm';
 import { TripCard } from './TripCard';
-import { filterAndSortTrips } from './TripList';
-
-/** Status chip definitions for F-07 — identical set to desktop. */
-const STATUS_CHIPS: { value: TripStatus | ''; label: string }[] = [
-  { value: '', label: 'All' },
-  { value: 'planning', label: 'Planning' },
-  { value: 'active', label: 'Active' },
-  { value: 'review_pending', label: 'Review' },
-  { value: 'locked', label: 'Locked' },
-];
-
-type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc';
 
 /** Bottom tab bar destinations (Map/Trips/Admin) — C9: list-view only. */
 const TAB_ICON_CLASS = 'flex flex-col items-center gap-1 py-1 px-3';
 
 export function MobileTripsLayout() {
-  const [filters, setFilters] = useState<TripFilters>({});
-  const [showForm, setShowForm] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [sortBy, setSortBy] = useState<SortOption>('date_desc');
+  const {
+    filters,
+    setFilters,
+    showForm,
+    setShowForm,
+    searchText,
+    setSearchText,
+    sortBy,
+    setSortBy,
+    selectionMode,
+    selectedIds,
+    isDeleting,
+    deleteError,
+    pendingDelete,
+    selectedId,
+    navigate,
+    trips,
+    isLoading,
+    error,
+    displayedTrips,
+    mapFilterLabel,
+    tripCount,
+    statusCounts,
+    handleFormClose,
+    clearMapFilter,
+    enterSelectionMode,
+    exitSelectionMode,
+    handleCheckChange,
+    handleSelectAll,
+    handleBulkDelete,
+    handleUndoDelete,
+  } = useTripsController();
 
-  // FEAT-BD: Multi-select delete state (identical to desktop)
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<Error | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<{
-    ids: Set<number>;
-    timer: ReturnType<typeof setTimeout>;
-  } | null>(null);
-
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { id: selectedId } = useParams<{ id?: string }>();
+  // Mobile-only: bottom tab bar owner gating.
   const { data: me } = useMe();
 
-  const countryFilter = searchParams.get('country');
-  const regionFilter = searchParams.get('region');
-  const cityFilter = searchParams.get('city') ? Number(searchParams.get('city')) : null;
-
-  const { data: trips, isLoading, error } = useTrips(filters);
-  const { data: allTrips = [] } = useTrips();
-  const deleteTrip = useDeleteTrip();
-  const { data: countries = [] } = useCountries();
-
-  // Detail-view data — fetched directly (no <Outlet/>, see module doc comment).
+  // Mobile-only: detail-view data — fetched directly (no <Outlet/>, see
+  // module doc comment). Reuses the same :id param useTripsController already
+  // read via useParams (selectedId), so there's no second route read here.
   const numericSelectedId = selectedId ? Number(selectedId) : undefined;
   const {
     data: selectedTrip,
@@ -88,119 +89,7 @@ export function MobileTripsLayout() {
     error: tripError,
   } = useTrip(numericSelectedId);
 
-  const handleFormClose = () => setShowForm(false);
-  const clearMapFilter = () => navigate('/trips', { replace: true });
   const handleBack = useCallback(() => navigate('/trips'), [navigate]);
-
-  const displayedTrips = useMemo(
-    () =>
-      filterAndSortTrips(trips ?? [], searchText, sortBy, countryFilter, regionFilter, cityFilter),
-    [trips, searchText, sortBy, countryFilter, regionFilter, cityFilter],
-  );
-
-  // BUG-80: same fix as DesktopTripsLayout — derive the full city object (not
-  // just its name) so the map-filter label can carry a region/country
-  // subtitle; two different "Newport" pins used to both label this chip
-  // "City: Newport" once clicked.
-  const cityInfo = useMemo(() => {
-    if (cityFilter === null) return null;
-    for (const trip of trips ?? []) {
-      for (const place of trip.places) {
-        if (place.city_id === cityFilter) return place.city;
-      }
-    }
-    return null;
-  }, [trips, cityFilter]);
-
-  const mapFilterLabel = useMemo(() => {
-    if (cityFilter !== null) {
-      if (!cityInfo) return `City: ${cityFilter}`;
-      const subtitle = formatCitySubtitle(
-        cityInfo,
-        countries,
-        cityInfo.country_name ?? cityInfo.country_code,
-      );
-      return `City: ${cityInfo.name}, ${subtitle}`;
-    }
-    if (regionFilter) return `Region: ${regionFilter}`;
-    if (countryFilter) return `Country: ${countryFilter}`;
-    return null;
-  }, [cityFilter, regionFilter, countryFilter, cityInfo, countries]);
-
-  const tripCount = displayedTrips.length;
-
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const t of allTrips) {
-      counts[t.status] = (counts[t.status] ?? 0) + 1;
-    }
-    return counts;
-  }, [allTrips]);
-
-  const selectableTrips = useMemo(
-    () => displayedTrips.filter((t) => t.status !== 'locked'),
-    [displayedTrips],
-  );
-
-  const enterSelectionMode = () => {
-    setSelectionMode(true);
-    setSelectedIds(new Set());
-  };
-  const exitSelectionMode = () => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  };
-
-  const handleCheckChange = useCallback((id: number, checked: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
-
-  const handleSelectAll = () => {
-    setSelectedIds(new Set(selectableTrips.map((t) => t.id)));
-  };
-
-  const handleBulkDelete = () => {
-    const count = selectedIds.size;
-    if (count === 0) return;
-    const confirmed = window.confirm(
-      `Delete ${count} trip${count === 1 ? '' : 's'}? This cannot be undone.`,
-    );
-    if (!confirmed) return;
-
-    const ids = new Set(selectedIds);
-    const timer = setTimeout(() => {
-      setIsDeleting(true);
-      void (async () => {
-        try {
-          for (const id of ids) {
-            await deleteTrip.mutateAsync(id);
-          }
-          if (selectedId && ids.has(Number(selectedId))) {
-            navigate('/trips', { replace: true });
-          }
-        } catch (err) {
-          setDeleteError(err instanceof Error ? err : new Error(String(err)));
-        } finally {
-          setIsDeleting(false);
-          setPendingDelete(null);
-        }
-      })();
-    }, 5000);
-
-    setPendingDelete({ ids, timer });
-    exitSelectionMode();
-  };
-
-  const handleUndoDelete = () => {
-    if (!pendingDelete) return;
-    clearTimeout(pendingDelete.timer);
-    setPendingDelete(null);
-  };
 
   // Slide/cross-fade transition — exact transform/opacity values per spec.
   const hasSelection = !!selectedId;

@@ -3,7 +3,11 @@
  *
  * Covers categories, activities, companions, and countries.
  * All three list types (categories, activities, companions) share the same
- * CRUD pattern, so helper factories are used to reduce duplication.
+ * CRUD pattern (QUAL-29): the list/active/create/update/delete bodies below
+ * are thin named wrappers around the useNameList* helpers, which hold the
+ * one real implementation of each shape. Function names, query keys and
+ * endpoints are unchanged from before the refactor — this is a pure
+ * dedup, not a behaviour change.
  *
  * ADL-46 (AD-09, D3): categories and activities moved off /api/admin/* to
  * /api/categories and /api/activities (requireAuth, userId-scoped) — same
@@ -15,6 +19,82 @@ import type { Activity, Category, Companion, Country } from '../types/api';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../utils/apiClient';
 
 // ============================================================
+// SHARED NAME-LIST CRUD HELPERS (QUAL-29)
+// ============================================================
+
+/**
+ * Fetches a name-list resource (all rows, active + inactive).
+ * @param resourceKey - second segment of the query key, e.g. 'categories'.
+ * @param apiPath - base REST path, e.g. '/api/categories'.
+ */
+function useNameList<T>(resourceKey: string, apiPath: string) {
+  return useQuery({
+    queryKey: ['admin', resourceKey],
+    queryFn: () => apiGet<T[]>(apiPath),
+  });
+}
+
+/** Fetches only the active rows of a name-list resource (for dropdowns/forms). */
+function useActiveNameList<T>(resourceKey: string, apiPath: string) {
+  return useQuery({
+    queryKey: ['admin', resourceKey, 'active'],
+    queryFn: () => apiGet<T[]>(`${apiPath}/active`),
+  });
+}
+
+/**
+ * Creates a name-list row. Invalidates the resource's list query plus any
+ * `extraInvalidateKeys` (e.g. companions also invalidate ['trips'] — BUG-51).
+ */
+function useCreateNameListItem<T>(
+  resourceKey: string,
+  apiPath: string,
+  extraInvalidateKeys: readonly (readonly unknown[])[] = [],
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => apiPost<T>(apiPath, { name }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin', resourceKey] });
+      for (const key of extraInvalidateKeys) void qc.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+/** Updates a name-list row's name or active status. Same invalidation shape as create. */
+function useUpdateNameListItem<T>(
+  resourceKey: string,
+  apiPath: string,
+  extraInvalidateKeys: readonly (readonly unknown[])[] = [],
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
+      apiPatch<T>(`${apiPath}/${id}`, data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin', resourceKey] });
+      for (const key of extraInvalidateKeys) void qc.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+/** Soft-deletes (deactivates) a name-list row. Same invalidation shape as create. */
+function useDeleteNameListItem(
+  resourceKey: string,
+  apiPath: string,
+  extraInvalidateKeys: readonly (readonly unknown[])[] = [],
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`${apiPath}/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin', resourceKey] });
+      for (const key of extraInvalidateKeys) void qc.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+// ============================================================
 // CATEGORIES
 // ============================================================
 
@@ -23,10 +103,7 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '../utils/apiClient';
  * @returns React Query result containing Category[].
  */
 export function useCategories() {
-  return useQuery({
-    queryKey: ['admin', 'categories'],
-    queryFn: () => apiGet<Category[]>('/api/categories'),
-  });
+  return useNameList<Category>('categories', '/api/categories');
 }
 
 /**
@@ -34,44 +111,22 @@ export function useCategories() {
  * @returns React Query result containing Category[].
  */
 export function useActiveCategories() {
-  return useQuery({
-    queryKey: ['admin', 'categories', 'active'],
-    queryFn: () => apiGet<Category[]>('/api/categories/active'),
-  });
+  return useActiveNameList<Category>('categories', '/api/categories');
 }
 
 /** Creates a category. Invalidates both category queries on success. */
 export function useCreateCategory() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (name: string) => apiPost<Category>('/api/categories', { name }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
-    },
-  });
+  return useCreateNameListItem<Category>('categories', '/api/categories');
 }
 
 /** Updates a category name or active status. Invalidates category queries. */
 export function useUpdateCategory() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
-      apiPatch<Category>(`/api/categories/${id}`, data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
-    },
-  });
+  return useUpdateNameListItem<Category>('categories', '/api/categories');
 }
 
 /** Soft-deletes (deactivates) a category. Invalidates category queries. */
 export function useDeleteCategory() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => apiDelete(`/api/categories/${id}`),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'categories'] });
-    },
-  });
+  return useDeleteNameListItem('categories', '/api/categories');
 }
 
 // ============================================================
@@ -80,52 +135,27 @@ export function useDeleteCategory() {
 
 /** Fetches all activities (active + inactive). */
 export function useActivities() {
-  return useQuery({
-    queryKey: ['admin', 'activities'],
-    queryFn: () => apiGet<Activity[]>('/api/activities'),
-  });
+  return useNameList<Activity>('activities', '/api/activities');
 }
 
 /** Fetches only active activities (for dropdowns). */
 export function useActiveActivities() {
-  return useQuery({
-    queryKey: ['admin', 'activities', 'active'],
-    queryFn: () => apiGet<Activity[]>('/api/activities/active'),
-  });
+  return useActiveNameList<Activity>('activities', '/api/activities');
 }
 
 /** Creates an activity. */
 export function useCreateActivity() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (name: string) => apiPost<Activity>('/api/activities', { name }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
-    },
-  });
+  return useCreateNameListItem<Activity>('activities', '/api/activities');
 }
 
 /** Updates an activity name or active status. */
 export function useUpdateActivity() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
-      apiPatch<Activity>(`/api/activities/${id}`, data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
-    },
-  });
+  return useUpdateNameListItem<Activity>('activities', '/api/activities');
 }
 
 /** Soft-deletes an activity. */
 export function useDeleteActivity() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => apiDelete(`/api/activities/${id}`),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
-    },
-  });
+  return useDeleteNameListItem('activities', '/api/activities');
 }
 
 // ============================================================
@@ -138,62 +168,41 @@ export function useDeleteActivity() {
  * /api/companions (requireAuth, userId-scoped) — same response shape, per-user data.
  */
 export function useCompanions() {
-  return useQuery({
-    queryKey: ['admin', 'companions'],
-    queryFn: () => apiGet<Companion[]>('/api/companions'),
-  });
+  return useNameList<Companion>('companions', '/api/companions');
 }
 
 /** Fetches only active companions (for dropdowns), owned by the caller. */
 export function useActiveCompanions() {
-  return useQuery({
-    queryKey: ['admin', 'companions', 'active'],
-    queryFn: () => apiGet<Companion[]>('/api/companions/active'),
-  });
+  return useActiveNameList<Companion>('companions', '/api/companions');
 }
+
+// BUG-51: trips embed the companion's name via a live LEFT JOIN, not a
+// denormalised copy — a fresh ['trips'] query would keep serving the
+// pre-mutation name until something else forced a refetch. Every companion
+// mutation below also invalidates ['trips'] for that reason.
+const COMPANION_EXTRA_INVALIDATE_KEYS = [['trips']] as const;
 
 /** Creates a companion, owned by the caller. */
 export function useCreateCompanion() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (name: string) => apiPost<Companion>('/api/companions', { name }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
-      // BUG-51: trips embed the companion's name via a live LEFT JOIN, not a
-      // denormalised copy — a fresh ['trips'] query would keep serving the
-      // pre-mutation name until something else forced a refetch.
-      void qc.invalidateQueries({ queryKey: ['trips'] });
-    },
-  });
+  return useCreateNameListItem<Companion>(
+    'companions',
+    '/api/companions',
+    COMPANION_EXTRA_INVALIDATE_KEYS,
+  );
 }
 
 /** Updates a companion name or active status. 404 if owned by a different user. */
 export function useUpdateCompanion() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { name?: string; is_active?: boolean } }) =>
-      apiPatch<Companion>(`/api/companions/${id}`, data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
-      // BUG-51: see useCreateCompanion — a companion rename must invalidate
-      // every trip referencing it, not just the admin companions list.
-      void qc.invalidateQueries({ queryKey: ['trips'] });
-    },
-  });
+  return useUpdateNameListItem<Companion>(
+    'companions',
+    '/api/companions',
+    COMPANION_EXTRA_INVALIDATE_KEYS,
+  );
 }
 
 /** Soft-deletes a companion. 404 if owned by a different user. */
 export function useDeleteCompanion() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => apiDelete(`/api/companions/${id}`),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'companions'] });
-      // BUG-51: see useCreateCompanion — deactivation must also refresh trips
-      // that reference this companion.
-      void qc.invalidateQueries({ queryKey: ['trips'] });
-    },
-  });
+  return useDeleteNameListItem('companions', '/api/companions', COMPANION_EXTRA_INVALIDATE_KEYS);
 }
 
 // ============================================================
