@@ -32,7 +32,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (47)
+### P2 — Important (46)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -53,7 +53,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-42 | Multiple companions/seats per booking item | database | ⬜ Pending |
 | BUG-46 | Activities selector missing from trip create flow (only present on edit) | frontend | ⬜ Pending |
 | BUG-48 | Country→state map shading zoom threshold too high / laggy | frontend | ⬜ Pending |
-| BUG-49 | City markers render behind state shading layer | frontend | ⬜ Pending |
 | BUG-53 | Trip list place display: show state (not country) under city, surface country separately | ux | ⬜ Pending |
 | BUG-55 | City entry doesn't auto-populate country/state — CSP blocks the Nominatim call (deployment defect) | architect | ⬜ Pending |
 | BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
@@ -84,7 +83,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (35)
+### P3 — Minor (36)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -115,6 +114,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | UX-13 | Grey out / lock the city name on the disambiguation picker screen (editing it there doesn't re-run the lookup) | frontend | ⬜ Pending |
 | UX-14 | First place's dates render in blue while later places' dates don't (inconsistent styling) | frontend | ⬜ Pending |
 | BUG-92 | Companions are not seeded from a global starting list | architect | ⬜ Pending |
+| BUG-93 | Newly-added place's map marker doesn't appear until a refresh (render lag on add) | frontend | ⬜ Pending |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 | QUAL-34 | Shared-record append collisions — union-merge driver for the ledger + per-agent context files (never adopted, 3rd recording) | coo | ⬜ Pending |
 | QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |
@@ -130,7 +130,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `████████████▓░░░░░░░` 35/57 | 35 | 22 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `██████████████░░░░░░` 57/84 | 57 | 27 | 3 |
+| bug | `██████████████░░░░░░` 58/85 | 58 | 27 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
 | chore | `███████████░░░░░░░░░` 30/55 | 30 | 25 | 1 |
 
@@ -166,4 +166,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_173 done · 9 deferred · 5 closed · 85 open — 272 tracked items_
+_174 done · 9 deferred · 5 closed · 85 open — 273 tracked items_

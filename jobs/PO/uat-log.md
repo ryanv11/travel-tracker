@@ -118,10 +118,11 @@ BRD-DP06, BUG-44, BRD-IT10, BUG-51. Owner-side passes (BUG-50/57/77/79, BRD-GE16
 passes flipped `done_pending_uat` → `done`.**
 
 **FAIL / reopened:**
-- **BUG-49 → reopened (pending).** Trip to Sydney shows **no city marker** and **state shading covers the
-  map name labels**. The 'markers behind shading' fix didn't hold. Re-probe: 'no Sydney marker' could be
-  behind-shading OR Sydney city geocode-pending (GE-13 map-exclusion) — check the DB row first. Shading-over-
-  labels is a separate z-order/legibility question (PO 'unsure if it needs fixing').
+- **BUG-49 → PASS (re-closed to done).** First reopened on the Sydney 'no tag', then corrected: Sydney
+  resolved-at-creation (not pending) and the PO confirmed the pin sits **above** the shading and is legible,
+  so the marker z-order fix holds (owner + non-owner). The 'appeared late' symptom was a frontend map-render
+  lag on add → split to **BUG-93**. Shading-over-*state-labels* is a separate low-pri observation (PO 'unsure
+  if it needs fixing'), not tracked as a bug pending a PO decision.
 - **BUG-58 → reopened (pending).** Locking a trip deselects it (owner + non-owner). Original fix covered
   *backward* moves; the *lock* transition still deselects. Sibling of BUG-86.
 - **BUG-62 → held.** Its own scope (non-owner Companions access) **passed**; the PO's fail was the
