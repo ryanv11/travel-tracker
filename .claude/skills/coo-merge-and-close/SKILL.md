@@ -21,6 +21,9 @@ Installed 2026-07-18 from the Session C draft (audits/session-c-workflow-extract
    only by reading the raw log).
 3. Merge:
    ```bash
+   # If the PR is behind main, branch protection (strict/require-up-to-date) blocks the
+   # merge: bring it current and let CI re-run (~85s) BEFORE merging, else the button is dead.
+   gh pr update-branch <n>            # only if "This branch is out-of-date with the base"
    gh pr merge <n> --repo ryanv11/travel-tracker --squash --delete-branch
    git checkout main && git pull
    git branch -D <branch-name>        # force-delete expected with squash merges
