@@ -2015,7 +2015,7 @@
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, PO-flagged as longer-term, logged only. DESIGNED 2026-07-27 — Architect ADL-43 (issue #273, Wave 0 brief S3) decided jointly with OQ-06: airlines sourced from OpenFlights (via npm `airline-codes`, ODbL data licence — attribution required, flagged for re-confirmation) into a new admin-managed `airlines` table with a search endpoint; car rental providers have no comparable external source and get a hand-curated list on the same admin-managed table pattern; both keep 'Other' as a UI-only free-text fallback with no schema change to item_flights/item_flight_legs/item_car_rentals. Full design jobs/architect/tech/ADL-43-sourced-reference-data.md. Designed, implementation pending. BLOCKED on the COO BRD gate: brdRefs is empty and this needs new §5.6 requirement IDs (suggested FL-06 — FL-05 is already taken by ADL-42's leg-ordering requirement, BRD v3.9 — and CR-03) with success criteria before any brief dispatches. Sequencing: the airline half also depends on ADL-42's item_flight_legs table shipping first (car-rental-provider half does not)."
+      "notes": "Found 2026-07-21 UAT, PO-flagged as longer-term, logged only. DESIGNED 2026-07-27 — Architect ADL-43 (issue #273, Wave 0 brief S3) decided jointly with OQ-06: airlines sourced from OpenFlights (via npm `airline-codes`, ODbL data licence — attribution required, flagged for re-confirmation) into a new admin-managed `airlines` table with a search endpoint; car rental providers have no comparable external source and get a hand-curated list on the same admin-managed table pattern; both keep 'Other' as a UI-only free-text fallback with no schema change to item_flights/item_flight_legs/item_car_rentals. Full design jobs/architect/tech/ADL-43-sourced-reference-data.md. Designed, implementation pending. BLOCKED on the COO BRD gate: brdRefs is empty and this needs new §5.6 requirement IDs (suggested FL-06 — FL-05 is already taken by ADL-42's leg-ordering requirement, BRD v3.9 — and CR-03) with success criteria before any brief dispatches. Sequencing: the airline half also depends on ADL-42's item_flight_legs table shipping first (car-rental-provider half does not). || UAT 2026-08-08 (PO 'add it to the to-do list'): PO re-flagged airline/flight/airport as free-text. Airline is this item; flight-number auto-populate is BRD-FL04; but AIRPORTS are a THIRD dimension ADL-43's scope (airlines + car-rental providers) does NOT cover — airport lookup (IATA/ICAO) is an uncovered gap to fold in when this is specced."
     },
     {
       "id": "OQ-06",
@@ -2745,6 +2745,78 @@
       "brdRefs": ["GE-19"],
       "phase": 6,
       "notes": "Surfaced 2026-08-08 during Scotland dogfood UAT prep: the PO opened staging and saw 'Geocoding pending (1)' sitting against their account with no way to act on it. INVESTIGATION (COO, read-only staging diagnostic per ADL-33 §5): the one stuck row is city id 6 'Springfield, US' (region_id 14), geocode_status='pending', geocode_attempts=5 == GEOCODE_ATTEMPT_CAP, no coords. MECHANISM (code-verified): processQueue selects WHERE geocode_status='pending' AND geocode_attempts<CAP, so at the cap the backend never re-selects it (staging [GEO] log confirmed 'queue empty — nothing to process'); the frontend NR-06 retry queue (localStorage, src/frontend/services/geocodeRetryQueue.ts) removes an entry only on 'resolved' or a 404, so a capped-pending OR an unresolvable city badges forever. WHY city 6 is 'pending' not 'unresolvable': the only code path leaving it 'pending' after the geocoder answers is the ADL-46 F1/F2 'ambiguous — must not guess (D14)' branch (geocoding.service.ts ~:483), which consumes an attempt and stays pending. CLASSIFICATION (OP-32): product GAP, not regression/deployment — two sibling 'Springfield, US' rows (region 46) resolved from the SAME staging deploy at the same time, so Nominatim reachability is excluded. NOTE (negative-findings): city 6's exact per-attempt cause is not log-confirmed (the 2026-08-07 attempt window has rotated out of the log buffer) — 'ambiguous verdict' is strongly supported by the 2-of-3-resolved evidence and the pending-not-unresolvable state, but the precise cause per attempt is UNVERIFIED; either way the stuck-record outcome and the fix are the same. PO DECISION 2026-08-08: chose proper stuck-record handling over cosmetic auto-dismiss ('I wouldn't even know what to delete or edit to treat the stuck record — being able to click into the pending badge to see the queue and cause would be helpful'), and added the hard constraint that the indicator is USER-SCOPED to cities referenced by the user's own trips/places, never a global list (cities are a shared reference table, so a naive 'show all pending' surface would leak every user's stuck cities — a userId-scoping/security boundary, ADL-18/ADL-46). BRD home GE-19 (v3.20). REUSE: GE-16 already establishes creator-scoping for pending cities AND a recovery lever ('the user who created a place can correct it by re-pointing that place to a different city') — GE-19's disambiguate action reuses that re-point path rather than inventing a parallel one. RELATIONSHIP: adjacent to but distinct from BUG-72 (which-Springfield disambiguation at the dropdown) and BUG-73/74 (silent add-time failure signal) — those are add-time UX; this is after-the-fact queue recovery; cross-referenced, not absorbed. NEXT STEPS (not yet dispatched): Architect ADL for the geocode status-lifecycle model (new terminal status vs. reuse 'unresolvable'; how a user-supplied region re-opens a terminal record; derived user-scoped query vs. maintained client list) -> OP-27 fresh-eyes review -> OP-35 ATDD-first QA (Architect-involved, data-model change) -> frontend + backend implementation. INSTANCE CLEANUP: city 6 is orphaned disposable staging test data (trip_places=0 after the PO deleted their trips; cities are not cascade-deleted with trips) — the PO can 'dismiss' the badge (clears localStorage only); the diagnostic token is read-only so no DB write was made."
+    },
+
+    {
+      "id": "BUG-86",
+      "type": "bug",
+      "title": "\"Back to trip\" button in review status deselects the trip instead of returning to the active view",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 owner UAT (finding 1.5, PO 'yes'). In review/review_pending status the 'Back to trip' control deselects the trip entirely (blank panel) rather than returning to the active-status trip view the PO expects. Small frontend fix. Same 'status transition drops the selection' family as BUG-58 (locking a trip also deselects it) — consider fixing together."
+    },
+
+    {
+      "id": "BUG-87",
+      "type": "enhancement",
+      "title": "Add-place picker does not narrow/rank candidates by the trip's assigned country/countries",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 owner UAT (findings 1.2 + 6.2), PO-directed. Searching 'Newport' on a UK trip returns only USA Newports because the picker's discovery lookup (geocode.ts DISCOVERY_LIMIT path) narrows by the country the GEOCODER auto-detects from its top candidate, NOT by the trip's declared countries. PO direction verbatim: 'you can select multiple countries when setting up or editing a trip so I think the places should narrow based on the country or countries assigned to the trip.' So the picker must receive the trip's country SET and narrow/rank by it. CLASSIFICATION (OP-32): GAP — trip-country narrowing was the ADL-48 spike's 'recommended, not day one' signal, never built. NOT BUG-76 (that was the settlement-types filter, done). OPEN DESIGN QUESTION for Architect + PO: hard FILTER vs soft RANK. The spike recommended RANK — a hard filter to trip countries loses valid off-country results, and the PO affirmed adding an off-trip-country place (a USA place on an Argentina trip) 'is fine' — so a soft rank that surfaces trip-country matches first without hard-excluding others is the likely answer. ARCHITECT-GATED (changes the lookup contract: pass the trip country set into /api/geocode + /api/cities) + BRD home needed (new GE requirement + success criteria) + ATDD-first per OP-35. Headline of the geocoder-picker bundle (with BUG-72 labels/dedup, UX-13 grey-out, coords-display)."
+    },
+
+    {
+      "id": "BUG-88",
+      "type": "enhancement",
+      "title": "Post-trip review has no trip-level or place-level rating (only item-level)",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 owner UAT (finding 1.3, PO 'yes, track it'). The post-trip review flow only rates ITEMS within a place; there is no overall TRIP rating or PLACE-level rating. PO wants both. Needs a BRD home (post-trip review / RV requirement family) with success criteria before dispatch; likely schema additions (trips.rating, trip_places.rating) → Architect data-model review, then ATDD-first per OP-35 given the schema change."
+    },
+
+    {
+      "id": "BUG-89",
+      "type": "enhancement",
+      "title": "Country/city geocode lookup is intolerant of misspellings and informal spellings",
+      "status": "pending",
+      "owner": "backend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 owner UAT (finding 12.1, PO 'yes'). Commonly-misspelled names silently return no result — PO typed 'Caymen islands' and got nothing. Distinct from D-14 (trip SEARCH matching full country names): this is the geocode LOOKUP at add time. Options: fuzzy match / Nominatim tolerance tuning / a did-you-mean. Needs a small design + success criteria, and must respect the D14 'must not guess' discipline (a tolerant match must not silently pick a wrong-confident result)."
+    },
+
+    {
+      "id": "BUG-90",
+      "type": "bug",
+      "title": "\"Scotland\" and other UK home nations not selectable in the add-trip country picker",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 owner UAT (finding 6.1). The add-TRIP country selector is sourced from the ISO country list (data/countries.json, Natural Earth), so Scotland/Wales/England/Northern Ireland (GB subdivisions, e.g. GB-SCT) are absent. PO: 'it feels blatantly wrong — no one would describe Scotland as a region, they'd call it a country, same for Ireland.' CLASSIFICATION NOT YET SETTLED (OP-32, do before briefing): BUG-30 (DONE, P1, 'UK constituent countries unavailable when adding a PLACE') addressed a DIFFERENT surface — geocoding a place in a Scottish city — not the trip-level country picker. So this is either a never-covered surface or a regression of BUG-30's intent; re-probe before inheriting either (negative-findings rule). DESIGN QUESTION (Architect): expose home nations as selectable 'countries' that map to GB + the appropriate region, or move trip-country scoping to subdivisions? Ties to D-14 (informal country names) and OQ-06 / the ISO-3166-2 subdivision-list item. Directly affects the Scotland dogfood. Architect-gated + BRD home."
+    },
+
+    {
+      "id": "UX-13",
+      "type": "ux",
+      "title": "Grey out / lock the city name on the disambiguation picker screen (editing it there doesn't re-run the lookup)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 owner UAT (finding 6.3, PO 'yes'). On the picker/disambiguation screen the city name entered on the previous screen is editable, but editing it does NOT re-run the geocode lookup, so a changed value silently mismatches the candidates. Grey out / make read-only with a hint to go back to change it. Small frontend fix; part of the geocoder-picker bundle."
     },
 
     {
