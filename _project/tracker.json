@@ -1445,7 +1445,7 @@
       "id": "BRD-IT0809",
       "type": "feature",
       "title": "Rating sort and filter in item list views, cross-trip by city (IT-08/09)",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["IT-08","IT-09"],
@@ -1489,7 +1489,7 @@
       "id": "BRD-GE16",
       "type": "feature",
       "title": "Any authenticated user can add a city via constrained find-or-create (GE-16)",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "backend",
       "priority": "P1",
       "brdRefs": ["GE-16"],
@@ -1733,7 +1733,7 @@
       "id": "BRD-DP06",
       "type": "feature",
       "title": "First place added to a trip inherits the trip's date range (DP-06)",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "fullstack",
       "priority": "P2",
       "brdRefs": ["DP-06"],
@@ -1744,7 +1744,7 @@
       "id": "BRD-IT10",
       "type": "feature",
       "title": "Optional Google Maps URL per item — one-click directions (IT-10)",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "architect",
       "priority": "P3",
       "brdRefs": ["IT-10"],
@@ -1999,7 +1999,7 @@
       "id": "BUG-44",
       "type": "bug",
       "title": "Car rental pickup location should show as subtext under provider",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
@@ -2065,18 +2065,18 @@
       "id": "BUG-49",
       "type": "bug",
       "title": "City markers render behind state shading layer",
-      "status": "done_pending_uat",
+      "status": "pending",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["MP-02"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. When state shading activates it visually covers city tag markers — layer/z-order issue, city markers should stay on top. FIXED 2026-07-28 (GitHub #296, PR #301, Wave 1 sub-wave A brief B1). Root cause was not CSS or JSX order: RegionLayer, CountryLayer and CityMarkers are all native MapLibre GL layers, so paint order is the order layers were ADDED to the style. CountryLayer and CityMarkers mount unconditionally on MapView's first render; RegionLayer mounts lazily once zoom crosses REGION_ZOOM_THRESHOLD and region data loads, and MapLibre's addLayer with no beforeId always inserts at the top of the stack — so region shading landed above city-markers the moment it activated, despite CityMarkers appearing later in MapView's JSX. Fix: beforeId: 'city-markers' on regionFillLayer, which the Layer component honours on both initial addLayer and later moveLayer, so it holds across remounts as the user zooms. COO verified the failure mode this fix could have had — a beforeId naming a layer that does not exist throws — and it cannot occur: MapView.tsx:160 mounts CityMarkers unconditionally and CityMarkers always renders its Source+Layer (empty FeatureCollection when there are no trips). Region outline is a fill-outline-color paint property, not a second layer, so one beforeId covers it. Regression test at src/frontend/components/Map/__tests__/RegionLayer.test.ts. Stale doc comment at MapView.tsx:6 ('zoom >= 4' vs the constant's 3) fixed in the same PR per the document lifecycle rule. brdRefs backfilled to MP-02, the governing requirement ('zooming in on the map reveals region-level shading and city-level pins') — flagged by the B1 agent, verified against the BRD by the COO before adding. REGION_ZOOM_THRESHOLD and the 39 MB region payload deliberately untouched (BUG-48 / ADL-44)."
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. When state shading activates it visually covers city tag markers — layer/z-order issue, city markers should stay on top. FIXED 2026-07-28 (GitHub #296, PR #301, Wave 1 sub-wave A brief B1). Root cause was not CSS or JSX order: RegionLayer, CountryLayer and CityMarkers are all native MapLibre GL layers, so paint order is the order layers were ADDED to the style. CountryLayer and CityMarkers mount unconditionally on MapView's first render; RegionLayer mounts lazily once zoom crosses REGION_ZOOM_THRESHOLD and region data loads, and MapLibre's addLayer with no beforeId always inserts at the top of the stack — so region shading landed above city-markers the moment it activated, despite CityMarkers appearing later in MapView's JSX. Fix: beforeId: 'city-markers' on regionFillLayer, which the Layer component honours on both initial addLayer and later moveLayer, so it holds across remounts as the user zooms. COO verified the failure mode this fix could have had — a beforeId naming a layer that does not exist throws — and it cannot occur: MapView.tsx:160 mounts CityMarkers unconditionally and CityMarkers always renders its Source+Layer (empty FeatureCollection when there are no trips). Region outline is a fill-outline-color paint property, not a second layer, so one beforeId covers it. Regression test at src/frontend/components/Map/__tests__/RegionLayer.test.ts. Stale doc comment at MapView.tsx:6 ('zoom >= 4' vs the constant's 3) fixed in the same PR per the document lifecycle rule. brdRefs backfilled to MP-02, the governing requirement ('zooming in on the map reveals region-level shading and city-level pins') — flagged by the B1 agent, verified against the BRD by the COO before adding. REGION_ZOOM_THRESHOLD and the 39 MB region payload deliberately untouched (BUG-48 / ADL-44). || REOPENED 2026-08-08 — FAILED UAT (owner+non-owner). PO: a trip to Sydney shows NO city marker and state shading covers the map name labels underneath; the 'markers behind shading' fix did not hold in the deployed build. RE-PROBE BEFORE BRIEFING (two causes look identical): 'Sydney shows no tag' could be marker-behind-shading (this bug) OR the Sydney city being geocode-pending/unresolved (no coords -> GE-13 excludes it from the map) — check the DB row's geocode_status first. SEPARATE sub-observation (PO 'unsure if it needs fixing'): state shading covers the state-NAME labels for ALL states — a label-vs-shading z-order/legibility question distinct from the marker z-order."
     },
     {
       "id": "BUG-50",
       "type": "bug",
       "title": "No way to delete an entire trip",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": ["TR-14"],
@@ -2087,7 +2087,7 @@
       "id": "BUG-51",
       "type": "bug",
       "title": "Companion name edits in admin panel don't consistently propagate to trips",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P1",
       "brdRefs": [],
@@ -2098,7 +2098,7 @@
       "id": "BUG-52",
       "type": "bug",
       "title": "Trip search doesn't match on country name",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["TR-13"],
@@ -2142,7 +2142,7 @@
       "id": "BUG-56",
       "type": "bug",
       "title": "City name not auto-capitalized on entry",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": [],
@@ -2153,7 +2153,7 @@
       "id": "BUG-57",
       "type": "feature",
       "title": "Intelligent date defaults across item entry, keyed off the trip's date range",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "fullstack",
       "priority": "P2",
       "brdRefs": ["IT-11"],
@@ -2164,12 +2164,12 @@
       "id": "BUG-58",
       "type": "bug",
       "title": "Moving a trip backward in the status workflow deselects it from the left panel",
-      "status": "done_pending_uat",
+      "status": "pending",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["TR-11"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Moving a trip to an earlier status (backward through the workflow) clears the trip selection entirely, forcing the user to re-find and re-select it in the left panel. Expected: trip stays selected, detail panel just updates to reflect the new status. Meaningful friction at high trip volume. CLASSIFIED + FIXED 2026-07-28 (brief B7, GitHub #316), classified as a GAP not a regression: two independent probes (git log --follow on TripDetailPage.tsx/ReviewPanel.tsx/useTripDetailController's unlock logic, showing no #208 changes; and a full diff of the pre-#208 TripsLayout.tsx/TripDetail.tsx against their current versions) confirm the actual mechanism was byte-identical before and after the WP-03/WP-04 reskin (PR #208) that shipped the same UAT day — coincidental timing, not a regression it introduced. Root cause: the only user-reachable backward transition is 'Return to Planning' (review_pending -> planning, BUG-04's fix) inside ReviewPanel.tsx, whose handler called onClose() immediately after the status mutation succeeded — onClose is wired to navigate('/trips'), which drops the trip's :id from the URL and clears selection in the same click that changes status. Fix: removed the onClose() call from handleReturnToPlanning; the status mutation alone is sufficient; once trip.status flips to 'planning', TripDetailPage/MobileTripsLayout naturally stop rendering ReviewPanel for this trip and render TripDetail/MobileTripDetailView instead, same :id still in the URL. The other backward path (Unlock, locked -> review_pending, in useTripDetailController) never called onClose() and was already correct — confirmed by a new regression test, not just inspection. NOT touched: the forward Lock path inside ReviewPanel.tsx also calls onClose() after locking (review_pending -> locked) — same pattern, but forward, not filed as BUG-58, and out of this brief's stated scope ('trip stays selected when its status moves backward'); flagged to COO as a related but separate possible issue, not fixed here to avoid scope creep. Tests: ReviewPanel.test.tsx +2 (Return to Planning does NOT call onClose; still shows its confirm dialog first), useTripDetailController.test.tsx +1 (Unlock does not navigate, guarding the already-correct path against future regression). PR #319, CI 18/18 green."
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Moving a trip to an earlier status (backward through the workflow) clears the trip selection entirely, forcing the user to re-find and re-select it in the left panel. Expected: trip stays selected, detail panel just updates to reflect the new status. Meaningful friction at high trip volume. CLASSIFIED + FIXED 2026-07-28 (brief B7, GitHub #316), classified as a GAP not a regression: two independent probes (git log --follow on TripDetailPage.tsx/ReviewPanel.tsx/useTripDetailController's unlock logic, showing no #208 changes; and a full diff of the pre-#208 TripsLayout.tsx/TripDetail.tsx against their current versions) confirm the actual mechanism was byte-identical before and after the WP-03/WP-04 reskin (PR #208) that shipped the same UAT day — coincidental timing, not a regression it introduced. Root cause: the only user-reachable backward transition is 'Return to Planning' (review_pending -> planning, BUG-04's fix) inside ReviewPanel.tsx, whose handler called onClose() immediately after the status mutation succeeded — onClose is wired to navigate('/trips'), which drops the trip's :id from the URL and clears selection in the same click that changes status. Fix: removed the onClose() call from handleReturnToPlanning; the status mutation alone is sufficient; once trip.status flips to 'planning', TripDetailPage/MobileTripsLayout naturally stop rendering ReviewPanel for this trip and render TripDetail/MobileTripDetailView instead, same :id still in the URL. The other backward path (Unlock, locked -> review_pending, in useTripDetailController) never called onClose() and was already correct — confirmed by a new regression test, not just inspection. NOT touched: the forward Lock path inside ReviewPanel.tsx also calls onClose() after locking (review_pending -> locked) — same pattern, but forward, not filed as BUG-58, and out of this brief's stated scope ('trip stays selected when its status moves backward'); flagged to COO as a related but separate possible issue, not fixed here to avoid scope creep. Tests: ReviewPanel.test.tsx +2 (Return to Planning does NOT call onClose; still shows its confirm dialog first), useTripDetailController.test.tsx +1 (Unlock does not navigate, guarding the already-correct path against future regression). PR #319, CI 18/18 green. || REOPENED 2026-08-08 — FAILED UAT (owner+non-owner). PO: LOCKING a trip deselects it entirely from the left panel. BUG-58's original fix covered the BACKWARD status move; the LOCK (forward) transition still drops the selection. Widen to hold selection across ALL status transitions. Sibling: BUG-86 ('Back to trip' in review status also deselects) — same 'status transition drops the selection' family; fix together."
     },
     {
       "id": "BUG-59",
@@ -2213,7 +2213,7 @@
       "priority": "P2",
       "brdRefs": ["AD-08"],
       "phase": 6,
-      "notes": "Found 2026-07-23 by the Frontend agent closing out BRD-AD08's last piece (issue #244, PR #245, repointing useAdmin.ts's companion hooks at the new /api/companions route). companions.ts/CompanionTab.tsx themselves have no owner-only gating, but they're unreachable in practice: App.tsx wraps the entire /admin route in <RequireOwner> and the Admin nav link is rendered only when `me.isOwner` — both BUG-26's deliberate, tested fix (App.test.tsx, 6 tests) from before AD-08 existed. AD-08's access model says any authenticated user should manage their own companions, so this page-level gate is now stale for at least one tab. Deliberately NOT fixed as part of PR #245 — correct fix means moving from page-level RequireOwner to per-tab gating inside AdminPanel.tsx (keeping categories/activities/shading-config-colours*/countries-regions owner-only, opening companions), which touches shared nav/route infra and reverses part of BUG-26's tested contract, judged too architecturally significant for a same-brief hook-URL fix. *Note: map shading config (AD-07) has the identical page-gating problem — its API routes are requireAuth-only per PR #243, but there's no dedicated shading-config UI tab yet to gate per-tab in the first place, so this bug's UI-side fix should cover both companions and shading config if/when a shading-config UI exists. Full detail in ADL-28's addendum and jobs/frontend/park-docs/20260723-FRONTEND-companions-api-route-park.txt. Not a security hole (backend correctly enforces per-user scoping either way) — pure UI-reachability gap. Needs a scoped brief: per-tab gating in AdminPanel.tsx + updated App.test.tsx BUG-26 assertions.\n\nFIXED 2026-07-28 (GitHub #298, B2 backlog-clearance brief, branch fix/bug62-admin-per-tab-gating): App.tsx's page-level RequireOwner removed (the wrapper component and the useMe/isOwner check gating the Admin nav link are both gone — nav link and /admin route now behave exactly like Map/Trips, any authenticated user). Per-tab gating moved into AdminPanel.tsx: a TABS array now carries an `ownerOnly` flag per tab; Companions and Map Shading (a UI tab now exists — the * caveat above is resolved, ShadingTab.tsx was already live in AdminPanel.tsx) are open to any authenticated user, Categories, Activities, and Countries stay owner-only, hidden from the tab bar and double-guarded on render (defence-in-depth) for non-owners. Fail-closed while identity is loading (no flash), matching the old RequireOwner's no-flash behaviour. App.test.tsx's 6 BUG-26 assertions rewritten to 2 BUG-62 assertions (nav link always shown, /admin always reaches AdminPage — the 'Not authorised' page-level message is gone by design). New src/frontend/components/Admin/__tests__/AdminPanel.test.tsx (8 tests) covers the per-tab contract directly: loading state, owner sees all 5 tabs, non-owner sees only Companions+Shading and owner-only tab content never renders. Verified: npm run check (clean), type:check:all (clean), test:frontend 156/156, test:backend 583/1-skipped (unaffected, no backend changes), full Playwright e2e suite 52/52 (admin.spec.ts 5/5 unaffected — BYPASS_AUTH test user is the seeded owner). See BRD-AD09's note above for the bundled backend half of #298 — turned out to already be enforced, no backend change needed."
+      "notes": "Found 2026-07-23 by the Frontend agent closing out BRD-AD08's last piece (issue #244, PR #245, repointing useAdmin.ts's companion hooks at the new /api/companions route). companions.ts/CompanionTab.tsx themselves have no owner-only gating, but they're unreachable in practice: App.tsx wraps the entire /admin route in <RequireOwner> and the Admin nav link is rendered only when `me.isOwner` — both BUG-26's deliberate, tested fix (App.test.tsx, 6 tests) from before AD-08 existed. AD-08's access model says any authenticated user should manage their own companions, so this page-level gate is now stale for at least one tab. Deliberately NOT fixed as part of PR #245 — correct fix means moving from page-level RequireOwner to per-tab gating inside AdminPanel.tsx (keeping categories/activities/shading-config-colours*/countries-regions owner-only, opening companions), which touches shared nav/route infra and reverses part of BUG-26's tested contract, judged too architecturally significant for a same-brief hook-URL fix. *Note: map shading config (AD-07) has the identical page-gating problem — its API routes are requireAuth-only per PR #243, but there's no dedicated shading-config UI tab yet to gate per-tab in the first place, so this bug's UI-side fix should cover both companions and shading config if/when a shading-config UI exists. Full detail in ADL-28's addendum and jobs/frontend/park-docs/20260723-FRONTEND-companions-api-route-park.txt. Not a security hole (backend correctly enforces per-user scoping either way) — pure UI-reachability gap. Needs a scoped brief: per-tab gating in AdminPanel.tsx + updated App.test.tsx BUG-26 assertions.\n\nFIXED 2026-07-28 (GitHub #298, B2 backlog-clearance brief, branch fix/bug62-admin-per-tab-gating): App.tsx's page-level RequireOwner removed (the wrapper component and the useMe/isOwner check gating the Admin nav link are both gone — nav link and /admin route now behave exactly like Map/Trips, any authenticated user). Per-tab gating moved into AdminPanel.tsx: a TABS array now carries an `ownerOnly` flag per tab; Companions and Map Shading (a UI tab now exists — the * caveat above is resolved, ShadingTab.tsx was already live in AdminPanel.tsx) are open to any authenticated user, Categories, Activities, and Countries stay owner-only, hidden from the tab bar and double-guarded on render (defence-in-depth) for non-owners. Fail-closed while identity is loading (no flash), matching the old RequireOwner's no-flash behaviour. App.test.tsx's 6 BUG-26 assertions rewritten to 2 BUG-62 assertions (nav link always shown, /admin always reaches AdminPage — the 'Not authorised' page-level message is gone by design). New src/frontend/components/Admin/__tests__/AdminPanel.test.tsx (8 tests) covers the per-tab contract directly: loading state, owner sees all 5 tabs, non-owner sees only Companions+Shading and owner-only tab content never renders. Verified: npm run check (clean), type:check:all (clean), test:frontend 156/156, test:backend 583/1-skipped (unaffected, no backend changes), full Playwright e2e suite 52/52 (admin.spec.ts 5/5 unaffected — BYPASS_AUTH test user is the seeded owner). See BRD-AD09's note above for the bundled backend half of #298 — turned out to already be enforced, no backend change needed. || UAT 2026-08-08: BUG-62's OWN scope — a non-owner reaching/using the Companions tab — PASSED (PO as non-owner added companions, assigned them to trips, and renamed-with-propagation). The PO logged a FAIL, but for an OUT-OF-SCOPE reason: the companion list 'isn't seeded from a global starting list.' That seed expectation is split to BUG-92. Left at done_pending_uat pending PO confirm that the access-scope pass is accepted (then -> done). OPEN PRODUCT QUESTION on the split: companions are per-user (AD-08), so a GLOBAL seeded list may conflict with that model — see BUG-92."
     },
     {
       "id": "BUG-63",
@@ -2638,7 +2638,7 @@
       "id": "BUG-80",
       "type": "bug",
       "title": "Saved places render as name + country only — two different Newports in one trip are indistinguishable",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "backend",
       "priority": "P2",
       "brdRefs": ["GE-16", "GE-17"],
@@ -2649,7 +2649,7 @@
       "id": "BUG-78",
       "type": "bug",
       "title": "'Suggested:' region caption not bold enough to read as a value needing checking",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": ["GE-15", "GE-16"],
@@ -2660,7 +2660,7 @@
       "id": "BUG-79",
       "type": "bug",
       "title": "Region selector not narrowed for an ambiguous US city, though it is for the UK",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["GE-15", "GE-16"],
@@ -2671,7 +2671,7 @@
       "id": "BUG-77",
       "type": "bug",
       "title": "22 region-tier countries ship with zero regions — 22 latent BUG-30s (ADL-48 S1)",
-      "status": "done_pending_uat",
+      "status": "done",
       "owner": "database",
       "priority": "P2",
       "brdRefs": ["GE-01", "GE-02", "GE-04", "GE-05"],
@@ -2768,7 +2768,7 @@
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-08-08 owner UAT (findings 1.2 + 6.2), PO-directed. Searching 'Newport' on a UK trip returns only USA Newports because the picker's discovery lookup (geocode.ts DISCOVERY_LIMIT path) narrows by the country the GEOCODER auto-detects from its top candidate, NOT by the trip's declared countries. PO direction verbatim: 'you can select multiple countries when setting up or editing a trip so I think the places should narrow based on the country or countries assigned to the trip.' So the picker must receive the trip's country SET and narrow/rank by it. CLASSIFICATION (OP-32): GAP — trip-country narrowing was the ADL-48 spike's 'recommended, not day one' signal, never built. NOT BUG-76 (that was the settlement-types filter, done). OPEN DESIGN QUESTION for Architect + PO: hard FILTER vs soft RANK. The spike recommended RANK — a hard filter to trip countries loses valid off-country results, and the PO affirmed adding an off-trip-country place (a USA place on an Argentina trip) 'is fine' — so a soft rank that surfaces trip-country matches first without hard-excluding others is the likely answer. ARCHITECT-GATED (changes the lookup contract: pass the trip country set into /api/geocode + /api/cities) + BRD home needed (new GE requirement + success criteria) + ATDD-first per OP-35. Headline of the geocoder-picker bundle (with BUG-72 labels/dedup, UX-13 grey-out, coords-display)."
+      "notes": "Found 2026-08-08 owner UAT (findings 1.2 + 6.2), PO-directed. Searching 'Newport' on a UK trip returns only USA Newports because the picker's discovery lookup (geocode.ts DISCOVERY_LIMIT path) narrows by the country the GEOCODER auto-detects from its top candidate, NOT by the trip's declared countries. PO direction verbatim: 'you can select multiple countries when setting up or editing a trip so I think the places should narrow based on the country or countries assigned to the trip.' So the picker must receive the trip's country SET and narrow/rank by it. CLASSIFICATION (OP-32): GAP — trip-country narrowing was the ADL-48 spike's 'recommended, not day one' signal, never built. NOT BUG-76 (that was the settlement-types filter, done). PO DECISION 2026-08-08: use the trip's country set as a HARD FILTER, not a rank. The trip's countries are declared at trip creation and are editable (a trip can span multiple countries); to add a place outside them, the user edits the trip to add that country first. This resolves the spike's 'a hard filter loses valid results' concern — results aren't lost, the country set is editable. Absorbs finding 1.2 (constrain cross-country place adds to the trip's declared countries — the current 'USA place on an Argentina trip' is behaviour to CONSTRAIN, not keep). UX follow-through for Architect/UX: when a city search returns nothing because the city's country isn't on the trip, surface a discoverable 'add a country to this trip' path rather than a silent empty result. UI AFFORDANCE (PO 2026-08-08): the picker must carry a visible note that results are filtered by the trip's country/countries (e.g. 'Showing places in: United Kingdom' or similar) so the narrowing is explained, not surprising. Interacts with BUG-91 (the trip-create form is where the country set is declared) and BUG-90 (a GB trip country already admits all UK-nation cities; sub-country filtering is a separate question). ARCHITECT-GATED (changes the lookup contract: pass the trip country set into /api/geocode + /api/cities) + BRD home needed (new GE requirement + success criteria) + ATDD-first per OP-35. Headline of the geocoder-picker bundle (with BUG-72 labels/dedup, UX-13 grey-out, coords-display)."
     },
 
     {
@@ -2817,6 +2817,42 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "Found 2026-08-08 owner UAT (finding 6.3, PO 'yes'). On the picker/disambiguation screen the city name entered on the previous screen is editable, but editing it does NOT re-run the geocode lookup, so a changed value silently mismatches the candidates. Grey out / make read-only with a hint to go back to change it. Small frontend fix; part of the geocoder-picker bundle."
+    },
+
+    {
+      "id": "BUG-91",
+      "type": "bug",
+      "title": "Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 non-owner UAT (finding N1). Adding a trip and selecting from the picker (country) saves and closes the whole create form, forcing the user to re-open the trip to edit dates — breaks the single add-trip flow. Observed as non-owner; owner-scope UNVERIFIED (re-check whether it also affects the owner path — the PO listed it only under non-owner). Rising importance: BUG-87 makes the trip's declared country set authoritative for place-picker filtering, so the trip-create country step (this form) is now doubly load-bearing. frontend."
+    },
+
+    {
+      "id": "UX-14",
+      "type": "ux",
+      "title": "First place's dates render in blue while later places' dates don't (inconsistent styling)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 UAT (finding N2, owner+non-owner). The first place's date fields render blue while subsequent places' dates render normally — visually inconsistent. Likely tied to BRD-DP06 (first place inherits the trip's dates) — confirm whether blue is a deliberate 'inherited/pre-filled' cue or a styling bug, and make consistent either way. Minor. frontend."
+    },
+
+    {
+      "id": "BUG-92",
+      "type": "enhancement",
+      "title": "Companions are not seeded from a global starting list",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Found 2026-08-08 UAT (finding 18); split from BUG-62, whose own access-scope PASSED. PO expected a starting companion list; there is none (0 companions in seed-data). OPEN PRODUCT QUESTION (needs PO decision before spec): companions are per-user (AD-08), so a GLOBAL seeded list may conflict with that model — is a starting list actually desired, what would it contain, and is it global or a per-user default population? If desired it's a seed-data addition (+ possibly a per-user default-population step). Held for the product call; no build until the model question is answered."
     },
 
     {
