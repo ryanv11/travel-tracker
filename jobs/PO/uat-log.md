@@ -109,6 +109,35 @@ shouldn't drop real places, so a pass").
 5. **"Back to trip"** button in review status just deselects the trip; PO expects it to return to the
    **active** status view. [NEW UI bug]
 
+### ▶ NON-OWNER RESULTS — 2026-08-08 (PO, second Clerk account) — UAT COMPLETE
+
+_**No cross-account data bleed observed** — the flagged security-invariant risk (userId-scoping-by-convention across ~65 sites) did not surface as a defect in this pass._
+
+**Re-confirmed PASS (non-owner):** BUG-52, **BRD-IT08/09 (now tested → PASS)**, BUG-56, BUG-78, BUG-80,
+BRD-DP06, BUG-44, BRD-IT10, BUG-51. Owner-side passes (BUG-50/57/77/79, BRD-GE16) stand. → **all 14 clean
+passes flipped `done_pending_uat` → `done`.**
+
+**FAIL / reopened:**
+- **BUG-49 → reopened (pending).** Trip to Sydney shows **no city marker** and **state shading covers the
+  map name labels**. The 'markers behind shading' fix didn't hold. Re-probe: 'no Sydney marker' could be
+  behind-shading OR Sydney city geocode-pending (GE-13 map-exclusion) — check the DB row first. Shading-over-
+  labels is a separate z-order/legibility question (PO 'unsure if it needs fixing').
+- **BUG-58 → reopened (pending).** Locking a trip deselects it (owner + non-owner). Original fix covered
+  *backward* moves; the *lock* transition still deselects. Sibling of BUG-86.
+- **BUG-62 → held.** Its own scope (non-owner Companions access) **passed**; the PO's fail was the
+  out-of-scope 'not seeded from a global list' → split to **BUG-92** (open product question: per-user model
+  vs global seed). Awaiting PO confirm to flip → done.
+
+**Still PARTIAL (open):** BUG-71, BUG-72, BUG-81 (city-picker cluster — sub-findings now tracked as
+BUG-87/BUG-90/UX-13). BUG-73/74 not exercised (geocode-failure signal only fires on a real failure).
+
+**NEW non-owner findings:** N1 trip-create form saves/closes on picker select → **BUG-91**; N2 first-place
+dates blue, later places not (both roles) → **UX-14**; N3 lock deselects → **BUG-58** (reopened above).
+
+**PO decision captured (BUG-87):** narrow the place picker by the trip's country set as a **hard filter**
+(not a rank); the country set is declared at trip creation and editable; to add an off-country place, edit
+the trip's countries first; the picker carries a visible note that results are filtered by the trip's countries.
+
 #### Group 1 — Trips & list
 
 1. **[BUG-50] Delete an entire trip.**
