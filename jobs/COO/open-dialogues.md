@@ -96,6 +96,23 @@ which app backs it. This is an auth-topology change, so per the standing infra/r
 guardrail (Architect review before COO acts) it should get a brief Architect pass before
 implementation. Ryan said to leave it as an open note for now, not act on it.
 
+### D-27: Prod error telemetry (Sentry or similar)
+**Raised:** 2026-07-31 (review-execution-queue item 18) · **Status:** proposal, needs a PO call.
+
+Nobody watches production at runtime — current coverage is CI pre-deploy + the PO's own eyes.
+Prod error telemetry (Sentry or similar) on backend + frontend would close that gap. Needs a PO
+decision on the external service (and the dependency), and — being infra — an Architect ADL before
+COO acts. Migrated here 2026-08-08 when the review-execution-queue was retired; it's a PO-decision
+proposal, not scoped work, so it lives here until the service is chosen.
+
+### D-28: UAT WIP limit — cap on `done_pending_uat` before new dispatches
+**Raised:** 2026-07-31 (review-execution-queue item 18) · **Status:** proposal, needs a PO call.
+
+Propose a process rule: "no new wave dispatches while more than N items sit `done_pending_uat`" — the
+PO is the UAT bottleneck, and an unbounded pending-UAT queue is where staleness and lost feedback
+accumulate. The PO sets N. If adopted it's one CLAUDE.md line. Migrated here 2026-08-08 (queue retired);
+held as a proposal until the PO sets N (or declines).
+
 ## Parked
 
 _Decided not-now / watch-for-recurrence, with no other home. Each stays only so it can be

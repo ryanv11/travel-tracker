@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (82)
+## Open work (89)
 
 ### P0 — Blockers (1)
 
@@ -35,7 +35,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (47)
+### P2 — Important (51)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -86,8 +86,12 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 | OP-36 | Apply ADL-49 — Nominatim (+optional MapTiler) firewall allowlist + recorded replay fixtures, on next container rebuild | coo | ⬜ Pending |
+| QUAL-37 | Backup posture — COO memory dir + Turso DBs are unversioned/reseed-only; back up before non-disposable UAT data | coo | ⬜ Pending |
+| QUAL-38 | Goal-6 scorecard — one recurring PO-readable health report (escape/rework/flow/hook-violations/token-burn) | coo | ⬜ Pending |
+| QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
+| QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (29)
+### P3 — Minor (32)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -120,6 +124,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |
 | OP-37 | gh CLI has no persistent auth in the devcontainer — bridged by hand each session | coo | ⬜ Pending |
 | QUAL-36 | Three BRD-wording open questions from the QUAL-05 sweep — import scope + MB-01 mobile scope, awaiting PO decision | coo | ⬜ Pending |
+| QUAL-41 | Coverage visibility — vitest coverage as a per-area CI artifact, NO threshold gates | qa | ⬜ Pending |
+| QUAL-42 | Architect review batch — DB_TYPE=postgres scaffolding (U13), transaction convention (U10), asyncHandler vestigiality (U15) | architect | ⬜ Pending |
+| DEP-07 | Minor/patch dependency batch bump — biome, clerk, playwright, tailwind, tanstack-query, helmet, jose, etc. | coo | ⬜ Pending |
 
 ## Coverage by type
 
@@ -128,8 +135,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | feature | `███████████▓░░░░░░░░` 30/57 | 30 | 27 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `████████████░░░░░░░░` 48/80 | 48 | 32 | 3 |
-| task | `████████████████████` 11/11 | 11 | 0 | 0 |
-| chore | `████████████░░░░░░░░` 29/48 | 29 | 19 | 1 |
+| task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
+| chore | `███████████░░░░░░░░░` 30/55 | 30 | 25 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -163,4 +170,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_158 done · 9 deferred · 5 closed · 82 open — 254 tracked items_
+_159 done · 9 deferred · 5 closed · 89 open — 262 tracked items_

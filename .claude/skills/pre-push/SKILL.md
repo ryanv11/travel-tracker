@@ -19,6 +19,12 @@ If `status:check` fails, run `npm run status` and commit the regenerated
 
 Contract tests require a live backend — only run `npm run test:contract` if the backend is running locally.
 
+**This is a fast pre-filter, not the gate.** It runs 5 of the 9 required checks; E2E, contract,
+`npm audit`, Gitleaks and Semgrep only run in CI. A green pre-push does **not** mean CI will pass —
+`scripts/ci-wait.sh pr <n>` after pushing is the authoritative gate and is mandatory (this is the
+"pre-commit green but CI red" trap: those five checks don't run locally, and base skew is caught only
+server-side by branch protection's require-up-to-date).
+
 **Document lifecycle check (CLAUDE.md → Document lifecycle):** if this change alters a fact
 asserted by any status/verdict document — OP-06 hardening checklist, hardening-gate.md,
 security-backlog.md, BRD open questions, tracker.json, or any doc with a PASS/FAIL/"current

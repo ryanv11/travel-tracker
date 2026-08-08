@@ -2114,7 +2114,7 @@
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "GitHub #274. UX spec delivered 2026-07-27: jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md §1. Decision: own row beneath (not pill next to category) for country, deduped/ordered from trip.places; two-line place chip (city bold + region/state, falls back to city-only when no region resolved). Requires a small Backend field addition (country_name + new region_name on TripSummaryPlace.city) — no schema change. Recommends new BRD ID DP-07 (COO to add). Ready for BRD gate + brief dispatch."
+      "notes": "GitHub #274. UX spec delivered 2026-07-27: jobs/ux/tech/20260727-UX-triplist-status-activities-spec.md §1. Decision: own row beneath (not pill next to category) for country, deduped/ordered from trip.places; two-line place chip (city bold + region/state, falls back to city-only when no region resolved). Requires a small Backend field addition (country_name + new region_name on TripSummaryPlace.city) — no schema change. Recommends new BRD ID DP-07 (COO to add). Ready for BRD gate + brief dispatch.\n\nFOLD (2026-08-08): when this brief edits TripList.tsx, also fix the stale header comment at TripList.tsx:2-3 describing a 'legacy list component' that no longer exists in the file (review-execution-queue item 12, dissolved). Zero extra effort while the file is open."
     },
     {
       "id": "BUG-54",
@@ -2319,7 +2319,7 @@
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-07-27 by ADL-45/S6 (issue #276) while designing IT-10's URL validation. PRE-EXISTING, not introduced by ADL-45. src/frontend/utils/urlSanitiser.ts exports sanitiseUrl() but it has ZERO call sites in any component — the guard exists and is never invoked. Its one intended target, trips.photo_album_ref, has no server-side scheme validation either (src/backend/validation/trips.schemas.ts uses a plain zOptionalString), so a javascript:/data: URL can be stored and, if that field is ever rendered as an href, executed. Deliberately NOT bundled into BRD-IT10 — ADL-45's own map_url path is specified correctly with an https-only allowlist, and mixing a pre-existing gap into that brief would obscure both. Success criteria: photo_album_ref validated server-side with the same scheme allowlist as map_url; sanitiseUrl() either given its real call sites at every URL render point or deleted as dead code; a test asserts a javascript: URL is rejected at the API boundary."
+      "notes": "Found 2026-07-27 by ADL-45/S6 (issue #276) while designing IT-10's URL validation. PRE-EXISTING, not introduced by ADL-45. src/frontend/utils/urlSanitiser.ts exports sanitiseUrl() but it has ZERO call sites in any component — the guard exists and is never invoked. Its one intended target, trips.photo_album_ref, has no server-side scheme validation either (src/backend/validation/trips.schemas.ts uses a plain zOptionalString), so a javascript:/data: URL can be stored and, if that field is ever rendered as an href, executed. Deliberately NOT bundled into BRD-IT10 — ADL-45's own map_url path is specified correctly with an https-only allowlist, and mixing a pre-existing gap into that brief would obscure both. Success criteria: photo_album_ref validated server-side with the same scheme allowlist as map_url; sanitiseUrl() either given its real call sites at every URL render point or deleted as dead code; a test asserts a javascript: URL is rejected at the API boundary.\n\nFOLD (2026-08-08): this item is naturally split by layer. BACKEND half (photo_album_ref scheme validation) bundles into the backend-hygiene brief with BUG-84 + review-queue item 11. FRONTEND half (sanitiseUrl has zero call sites — wire it at URL render points, or delete) bundles with the frontend zod work (review-queue item 17, react-hook-form + shared schemas), alongside item 12's ItemForm dead-code sweep. Decide wire-vs-delete for sanitiseUrl when item 17's client-validation direction is set."
     },
     {
       "id": "QUAL-09",
@@ -2710,7 +2710,7 @@
       "priority": "P3",
       "brdRefs": ["GE-16"],
       "phase": 6,
-      "notes": "Found 2026-08-07 by the UX theme review of the city picker (jobs/ux/tech/20260807-UX-citypicker-theme-review.md, PR #429). That review's verdict was theme-consistent (the PO's ask passed); this is the one accessibility BLOCKER it surfaced, BACKLOGGED per PO direction 2026-08-07. (1) CityPicker rows are bare <div onClick> — keyboard-unreachable; should be <button>, mirroring TripForm.tsx:253-262's own 'pick one from a filtered list' pattern. INHERITED from AddPlaceFlow's pre-existing rows, NOT introduced by the BUG-81 work. (2) CityPicker's `disabled` prop (~:96) gates the click handler but not the row's visual state — diverges from Button.tsx's disabled:opacity-60/cursor-not-allowed vocabulary. Both are one small frontend change scoped to CityPicker (+ the AddPlaceFlow rows it was copied from). SEPARATE app-wide finding NOT folded in here: text-amber-600 caption/banner contrast ~3.2:1 < WCAG AA 4.5:1 is a pre-existing app-wide pattern the picker merely reuses — its own broader a11y item if pursued. Not Architect/ATDD-first (visible, recoverable UI)."
+      "notes": "Found 2026-08-07 by the UX theme review of the city picker (jobs/ux/tech/20260807-UX-citypicker-theme-review.md, PR #429). That review's verdict was theme-consistent (the PO's ask passed); this is the one accessibility BLOCKER it surfaced, BACKLOGGED per PO direction 2026-08-07. (1) CityPicker rows are bare <div onClick> — keyboard-unreachable; should be <button>, mirroring TripForm.tsx:253-262's own 'pick one from a filtered list' pattern. INHERITED from AddPlaceFlow's pre-existing rows, NOT introduced by the BUG-81 work. (2) CityPicker's `disabled` prop (~:96) gates the click handler but not the row's visual state — diverges from Button.tsx's disabled:opacity-60/cursor-not-allowed vocabulary. Both are one small frontend change scoped to CityPicker (+ the AddPlaceFlow rows it was copied from). SEPARATE app-wide finding NOT folded in here: text-amber-600 caption/banner contrast ~3.2:1 < WCAG AA 4.5:1 is a pre-existing app-wide pattern the picker merely reuses — its own broader a11y item if pursued. Not Architect/ATDD-first (visible, recoverable UI).\n\nSTRATEGIC APPROACH (folded 2026-08-08 from review-execution-queue item 19): rather than a one-off keyboard-handler patch on CityPicker, adopt Radix-style headless UI primitives incrementally as components get touched (dialogs, dropdowns, comboboxes) — this retires the a11y/focus-trap defect CLASS without a big-bang swap, and works under the existing wp-* design tokens (they are unstyled). Needs an Architect nod for the new dep. CityPicker (this bug) is the natural first adopter."
     },
     {
       "id": "BUG-83",
@@ -2732,7 +2732,7 @@
       "priority": "P2",
       "brdRefs": ["SE-01"],
       "phase": 6,
-      "notes": "Found by the 2026-07 code-safety audit (Session B Area-2, finding U1), surfaced untracked by the 2026-08-07 audit scan and ticketed here 2026-08-08 so it doesn't live only in the cleanup-wave-plan doc. src/backend/middleware/auth.ts (~:147) — a bare catch{} turns EVERY failure (config error, JWKS fetch failure, DB error, as well as a genuinely bad/expired token) into an unlogged 401, so a real outage is indistinguishable from a bad token and leaves no log trail. The getIssuer docstring also falsely claims the failure is startup-fatal. DECISION-GATED (held out of the Wave-1 mechanical sweep deliberately): this is a real correctness/observability bug, security-adjacent — wants its own brief with a test (distinguish auth-failure classes; log the non-token failures), not a blind edit. Deferred per PO 2026-08-08 ('leave the rest for afterwards'). Next-session candidate."
+      "notes": "Found by the 2026-07 code-safety audit (Session B Area-2, finding U1), surfaced untracked by the 2026-08-07 audit scan and ticketed here 2026-08-08 so it doesn't live only in the cleanup-wave-plan doc. src/backend/middleware/auth.ts (~:147) — a bare catch{} turns EVERY failure (config error, JWKS fetch failure, DB error, as well as a genuinely bad/expired token) into an unlogged 401, so a real outage is indistinguishable from a bad token and leaves no log trail. The getIssuer docstring also falsely claims the failure is startup-fatal. DECISION-GATED (held out of the Wave-1 mechanical sweep deliberately): this is a real correctness/observability bug, security-adjacent — wants its own brief with a test (distinguish auth-failure classes; log the non-token failures), not a blind edit. Deferred per PO 2026-08-08 ('leave the rest for afterwards'). Next-session candidate.\n\nFOLD (2026-08-08, PO direction to bundle rather than dispatch solo): dispatch this as ONE backend route/middleware/validation-hygiene brief together with review-execution-queue item 11 (add citiesRepository for the user-scoped cities.ts handlers; a validateParams zod middleware retiring the ~34x parseInt idiom that accepts '12abc'; DELETE /api/trips/:id 400->404; remove the dynamic drizzle-orm import in trips.ts GET /:id) and QUAL-08's backend half (photo_album_ref server-side scheme validation). Same layer, coherent brief, low overlap with the access-model/feature routes (BUG-63/40 stay separate). Security checklist applies. Also absorbs the cleanup-wave-plan's U7/U8 (the routes->repo layering inversion + a buildApp() factory) — U7/U8 and review-queue item 11 are the same finding, so this bundle is the single home for backend route/repository layering."
     },
 
     {
@@ -2875,7 +2875,7 @@
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Promoted 2026-08-08 from open-dialogues D-18 (PO-raised 2026-07-31). /coo-startup runs 8 checks and inlines ~25.7k tokens of state every pickup regardless of whether anything changed — priced for the worst pickup (cold, drifted) but runs identically on the cheapest (a mid-work /clear where nothing changed). PROPOSAL (analysis complete, COO recommends adopting, deferred to a session with token headroom): gate each heavy check on a cheap change-probe against the last `reviewed` sentinel (hook-canary -> git diff of .claude/hooks/; drift/subagent audit -> ledger scan; BRD+lifecycle -> git log park-base..origin/main; UAT -> grep open [ ] before loading the full log; ledger tail -> since-reviewed not a fixed 80 lines), keeping the two irreducible always-run checks (main CI + open cron-flags — the two things nothing else catches). The open-dialogues content half is already DONE (2026-08-08, PO direction): the file was restructured to Open + Parked only, with delete-on-resolution replacing the old Resolved archive — so there is no Resolved section to archive and that ~5k of the saving is already banked. What remains for QUAL-35 is the load-gating half: est. saving ~8k tok/pickup. MATCHED-PAIR CAVEAT: do not lean out the park doc to save startup cost — startup and /coo-merge-and-close are a pair; the durable-state probes must fail safe (a forgotten flush declaration falls to the heavy path, never skips the audit). It is a change to a mandatory skill (coo-startup/SKILL.md) -> wants an ADL, then the skill edits + a close-out review step."
+      "notes": "Promoted 2026-08-08 from open-dialogues D-18 (PO-raised 2026-07-31). /coo-startup runs 8 checks and inlines ~25.7k tokens of state every pickup regardless of whether anything changed — priced for the worst pickup (cold, drifted) but runs identically on the cheapest (a mid-work /clear where nothing changed). PROPOSAL (analysis complete, COO recommends adopting, deferred to a session with token headroom): gate each heavy check on a cheap change-probe against the last `reviewed` sentinel (hook-canary -> git diff of .claude/hooks/; drift/subagent audit -> ledger scan; BRD+lifecycle -> git log park-base..origin/main; UAT -> grep open [ ] before loading the full log; ledger tail -> since-reviewed not a fixed 80 lines), keeping the two irreducible always-run checks (main CI + open cron-flags — the two things nothing else catches). The open-dialogues content half is already DONE (2026-08-08, PO direction): the file was restructured to Open + Parked only, with delete-on-resolution replacing the old Resolved archive — so there is no Resolved section to archive and that ~5k of the saving is already banked. What remains for QUAL-35 is the load-gating half: est. saving ~8k tok/pickup. MATCHED-PAIR CAVEAT: do not lean out the park doc to save startup cost — startup and /coo-merge-and-close are a pair; the durable-state probes must fail safe (a forgotten flush declaration falls to the heavy path, never skips the audit). It is a change to a mandatory skill (coo-startup/SKILL.md) -> wants an ADL, then the skill edits + a close-out review step.\n\nABSORBS (2026-08-08) review-execution-queue item 1 — the immediate UAT-log archival sweep (move closed [x] sessions to jobs/PO/uat-archive.md per the coo-startup 'UAT log maintenance' rule; the live log still carries sessions back to 2026-03-20). The de-inline-UAT half of QUAL-35 IS that archival made systematic, so do the one-time archival as part of this work rather than as a separate chore."
     },
     {
       "id": "OP-36",
@@ -2946,6 +2946,97 @@
       "brdRefs": [],
       "phase": 6,
       "notes": "Governance rule, adopted 2026-08-05 (ADL-50), promoting open-dialogue D-17 after its trial on the ADL-46 release. BACKFILLED to the tracker 2026-08-08 (see OP-33). Rule text in CLAUDE.md '### ATDD-first for Architect-spawned briefs'. Substance: for an implementation brief an Architect spec spawns, the COO dispatches QA FIRST to turn the success criteria into RED acceptance/integration tests, handed to the implementer as the executable definition of done — breaking the closed loop where the implementer writes both the code and the tests that certify it. Trigger is objective (keyed to Architect involvement, not a subjective complexity call). Mock-fidelity is part of the rule: a suite that can pass vacuously has specified nothing (QUAL-22). Backed by .claude/hooks/atdd-first-guard.sh + a startup canary. Full record + honest qualification: ADL-50."
+    },
+    {
+      "id": "OP-38",
+      "type": "chore",
+      "title": "Branch protection on main — require-PR + 9 checks + strict up-to-date + enforce_admins",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Recorded 2026-08-08 (review-execution-queue item 8) — branch protection was configured on `main` 2026-07-31 (PO, COO-guided) but never written into a tracked home. Enforced, verified via gh api: require PR (0 approvals), 9 required status checks (6 CI + 3 Security), strict:true (require-branch-up-to-date — closes the D-15 base-skew class), enforce_admins, linear history, no force pushes. `production` deliberately NOT protected — direct fast-forward push is the promotion path (ADL-35). This closed open-dialogue D-15 (green PR on a stale base merged into a red main). Same-PR skill updates: /pre-push now states it is a fast pre-filter and CI is the authoritative gate; /coo-merge-and-close notes a PR behind main needs `gh pr update-branch` + ~85s CI re-run before the merge button works."
+    },
+
+    // ─── STANDALONE-DOC MIGRATION (2026-08-08) — review-execution-queue + cleanup-wave-plan ──
+    // ─── retired into the tracker (one canonical home). Both files deleted in the same PR. ──
+    {
+      "id": "QUAL-37",
+      "type": "chore",
+      "title": "Backup posture — COO memory dir + Turso DBs are unversioned/reseed-only; back up before non-disposable UAT data",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Migrated 2026-08-08 from the review-execution-queue (items 6-DB-durability + 7). Two unversioned, reseed-only stores with no backup: (1) the COO memory dir /home/node/.claude (lost once, recovered from an orphaned volume by luck); (2) the Turso staging+prod DBs (today's recovery story is reseed — disposable-data memory). TRIGGER: before the first UAT round containing data the PO would be upset to lose, a backup/restore path must exist — the 'disposable data' assumption must not expire silently. Options: memory -> scheduled copy into the repo (_project/memory-mirror/) or host-side; DB -> a Turso backup/export ADL. Needs a PO call on destination. Success criteria: a snapshot of each store exists outside its live volume + a recurring refresh, and the DB path has a restore tested once."
+    },
+    {
+      "id": "QUAL-38",
+      "type": "chore",
+      "title": "Goal-6 scorecard — one recurring PO-readable health report (escape/rework/flow/hook-violations/token-burn)",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Migrated 2026-08-08 from the review-execution-queue (item 15). PO explicitly wants this direction. One recurring PO-readable report (park-doc section or scheduled routine): escape rate (defects found by PO / all defects), rework rate (re-dispatches per wave — also the biggest token sink), backlog flow (arrival vs closure from tracker timestamps), hook violations per wave (drift ledger + hook output), token burn (tokens/session + cache-hit ratio via a ~20-line jq over the session transcripts). PO framing: answers 'would I know if things got out of hand' without reading code — one page, trended. Success criteria: the report renders from real data on demand; each metric has a defined source and a baseline (2026-07-31 snapshot: 97.9% cache-read, ~174K avg context/call)."
+    },
+    {
+      "id": "QUAL-39",
+      "type": "chore",
+      "title": "PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs",
+      "status": "pending",
+      "owner": "qa",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Migrated 2026-08-08 from the review-execution-queue (item 16). Encode the stable items from the PO's UAT checklists as E2E tests (trip delete from detail view with cancel safety; non-owner admin-tab visibility) — the PO's UAT sessions are the de facto regression suite and the PO is the pipeline bottleneck. PREREQUISITES: QUAL-18 (single-origin E2E so the deployed topology is under test) + the detail-panel data-testid scoping debt (project_playwright_panel_scoping memory) must land first, or panel-scoped tests stay flaky. Success criteria: named PO-journey flows are green E2E specs running in CI; the data-testid debt is closed for the panels they touch."
+    },
+    {
+      "id": "QUAL-40",
+      "type": "chore",
+      "title": "react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first)",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Migrated 2026-08-08 from the review-execution-queue (item 17); ARCHITECT ADL FIRST + BRD gate. One adoption, several payoffs: collapses ItemForm's ~28 useStates + deep buildPayload ternary; delivers real client-side validation by SHARING the backend's existing zod schemas — which makes the currently-FALSE 'reuses backend Zod schemas (SEC-12)' doc claim at ItemForm.tsx:8 true (frontend has zero zod today); natural home for the BUG-57/IT-11 date-cascade logic. ABSORBS the folded frontend cleanup: review-queue item 12 (delete dead fieldLabel + the void-suppression in ItemForm; SEC-12 doc becomes true, not deleted) and QUAL-08's frontend half (wire sanitiseUrl at URL render points, or delete). Also folds ItemForm's design-token migration (last component on raw Tailwind palette classes). Success criteria: ItemForm uses react-hook-form + a shared zod schema; the SEC-12 claim is accurate; dead fieldLabel/sanitiseUrl resolved; date-cascade preserved; all CI green. Needs an Architect ADL + BRD gate before dispatch."
+    },
+    {
+      "id": "QUAL-41",
+      "type": "chore",
+      "title": "Coverage visibility — vitest coverage as a per-area CI artifact, NO threshold gates",
+      "status": "pending",
+      "owner": "qa",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Migrated 2026-08-08 from the review-execution-queue (item 19, coverage half). Vitest coverage as a CI artifact with per-area numbers — VISIBILITY ONLY, explicitly NO threshold gates: this team's failure mode is environment-expressibility (BUG-55 CSP class), not missing tests, so a coverage gate would be noise that punishes the wrong thing. Success criteria: CI publishes a coverage summary per area (backend/frontend) as an artifact; nothing gates on it. (The item-19 headless-UI-primitives half folded into BUG-82 as the strategic a11y approach, not here.)"
+    },
+    {
+      "id": "QUAL-42",
+      "type": "chore",
+      "title": "Architect review batch — DB_TYPE=postgres scaffolding (U13), transaction convention (U10), asyncHandler vestigiality (U15)",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Migrated 2026-08-08 from the cleanup-wave-plan (its decision-gated Wave-2 residue; U7/U8 folded into the backend-hygiene bundle on BUG-84, U1 is BUG-84, QUAL-08/14/18/19 already tracked). Three backend ambiguities that each need an ARCHITECT call before any action — one Architect mini-pass, OP-27 fresh-eyes: (U13, HIGH-trap) DB_TYPE=postgres looks like a working switch but feeds sqlite defs to a pg driver — label as scaffolding or remove; (U10, MED) transaction-convention contradiction (db.transaction() vs the :memory: warning) — PO was 'not sure'; (U15, LOW) asyncHandler possibly vestigial under Express 5 — Ryan 'have Architect review'. Each was a single-probe unverified finding at capture — re-probe before acting (negative-findings). Success criteria: each of U13/U10/U15 has a recorded Architect disposition (keep+document / change / remove); any resulting fix is its own brief."
+    },
+    {
+      "id": "DEP-07",
+      "type": "task",
+      "title": "Minor/patch dependency batch bump — biome, clerk, playwright, tailwind, tanstack-query, helmet, jose, etc.",
+      "status": "pending",
+      "owner": "coo",
+      "priority": "P3",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Migrated 2026-08-08 from the review-execution-queue (item 14). Minor/patch-only batch: biome, @clerk/react, playwright, tailwind, tanstack-query, helmet, jose, express-rate-limit, pg, tsx, @types/*. EXCLUSIONS: drizzle-kit (pinned 0.31.9 by the four-bug patch — a bump requires re-verifying all four bugs per the drizzle-kit-patch memory; separate task) and all MAJORS (React 19, react-router 7, maplibre 6, libsql 0.17, dotenv 17 — each needs its own Architect ADL per the runtime-changes guardrail; none urgent). Success criteria: all CI green incl. E2E; no major bumped; patch-package still applies (drizzle-kit patch intact)."
     }
 
   ]
