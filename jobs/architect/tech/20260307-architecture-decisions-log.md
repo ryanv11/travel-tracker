@@ -4485,3 +4485,56 @@ target is indistinguishable from one that genuinely found nothing:
 - OP-27's tracker note records the 2026-08-08 refinement and this ADL (this PR).
 - open-dialogues **D-16** and **D-25** move from Open → Resolved, pointing here (this PR).
 - No behaviour/code change; it binds COO dispatch sequencing and reviewer-brief scoping.
+
+## ADL-54 — Narrow the add-place picker by the trip's declared country SET (hard filter)
+
+**Date:** 2026-08-08 · **Author:** Architect · **Status:** DESIGN — pending OP-27 fresh-eyes, GE-20
+BRD promotion, and implementation. No production code. Full design:
+`jobs/architect/tech/ADL-54-trip-country-picker-filter.md`.
+**Tracker:** BUG-87 · **BRD:** proposes **GE-20** (COO to formalize) · **Interacts:** GE-14/15/16,
+BUG-90, BUG-91.
+
+**Trigger.** 2026-08-08 owner UAT (findings 1.2 + 6.2), PO-directed: "Newport" on a UK trip returns
+USA Newports because the picker narrows by the country the geocoder auto-detects, not the trip's
+declared countries. PO decision: use the trip's country set as a **hard filter** (not a rank); the
+set is declared at trip creation and editable; to add an off-country place, edit the trip's
+countries first; the picker carries a visible "filtered by" note.
+
+**Decision (summary — see standalone file for the table and per-decision reasoning).**
+- **The machinery already exists.** Probed and disproved the load-bearing risk that `trip_countries`
+  is *derived from places* (the stale schema comment): the only write path is user declaration —
+  `POST/PATCH /api/trips` + the `trip-countries` sub-router — and `TripForm` already renders a
+  country multi-select. `places.ts` writes no country row on place-add, so the hard filter is **not
+  circular**. BUG-87 is missing read-path wiring, not missing infrastructure.
+- **Contract (D1):** add a **new** `country_codes` (comma-joined ISO alpha-2) query param to
+  `GET /api/cities` and `GET /api/geocode`, distinct from the existing single `country_code` (the
+  D12 create-constraint). Nominatim's `countrycodes` natively takes the comma list.
+- **Semantics (D2):** non-empty set ⇒ `inArray(cities.countryCode, set)` for the DB search,
+  `countrycodes=<set>` for geocode. Union across a multi-country set; nothing outside it.
+- **Zero-country trip (D3, OPEN Q1):** `country_codes` is optional at create, so an empty set is
+  real. Recommend empty ⇒ *unconstrained + a prompt to add countries*, never a hard-empty result.
+- **Off-country add (D4, OPEN Q2):** recommend a day-one static empty-state linking to the trip's
+  country editor (reuse TripForm / countries sub-router); an inline discovery-probe "add France?"
+  affordance is a flagged fast-follow.
+- **Note (D5):** "Showing places in: `<names>`" from `trip.countries` (already in the trip payload).
+- **BUG-90 seam (D7):** filter at ISO-country granularity only; `trip_countries.country_code`
+  FK-RESTRICTs to ISO, so BUG-90 maps "Scotland" → `GB` before storing and a Scotland trip admits
+  all UK cities (PO-accepted). **No ship-order dependency** between BUG-87 and BUG-90.
+- **Schema (D8):** none — read-path query params only; no migration.
+- **Security (D9):** no new scoping; `country_codes` narrows global reference data and is not an
+  authz boundary; GE-16 creator-scoping preserved and orthogonal.
+- **ATDD-first (D10):** backend contract brief **yes** (silent-and-plausible, precisely specifiable,
+  shared contract); frontend wiring/affordances brief **no** (UAT-visible, OP-35 frontend exclusion).
+
+**Alternatives considered.** Overload `country_code` to take a list (rejected — conflates two
+semantics + `string|string[]` footgun); rank-not-filter (rejected by PO; the "loses valid results"
+concern is answered by the *editable* set); backend derives the trip's countries itself (rejected —
+re-introduces the disproved derived model and couples stateless lookups to trip ownership); filter at
+region granularity for BUG-90 trips (deferred, out of scope).
+
+**Implementation implications.** Brief A (backend contract, QA-first) extends the two Zod schemas +
+wires `inArray`/`countrycodes`, caps the set (~≤10), corrects the stale `trip_countries` doc comment;
+Brief B (frontend) threads `trip.countries` into `AddPlaceFlow`/`MobileTripDetailView` and renders
+the note + zero-country prompt + empty-state. GE-20 proposed with success criteria for COO to
+formalize (BRD §5.1 + version bump + BUG-87 `brdRefs`). Open product calls Q1/Q2/Q3 to PO before
+fresh-eyes (OP-27 refinement 1). No code merges from this ADL until fresh-eyes clears it.

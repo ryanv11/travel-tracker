@@ -1,4 +1,41 @@
 =============================================================================
+BUG-87 TRIP-COUNTRY PICKER FILTER (ADL-54) — PREPENDED 2026-08-08, DOES NOT REPLACE ANY BLOCK BELOW
+=============================================================================
+Deliverable: jobs/architect/tech/ADL-53-trip-country-picker-filter.md (ADL-53 in the main log).
+Branch: feat/bug87-trip-country-picker-filter. DESIGN ONLY — no production code.
+
+WHAT: narrow the add-place picker to the trip's declared country SET, as a HARD FILTER (PO
+decision). Highest user-visible value from the 2026-08-08 UAT.
+
+THE PROBE THAT MATTERED: the schema comment says trip_countries is "derived from trip_places."
+It is NOT — verified two ways: (1) grep of write callers → only POST/PATCH /api/trips + the
+trip-countries sub-router; places.ts writes no country row on add. (2) TripForm.tsx already has a
+country multi-select submitting country_codes on create+edit. So the set is USER-DECLARED and
+editable (matches the PO model), the hard filter is NOT circular, and BUG-87 is missing read-path
+WIRING, not missing infrastructure. The stale schema comment should be corrected in the impl PR.
+
+DESIGN CORE: add a NEW `country_codes` (comma-joined ISO alpha-2) param to GET /api/cities
+(inArray) and GET /api/geocode (Nominatim countrycodes takes the comma list natively), distinct
+from the existing single country_code (the D12 create-constraint). No schema change, no migration.
+Frontend threads trip.countries (already in the trip payload) into AddPlaceFlow + the mobile twin.
+
+FLAGGED OPEN (COO→PO before fresh-eyes, OP-27 refinement 1):
+  Q1 zero-declared-countries (country_codes is OPTIONAL at create) → recommend unconstrained+prompt,
+     NOT hard-empty.
+  Q2 off-country-add UX → recommend day-one static empty-state linking to trip country editor;
+     inline "add France?" discovery-probe is a flagged fast-follow (one extra Nominatim call/miss).
+  Q3 "filtered by" note for large country sets → count-and-truncate.
+
+BUG-90 SEAM (D7): filter at ISO-country granularity ONLY. trip_countries.country_code FK-RESTRICTs
+to ISO, so BUG-90 maps "Scotland"→GB before storing; a Scotland trip admits ALL UK cities
+(PO-accepted). NO ship-order dependency between BUG-87 and BUG-90.
+
+ATDD-first: backend contract brief YES (silent-and-plausible + precisely specifiable + shared
+contract); frontend brief NO. Proposed GE-20 text + success criteria in the ADL for COO to
+formalize (BRD §5.1 + version bump + BUG-87 brdRefs). Per OP-33 GE-20 rests on NO unverified
+premise → may enter approved, not spike-gated.
+
+=============================================================================
 ADL-54 FRESH-EYES REVIEW BLOCK — PREPENDED 2026-08-08, DOES NOT REPLACE ANY BLOCK BELOW
 =============================================================================
 Deliverable: jobs/architect/tech/20260808-ADL54-fresh-eyes-review.md. Branch
