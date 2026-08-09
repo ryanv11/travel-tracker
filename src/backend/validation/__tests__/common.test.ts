@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   zCountryCode,
+  zCountryCodesList,
   zHexColor,
   zId,
   zIsoDate,
@@ -179,6 +180,76 @@ describe('zCountryCode', () => {
 
   it('rejects a single letter', () => {
     fails(zCountryCode, 'F');
+  });
+});
+
+// ----------------------------------------------------------------
+// zCountryCodesList (GE-20, ADL-54 D1/D2 — implementation guards QA's ATDD
+// bar did not red-test: malformed-code rejection and the ~10-code cap. The
+// SHOW-ALL-on-empty / branch-on-length behaviour itself (F1) is proven at
+// the route level in ge20-cities-country-filter.test.ts /
+// ge20-geocode-country-filter.test.ts — this file covers the schema's own
+// parsing contract in isolation.)
+// ----------------------------------------------------------------
+
+describe('zCountryCodesList', () => {
+  it('accepts undefined (param absent)', () => {
+    expect(passes(zCountryCodesList, undefined)).toBeUndefined();
+  });
+
+  it('parses an empty string to an empty array (param present but empty — distinct from absent)', () => {
+    expect(passes(zCountryCodesList, '')).toEqual([]);
+  });
+
+  it('parses a single code, upcasing it', () => {
+    expect(passes(zCountryCodesList, 'gb')).toEqual(['GB']);
+  });
+
+  it('parses a comma-joined multi-code list', () => {
+    expect(passes(zCountryCodesList, 'gb,fr,us')).toEqual(['GB', 'FR', 'US']);
+  });
+
+  it('trims whitespace around each code', () => {
+    expect(passes(zCountryCodesList, ' gb , fr ')).toEqual(['GB', 'FR']);
+  });
+
+  it('deduplicates case-insensitively', () => {
+    expect(passes(zCountryCodesList, 'gb,GB,Gb')).toEqual(['GB']);
+  });
+
+  it('ADL-54 D2: accepts exactly 10 distinct codes (the cap)', () => {
+    const codes = ['AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'II', 'JJ'];
+    expect(passes(zCountryCodesList, codes.join(','))).toEqual(codes);
+  });
+
+  it('ADL-54 D2: rejects 11 distinct codes (over the cap)', () => {
+    const codes = ['AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'II', 'JJ', 'KK'];
+    fails(zCountryCodesList, codes.join(','));
+  });
+
+  it('does not count duplicate codes against the cap (11 raw entries, 1 distinct)', () => {
+    const codes = Array(11).fill('GB');
+    expect(passes(zCountryCodesList, codes.join(','))).toEqual(['GB']);
+  });
+
+  it('rejects a 3-letter code (not ISO alpha-2 shape)', () => {
+    fails(zCountryCodesList, 'gb,fra');
+  });
+
+  it('rejects a single-letter code', () => {
+    fails(zCountryCodesList, 'g');
+  });
+
+  it('rejects a numeric code', () => {
+    fails(zCountryCodesList, '12');
+  });
+
+  it('rejects a trailing comma (empty entry in the middle of a real list)', () => {
+    fails(zCountryCodesList, 'gb,');
+  });
+
+  it('rejects one malformed code even alongside otherwise-valid ones', () => {
+    fails(zCountryCodesList, 'gb,fr,xyz');
   });
 });
 

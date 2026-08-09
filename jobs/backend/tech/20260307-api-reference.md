@@ -1,7 +1,12 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.7
-**Date:** 2026-08-08 (updated: QUAL-07 docs-drift pass — `/api/categories` and
+**Version:** 1.8
+**Date:** 2026-08-08 (updated: GE-20/BUG-87, ADL-54 — `country_codes` documented on both
+`GET /api/cities` and `GET /api/geocode`: the trip-country-scoped picker hard filter, its
+empty-string-means-unconstrained contract, the malformed-code/10-code-cap guards, and both
+endpoints' `country_code`-wins precedence when the singular and plural params are both
+present)
+**Previously:** 1.7, 2026-08-08 (QUAL-07 docs-drift pass — `/api/categories` and
 `/api/activities` documented as their own routers (ADL-46, shipped 2026-08-01, PR #348);
 the stale `/api/admin/categories` / `/api/admin/activities` sections describing routes that
 no longer exist were removed; `GET /api/me` documented (was live, entirely undocumented,
@@ -1009,6 +1014,7 @@ Search cities by name. Returns local database results only (Nominatim is not que
 |-----------|------|----------|-------------|
 | `q` | string | **Yes** | Search string (minimum 2 characters). Case-insensitive substring match. |
 | `country_code` | string | No | ISO 3166-1 alpha-2 code (e.g. `"FR"`) to restrict results to a country |
+| `country_codes` | string | No | GE-20 (BUG-87, ADL-54) — comma-joined ISO 3166-1 alpha-2 codes (e.g. `"GB,FR"`), the trip's declared country filter SET. Hard filter (`inArray`), not a rank: results are the union across every code in the set, nothing outside it. **Distinct semantic from `country_code` above** — that one is the single D12 create-time constraint; this one is the trip-scoped picker filter (GE-20). **Precedence when both are present: `country_code` wins** and `country_codes` is ignored entirely (no current caller sends both). **Empty string (`country_codes=`) is valid and means UNCONSTRAINED** — distinct from the param being absent only in that it's explicit; both leave results unfiltered. This is deliberate (PO ruling): a trip with no declared countries shows all results rather than none. Malformed codes (not 2-letter alpha) → `400`. Capped at 10 distinct codes after case-insensitive dedup → over-cap is `400`. |
 
 **Response: `200 OK`**
 ```json
@@ -1707,7 +1713,7 @@ Rename a region.
 First-party backend proxy for Nominatim lookups (ADL-46 D7 §5.1). Added to this document
 2026-08-07 (BUG-76/BUG-74, ADL-51).
 
-### GET /api/geocode?q=...&country_code=...&region_iso=...
+### GET /api/geocode?q=...&country_code=...&region_iso=...&country_codes=...
 
 Auth: `requireAuth` (applied globally, `app.use('/api/', requireAuth)` in `server.ts`). No
 `userId` scoping — reads no user-owned table, it's a stateless Nominatim proxy.
@@ -1715,7 +1721,22 @@ Auth: `requireAuth` (applied globally, `app.use('/api/', requireAuth)` in `serve
 Query params: `q` (required, search text), `country_code` (optional, ISO 3166-1 alpha-2 —
 when supplied, constrains the Nominatim query and narrows candidates to that country),
 `region_iso` (optional, ISO 3166-2 — narrows `candidates` to matches after the fact, never
-fabricates a result when none match).
+fabricates a result when none match), `country_codes` (optional — see below, GE-20).
+
+**`country_codes` (GE-20, BUG-87, ADL-54)** — a comma-joined list of ISO 3166-1 alpha-2 codes
+(e.g. `"gb,fr"`), the trip's declared country filter SET. Forwarded to Nominatim as
+`countrycodes` (a native comma-list param) — a hard filter, not a rank; the union across every
+code in the set, nothing outside it. **Distinct semantic from `country_code`** — that one is
+the single D12 create-time constraint; **when both are present, `country_code` wins** and
+`country_codes` is ignored (no current caller sends both). **`country_codes=` (present, empty)
+is valid and means UNCONSTRAINED** — same as the param being absent — a deliberate PO ruling
+(Q1): a trip with no declared countries returns unfiltered results rather than none.
+Malformed codes (not 2-letter alpha) → `400`. Capped at 10 distinct codes after
+case-insensitive dedup → over-cap is `400`. **Limit tier:** a single-country set uses the same
+narrow `CONSTRAINED_LIMIT` (10) as the existing single `country_code` path; a multi-country set
+(2 or more codes) uses the wider `DISCOVERY_LIMIT` (40) — more countries means more legitimate
+same-name candidates for the picker to separate (same reasoning BUG-79 established for the
+fully-unconstrained case).
 
 Response body:
 
