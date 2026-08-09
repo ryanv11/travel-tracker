@@ -464,8 +464,10 @@ drives.
 - **Schema changes:** always `db:generate` → `db:migrate`. `db:push` is disabled (see `patches/`).
 - **Branching:** `feat/`, `fix/`, `chore/` prefixes. Never commit directly to `main`.
 - **PRs:** COO reviews and merges. Squash merge is standard.
-- **Auth in local dev:** set `BYPASS_AUTH=true` in `.env.local` — the devcontainer
-  firewall cannot reach Clerk's JWKS endpoint.
+- **Auth in local dev:** set `BYPASS_AUTH=true` in `.env.local` to work without a
+  signed-in Clerk session. (Clerk's JWKS host is allowlisted and **reachable** from the
+  container — verified 2026-08-08, returns keys — so this is a dev convenience, not a
+  firewall limitation. Probe before re-asserting otherwise.)
 - **Two-panel layout (desktop, ≥768px):** left panel is the trip list; right panel
   (`data-testid="trip-detail-panel"`) is the `<Outlet />` (`DesktopTripsLayout.tsx`).
   Below 768px, `MobileTripsLayout.tsx` (WP-04) renders a single-panel list/detail
