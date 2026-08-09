@@ -10,8 +10,8 @@
  * WHY BAKE AT ALL, when Railway also injects RAILWAY_GIT_COMMIT_SHA at runtime? Because that
  * variable's runtime presence could not be confirmed from inside the devcontainer — the
  * Railway service-variable API lists only user-set service variables (which is why a COO
- * check found it absent), and the deployed origin is firewall-blocked here, so no direct
- * probe was possible. Railway's docs say Git variables are provided to "all builds and
+ * check found it absent), and the deployed process's own runtime environment can't be read
+ * from here (that would require running inside it). Railway's docs say Git variables are provided to "all builds and
  * deployments" from a GitHub trigger and this service is exactly that, so runtime injection
  * is expected — but "expected" is not "verified", and a build stamp that silently reads
  * `unknown` on the one deploy you needed it for is worthless. Capturing the SHA at build

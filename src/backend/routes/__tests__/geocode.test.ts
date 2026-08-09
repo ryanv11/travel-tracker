@@ -25,9 +25,9 @@
  *
  * What this file does NOT and cannot prove (see the brief/completion report):
  * whether Nominatim's real response for "springfield" actually contains
- * multiple US regions within the raised limit. This container's firewall
- * blocks reaching the live service — that has to be confirmed on staging.
- * These tests prove the request/response plumbing this fix controls.
+ * multiple US regions within the raised limit — these tests are hermetic by
+ * design (they assert the request/response plumbing this fix controls, not
+ * live Nominatim output).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

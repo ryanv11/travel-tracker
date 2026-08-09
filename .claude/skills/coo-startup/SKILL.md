@@ -210,8 +210,8 @@ gh run list --repo ryanv11/travel-tracker --branch main --limit 6 \
   swallows the error (QUAL-27). This step is *gate-shaped*: it is how a red main
   gets diagnosed at session start, so a silent empty result here reads as "nothing
   to see" on the one check whose whole purpose is catching an unowned red main.
-- Known-red jobs with an open tracked issue (e.g. DEP-01/#98 npm audit) →
-  note them in the pickup summary; everything else must be green.
+- Known-red jobs that have their own open tracked issue → note them in the pickup
+  summary; everything else must be green.
 
 ### 3. UAT check
 

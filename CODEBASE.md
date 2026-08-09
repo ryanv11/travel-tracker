@@ -62,7 +62,7 @@ out of scope for that rename.
 | Security middleware | Helmet, express-rate-limit | Applied in `server.ts` |
 | Testing — unit | Vitest + Testing Library | Separate configs for backend/frontend |
 | Testing — contract | Vitest | Requires live backend; tests HTTP layer |
-| Testing — E2E | Playwright | On-demand only (`npm run test:e2e`); not in CI |
+| Testing — E2E | Playwright | Runs in CI (`ci.yml`) + `npm run test:e2e` locally |
 | DB migrations | drizzle-kit | `db:generate` + `db:migrate`; `db:push` is disabled |
 | Linting/format | Biome | `npm run check`; enforced in CI |
 | Type checking | TypeScript (`tsc --noEmit`) | Separate tsconfigs for frontend/backend |
@@ -174,7 +174,7 @@ src/
 │       ├── Admin/              Admin page — categories, activities, companions, map shading, countries
 │       ├── CarryForward/       Copy hotels/items from a previous trip
 │       ├── PostTripReview/     Post-trip checklist and lock flow
-│       ├── icons/              Waypoint SVG icon set (13 glyphs, inline <svg> JSX) — replaced the
+│       ├── icons/              Waypoint SVG icon set (inline <svg> JSX) — replaced the
 │       │                       old emoji-based item/status icons (WP-02, extended WP-03)
 │       └── shared/             Reusable primitives (LoadingSpinner, ErrorMessage, etc.)
 │
@@ -433,10 +433,10 @@ Two GitHub Actions workflows:
 
 | Workflow | Jobs | Push trigger |
 |---|---|---|
-| `ci.yml` | Biome (lint + format) · Type Check · Backend Tests · Frontend Tests · Contract Tests | Every branch (`branches: ["**"]`) + every PR to `main` |
+| `ci.yml` | the authoritative CI job list is in `.github/workflows/ci.yml` (not enumerated here) | Every branch (`branches: ["**"]`) + every PR to `main` |
 | `security.yml` | Dependency Scan (npm audit) · Secret Scan (Gitleaks) · SAST (Semgrep) | Every branch **except `production`** (ADL-40) + every PR to `main` |
 
-E2E tests (Playwright) are **not in CI** — run on demand with `npm run test:e2e`.
+E2E tests (Playwright) run in CI (`ci.yml`, unconditional) and locally via `npm run test:e2e`.
 
 All jobs must be green before a PR is merged. Contract tests require a live backend; in CI
 they run against the **real** server (`npm run start` with `BYPASS_AUTH=true`), not

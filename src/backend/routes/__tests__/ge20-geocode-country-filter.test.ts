@@ -34,8 +34,9 @@
  *
  * HONEST LIMIT (carried from the fresh-eyes review's P2, non-blocking): this
  * models what Nominatim's docs say `countrycodes` does — it is NOT a live
- * probe of the real service (this container's firewall blocks reaching it,
- * same constraint geocode.test.ts's own docstring already states). It proves
+ * probe of the real service (hermetic by design). The live multi-country
+ * behaviour was verified by a COO probe 2026-08-08 (`countrycodes=gb,fr`
+ * unions GB+FR and excludes the rest). It proves
  * the ROUTE wires `country_codes` -> `countrycodes` correctly and reacts
  * correctly to a filtered/unfiltered client response; it cannot prove
  * Nominatim itself honours a multi-code comma list. The fresh-eyes review's
