@@ -143,8 +143,9 @@ closes classes. The standing rule:
 The known differences are tracked as **QUAL-18** (single-origin E2E topology), **QUAL-19**
 (CSP allowlist contract test) and **QUAL-20** (post-deploy smoke check). The worked example,
 kept because it explains the shape better than the rule does: production serves the frontend
-document from Express with helmet's CSP applied (`src/backend/server.ts:233`, gated on
-`NODE_ENV=production`), but E2E serves it from `vite preview` on a *different port*
+document from Express with helmet's CSP applied (the `helmet({ contentSecurityPolicy })`
+block in `src/backend/server.ts`, static serving gated on the `SERVE_STATIC`/`NODE_ENV=production`
+check), but E2E serves it from `vite preview` on a *different port*
 (`playwright.config.ts` `webServer`), so the document under test carries **no CSP header at
 all**. Every `connect-src` violation is therefore unobservable in CI. The test suite was not
 weak — the environment could not express the failure.

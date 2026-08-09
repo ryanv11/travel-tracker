@@ -5,13 +5,8 @@ name: Post-Deploy Shakedown
 # jobs/qa/tech/20260804-post-deploy-shakedown.md for the full design and the honest account
 # of what this suite does and does not cover.
 #
-# WHY THIS RUNS HERE AND NOT AS A DEVCONTAINER SCRIPT: the devcontainer's own firewall
-# blocks the app's public Railway domains (confirmed by two independent probes this session
-# — a direct curl timeout, and grep of .devcontainer/init-firewall.sh's domain list coming up
-# empty for travel-tracker-staging.up.railway.app; this mirrors the same block already
-# recorded against the production domain in jobs/COO/open-dialogues.md D-06). A GitHub-hosted
-# runner has no such restriction, so this is the only place in the project that can actually
-# reach the deployed app directly.
+# WHY THIS RUNS HERE (a GitHub runner) AND NOT AS A DEVCONTAINER SCRIPT: a post-deploy
+# shakedown belongs in the pipeline, right after the deploy it validates.
 #
 # TWO TRIGGERS, DELIBERATELY ASYMMETRIC IN HOW MUCH THEY ARE TRUSTED:
 #

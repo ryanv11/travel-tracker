@@ -75,7 +75,7 @@ jobs:
         run: npm run test:e2e
         env:
           DB_TYPE: sqlite
-          # GEOCODING_ENABLED=false — CI firewall doesn't allow Nominatim (ADL-10).
+          # GEOCODING_ENABLED=false — keep CI hermetic/deterministic, no live Nominatim calls (ADL-10).
           # SQLITE_PATH/BYPASS_AUTH/OWNER_CLERK_ID are set inline by playwright.config.ts's
           # webServer command, so they're not needed here.
           GEOCODING_ENABLED: false
