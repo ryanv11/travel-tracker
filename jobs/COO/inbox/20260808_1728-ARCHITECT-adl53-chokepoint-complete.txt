@@ -1,0 +1,37 @@
+ADL-53 · QUAL-43 (design-reflection R1) · PR: (pending — filed after CI) · BRD: n/a (internal) · Branch: feat/adl53-userid-scoping-chokepoint
+
+DECIDED (DESIGN ONLY — no production code changed): one composable scopeToUser chokepoint every
+user-owned query composes; extract citiesRepository + cityIdentityService; a 5-stage no-schema
+migration; a single Phase-3 owner-OR-shared change-point. Full design in
+jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md; ADL-53 main-log entry appended.
+
+REFRAME YOU NEED TO KNOW (two-probe, §1): the "~65 sites" is exact but mostly benign — only 4 inline
+eq(userId) predicates in route handlers; the rest pass req.user!.id into repositories that already
+scope (OP-06 §5.2/§5.3 = PASS). Real debt is three-fold: filter not DRY, convention unenforced,
+cities.ts has no repo. And cities are GLOBAL data — citiesRepository is a consolidation/testability/
+BUG-87-seam move, NOT a cross-tenant fix. No active bleed found (gap-class, OP-32, not regression).
+
+PER-DECISION VERDICT:
+- D1 scopeToUser helper (single Phase-3 change-point) — ADOPTED
+- D2 enforcement = CAUGHT not impossible (getDb-absent-from-routes fail-closed guard + ATDD
+  cross-tenant matrix at every user-data route); 3 typed-compile-time options REJECTED as primary — ADOPTED
+- D3 citiesRepository + cityIdentityService, verbatim move, justified NOT as security — ADOPTED
+- D4/D5 extend existing repo pattern; getDb absent from routes/** (D5 Medium — see OQ-1) — ADOPTED
+- D6 5-stage migration, each green, no schema change, QA-first — ADOPTED
+- D7 design Phase-3 seam signature now, defer sharing semantics to SE-01 — ADOPTED
+- D8 out of scope: transactions / geocode dual-identity / serializers — DEFERRED (each own decision)
+
+CI: no source diff (docs only) — expect green; PR # added to tracker note after ci-wait.
+
+OPEN ISSUES / BLOCKERS — FOUR OQs, resolve BEFORE OP-27 fresh-eyes (ADL-52 clause 1):
+  OQ-1 absolutist-vs-table-aware getDb guard (my rec: absolutist)
+  OQ-2 custom ESLint rule now-or-defer (my rec: defer to fast-follow)
+  OQ-3 cityIdentityService boundary — DB/identity only vs also geocode orchestration (my rec: DB only)
+  OQ-4 confirm 3 implementation briefs (S0/S2/S3) + 1 QA brief (S1), dispatched QA-first
+Take PO decisions on OQ-1..4, amend the spec, THEN dispatch the second Architect (told to critique).
+
+ATDD-FIRST (OP-35): S0 yes · S1 IS the ATDD · S2 yes (+mock-fidelity on the identity catch-path) · S3 no.
+
+NOW UNBLOCKED (after fresh-eyes + OQs settled): the S0/S1/S2/S3 implementation+QA briefs; BUG-84
+(U7/U8 fold rides S2); the clean seam BUG-87's city-picker backend needs. When S2/S3 land, OP-06
+§5.1 Gap note + §5.2/§5.3 wording must be updated same-PR (OP-09).

@@ -2029,3 +2029,56 @@ STILL OPEN / HANDED TO COO (§10.11.6): allowlist REMOVAL review (registry.npmjs
 LESSON I WOULD KEEP BEYOND THIS THREAD: an amendment must RE-WALK THE SECTIONS IT DID NOT INTEND TO
   CHANGE. Every failure above is a late discovery not pushed backwards through earlier text, and it
   happens because each amendment gets graded against its own brief rather than the document it joins.
+
+================================================================================
+2026-08-08 — ADL-53: the userId-scoping chokepoint (QUAL-43 / design-reflection R1)
+Branch: feat/adl53-userid-scoping-chokepoint · DESIGN ONLY — no production code changed
+Deliverable: jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md + ADL-53 main-log entry
+================================================================================
+DISPATCH: COO gate for QUAL-43 (highest-priority structural work). Design a citiesRepository +
+cityIdentityService, a SINGLE scopeToUser chokepoint, the staged migration off the ~65 inline
+req.user!.id sites, and a single Phase-3 owner-OR-shared change-point. Absorbs BUG-84's routes→repo
+fold (U7/U8).
+
+FINDING THAT REFRAMED THE BRIEF (two-probe, §1 of the design doc) — worth carrying forward:
+  The "~65 sites" is EXACT (grep confirms 65 req.user refs across routes) but MOSTLY BENIGN —
+  only 4 inline eq(...userId...) predicates live in route handlers; the rest pass req.user!.id
+  straight into repositories that already scope internally (OP-06 §5.2/§5.3 = PASS). The real debt
+  is three-fold, NOT "65 unsafe sites": (a) filter written N times not composed once (Phase-3 pain);
+  (b) convention unenforced; (c) cities.ts (840 LOC, no repository) bypasses the layer — BUT cities
+  are GLOBAL reference data (schema.ts:113-121, createdByUserId nullable ON DELETE SET NULL), so its
+  axis is creator-visibility (GE-16), NOT ownership. No ACTIVE cross-tenant hole found — gap-class
+  (OP-32), not a regression. The honest problem is "the right pattern exists but isn't DRY, enforced,
+  or universal", and I said so rather than inherit the "65 unsafe sites" frame.
+
+DECISIONS (8, full text in the standalone file):
+  D1 One scopeToUser(table,userId)/ownedAnd helper (repositories/scope.ts); UserOwnedTable union
+     makes passing a global table a COMPILE error. Single Phase-3 change-point.
+  D2 A forgotten filter CANNOT be made a cheap compile error in Drizzle (3 typed-wrapper options
+     considered + rejected as primary — .where() replaces not appends, $dynamic()/joins leak). Make
+     it CAUGHT: routes call getDb() ZERO times (fail-closed grep guard) + ATDD cross-tenant matrix at
+     EVERY user-data route (OP-35 red bar — closes the access-matrix test's tier-only Part C gap).
+  D3 Extract citiesRepository + cityIdentityService, logic VERBATIM. Justified on consolidation/
+     testability/BUG-87-seam — explicitly NOT a cross-tenant fix (cities global; framing it so =
+     QUAL-22 vacuous-test trap). ATDD asserts GE-16 CONTAINMENT, not ownership isolation.
+  D4/D5 Extend the tripRepository pattern (no new pattern); target = getDb absent from routes/**
+     (global reads move behind repo methods too — clean one-line guard). D5 flagged Medium (OQ-1).
+  D6 Five-stage migration (S0 helper+refactor → S1 QA matrix → S2 cities extract → S3 global-read
+     move + guard flip → S4 Phase-3 seam, design-only). Each independently green; NO schema change.
+  D7 Design the Phase-3 seam signature (scopeToUserOrShared) now; defer sharing SEMANTICS to SE-01.
+  D8 OUT OF SCOPE (stated so it isn't absorbed): transactions (risk#3), geocode dual-identity
+     consolidation (risk#2/GE-19), serializer unification (risk#5). db.transaction() avoidance
+     PRESERVED VERBATIM.
+
+FOUR OPEN QUESTIONS FLAGGED FOR COO (resolve BEFORE OP-27 fresh-eyes, per ADL-52 clause 1):
+  OQ-1 absolutist-vs-table-aware guard (rec: absolutist); OQ-2 ESLint rule now-or-defer (rec: defer);
+  OQ-3 cityIdentityService boundary — DB/identity only vs also geocode orchestration (rec: DB only);
+  OQ-4 confirm 3 impl briefs (S0/S2/S3) + 1 QA brief (S1), QA-first.
+
+ATDD-FIRST MARKS (OP-35): S0 yes · S1 IS the ATDD · S2 yes (+mock-fidelity on the identity
+catch-path/partial indexes) · S3 no (guard is its own test).
+
+HANDOFF TO COO: (1) DESIGN ONLY, no code — the ADL is the deliverable. (2) Resolve OQ-1..4, amend the
+spec, THEN dispatch OP-27 fresh-eyes (second Architect, told to critique). (3) When S2/S3 implement,
+OP-06 §5.1 Gap note + §5.2/§5.3 PASS/FAIL wording must point at the chokepoint (same-PR OP-09).
+(4) No BRD gate — internal structure, no new requirement ID (COO-confirmed n/a in the dispatch).
