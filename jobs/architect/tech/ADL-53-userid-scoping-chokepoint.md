@@ -358,3 +358,37 @@ This ADL is squarely an OP-06 §5 (isolation enforcement layers) deliverable and
 
 The same-PR document-lifecycle rule (OP-09): when S2/S3 land, OP-06 §5.2/§5.3's PASS/FAIL wording
 and §5.1's "Gap" note must be updated to point at the chokepoint (flagged for the implementing PRs).
+
+---
+
+## COO Adjudication — 2026-08-08 (open questions resolved before the OP-27 fresh-eyes review)
+
+Per the ADL-52 clause-1 refinement, the COO resolves the author's flagged open questions **before**
+dispatching the fresh-eyes reviewer, so the reviewer receives a settled spec and spends its pass on
+blind spots. Resolutions (adopting the author's recommendations — these are COO/technical calls, not
+PO product decisions):
+
+- **OQ-1 — getDb guard scope: ABSOLUTIST.** Route handlers call `getDb()` **zero** times, with no
+  table-aware exceptions. A blanket fail-closed grep guard is simpler to enforce and reason about than
+  a table-aware allowlist, and it composes cleanly with the ATDD cross-tenant matrix.
+- **OQ-2 — custom ESLint rule: DEFER.** The grep guard + ATDD matrix suffice for now; a bespoke ESLint
+  rule is deferred (revisit only if the grep guard proves too coarse). Not a blocker.
+- **OQ-3 — `cityIdentityService` boundary: DB / IDENTITY ONLY.** The service owns find-or-create /
+  wildcard-upgrade / merge (identity); it does **not** own geocode orchestration (that stays in
+  `geocoding.service.ts`). Keeps the seam narrow and avoids re-entangling the two subsystems.
+- **OQ-4 — build shape: CONFIRMED.** Three implementation briefs (S0 extract `citiesRepository` /
+  `cityIdentityService`; S2 migrate routes + fold BUG-84 U7/U8; S3 the chokepoint + grep guard) + one
+  QA brief (S1), **QA-first** per OP-35. ATDD-first marks as authored: S0 yes · S1 IS the ATDD · S2 yes
+  (+ mock-fidelity on the identity catch-path) · S3 no.
+
+**Reframe recorded (negative-findings correction):** the "~65 unsafe sites" premise the COO briefed
+this on was overstated. The author's two-probe finding stands — only **4** inline `eq(...userId...)`
+predicates in route handlers; the rest pass into already-scoping repositories; `cities` is **global
+reference data**, not user-owned; **no active data bleed** today. This is **gap-class** (OP-32), not a
+regression. QUAL-43 re-rated **P1 → P2** accordingly (a foundation / BUG-87 seam / convention
+enforcement, not an urgent security fire).
+
+**For the fresh-eyes reviewer:** stress-test the design **and** these resolutions, and per the ADL-52
+clause-2 refinement scope the **whole** ADL — specifically check the seam between the new sections and
+OP-06 §5.1/§5.2/§5.3, and whether the "caught not impossible" D2 call (getDb-zero + grep guard + ATDD
+matrix) genuinely closes the gap a rewrite would claim to.
