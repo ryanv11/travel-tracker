@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (84)
+## Open work (85)
 
 ### P0 — Blockers (1)
 
@@ -25,12 +25,13 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | FEAT-IT | Item Logging | frontend | ◐ Partial |
 
-### P1 — Critical (2)
+### P1 — Critical (3)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
+| QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | ⬜ Pending |
 
 ### P2 — Important (45)
 
@@ -131,7 +132,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `██████████████░░░░░░` 59/85 | 59 | 26 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 31/56 | 31 | 25 | 1 |
+| chore | `███████████░░░░░░░░░` 31/57 | 31 | 26 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -165,4 +166,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_176 done · 9 deferred · 5 closed · 84 open — 274 tracked items_
+_176 done · 9 deferred · 5 closed · 85 open — 275 tracked items_
