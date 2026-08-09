@@ -1,4 +1,4 @@
-ADL-53 · QUAL-43 (design-reflection R1) · PR: (pending — filed after CI) · BRD: n/a (internal) · Branch: feat/adl53-userid-scoping-chokepoint
+ADL-53 · QUAL-43 (design-reflection R1) · PR #456 (CI GREEN, all 18 checks) · BRD: n/a (internal) · Branch: feat/adl53-userid-scoping-chokepoint
 
 DECIDED (DESIGN ONLY — no production code changed): one composable scopeToUser chokepoint every
 user-owned query composes; extract citiesRepository + cityIdentityService; a 5-stage no-schema
@@ -21,7 +21,7 @@ PER-DECISION VERDICT:
 - D7 design Phase-3 seam signature now, defer sharing semantics to SE-01 — ADOPTED
 - D8 out of scope: transactions / geocode dual-identity / serializers — DEFERRED (each own decision)
 
-CI: no source diff (docs only) — expect green; PR # added to tracker note after ci-wait.
+CI: PR #456 — all 18 checks GREEN (docs-only, no source diff). COO merges, not me.
 
 OPEN ISSUES / BLOCKERS — FOUR OQs, resolve BEFORE OP-27 fresh-eyes (ADL-52 clause 1):
   OQ-1 absolutist-vs-table-aware getDb guard (my rec: absolutist)
