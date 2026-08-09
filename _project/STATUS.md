@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (84)
+## Open work (86)
 
 ### P0 — Blockers (1)
 
@@ -70,7 +70,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-81 | Disambiguation picker rows hard to skim — raw display_name shows county + postcode noise | frontend | done_pending_uat |
 | BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
 | BUG-85 | Stuck geocode-pending cities are invisible and unactionable — no visibility into the retry queue or its cause, no user recovery (GE-19) | architect | ⬜ Pending |
-| BUG-87 | Add-place picker does not narrow/rank candidates by the trip's assigned country/countries | architect | ⬜ Pending |
+| BUG-87 | Add-place picker does not narrow/rank candidates by the trip's assigned country/countries | architect | done_pending_uat |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
 | BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
@@ -82,7 +82,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (36)
+### P3 — Minor (38)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -114,6 +114,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | UX-14 | First place's dates render in blue while later places' dates don't (inconsistent styling) | frontend | done_pending_uat |
 | BUG-92 | Companions are not seeded from a global starting list | architect | ⬜ Pending |
 | BUG-93 | Newly-added place's map marker doesn't appear until a refresh (render lag on add) | frontend | done_pending_uat |
+| BUG-94 | GE-20 bypass: the manual '+Add new' country dropdown in the picker isn't restricted to the trip's countries | frontend | ⬜ Pending |
+| QUAL-44 | Stale file:line cross-references in comments — remaining low-value ones + adopt cite-symbols-not-lines | unassigned | ⬜ Pending |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 | QUAL-34 | Shared-record append collisions — union-merge driver for the ledger + per-agent context files (never adopted, 3rd recording) | coo | ⬜ Pending |
 | QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |
@@ -129,9 +131,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `████████████▓░░░░░░░` 35/57 | 35 | 22 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `██████████████░░░░░░` 59/85 | 59 | 26 | 3 |
+| bug | `██████████████░░░░░░` 59/86 | 59 | 27 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 31/56 | 31 | 25 | 2 |
+| chore | `███████████░░░░░░░░░` 31/57 | 31 | 26 | 2 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -166,4 +168,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_176 done · 10 deferred · 5 closed · 84 open — 275 tracked items_
+_176 done · 10 deferred · 5 closed · 86 open — 277 tracked items_
