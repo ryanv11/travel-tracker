@@ -469,14 +469,7 @@ input to weigh, not as a settled recommendation to rubber-stamp.
 ## Environment
 - Running inside a devcontainer (Docker) — workspace at `/workspace`
 - Claude config dir: `/home/node/.claude`
-- Firewall: outbound egress is restricted, but the **canonical allowlist is
-  `.devcontainer/init-firewall.sh`** — do not enumerate it here (this line spent months
-  claiming "GitHub, npm, Anthropic only" while ADL-33/34/49 had already added **Turso,
-  Railway and Nominatim**; the enumeration rotted and agents inherited a false "X is
-  blocked"). Reachability is **point-in-time, not a fact** — the allowlist is IP-matched
-  (QUAL-28) and egress intermittently drops and self-heals — so **probe before declaring
-  any host unreachable**, and never inherit a "firewall blocks X" claim from a doc, a code
-  comment, or another agent. The negative-findings two-probe rule binds here specifically.
+- Firewall: egress is restricted; the allowlist is `.devcontainer/init-firewall.sh` (the canonical source — never enumerate it elsewhere, it rots). A "host X is blocked" report is almost always an **untried or mis-run probe, not a fact** — probe it yourself (one well-behaved request) before believing it, and never inherit a firewall-block claim from a doc, comment, or another agent.
 - `.env.local` holds secrets — never commit it
 
 ## Schema changes (Drizzle ORM)
