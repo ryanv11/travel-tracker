@@ -86,7 +86,10 @@ This skill is the **single canonical home** for the pre-dispatch gate rules — 
 BRD gate, success criteria, security checklist (OP-06) and ATDD-first (OP-35). CLAUDE.md points here
 rather than restating them, so there is one place to maintain, not two that drift.
 
-The gate also subsumes the brief-channel role of the two warn-only hooks (`atdd-first-guard.sh`,
-`negative-findings-guard.sh`) — they guard only the gh-issue echo, which this replaces at the source.
-They remain **R3 removal candidates** pending COO/PO sign-off (removing enforcement is a separate
-deliberate act — it also touches `.claude/settings.json` and the `/coo-startup` hook canary).
+`atdd-first-guard.sh` was **removed** (R3): it fired only on the brief/handoff channel (gh issue/PR
+bodies + `jobs/**brief*` files), which this gate now covers more strongly — the required header forces
+an ATDD decision and the receiving agent refuses a brief without it (vs a warn).
+
+`negative-findings-guard.sh` is **kept**: this gate subsumes only its brief-channel slice, but the hook
+also warns on every `jobs/**` write, `tracker.json` notes, and general PR bodies for unmarked
+absence-language — surfaces this gate never sees, so it still enforces the always-on OP-26/29 rule.
