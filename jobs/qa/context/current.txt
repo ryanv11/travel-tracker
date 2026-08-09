@@ -319,3 +319,66 @@ NEXT STEPS (for incoming QA)
   lint notices in untouched files, confirmed pre-existing via diff against
   main). Full detail: jobs/qa/tech/20260808-qual-coverage-sweep.md
   Completion report: jobs/COO/inbox/
+
+================================================================================
+2026-08-08 — BUG-87 / GE-20 ATDD RED BAR (OP-35, trip-country picker filter)
+================================================================================
+
+  Branch: feat/bug87-ge20 (off main @ 4c38d90, pushed). PR opened, title
+  states "do not merge alone" per the ATDD handoff convention (CI shows the
+  new tests failing by design). Backend implements Brief A against this
+  branch next.
+
+  Turned ADL-54/GE-20's success criteria + the fresh-eyes review's F1/F2
+  edge cases into RED acceptance/integration tests BEFORE Backend writes
+  any implementation:
+    - src/backend/routes/__tests__/ge20-cities-country-filter.test.ts
+      (GET /api/cities?country_codes=, real migration-backed test DB)
+    - src/backend/routes/__tests__/ge20-geocode-country-filter.test.ts
+      (GET /api/geocode?country_codes=, fidelity-extended nominatim-client
+      double)
+
+  Result: 5/11 RED for the right reason (clean AssertionErrors — wrong
+  row/candidate counts, no import/exception noise) against main: single-
+  country narrow (cities), multi-country union (cities), off-country empty
+  (cities), client-args + union (geocode), off-country empty (geocode). 6/11
+  already pass on main — 4 genuine regression guards (absent-param
+  backward-compat ×2, the F4 seam vs the POST /api/cities D12 single
+  country_code create constraint ×2) and 2 F1 empty-string guards that pass
+  VACUOUSLY today (no filtering logic exists yet to trip the footgun) but
+  are kept and labelled honestly — they exist to catch the specific naive
+  `inArray(col, [])`-always-pushed implementation bug the fresh-eyes review
+  flagged as the most important non-blocking finding (F1: would silently
+  invert the PO's Q1 SHOW-ALL ruling). All 6 non-red tests are explicitly
+  labelled in-file (GUARD / REGRESSION GUARD), same discipline as the
+  BUG-76 ATDD precedent. No production code touched.
+
+  Mock-fidelity (OP-35/QUAL-22): the pre-existing nominatim-client.js
+  double in geocode.test.ts (BUG-79) is a dumb capture-and-return stub that
+  ignores countrycodes entirely — reusing it unmodified would have made
+  every GE-20 outcome-based geocode assertion pass vacuously. Extended it
+  in the new file: a small fixture candidate pool, filtered by countrycodes
+  as an allow-list (comma-split, case-insensitive), matching Nominatim's
+  documented behaviour — while still capturing raw call args for the
+  brief's explicit "assert on the CLIENT ARGS" instruction. Verified the
+  old double's lack of fidelity two ways (full file read + confirmed its
+  own 5 tests never branch on countrycodes) before deciding to extend
+  rather than reuse.
+
+  Full breakdown + design rationale: jobs/qa/tech/20260808-ge20-atdd-red-tests.md
+
+  NOTED GAP (not added to the red bar, flagging rather than silently
+  expanding scope): ADL-54 §4 recommends schema-level rejection of invalid
+  country_codes values and a ≤10-code cap as Brief A implementation
+  details; neither was in the dispatch's enumerated 7-item test list, so
+  neither is red-tested here. Also carrying forward the fresh-eyes
+  review's P2 (non-blocking): Nominatim's real multi-country countrycodes
+  behaviour is UNVERIFIED from this environment (firewall) — the geocode
+  double models documented behaviour, not a live probe. Recommend an early
+  real multi-country geocode check against staging before UAT trusts this.
+
+  NEXT: Backend implements against this branch until all 5 red assertions
+  are green, the 2 F1 guards still pass for the RIGHT reason (branching on
+  set.length, not accidental), and the 4 regression guards + full backend
+  suite stay green. type:check:all clean, no other suite regresses.
+  Completion report: jobs/COO/inbox/
