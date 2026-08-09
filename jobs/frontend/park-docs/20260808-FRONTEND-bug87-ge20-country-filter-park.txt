@@ -1,0 +1,216 @@
+PARK DOCUMENT — FRONTEND
+Date: 2026-08-08
+Thread: BUG-87 / GE-20 Brief B — trip-country picker filter (frontend wiring)
+Branch: feat/bug87-ge20-picker-country-filter
+PR: #469 (CI green, 18/18)
+
+=========================================================================
+SCOPE
+=========================================================================
+Brief B — the final BUG-87 build piece. Backend contract (Brief A —
+country_codes on GET /api/cities and GET /api/geocode) was already merged to
+main before this thread started (PR #466 chain, ATDD-first per OP-35).
+Governing docs: jobs/architect/tech/ADL-54-trip-country-picker-filter.md
+(design + COO Q1/Q2/Q3 adjudication) and
+jobs/architect/tech/20260808-ADL54-fresh-eyes-review.md (F1-F6 findings).
+
+Dispatch success criteria: country_codes sent on both lookup paths; a
+visible "filtered by trip's countries" note; zero-country trip -> show-all +
+prompt (Q1); off-country search -> empty-state linking the trip's country
+editor (Q2); the F2 test pinning the param is sent on both paths (mandatory).
+
+=========================================================================
+PREMISE VERIFICATION (before touching anything)
+=========================================================================
+Two-probe check on trip.countries actually being on the TripDetail payload,
+per the brief's explicit instruction not to assume the ADL's claim:
+  1. Read src/frontend/types/api.ts:290-309 — TripSummary carries
+     `countries: { country_code: string; name: string }[]`; TripDetail
+     `extends TripSummary`, so it inherits the field. Confirmed present,
+     both code AND name — no extra fetch needed for the "Filtered to:
+     United Kingdom" note.
+  2. Read src/backend/routes/trips.ts — GET /api/trips/:id assembles
+     `countries: countriesRows` (line ~275) from the same trip-countries
+     join POST/PATCH write through (tripRepository.setCountries). Matches
+     the ADL's §1.1 claim exactly; nothing further to verify.
+
+Also confirmed (single AddPlaceFlow, not two "twins"): AddPlaceFlow.tsx is
+ONE component, imported by both TripDetail.tsx (desktop) and
+MobileTripDetailView.tsx (mobile) — the brief's "mobile twin" language
+refers to the second CALL SITE, not a second component to build or edit
+in parallel. Both call sites needed the same two new props threaded through.
+
+=========================================================================
+IMPLEMENTATION
+=========================================================================
+
+1. useCities.ts — country_codes threading
+   useCitySearch(query, countryCodes = []) and
+   lookupCityCountry(cityName, countryCodes = [])
+   (-> fetchGeocodeResultWithRetry) now always send `country_codes`
+   (comma-joined, URL-encoded via URLSearchParams so a comma becomes %2C —
+   matches the backend doc's own "gb,fr" -> "countrycodes=gb%2Cfr" example)
+   on every request, including an EXPLICIT empty string when the caller
+   passes no codes or an empty array. This is deliberate, not an oversight:
+   the backend's documented contract distinguishes "present-but-empty
+   (country_codes=)" = unconstrained (PO Q1) from "absent entirely" =
+   legacy/unchanged caller — sending the empty param is what lets a
+   zero-country trip's picker still participate in the "cannot be bypassed"
+   guarantee (it sends the filter, the filter just happens to admit
+   everything).
+
+   Both default to `[]` rather than being made required, specifically so
+   ChangeCityModal.tsx's existing `useCitySearch(debouncedQuery)` call
+   (the "Change City" re-point flow, BUG-75/UX-12) keeps compiling AND
+   keeps its exact pre-GE-20 behaviour with ZERO call-site edit — see
+   "Deliberately not done" below for why that flow is out of scope.
+
+2. formatCountriesFilterNote.ts (new util)
+   One shared formatter for both the "Filtered to: ..." note and the
+   off-country empty-state's country list, so the truncation rule (name up
+   to 2 countries in full, then "+N") can't drift between the two call
+   sites — same precedent as the existing formatCitySubtitle.ts. Matches
+   the COO's adjudicated Q3 example exactly: 4 countries ->
+   "United Kingdom, France +2".
+
+3. AddPlaceFlow.tsx — two new props, three new UI states
+   - tripCountries: { country_code, name }[] — countryCodes derived via
+     `.map(c => c.country_code)`, passed into BOTH useCitySearch and the
+     lookupCityCountry call inside handleOpenNewCityForm (this is the F2
+     guarantee — see TESTS below).
+   - onManageCountries: () => void — opens the trip's country editor. This
+     IS the existing TripForm edit modal (already renders the country
+     multi-select, TripForm.tsx:56/115) via a new
+     useTripDetailController.handleManageCountries handler
+     (setShowAddPlace(false); setShowEdit(true)) — reused, per the ADL's
+     explicit "reuse the trip form" instruction, not a new editor. Shared
+     by both TripDetail.tsx and MobileTripDetailView.tsx rather than
+     duplicating the same two-line callback at each call site.
+   - D5/Q3 note: "Filtered to: <names>" above the search input, only in
+     the search step (!showNewCityForm), when tripCountries.length > 0.
+   - D3/Q1 prompt: replaces the note when tripCountries.length === 0 —
+     "This trip has no countries yet — results aren't filtered." + an
+     "Add countries" button calling onManageCountries. The lookups still
+     run (unconstrained, via the empty country_codes described above).
+   - D4a/Q2 empty-state: when a debounced search (>=2 chars) settles with
+     zero results AND the trip has declared countries, a message "No
+     matches in <names>." + "Add a different country to this trip" button,
+     rendered ABOVE the existing "+ Add new" row (which stays untouched —
+     an empty DB search can't distinguish "not in the catalogue yet,
+     still in-set" from "genuinely outside the trip's countries", so this
+     informs without blocking the addable path).
+
+=========================================================================
+F2 — THE MANDATORY TEST (fresh-eyes finding, verbatim from the brief)
+=========================================================================
+"Cannot be bypassed from within the picker" is a GE-20 success criterion
+whose enforcement straddles both briefs: Brief A (backend) only filters
+WHEN the param is present (ATDD-tested there); Brief B (frontend) must
+ALWAYS SEND it. Brief B is marked ATDD-first: no, so this link had no red
+test before this thread — the fresh-eyes review's #1 recommendation.
+
+New AddPlaceFlow.ge20-country-filter.test.tsx pins this directly: spies on
+useCitySearch and lookupCityCountry (NOT the ignore-second-arg style mocks
+the six PRE-EXISTING AddPlaceFlow test files use — see below), asserts
+both are called with the trip's countryCodes array on a real search +
+"+Add new" interaction, for both a non-empty and a zero-country trip.
+Also covered one layer down, at the hook level (URL construction, not the
+component contract): useCities.citySearch.test.tsx (new) and
+useCities.geocode.test.tsx (extended) assert the literal query string
+sent to apiGet, including the GB%2CFR percent-encoding and the
+query-key-changes-on-filter-change refetch behaviour.
+
+=========================================================================
+EXISTING TEST FILES TOUCHED (mechanical prop-threading, not behaviour)
+=========================================================================
+AddPlaceFlow.bug71/bug72/bug78-79/city-picker/geocodeFailure/picker-
+precedence.test.tsx (6 files, one renderFlow() call site each) and
+AddPlaceFlow.test.tsx (4 direct render() call sites) all render
+<AddPlaceFlow> without the two new required props — TypeScript would
+otherwise fail to compile once tripCountries/onManageCountries stopped
+being optional. Added `tripCountries={[]} onManageCountries={vi.fn()}` at
+every site — `[]` was chosen deliberately (not a placeholder guess) since
+none of these pre-GE-20 tests exercise country filtering, their
+lookupCityCountry/useCitySearch mocks already ignore any second argument
+by declared signature, and `[]` is the closest match to these tests'
+original pre-GE-20 "unconstrained" behaviour. Confirmed via a full
+test:frontend run that this added zero new failures and no unexpected DOM
+collisions with the new zero-country prompt these tests now also render
+(it doesn't intersect with any of their existing assertions).
+
+=========================================================================
+DELIBERATELY NOT DONE — flagged to COO/PO, not assumed
+=========================================================================
+1. ChangeCityModal.tsx's city search (the "Change City" re-point flow) is
+   NOT filtered by trip countries. GE-20's own text ("When a user adds a
+   place to a trip...") and ADL-54 D6 ("GE-16 re-point: unaffected") both
+   scope this feature to adding a NEW place, a different operation from
+   re-pointing an existing place's city to a different catalogue row. Left
+   untouched; its useCitySearch call keeps compiling unchanged via the []
+   default described above.
+
+2. The "+Add new" city-creation form's manual country <select> (lists
+   every country via useCountries(), unfiltered) is NOT restricted to the
+   trip's declared set. This is a genuine, if narrow, way GE-20's "cannot
+   be bypassed from within the picker" criterion could still be
+   circumvented today: a determined user CAN manually pick any country
+   from that dropdown and create a city there, regardless of the trip's
+   filter. Neither ADL-54 nor the fresh-eyes review scope "the picker" to
+   include this manual fallback — F2 explicitly frames the guarantee as
+   the two AUTOMATED lookup paths (search dropdown, geocode discovery),
+   and D4a's "off-country add" design assumes the user's *primary* path
+   there is editing the trip's countries first, not the manual dropdown.
+   Restricting it would also be a bigger, more opinionated UI change than
+   anything the dispatch gate's 5 IMPLEMENT bullets asked for. Raised here
+   and in the PR description as a scope question for COO/PO, not built.
+
+=========================================================================
+VERIFICATION
+=========================================================================
+npm run check — clean (5 pre-existing infos in
+  geocoding.resolveByOsmId.test.ts, a backend test file this thread never
+  touched — same count/file every recent park doc in this file has noted).
+  Two NEW formatting errors this thread introduced (line length / quote
+  style in the two new test files) were caught by this same command and
+  fixed via a SCOPED `npx biome check --write` on just those two files
+  (never a bare repo-root --write — see this file's dedup-sweep entry
+  below for why that matters).
+npm run type:check:all — clean.
+npm run test:backend — 801/801 (unaffected; this thread never touches
+  src/backend/**).
+npm run test:frontend — 388/388 (+23 new: 2 useCities.geocode, 5
+  useCities.citySearch [new file], 6 formatCountriesFilterNote [new file],
+  9 AddPlaceFlow.ge20-country-filter [new file], 1
+  useTripDetailController).
+npm run status:check / npm run tracker:check — clean; no tracker.json edit
+  made this thread (BUG-87 status flip is COO's job at merge).
+npm audit — 6 pre-existing MODERATE findings (esbuild/drizzle-kit via
+  drizzle-kit's transitive dep chain; react-router CVE-2025-68470-adjacent)
+  — confirmed pre-existing, no package.json/package-lock.json change in
+  this diff, flagged per frameworks.txt rule 20, not fixed here.
+CI: PR #469, all 18 checks green (scripts/ci-wait.sh pr 469 -> PASS),
+  including E2E and Contract Tests (both require the live-backend contract
+  Brief A already shipped).
+
+=========================================================================
+BUGS DISCOVERED (framework standard #30)
+=========================================================================
+None. This was a pure feature-wiring thread against an already-merged,
+already-tested backend contract — no defects surfaced during
+implementation or verification.
+
+=========================================================================
+NEXT STEPS
+=========================================================================
+COO: review PR #469, merge via /coo-merge-and-close when ready. Flip
+BUG-87 tracker status to done/done_pending_uat with the PR number (GE-20's
+full BRD success-criteria list is now built — worth a UAT pass, per this
+project's mandatory UAT-before-phase-close gate). Decide the two
+"deliberately not done" scope questions above (own follow-up briefs, if
+wanted). PO/COO: the fresh-eyes review's P2 finding — Nominatim's real
+multi-country `countrycodes` behaviour is UNVERIFIED from this sandboxed
+container (firewall blocks direct reach) — still wants an early real
+multi-country geocode check on staging before UAT fully trusts this
+feature; that's a staging-environment check, not something this frontend
+thread could close itself, carried forward as a reminder per the review's
+own recommendation.
