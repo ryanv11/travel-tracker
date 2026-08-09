@@ -1,0 +1,77 @@
+=============================================================================
+ARCHITECT PARK DOC — 2026-08-08 — BUG-87 trip-country picker filter (ADL-53)
+=============================================================================
+
+BRIEF: Design BUG-87 — narrow the add-place picker by the trip's declared country SET,
+as a HARD FILTER (PO decision). Design only, no production code. Fresh-eyes (OP-27) planned.
+
+DELIVERABLE: jobs/architect/tech/ADL-53-trip-country-picker-filter.md
+  + summary/pointer entry appended to jobs/architect/tech/20260307-architecture-decisions-log.md
+BRANCH: feat/bug87-trip-country-picker-filter
+PR: see completion report (references BUG-87).
+
+-----------------------------------------------------------------------------
+STATE: COMPLETE (design). Awaiting: COO→PO on open Qs, then OP-27 fresh-eyes, then GE-20
+BRD promotion, then implementation (Brief A backend QA-first, Brief B frontend).
+
+-----------------------------------------------------------------------------
+THE ONE THING TO CARRY FORWARD
+
+The load-bearing risk was whether trip_countries is user-declared or derived-from-places.
+The schema doc comment (schema.ts:464-466) SAYS "derived from trip_places" — if true, the
+PO's model is wrong and a hard filter is circular. It is FALSE. Disproved with two probes:
+  (1) grep of setCountries/addCountries/removeCountry callers → only POST/PATCH /api/trips
+      (trips.ts:173,328) + trip-countries.ts sub-router. places.ts writes NO country on add.
+  (2) TripForm.tsx already renders a country multi-select (selectedCountryCodes, chips,
+      country_codes submitted on create+edit — lines 56/115/199).
+Conclusion: the set is user-declared and editable end-to-end today; BUG-87 is missing
+read-path WIRING + affordances, not missing machinery. The stale comment should be corrected
+in the implementing PR (non-functional; flagged, not changed in this design PR).
+
+-----------------------------------------------------------------------------
+DESIGN DECISIONS (full table + reasoning in the ADL)
+
+D1  New `country_codes` (comma-joined ISO alpha-2) param on GET /api/cities + GET /api/geocode,
+    distinct from the existing single country_code (D12 create-constraint). Nominatim
+    countrycodes natively accepts the comma list. Additive/backward-compatible.
+D2  Non-empty set: inArray(cities.countryCode, set) for DB search; countrycodes=<set> for
+    geocode. Union across a multi-country set. limit tier: CONSTRAINED for 1 country,
+    DISCOVERY for >=2.
+D3  Zero-country trip (country_codes OPTIONAL at create → empty set is real): recommend
+    unconstrained + prompt, NOT hard-empty. OPEN Q1 for PO.
+D4  Off-country add: recommend day-one static empty-state → trip country editor (reuse
+    TripForm / countries sub-router); inline "add France?" discovery-probe is a flagged
+    fast-follow (+1 Nominatim call/miss). OPEN Q2 for PO.
+D5  "Showing places in: <names>" note from trip.countries (already in the trip payload).
+D6  Composes with GE-15: constraining the candidate space is the whole fix; BUG-71/75
+    tentative-suggestion + place-picker machinery unchanged. Single-country pre-confirm is a
+    flagged nice-to-have.
+D7  BUG-90 seam: filter at ISO-country granularity only. trip_countries.country_code
+    FK-RESTRICTs to ISO (schema.ts:476-478), so BUG-90 maps Scotland->GB; a Scotland trip
+    admits all UK cities (PO-accepted). NO ship-order dependency.
+D8  Schema impact: NONE. Read-path query params only. No migration, no expand/contract.
+D9  Security (OP-06): no new scoping. country_codes narrows GLOBAL reference data, not an
+    authz boundary. GE-16 creator-scoping on cities preserved and orthogonal. Auth already
+    global. No new user-referencing columns (no schema change) => notNull item N/A.
+D10 ATDD-first: backend contract brief YES; frontend wiring/affordances brief NO. QA red
+    tests + mock-fidelity (nominatim-client mock MUST honour countrycodes — QUAL-22) in the ADL.
+
+GE-20 proposed text + success criteria in ADL §3 for COO to formalize. Per OP-33 it rests on
+NO unverified premise → may enter BRD approved, not spike-gated. BRD is at v3.20; GE-20 unused.
+
+-----------------------------------------------------------------------------
+KEY FILES (all verified to exist)
+  src/backend/routes/geocode.ts        DISCOVERY vs CONSTRAINED lookup (the root-cause path)
+  src/backend/routes/cities.ts         GET /api/cities search (add inArray here)
+  src/backend/routes/trips.ts          POST/PATCH declare country_codes (setCountries)
+  src/backend/routes/trip-countries.ts POST add / DELETE remove (reuse for D4 country-add)
+  src/backend/repositories/trips.ts    setCountries/addCountries/removeCountry/getCountries
+  src/backend/db/schema.ts             trip_countries (476-478 FK), cities (93-180)
+  src/backend/validation/geocode.schemas.ts, cities.schemas.ts  add country_codes
+  src/frontend/components/TripDetail/TripForm.tsx   EXISTING country multi-select
+  src/frontend/components/TripDetail/AddPlaceFlow.tsx  the picker (thread trip.countries in)
+  src/frontend/components/TripDetail/TripDetail.tsx:275  AddPlaceFlow call site (has `trip`)
+  src/frontend/hooks/useCities.ts      useCitySearch / lookupCityCountry (thread codes through)
+
+BUGS DISCOVERED THIS THREAD: none (design thread). Noted: trip_countries doc comment is stale
+("derived from trip_places") — [TRIVIAL] correct in the implementing PR.
