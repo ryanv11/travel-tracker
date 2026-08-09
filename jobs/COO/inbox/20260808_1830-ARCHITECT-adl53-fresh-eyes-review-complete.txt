@@ -1,0 +1,42 @@
+TO: COO
+FROM: Architect (second, fresh — OP-27 review)
+RE: ADL-53 fresh-eyes review — QUAL-43 · reviewing PR #456 · BRD n/a
+Branch: chore/adl53-fresh-eyes-review · PR: (see below)
+Deliverable: jobs/architect/tech/20260808-ADL53-fresh-eyes-review.md
+
+VERDICT: BLOCKING FINDINGS. The design's PRINCIPLES are sound and I'd approve them; its
+MIGRATION PLAN (S3) rests on a false premise, and the COO adjudication's OQ-4 contradicts §6.
+Both fixes are bounded — no redesign.
+
+PER-DECISION:
+- D1 chokepoint (scopeToUser) — ADOPT. Sound.
+- D2 caught-not-impossible — ADOPT the reasoning. I independently verified getDb() is the ONLY
+  exported ORM door (db/index.ts:69; _db module-private; constructors unexported) → the grep
+  guard's door is genuinely complete. Credit; the ADL under-sells this.
+- D3 citiesRepository / cities=global — ADOPT. Verified schema.ts:113-121. QUAL-22 guard correct.
+- D4/D7/D8, OQ-1/OQ-2/OQ-3 — ADOPT. Sound.
+- D5/D6 (S3 migration) — BLOCK, re-scope (B1).
+- OQ-4 stage numbering — BLOCK, reconcile (B2).
+
+TWO BLOCKERS:
+- B1: "cities is the last route holding getDb()" (§3 D2.1, §6 S3) is FALSE. Two probes: grep →
+  getDb() in 6 route files (cities, places:5, trips:1, map:2, admin:5, items-helper:1); reading
+  handlers → places.ts:231 carry-forward (tripPlaces + SEC-02 eq(items.userId)), trips.ts:198
+  detail assembly, items-helper.ts:87 are USER-OWNED reads, not global. The author slid from the
+  TRUE F3 (cities has NO repository) to the false S3 premise (cities holds no getDb) — a route can
+  own a repo AND call getDb directly. Impact: (1) S3 scope understated; flipping the guard after
+  S2 would go RED on main (broken trunk, ADL-47); (2) S3's ATDD-first:no is unsound for the
+  user-owned relocations — those must be ATDD-first:YES and the S1 matrix must name the
+  carry-forward / trip-detail composite read paths.
+- B2: COO Adjudication OQ-4 relabels stages (S0=cities, S3=chokepoint+guard) contradicting §6
+  (S0=scope.ts, S2=cities, S3=guard) and inverting the load-bearing ordering; scope.ts has no
+  stage under OQ-4. Keep §6's numbering, fix OQ-4's wording.
+
+NON-BLOCKING (fix on implementing PRs): N1 OP-06 §5 is SUPERSEDED(2026-07-15) — §10 should target
+§6/§7 not §5.1-5.3; N2 the "4 inline predicates" is a fragile grep (5 with cities:205); N3 line-ref
+drift 728/772→727/771 + F4 wrongly lists shading as uncovered (shading.user-scope.test.ts covers it).
+
+CI: green — will confirm gh pr checks before this report is final (chore branch, doc-only).
+OPEN ISSUES: none beyond B1/B2 for the authoring Architect to address.
+UNBLOCKED: once B1/B2 are resolved on the ADL-53 branch, the S0/S1/S2 dispatch (QA-first) is clear;
+S3 needs the re-scope + ATDD re-marking first.

@@ -2029,3 +2029,38 @@ STILL OPEN / HANDED TO COO (§10.11.6): allowlist REMOVAL review (registry.npmjs
 LESSON I WOULD KEEP BEYOND THIS THREAD: an amendment must RE-WALK THE SECTIONS IT DID NOT INTEND TO
   CHANGE. Every failure above is a late discovery not pushed backwards through earlier text, and it
   happens because each amendment gets graded against its own brief rather than the document it joins.
+
+────────────────────────────────────────────────────────────────────────────
+2026-08-08 — ADL-53 OP-27 FRESH-EYES REVIEW (QUAL-43, PR #456) — Architect (2nd, fresh)
+────────────────────────────────────────────────────────────────────────────
+Reviewed ADL-53 (userId-scoping chokepoint) as the mandatory OP-27 second-pair-of-eyes.
+Deliverable: jobs/architect/tech/20260808-ADL53-fresh-eyes-review.md. Branch
+chore/adl53-fresh-eyes-review.
+
+VERDICT: BLOCKING FINDINGS — principles sound, migration plan is not.
+
+APPROVE the principles: D1 (one composable scopeToUser chokepoint), D2 (caught-not-impossible:
+getDb-zero + grep guard + ATDD matrix — I verified getDb() is the ONLY exported ORM door,
+db/index.ts:69, _db is module-private, constructors unexported → the grep guard's door is genuinely
+complete), D3 (cities = global data, verified schema.ts:113-121; extract as consolidation not
+cross-tenant fix — the QUAL-22 guard is right). OQ-1/2/3 resolutions sound.
+
+BLOCK the S2/S3 dispatch on two findings:
+- B1: "cities is the last route holding getDb()" (§3 D2.1, §6 S3) is FALSE by two probes. getDb()
+  is called in 6 route files: cities, places(5), trips(1), map(2), admin(5), items-helper(1).
+  Several are USER-OWNED queries — places.ts:231 carry-forward (tripPlaces + SEC-02 eq(items.userId)),
+  trips.ts:198 detail assembly (items scoped), items-helper.ts:87. The author slid from the TRUE F3
+  ("cities is the one route with NO repository") to the FALSE S3 premise ("last route holding getDb")
+  — has-no-repo ≠ holds-no-getDb; trips/places have repos AND call getDb directly. Consequence: S3
+  scope understated, guard-flip-after-S2 would go RED on main (broken trunk state), and S3's
+  ATDD-first:no is unsound for the user-owned relocations (silent-and-plausible access class → yes).
+- B2: COO Adjudication OQ-4 relabels stages (S0=cities, S3=chokepoint+guard) contradicting §6
+  (S0=scope.ts, S2=cities, S3=guard) and inverts the declared load-bearing ordering. scope.ts (D1
+  headline) has no stage at all under OQ-4's numbering. Reconcile before dispatch.
+
+NON-BLOCKING: N1 OP-06 §5 is under a SUPERSEDED(2026-07-15) banner — §10 should point at §6/§7 not
+§5.1-5.3; N2 the "4 inline predicates" is a fragile case-sensitive grep (5 with cities:205); N3
+line-ref drift 728/772→727/771 + F4 over-claims shading uncovered (shading.user-scope.test.ts covers it).
+
+Fix is bounded (re-inventory + re-scope S3 + reconcile numbering), NOT a redesign. The chokepoint
+stands; the map of where to apply it was drawn one route too small.

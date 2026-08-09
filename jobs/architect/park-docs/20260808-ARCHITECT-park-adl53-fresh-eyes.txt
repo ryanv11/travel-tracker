@@ -1,0 +1,66 @@
+ARCHITECT PARK DOC — 2026-08-08 — ADL-53 OP-27 fresh-eyes review (QUAL-43, PR #456)
+================================================================================
+
+WHAT THIS THREAD WAS
+  Second, fresh Architect performing the mandatory OP-27 fresh-eyes review of ADL-53
+  ("the userId-scoping chokepoint"), authored by a different Architect on branch
+  feat/adl53-userid-scoping-chokepoint (PR #456). Mandate: critique not confirm; scope
+  the WHOLE ADL (ADL-52 clause 2); check the seam vs OP-06 §5.1/5.2/5.3; stress-test the
+  D2 "caught not impossible" call and the COO's OQ-1..4 resolutions.
+
+DELIVERABLE
+  jobs/architect/tech/20260808-ADL53-fresh-eyes-review.md   (verdict + findings)
+  Branch: chore/adl53-fresh-eyes-review
+
+VERDICT: BLOCKING FINDINGS. Design principles sound; migration plan (S3) and one
+  COO-adjudication seam are not. Fix is bounded, not a redesign.
+
+THE TWO BLOCKERS (what the COO must resolve before dispatching S2/S3)
+  B1  "cities is the last route holding getDb()" is FALSE.
+      Probes: (1) grep -rn "getDb" src/backend/routes/*.ts → 6 files call it, not 1
+              (cities, places:5, trips:1, map:2, admin:5, items-helper:1).
+              (2) reading the handlers → places.ts:231 (carry-forward tripPlaces + SEC-02
+              eq(items.userId,userId)), trips.ts:198 (detail assembly, items scoped),
+              items-helper.ts:87 are USER-OWNED raw reads, NOT global reference reads.
+      Root conflation: F3's TRUE "cities is the one route with NO repository" got
+              upgraded to the FALSE "cities is the last route holding getDb()." A route
+              can own a repo AND still call getDb() directly (trips/places do).
+      Consequences: S3 scope understated; flipping the grep guard after S2(cities) puts
+              a RED main (broken trunk, violates ADL-47); S3's ATDD-first:no is unsound
+              for the user-owned relocations (dropping a userId predicate is
+              silent-and-plausible → those briefs must be ATDD-first:yes and the S1 ATDD
+              matrix must name the carry-forward / trip-detail composite read paths).
+  B2  COO Adjudication OQ-4 renumbers the stages (S0=cities extraction, S3=chokepoint+
+      guard) contradicting §6 (S0=scope.ts, S2=cities, S3=guard) and inverting the
+      declared load-bearing ordering. scope.ts (the D1 headline) has no stage under OQ-4.
+      Keep §6's numbering (coherent ordering rationale); fix OQ-4's wording.
+
+WHAT I VERIFIED AND CREDIT (independently re-probed, holds)
+  - D2 grep-guard door-completeness: getDb() is the ONLY exported ORM accessor
+    (db/index.ts:69); _db is a module-private `let` (:59); createLibSQLDb/createPostgresDb
+    unexported. No `export const db`. So a route cannot get the drizzle handle without the
+    literal "getDb" appearing — the guard's door is genuinely complete. The ADL under-sells
+    this; it should cite the private singleton as WHY the guard suffices.
+  - D3 cities=global: schema.ts:113-121 (createdByUserId nullable, ON DELETE SET NULL,
+    "global reference data"). Extract-for-consolidation-not-cross-tenant is right; the
+    QUAL-22 vacuous-test guard (assert GE-16 containment, not ownership isolation) is correct.
+  - F4 access-matrix Part C is tier-only: 5 cases (trips empty/404, companions empty,
+    nested POST items/places→404); no per-route cross-user READ assertion. Real gap.
+
+NON-BLOCKING (fix on the implementing PRs)
+  N1  OP-06 §5 is under `> SUPERSEDED (2026-07-15)`; current status is §6/§7. ADL §10 cites
+      §5.2/5.3 PASS as current AND instructs updating §5.1-5.3 — point it at §6/§7 instead,
+      and scope the "every read goes through the repo" claim to the 3 named repos (route
+      handlers still run user-owned raw reads — that's the GOAL of this ADL, not today's state).
+  N2  "4 inline eq(...userId...)" is a fragile case-sensitive greedy grep; case-insensitive
+      finds 5 (adds cities:205 creator-visibility). Doesn't change D3; don't make the number
+      load-bearing.
+  N3  Line-ref drift 728/772 → actual 727/771; F4 lists shading as uncovered but
+      services/__tests__/shading.user-scope.test.ts covers it.
+
+IF THIS COMES BACK TO ME
+  The design does not need re-opening. Re-review only the corrected S3 scope + ATDD marking
+  and the reconciled stage numbering. The lesson to carry: an "X is the last/only Y" premise
+  is an absence claim — probe it across ALL files, not just the one the author was focused on
+  (memory: feedback_arguments_for_are_absence_claims_too). This is the same shape as the
+  Wave-0 false FK-enforcement claim OP-27 exists to catch.
