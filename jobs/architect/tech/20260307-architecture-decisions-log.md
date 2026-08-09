@@ -4486,11 +4486,11 @@ target is indistinguishable from one that genuinely found nothing:
 - open-dialogues **D-16** and **D-25** move from Open → Resolved, pointing here (this PR).
 - No behaviour/code change; it binds COO dispatch sequencing and reviewer-brief scoping.
 
-## ADL-53 — Narrow the add-place picker by the trip's declared country SET (hard filter)
+## ADL-54 — Narrow the add-place picker by the trip's declared country SET (hard filter)
 
 **Date:** 2026-08-08 · **Author:** Architect · **Status:** DESIGN — pending OP-27 fresh-eyes, GE-20
 BRD promotion, and implementation. No production code. Full design:
-`jobs/architect/tech/ADL-53-trip-country-picker-filter.md`.
+`jobs/architect/tech/ADL-54-trip-country-picker-filter.md`.
 **Tracker:** BUG-87 · **BRD:** proposes **GE-20** (COO to formalize) · **Interacts:** GE-14/15/16,
 BUG-90, BUG-91.
 

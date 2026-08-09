@@ -1,4 +1,4 @@
-# ADL-53 — Narrow the add-place picker by the trip's declared country SET (hard filter)
+# ADL-54 — Narrow the add-place picker by the trip's declared country SET (hard filter)
 
 **Date:** 2026-08-08 · **Author:** Architect · **Status:** DESIGN — pending fresh-eyes (OP-27),
 BRD promotion (GE-20), and implementation. No production code in this PR.
@@ -352,3 +352,28 @@ Brief-A **set-size cap** value (§4) are Architect defaults the PO can override 
 - [ ] Success criteria stated (§3) + BUG-87 tracker `brdRefs` update — **COO action**.
 - [x] File paths cited verified to exist (geocode.ts, cities.ts, trips.ts, trip-countries.ts,
       TripForm.tsx, AddPlaceFlow.tsx, schema.ts, the two schema files).
+
+---
+
+## COO Adjudication — 2026-08-08 (open questions resolved before the OP-27 fresh-eyes review)
+
+Per ADL-52 clause 1, the COO settles the author's flagged open questions **before** the fresh-eyes
+review. Renumbered **ADL-53 → ADL-54** (the R1 ADL, authored first and banked as PR #456, keeps
+ADL-53; both had branched off main-at-ADL-52 concurrently).
+
+- **Q1 — zero-declared-countries trip: SHOW ALL + NUDGE (PO decision 2026-08-08).** An empty declared
+  set is unconstrained — the picker returns unfiltered results and shows a prompt to add countries.
+  Not hard-empty. (GE-20 already specifies this.)
+- **Q2 — off-country add: STATIC EMPTY-STATE + LINK TO THE TRIP COUNTRY EDITOR, day one (PO decision
+  2026-08-08).** A search whose only match is a country not on the trip returns an empty state naming
+  the trip's countries and offering a discoverable link to edit them. The inline "add [Country]?"
+  discovery-probe is an explicit **fast-follow**, not day one.
+- **Q3 — "filtered by" note copy: adopt the author's recommendation** (name the countries, truncate a
+  large set, e.g. "Filtered to: United Kingdom, France +2"). COO call, non-blocking; final wording is
+  a UX-spec detail for the frontend brief.
+
+GE-20 is being formalized into the BRD by the COO in parallel (per OP-33 it rests on no unverified
+premise and enters **approved**). **For the fresh-eyes reviewer:** stress-test the design AND these
+resolutions; scope the whole ADL (ADL-52 clause 2) and check the seam vs GE-14/15/16 and the D12
+single-country create-constraint — does the new `country_codes` read-path filter contradict or
+double-apply against the existing single `country_code` create-path constraint anywhere?
