@@ -17,7 +17,13 @@ import { ReviewItemRow } from './ReviewItemRow';
 
 interface ReviewPanelProps {
   trip: TripDetail;
-  /** Called after trip is locked or returned to planning. */
+  /**
+   * BUG-86: called ONLY by "Back to Trip" to dismiss the review surface in
+   * favour of the normal trip-detail view, for the SAME selected trip — must
+   * never navigate away (see useReviewPanelVisibility). Locking does NOT call
+   * this (see BUG-58 note on handleLock below); the panel swap there happens
+   * automatically once trip.status is no longer 'review_pending'.
+   */
   onClose: () => void;
 }
 
@@ -38,16 +44,24 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
   const updateItem = useUpdateItem();
   const { data: countries = [] } = useCountries();
 
+  // BUG-58: this is a *forward* status transition (review_pending -> locked).
+  // TR-11 promises the trip stays selected across ALL status transitions, not
+  // just backward ones — the original fix here only covered the backward
+  // path (see handleReturnToPlanning below) and left this onClose() call in
+  // place, which navigated away and dropped the selection the instant the
+  // lock mutation resolved. Removed: once trip.status flips to 'locked', the
+  // parent (TripDetailPage / MobileTripsLayout, via useReviewPanelVisibility)
+  // naturally renders TripDetail/MobileTripDetailView instead of ReviewPanel
+  // for this trip — no navigation needed, same as the backward case.
   const handleLock = async () => {
     await lockTrip.mutateAsync(trip.id);
     setShowConfirmLock(false);
-    onClose();
   };
 
   // BUG-04: allow reverting review_pending → planning.
   // BUG-58: this is a *backward* status transition — TR-11 promises the right
   // panel just reflects the new status without navigating away, so this must
-  // NOT call onClose() the way handleLock does. Once the status flips to
+  // NOT call onClose() the way handleLock used to. Once the status flips to
   // 'planning', the parent (TripDetailPage / MobileTripsLayout) re-renders
   // this trip through TripDetail/MobileTripDetailView instead of ReviewPanel
   // on its own — no navigation needed, and the trip stays selected.
@@ -160,6 +174,10 @@ export function ReviewPanel({ trip, onClose }: ReviewPanelProps) {
           Return to Planning
         </button>
         <div style={{ display: 'flex', gap: '10px' }}>
+          {/* BUG-86: dismisses ONLY the review surface (see onClose's doc
+              comment) — the trip itself, and its :id in the URL, are
+              untouched, so this returns to the normal trip-detail view for
+              this same still-selected trip rather than deselecting it. */}
           <button
             type="button"
             onClick={onClose}
