@@ -312,3 +312,60 @@ describe('PlaceSection — rating sort/filter (IT-08)', () => {
     expect(screen.getByRole('link', { name: 'Lisbon' })).toHaveAttribute('href', '/cities/5');
   });
 });
+
+describe('PlaceSection — explicit-dates accent (UX-14)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // UX-14: PO's UAT read the first place's blue/bold date range as an
+  // inconsistency vs. later places rendering plain. Investigation confirmed
+  // this is a DELIBERATE, uniform, data-driven signal (hasExplicitDates in
+  // PlaceSection.tsx) — not an index- or position-based special case — that
+  // BRD-DP06 just happens to trigger only for the first place (AddPlaceFlow
+  // pre-fills arrived_on/departed_on there and there alone at creation). The
+  // fix adds a tooltip so the accent reads as intentional; these tests pin
+  // that the underlying rule is genuinely uniform across every place,
+  // regardless of position, and that the tooltip only appears alongside it.
+
+  it('accents the date range and adds an explanatory tooltip when the place has explicit dates (e.g. first place, BRD-DP06)', () => {
+    const place = makePlace([], { arrived_on: '2024-04-01', departed_on: '2024-04-05' });
+    renderPlaceSection(<PlaceSection place={place} isLocked={false} {...defaultProps} />);
+
+    const dateSpan = screen.getByTitle('Dates set explicitly for this place');
+    expect(dateSpan).toHaveClass('text-wp-primary', 'font-medium');
+  });
+
+  it('does NOT accent the date range when the place falls back to the trip range (no explicit dates)', () => {
+    const place = makePlace([], { arrived_on: null, departed_on: null });
+    renderPlaceSection(<PlaceSection place={place} isLocked={false} {...defaultProps} />);
+
+    // Fallback range still renders (from tripStartDate/tripEndDate) — just
+    // without the accent class or tooltip.
+    expect(screen.queryByTitle('Dates set explicitly for this place')).not.toBeInTheDocument();
+  });
+
+  // The rule is genuinely position-independent: a SECOND (non-first) place
+  // with its own explicit dates set (e.g. via "Set dates") gets the exact
+  // same accent + tooltip as a first place would — proving the earlier
+  // "first place only" appearance was DP-06's data pattern, not a hardcoded
+  // special case in this component.
+  it('accents a non-first place identically once it has its own explicit dates', () => {
+    const secondPlace = makePlace([], {
+      id: 2,
+      arrived_on: '2024-04-06',
+      departed_on: '2024-04-09',
+    });
+    renderPlaceSection(<PlaceSection place={secondPlace} isLocked={false} {...defaultProps} />);
+
+    const dateSpan = screen.getByTitle('Dates set explicitly for this place');
+    expect(dateSpan).toHaveClass('text-wp-primary', 'font-medium');
+  });
+
+  it('only one of arrived_on/departed_on set still counts as explicit (accented)', () => {
+    const place = makePlace([], { arrived_on: '2024-04-01', departed_on: null });
+    renderPlaceSection(<PlaceSection place={place} isLocked={false} {...defaultProps} />);
+
+    expect(screen.getByTitle('Dates set explicitly for this place')).toBeInTheDocument();
+  });
+});

@@ -1,0 +1,60 @@
+FRONTEND COMPLETION REPORT
+
+Header: BUG-58 / BUG-86 / BUG-91 / BUG-93 / UX-14 · Issue #457 · PR #458 ·
+BRD n/a (existing-UI defects, gap/regression per OP-32) · Branch
+fix/uat-0808-selection-picker-map-dates
+
+WHAT WAS BUILT
+Fixed 5 UI defects from the 2026-08-08 Scotland dogfood UAT. BUG-58+BUG-86
+share one root cause (ReviewPanel's onClose navigating to '/trips',
+deselecting the trip) and one fix (new hook useReviewPanelVisibility).
+BUG-91 (Enter-key implicit form submit in the trip-create country picker),
+BUG-93 (map-markers query invalidation gap on place-add), and UX-14
+(date-field styling — confirmed deliberate, added a tooltip) are each
+independent.
+
+ACCEPTANCE CRITERIA
+- BUG-58: trip stays selected across ALL status transitions incl. Lock —
+  PASS (ReviewPanel.test.tsx: "locking does NOT call onClose"; hook test
+  covers the automatic-flip-on-status-change shape)
+- BUG-86: "Back to Trip" returns to the active-status trip view, not a
+  blank panel — PASS (existing "Back to Trip calls onClose" test still
+  green; onClose is now a local dismiss, not navigation)
+- BUG-91: picker selection during trip CREATE does not save-and-close —
+  PASS (TripForm.test.tsx: reproduced the bug against the real component
+  BEFORE fixing, confirmed root cause was Enter-key implicit submit, not
+  click; owner-scope confirmed NOT limited — no owner branching in TripForm
+  or its call sites)
+- BUG-93: new place's marker appears without a manual refresh — PASS
+  (usePlaces.test.tsx: asserts both the map's list query AND the trip
+  detail query go stale from the fix's single ['trips'] invalidation)
+- UX-14: blue styling reconciled — PASS (confirmed deliberate via
+  AddPlaceFlow.tsx's isFirstPlace-only DP-06 prefill, not a bug; added
+  explanatory tooltip; PlaceSection.test.tsx proves the rule is genuinely
+  position-independent, not hardcoded to the first place)
+- Each fix has a test — PASS (22 new tests across 5 files; TripForm.test.tsx
+  and usePlaces.test.tsx are net-new files, neither had any prior coverage)
+
+CI: gh pr checks 458 — all 18 checks green (scripts/ci-wait.sh confirmed
+PASS). Local pre-push suite also green: npm run check (Biome, clean — only
+5 pre-existing infos in a file this thread never touched), type:check:all,
+test:backend (762/762, unchanged), test:frontend (365/365), status:check,
+tracker:check.
+
+OPEN ISSUES OR BLOCKERS
+None. One deliberate scope call flagged for visibility, not a blocker:
+UX-14's fix is a tooltip, not a new UI affordance (no legend/badge) — the
+underlying signal was already correct and uniform, so "reconcile" meant
+explain it, not redesign it. Also worth noting: BUG-91's fix does not add
+"Enter selects the top match" autocomplete behaviour — only stops the
+accidental submit — flagged as a possible future nice-to-have, not built
+without a BRD/PO call.
+
+WHAT IS NOW UNBLOCKED
+Nothing was blocked on this thread. useReviewPanelVisibility
+(jobs/frontend/tech/20260808-bug58-86-review-panel-visibility.md) is now
+the canonical mechanism for deciding ReviewPanel vs. TripDetail visibility —
+any future third surface for review_pending trips should extend it rather
+than adding a new ad hoc navigate()-based dismiss. Tracker entries
+BUG-58/BUG-86/BUG-91/BUG-93/UX-14 ready to flip to fixed/closed with PR #458
+once merged.

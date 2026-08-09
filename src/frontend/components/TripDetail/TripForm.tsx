@@ -230,6 +230,25 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
               placeholder="Search countries…"
               value={countrySearch}
               onChange={(e) => setCountrySearch(e.target.value)}
+              // BUG-91: this is a filter box for the dropdown below it, not a
+              // submit trigger — without this, pressing Enter here falls
+              // through to the browser's native "Enter submits the form"
+              // behaviour (the form has a submit button, so any single-line
+              // text input inside it implicitly submits on Enter). That
+              // saved-and-closed the whole Create/Edit Trip modal the moment
+              // a user typed a country name and hit Enter out of habit
+              // (a common autocomplete gesture) — before they could review
+              // categories/companions or, worse, before setting dates in the
+              // same flow — and did so WITHOUT the typed country ever being
+              // added (only a click on a dropdown row commits it to
+              // selectedCountryCodes). Selecting a country by click already
+              // works correctly (the row buttons are type="button"); this
+              // only stops the implicit-submit path.
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                }
+              }}
             />
 
             {/* Dropdown — only shown when search text is non-empty */}
