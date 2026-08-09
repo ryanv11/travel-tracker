@@ -3091,6 +3091,18 @@
       "notes": "Recorded 2026-08-08 (review-execution-queue item 8) — branch protection was configured on `main` 2026-07-31 (PO, COO-guided) but never written into a tracked home. Enforced, verified via gh api: require PR (0 approvals), 9 required status checks (6 CI + 3 Security), strict:true (require-branch-up-to-date — closes the D-15 base-skew class), enforce_admins, linear history, no force pushes. `production` deliberately NOT protected — direct fast-forward push is the promotion path (ADL-35). This closed open-dialogue D-15 (green PR on a stale base merged into a red main). Same-PR skill updates: /pre-push now states it is a fast pre-filter and CI is the authoritative gate; /coo-merge-and-close notes a PR behind main needs `gh pr update-branch` + ~85s CI re-run before the merge button works."
     },
 
+    {
+      "id": "OP-39",
+      "type": "chore",
+      "title": "Dispatch gate — brief-header + agent-side rejection (design-reflection R4)",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Adopted 2026-08-08 from design-reflection R4 (PO-directed; PO chose enforcement level B — skill + brief-header + agent-side rejection — over the checklist-only option, because a checklist the COO merely remembers to run has the exact weakness that sank the earlier brief-template). PROBLEM the reflection surfaced: no PostToolUse hook can see an Agent-tool dispatch prompt, so the brief — the highest-leverage artifact in the system — was mechanically ungoverned; the warn-only atdd-first-guard.sh / negative-findings-guard.sh only ever see the gh-issue ECHO of a brief. FIX (3 parts): (1) .claude/skills/coo-dispatch/SKILL.md — the COO dispatch gate, run before any deliverable-producing dispatch; consolidates the scattered pre-dispatch rules (OP-32 classify, BRD gate, success criteria, reuse audit, OP-26 premise-verification, OP-35 ATDD-first, OP-06 security checklist, OP-27 fresh-eyes, worktree isolation, tracker cross-ref, model tiering) into one checklist + the required brief-header spec. (2) _shared/frameworks.txt standard 31 — every role reads frameworks on init (verified), and now must REFUSE to start a deliverable-producing brief lacking the `=== COO DISPATCH GATE ===` header and flag it to COO. Agent-side enforcement = the OP-15c pattern (push enforcement to the artifact the agent actually receives). (3) CLAUDE.md directive under COO operating mode. SCOPE: read-only research/review/investigation dispatches are EXEMPT (they commit nothing). CONSOLIDATION / anti-sprawl (per the reflection's own R3 finding): this gate subsumes the brief-channel role of the two warn-only hooks — flagged as R3 pruning candidates, NOT removed in this pass (removal is a separate deliberate act). Completes the COO lifecycle: /coo-startup -> /coo-dispatch -> /coo-merge-and-close."
+    },
+
     // ─── STANDALONE-DOC MIGRATION (2026-08-08) — review-execution-queue + cleanup-wave-plan ──
     // ─── retired into the tracker (one canonical home). Both files deleted in the same PR. ──
     {

@@ -1,3 +1,10 @@
+> HISTORICAL — snapshot as of 2026-03-21, not maintained. RETIRED 2026-08-08 (OP-39 hygiene pass).
+> This file was maintained by the deprecated COO-system-prompt.txt init/close ritual (read on init,
+> update on close). That ritual was superseded by the park-doc system (jobs/COO/park-docs/) and the
+> prompt itself was deleted 2026-07-26 (QUAL-06, migrated into the /coo-startup skill), but this file
+> was never retired — so it sat as a March-era orphan. The live COO handoff is the most recent park
+> doc + the tracker + open-dialogues; do NOT read this as current state. Kept (not deleted) for record.
+
 COO CONTEXT — 2026-03-21 (session 6, close)
 PROJECT: Travel Tracker
 

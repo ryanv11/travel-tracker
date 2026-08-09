@@ -241,6 +241,19 @@ ambiguous "done" in the tracker. Adopted 2026-07-07 after finding the project ha
 definition-of-done doc anywhere (the `objective.txt` stub meant to hold this was never
 filled in and has been deleted).
 
+### Dispatch gate before briefing (mandatory, OP-39)
+
+Adopted 2026-08-08 (design-reflection R4, PO-directed). Before dispatching any brief that produces
+committed deliverables, run the `/coo-dispatch` skill: it consolidates the pre-dispatch rules
+(classify OP-32 · BRD gate · success criteria · reuse audit · premise-verification · ATDD-first
+OP-35 · security checklist OP-06 · fresh-eyes OP-27 · worktree isolation · tracker cross-ref · model
+tiering) into one gate and defines a required brief-header. **Enforcement is agent-side**
+(`_shared/frameworks.txt` standard 31): the receiving agent refuses to start a deliverable brief that
+lacks the `=== COO DISPATCH GATE ===` header and flags it — because a checklist the COO merely
+*remembers* to run has the weakness that sank the earlier brief-template (no PostToolUse hook can see
+an Agent-tool dispatch prompt). **Read-only research/review/investigation dispatches are exempt.**
+Completes the COO lifecycle: `/coo-startup → /coo-dispatch → /coo-merge-and-close`.
+
 ### Spike-gate the BRD: no requirement enters as "approved" on an unverified premise (mandatory, OP-33)
 
 Adopted 2026-08-05 after the GE-17 retro: a requirement was BRD-approved (v3.14) on four unverified
