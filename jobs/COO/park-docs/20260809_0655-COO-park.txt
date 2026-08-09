@@ -1,0 +1,87 @@
+COO SESSION PARK — 2026-08-08/09 ("DOGFOOD UAT → BUG-87 SHIPPED · R4 DISPATCH GATE · FIREWALL/STALE-CLAIM AUDIT")
+~25 PRs merged (#447–#473) · main green throughout · clean tree, only main + 2 banked-R1 branches
+================================================================================
+
+## READ THIS FIRST
+
+1. **TWO things await PO UAT on staging (top next action):**
+   - **BUG-87 (trip-country picker filter)** is BUILT + merged → done_pending_uat. "Newport" on a UK
+     trip should now return only UK Newports. GE-20 (BRD v3.21). Multi-country Nominatim behaviour
+     COO-verified. One scope carve-out tracked as BUG-94 (manual "+Add new" country dropdown still
+     bypasses the filter).
+   - **Bundle B (BUG-58/86/91/93/UX-14)** on staging — `jobs/PO/uat-log.md` has a **RETEST block** with
+     steps + root causes. On PO PASS: flip those → done.
+
+2. **R4 / OP-39 dispatch gate is DEPLOYED and in use.** Every deliverable-producing dispatch now carries
+   a `=== COO DISPATCH GATE ===` header; agents REFUSE to start a deliverable brief lacking it
+   (`_shared/frameworks.txt` standard 31, agent-side). Run `/coo-dispatch` before briefing. Read-only
+   research/review dispatches are exempt. It was dogfooded all session and worked.
+
+3. **Firewall/stale-claim discipline (hard lesson this session):** a "host X is firewall-blocked" report
+   is almost always an UNTRIED or mis-run probe, NOT a fact — PROBE it (one well-behaved curl) before
+   believing/inheriting it. `.devcontainer/init-firewall.sh` is the allowlist source of truth (Nominatim,
+   both Railway, both Turso, Clerk-frontend are all allowlisted + reachable — verified). The old
+   "egress intermittently self-heals" memory was DEBUNKED as unsupported and DELETED. A full two-scanner
+   audit fixed ~19 files + deleted 2 redundant files (jobs/_shared/frameworks.txt, jobs/COO/context/current.txt).
+   Principle applied throughout (PO-directed): **delete the rot-prone specific; point to the single
+   maintained source; never restate/enumerate; don't annotate the fix.**
+
+4. **R1 (userId-scoping chokepoint, QUAL-43) is BANKED/deferred.** Its risk was OVERSTATED — the Architect
+   re-probed: only 4 inline predicates (not ~65), `cities` is global data, NO active bleed → re-rated
+   P1→P2. Design ADL-53 (PR #456) + OP-27 fresh-eyes review (PR #461) are OPEN by design. The review was
+   BLOCKING (B1: getDb() is in SIX routes not one, several user-owned → the migration was scoped one route
+   too small and would red-main; B2: a COO numbering slip). RESUME needs an ADL revision (re-inventory
+   getDb, split global-read vs user-owned-read, re-mark ATDD). Sequenced after the geocoder-picker bundle.
+
+## What the session was, in one paragraph
+
+COO pickup → the PO ran the full Scotland dogfood UAT (owner + non-owner). Reconciled it (15 passes→done,
+fails/partials/new-findings tracked as BUG-85–94, UX-13/14, GE-19/20). On PO direction, built the R4
+dispatch gate (OP-39) first, banked R1 after its fresh-eyes review de-escalated and re-scoped it, then took
+BUG-87 (the highest-visibility UAT pain — trip-country picker filter) all the way through the gates to
+staging: GE-20 BRD → ADL-54 → OP-27 fresh-eyes (SOUND) → QA ATDD red bar → Backend → Frontend. Mid-flight
+the PO's "re-check the firewall" prompt exposed that agents keep inheriting stale "firewall blocks X" claims
+from rotted references; that turned into a full stale-inheritable-claim audit + remediation applying a
+delete-over-document principle, and D-29 (a regular-cleanup-cadence proposal, = design-reflection R2).
+
+## Shipped & merged (highlights of ~25 PRs, #447–#473)
+
+- UAT logging + reconciliation (owner+non-owner); BUG-49→done, BUG-62→done; Bundle B (#458) → done_pending_uat.
+- GE-19/BUG-85 (stuck-geocode handling, logged); design-reflection memo (jobs/COO/20260808-design-reflection.md).
+- **OP-39 / R4 dispatch gate** (coo-dispatch skill + frameworks std 31 + CLAUDE.md).
+- **BUG-87 / GE-20** end-to-end: ADL-54, QA ATDD (#466), Backend #466, Frontend #469 → done_pending_uat.
+- Firewall fixes (#468) + Clerk-JWKS verify + full stale-claim audit remediation (#471); D-29 (#472).
+- Session close (#473 — this park doc + tracker reconcile).
+
+## State of play (durable — tracker.json / STATUS.md / open-dialogues)
+
+- **AWAITING PO NOW:** BUG-87 UAT + Bundle B retest (both staging).
+- **Ready, not dispatched:** the rest of the geocoder-picker bundle — BUG-72/81 (labels/dedup), UX-13
+  (grey-out), BUG-89 (spell-tolerance); BUG-94 (GE-20 manual-add bypass, P3); QUAL-44 (file:line cleanup, P3).
+- **Architect-gated, pending:** BUG-85/GE-19 (stuck-record ADL), BUG-88 (trip/place rating), BUG-90
+  (Scotland/home-nations as countries), BUG-92 (companion seed).
+- **Banked/deferred:** R1/QUAL-43 (PRs #456/#461 open). Pre-existing P1s: BUG-63, QUAL-18.
+- **Open PRs:** #456, #461 (banked R1 only).
+
+## Process notes worth keeping
+
+- **"Firewall blocks X" is a claim to test, not believe.** Root cause of the recurrence was stale
+  references, not the firewall. Fixed at the source; init-firewall.sh is canonical.
+- **Delete > document/update.** Removing a rot-prone count/claim/file beats "correcting" it (it re-rots);
+  point to the one maintained source; don't annotate the fix. The PO taught this repeatedly; D-29 asks how
+  to make cleanups regular.
+- **The OP-27 fresh-eyes reviews earned their keep twice** — caught a red-main R1 migration mistake AND a
+  COO numbering slip; the ADL-54 review caught the Drizzle `inArray([])` footgun that would have inverted
+  a PO decision, before any code.
+- **ATDD-first (OP-35) worked cleanly** on BUG-87: QA authored a red bar, Backend implemented to green on
+  the same branch; the empty-set F1 case was pinned before it could ship wrong.
+
+## Open threads
+
+See `jobs/COO/open-dialogues.md` (Open = D-05/14/23/27/28/29; Parked = watch-if-recurs). D-29 (regular
+review/cleanup cadence, = design-reflection R2) is the freshest and the natural process follow-up.
+Design-reflection R2/R3/R5 live in jobs/COO/20260808-design-reflection.md.
+
+Suggested next: log the PO's BUG-87 + Bundle B UAT results, then dispatch the geocoder-picker bundle
+remainder (BUG-72/81/UX-13/89) or the Architect ADLs (BUG-90 countries, BUG-88 rating, BUG-85 stuck-record).
+================================================================================
