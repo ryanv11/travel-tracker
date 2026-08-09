@@ -1,0 +1,80 @@
+ARCHITECT PARK DOC — 2026-08-08
+Thread: OP-27 fresh-eyes review of ADL-54 (trip-country picker hard-filter)
+Branch: chore/adl54-fresh-eyes-review · PR: (this review) · Reviews: PR #463 (ADL-54)
+Tracker: BUG-87 · BRD: GE-20 (approved, v3.21)
+
+WHAT THIS THREAD DID
+  Second, fresh Architect performing the mandatory OP-27 fresh-eyes review of ADL-54 (authored by a
+  different agent). Deliverable: jobs/architect/tech/20260808-ADL54-fresh-eyes-review.md.
+  I critiqued and stress-tested rather than confirmed; scoped the whole ADL incl. the COO
+  Q1/Q2/Q3 adjudication (ADL-52 clause 2); re-probed the load-bearing premises independently
+  rather than inheriting them.
+
+VERDICT: SOUND & READY FOR BUILD — zero blocking findings, six non-blocking refinements for the
+  COO to fold into the two implementation briefs.
+
+PREMISE RE-PROBES (2 probes each — did not inherit)
+  P1 trip_countries user-declared/editable: VERIFIED. Write-callers = setCountries (trips.ts:174
+     create, :329 PATCH) + addCountries/removeCountry (trip-countries.ts:34/49); repo defs
+     repositories/trips.ts:378/389/402. Full-symbol grep of tripCountries across src/backend shows
+     places.ts / place repo write NO country row. Schema doc-comment schema.ts:464-466 ("derived
+     from trip_places") is STALE — impl PR should correct it (D-1.1).
+  P2 Nominatim countrycodes comma list: UNVERIFIED by probe — firewall blocks Nominatim (documented
+     geocode.ts:42-45). Existing single-code path already sends countrycodes (geocode.ts:83) via
+     URLSearchParams (nominatim-client.ts:268) => country_codes=gb,us goes out as gb%2Cus.
+     Documented Nominatim behaviour + comma-encoding standard, so very likely correct. Blind spot:
+     ATDD test 4 asserts CLIENT ARGS not Nominatim's response, so it can't catch a Nominatim-side
+     misparse. Failure is VISIBLE in staging, not silent. Rec: run a real multi-country geocode on
+     staging early.
+  P3 D9 security: VERIFIED correct. cities/countries are global catalogues; country_codes only
+     NARROWS globally-readable data, no privilege boundary. GE-16 containment ANDs with inArray and
+     is preserved (cities.ts:64-68 / :93). "filtered by" note + empty-state derive from
+     trip.countries, owner-scoped via findByIdOrThrow(userId,tripId). No leak; no new scoping; FK
+     .notNull item N/A (no schema change). D8 no-schema-change confirmed.
+
+NON-BLOCKING FINDINGS (full detail in the review doc §0 table + §2-§5)
+  F1 (most important) Drizzle inArray(col,[]) => sql`false` (verified in
+     node_modules/drizzle-orm/sql/expressions/conditions.js:73). A naive "always push inArray from
+     the param" impl returns ZERO rows for an empty set — the exact OPPOSITE of Q1's SHOW-ALL ruling.
+     Design D3 is correct; the HAZARD is in impl. Brief A must branch on set.length on BOTH endpoints;
+     the ATDD bar must add an explicit present-but-EMPTY-STRING case for both (distinct from the
+     "absent" tests 2/5 — the empty string is what a zero-country trip's FE sends and the only input
+     that trips the footgun).
+  F2 "cannot be bypassed from within the picker" (GE-20 criterion) is FRONTEND-enforced (param must
+     be sent on both lookup paths) but Brief B is ATDD-first:no => untested link. Require ONE Brief-B
+     test pinning "param sent on both paths." Refinement to D10, not an override.
+  F3 BUG-90 forward seam: BUG-87 assumes trip_countries.country_code ⊆ cities.country_code code-space.
+     Correct today (FK-RESTRICT forces real ISO codes; Scotland->GB->all UK cities, PO-accepted). But
+     if BUG-90 introduces a parallel "commonly-known-as-country" code-space and any such code lands in
+     trip_countries without existing in cities.country_code, inArray matches ZERO cities and the
+     picker silently empties. Carry as an INVARIANT into BUG-90's brief.
+  F4 cities.ts precedence when BOTH country_code + country_codes present is unspecified (geocode IS
+     specified). Never hit today (no FE caller sends country_code to the GET reads). State the cities
+     total contract in Brief A.
+  F5 D2 single-country discovery uses CONSTRAINED_LIMIT(10) with no region picked. Defensible &
+     consistent with geocode.ts:36-39; NOT a BUG-79 regression; residual small risk (>10 same-name in
+     one big country truncates) degrades gracefully (truncated surfaced). Tunable — I lean toward
+     DISCOVERY_LIMIT for the region-unpicked discovery path, but non-blocking.
+  F6 PR #463 title says "ADL-53"; deliverable is ADL-54 (renumbered — ADL-53 is the BUG-84
+     citiesRepository design, PR #456). Fix PR title before merge.
+
+SEAM (GE-14/15/16 + D12): CLEAN. country_codes (filter) vs country_code (D12 create constraint) are
+  separate params on separate paths. No FE caller sends country_code to the GET reads today
+  (useCities.ts:131 /api/cities?q=, :46 /api/geocode?q= — q only). GE-14 unchanged but inArray;
+  GE-15 candidate space constrained, BUG-71/75 machinery composes unchanged; GE-16 re-point reused for
+  D4a. No earlier verdict/method/reason invalidated.
+
+ATDD-first marks (D10): correct (backend yes / frontend no). My additions are F1 (empty-string case)
+  + F2 (one FE param-sent guard) — contents of the bar, not the yes/no marks.
+
+Q1/Q2/Q3: all sound. Q1 correct but see F1 impl guard. Q2 reuses GE-16/GE-19 re-point family. Q3
+  presentation, punted to FE/UX.
+
+WHAT IS NOW UNBLOCKED
+  ADL-54 is validated. COO can formalize the two-brief dispatch (QA ATDD -> Brief A backend contract
+  -> Brief B frontend) once F1/F2/F4 are folded into the briefs, F3 noted for BUG-90, F6 fixed.
+
+OPEN / HANDED TO COO
+  - Fold F1/F2/F4 into briefs; carry F3 invariant into BUG-90; fix PR #463 title (F6).
+  - Close P2's blind spot with an early real-staging multi-country geocode before any UAT verdict.
+  - No blockers.

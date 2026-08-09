@@ -1,4 +1,37 @@
 =============================================================================
+ADL-54 FRESH-EYES REVIEW BLOCK — PREPENDED 2026-08-08, DOES NOT REPLACE ANY BLOCK BELOW
+=============================================================================
+Deliverable: jobs/architect/tech/20260808-ADL54-fresh-eyes-review.md. Branch
+  chore/adl54-fresh-eyes-review. Role: SECOND fresh Architect (OP-27), reviewing ADL-54
+  (trip-country-scoped place picker hard-filter; BUG-87 / BRD GE-20, PR #463).
+
+VERDICT: SOUND & READY FOR BUILD — zero blocking findings, six non-blocking refinements.
+  All three load-bearing premises re-verified independently (2 probes each):
+  P1 trip_countries is user-declared/editable (write-callers = setCountries@trips.ts:174/329 +
+     addCountries/removeCountry@trip-countries.ts; places.ts writes NO country row — full-symbol
+     grep confirms). Schema doc-comment schema.ts:464-466 "derived from trip_places" is STALE.
+  P2 Nominatim countrycodes comma-list: UNVERIFIED by probe (firewall) — documented + non-silent
+     failure (visible in staging); ATDD test 4 asserts client args not Nominatim, so run a real
+     multi-country geocode on staging early.
+  P3 D9 security correct — filter narrows GLOBAL reference data; GE-16 containment ANDs & is
+     preserved (cities.ts:93); trip.countries owner-scoped via findByIdOrThrow. No leak, no new
+     scoping owed.
+
+NON-BLOCKING (fold into briefs): F1 Drizzle inArray(col,[]) => sql`false` (verified in
+  node_modules) — a naive empty-set impl returns ZERO rows, INVERTING Q1's SHOW-ALL ruling; Brief A
+  must branch on set.length AND the ATDD bar must add an explicit present-but-EMPTY-STRING case for
+  BOTH endpoints (the only input that trips the footgun). F2 "cannot be bypassed" is frontend-
+  enforced but Brief B is ATDD-first:no — require one FE test that the param is sent on both lookup
+  paths. F3 cross-bug invariant for BUG-90: trip_countries codes MUST stay within cities.country_code
+  code-space or a pseudo-country silently empties the picker. F4 state cities-path precedence (both
+  params) in Brief A. F5 D2 single-country limit tier (10) is defensible/tunable, not a BUG-79
+  regression. F6 PR #463 title says "ADL-53" — should be ADL-54 (renumbered); fix before merge.
+
+Seam vs GE-14/15/16 + D12 create-constraint: CLEAN. country_codes (filter, 2 GET reads) and
+  country_code (D12 create constraint) are separate params on separate paths; no frontend caller
+  sends country_code to the GET reads today, so "both present" is theoretical (ADL makes it total
+  anyway — good). No earlier verdict invalidated.
+=============================================================================
 BUG-76 ACCEPT-RULE DESIGN BLOCK — PREPENDED 2026-08-07, DOES NOT REPLACE ANY BLOCK BELOW
 =============================================================================
 Deliverable: jobs/architect/tech/20260807-BUG76-accept-rule-design.md (ADL-51 in the main log).

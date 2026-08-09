@@ -1,0 +1,40 @@
+TO: COO
+FROM: Architect (fresh-eyes reviewer, OP-27)
+DATE: 2026-08-08
+RE: ADL-54 fresh-eyes review COMPLETE — BUG-87 / GE-20 / PR #463
+
+Header: BUG-87 · ADL-54 (reviewed) · reviews PR #463 · BRD GE-20 (v3.21) · branch chore/adl54-fresh-eyes-review · review PR #<PR> (see CI line)
+
+VERDICT: SOUND & READY FOR BUILD. Zero blocking findings. Six non-blocking refinements to fold into
+the briefs. Deliverable: jobs/architect/tech/20260808-ADL54-fresh-eyes-review.md.
+
+PREMISES (re-probed independently, 2 probes each — NOT inherited):
+- trip_countries user-declared/editable: VERIFIED. Write path = setCountries (trips.ts:174/329) +
+  addCountries/removeCountry (trip-countries.ts); places.ts writes no country row. Schema comment
+  schema.ts:464-466 "derived from trip_places" is STALE (impl PR corrects it, D-1.1).
+- Nominatim countrycodes comma list: UNVERIFIED by probe (firewall). Documented + failure is visible
+  in staging, not silent. ATDD test 4 asserts client args, not Nominatim — run a real multi-country
+  geocode on staging early.
+- D9 security: VERIFIED. Filter narrows GLOBAL reference data; GE-16 containment preserved;
+  trip.countries owner-scoped. No leak, no new scoping. No schema change (D8 confirmed).
+
+NON-BLOCKING (fold into dispatch):
+- F1 (act on this) Drizzle inArray(col,[]) => sql`false` (verified in node_modules). A naive
+  empty-set impl returns ZERO rows — inverts Q1's SHOW-ALL. Brief A: branch on set.length on BOTH
+  endpoints; ADD an explicit present-but-EMPTY-STRING ATDD case for both (the input a zero-country
+  trip actually sends; the only one that trips the footgun).
+- F2 "cannot be bypassed" is frontend-enforced but Brief B is ATDD-first:no. Require ONE Brief-B test
+  that the param is sent on both lookup paths.
+- F3 BUG-90 invariant: trip_countries codes must stay within cities.country_code code-space or a
+  pseudo-country silently empties the picker. Carry into BUG-90's brief.
+- F4 State cities-path precedence (both params present) in Brief A. Never hit today, but make it total.
+- F5 D2 single-country limit tier (10) is defensible/tunable, not a BUG-79 regression. No action needed.
+- F6 PR #463 title says "ADL-53" — should be ADL-54 (renumbered). Fix before merge.
+
+ATDD marks (backend yes / frontend no) and Q1/Q2/Q3 resolutions: all sound; my only additions are
+F1 (empty-string case) and F2 (one FE guard) — contents of the bar, not the yes/no marks.
+
+NOW UNBLOCKED: the two-brief dispatch (QA ATDD -> Brief A backend contract -> Brief B frontend) once
+F1/F2/F4 are folded in, F3 noted for BUG-90, F6 fixed. No blockers.
+
+CI: see the review PR checks line in my final report.
