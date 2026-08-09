@@ -32,13 +32,30 @@ describe('lookupCityCountry', () => {
     vi.mocked(apiGet).mockReset();
   });
 
-  it('calls GET /api/geocode with the city name as the q param', async () => {
+  it('calls GET /api/geocode with the city name as the q param and an empty country_codes when none is passed', async () => {
     const result: GeocodeResult = { candidates: [], country_code: null, region_iso: null };
     vi.mocked(apiGet).mockResolvedValue(result);
 
     await lookupCityCountry('Springfield');
 
-    expect(apiGet).toHaveBeenCalledWith('/api/geocode?q=Springfield');
+    // GE-20 (BUG-87, ADL-54): country_codes defaults to [] (unconstrained) —
+    // callers outside GE-20's scope (e.g. ChangeCityModal) keep this exact
+    // pre-GE-20 request shape, just with the new always-present empty param.
+    expect(apiGet).toHaveBeenCalledWith('/api/geocode?q=Springfield&country_codes=');
+  });
+
+  // GE-20 (BUG-87, ADL-54) — F2 (fresh-eyes finding): the "cannot be
+  // bypassed from within the picker" guarantee depends on this lookup path
+  // ALWAYS forwarding the trip's declared countries. Pinned here at the
+  // lowest level (the function that builds the request), and again at the
+  // AddPlaceFlow integration level (AddPlaceFlow.ge20-country-filter.test.tsx).
+  it('GE-20/F2: forwards a non-empty country_codes list, comma-joined, on the geocode request', async () => {
+    const result: GeocodeResult = { candidates: [], country_code: null, region_iso: null };
+    vi.mocked(apiGet).mockResolvedValue(result);
+
+    await lookupCityCountry('Newport', ['GB', 'FR']);
+
+    expect(apiGet).toHaveBeenCalledWith('/api/geocode?q=Newport&country_codes=GB%2CFR');
   });
 
   it('returns the top candidate country/region and the full candidate list on success', async () => {

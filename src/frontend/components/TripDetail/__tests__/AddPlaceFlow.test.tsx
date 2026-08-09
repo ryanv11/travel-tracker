@@ -139,6 +139,8 @@ describe('AddPlaceFlow — ADL-46 D14 region selector narrowing', () => {
         tripStartDate="2026-01-01"
         tripEndDate="2026-01-10"
         isFirstPlace={false}
+        tripCountries={[]}
+        onManageCountries={vi.fn()}
       />,
     );
 
@@ -191,6 +193,8 @@ describe('AddPlaceFlow — ADL-46 D14 region selector narrowing', () => {
         tripStartDate="2026-01-01"
         tripEndDate="2026-01-10"
         isFirstPlace={false}
+        tripCountries={[]}
+        onManageCountries={vi.fn()}
       />,
     );
 
@@ -274,6 +278,8 @@ describe('AddPlaceFlow — ADL-46 F1/F2 parity: distinct-region computation matc
         tripStartDate="2026-01-01"
         tripEndDate="2026-01-10"
         isFirstPlace={false}
+        tripCountries={[]}
+        onManageCountries={vi.fn()}
       />,
     );
 
@@ -306,6 +312,8 @@ describe('AddPlaceFlow — ADL-46 F1/F2 parity: distinct-region computation matc
         tripStartDate="2026-01-01"
         tripEndDate="2026-01-10"
         isFirstPlace={false}
+        tripCountries={[]}
+        onManageCountries={vi.fn()}
       />,
     );
 

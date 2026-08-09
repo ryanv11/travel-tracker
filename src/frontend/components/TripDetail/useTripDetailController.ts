@@ -51,6 +51,19 @@ export function useTripDetailController(trip: TripDetail) {
   // BUG-18: memoised so AddPlaceFlow's useEffect dep on onClose is stable
   const handleAddPlaceClose = useCallback(() => setShowAddPlace(false), []);
 
+  // GE-20 (BUG-87, ADL-54 D4a): the add-place picker's zero-country prompt and
+  // off-country empty-state both link to "the trip's country editor" — reused
+  // rather than building a second one, per the ADL's explicit reuse
+  // instruction. That editor IS the existing TripForm edit modal (already
+  // renders the country multi-select), so this just closes AddPlaceFlow and
+  // opens it, exactly like the header's Edit button already does. Shared here
+  // (not duplicated per call site) since both TripDetail and
+  // MobileTripDetailView need the identical behaviour.
+  const handleManageCountries = useCallback(() => {
+    setShowAddPlace(false);
+    setShowEdit(true);
+  }, []);
+
   const nextStep = NEXT_STATUS[trip.status];
 
   const handleNextStep = async () => {
@@ -131,6 +144,7 @@ export function useTripDetailController(trip: TripDetail) {
     isDeleting,
     deleteError,
     handleAddPlaceClose,
+    handleManageCountries,
     nextStep,
     handleNextStep,
     handleUnlockBar,
