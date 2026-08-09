@@ -148,3 +148,18 @@ describe('useTripDetailController — backward status transitions never navigate
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 });
+
+describe('useTripDetailController — handleManageCountries (GE-20, BUG-87, ADL-54 D4a)', () => {
+  it('closes the add-place flow and opens the trip edit modal (the reused country editor)', () => {
+    const { result } = renderController(makeTrip());
+
+    act(() => result.current.setShowAddPlace(true));
+    expect(result.current.showAddPlace).toBe(true);
+    expect(result.current.showEdit).toBe(false);
+
+    act(() => result.current.handleManageCountries());
+
+    expect(result.current.showAddPlace).toBe(false);
+    expect(result.current.showEdit).toBe(true);
+  });
+});

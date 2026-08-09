@@ -33,6 +33,9 @@ import { decideCityDisambiguation } from '../../utils/decideCityDisambiguation';
 // surface reuses the same formatter instead of a second one drifting out of
 // sync — see formatCitySubtitle.ts's doc comment for the full behaviour.
 import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
+// GE-20 (BUG-87, ADL-54 D5/Q3): one shared formatter for the "filtered to"
+// note and the off-country empty-state's country list — see its doc comment.
+import { formatCountriesFilterNote } from '../../utils/formatCountriesFilterNote';
 import { capitalizeFirst } from '../../utils/textFormat';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { CityPicker } from '../shared/CityPicker';
@@ -53,6 +56,27 @@ interface AddPlaceFlowProps {
    * (works unchanged once ADL-41's one-row-per-visit migration lands, Wave 2).
    */
   isFirstPlace: boolean;
+  /**
+   * GE-20 (BUG-87, ADL-54) — the trip's declared countries (`trip.countries`,
+   * already on the trip payload — no extra fetch). Threaded into BOTH the
+   * city-database search (useCitySearch) and the geocode discovery lookup
+   * (lookupCityCountry) as `country_codes` so neither can surface a
+   * candidate outside this set (the GE-20 "cannot be bypassed from within
+   * the picker" guarantee — see the F2 fresh-eyes finding). An empty array
+   * (a trip with no declared countries yet) is sent through unchanged — the
+   * backend's documented contract treats a present-but-empty set as
+   * unconstrained (PO Q1) — and renders the zero-country prompt instead of
+   * the "filtered to" note.
+   */
+  tripCountries: { country_code: string; name: string }[];
+  /**
+   * GE-20 (ADL-54 D3/D4a) — opens the trip's country editor. Wired by every
+   * caller to `useTripDetailController`'s `handleManageCountries` (closes
+   * this flow, opens the existing TripForm edit modal) rather than a new
+   * dedicated editor, per the ADL's explicit reuse instruction. Used by both
+   * the zero-country prompt (Q1) and the off-country empty-state (Q2).
+   */
+  onManageCountries: () => void;
 }
 
 /** Debounce delay for city search (ms). */
@@ -68,7 +92,14 @@ export function AddPlaceFlow({
   tripStartDate,
   tripEndDate,
   isFirstPlace,
+  tripCountries,
+  onManageCountries,
 }: AddPlaceFlowProps) {
+  // GE-20 (BUG-87, ADL-54 D1): the filter set both lookups are constrained
+  // to. Recomputed each render from the `tripCountries` prop rather than
+  // memoised — `.join(',')` inside the hooks below gives React Query a
+  // stable-by-value cache key regardless of this array's reference identity.
+  const countryCodes = tripCountries.map((c) => c.country_code);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [showNewCityForm, setShowNewCityForm] = useState(false);
@@ -170,7 +201,11 @@ export function AddPlaceFlow({
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: searchResults = [], isLoading: searching } = useCitySearch(debouncedQuery);
+  // GE-20: country_codes always sent, per countryCodes above.
+  const { data: searchResults = [], isLoading: searching } = useCitySearch(
+    debouncedQuery,
+    countryCodes,
+  );
   const { data: countries = [] } = useCountries();
 
   // Derive the selected country's tier config to conditionally show region dropdown
@@ -367,7 +402,10 @@ export function AddPlaceFlow({
     setCreationStatusMessage(null);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
-      lookupCityCountry(cityName.trim())
+      // GE-20: same country_codes filter as the search above, so the
+      // discovery lookup that auto-populates country/region can never
+      // suggest a country outside the trip's declared set.
+      lookupCityCountry(cityName.trim(), countryCodes)
         .then(({ countryCode, regionIso, candidates, failed, truncated }) => {
           // BUG-73: a failed lookup (retries exhausted) never reaches the D14
           // disambiguation logic below — there's no country/candidates to
@@ -509,6 +547,26 @@ export function AddPlaceFlow({
 
       {!showNewCityForm ? (
         <>
+          {/* GE-20 (BUG-87, ADL-54 D5/D3/Q1/Q3): the "filtered by" note, or —
+              on a trip with no declared countries yet — the unconstrained
+              prompt in its place. Rendered above the search input per D5. */}
+          {tripCountries.length > 0 ? (
+            <p className="mb-2 text-xs text-gray-500">
+              Filtered to: {formatCountriesFilterNote(tripCountries)}
+            </p>
+          ) : (
+            <div className="mb-2 px-2.5 py-2 bg-blue-50 border border-blue-200 rounded-md text-blue-800 text-xs flex items-center justify-between gap-2">
+              <span>This trip has no countries yet — results aren't filtered.</span>
+              <button
+                type="button"
+                onClick={onManageCountries}
+                className="shrink-0 text-teal-700 font-semibold underline hover:text-teal-800 cursor-pointer"
+              >
+                Add countries
+              </button>
+            </div>
+          )}
+
           <input
             className={inputClass}
             placeholder="Search city name…"
@@ -523,6 +581,26 @@ export function AddPlaceFlow({
 
           {debouncedQuery.length >= 2 && (
             <div className="border border-gray-200 rounded-md mt-2 overflow-hidden">
+              {/* GE-20 (ADL-54 D4a/Q2): a filtered search that came back empty
+                  gets a static, non-blank explanation naming the trip's
+                  countries and a discoverable path to widen them — never a
+                  silent empty list. "+ Add new" below stays available
+                  regardless (a genuinely new in-set city is still addable
+                  this way — this message can't tell "not in the catalogue
+                  yet" apart from "genuinely outside the trip's countries",
+                  so it informs without blocking). */}
+              {!searching && searchResults.length === 0 && tripCountries.length > 0 && (
+                <div className="px-3 py-2.5 text-xs text-gray-600 bg-gray-50 border-b border-gray-100">
+                  No matches in {formatCountriesFilterNote(tripCountries)}.{' '}
+                  <button
+                    type="button"
+                    onClick={onManageCountries}
+                    className="text-teal-600 font-semibold underline hover:text-teal-800 cursor-pointer"
+                  >
+                    Add a different country to this trip
+                  </button>
+                </div>
+              )}
               {searchResults.map((city) => (
                 <div
                   key={city.id}

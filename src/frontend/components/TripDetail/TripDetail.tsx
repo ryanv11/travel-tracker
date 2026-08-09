@@ -278,6 +278,8 @@ export function TripDetail({ trip }: TripDetailProps) {
           tripStartDate={trip.start_date}
           tripEndDate={trip.end_date}
           isFirstPlace={trip.places.length === 0}
+          tripCountries={trip.countries}
+          onManageCountries={c.handleManageCountries}
         />
       )}
 
