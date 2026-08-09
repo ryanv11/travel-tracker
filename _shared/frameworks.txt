@@ -119,3 +119,14 @@ BUG DISCOVERY AND CLASSIFICATION
     severity — must be listed in the Park Document under a "Bugs Discovered" section.
     Format: [SEVERITY] Short description — disposition (fixed | deferred | escalated to COO)
     Bugs that were reclassified must note both the initial and final classification.
+
+DISPATCH GATE
+
+31. DISPATCH-GATE HEADER CHECK (OP-39): Before starting any brief that produces committed
+    deliverables (code, spec/ADL, schema, migration, docs), verify it carries the COO
+    dispatch-gate header — a block opening `=== COO DISPATCH GATE ===` with, at minimum, Class
+    (OP-32), Success criteria, ATDD-first, Security checklist, Reuse audit and Isolation. If the
+    header is ABSENT, STOP and flag it to the COO in your outbox — do NOT proceed on an un-gated
+    brief. This is enforcement on the artifact you actually receive (no hook can see an Agent-tool
+    dispatch prompt). Read-only research/review/investigation dispatches are EXEMPT — they commit
+    nothing and need no header. See the /coo-dispatch skill for the full gate and header spec.
