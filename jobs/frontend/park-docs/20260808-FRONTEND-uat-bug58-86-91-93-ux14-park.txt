@@ -1,0 +1,246 @@
+PARK DOCUMENT — FRONTEND
+Date: 2026-08-08
+Thread: BUG-58, BUG-86, BUG-91, BUG-93, UX-14 (2026-08-08 Scotland dogfood UAT)
+Branch: fix/uat-0808-selection-picker-map-dates
+
+=========================================================================
+SCOPE
+=========================================================================
+Five UI defects surfaced in the 2026-08-08 Scotland dogfood UAT, all
+frontend-only, no BRD gate needed (gap/regression class per OP-32, existing
+UI defects). Dispatch's reuse instruction: BUG-58 + BUG-86 are the same
+"status transition drops the selection" family, fix at the shared
+trip-selection controller; BUG-93 is the map-markers query invalidation;
+UX-14 is the place date-field styling.
+
+=========================================================================
+BUG-58 + BUG-86 — status transition deselects the trip
+=========================================================================
+
+ROOT CAUSE (confirmed by reading, not inherited): ReviewPanel's `onClose`
+prop was wired to `navigate('/trips')` in BOTH TripDetailPage.tsx (desktop,
+via <Outlet/>) and MobileTripsLayout.tsx (mobile, own branching — same
+pattern, no <Outlet/>). Navigating to '/trips' drops the trip's :id from the
+URL, which is what "deselects" the trip in the left panel.
+
+Three call sites used onClose:
+  1. handleLock (BUG-58, forward review_pending -> locked transition) —
+     called onClose() right after the lock mutation succeeded.
+  2. handleReturnToPlanning (backward review_pending -> planning) — this one
+     was ALREADY fixed in PR #319 (2026-07-28): onClose() was removed there,
+     because once status flips to 'planning' the parent naturally stops
+     rendering ReviewPanel for this trip.
+  3. The "Back to Trip" button — onClick={onClose}, unconditional, no status
+     mutation happens at all here.
+
+Why #1 and #3 needed a DIFFERENT fix than #2's precedent:
+  - #1 (Lock): the SAME fix as #2 works — remove the onClose() call. Once
+    trip.status flips to 'locked', TripDetailPage/MobileTripsLayout's own
+    conditional naturally swaps ReviewPanel for TripDetail, no navigation
+    needed. This is the direct BUG-58 fix.
+  - #3 (Back to Trip): no status change happens on this click at all, so
+    "just remove the call" would do NOTHING — the button would stop working
+    entirely. This needed a genuine local-view-toggle mechanism.
+
+INVESTIGATION for #3: does TripDetail (the normal detail view) actually
+render correctly for a review_pending trip, or does "Back to Trip" need to
+go somewhere else entirely? Read TripDetail.tsx and
+useTripDetailController.ts: the NEXT_STATUS map already has an entry for
+review_pending -> { to: 'locked', label: 'Lock Trip' }, and nothing in
+TripDetail.tsx gates on trip.status !== 'review_pending' — it renders any
+status correctly, showing "Lock Trip" as the stepper's next action. So
+TripDetail already fully supports being shown for a review_pending trip;
+the gap was purely in TripDetailPage/MobileTripsLayout's own routing logic,
+which only ever chose ReviewPanel vs TripDetail based on trip.status, with
+no way to override that choice locally.
+
+FIX: new hook `hooks/useReviewPanelVisibility.ts` — tracks a `dismissed`
+state keyed on (tripId, status). `showReviewPanel = status ===
+'review_pending' && !isDismissedForCurrent`. `dismissReview()` sets the
+dismissed key to the CURRENT (tripId, status) pair. Selecting a different
+trip, or the same trip's status changing (away and later back to
+review_pending), naturally resets the dismissal since the key no longer
+matches — matching the existing "review mode auto-opens on review_pending"
+entry behaviour (RV-01/RV-02).
+
+Wired into:
+  - TripDetailPage.tsx: `if (showReviewPanel) return <ReviewPanel onClose=
+    {dismissReview} />`. Removed the now-unused `useNavigate` import.
+  - MobileTripsLayout.tsx: same pattern inside renderDetailContent(); the
+    pre-existing `handleBack` (navigate('/trips')) stays as-is for
+    MobileTripDetailView's `onBack` prop — that one's the legitimate
+    "return to the trips list" affordance from the normal detail view, out
+    of scope for this bug.
+  - ReviewPanel.tsx: handleLock no longer calls onClose(); the "Back to
+    Trip" button still calls onClose (now = dismissReview, not navigate).
+    Doc comments on both the prop and the two call sites explain the split.
+
+TESTS:
+  - hooks/__tests__/useReviewPanelVisibility.test.ts (new, 7 cases): default
+    visibility per status, undefined-trip guard, dismissReview flipping
+    visibility, automatic flip-to-false on a status change with NO dismiss
+    call (the BUG-58 shape), reset-on-tripId-change (the "different trip"
+    case). One originally-planned case ("same trip, leaves review_pending,
+    later re-enters it, stale dismissal must not suppress") was REMOVED
+    after tracing that it's not reachable through the real UI: dismissReview
+    is only called from ReviewPanel's own "Back to Trip" button, and once
+    dismissed, TripDetail's stepper for a review_pending trip offers only
+    "Lock Trip" (not "Return to Planning") — so a dismissed trip can't reach
+    a DIFFERENT status and then come back to review_pending without either
+    locking (terminal, no more review_pending) or a full remount (which
+    resets the hook's state anyway). Noted in the test file so a future
+    reader doesn't wonder why it's missing.
+  - ReviewPanel.test.tsx: existing "Back to Trip calls onClose" test is
+    unaffected (still true, just means something different now). New test:
+    "BUG-58 regression: locking does NOT call onClose".
+
+=========================================================================
+BUG-91 — trip-create form saves/closes prematurely on picker interaction
+=========================================================================
+
+TWO-PROBE VERIFICATION before touching anything: read TripForm.tsx's
+country-picker dropdown rows — they're already `type="button"`, which
+should NOT trigger native form submission on click. Rather than trust that
+reading, reproduced the interaction in a throwaway component test
+(deleted before committing) against the REAL component:
+  - Clicking a dropdown row: confirmed NO submission (createTrip: 0 calls,
+    onClose: 0 calls) — ruled out click as the cause.
+  - Typing into "Search countries…" then pressing Enter, WITH name+dates
+    already filled: confirmed submission DID fire (createTrip called once,
+    with country_codes: [] — the typed-but-not-clicked country was never
+    captured — and onClose called once).
+  - Same Enter press with name+dates EMPTY: confirmed submission did NOT
+    fire (explicit JS validation in handleSubmit blocks it, independent of
+    HTML5 `required` — jsdom does not enforce native constraint validation
+    on implicit submission the way a real browser does, which is why the
+    empty-fields case needed its own probe rather than assuming the
+    `required` attributes alone would protect it).
+
+ROOT CAUSE: the "Search countries…" `<input>` has no onKeyDown handler.
+Pressing Enter in ANY single-line text input inside a `<form>` that has a
+submit button triggers the browser's native implicit-submission behaviour,
+REGARDLESS of which field has focus — this is standard HTML form behaviour,
+not specific to this input. The Name field submitting on Enter is expected/
+desired; the country SEARCH field doing the same is not, because it's
+semantically a filter box for the dropdown below it, and submitting from it
+throws away whatever the user was mid-typing (only a click on a dropdown row
+commits to `selectedCountryCodes`).
+
+OWNER-SCOPE (tracker's UNVERIFIED note): confirmed NOT owner-scoped, via two
+probes — (1) read TripForm.tsx top to bottom: no `isOwner`/`me.role`
+conditional anywhere in the file; (2) grepped both DesktopTripsLayout.tsx
+and MobileTripsLayout.tsx for owner-gating around the "New Trip" button/
+TripForm's mount — the only owner-gated control in either file is the
+unrelated Admin nav tab (BUG-26). Same component, same bug, both paths.
+
+FIX: `onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}` on
+the "Search countries…" input only. Clicking a row is unaffected (already
+worked). Deliberately did NOT add "Enter selects the top match" behaviour —
+that's a new autocomplete affordance beyond what the bug asks for (stop the
+accidental submit); flagging it here as a possible future UX nice-to-have,
+not built.
+
+TESTS: new file `TripForm.test.tsx` (none existed before this thread —
+confirmed via search). 3 cases: click-to-select still works and doesn't
+submit; Enter-in-search-field with name+dates filled does NOT submit (the
+regression test); full manual submit via the Create Trip button still works
+end-to-end with a country picked via click first.
+
+=========================================================================
+BUG-93 — new place's map marker doesn't appear without a refresh
+=========================================================================
+
+Tracker note already narrowed this to "does the map-markers query invalidate
+on place mutation?" — confirmed by tracing the actual query keys rather than
+assuming:
+  - MapPage.tsx calls `useTrips()` with NO filters -> TanStack queryKey
+    `['trips', undefined]`. MapView passes that `trips` array straight into
+    CityMarkers, which derives every pin from it (buildCityGeoJSON).
+  - usePlaces.ts's `useAddPlace` onSuccess invalidated `['trips', vars.
+    tripId]` (e.g. `['trips', 5]`) and `['map', 'shading']`. Under
+    TanStack's PREFIX-matching invalidation, `['trips', 5]` does NOT match
+    `['trips', undefined]` — prefix matching requires the invalidated key to
+    be a LEADING subsequence of the target key, and `5 !== undefined` at
+    that position. So the map's own trips list query was never touched by
+    an add-place mutation.
+  - Confirmed the fix shape already exists in the SAME file: `useRemovePlace`
+    (BUG-32) invalidates the broader `['trips']` (no id) specifically
+    because — per its own doc comment — `['trips']` prefix-covers
+    `['trips', tripId]` as well, so one invalidation refreshes both the list
+    and any open detail view.
+
+FIX: `useAddPlace`'s onSuccess now invalidates `['trips']` instead of
+`['trips', vars.tripId]`, keeping the `['map', 'shading']` invalidation
+unchanged. Matches useRemovePlace's precedent exactly.
+
+TESTS: new file `usePlaces.test.tsx` (none existed before this thread).
+Covers: useAddPlace invalidates `['trips']` and `['map','shading']` (the
+fix); a query-cache-level test proving `['trips', undefined]` (the map's
+query) AND `['trips', tripId]` (the detail view's query) both actually go
+stale from the single `['trips']` invalidation, not just that the call
+happened; regression guards for useRemovePlace/useChangeCity/
+useUpdatePlaceDates confirming their existing invalidation sets are
+untouched by this change.
+
+=========================================================================
+UX-14 — first place's dates render blue, later places' don't
+=========================================================================
+
+Confirmed the tracker's hunch ("likely tied to BRD-DP06") is correct, via
+two probes:
+  1. PlaceSection.tsx: the blue/bold class (`text-wp-primary font-medium`)
+     is driven by `hasExplicitDates`, computed uniformly from `place.
+     arrived_on`/`place.departed_on` being non-null — no special-casing on
+     place INDEX or position anywhere in the file.
+  2. AddPlaceFlow.tsx: `arrived_on`/`departed_on` are pre-filled in the
+     POST body ONLY when `isFirstPlace` is true (BRD-DP06, confirmed
+     IMPLEMENTED via GitHub #300/PR #306 in the tracker, not just spec'd).
+
+So the "inconsistency" is real in appearance but not a bug in the logic: the
+SAME rule applies to every place, and DP-06 is simply the only thing that
+currently causes it to fire by default (subsequent places only get it once
+a user explicitly sets dates via "Set dates"). Verified this generalizes
+correctly (not literally hardcoded to place 0) with a test asserting a
+SECOND place with its own explicit dates gets the identical treatment.
+
+RECONCILE: added a `title` tooltip ("Dates set explicitly for this place")
+alongside the existing accent styling, so hovering explains the color
+instead of it reading as an unexplained inconsistency. No new component —
+matches this exact file's existing native-tooltip pattern (e.g. "Edit
+arrival / departure dates" on the adjacent button). Deliberately did not
+build a legend, badge, or any other new UI surface — that would be scope
+beyond "reconcile" for a P3 minor finding.
+
+TESTS: added to the existing PlaceSection.test.tsx (4 new cases): accent +
+tooltip present when explicit dates are set; ABSENT when falling back to
+trip dates; identical treatment on a non-first place (proves position-
+independence); partial explicit dates (only one of arrived_on/departed_on)
+still counts.
+
+=========================================================================
+VERIFICATION
+=========================================================================
+npm run check — clean (Biome). Only pre-existing infos remain, in a backend
+  test file (geocoding.resolveByOsmId.test.ts) this thread never touched —
+  same file the prior dedup-sweep park doc already flagged.
+npm run type:check:all — clean.
+npm run test:backend — 762/762 (unchanged; this thread never touches
+  src/backend/**).
+npm run test:frontend — 365/365 (22 new across 5 files, 2 of which — TripForm
+  and usePlaces — had zero prior test coverage).
+npm run status:check / npm run tracker:check — clean; no tracker.json edit
+  made in this thread (status flip to fixed/closed is COO's job at merge,
+  per /coo-merge-and-close).
+
+=========================================================================
+BUGS DISCOVERED (framework standard #30)
+=========================================================================
+None beyond the five briefed. No TRIVIAL findings warranting the
+re-evaluation checklist surfaced during this thread.
+
+=========================================================================
+NEXT STEPS
+=========================================================================
+COO: review PR, merge via /coo-merge-and-close once CI is green. Flip
+BUG-58/BUG-86/BUG-91/BUG-93/UX-14 tracker entries to fixed/closed with the
+PR number, same as the BUG-58 entry's existing inline history pattern.

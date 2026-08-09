@@ -1,3 +1,102 @@
+FRONTEND CONTEXT — as of 2026-08-08 (BUG-58/86/91/93 + UX-14 Scotland
+dogfood UAT fixes, fix/uat-0808-selection-picker-map-dates branch)
+
+STATUS: fix/uat-0808-selection-picker-map-dates branch off main, PR open
+  (see completion report for #), CI pending/green (see report). COO-dispatched
+  batch of 5 UI defects from the 2026-08-08 Scotland dogfood UAT — all
+  frontend-only, no BRD-gated new behaviour. Full details in the 2026-08-08
+  (this thread) park doc.
+
+  BUG-58/BUG-86 (same root cause, fixed together per the brief's reuse
+  instruction): ReviewPanel's onClose prop was wired to
+  navigate('/trips') in both TripDetailPage (desktop) and
+  MobileTripsLayout (mobile) — that drops the trip's :id from the URL,
+  deselecting it. BUG-58's PRIOR fix (2026-07-28, PR #319) only removed the
+  onClose() call from the BACKWARD "Return to Planning" handler; the FORWARD
+  Lock path (handleLock) and the unconditional "Back to Trip" button still
+  called it. New shared hook hooks/useReviewPanelVisibility.ts decides which
+  surface (ReviewPanel vs TripDetail) renders for a review_pending trip via
+  local dismiss state, never navigation — locking needs no explicit dismiss
+  (status flips away from review_pending, hook recomputes false
+  automatically); "Back to Trip" calls the hook's dismissReview(), which
+  TripDetail already renders correctly for a review_pending trip (its
+  stepper already maps review_pending -> "Lock Trip", see
+  useTripDetailController's NEXT_STATUS). Dismissal is scoped to
+  (tripId, status) so a different trip, or this trip re-entering
+  review_pending later, shows ReviewPanel again by default (RV-01/RV-02).
+  Wired into both TripDetailPage and MobileTripsLayout identically.
+
+  BUG-91: TripForm's "Search countries…" input had no onKeyDown handler, so
+  pressing Enter there fell through to the browser's native
+  "Enter-submits-the-form" behaviour (any single-line text input submits an
+  enclosing form with a submit button on Enter, regardless of which field has
+  focus) — saved and closed the whole Create/Edit Trip modal before the user
+  could set dates, and WITHOUT the typed country even being captured (only a
+  dropdown-row click commits to selectedCountryCodes; the row buttons are
+  already type="button" and were never the problem — confirmed by
+  reproducing both paths in a component test BEFORE writing the fix). Fix:
+  onKeyDown preventDefault on Enter, scoped to that one input. Owner-scope
+  (tracker's UNVERIFIED note): confirmed NOT owner-scoped — TripForm has no
+  owner/non-owner branching anywhere, and neither layout gates the "New
+  Trip" button/TripForm's mount by owner status (grep: the only owner-gated
+  control in either layout is the unrelated Admin nav tab).
+
+  BUG-93: usePlaces.ts's useAddPlace onSuccess invalidated only
+  ['trips', tripId] and ['map', 'shading'] — neither prefix-matches the bare
+  ['trips'] list query MapPage's useTrips() (no filters) uses to feed
+  CityMarkers, so a newly added place's marker didn't paint until something
+  else refetched that list. VERIFIED not a geocoding delay (per the tracker
+  note, city resolves with coords at creation). Fixed by invalidating the
+  broader ['trips'] key instead — same precedent useRemovePlace (BUG-32)
+  already set in this exact file, and ['trips'] prefix-covers
+  ['trips', tripId] too so the trip detail view keeps refreshing unchanged.
+
+  UX-14: PlaceSection.tsx's hasExplicitDates-driven blue/bold date-range
+  accent is a DELIBERATE, uniform, data-driven signal ("this place has its
+  own explicit dates" vs. "falling back to the trip's range") — verified via
+  AddPlaceFlow.tsx, which pre-fills arrived_on/departed_on ONLY for
+  isFirstPlace (BRD-DP06). Not a bug in the "inconsistent logic" sense (no
+  index-based special-casing exists), but a legitimately confusing UX
+  without an explanation. Reconciled by adding a `title` tooltip
+  ("Dates set explicitly for this place") alongside the existing accent
+  classes — no new component, matches this file's existing native-tooltip
+  pattern (e.g. "Edit arrival / departure dates").
+
+  VERIFICATION: npm run check — clean (only the same 5 pre-existing infos in
+  a backend test file this thread never touched). npm run type:check:all —
+  clean. npm run test:backend — 762/762 (unchanged, this thread is
+  frontend-only). npm run test:frontend — 365/365 (+22 new: 7
+  useReviewPanelVisibility, +1 ReviewPanel, 3 TripForm [new file — none
+  existed before], 5 usePlaces [new file — none existed before], +4
+  PlaceSection). npm run status:check / tracker:check — clean (no
+  tracker.json edit made in this thread — tracker status flip is COO's job
+  per /coo-merge-and-close).
+
+  KEY FILE LOCATIONS (new/changed this thread)
+    src/frontend/hooks/useReviewPanelVisibility.ts (new)
+    src/frontend/hooks/__tests__/useReviewPanelVisibility.test.ts (new)
+    src/frontend/components/PostTripReview/ReviewPanel.tsx (BUG-58/86)
+    src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
+    src/frontend/pages/TripDetailPage.tsx (BUG-58/86, desktop wiring)
+    src/frontend/components/TripList/MobileTripsLayout.tsx (BUG-58/86,
+      mobile wiring)
+    src/frontend/components/TripDetail/TripForm.tsx (BUG-91)
+    src/frontend/components/TripDetail/__tests__/TripForm.test.tsx (new)
+    src/frontend/hooks/usePlaces.ts (BUG-93)
+    src/frontend/hooks/__tests__/usePlaces.test.tsx (new)
+    src/frontend/components/TripDetail/PlaceSection.tsx (UX-14)
+    src/frontend/components/TripDetail/__tests__/PlaceSection.test.tsx
+
+  NEXT STEPS (when resumed)
+    COO: review PR (see completion report for #), merge via
+    /coo-merge-and-close when CI is green; flip BUG-58/BUG-86/BUG-91/BUG-93/
+    UX-14 tracker entries to fixed/closed with the PR number.
+
+========================================================================
+PRIOR THREAD — retained in full below per this file's established
+newest-first pattern.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-08-08 (QUAL-29/30/31/04 dedup sweep + BUG-83
 fix, chore/frontend-dedup-sweep branch)
 
