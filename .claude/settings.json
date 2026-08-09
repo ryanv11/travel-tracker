@@ -37,10 +37,6 @@
           {
             "type": "command",
             "command": "bash /workspace/.claude/hooks/no-wholesale-rewrite.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash /workspace/.claude/hooks/atdd-first-guard.sh"
           }
         ]
       },
@@ -50,10 +46,6 @@
           {
             "type": "command",
             "command": "bash /workspace/.claude/hooks/negative-findings-guard.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash /workspace/.claude/hooks/atdd-first-guard.sh"
           }
         ]
       }

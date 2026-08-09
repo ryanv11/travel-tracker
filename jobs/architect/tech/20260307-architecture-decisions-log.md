@@ -4339,6 +4339,12 @@ suite cannot pass vacuously.
   hook — the Architect-prompt marking + the COO duty are the primary controls there; the hook backs up the
   `gh`-issue and brief-file channels. Canary added to `/coo-startup`.
 
+  > SUPERSEDED (2026-08-09) by the OP-39 dispatch gate — the `atdd-first-guard.sh` warn-hook and its
+  > `/coo-startup` canary were removed in R3 (design-reflection, issue #474) as redundant with the
+  > agent-side dispatch-gate header (frameworks std 31), which forces an ATDD decision on the brief
+  > channel more strongly than a warn. The Architect-prompt marking + COO duty (the primary controls)
+  > are unchanged. Text retained for history.
+
 **Alternatives considered.** (1) Blanket TDD on every brief — rejected: pure ceremony where failures are
 visible/recoverable (the coverage gap above). (2) A subjective "enough complexity" threshold — rejected: it
 would be re-litigated every session; the Architect-involvement proxy is objective and self-widening. (3)
