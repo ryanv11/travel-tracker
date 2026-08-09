@@ -24,8 +24,8 @@
  *                                  layer: the Railway service-variable API does not
  *                                  enumerate platform-injected variables, so their presence
  *                                  at RUNTIME could not be confirmed from inside the
- *                                  devcontainer (the deployed origin is firewall-blocked
- *                                  here). If step 2 turns out to be empty at runtime, the
+ *                                  devcontainer — confirming it would require running
+ *                                  inside the deployed process. If step 2 turns out to be empty at runtime, the
  *                                  build-time capture still answers the question.
  *   4. `null`                    — reported honestly as 'unknown'. Never a stale hardcoded
  *                                  value, which would be worse than no value at all.

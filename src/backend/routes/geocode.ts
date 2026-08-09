@@ -39,10 +39,10 @@
  * restricts Nominatim's search space.
  *
  * 40 was chosen for the discovery limit as a meaningfully larger, but not
- * extreme, value. Nominatim's actual maximum `limit` is UNVERIFIED from this
- * environment — the firewall blocks reaching the service directly, and this
- * session made three independent failed attempts (see the brief for GitHub
- * #379). The code does not assume 40 is honoured: `truncated` below is
+ * extreme, value. Nominatim's actual maximum `limit` is not asserted here — do
+ * NOT assume Nominatim is unreachable from this environment: it is allowlisted
+ * (`.devcontainer/init-firewall.sh`) and reachable; probe if you need to confirm
+ * a limit. The code does not assume 40 is honoured regardless: `truncated` below is
  * computed against whatever was actually requested, and everything downstream
  * (settlement filtering, D14 narrowing) already handles an arbitrary
  * candidate count. If the real cap is lower, Nominatim simply returns fewer
