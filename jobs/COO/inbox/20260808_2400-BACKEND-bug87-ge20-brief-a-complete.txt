@@ -1,0 +1,58 @@
+BUG-87 / GE-20 · PR #466 · BRD GE-20 (v3.21) · Branch feat/bug87-ge20
+
+WHAT WAS BUILT: country_codes read-path hard filter on GET /api/cities and
+GET /api/geocode (ADL-54), turning QA's ATDD RED bar (this same PR, #466)
+green. New shared zCountryCodesList validator (malformed-code + 10-code-cap
+guards). schema.ts trip_countries doc-comment corrected (stale "derived"
+claim -> user-declared/editable).
+
+ACCEPTANCE CRITERIA:
+- QA's 5 RED tests now green: PASS
+- QA's 2 F1 empty-string guards now exercise the real empty->show-all path
+  (not vacuous): PASS
+- QA's 4 regression guards stay green: PASS
+- ADL-54 invalid-code rejection (not built by QA, per brief): PASS — new
+  guard tests in both ge20-*-country-codes-guards.test.ts files
+- ADL-54 D2 ~10-code cap (not built by QA, per brief): PASS — same files
+- schema.ts stale doc-comment fixed: PASS
+- Full backend suite green: PASS — 801/801
+- No QA test edited to pass (ATDD-first discipline): CONFIRMED — QA's two
+  files are byte-for-byte untouched (verified: git diff shows zero changes
+  to them from this thread); no QA test looked wrong, none needed flagging
+
+SECURITY CHECKLIST (OP-06) — both routes pre-existing, modified not new:
+1. Auth middleware — unchanged; both already sit under app-level
+   requireAuth (server.ts). No gate added or removed.
+2. userId scoping — N/A. country_codes narrows GLOBAL reference data
+   (cities/countries catalogues), not user-owned rows. GE-16 creator-
+   containment on cities search is orthogonal and preserved unchanged —
+   the new inArray joins the existing `conditions` array alongside
+   `containment`, doesn't replace or weaken it.
+3. New user-data FK .notNull() — N/A. No schema change, no new column.
+
+CI: PR #466 — will run scripts/ci-wait.sh after this report, per the git
+workflow (pushing next).
+
+OPEN ISSUES / BLOCKERS: none for this brief. Two items carried forward per
+the fresh-eyes review, for COO awareness when scoping Brief B:
+- F2 (fresh-eyes): GE-20's "cannot be bypassed" guarantee has no red test
+  until Brief B adds one pinning "country_codes is always sent on both
+  lookup paths" from the frontend. Recommend folding into Brief B's
+  dispatch as the brief itself already flagged.
+- F3 (fresh-eyes): BUG-90 must store codes in trip_countries that resolve
+  within cities.country_code's code-space — carry into BUG-90's brief,
+  not actionable here.
+Fresh-eyes P2 (Nominatim real multi-country countrycodes behaviour) — the
+dispatch brief stated this was independently COO-verified live against
+staging (gb,fr / fr) prior to this brief; not re-verified by this thread
+(firewall still blocks direct Nominatim access from this container, same
+as every prior geocode thread).
+
+WHAT IS NOW UNBLOCKED: Brief B (frontend wiring — AddPlaceFlow/
+MobileTripDetailView threading trip.countries as country_codes into
+useCitySearch + lookupCityCountry, the D5 "filtered by" note, the D3 zero-
+country prompt, the D4a off-country empty-state) can be dispatched against
+this now-documented, now-tested contract (jobs/backend/tech/20260307-api-
+reference.md v1.8).
+
+Full detail: jobs/backend/park-docs/20260808-BACKEND-bug87-ge20-park.txt
