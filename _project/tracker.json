@@ -2164,12 +2164,12 @@
       "id": "BUG-58",
       "type": "bug",
       "title": "Moving a trip backward in the status workflow deselects it from the left panel",
-      "status": "pending",
+      "status": "done_pending_uat",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": ["TR-11"],
       "phase": 6,
-      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Moving a trip to an earlier status (backward through the workflow) clears the trip selection entirely, forcing the user to re-find and re-select it in the left panel. Expected: trip stays selected, detail panel just updates to reflect the new status. Meaningful friction at high trip volume. CLASSIFIED + FIXED 2026-07-28 (brief B7, GitHub #316), classified as a GAP not a regression: two independent probes (git log --follow on TripDetailPage.tsx/ReviewPanel.tsx/useTripDetailController's unlock logic, showing no #208 changes; and a full diff of the pre-#208 TripsLayout.tsx/TripDetail.tsx against their current versions) confirm the actual mechanism was byte-identical before and after the WP-03/WP-04 reskin (PR #208) that shipped the same UAT day — coincidental timing, not a regression it introduced. Root cause: the only user-reachable backward transition is 'Return to Planning' (review_pending -> planning, BUG-04's fix) inside ReviewPanel.tsx, whose handler called onClose() immediately after the status mutation succeeded — onClose is wired to navigate('/trips'), which drops the trip's :id from the URL and clears selection in the same click that changes status. Fix: removed the onClose() call from handleReturnToPlanning; the status mutation alone is sufficient; once trip.status flips to 'planning', TripDetailPage/MobileTripsLayout naturally stop rendering ReviewPanel for this trip and render TripDetail/MobileTripDetailView instead, same :id still in the URL. The other backward path (Unlock, locked -> review_pending, in useTripDetailController) never called onClose() and was already correct — confirmed by a new regression test, not just inspection. NOT touched: the forward Lock path inside ReviewPanel.tsx also calls onClose() after locking (review_pending -> locked) — same pattern, but forward, not filed as BUG-58, and out of this brief's stated scope ('trip stays selected when its status moves backward'); flagged to COO as a related but separate possible issue, not fixed here to avoid scope creep. Tests: ReviewPanel.test.tsx +2 (Return to Planning does NOT call onClose; still shows its confirm dialog first), useTripDetailController.test.tsx +1 (Unlock does not navigate, guarding the already-correct path against future regression). PR #319, CI 18/18 green. || REOPENED 2026-08-08 — FAILED UAT (owner+non-owner). PO: LOCKING a trip deselects it entirely from the left panel. BUG-58's original fix covered the BACKWARD status move; the LOCK (forward) transition still drops the selection. Widen to hold selection across ALL status transitions. Sibling: BUG-86 ('Back to trip' in review status also deselects) — same 'status transition drops the selection' family; fix together."
+      "notes": "Found 2026-07-21 UAT, logged only — not yet briefed. Moving a trip to an earlier status (backward through the workflow) clears the trip selection entirely, forcing the user to re-find and re-select it in the left panel. Expected: trip stays selected, detail panel just updates to reflect the new status. Meaningful friction at high trip volume. CLASSIFIED + FIXED 2026-07-28 (brief B7, GitHub #316), classified as a GAP not a regression: two independent probes (git log --follow on TripDetailPage.tsx/ReviewPanel.tsx/useTripDetailController's unlock logic, showing no #208 changes; and a full diff of the pre-#208 TripsLayout.tsx/TripDetail.tsx against their current versions) confirm the actual mechanism was byte-identical before and after the WP-03/WP-04 reskin (PR #208) that shipped the same UAT day — coincidental timing, not a regression it introduced. Root cause: the only user-reachable backward transition is 'Return to Planning' (review_pending -> planning, BUG-04's fix) inside ReviewPanel.tsx, whose handler called onClose() immediately after the status mutation succeeded — onClose is wired to navigate('/trips'), which drops the trip's :id from the URL and clears selection in the same click that changes status. Fix: removed the onClose() call from handleReturnToPlanning; the status mutation alone is sufficient; once trip.status flips to 'planning', TripDetailPage/MobileTripsLayout naturally stop rendering ReviewPanel for this trip and render TripDetail/MobileTripDetailView instead, same :id still in the URL. The other backward path (Unlock, locked -> review_pending, in useTripDetailController) never called onClose() and was already correct — confirmed by a new regression test, not just inspection. NOT touched: the forward Lock path inside ReviewPanel.tsx also calls onClose() after locking (review_pending -> locked) — same pattern, but forward, not filed as BUG-58, and out of this brief's stated scope ('trip stays selected when its status moves backward'); flagged to COO as a related but separate possible issue, not fixed here to avoid scope creep. Tests: ReviewPanel.test.tsx +2 (Return to Planning does NOT call onClose; still shows its confirm dialog first), useTripDetailController.test.tsx +1 (Unlock does not navigate, guarding the already-correct path against future regression). PR #319, CI 18/18 green. || REOPENED 2026-08-08 — FAILED UAT (owner+non-owner). PO: LOCKING a trip deselects it entirely from the left panel. BUG-58's original fix covered the BACKWARD status move; the LOCK (forward) transition still drops the selection. Widen to hold selection across ALL status transitions. Sibling: BUG-86 ('Back to trip' in review status also deselects) — same 'status transition drops the selection' family; fix together. || FIXED PR #458 (done_pending_uat): ReviewPanel onClose was navigate('/trips') dropping the trip id; new shared useReviewPanelVisibility hook decides panel-vs-detail via dismiss state, not navigation — fixes the forward LOCK path. Awaiting PO re-UAT."
     },
     {
       "id": "BUG-59",
@@ -2751,12 +2751,12 @@
       "id": "BUG-86",
       "type": "bug",
       "title": "\"Back to trip\" button in review status deselects the trip instead of returning to the active view",
-      "status": "pending",
+      "status": "done_pending_uat",
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-08-08 owner UAT (finding 1.5, PO 'yes'). In review/review_pending status the 'Back to trip' control deselects the trip entirely (blank panel) rather than returning to the active-status trip view the PO expects. Small frontend fix. Same 'status transition drops the selection' family as BUG-58 (locking a trip also deselects it) — consider fixing together."
+      "notes": "Found 2026-08-08 owner UAT (finding 1.5, PO 'yes'). In review/review_pending status the 'Back to trip' control deselects the trip entirely (blank panel) rather than returning to the active-status trip view the PO expects. Small frontend fix. Same 'status transition drops the selection' family as BUG-58 (locking a trip also deselects it) — consider fixing together. || FIXED PR #458 (done_pending_uat): same root as BUG-58 (ReviewPanel onClose navigation); 'Back to trip' now returns to the trip view via the shared visibility hook, not a deselecting navigate. Awaiting PO re-UAT."
     },
 
     {
@@ -2823,24 +2823,24 @@
       "id": "BUG-91",
       "type": "bug",
       "title": "Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow)",
-      "status": "pending",
+      "status": "done_pending_uat",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-08-08 non-owner UAT (finding N1). Adding a trip and selecting from the picker (country) saves and closes the whole create form, forcing the user to re-open the trip to edit dates — breaks the single add-trip flow. Observed as non-owner; owner-scope UNVERIFIED (re-check whether it also affects the owner path — the PO listed it only under non-owner). Rising importance: BUG-87 makes the trip's declared country set authoritative for place-picker filtering, so the trip-create country step (this form) is now doubly load-bearing. frontend."
+      "notes": "Found 2026-08-08 non-owner UAT (finding N1). Adding a trip and selecting from the picker (country) saves and closes the whole create form, forcing the user to re-open the trip to edit dates — breaks the single add-trip flow. Observed as non-owner; owner-scope UNVERIFIED (re-check whether it also affects the owner path — the PO listed it only under non-owner). Rising importance: BUG-87 makes the trip's declared country set authoritative for place-picker filtering, so the trip-create country step (this form) is now doubly load-bearing. frontend. || FIXED PR #458 (done_pending_uat): reproduced against TripForm — clicking a country was already safe; pressing ENTER in the country search fell through to native form submission, saving/closing the create modal. Fixed with a scoped onKeyDown preventDefault. Confirmed NOT owner-scoped. Awaiting PO re-UAT."
     },
 
     {
       "id": "UX-14",
       "type": "ux",
       "title": "First place's dates render in blue while later places' dates don't (inconsistent styling)",
-      "status": "pending",
+      "status": "done_pending_uat",
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-08-08 UAT (finding N2, owner+non-owner). The first place's date fields render blue while subsequent places' dates render normally — visually inconsistent. Likely tied to BRD-DP06 (first place inherits the trip's dates) — confirm whether blue is a deliberate 'inherited/pre-filled' cue or a styling bug, and make consistent either way. Minor. frontend."
+      "notes": "Found 2026-08-08 UAT (finding N2, owner+non-owner). The first place's date fields render blue while subsequent places' dates render normally — visually inconsistent. Likely tied to BRD-DP06 (first place inherits the trip's dates) — confirm whether blue is a deliberate 'inherited/pre-filled' cue or a styling bug, and make consistent either way. Minor. frontend. || RESOLVED PR #458 (done_pending_uat): NOT a bug — the blue date accent is a deliberate, uniform, data-driven signal (hasExplicitDates) that BRD-DP06 happens to trigger for the first place at creation. Added a title tooltip to make the signal self-explanatory. Awaiting PO glance."
     },
 
     {
@@ -2859,12 +2859,12 @@
       "id": "BUG-93",
       "type": "bug",
       "title": "Newly-added place's map marker doesn't appear until a refresh (render lag on add)",
-      "status": "pending",
+      "status": "done_pending_uat",
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-08-08 UAT, split from a BUG-49 mis-attribution. PO added a Sydney place; the map marker did not paint immediately and appeared only after a lag/refresh. VERIFIED it is NOT geocoding: Sydney (city 12) resolved with coords at creation (geocode_attempts=0, created_at==updated_at), so the marker DATA existed immediately — the map simply didn't re-render/refetch on add. Likely a query-invalidation / marker-refresh gap after a place-add (confirm: does the map-markers query invalidate on place mutation?). Minor UX. frontend."
+      "notes": "Found 2026-08-08 UAT, split from a BUG-49 mis-attribution. PO added a Sydney place; the map marker did not paint immediately and appeared only after a lag/refresh. VERIFIED it is NOT geocoding: Sydney (city 12) resolved with coords at creation (geocode_attempts=0, created_at==updated_at), so the marker DATA existed immediately — the map simply didn't re-render/refetch on add. Likely a query-invalidation / marker-refresh gap after a place-add (confirm: does the map-markers query invalidate on place mutation?). Minor UX. frontend. || FIXED PR #458 (done_pending_uat): useAddPlace invalidated ['trips', tripId] which does not prefix-match the bare ['trips'] the map CityMarkers query uses; fixed to invalidate ['trips'] (matching useRemovePlace/BUG-32). Marker now appears immediately. Awaiting PO re-UAT."
     },
 
     {
