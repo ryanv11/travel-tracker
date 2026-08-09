@@ -462,8 +462,16 @@ export const tripPlaceActivitiesMap = sqliteTable(
 
 /**
  * Trip ↔ Country junction — tracks which countries a trip visits (ADL-23).
- * Derived from trip_places via city → country_code, but stored explicitly for
- * efficient map shading queries without repeated aggregation joins.
+ * USER-DECLARED and editable, not derived (this comment was stale — corrected
+ * GE-20/ADL-54, verified by two independent probes: a grep of every writer
+ * of this table found only POST/PATCH /api/trips (trips.ts) and the
+ * trip-countries sub-router, never places.ts; and TripForm.tsx already
+ * renders a country multi-select submitting country_codes on both trip
+ * create and edit). The set is declared at trip creation and editable at any
+ * time via the trip form — it is the input to GE-20's picker filter, not an
+ * aggregation of already-added places' countries (that would make a hard
+ * filter circular: you couldn't add a place in a country until you'd already
+ * added a place in it).
  * Cascade delete: removing a trip removes its country associations.
  * RESTRICT on country: a country record must exist before it can be linked.
  */
