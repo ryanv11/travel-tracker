@@ -113,25 +113,6 @@ PO is the UAT bottleneck, and an unbounded pending-UAT queue is where staleness 
 accumulate. The PO sets N. If adopted it's one CLAUDE.md line. Migrated here 2026-08-08 (queue retired);
 held as a proposal until the PO sets N (or declines).
 
-### D-29: Regular reviews/cleanups for stale-reference & doc-rot (the delete-over-document class)
-**Raised:** 2026-08-08 · **Status:** proposal, needs a PO call on cadence + mechanism.
-
-This session surfaced a whole CLASS of stale-inheritable claims — reference docs/comments that agents
-read as fact but that had rotted: the firewall allowlist enumeration; "firewall blocks Nominatim" after
-ADL-49 allowlisted it; "E2E not in CI"; `jobs/_shared/frameworks.txt`'s entire stack (Electron/Postgres/
-Clerk-Phase-2); "the 30 numbered standards" (was 31); broken `file:line` cross-refs. A two-scanner audit
-found and fixed ~19 files and deleted 2 redundant ones. The **fix principle is settled and applied**:
-delete the rot-prone specific; point to the single maintained source; never restate/enumerate; don't
-annotate the fix.
-
-What is NOT settled is **how to stop it re-accreting** — a regular review/cleanup cadence. This is the
-concrete instance of design-reflection **R2** (institutionalize a forward-looking coherence-drift audit —
-jobs/COO/20260808-design-reflection.md). Options to weigh: a periodic scheduled scan (reuse the OP-25
-routine machinery) for stale-inheritable claims + BRD/schema drift; whether the standing discipline is
-"delete-and-point" (chosen here) or a "last-verified stamp" (used only for dated probe results); whether
-it folds into `/coo-startup` or runs on its own cadence. Needs a PO decision on cadence + mechanism before
-it becomes tracked work. Related: R2, R3 (governance prune), the firewall/audit thread.
-
 ## Parked
 
 _Decided not-now / watch-for-recurrence, with no other home. Each stays only so it can be

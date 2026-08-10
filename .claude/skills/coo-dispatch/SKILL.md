@@ -22,6 +22,20 @@ not the brief itself. This gate moves the controls onto the artifact and makes e
 weakness that sank the earlier brief-template (it only works if you remember it) — the header **plus**
 agent-side rejection is the teeth.
 
+## Per-wave pre-mortem (OP-40, design-reflection R2)
+
+Once per **wave** (a batch of briefs dispatched together), before running the per-brief gate below,
+do a short pre-mortem — the forward-looking question a normal project asks and this fast model
+otherwise skips:
+
+> **"Assume this wave has gone wrong. What's the most likely way it bit us — and what *class* are
+> we patching an instance of rather than collapsing?"**
+
+One paragraph is enough. It exists to catch the wrong *question* (scope drifting across rounds on one
+defect; an N+1th instance-patch where a consolidation is the real fix) — reviews catch wrong answers,
+not wrong questions. If it surfaces a real risk, adjust the wave's scope or sequencing before
+dispatching, not after. Skip only for a single mechanical brief that is plainly not part of a wave.
+
 ## The gate — confirm each before dispatch
 
 **Readiness**
