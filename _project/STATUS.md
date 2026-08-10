@@ -64,9 +64,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-87 | Add-place picker does not narrow/rank candidates by the trip's assigned country/countries | architect | done_pending_uat |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
 | BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
+| QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
-| QUAL-29 | Admin name-list resource (categories/activities/companions) triplicated across four layers — an admin-list factory that used to exist was unwound by the per-user migrations | architect | ◐ Partial |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 | OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
 | QUAL-37 | Backup posture — COO memory dir + Turso DBs are unversioned/reseed-only; back up before non-disposable UAT data | coo | ⬜ Pending |
@@ -125,7 +125,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `██████████████░░░░░░` 61/86 | 61 | 25 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 31/58 | 31 | 27 | 2 |
+| chore | `███████████░░░░░░░░░` 32/59 | 32 | 27 | 2 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -160,4 +160,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_180 done · 10 deferred · 5 closed · 83 open — 278 tracked items_
+_181 done · 10 deferred · 5 closed · 83 open — 279 tracked items_
