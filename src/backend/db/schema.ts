@@ -121,13 +121,13 @@ export const cities = sqliteTable(
     }),
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    // BUG-75 / GE-16 (v3.19) identity carry channel (ADL-47 EXPAND, migration 0016).
-    // Carried, not derived: the geocoder's OSM (osm_type, osm_id) reference is the identity key;
-    // display_name is render payload only, never a match key (design v3 §0/§2.3). All three are
-    // DELIBERATELY NULLABLE at EXPAND — no code populates them yet, existing rows stay NULL, and
-    // the SWITCH stage (migration 0017) is what makes osm_id load-bearing via the new partial
-    // unique index below. osm_id is INTEGER (OSM node/way/relation ids are integers; osm_type
-    // distinguishes N/W/R namespaces, so the pair — not osm_id alone — is the identity key).
+    // BUG-75 / GE-16 (v3.19) identity carry channel. Nullable by design: the geocoder's OSM
+    // (osm_type, osm_id) reference is the identity key; display_name is render payload only, never
+    // a match key (design v3 §0/§2.3). Since the SWITCH stage (migration 0017) landed, osm_id is
+    // load-bearing via the partial unique indexes below, and the find-or-create paths in cities.ts
+    // populate all three (older rows may remain NULL). osm_id is INTEGER (OSM node/way/relation ids
+    // are integers; osm_type distinguishes N/W/R namespaces, so the pair — not osm_id alone — is the
+    // identity key).
     osmType: text('osm_type'),
     osmId: integer('osm_id'),
     displayName: text('display_name'),

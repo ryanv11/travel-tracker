@@ -38,7 +38,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | ENV-01 | Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall | coo | ⬜ Pending |
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
-| BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
+| BRD-AD09 | Categories/activities are per-user lists, userId-scoped, owner-managed (AD-09) | backend | ◐ Partial |
 | BRD-GE18 | Reference-data provenance and in-product attribution credits surface (GE-18) | frontend | ⬜ Pending |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
 | BRD-FL04 | Flight number lookup — auto-populate fields from flight number + date (FL-04) | backend | ⬜ Pending |

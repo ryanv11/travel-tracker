@@ -178,6 +178,12 @@ echo "session count (session_end entries): $sc"
   tracker-vs-reality, doc-rot across `jobs/**`, and any newly-recognised rot class. It reports
   findings to the COO; the COO triages and remediates delete-and-point. This is the periodic
   in-house version of the manual two-scanner audit run 2026-08-08.
+  **Highest-yield default lens (from the first dogfood, 2026-08-09):** drift concentrates in
+  **append-only records that are never re-summarized** — tracker notes/titles and `Status: Decided`
+  ADLs asserting an absence ("NOT built", "not enforced", "owner-only", "coming soon") that current
+  code contradicts, plus post-migration comment drift in `schema.ts` / god-routes. Point the sweep
+  there first. (This semantic "claim-vs-code" check is deliberately NOT in the canary — a cheap
+  regex would false-positive on every bug that legitimately describes a missing behaviour.)
 - Neither due → note "drift-cadence: nothing due this session" and move on.
 
 ### 1. Scheduled health-check flags

@@ -92,7 +92,49 @@ for doc in ("CLAUDE.md", "CODEBASE.md"):
 if b_findings == 0:
     print("  (clean)")
 
-total = a_findings + b_findings
+# ── Check C: ADL-log numbering contiguity ────────────────────────────────────────────────
+# A gap (e.g. …52, 54 with no 53) means an ADL id is referenced-but-absent — the record-decision
+# invariant is contiguous numbering. Deterministic, zero false positives. (Added from the OP-40
+# deep-audit dogfood 2026-08-09, which found the ADL-53 gap by hand.)
+ADL_LOG = "jobs/architect/tech/20260307-architecture-decisions-log.md"
+print("== drift-canary C: ADL-log numbering contiguity ==")
+c_findings = 0
+adl_nums = []
+if os.path.isfile(ADL_LOG):
+    adl_nums = sorted(set(int(m) for m in re.findall(r"(?m)^## ADL-(\d+)\b", "\n".join(read_lines(ADL_LOG)))))
+    for n in (set(range(adl_nums[0], adl_nums[-1] + 1)) - set(adl_nums)) if adl_nums else set():
+        print(f"  - ADL-{n} missing from the log (headers run {adl_nums[0]}..{adl_nums[-1]})")
+        c_findings += 1
+if c_findings == 0:
+    print("  (clean)")
+
+# ── Check D: ADL-reference resolvability ─────────────────────────────────────────────────
+# Every ADL-NN cited in the always-read records must resolve to a log header or a standalone
+# ADL-NN*.md. Catches dangling ids (and the same ADL-53 gap from a second angle).
+import glob
+print("== drift-canary D: ADL-reference resolvability ==")
+d_findings = 0
+defined = set(adl_nums)
+for f in glob.glob("jobs/architect/tech/ADL-*.md"):
+    m = re.search(r"ADL-(\d+)", os.path.basename(f))
+    if m:
+        defined.add(int(m.group(1)))
+seen = {}
+for f in ("_project/tracker.json", "CLAUDE.md", "CODEBASE.md"):
+    if not os.path.isfile(f):
+        continue
+    for i, line in enumerate(read_lines(f)):
+        for m in re.findall(r"ADL-(\d+)", line):
+            n = int(m)
+            if n not in defined:
+                seen.setdefault(n, (f, i + 1))
+for n, (f, ln) in sorted(seen.items()):
+    print(f"  - ADL-{n} referenced ({f}:{ln}) but not defined in the log or a standalone ADL-*.md")
+    d_findings += 1
+if d_findings == 0:
+    print("  (clean)")
+
+total = a_findings + b_findings + c_findings + d_findings
 print(f"drift-canary: {total} finding(s) (warn-only). Triage per negative-findings rule; "
       f"remediate with delete-and-point.")
 PY
