@@ -160,6 +160,17 @@ later runs the same session. Most likely a race between `git push` and PR-head p
 is a **fail-open** on the project's primary CI gate (QUAL-27 cousin). If it recurs, file it; the fix
 would re-resolve and compare the head SHA *after* the watch completes rather than pinning it at start.
 
+> **Related but NOT a recurrence — observed 2026-08-10 (PR #456).** `ci-wait.sh` reported
+> `FAIL — 1 check(s) not green` and then printed **nothing after the colon**; an immediate re-run on
+> the *same* SHA reported `PASS — all 18 green`, and a direct check-runs query showed all 18 already
+> `success`. This is the **opposite direction** from D-24 — fail-*closed* on a transient (almost
+> certainly one of the duplicate-trigger runs still in flight), which is the gate behaving as
+> designed ("absence of evidence is treated as failure"). Logging it only because the **empty finding
+> list** is a real diagnostic weakness: a genuine failure and a transient look identical at the
+> point of failure, so the reader's only recourse is to re-run and see if it sticks. Not filed as a
+> defect — the gate's verdict was safe, and D-03's precedent says one contained instance is not a
+> rule. If it recurs, the fix is to print *which* check was not green, not to change the verdict.
+
 ### D-26: Declare a spike's effort-box / kill-criterion up front — watch
 2026-08-05. Proposed after the GE-17 spike ran ~4 days / ~15 design-review PRs with zero shipped code
 before being killed. Deferred, not adopted: the team is already process-rich, and **OP-33** (the
