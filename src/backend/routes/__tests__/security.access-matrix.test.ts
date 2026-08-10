@@ -852,7 +852,7 @@ describe('Part F — Cross-tenant row-level isolation (QUAL-43 / ADL-53 §5.1)',
     expect(res.status).not.toBe(403);
   });
 
-  it('POST .../carry-forward — SEC-02: caller cannot carry forward ANOTHER user\'s item into their own trip', async () => {
+  it("POST .../carry-forward — SEC-02: caller cannot carry forward ANOTHER user's item into their own trip", async () => {
     const tripAId = await seedTrip(testDb!, USER_A_ID);
     const cityId = await seedCity(testDb!);
     const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
@@ -891,7 +891,7 @@ describe('Part F — Cross-tenant row-level isolation (QUAL-43 / ADL-53 §5.1)',
   // actually satisfiable — an always-empty response for the wrong reason
   // (e.g. a bad status literal) would otherwise pass vacuously.
   // --------------------------------------------------------------
-  it('GET /api/cities/:id/carry-forward — cross-tenant caller sees an empty list, not the owner\'s next_time items', async () => {
+  it("GET /api/cities/:id/carry-forward — cross-tenant caller sees an empty list, not the owner's next_time items", async () => {
     const tripAId = await seedTrip(testDb!, USER_A_ID);
     const cityId = await seedCity(testDb!);
     const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
@@ -925,7 +925,7 @@ describe('Part F — Cross-tenant row-level isolation (QUAL-43 / ADL-53 §5.1)',
   // Same shape as F3: global route, isolation via eq(items.userId, userId)
   // at cities.ts:792. Expected shape (F4): EMPTY RESULT cross-tenant.
   // --------------------------------------------------------------
-  it('GET /api/cities/:id/items — cross-tenant caller sees an empty list, not the owner\'s completed items (SEC-01)', async () => {
+  it("GET /api/cities/:id/items — cross-tenant caller sees an empty list, not the owner's completed items (SEC-01)", async () => {
     const tripAId = await seedTrip(testDb!, USER_A_ID);
     const cityId = await seedCity(testDb!);
     const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
