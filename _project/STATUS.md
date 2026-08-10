@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (83)
+## Open work (84)
 
 ### P1 — Critical (1)
 
@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (44)
+### P2 — Important (45)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -64,6 +64,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-87 | Add-place picker does not narrow/rank candidates by the trip's assigned country/countries | architect | done_pending_uat |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
 | BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
+| QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | 🔄 In progress |
 | QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
@@ -125,10 +126,10 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `██████████████░░░░░░` 61/86 | 61 | 25 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 32/59 | 32 | 27 | 2 |
+| chore | `███████████░░░░░░░░░` 32/60 | 32 | 28 | 1 |
 
 <details>
-<summary>Deferred (10)</summary>
+<summary>Deferred (9)</summary>
 
 | ID | Title | Owner |
 |---|---|---|
@@ -141,7 +142,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | UX-05 | Photos — full implementation | frontend |
 | BRD-PL0104 | Planning core — idea pool → booked across all item types (PL-01–04) | fullstack |
 | BRD-CU0103 | Shell trips — fast historic catch-up entry (CU-01–03) | fullstack |
-| QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect |
 
 </details>
 
@@ -160,4 +160,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_181 done · 10 deferred · 5 closed · 83 open — 279 tracked items_
+_181 done · 9 deferred · 5 closed · 84 open — 279 tracked items_
