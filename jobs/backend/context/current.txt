@@ -1,4 +1,55 @@
-BACKEND CONTEXT — 2026-08-10 (QUAL-43 / ADL-53 Stage 0 thread, latest)
+BACKEND CONTEXT — 2026-08-10 (QUAL-43 / ADL-53 Stage 2 thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: extracted citiesRepository + cityIdentityService out of the
+  840-LOC cities god-route (ADL-53 §4 / D3, §6 Stage 2) on branch
+  feat/qual43-stage2-cities-extraction. Zero behaviour change: 808/808
+  pre-existing backend tests still green with NO existing test file edited;
+  +19 new direct unit tests (827 total).
+  1. NEW src/backend/repositories/cities.ts — the DB access surface: search
+     (GE-16 containment), findByIdWithRegion / findById, findByOsmRef, the
+     D13 identity-key primitives (findByIdentityKey,
+     findRegionlessUpgradeCandidate, findByNameAndCountry), insert /
+     updateCity, the country/region reference lookups the create path
+     validates against, and the two city-scoped USER-OWNED reads
+     (findCarryForwardItems, findCityItems).
+  2. NEW src/backend/services/cityIdentityService.ts — the identity algebra
+     moved verbatim: findOrUpgradeCity (D13 three-step find-or-upgrade),
+     createOrReuseCarriedCity (BUG-75 OSM-carried identity), insertCityOrReuse
+     (M1/F3 caught-violation → re-select). Holds no db handle; all DB access
+     goes through citiesRepository.
+  3. routes/cities.ts 861 → 418 LOC, handlers thin, ZERO getDb call sites.
+     What deliberately STAYED in the route (ADL-53 OQ-3): the
+     resolve-then-create geocode ORCHESTRATION (resolveCityName, the
+     fire-and-forget resolveCity after a pending insert) and serializeCity
+     (§9 — serializer unification is out of scope).
+  4. The two user-owned joins now compose the chokepoint —
+     scopeToUser(trips, userId) for carry-forward, scopeToUser(items, userId)
+     for city items. Term ORDER preserved inside each and(...) so the emitted
+     SQL is unchanged. npm run scope:check PASS (10 sources scanned).
+  5. cities' OTHER creator predicate is NOT ownership and was deliberately
+     left hand-written: GE-16 containment / the wildcard-upgrade whitelist key
+     on cities.createdByUserId, a creator-VISIBILITY rule on a global table.
+     `cities` is absent from UserOwnedTable, so routing it through scopeToUser
+     is a compile error by construction. Both files say so in their headers.
+  6. NEW src/backend/services/__tests__/cityIdentityService.test.ts (19 tests)
+     — the testability prize §4 names. Mock-fidelity per QUAL-22: every
+     unique-violation assertion runs against a REAL libSQL instance built by
+     replaying the real migrations, so uniq_cities_osm_ref and
+     uniq_cities_pending_per_creator are live and produce the violations; FKs
+     are ON, which is what makes "a non-unique constraint error is rethrown,
+     not swallowed" a real assertion. Suite mutation-tested (2 injected
+     defects, both caught) rather than merely observed green.
+  NOT asserted, deliberately: cross-tenant OWNERSHIP isolation on `cities` —
+  there is none to assert on global reference data, and a test pretending
+  otherwise passes vacuously (ADL-53 D3 scope guard). The two user-owned
+  joins are covered by Part F of security.access-matrix.test.ts (Stage 1).
+  OUT OF SCOPE and untouched: atomicity (the db.transaction() avoidance is
+  preserved exactly, ADL-53 D8), geocode dual-identity consolidation (GE-19),
+  serializer unification, and every file in Stage 3's set (map/admin/places/
+  shading.service).
+
+=== PRIOR STATUS: QUAL-43 / ADL-53 Stage 0 thread ===
+BACKEND CONTEXT — 2026-08-10 (QUAL-43 / ADL-53 Stage 0 thread)
 PROJECT: Travel Tracker
 CURRENT STATUS: shipped the userId-scoping chokepoint (ADL-53 §6 Stage 0) on
   branch feat/qual43-stage0-scope-chokepoint. Pure DRY refactor of
