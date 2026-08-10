@@ -306,6 +306,24 @@ a wrong eight-delete design when it was skipped once. Same shape as the negative
 rule above: a single reasoning chain, even given a chance to double back, tends to
 re-confirm its own premise — genuinely independent eyes catch what a self-check doesn't.
 
+**Tier the review by stakes (design-reflection R5, PO-directed) — but never tier away independence.**
+Every cited Architect deliverable still gets a fresh-eyes review; nothing skips it. What the reason
+for this rule demands at *every* level — a single chain re-confirms its own premise — is that the
+reviewer is **always a freshly-dispatched agent, never the author re-checking itself**. What scales
+with stakes is the reviewer's *model and depth*:
+- **High-stakes** (the OP-35 objective trigger — schema / migration / access-matrix / data-integrity
+  invariant like uniqueness/FK/dedup / shared-contract release) → a full fresh **Opus** review, deep
+  adversarial stress-test (the original behaviour).
+- **Low-stakes** (a cited ADL *not* in those classes — process, tooling, doc-structure, naming) → a
+  lighter fresh review: still an independent fresh chain, but a cheaper-tier (**Sonnet**) reviewer
+  running a focused checklist (premise / negative-findings check + the amendment-seam check below),
+  not a full stress-test.
+- **Optional escalation** — for the hardest *non-security* reasoning (e.g. a gnarly data-integrity /
+  dedup invariant), **Fable** may stand in for Opus. Not a mandatory tier. **Do not** route
+  security-flavoured reviews (access-matrix, auth, `userId`-scoping) to Fable: its cybersecurity
+  classifiers can refuse benign security-review content, and an Agent-tool dispatch has no
+  refusal-fallback.
+
 **Two refinements adopted 2026-08-08 (PO direction; ADL-52).** Both prevent the same silent
 failure — a review that comes back clean because it spent itself on the wrong target looks
 identical to one that genuinely found nothing.
