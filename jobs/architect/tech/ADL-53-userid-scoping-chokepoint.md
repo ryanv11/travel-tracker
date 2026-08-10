@@ -128,7 +128,7 @@ narrows *how the exit-check is read*, not the design, and does **not** trigger a
 | D4 | Reuse, don't reinvent | Extend the existing `tripRepository`/`companionRepository` pattern (OP-06 §5.2/§5.3 already marks it PASS); the helper is the DRY collapse of `eq(table.userId, userId)` already written N times | High |
 | D5 | Global reads leave the route layer too | Route handlers touch **no** `getDb()` at all; global reference reads (countries/regions/city-by-id) route through unscoped-but-explicit repo methods so the guard is a trivial grep. **(REVISED §5.1: absolutist scope confirmed; its true cost is larger than first stated — six route files hold `getDb`, not one.)** | Medium |
 | D6 | Staged migration — organised by the global-vs-user-owned split (REVISED) | **6 stages, spined on §5.1's split**: global-reference-read consolidation (no cross-tenant axis, `ATDD-first: no`) is kept *separate* from user-owned-read relocation (silent-cross-tenant-drop risk → `ATDD-first: yes`, cross-tenant red-bar, expand/contract). Guard flip is **strictly last**. Each stage independently green + deployable | High |
-| D7 | Phase-3 seam shape | Design the single change-point signature (`scopeToUserOrShared`) now; defer sharing *semantics* (roles, `shared_with`) to Phase-3/SE-01. **(REVISED 2026-08-10 F1:** "single change-point" is contingent — it is true for *read-scoping* once `scope.ts` exists, and true for *ownership* only once Stage 0 also folds the JS-comparison gates (`assertWritable`) through the chokepoint; the assertion helper `assertOwned`/`assertWritable` is the second edit-point a sharing change touches for derived/join reads — see §7.) | High |
+| D7 | Phase-3 seam shape | Design the single change-point signature (`scopeToUserOrShared`) now; defer sharing *semantics* (roles, `shared_with`) to Phase-3/SE-01. **(REVISED 2026-08-10 F1:** "single change-point" is contingent — it is true for *read-scoping* once `scope.ts` exists, and true for *ownership* only once Stage 0 also folds the JS-comparison gates (`assertWritable`) through the chokepoint; the assertion helper `assertOwned`/`assertWritable` is the second edit-point a sharing change touches for derived/join reads — see §7.) **(CORRECTED 2026-08-10 post-Stage-0, COO:** also contingent on a premise the ADL never stated — that ownership lives only in `repositories/**`+`routes/**`. It does not: four predicates sit in `services/shading.service.ts` with no owning stage. Folded into Stage 3; the residual set is now determined by the widened `scope-completeness-check.sh`, not by hand-inventory — see §7's CORRECTION block.) | High |
 | D8 | Explicitly out of scope | Transaction/atomicity (reflection risk #3), geocode dual-identity consolidation (risk #2 / GE-19), serializer unification (risk #5). Each rides its own decision | High |
 | **D9** | **Fresh `getDb`-in-routes inventory + global/user-owned classification (REVISED, B1)** | **Six route files call `getDb()` directly (cities, places, trips, map, admin, items-helper). Each call site is classified global-reference-read vs user-owned-read in §5.1; the classification determines its stage, its ATDD-first mark, and whether it carries a cross-tenant red-bar** | High |
 | **D10** | **Stage-numbering reconciliation (REVISED, B2)** | **The old §6 table and the COO OQ-4 adjudication assigned different work to S0/S2/S3. Both are stamped superseded; one coherent scheme replaces them (revised §6). Authorised to revisit the OQ-4 adjudication — see §11** | High |
@@ -572,6 +572,28 @@ export function scopeToUser(table: UserOwnedTable, userId: string): SQL {
 > not re-hand-roll ownership as a JS compare — F1). This single-definition property is **contingent on
 > Stage 0 folding the JS-comparison gates in**; before that fold, `assertWritable` was a second,
 > independent ownership site a Phase-3 change would have had to find separately.
+
+> **CORRECTION (2026-08-10, COO — post-Stage-0 finding, PR #487).** The single-definition property was
+> **also** contingent on something this ADL never stated: that ownership is expressed only in
+> `repositories/**` and `routes/**`. It is not. **`src/backend/services/shading.service.ts` holds four
+> hand-written ownership predicates** (`:169`, `:209`, `:247`, `:291` — all `eq(trips.userId, userId)`),
+> and **no stage in §6 owns `src/backend/services/**`**. Verified by two probes that fail differently:
+> a repo-wide grep for `eq(\w+\.userId` outside `repositories/`+`routes/` returns exactly those four
+> (and zero JS-comparison gates outside `repositories/`), and a read of §6's stage table end-to-end
+> shows Stage 0 = repositories, Stages 2/3/4 = `routes/**`, Stage 5 = the guard flip — `services/**`
+> appears nowhere. **Not a cross-tenant bleed:** all four are correct today and covered by
+> `services/__tests__/shading.user-scope.test.ts`. But as staged, D7's single change-point is **not
+> reached even after Stage 5**.
+>
+> This is structurally the **same class as F1** — ownership expressed somewhere the stage's grep never
+> looks — one directory over rather than one syntactic form over. Two hand-inventories (§5.1, then F1's
+> re-inventory) both missed it, which indicts the *method*, not the inventories. **Remedy (COO, PO-agreed
+> 2026-08-10): stop inventorying by hand.** `scripts/scope-completeness-check.sh` (landed by Stage 0)
+> is widened from `repositories/*.ts` to all of `src/backend/**` minus tests, and *its* output — not a
+> human reading files — defines the residual set. The four shading sites are folded into **Stage 3** as
+> Stage-0-shaped work (composing the existing helper into already-correct predicates; mechanical, no
+> ATDD, existing suites as the net), **not** Stage 4 — they are not relocations, and putting them there
+> would have required a temporary allowlist in the widened check, which rots.
 
 **Reasoning:**
 - The whole point of D1 is that after Stage 0 (`scope.ts` + the assertion helper), "who may see this row"
