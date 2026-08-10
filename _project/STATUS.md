@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (82)
+## Open work (83)
 
 ### P1 — Critical (1)
 
@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (43)
+### P2 — Important (44)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -66,6 +66,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
+| QUAL-29 | Admin name-list resource (categories/activities/companions) triplicated across four layers — an admin-list factory that used to exist was unwound by the per-user migrations | architect | ◐ Partial |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 | OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
 | QUAL-37 | Backup posture — COO memory dir + Turso DBs are unversioned/reseed-only; back up before non-disposable UAT data | coo | ⬜ Pending |
@@ -124,7 +125,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `██████████████░░░░░░` 61/86 | 61 | 25 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 32/58 | 32 | 26 | 2 |
+| chore | `███████████░░░░░░░░░` 31/58 | 31 | 27 | 2 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -159,4 +160,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_181 done · 10 deferred · 5 closed · 82 open — 278 tracked items_
+_180 done · 10 deferred · 5 closed · 83 open — 278 tracked items_
