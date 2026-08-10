@@ -1,0 +1,66 @@
+QA COMPLETION REPORT
+================================================================================
+Tracker: BUG-87 / GE-20 · GitHub PR #466 · BRD §5.1 GE-20 (approved v3.21)
+Branch: feat/bug87-ge20
+
+WHAT WAS TESTED
+--------------------------------------------------------------------------------
+Authored the RED acceptance/integration ATDD bar for GE-20 (trip-country-
+scoped place picker) per OP-35 — BEFORE Backend implements Brief A, per
+ADL-54's ATDD-first: yes marking. Two new files against current main
+(@ 4c38d90):
+  - src/backend/routes/__tests__/ge20-cities-country-filter.test.ts
+  - src/backend/routes/__tests__/ge20-geocode-country-filter.test.ts
+11 assertions total, covering GE-20's success criteria + the ADL-54
+fresh-eyes review's F1 (empty-set footgun) and F4 (seam vs the D12
+create-path constraint) findings.
+
+PASS/FAIL VERDICT (RED bar — this IS the intended state)
+--------------------------------------------------------------------------------
+5/11 RED for the right reason (clean AssertionErrors, no import/exception
+noise): cities single-country narrow, cities multi-country union, cities
+off-country-empty, geocode client-args+union, geocode off-country-empty.
+6/11 pass — 4 genuine regression guards (absent-param backward-compat x2,
+F4 seam vs POST /api/cities D12 create constraint x2) + 2 F1 empty-string
+guards that pass VACUOUSLY today (no filtering exists yet) but are kept,
+labelled honestly, to catch the specific naive-implementation footgun
+fresh-eyes flagged as the top non-blocking risk. All 6 explicitly labelled
+in-file (GUARD/REGRESSION GUARD) — not miscounted as red, per the BUG-76
+ATDD precedent.
+
+Confirmed in CI (PR #466, run 31297060411): Backend Tests — 5 failed, 768
+passed, matching local exactly. Every other check green: Frontend Tests,
+Type Check, Biome, Contract Tests, E2E Tests, Semgrep, Gitleaks, Dependency
+Scan — all pass.
+
+BUGS FOUND
+--------------------------------------------------------------------------------
+None (this thread authors tests against unbuilt behaviour, not a bug hunt
+against shipped code).
+
+CI
+--------------------------------------------------------------------------------
+gh pr checks 466 — Backend Tests FAIL (expected, by design — the ATDD red
+bar). All 8 other checks PASS. This is the correct/intended CI state for
+an ATDD handoff PR; do not merge alone.
+
+OPEN ISSUES / BLOCKERS
+--------------------------------------------------------------------------------
+None blocking. Two noted gaps carried forward for Backend's brief (not
+blockers to starting):
+1. ADL-54's recommended invalid-country_codes-value rejection and ~10-code
+   cap are Brief A implementation details, not in my enumerated 7-item
+   test list — not red-tested, Backend should still implement per the ADL.
+2. Fresh-eyes P2 (non-blocking): Nominatim's real multi-country
+   `countrycodes` behaviour is UNVERIFIED from this environment (firewall).
+   My geocode double models documented behaviour, not a live probe —
+   recommend an early real multi-country geocode check against staging
+   before this feature is trusted in a UAT verdict.
+
+NEXT
+--------------------------------------------------------------------------------
+Dispatch Backend to implement Brief A against feat/bug87-ge20, targeting
+all 11 assertions green (5 currently red; the 2 F1 guards must stay green
+for the RIGHT reason — an explicit set.length branch, not luck). Full
+detail: jobs/qa/tech/20260808-ge20-atdd-red-tests.md. Park doc (thread 2):
+jobs/qa/park-docs/20260808-QA-park.txt.

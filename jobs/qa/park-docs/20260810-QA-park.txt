@@ -1,0 +1,68 @@
+QA PARK DOCUMENT — 2026-08-10
+================================================================================
+
+SESSION SUMMARY
+
+Dispatched: QUAL-43 Stage 1 — cross-tenant row-level isolation matrix, the
+OP-35 ATDD red bar for ADL-53's userId-scoping-chokepoint build. Design read
+from origin/feat/adl53-userid-scoping-chokepoint:
+jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md (not on main yet).
+
+WHAT WAS DONE
+
+Extended src/backend/routes/__tests__/security.access-matrix.test.ts (Part F)
+naming every §5.1 user-owned getDb() path and asserting the F4 shape per
+endpoint class (empty result for reads, 404 never-403 for mutations). Reused
+the file's existing real-libSQL two-user harness rather than building a
+parallel rig, per the brief's reuse audit. Full detail, path→test mapping,
+and the two mutation-test anti-vacuous proofs:
+jobs/qa/tech/20260810-qual43-stage1-crosstenant-matrix.md
+
+Branch: feat/qual43-stage1-crosstenant-matrix (off main). Commits:
+  - [QA] QUAL-43 Stage 1: cross-tenant row-level isolation matrix
+  - chore: biome formatting fix
+  - chore(qa): park session 2026-08-10 (this commit, jobs/ housekeeping)
+PR: see completion report / jobs/COO/inbox for the number and CI status.
+
+VERDICT
+
+All 8 new assertions GREEN on current main (expected — ADL-53 F5: no active
+cross-tenant bleed today, isolation holds by convention, not structure). No
+red path found — nothing to escalate to COO as a latent gap. This is the
+foundation-red-bar QUAL-43 asked for, not a bug hunt; the "pass" here means
+the regression net is now in place for Backend's Stage 0/2/3/4 relocations,
+which must keep Part F green through every switch and go RED if a predicate
+or a prior ownership assertion is dropped mid-relocation.
+
+Two of the sharpest assertions (trips.ts:223, places.ts:253) were
+mutation-tested — the predicate they guard was temporarily removed in
+production code, the corresponding test observed to fail for the right
+reason (not vacuously), then reverted before commit. git diff --stat
+confirmed zero production-code diff in the committed state.
+
+BUGS DISCOVERED
+
+None. No §5.1 path was red on current main.
+
+OPEN ITEMS / BLOCKERS
+
+None for this thread. Downstream: Backend's Stage 0 (scope.ts) is the
+substrate this matrix will validate once written; Stages 2/3/4 relocate the
+named §5.1 paths and must keep this file's Part F green throughout (per
+ADL-53 §6's ordering constraints — Stage 0 before Stage 1 can mean anything,
+Stage 1 before any Stage 4 switch).
+
+npm audit (fresh worktree `npm install`): 6 MODERATE severity advisories, no
+HIGH/CRITICAL. Not introduced by this thread (no package.json/lockfile
+change made) — reported per frameworks.txt rule 20 for COO disposition, not
+blocking this thread's closure.
+
+NEXT SESSION START POINT
+
+Once Backend lands Stage 0 (scope.ts + repo refactor) and Stages 2-4 relocate
+the §5.1 paths, re-run this file's Part F (and the full backend suite) as the
+acceptance gate for each relocation PR. No QA action needed until then unless
+Backend or the COO flags a Part F assertion going red for an unexpected
+reason during implementation — in which case treat it as the regression net
+doing its job, not a QA bug in the matrix itself, unless the failure message
+indicates a test-authoring defect rather than a genuine predicate drop.

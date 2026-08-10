@@ -121,13 +121,13 @@ export const cities = sqliteTable(
     }),
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
     updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    // BUG-75 / GE-16 (v3.19) identity carry channel (ADL-47 EXPAND, migration 0016).
-    // Carried, not derived: the geocoder's OSM (osm_type, osm_id) reference is the identity key;
-    // display_name is render payload only, never a match key (design v3 §0/§2.3). All three are
-    // DELIBERATELY NULLABLE at EXPAND — no code populates them yet, existing rows stay NULL, and
-    // the SWITCH stage (migration 0017) is what makes osm_id load-bearing via the new partial
-    // unique index below. osm_id is INTEGER (OSM node/way/relation ids are integers; osm_type
-    // distinguishes N/W/R namespaces, so the pair — not osm_id alone — is the identity key).
+    // BUG-75 / GE-16 (v3.19) identity carry channel. Nullable by design: the geocoder's OSM
+    // (osm_type, osm_id) reference is the identity key; display_name is render payload only, never
+    // a match key (design v3 §0/§2.3). Since the SWITCH stage (migration 0017) landed, osm_id is
+    // load-bearing via the partial unique indexes below, and the find-or-create paths in cities.ts
+    // populate all three (older rows may remain NULL). osm_id is INTEGER (OSM node/way/relation ids
+    // are integers; osm_type distinguishes N/W/R namespaces, so the pair — not osm_id alone — is the
+    // identity key).
     osmType: text('osm_type'),
     osmId: integer('osm_id'),
     displayName: text('display_name'),
@@ -462,8 +462,16 @@ export const tripPlaceActivitiesMap = sqliteTable(
 
 /**
  * Trip ↔ Country junction — tracks which countries a trip visits (ADL-23).
- * Derived from trip_places via city → country_code, but stored explicitly for
- * efficient map shading queries without repeated aggregation joins.
+ * USER-DECLARED and editable, not derived (this comment was stale — corrected
+ * GE-20/ADL-54, verified by two independent probes: a grep of every writer
+ * of this table found only POST/PATCH /api/trips (trips.ts) and the
+ * trip-countries sub-router, never places.ts; and TripForm.tsx already
+ * renders a country multi-select submitting country_codes on both trip
+ * create and edit). The set is declared at trip creation and editable at any
+ * time via the trip form — it is the input to GE-20's picker filter, not an
+ * aggregation of already-added places' countries (that would make a hard
+ * filter circular: you couldn't add a place in a country until you'd already
+ * added a place in it).
  * Cascade delete: removing a trip removes its country associations.
  * RESTRICT on country: a country record must exist before it can be linked.
  */

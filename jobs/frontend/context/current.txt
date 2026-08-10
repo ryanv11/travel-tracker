@@ -1,3 +1,216 @@
+FRONTEND CONTEXT — as of 2026-08-08 (BUG-87/GE-20 Brief B — trip-country
+picker filter, feat/bug87-ge20-picker-country-filter branch, PR #469)
+
+STATUS: feat/bug87-ge20-picker-country-filter branch off main, PR #469 open,
+  CI green (18/18 checks — scripts/ci-wait.sh pr 469 → PASS). Brief B, the
+  final BUG-87 build piece — the backend contract (Brief A, country_codes on
+  GET /api/cities and GET /api/geocode) was already merged to main before
+  this thread started. Governing docs: jobs/architect/tech/ADL-54-trip-
+  country-picker-filter.md (design + COO Q1/Q2/Q3 adjudication) and
+  jobs/architect/tech/20260808-ADL54-fresh-eyes-review.md (F1/F2 findings).
+  Full detail in the 2026-08-08 (this thread) park doc.
+
+  WHAT WAS BUILT: threaded trip.countries into AddPlaceFlow.tsx (the ONE
+  shared component both TripDetail.tsx (desktop) and MobileTripDetailView.tsx
+  (mobile) render — there is no separate "mobile twin" component, just two
+  call sites) so useCitySearch and lookupCityCountry both ALWAYS send the
+  trip's declared country_codes, present-but-empty for a zero-country trip
+  (backend's documented unconstrained contract, PO Q1). New AddPlaceFlow
+  props: tripCountries ({country_code, name}[], sourced straight off
+  trip.countries — already on the payload, no extra fetch) and
+  onManageCountries (closes the flow, opens the existing TripForm edit modal
+  — the "trip country editor" GE-20 refers to — via a new
+  useTripDetailController.handleManageCountries handler shared by both call
+  sites, reused rather than building a second editor).
+
+  UI: a "Filtered to: United Kingdom, France +2" note above the search input
+  (Q3 copy, truncated via new shared util formatCountriesFilterNote.ts) when
+  the trip has declared countries; a "no countries yet" unconstrained prompt
+  with an "Add countries" action in its place when it doesn't (D3/Q1); an
+  off-country empty-state ("No matches in United Kingdom.") with an "Add a
+  different country to this trip" action when a filtered search comes back
+  empty (D4a/Q2) — "+ Add new" stays available alongside it, since an empty
+  DB search can't distinguish "not in the catalogue yet" (still addable, still
+  in-set) from "genuinely outside the trip's countries."
+
+  F2 (fresh-eyes finding, MANDATORY per the brief): new
+  AddPlaceFlow.ge20-country-filter.test.tsx pins that country_codes is sent
+  on BOTH lookup paths — the executable guard for GE-20's "cannot be bypassed
+  from within the picker" success criterion, since Brief B carries no other
+  red test for it (ATDD-first: no per ADL-54 D10). Also covered at the hook
+  level (useCities.citySearch.test.tsx — new file; useCities.geocode.test.tsx
+  — extended).
+
+  DESIGN CALL — useCitySearch/lookupCityCountry default countryCodes to []:
+  ChangeCityModal.tsx's re-point-flow city search also calls useCitySearch
+  and was NOT touched — GE-20's text and ADL-54 D6 both scope the filter to
+  "adding a place to a trip," a different operation from re-pointing an
+  existing place's city. The [] default keeps that call site's existing
+  unconstrained behaviour with zero call-site edit required, rather than
+  forcing every non-GE-20 caller to pass an empty array explicitly.
+
+  FLAGGED, NOT FIXED (see PR #469 description "Deliberately not done"): the
+  "+Add new" city-creation form's manual country <select> (lists every
+  country) is NOT restricted to the trip's declared set. Neither ADL-54 nor
+  the fresh-eyes review scope "the picker" to include this manual fallback —
+  F2 explicitly frames the "cannot be bypassed" guarantee as the two
+  AUTOMATED lookup paths, not manual entry. This is a real, if narrow, way a
+  determined user could still create a city in an out-of-trip country today
+  (bypassing the DB-search/geocode filters entirely via manual creation) —
+  flagged to COO/PO as a scope decision, not assumed in or out of this brief.
+
+  VERIFICATION: npm run check — clean (5 pre-existing infos in a backend test
+  file this thread never touched, same count prior threads have noted).
+  npm run type:check:all — clean. npm run test:backend — 801/801 (unaffected,
+  no backend files touched). npm run test:frontend — 388/388 (+23 new: 2
+  useCities.geocode, 5 useCities.citySearch [new file], 6
+  formatCountriesFilterNote [new file], 9 AddPlaceFlow.ge20-country-filter
+  [new file], 1 useTripDetailController). npm run status:check /
+  npm run tracker:check — clean (no tracker.json edit made this thread —
+  BUG-87 status flip is COO's job at merge, per this file's established
+  pattern). npm audit — 6 pre-existing MODERATE findings (esbuild/drizzle-kit,
+  react-router), unrelated (no package.json/package-lock.json change),
+  flagged per frameworks.txt rule 20, not fixed here.
+
+  KEY FILE LOCATIONS (new/changed this thread)
+    src/frontend/hooks/useCities.ts (useCitySearch, lookupCityCountry,
+      fetchGeocodeResultWithRetry — country_codes threading)
+    src/frontend/hooks/__tests__/useCities.citySearch.test.tsx (new)
+    src/frontend/hooks/__tests__/useCities.geocode.test.tsx (+2 tests)
+    src/frontend/utils/formatCountriesFilterNote.ts (new)
+    src/frontend/utils/__tests__/formatCountriesFilterNote.test.ts (new)
+    src/frontend/components/TripDetail/AddPlaceFlow.tsx (tripCountries/
+      onManageCountries props, note/prompt/empty-state UI)
+    src/frontend/components/TripDetail/__tests__/
+      AddPlaceFlow.ge20-country-filter.test.tsx (new, includes F2)
+    src/frontend/components/TripDetail/__tests__/AddPlaceFlow*.test.tsx
+      (6 pre-existing files — renderFlow() call sites updated with the two
+      new required props, tripCountries={[]}, behaviour otherwise unchanged)
+    src/frontend/components/TripDetail/useTripDetailController.ts
+      (handleManageCountries handler, shared by both call sites)
+    src/frontend/components/TripDetail/__tests__/
+      useTripDetailController.test.tsx (+1 test)
+    src/frontend/components/TripDetail/TripDetail.tsx (desktop call site —
+      tripCountries={trip.countries}, onManageCountries={c.handleManageCountries})
+    src/frontend/components/TripDetail/MobileTripDetailView.tsx (mobile call
+      site — same two new props)
+
+  NEXT STEPS (when resumed)
+    COO: review PR #469, merge via /coo-merge-and-close when ready, flip
+    BUG-87 tracker status to done/done_pending_uat with the PR number. Decide
+    on the two flagged-not-fixed scope questions above (ChangeCityModal
+    filtering, manual country <select> restriction) — follow-up briefs if
+    wanted, not assumed here. PO: the ADL-54 fresh-eyes review's P2 finding
+    (Nominatim's real multi-country countrycodes behaviour is UNVERIFIED from
+    this container — firewall) still wants an early real multi-country
+    geocode check on staging before UAT trusts this feature, per that
+    review's recommendation — unrelated to this frontend thread's own scope,
+    carried forward as a reminder.
+
+========================================================================
+PRIOR THREAD — retained in full below per this file's established
+newest-first pattern.
+========================================================================
+
+FRONTEND CONTEXT — as of 2026-08-08 (BUG-58/86/91/93 + UX-14 Scotland
+dogfood UAT fixes, fix/uat-0808-selection-picker-map-dates branch)
+
+STATUS: fix/uat-0808-selection-picker-map-dates branch off main, PR open
+  (see completion report for #), CI pending/green (see report). COO-dispatched
+  batch of 5 UI defects from the 2026-08-08 Scotland dogfood UAT — all
+  frontend-only, no BRD-gated new behaviour. Full details in the 2026-08-08
+  (this thread) park doc.
+
+  BUG-58/BUG-86 (same root cause, fixed together per the brief's reuse
+  instruction): ReviewPanel's onClose prop was wired to
+  navigate('/trips') in both TripDetailPage (desktop) and
+  MobileTripsLayout (mobile) — that drops the trip's :id from the URL,
+  deselecting it. BUG-58's PRIOR fix (2026-07-28, PR #319) only removed the
+  onClose() call from the BACKWARD "Return to Planning" handler; the FORWARD
+  Lock path (handleLock) and the unconditional "Back to Trip" button still
+  called it. New shared hook hooks/useReviewPanelVisibility.ts decides which
+  surface (ReviewPanel vs TripDetail) renders for a review_pending trip via
+  local dismiss state, never navigation — locking needs no explicit dismiss
+  (status flips away from review_pending, hook recomputes false
+  automatically); "Back to Trip" calls the hook's dismissReview(), which
+  TripDetail already renders correctly for a review_pending trip (its
+  stepper already maps review_pending -> "Lock Trip", see
+  useTripDetailController's NEXT_STATUS). Dismissal is scoped to
+  (tripId, status) so a different trip, or this trip re-entering
+  review_pending later, shows ReviewPanel again by default (RV-01/RV-02).
+  Wired into both TripDetailPage and MobileTripsLayout identically.
+
+  BUG-91: TripForm's "Search countries…" input had no onKeyDown handler, so
+  pressing Enter there fell through to the browser's native
+  "Enter-submits-the-form" behaviour (any single-line text input submits an
+  enclosing form with a submit button on Enter, regardless of which field has
+  focus) — saved and closed the whole Create/Edit Trip modal before the user
+  could set dates, and WITHOUT the typed country even being captured (only a
+  dropdown-row click commits to selectedCountryCodes; the row buttons are
+  already type="button" and were never the problem — confirmed by
+  reproducing both paths in a component test BEFORE writing the fix). Fix:
+  onKeyDown preventDefault on Enter, scoped to that one input. Owner-scope
+  (tracker's UNVERIFIED note): confirmed NOT owner-scoped — TripForm has no
+  owner/non-owner branching anywhere, and neither layout gates the "New
+  Trip" button/TripForm's mount by owner status (grep: the only owner-gated
+  control in either layout is the unrelated Admin nav tab).
+
+  BUG-93: usePlaces.ts's useAddPlace onSuccess invalidated only
+  ['trips', tripId] and ['map', 'shading'] — neither prefix-matches the bare
+  ['trips'] list query MapPage's useTrips() (no filters) uses to feed
+  CityMarkers, so a newly added place's marker didn't paint until something
+  else refetched that list. VERIFIED not a geocoding delay (per the tracker
+  note, city resolves with coords at creation). Fixed by invalidating the
+  broader ['trips'] key instead — same precedent useRemovePlace (BUG-32)
+  already set in this exact file, and ['trips'] prefix-covers
+  ['trips', tripId] too so the trip detail view keeps refreshing unchanged.
+
+  UX-14: PlaceSection.tsx's hasExplicitDates-driven blue/bold date-range
+  accent is a DELIBERATE, uniform, data-driven signal ("this place has its
+  own explicit dates" vs. "falling back to the trip's range") — verified via
+  AddPlaceFlow.tsx, which pre-fills arrived_on/departed_on ONLY for
+  isFirstPlace (BRD-DP06). Not a bug in the "inconsistent logic" sense (no
+  index-based special-casing exists), but a legitimately confusing UX
+  without an explanation. Reconciled by adding a `title` tooltip
+  ("Dates set explicitly for this place") alongside the existing accent
+  classes — no new component, matches this file's existing native-tooltip
+  pattern (e.g. "Edit arrival / departure dates").
+
+  VERIFICATION: npm run check — clean (only the same 5 pre-existing infos in
+  a backend test file this thread never touched). npm run type:check:all —
+  clean. npm run test:backend — 762/762 (unchanged, this thread is
+  frontend-only). npm run test:frontend — 365/365 (+22 new: 7
+  useReviewPanelVisibility, +1 ReviewPanel, 3 TripForm [new file — none
+  existed before], 5 usePlaces [new file — none existed before], +4
+  PlaceSection). npm run status:check / tracker:check — clean (no
+  tracker.json edit made in this thread — tracker status flip is COO's job
+  per /coo-merge-and-close).
+
+  KEY FILE LOCATIONS (new/changed this thread)
+    src/frontend/hooks/useReviewPanelVisibility.ts (new)
+    src/frontend/hooks/__tests__/useReviewPanelVisibility.test.ts (new)
+    src/frontend/components/PostTripReview/ReviewPanel.tsx (BUG-58/86)
+    src/frontend/components/PostTripReview/__tests__/ReviewPanel.test.tsx
+    src/frontend/pages/TripDetailPage.tsx (BUG-58/86, desktop wiring)
+    src/frontend/components/TripList/MobileTripsLayout.tsx (BUG-58/86,
+      mobile wiring)
+    src/frontend/components/TripDetail/TripForm.tsx (BUG-91)
+    src/frontend/components/TripDetail/__tests__/TripForm.test.tsx (new)
+    src/frontend/hooks/usePlaces.ts (BUG-93)
+    src/frontend/hooks/__tests__/usePlaces.test.tsx (new)
+    src/frontend/components/TripDetail/PlaceSection.tsx (UX-14)
+    src/frontend/components/TripDetail/__tests__/PlaceSection.test.tsx
+
+  NEXT STEPS (when resumed)
+    COO: review PR (see completion report for #), merge via
+    /coo-merge-and-close when CI is green; flip BUG-58/BUG-86/BUG-91/BUG-93/
+    UX-14 tracker entries to fixed/closed with the PR number.
+
+========================================================================
+PRIOR THREAD — retained in full below per this file's established
+newest-first pattern.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-08-08 (QUAL-29/30/31/04 dedup sweep + BUG-83
 fix, chore/frontend-dedup-sweep branch)
 

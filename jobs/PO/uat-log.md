@@ -139,6 +139,25 @@ dates blue, later places not (both roles) → **UX-14**; N3 lock deselects → *
 (not a rank); the country set is declared at trip creation and editable; to add an off-country place, edit
 the trip's countries first; the picker carries a visible note that results are filtered by the trip's countries.
 
+### ▶ RETEST — Bundle B fixes (2026-08-08, shipped to staging in PR #458)
+
+_These five were fixed after the first UAT and are back on staging. Hard-refresh, then retest. Reply
+`N PASS` / `N FAIL: …` per item; on PASS I flip `done_pending_uat → done`._
+
+1. **[BUG-58] Locking a trip no longer deselects it.** Select a trip → **lock** it → it stays selected
+   and visible in the left panel (was: blanked). (Root cause: ReviewPanel onClose navigated away, dropping
+   the trip id — now a shared visibility hook, no navigation.)
+2. **[BUG-86] "Back to trip" in review status returns to the trip.** Open a trip in **review** status →
+   **Back to trip** → lands on the active trip view, not a blank/deselected panel. (Same root as #1.)
+3. **[BUG-91] Trip-create form no longer submits early.** Add a trip → in the **country search** field
+   press **Enter** → the form does NOT save/close; you can still set dates in the same flow. (Root cause
+   was Enter → native form submit, not the picker; confirmed not owner-specific.)
+4. **[BUG-93] New place's map marker appears immediately.** Add a place → its pin shows on the map with
+   **no manual refresh**. (Root cause: the add-place query invalidation didn't match the map's query key.)
+5. **[UX-14] Blue date fields — NOT a bug (confirm the tooltip).** The blue accent is a deliberate
+   "explicit dates" signal; first-place-only-blue at creation is expected (BRD-DP06). Hover a blue date →
+   a tooltip now explains it. Just confirm the tooltip reads sensibly.
+
 #### Group 1 — Trips & list
 
 1. **[BUG-50] Delete an entire trip.**
@@ -438,6 +457,7 @@ the verdict line stays blank until you run it.
       **This item is still testable — the blocker below does not affect it.**
 
 > **BLOCKER for the rest of the non-owner pass (added 2026-07-28, BUG-63).**
+> **RESOLVED 2026-08-09 — BUG-63 shipped in the ADL-46 release and PASSED UAT in the 2026-08-08 non-owner round; closed `done`. The rest of this note is historical.**
 > Ryan reproduced BUG-63 on staging while testing as a non-owner and captured the console.
 > A non-owner **cannot add a place to a trip at all**: `GET /api/admin/categories/active`,
 > `GET /api/admin/activities/active` and `POST /api/cities` all return **403**, because each

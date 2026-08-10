@@ -44,13 +44,34 @@ citiesRouter.get(
   '/',
   validateQuery(SearchCitiesQuerySchema),
   asyncHandler(async (req, res) => {
-    const { q, country_code } = req.query as { q: string; country_code?: string };
+    const { q, country_code, country_codes } = req.query as {
+      q: string;
+      country_code?: string;
+      country_codes?: string[];
+    };
     const userId = req.user!.id;
 
     const db = getDb();
 
     const conditions = [like(cities.name, `%${q}%`)];
-    if (country_code) conditions.push(eq(cities.countryCode, country_code));
+    // GE-20 (ADL-54 D1/D2, fresh-eyes F4): country_code (singular, D12) and
+    // country_codes (plural, the trip filter SET) are separate params.
+    // Cities-path precedence contract (F4 — unspecified by the ADL, stated
+    // here per the fresh-eyes recommendation): the single explicit
+    // country_code wins when both are present, matching the geocode-path
+    // precedence D1 already states. No current caller sends both (verified:
+    // useCities.ts sends only `q`), so this branch is defensive totality,
+    // not a live path.
+    if (country_code) {
+      conditions.push(eq(cities.countryCode, country_code));
+    } else if (country_codes && country_codes.length > 0) {
+      // F1 (fresh-eyes, load-bearing): only push inArray when the set is
+      // NON-EMPTY. A present-but-empty country_codes ('' -> []) means
+      // "not yet constrained" (PO Q1 ruling) and must fall through to no
+      // filter at all — inArray(col, []) compiles to SQL `false`, which
+      // would silently return zero rows and invert that ruling.
+      conditions.push(inArray(cities.countryCode, country_codes));
+    }
 
     // ADL-46 GE-16 / D5 containment (§4.4): a 'pending' city is visible only in
     // its creator's own searches; it becomes globally visible once 'resolved'.

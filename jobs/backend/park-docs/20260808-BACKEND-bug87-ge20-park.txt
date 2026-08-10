@@ -1,0 +1,190 @@
+BACKEND PARK DOCUMENT — 2026-08-08
+Thread: BUG-87 / GE-20 — Brief A (backend contract), country_codes hard filter
+Branch: feat/bug87-ge20 (QA's own branch — NOT a new branch off main)
+PR: #466 (QA opened it holding the RED ATDD suite; this thread's commit turns it green)
+
+===============================================================================
+1. WHAT WAS BUILT
+===============================================================================
+
+GE-20's read-path filter: a new `country_codes` query param on both
+GET /api/cities and GET /api/geocode, hard-filtering results to the trip's
+declared country set (union across the set, nothing outside it). Design:
+jobs/architect/tech/ADL-54-trip-country-picker-filter.md. Fresh-eyes review:
+jobs/architect/tech/20260808-ADL54-fresh-eyes-review.md. QA's ATDD rationale:
+jobs/qa/tech/20260808-ge20-atdd-red-tests.md.
+
+Dispatch (COO): ATDD-first: yes (OP-35). Implement TO QA's tests, never edit
+them to fit the code. No QA test needed editing or looked wrong — the RED bar
+turned green exactly as designed.
+
+===============================================================================
+2. FILES CHANGED
+===============================================================================
+
+- src/backend/validation/common.ts — NEW export zCountryCodesList. A Zod
+  string().optional().transform() that:
+    * undefined -> undefined (absent)
+    * ''        -> [] (present, empty — F1's critical distinct case)
+    * "gb,fr"   -> ['GB','FR'] (trimmed, upcased, deduped)
+    * rejects any entry that isn't exactly 2 letters (custom issue, 400)
+    * rejects a deduped set > 10 distinct codes (ADL-54 D2, custom issue, 400)
+  Verified the zod v4 ctx.addIssue + z.NEVER pattern works as expected via a
+  standalone node -e probe before wiring it into the schemas (zod is v4.3.6
+  per package.json; this file had no prior addIssue/superRefine precedent to
+  copy, so I probed the API directly rather than assuming v3 semantics carried
+  over).
+
+- src/backend/validation/cities.schemas.ts — SearchCitiesQuerySchema gains
+  `country_codes: zCountryCodesList`.
+
+- src/backend/validation/geocode.schemas.ts — GeocodeQuerySchema gains
+  `country_codes: zCountryCodesList`.
+
+- src/backend/routes/cities.ts (GET /) — reads country_codes off req.query
+  (now string[] | undefined post-Zod-parse). Precedence: country_code
+  (singular) wins if present; else country_codes.length > 0 pushes
+  inArray(cities.countryCode, set) into the existing `conditions` array
+  (alongside, not replacing, GE-16 `containment`); else no filter at all
+  (covers both absent AND present-empty — the F1 branch).
+
+- src/backend/routes/geocode.ts (GET /) — same precedence; when an
+  "effective" set is non-empty, params.countrycodes = set.join(',').
+  toLowerCase() and params.limit follows D2 (CONSTRAINED_LIMIT for a
+  single-country effective set of exactly 1, DISCOVERY_LIMIT otherwise —
+  covers both "no set" and ">=2 countries").
+
+- src/backend/db/schema.ts:463-469 — trip_countries doc-comment corrected.
+  Was: "Derived from trip_places via city -> country_code." Now: user-
+  declared/editable, matching ADL-54 §1.1's two-probe finding (grep of every
+  writer of the junction table found only trips.ts create/PATCH and the
+  trip-countries sub-router, never places.ts; TripForm.tsx already renders
+  the country multi-select). Doc-comment only — no schema/migration change.
+
+- src/backend/validation/__tests__/common.test.ts — added a
+  describe('zCountryCodesList') block: undefined/empty/single/multi/trim/
+  dedup, the cap at exactly 10 vs rejecting 11 distinct, "11 raw entries but
+  1 distinct doesn't hit the cap", and malformed-code rejections (3-letter,
+  1-letter, numeric, trailing comma, one-bad-code-in-an-otherwise-good-list).
+
+- src/backend/routes/__tests__/ge20-cities-country-codes-guards.test.ts (NEW)
+  — backend-owned, real-DB (test-db.ts pattern, mirrors QA's own file's
+  setup rather than importing it — same "keep each ATDD suite byte-for-byte
+  independent" reasoning QA's file documents). Covers: malformed-code 400s
+  (3-letter, numeric, one-bad-in-a-list), the 11-over-cap 400, the
+  exactly-10 accept, and the F4 cities-path precedence contract (both
+  params present -> country_code wins).
+
+- src/backend/routes/__tests__/ge20-geocode-country-codes-guards.test.ts
+  (NEW) — same guard coverage for the geocode path (mocked nominatimSearch
+  at the service boundary, same pattern as QA's file), plus the D2 limit-
+  tier assertions (single-country set -> limit=10, multi-country ->
+  limit=40) and the geocode-path precedence contract.
+
+- jobs/backend/tech/20260307-api-reference.md — GET /api/cities and
+  GET /api/geocode sections gained `country_codes` documentation (params
+  table + prose): the empty-string-means-unconstrained contract, the
+  malformed/cap 400s, both endpoints' precedence rule, and the geocode
+  limit tier. Version bumped 1.7 -> 1.8 (document-lifecycle rule — this PR
+  changes a fact the doc asserts, same-PR update).
+
+QA's frozen files (untouched, verified via git diff against origin/main
+being empty for them beyond QA's own already-merged commits — i.e. no
+edits by this thread):
+  src/backend/routes/__tests__/ge20-cities-country-filter.test.ts
+  src/backend/routes/__tests__/ge20-geocode-country-filter.test.ts
+
+===============================================================================
+3. VERIFICATION
+===============================================================================
+
+QA's exact 2-file red-bar command, before and after:
+  BEFORE (confirmed on the QA-pushed branch before I touched anything):
+    Test Files  2 failed (2)
+         Tests  5 failed | 6 passed (11)
+  AFTER (this thread's implementation):
+    Test Files  2 passed (2)
+         Tests  11 passed (11)
+
+Full suites:
+  npm run check              -> 0 errors (biome auto-fixed my 2 new test
+                                 files' formatting once; the 5 remaining
+                                 "infos" are pre-existing, in a file this
+                                 thread never touched, cities.identity-
+                                 carry.test.ts — verified via git diff)
+  npm run type:check:all     -> clean
+  npm run test:backend       -> 801/801 passed (768 QA baseline + 5 RED->
+                                 green + 33 new: 14 zCountryCodesList unit
+                                 tests + 19 route-level guard tests across
+                                 the two new files)
+  npm run test:frontend      -> 365/365 passed (untouched by this thread —
+                                 confirms no cross-contamination)
+  npm run status:check       -> up to date
+  npm run tracker:check      -> OK, 282 items, no dup ids, brdRefs valid
+
+===============================================================================
+4. DECISIONS / JUDGMENT CALLS
+===============================================================================
+
+- zCountryCodesList as a SHARED primitive in common.ts, not duplicated per
+  schema file — matches the reuse-not-duplication standing preference and
+  the existing zCountryCode precedent living in the same file.
+- Dedup BEFORE the cap check (11 raw entries of the same code -> 1 distinct,
+  passes). ADL-54 D2's stated rationale for the cap is bounding the
+  Nominatim countrycodes param length and the DB IN list — both are sized
+  by DISTINCT codes, so this is the correct reading, not a loosening of the
+  guard.
+- Cities-path precedence (F4): stated it explicitly as "country_code wins",
+  mirroring the geocode-path precedence ADL-54 D1 already specifies, rather
+  than inventing a different rule for the two endpoints. Fresh-eyes F4 asked
+  Brief A to state SOME total contract, not a specific one; "match the
+  sibling endpoint" was the least-surprise option given F4 itself notes the
+  case is purely theoretical (no current caller sends both).
+- Two NEW backend-owned test files rather than adding to QA's frozen ones —
+  same precedent as cities.search-region-enrichment.test.ts alongside
+  adl46-access-model.test.ts (BUG-72 thread). QA's files stay byte-for-byte
+  as QA committed them; verified with git diff.
+- Did NOT touch the existing single-value zCountryCode (still just
+  length(2).toUpperCase(), no alpha-shape regex) — the brief's malformed-
+  code guard was scoped to the NEW country_codes param; tightening the
+  pre-existing single-value validator was out of scope and not requested.
+
+===============================================================================
+5. TWO-PROBE NOTES
+===============================================================================
+
+- "No current frontend caller sends country_code on GET /api/cities" —
+  grepped useCities.ts (the only file constructing that request) and its
+  full read: line 131 builds `/api/cities?q=...` only; other `country_code`
+  references in that file are response-reading (line 106) or POST-body
+  typing (line 193), not query construction. Two probes, same file, that
+  could fail differently (grep hit count vs full manual read) — both agree.
+- "zod v4's ctx.addIssue({code:'custom',...}) + z.NEVER produces a 400 via
+  this project's validateQuery, not a thrown exception" — verified two ways:
+  a standalone `node -e` probe against the installed zod package (shown in
+  §2 above) AND the actual route-level guard tests in this thread's own new
+  files returning 400 end-to-end through supertest. Both agree.
+
+===============================================================================
+6. WHAT IS NOT DONE / STILL OWED
+===============================================================================
+
+- Brief B (frontend wiring, ADL-54 §4, ATDD-first: no) is NOT built here:
+  AddPlaceFlow/MobileTripDetailView don't yet pass trip.countries as
+  country_codes to either lookup; the D5 "filtered by" note, D3 zero-
+  country prompt, and D4a off-country empty-state are all frontend/UX.
+  Fresh-eyes F2 flags that GE-20's "cannot be bypassed" guarantee has no
+  red test until Brief B adds one pinning "param is always sent on both
+  lookup paths" — carry that into Brief B's dispatch.
+- Fresh-eyes F3 (BUG-90 forward seam: whatever BUG-90 stores in
+  trip_countries must resolve to codes that exist in cities.country_code)
+  is a cross-bug invariant for BUG-90's future brief, not actionable here.
+- Fresh-eyes F6 (PR title said ADL-53, should say ADL-54) is on PR #463,
+  not this thread's PR — not touched.
+- Fresh-eyes P2 (Nominatim's real multi-country countrycodes comma-list
+  behaviour) — the dispatch brief stated the COO had independently verified
+  this live against staging (newport gb,fr / lyon fr, correct union
+  behaviour both times) as of 2026-08-08, closing the fresh-eyes P2 blind
+  spot. Noted here for the record; not re-verified by this thread (this
+  container's firewall still blocks reaching Nominatim directly, same
+  documented constraint as every prior geocode thread).

@@ -1,3 +1,76 @@
+BACKEND CONTEXT — 2026-08-08 (BUG-87/GE-20 Brief A thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: implemented GE-20's country_codes read-path filter (BRD
+  v3.21, design ADL-54, fresh-eyes 20260808-ADL54-fresh-eyes-review.md) on
+  branch feat/bug87-ge20 — QA's own branch (QUAL/OP-35 ATDD-first), NOT a
+  new branch off main. This turns QA's PR #466 green rather than opening a
+  new PR.
+  1. New shared src/backend/validation/common.ts primitive
+     zCountryCodesList: comma-joined ISO alpha-2 list parser. undefined
+     (absent) vs [] (present-but-empty, `''`) are kept DISTINCT all the
+     way through — this is what F1 (fresh-eyes) needs: an empty set means
+     SHOW ALL (PO Q1), never inArray([]) -> sql`false`. Rejects malformed
+     codes (not 2-letter alpha) and caps at 10 distinct codes after
+     case-insensitive dedup (ADL-54 D2) — both guards QA's dispatch listed
+     as ADL-54 §4 implementation details, not part of the enumerated
+     7-item red bar, so built + tested here per the brief.
+  2. GET /api/cities (cities.ts): country_codes wired via
+     inArray(cities.countryCode, set), branched on set.length > 0 — the
+     F1 guard. Precedence when both country_code (singular, D12) and
+     country_codes (plural) are present: single wins (states the
+     cities-path contract fresh-eyes F4 flagged as unspecified; no
+     current caller sends both — grep-verified, useCities.ts sends only
+     `q`).
+  3. GET /api/geocode (geocode.ts): country_codes forwarded to
+     nominatimSearch as countrycodes, same F1 empty-set branch (falls
+     through to the existing unconstrained DISCOVERY path). D2 limit
+     tier: single-country set keeps CONSTRAINED_LIMIT (10), multi-country
+     set (>=2) uses DISCOVERY_LIMIT (40) — same reasoning BUG-79 already
+     established for the fully-unconstrained case. Same country_code-wins
+     precedence as cities.ts (this one WAS already stated in ADL-54 D1).
+  4. schema.ts:463-469 trip_countries doc-comment corrected — was stale
+     ("Derived from trip_places via city -> country_code"); now states
+     the live path (user-declared at trip creation, editable via
+     TripForm/the trip-countries sub-router), matching ADL-54 §1.1's
+     two-probe finding, itself re-verified by the fresh-eyes review (P1).
+  5. Tests: zCountryCodesList unit tests added to the existing
+     validation/__tests__/common.test.ts (undefined/empty/dedup/cap/
+     malformed-code cases). Two NEW backend-owned route-level guard
+     files — ge20-cities-country-codes-guards.test.ts and
+     ge20-geocode-country-codes-guards.test.ts — cover malformed-code
+     400s, the 10-code cap, the D2 limit tier, and both endpoints'
+     country_code-wins precedence contract. QA's two frozen ATDD files
+     (ge20-cities-country-filter.test.ts, ge20-geocode-country-filter.
+     test.ts) are UNTOUCHED — verified all 11 of their tests now pass
+     (5 RED->green, the 2 F1 guards now exercise the real path instead
+     of passing vacuously, 4 regression guards stay green).
+  Full backend suite: 801/801 green (768 QA baseline + 5 QA RED->green +
+  33 new guard/unit tests). type:check:all clean. biome clean (auto-
+  formatted the two new test files once, per its own fixer).
+  Security (OP-06): both routes already sit under app-level requireAuth
+  (server.ts); country_codes narrows GLOBAL reference data (cities/
+  countries catalogues), not user data — no new userId scoping is owed
+  (ADL-54 D9, re-verified fresh-eyes P3). GE-16 creator-containment on
+  cities search is orthogonal and preserved — the new inArray joins the
+  existing `conditions` array alongside `containment`, unchanged. No
+  schema change, no new user-referencing column — the `.notNull()` FK
+  checklist item is N/A.
+  NOT DONE THIS THREAD (frontend wiring is Brief B, separate, ATDD-first:
+  no per ADL-54 D10): AddPlaceFlow/MobileTripDetailView are not wired to
+  pass trip.countries as country_codes yet; the D5 "filtered by" note,
+  the D3 zero-country prompt, and the D4a off-country empty-state are
+  all frontend-only and not built here. Also carried forward, unresolved
+  by this thread (fresh-eyes P2, non-blocking): Nominatim's real
+  multi-country comma-list behaviour is UNVERIFIED from this container
+  (firewall) — the geocode double models the documented behaviour, not a
+  live probe. COO dispatch header stated this was independently
+  COO-probed live against staging (newport gb,fr / lyon fr) and confirmed
+  working — noting that here as the resolution QA/fresh-eyes both flagged
+  as outstanding.
+  Full detail: jobs/backend/park-docs/20260808-BACKEND-bug87-ge20-park.txt
+
+---
+
 BACKEND CONTEXT — 2026-08-07 (BUG-81 thread, latest)
 PROJECT: Travel Tracker
 CURRENT STATUS: implemented BUG-81 (P2 per brief, BRD GE-16) on branch

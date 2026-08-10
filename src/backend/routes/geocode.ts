@@ -39,10 +39,10 @@
  * restricts Nominatim's search space.
  *
  * 40 was chosen for the discovery limit as a meaningfully larger, but not
- * extreme, value. Nominatim's actual maximum `limit` is UNVERIFIED from this
- * environment — the firewall blocks reaching the service directly, and this
- * session made three independent failed attempts (see the brief for GitHub
- * #379). The code does not assume 40 is honoured: `truncated` below is
+ * extreme, value. Nominatim's actual maximum `limit` is not asserted here — do
+ * NOT assume Nominatim is unreachable from this environment: it is allowlisted
+ * (`.devcontainer/init-firewall.sh`) and reachable; probe if you need to confirm
+ * a limit. The code does not assume 40 is honoured regardless: `truncated` below is
  * computed against whatever was actually requested, and everything downstream
  * (settlement filtering, D14 narrowing) already handles an arbitrary
  * candidate count. If the real cap is lower, Nominatim simply returns fewer
@@ -70,17 +70,42 @@ geocodeRouter.get(
   '/',
   validateQuery(GeocodeQuerySchema),
   asyncHandler(async (req, res) => {
-    const { q, country_code, region_iso } = req.query as {
+    const { q, country_code, region_iso, country_codes } = req.query as {
       q: string;
       country_code?: string;
       region_iso?: string;
+      country_codes?: string[];
     };
 
+    // GE-20 (ADL-54 D1/D2): country_code (singular, D12 create-time constraint)
+    // and country_codes (plural, the trip's declared filter SET) are separate
+    // params. Precedence when both are present (D1): the single explicit
+    // country_code wins (narrower, user-confirmed) — never hit by any current
+    // caller (discovery supplies the set, create supplies the single), but the
+    // contract is stated so it's total.
+    //
+    // F1 (fresh-eyes, load-bearing): only forward `countrycodes` when the set
+    // is NON-EMPTY. A present-but-empty country_codes ('' -> []) means
+    // "not yet constrained" (PO Q1 ruling) and must fall through to the fully
+    // unconstrained DISCOVERY path — forwarding `countrycodes=` (empty string)
+    // would tell Nominatim "match no country", silently inverting that ruling.
+    const effectiveCodes = country_code
+      ? [country_code]
+      : country_codes && country_codes.length > 0
+        ? country_codes
+        : null;
+
+    // D2 limit tier: a single-country set keeps the original narrow
+    // CONSTRAINED_LIMIT (countrycodes already restricts the search space to
+    // one country). A multi-country set (>=2) uses DISCOVERY_LIMIT instead —
+    // more countries means more legitimate same-name candidates to separate
+    // in the picker, the same reasoning BUG-79 already established for the
+    // fully-unconstrained case.
     const params: Record<string, string> = {
       q,
-      limit: country_code ? CONSTRAINED_LIMIT : DISCOVERY_LIMIT,
+      limit: effectiveCodes && effectiveCodes.length === 1 ? CONSTRAINED_LIMIT : DISCOVERY_LIMIT,
     };
-    if (country_code) params.countrycodes = country_code.toLowerCase();
+    if (effectiveCodes) params.countrycodes = effectiveCodes.join(',').toLowerCase();
 
     const result = await nominatimSearch(params);
     let candidates = result.status === 'ok' ? result.candidates : [];

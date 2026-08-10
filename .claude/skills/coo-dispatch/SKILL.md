@@ -22,23 +22,55 @@ not the brief itself. This gate moves the controls onto the artifact and makes e
 weakness that sank the earlier brief-template (it only works if you remember it) — the header **plus**
 agent-side rejection is the teeth.
 
+## Per-wave pre-mortem (OP-40, design-reflection R2)
+
+Once per **wave** (a batch of briefs dispatched together), before running the per-brief gate below,
+do a short pre-mortem — the forward-looking question a normal project asks and this fast model
+otherwise skips:
+
+> **"Assume this wave has gone wrong. What's the most likely way it bit us — and what *class* are
+> we patching an instance of rather than collapsing?"**
+
+One paragraph is enough. It exists to catch the wrong *question* (scope drifting across rounds on one
+defect; an N+1th instance-patch where a consolidation is the real fix) — reviews catch wrong answers,
+not wrong questions. If it surfaces a real risk, adjust the wave's scope or sequencing before
+dispatching, not after. Skip only for a single mechanical brief that is plainly not part of a wave.
+
 ## The gate — confirm each before dispatch
 
 **Readiness**
-1. **Classified (OP-32)** — regression / deployment / gap, stated. An unclassified item is not dispatchable.
+1. **Classified (OP-32)** — stated as regression / deployment / gap; an unclassified item is not
+   dispatchable. The class sets the first action — **regression:** find what broke it (git history
+   over the failing path), and a missing regression test is mandatory; **deployment/config:** don't
+   touch app logic, diff the environments; **gap:** build it (needs a BRD home + success criteria
+   first). **"Did it used to work?" is decisive and the COO must ASK** when the tracker note is
+   silent; a tracker note *guessing* at cause is not a classification — re-probe before inheriting it;
+   never widen the class silently — re-scope instead.
 2. **BRD home (BRD gate)** — any new requirement IDs are in the BRD and the version is bumped.
-3. **Success criteria (mandatory)** — a measurable definition of done is stated.
+3. **Success criteria (mandatory)** — a measurable definition of done is stated (no measurable done =
+   nothing to UAT or close cleanly; it just accretes an ambiguous "done" in the tracker).
 4. **Reuse audit** — checked for an existing home/component to extend rather than duplicate (PO standing pref).
 5. **Premise-verification (OP-26)** — load-bearing "X doesn't exist / isn't enforced / is unreachable"
    claims have two independent probes that could fail differently, or are marked `UNVERIFIED`.
 
 **Verification**
 6. **ATDD-first (OP-35)** — if Architect-gated (schema / access-matrix / data-integrity invariant /
-   shared-contract), mark `ATDD-first: yes` and dispatch **QA before** the implementer.
+   shared-contract), mark `ATDD-first: yes` and dispatch **QA before** the implementer (QA writes the
+   red acceptance tests = executable definition of done, breaking the loop where the implementer
+   certifies its own code). Trigger is objective (Architect involvement), not a complexity call —
+   apply when a wrong build is *silent-and-plausible* and *precisely specifiable up front*; deliberate
+   gap: complex frontend that never reaches the Architect is excluded. **Mock-fidelity is part of the
+   rule** — a test double must behave like the real dependency or the suite specifies nothing
+   (QUAL-22). Ref: ADL-50.
 7. **Security checklist (OP-06)** — if routes are added/modified, the brief names: auth middleware
    (`requireAuth`/`requireOwner`), `userId` scoping on every user-data query, `.notNull()` on user FKs.
+   Ref: `jobs/architect/tech/OP-06-hardening-checklist.md` §2 access matrix + ADL-27.
 8. **Fresh-eyes (OP-27)** — if an Architect deliverable that will be cited elsewhere, plan the
-   second-Architect review; resolve the author's own flagged open questions *first*.
+   second-Architect review; resolve the author's own flagged open questions *first*. Tier the
+   reviewer by stakes (R5): **Opus** + full stress-test for the OP-35 high-stakes classes, **Sonnet**
+   + focused checklist for low-stakes; independence (a fresh chain, never self-review) is never
+   tiered. **Fable** is an optional escalation for the hardest *non-security* reasoning only — never
+   for access-matrix/auth/`userId`-scoping reviews (its cyber classifiers can refuse them).
 
 **Mechanics**
 9. **Isolation** — any git-touching role agent gets `isolation: "worktree"`; the brief's first step
@@ -66,8 +98,16 @@ Fresh-eyes (OP-27): <planned | n/a>
 The receiving agent **must refuse to start** a deliverable-producing brief that lacks this header and
 flag it to the COO outbox (frameworks.txt standard 31).
 
-## Consolidation note (R3 follow-up)
+## Canonical home (R3, design-reflection)
 
-This gate subsumes the brief-channel role of the two warn-only hooks (`atdd-first-guard.sh`,
-`negative-findings-guard.sh`) — they guard only the gh-issue echo, which this replaces at the source.
-Flagged as **R3 pruning candidates**; not removed in this pass (removal is a separate deliberate act).
+This skill is the **single canonical home** for the pre-dispatch gate rules — classify (OP-32),
+BRD gate, success criteria, security checklist (OP-06) and ATDD-first (OP-35). CLAUDE.md points here
+rather than restating them, so there is one place to maintain, not two that drift.
+
+`atdd-first-guard.sh` was **removed** (R3): it fired only on the brief/handoff channel (gh issue/PR
+bodies + `jobs/**brief*` files), which this gate now covers more strongly — the required header forces
+an ATDD decision and the receiving agent refuses a brief without it (vs a warn).
+
+`negative-findings-guard.sh` is **kept**: this gate subsumes only its brief-channel slice, but the hook
+also warns on every `jobs/**` write, `tracker.json` notes, and general PR bodies for unmarked
+absence-language — surfaces this gate never sees, so it still enforces the always-on OP-26/29 rule.

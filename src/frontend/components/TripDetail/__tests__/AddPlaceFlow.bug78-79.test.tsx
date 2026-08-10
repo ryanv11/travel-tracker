@@ -35,9 +35,8 @@
  * AddPlaceFlow test file. These fixtures assert what AddPlaceFlow does with a
  * GIVEN candidate set and truncation flag — they cannot prove Nominatim's
  * real response for "springfield" actually contains multiple US regions
- * within the raised backend limit. That is UNVERIFIED from this sandboxed
- * container (firewall blocks the live service) and needs PO confirmation on
- * staging. The backend-level proof that the limit itself was raised and that
+ * within the raised backend limit. That specific claim is UNVERIFIED here (this
+ * test is hermetic by design, not a live probe) — confirm on staging. The backend-level proof that the limit itself was raised and that
  * `truncated` is computed correctly lives in
  * src/backend/routes/__tests__/geocode.test.ts and
  * src/backend/services/__tests__/nominatim-client.test.ts.
@@ -162,6 +161,8 @@ function renderFlow() {
       tripStartDate="2026-01-01"
       tripEndDate="2026-01-10"
       isFirstPlace={false}
+      tripCountries={[]}
+      onManageCountries={vi.fn()}
     />,
   );
 }

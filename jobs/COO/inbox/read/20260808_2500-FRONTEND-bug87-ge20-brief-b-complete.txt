@@ -1,0 +1,40 @@
+Tracker: BUG-87 / GE-20 · PR #469 · BRD §5.1 GE-20 (v3.21) · Branch: feat/bug87-ge20-picker-country-filter
+
+WHAT WAS BUILT
+Brief B (final BUG-87 build piece): threaded trip.countries into AddPlaceFlow
+(the single shared component behind both TripDetail (desktop) and
+MobileTripDetailView (mobile)) so useCitySearch and lookupCityCountry always
+send the trip's declared country_codes on both lookup paths, plus the
+filtered-by note, zero-country prompt, and off-country empty-state UI.
+
+ACCEPTANCE CRITERIA
+- country_codes sent on BOTH /api/cities and /api/geocode lookups: PASS
+- Visible "filtered by trip's countries" note: PASS ("Filtered to: ...",
+  truncated per Q3)
+- Zero-country trip -> show-all + prompt to add countries (Q1): PASS
+- Off-country search -> empty-state linking trip's country editor (Q2): PASS
+  (reuses existing TripForm edit modal, not a new editor)
+- F2 test pinning the param is sent on both paths (mandatory): PASS
+  (AddPlaceFlow.ge20-country-filter.test.tsx + hook-level tests)
+- Full frontend suite green: PASS (388/388, +23 new)
+
+CI: gh pr checks 469 — all 18 checks green (scripts/ci-wait.sh pr 469 -> PASS)
+
+OPEN ISSUES / BLOCKERS (flagged, not fixed — see PR description + park doc)
+1. ChangeCityModal's re-point city-search is NOT filtered — GE-20's text and
+   ADL-54 D6 both scope this to "adding a place," a different operation.
+2. The "+Add new" city-creation form's manual country <select> is NOT
+   restricted to the trip's declared set — a narrow, real way the "cannot be
+   bypassed from within the picker" criterion could still be circumvented
+   (manual creation in any country). Neither ADL-54 nor the fresh-eyes review
+   scoped "the picker" to include this manual fallback, so left as-is;
+   flagging for a COO/PO scope call, not assumed either way.
+3. Carried forward from the ADL-54 fresh-eyes review (not this thread's to
+   close): Nominatim's real multi-country `countrycodes` behaviour is
+   UNVERIFIED from this sandboxed container — worth an early real
+   multi-country geocode check on staging before UAT fully trusts this.
+
+WHAT IS NOW UNBLOCKED
+GE-20's full BRD success-criteria list is built end-to-end (backend Brief A +
+frontend Brief B) — ready for a UAT pass once merged. BUG-87 tracker status
+flip to done/done_pending_uat is COO's job at merge, per standing pattern.

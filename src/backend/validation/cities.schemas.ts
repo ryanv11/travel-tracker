@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { zCountryCode } from './common.js';
+import { zCountryCode, zCountryCodesList } from './common.js';
 
 /** BUG-75 v3 §2.3/§B1 — the carried OSM identity pair. */
 const zOsmType = z.enum(['node', 'way', 'relation']);
@@ -34,6 +34,12 @@ export const CreateCitySchema = z
 export const SearchCitiesQuerySchema = z.object({
   q: z.string().trim().min(2, 'Search query must be at least 2 characters'),
   country_code: zCountryCode.optional(),
+  // GE-20 (ADL-54 D1) — the trip's declared country filter SET, distinct from
+  // the single country_code above. Cities-path precedence contract (fresh-eyes
+  // F4, never hit by any current caller — grep-verified): if BOTH are present,
+  // the single explicit country_code wins (narrower, matches the geocode-path
+  // precedence D1 already states) and country_codes is ignored entirely.
+  country_codes: zCountryCodesList,
 });
 
 export const CityItemsQuerySchema = z.object({

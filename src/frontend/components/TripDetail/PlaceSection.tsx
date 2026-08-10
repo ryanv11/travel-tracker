@@ -175,13 +175,28 @@ export function PlaceSection({
           </Link>
 
           {/* D-03/UX-02/BUG-80: region (when applicable) + country name · date
-              range on single subtitle line */}
+              range on single subtitle line.
+              UX-14: the accent color/weight is a DELIBERATE signal — verified
+              against BRD-DP06 (AddPlaceFlow.tsx pre-fills arrived_on/
+              departed_on for the first place added to a trip, and only that
+              one) — distinguishing "this place has its own explicit dates"
+              from "this range is falling back to the trip's own dates" via
+              resolvePlaceDateRange. hasExplicitDates is data-driven, not
+              index-based, so it already applies uniformly to every place —
+              a later place picks up the same accent the moment its dates are
+              set via "Set dates". What PO's UAT read as an inconsistency was
+              really this cue firing correctly but silently for the one place
+              DP-06 auto-populates; added a tooltip so it reads as intentional
+              instead of an accidental style leak. */}
           <p className="mt-0.5 font-ui text-[12px] text-wp-ink-muted">
             {citySubtitle}
             {dateRangeDisplay && (
               <>
                 {' · '}
-                <span className={hasExplicitDates ? 'text-wp-primary font-medium' : ''}>
+                <span
+                  className={hasExplicitDates ? 'text-wp-primary font-medium' : ''}
+                  title={hasExplicitDates ? 'Dates set explicitly for this place' : undefined}
+                >
                   {dateRangeDisplay}
                 </span>
               </>

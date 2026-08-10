@@ -98,3 +98,86 @@ NEXT (for COO)
    finding 4 (cross-trip item isolation) was NOT touched by this thread,
    still open), QUAL-21 (pending -> done), QUAL-22 (pending -> done).
 3. Post-merge: scripts/ci-wait.sh branch main to confirm main stays green.
+
+================================================================================
+THREAD 2: BUG-87 / GE-20 — ATDD RED bar for the trip-country picker (OP-35)
+STATUS: COMPLETE — PR open, CI expected RED BY DESIGN (ATDD handoff, do not
+merge alone), not yet reviewed by COO/Backend
+
+WHAT WAS DONE
+--------------------------------------------------------------------------------
+Dispatched per OP-35 (ADL-54 Brief A marked ATDD-first: yes) — authored the RED
+acceptance/integration tests BEFORE Backend implements anything, so Backend
+cannot write its own certifying tests. Two new files:
+  - src/backend/routes/__tests__/ge20-cities-country-filter.test.ts
+  - src/backend/routes/__tests__/ge20-geocode-country-filter.test.ts
+
+Turned GE-20's BRD success criteria + the ADL-54 fresh-eyes review's F1/F2
+findings into 11 assertions across the two endpoints (GET /api/cities and
+GET /api/geocode, both taking a new country_codes read-path param). 5/11 RED
+for the right reason (clean AssertionErrors, wrong row/candidate counts, no
+import/exception noise) against main @ 4c38d90. 6/11 already pass — 4 genuine
+regression guards (backward-compat on absent param, and the F4 seam proving
+the POST /api/cities D12 single country_code create constraint has zero
+mechanical overlap with the new GET-path filter) and 2 F1 empty-string guards
+that pass VACUOUSLY today (no filtering logic exists yet on main to trip the
+footgun) but are kept and labelled honestly, because they are the only cases
+that will catch a naive `inArray(col, [])`-always-pushed implementation once
+Brief A lands — the fresh-eyes review's top non-blocking finding, since that
+bug would silently invert the PO's Q1 SHOW-ALL ruling with every other test
+green.
+
+MOCK-FIDELITY (QUAL-22): the pre-existing nominatim-client.js double in
+geocode.test.ts (BUG-79) is a dumb capture-and-return stub that ignores
+countrycodes entirely. Verified this two ways (full file read; confirmed its
+own 5 tests never branch on countrycodes) before deciding NOT to reuse it
+as-is. The new geocode test file's double is fidelity-extended: a small
+fixture candidate pool (3 countries' Newport + 1 Berlin), filtered by
+countrycodes as a real allow-list (comma-split, case-insensitive) — mirrors
+Nominatim's documented behaviour rather than ignoring the param — while still
+capturing raw call args for the brief's explicit "assert on the CLIENT ARGS"
+instruction (test 1).
+
+RESULT
+--------------------------------------------------------------------------------
+Full backend suite: 768 passed, 5 failed (exactly the RED ones), 0
+regressions against the pre-existing baseline. type:check:backend clean.
+biome clean (auto-formatted both new files once, re-verified RED count
+unchanged after formatting).
+
+Full detail + per-test table: jobs/qa/tech/20260808-ge20-atdd-red-tests.md
+
+NOTED GAPS (flagged, not silently added to the red bar)
+--------------------------------------------------------------------------------
+1. ADL-54 recommends schema-level rejection of invalid country_codes values
+   and a ~10-code cap as Brief A implementation details; neither was in the
+   dispatch's enumerated 7-item test list, so neither is red-tested. Backend
+   should still implement both per the ADL — just not ATDD-pinned by QA.
+2. Fresh-eyes P2 (non-blocking, carried forward unresolved): Nominatim's real
+   multi-country countrycodes behaviour is UNVERIFIED from this environment
+   (firewall blocks the live service). The geocode double models documented
+   behaviour, not a live probe. Recommend an early real multi-country geocode
+   check against staging before this feature is trusted in a UAT verdict.
+
+OPEN ISSUES / BLOCKERS
+--------------------------------------------------------------------------------
+None for this thread. The two noted gaps above are forward-looking
+recommendations, not blockers to Backend starting Brief A.
+
+ARTIFACTS
+--------------------------------------------------------------------------------
+- Branch: feat/bug87-ge20 (off main, pushed)
+- Tech doc: jobs/qa/tech/20260808-ge20-atdd-red-tests.md
+- Context updated: jobs/qa/context/current.txt (appended, not rewritten)
+- Completion report: jobs/COO/inbox/
+
+NEXT (for COO)
+--------------------------------------------------------------------------------
+1. Dispatch Backend to implement Brief A against feat/bug87-ge20, targeting
+   all 11 assertions green (5 currently red, 2 F1 guards must stay green for
+   the RIGHT reason — i.e. via an explicit set.length branch, not by luck).
+2. Do not merge this PR alone — it is the ATDD handoff artifact, CI is
+   expected red until Backend's commits land on the same branch.
+3. Consider the two noted gaps above when briefing Backend (cap + invalid-
+   code validation are ADL-recommended but not QA-pinned; the staging
+   multi-country geocode check is a pre-UAT action item, not a code task).

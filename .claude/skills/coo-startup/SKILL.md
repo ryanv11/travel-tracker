@@ -128,18 +128,6 @@ echo '{"tool_name":"Edit","tool_input":{"file_path":"/workspace/jobs/COO/open-di
   && echo "FAIL: no-wholesale-rewrite guard fires on Edit (should be silent)" \
   || echo "no-wholesale-rewrite guard (Edit path) OK"
 
-# atdd-first guard (OP-35 / ADL-50) must warn on a brief touching a high-stakes trigger
-# (schema/migration/auth-gate) with no stated ATDD decision...
-echo '{"tool_name":"Bash","tool_input":{"command":"gh issue create --body \"add a NOT NULL column to schema.ts and a migration\""}}' \
-  | bash /workspace/.claude/hooks/atdd-first-guard.sh | grep -q "atdd-first-guard" \
-  && echo "atdd-first guard OK" || echo "FAIL: atdd-first guard broken"
-
-# ...and must stay silent once an ATDD decision is stated (the correct way to clear it)
-echo '{"tool_name":"Bash","tool_input":{"command":"gh issue create --body \"migration to schema.ts. ATDD-first: yes\""}}' \
-  | bash /workspace/.claude/hooks/atdd-first-guard.sh | grep -q "atdd-first-guard" \
-  && echo "FAIL: atdd-first guard fires when ATDD stated (should be silent)" \
-  || echo "atdd-first guard (ATDD-stated path) OK"
-
 # no-protected-commit guard must DENY a git commit on a protected branch. Tested in a
 # throwaway repo on `main` so it never touches this checkout's branch/state.
 canary_tmp=$(mktemp -d); git -C "$canary_tmp" init -q -b main 2>/dev/null \
@@ -157,12 +145,100 @@ rm -rf "$canary_tmp"
 # integrity problem — duplicate ID, missing field, or a brdRef not present in the BRD).
 npm run --silent tracker:check >/dev/null 2>&1 \
   && echo "tracker-check OK" || echo "FAIL: tracker-check reports a tracker.json integrity problem"
+
+# drift-cadence gate (OP-40) must produce a tick line. It is warn-only and always exits 0,
+# so exit status proves nothing — assert on the OUTPUT, or a broken gate reads as "nothing due".
+bash /workspace/scripts/drift-cadence.sh check | grep -q "^drift-cadence: tick=" \
+  && echo "drift-cadence gate OK" || echo "FAIL: drift-cadence gate produced no tick line"
 ```
 
 Any FAIL → fix the hook before doing anything else this session. Secondary tell for the
 drift ledger: an editing session that produced zero new ledger entries means the
 PostToolUse hooks are silently broken — investigate before trusting this session's
 typecheck feedback.
+
+### 0.5 Drift-cadence check (OP-40, design-reflection R2)
+
+The forward-looking half of the model — a periodic sweep for the stale-inheritable / doc-rot
+class that no incident-born rule catches and that, until now, only the PO caught. Runs on a
+session cadence, not every session.
+
+**Ask the gate; never recompute the cadence by hand:**
+
+```bash
+bash /workspace/scripts/drift-cadence.sh check
+```
+
+It prints the tick and, for each check, `DUE` or `not due — next in N tick(s)`.
+**Run only what it reports DUE, then record it** — an unrecorded run re-fires next session:
+
+```bash
+bash /workspace/scripts/drift-canary.sh          # if the canary is DUE
+bash /workspace/scripts/drift-cadence.sh record canary
+
+# deep audit DUE → dispatch the read-only agent (below), then:
+bash /workspace/scripts/drift-cadence.sh record deep
+```
+
+> **Why a script and not a `% 5` one-liner** (rewritten 2026-08-10, PO-caught). The old
+> one-liner counted `session_end` ledger entries and tested `count % N`. Both halves failed at
+> once: the SessionEnd hook stopped receiving its event, freezing the count for three sessions
+> (the hook script and its wiring are both fine — root cause upstream is **UNVERIFIED**; probes
+> run were a synthetic-input canary of `session-end.sh` and a read of the `settings.json` wiring,
+> neither of which can observe whether the harness emitted the event); and a modulus keeps no
+> record of whether the check actually **ran**, so a frozen count re-fired the most expensive
+> check in the system every session. The silent direction is worse: freeze on a non-multiple and
+> the audit never fires again with nothing to say so — the exact fail-silent class OP-40 exists
+> to catch, inside OP-40's own machinery.
+>
+> The gate now keys on the **invariant** — *due = distance since the last recorded run has
+> reached the interval* — and derives its tick from the **max of three differently-failing
+> session sources** (`session_end`, `reviewed`, park docs; they read 75/70/68 for the same
+> history, each undercounting different sessions). A **wall-clock staleness backstop** is the
+> second axis: if every source froze at once, ticks would stop growing and time still forces the
+> check. Absolute tick value is meaningless — only differences are used. Rationale in full sits
+> in the script header.
+>
+> Known limit, stated rather than papered over: the "sources disagree" warning only fires on a
+> large spread, so a *single* source that quietly stops is not itself flagged. It doesn't need to
+> be — `max` means one dead source cannot distort the cadence.
+
+- **Drift canary due** → triage any findings per the negative-findings rule (a canary claim
+  is not itself the second probe — re-probe before acting), and remediate with
+  **delete-and-point** (delete the rot-prone specific, point to the single maintained source,
+  don't restate). Surface findings in the pickup summary. Clean → note "drift-canary clean".
+  Checks: A dangling `.claude/hooks/*.sh` refs · B broken CLAUDE/CODEBASE links · C/D ADL-log
+  contiguity + reference resolvability · E tracker `status` vs latest note segment (open item
+  carrying a shipped/`-> done` stamp, or a `done_pending_uat` recording a UAT PASS — the narrow,
+  regex-catchable slice of the status-field lens; the two broader shapes are the deep audit's, above).
+- **Deep coherence audit due** → dispatch a **read-only** agent (research/review,
+  no worktree needed) to sweep beyond the canary's cheap checks: BRD ↔ code ↔ schema drift,
+  tracker-vs-reality, doc-rot across `jobs/**`, and any newly-recognised rot class. It reports
+  findings to the COO; the COO triages and remediates delete-and-point. This is the periodic
+  in-house version of the manual two-scanner audit run 2026-08-08.
+  **Highest-yield default lens (from the first dogfood, 2026-08-09):** drift concentrates in
+  **append-only records that are never re-summarized** — tracker notes/titles and `Status: Decided`
+  ADLs asserting an absence ("NOT built", "not enforced", "owner-only", "coming soon") that current
+  code contradicts, plus post-migration comment drift in `schema.ts` / god-routes. Point the sweep
+  there first. (This semantic "claim-vs-code" check is deliberately NOT in the canary — a cheap
+  regex would false-positive on every bug that legitimately describes a missing behaviour.)
+  **Tracker `status`-field lens (added 2026-08-09, OP-40 refinement — the load-bearing catch for the
+  two drift shapes the 2026-08-09 sweep found, neither of which the canary's cheap Check E can see):**
+  (1) **status-vs-title/code** — an item whose *title* or *shipped code* says the work landed while
+  `status` is still `pending`/`partial` (BRD-AD09: per-user model in `schema.ts` + a title edited to
+  match, status left `partial`; last session's audit fixed the title and missed the status one seam
+  away). (2) **`done` with no closing stamp** — a `done` item whose note carries no closing
+  `PR #`/`SHIPPED`/`UAT PASS` line, especially any flipped in a *bulk* status sync, is the highest-risk
+  place a half-shipped item hides (QUAL-29: only its frontend half shipped, bulk-flipped to `done` in
+  the #436 sync with no per-entry stamp). For both, apply the OP-27 amendment-seam discipline to the
+  audit's **own** edits: after correcting a title/note, walk the consequence to the `status` field —
+  a fix that stops one step short looks identical to no fix. The canary's Check E catches only the
+  narrower "note stamped shipped but status still open" sub-class; these two need this agent's reasoning.
+- Neither due → note "drift-cadence: nothing due this session" and move on.
+- **Whatever you ran, record it before moving on** (`drift-cadence.sh record canary|deep`).
+  Recording is what makes the gate idempotent — the run, not the session number, is what
+  stops it re-firing. A check you ran but didn't record will be reported DUE again next
+  session, and re-running a deep audit costs a whole agent dispatch.
 
 ### 1. Scheduled health-check flags
 
@@ -210,8 +286,8 @@ gh run list --repo ryanv11/travel-tracker --branch main --limit 6 \
   swallows the error (QUAL-27). This step is *gate-shaped*: it is how a red main
   gets diagnosed at session start, so a silent empty result here reads as "nothing
   to see" on the one check whose whole purpose is catching an unowned red main.
-- Known-red jobs with an open tracked issue (e.g. DEP-01/#98 npm audit) →
-  note them in the pickup summary; everything else must be green.
+- Known-red jobs that have their own open tracked issue → note them in the pickup
+  summary; everything else must be green.
 
 ### 3. UAT check
 

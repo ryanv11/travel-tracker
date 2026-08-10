@@ -37,9 +37,20 @@ function delay(ms: number): Promise<void> {
 /**
  * Calls GET /api/geocode, retrying transient failures up to
  * GEOCODE_RETRY_ATTEMPTS times before rethrowing the last error.
+ *
+ * @param countryCodes - GE-20 (BUG-87, ADL-54): the trip's declared country
+ *   filter set, ISO alpha-2. ALWAYS sent, even when empty — a present-but-
+ *   empty `country_codes` is the backend's documented "unconstrained" signal
+ *   (PO Q1 ruling), distinct from omitting the param entirely (legacy/
+ *   unchanged callers). Defaults to `[]` so callers that don't pass a trip
+ *   filter (e.g. ChangeCityModal's re-point flow, out of GE-20's scope —
+ *   ADL-54 D6) keep today's unconstrained behaviour unchanged.
  */
-async function fetchGeocodeResultWithRetry(cityName: string): Promise<GeocodeResult> {
-  const params = new URLSearchParams({ q: cityName });
+async function fetchGeocodeResultWithRetry(
+  cityName: string,
+  countryCodes: string[] = [],
+): Promise<GeocodeResult> {
+  const params = new URLSearchParams({ q: cityName, country_codes: countryCodes.join(',') });
   let lastError: unknown;
   for (let attempt = 0; attempt <= GEOCODE_RETRY_ATTEMPTS; attempt++) {
     try {
@@ -76,6 +87,13 @@ async function fetchGeocodeResultWithRetry(cityName: string): Promise<GeocodeRes
  * caller that needs to be honest with the user in AddPlaceFlow.tsx now checks it.
  *
  * @param cityName - The city name to look up.
+ * @param countryCodes - GE-20 (BUG-87, ADL-54): the trip's declared country
+ *   filter set, ISO alpha-2 codes. Always forwarded to the backend (see
+ *   fetchGeocodeResultWithRetry's doc comment) so the "cannot be bypassed
+ *   from within the picker" guarantee holds on this lookup path too — the
+ *   discovery call that auto-populates country/region can never surface a
+ *   candidate outside the trip's declared countries. Defaults to `[]`
+ *   (unconstrained) for callers outside GE-20's scope.
  * @returns Upper-cased country code (e.g. "FR"), region ISO (e.g. "US-CA"),
  *   both nullable, the full candidate list (empty on any failure), `failed` —
  *   true when retries were exhausted without a successful response, OR
@@ -87,7 +105,10 @@ async function fetchGeocodeResultWithRetry(cityName: string): Promise<GeocodeRes
  *   more matches than `candidates` shows, false on any failure (nothing was
  *   truncated; nothing was returned at all).
  */
-export async function lookupCityCountry(cityName: string): Promise<{
+export async function lookupCityCountry(
+  cityName: string,
+  countryCodes: string[] = [],
+): Promise<{
   countryCode: string | null;
   regionIso: string | null;
   candidates: GeocodeCandidate[];
@@ -95,7 +116,7 @@ export async function lookupCityCountry(cityName: string): Promise<{
   truncated: boolean;
 }> {
   try {
-    const result = await fetchGeocodeResultWithRetry(cityName);
+    const result = await fetchGeocodeResultWithRetry(cityName, countryCodes);
     // BUG-74: an upstream geocoder failure ('error') or a disabled geocoder
     // ('disabled') is a failed lookup for the caller's purposes — same
     // user-visible banner as a retries-exhausted network failure — even
@@ -123,12 +144,24 @@ export async function lookupCityCountry(cityName: string): Promise<{
  * Minimum 2 characters required; query is disabled below that.
  *
  * @param query - Search string (minimum 2 chars to activate).
+ * @param countryCodes - GE-20 (BUG-87, ADL-54): the trip's declared country
+ *   filter set, ISO alpha-2 codes. ALWAYS sent as `country_codes` (even when
+ *   empty — the backend's documented "present-but-empty means unconstrained"
+ *   contract, PO Q1), included in the query key so a filter change refetches
+ *   rather than serving a stale cached page. Defaults to `[]` so callers
+ *   outside GE-20's scope (e.g. ChangeCityModal's re-point flow, ADL-54 D6)
+ *   keep today's unconstrained behaviour with no change required at the call
+ *   site.
  * @returns React Query result containing City[].
  */
-export function useCitySearch(query: string) {
+export function useCitySearch(query: string, countryCodes: string[] = []) {
+  const codesParam = countryCodes.join(',');
   return useQuery({
-    queryKey: ['cities', 'search', query],
-    queryFn: () => apiGet<City[]>(`/api/cities?q=${encodeURIComponent(query)}`),
+    queryKey: ['cities', 'search', query, codesParam],
+    queryFn: () =>
+      apiGet<City[]>(
+        `/api/cities?q=${encodeURIComponent(query)}&country_codes=${encodeURIComponent(codesParam)}`,
+      ),
     enabled: query.trim().length >= 2,
     // Keep previous results visible while the new search is in flight
     placeholderData: (prev) => prev,

@@ -52,80 +52,26 @@ Two Railway environments, two different promotion models (ADL-35, OP-22):
 - Staging and prod currently share one Clerk user pool (topology change tracked separately, not yet decided
   — see `jobs/COO/open-dialogues.md`).
 
-### Agent dispatch isolation (mandatory)
-Adopted 2026-07-20 after a live collision: an Architect agent dispatched without
-`isolation: "worktree"` shared the COO session's own working tree, and the COO's
-concurrent `git checkout` moved `HEAD` out from under the agent mid-task. Its commit
-landed on the COO's branch instead of its own; caught and recovered manually before
-anything was pushed, but the failure mode is real and will recur without isolation.
+### Agent dispatch isolation (mandatory, OP-19/20)
 
-**Every Agent-tool dispatch of a role agent that will do git work (commits, branches,
-PRs) must pass `isolation: "worktree"`.** This is what makes the branch-per-brief rule
-above actually hold — a shared working tree means "each brief gets its own branch" is
-true in name only, since two concurrent processes fight over the same `HEAD`, index,
-and working directory. Read-only dispatches (research, review, investigation with no
-commits) don't need it.
+**Every Agent-tool dispatch that will do git work (commits, branches, PRs) must pass
+`isolation: "worktree"`.** Read-only dispatches (research, review, investigation) don't need it.
+Without it, concurrent agents share one `HEAD`/index/working tree and a commit lands on the wrong
+branch — this is what makes the branch-per-brief rule real, not nominal.
 
-**Two further near-misses (2026-07-20, same day, tracked as OP-20) showed
-`isolation: "worktree"` alone is not sufficient** — both contained, nothing lost, but
-two in one dispatch round is too many to treat as one-offs:
-1. **Shared stash ref.** `refs/stash` is a single ref shared across every linked
-   worktree in this repo — worktree isolation covers branch, `HEAD`, index, and working
-   directory, but not the stash stack. Two concurrent agents both running bare
-   `git stash`/`git stash pop` raced on it; one agent's `pop` returned a *different*
-   agent's uncommitted WIP instead of its own. **Agents must not use bare `git stash` /
-   `git stash pop`.** To compare a diff against a clean tree, use `git diff` (redirected
-   to a scratch file) instead — never the shared stash stack.
-2. **Working-directory confusion.** A dispatched agent ran its initial investigation
-   commands against `/workspace` (the shared COO tree) before noticing it hadn't `cd`'d
-   into its assigned worktree path. Isolation only protects an agent that is actually
-   inside its worktree. **Every worktree-isolated dispatch's first action must confirm
-   its working directory** (`pwd` / `git rev-parse --show-toplevel` matches the assigned
-   worktree path) before running anything else.
+Worktree isolation does **not** cover three things (OP-20) — the agent must handle each:
+- **Shared stash.** `refs/stash` is a single ref across all worktrees. Never use bare `git stash` /
+  `git stash pop`; to compare against a clean tree, `git diff` redirected to a scratch file.
+- **Working directory.** A dispatch's first action must confirm its cwd (`pwd` / `git rev-parse
+  --show-toplevel` matches the assigned worktree) before running anything else.
+- **`node_modules`.** A fresh worktree doesn't inherit it — run `npm install` in the worktree first.
 
-**A fresh worktree does not inherit `node_modules`** (2026-07-21) — it is not shared or
-symlinked from the main checkout in this repo's setup. An agent that confirms its
-`pwd` correctly but then runs tests/scripts assuming dependencies are already installed
-will hit confusing missing-module errors that look like a worktree-isolation bug but
-aren't. Run `npm install` inside the worktree before anything else that needs
-`node_modules`, same as a fresh clone would.
-
-### Classify a defect before briefing it: regression, deployment, or gap (mandatory, OP-32)
-
-Adopted 2026-07-28 on PO direction, after BUG-55 was briefed as a missing feature when the
-feature was fully built and the real fault was a CSP misconfiguration.
-
-**Every defect is one of three classes, and the class determines the first action:**
-
-| Class | Meaning | First action | Implies |
-|---|---|---|---|
-| **Regression** | It worked before; code changed and broke it | Find *what broke it* — git history over the failing path | A **missing test**, always. The fix is incomplete without one |
-| **Deployment/config** | The code is correct; the environment, build, or config is wrong | Do **not** touch application logic. Diff the environments | An **environment-parity gap** (see below) |
-| **Gap / enhancement** | It was never built | Build it | A BRD home and success criteria are required first |
-
-Getting the class wrong invalidates the entire brief. BUG-55 was briefed as a gap; it was a
-deployment defect, and the brief would have had an agent rebuild working code — then "verify"
-it against a local environment where it already worked.
-
-**The rules:**
-
-1. **Classify before briefing, and state the class in the brief.** An unclassified item is
-   not dispatchable.
-2. **"It used to work" is decisive evidence and must be asked for.** It converts a gap into a
-   regression or a deployment defect instantly. The PO logging UAT feedback is not expected to
-   classify it — *the COO must ask* when the tracker note doesn't say.
-3. **A tracker note guessing at cause is not a classification.** BUG-55's note said *"likely
-   the geocode/lookup path isn't wired"* — an unverified single-probe absence claim (see the
-   negative-findings rule below) that sat for a week and was disproved by one grep. Re-probe
-   before inheriting it into a brief.
-4. **Never widen the class silently.** If a fix turns out to span two classes, say so and
-   re-scope rather than absorbing it.
+Full incidents: memories [[feedback_agent_dispatch_isolation]], [[feedback_worktree_stash_cwd_guardrail]].
 
 ### Deployment shakedown before UAT (mandatory, OP-32)
 
 UAT run against a build nobody has verified produces **false product bugs** — defects logged
-against the product that are really environment faults. This has now cost the project twice:
-the BRD-NF09 deploy shakedown (D-06) and BUG-55.
+against the product that are really environment faults.
 
 **Before a UAT round on deployed code, run a deployment shakedown** confirming the deployed
 build behaves like `main`: the app loads, the browser console and network tab are clean, and
@@ -141,22 +87,15 @@ closes classes. The standing rule:
 > finds it.
 
 The known differences are tracked as **QUAL-18** (single-origin E2E topology), **QUAL-19**
-(CSP allowlist contract test) and **QUAL-20** (post-deploy smoke check). The worked example,
-kept because it explains the shape better than the rule does: production serves the frontend
-document from Express with helmet's CSP applied (`src/backend/server.ts:233`, gated on
-`NODE_ENV=production`), but E2E serves it from `vite preview` on a *different port*
-(`playwright.config.ts` `webServer`), so the document under test carries **no CSP header at
-all**. Every `connect-src` violation is therefore unobservable in CI. The test suite was not
-weak — the environment could not express the failure.
+(CSP allowlist contract test) and **QUAL-20** (post-deploy smoke check). The worked example — E2E
+serving the frontend from `vite preview` with no CSP header where production serves it from Express
+*with* helmet's CSP, making every `connect-src` violation unobservable in CI — is in memory
+[[project_env_parity_csp_blindspot]].
 
 ### Negative findings need two probes (mandatory)
-Adopted 2026-07-28 after three confidently-stated false premises (a "`PRAGMA foreign_keys`
-is off" that wasn't; a "no `router.delete` in `trips.ts`" that missed on a naming
-assumption — it's `tripsRouter.delete` at `src/backend/routes/trips.ts:429`; a "firewall
-reaches no Turso host" that ignored the allowlisted diagnostic path) each got built on
-before anyone re-ran the probe. Positive findings self-verify — the thing is there, you can
-see it. Negative findings don't, and they are disproportionately load-bearing because
-designs get built on "X doesn't exist" without anyone checking again.
+Positive findings self-verify — the thing is there, you can see it. Negative findings don't, and they
+are disproportionately load-bearing because designs get built on "X doesn't exist" without anyone
+checking again.
 
 **The rule.** Any claim that something does not exist, is not enabled, is unreachable, or is
 not implemented must either:
@@ -180,10 +119,8 @@ stories and blind-spots: memories [[feedback_negative_findings_hook_enforcement]
 
 ### No wholesale rewrites of shared records (mandatory, OP-28)
 
-Adopted 2026-07-28 on PO direction (*"agents should never fully rewrite anything — if a full
-rewrite is required there is a fundamental issue/deviation and I'd want it double checked"*),
-after two concurrent agents each rewrote `jobs/frontend/context/current.txt` in full and
-silently dropped the other's thread record — a recurrence of a Wave 0 collision.
+PO direction: *"agents should never fully rewrite anything — if a full rewrite is required there is a
+fundamental issue/deviation and I'd want it double checked."*
 
 **The rule, scoped by file class:**
 - **Shared-record files — append or amend only, never wholesale replacement.** They accumulate
@@ -201,16 +138,10 @@ to an already-tracked shared-record file and points at `Edit`. Memory
 
 ### Scanner suppressions need COO sign-off (mandatory, OP-30)
 
-Adopted 2026-07-28. During B2, Gitleaks' `generic-api-key` rule flagged the literal string
-`Categories/Activities/Countries` in a tracker note the agent had just written — a genuine
-false positive. The agent resolved it by adding `.gitleaks.toml` with a narrow allowlist and
-went green. The config itself is sound (`useDefault = true` keeps every standard rule active;
-the allowlist is an exact-string match on that one phrase, not a path or file exemption), and
-it is kept.
-
-The precedent is the problem: an implementation agent independently weakening a **security
-scanner's** configuration in order to turn a red check green is not a call an implementation
-brief carries, however narrow the change.
+An implementation agent independently weakening a **security scanner's** configuration to turn a red
+check green is not a call an implementation brief carries, however narrow. (The existing
+`.gitleaks.toml` exact-string allowlist is COO-sanctioned — `useDefault = true` keeps every standard
+rule active; this governs *new* suppressions.)
 
 - **First, fix your own text.** When a scanner flags content *you just authored* and it is a
   false positive, reword your text. Rephrasing a changelog note costs nothing and leaves the
@@ -228,39 +159,21 @@ Whenever the BRD is updated (a changelog entry is written), the COO must create 
 entries for every new requirement ID introduced before closing the session. No BRD version
 bump is complete until all new IDs have a corresponding tracker entry.
 
-### BRD gate before dispatching briefs (mandatory)
-Before dispatching implementation briefs from any Architect deliverable or spec, the COO
-must add any new requirement IDs to the BRD and bump the version. No backend or frontend
-brief goes out without a BRD home for its requirements.
+### Dispatch gate — run `/coo-dispatch` before any deliverable brief (mandatory, OP-39)
 
-### Success criteria before dispatch (mandatory)
-Every requirement or spec must state its success criteria — a measurable definition of
-"done" — before the COO dispatches any implementation brief from it. A requirement with no
-stated success criteria has no way to be UAT'd or closed cleanly; it just accumulates as an
-ambiguous "done" in the tracker. Adopted 2026-07-07 after finding the project had no
-definition-of-done doc anywhere (the `objective.txt` stub meant to hold this was never
-filled in and has been deleted).
-
-### Dispatch gate before briefing (mandatory, OP-39)
-
-Adopted 2026-08-08 (design-reflection R4, PO-directed). Before dispatching any brief that produces
-committed deliverables, run the `/coo-dispatch` skill: it consolidates the pre-dispatch rules
-(classify OP-32 · BRD gate · success criteria · reuse audit · premise-verification · ATDD-first
-OP-35 · security checklist OP-06 · fresh-eyes OP-27 · worktree isolation · tracker cross-ref · model
-tiering) into one gate and defines a required brief-header. **Enforcement is agent-side**
-(`_shared/frameworks.txt` standard 31): the receiving agent refuses to start a deliverable brief that
-lacks the `=== COO DISPATCH GATE ===` header and flags it — because a checklist the COO merely
-*remembers* to run has the weakness that sank the earlier brief-template (no PostToolUse hook can see
-an Agent-tool dispatch prompt). **Read-only research/review/investigation dispatches are exempt.**
-Completes the COO lifecycle: `/coo-startup → /coo-dispatch → /coo-merge-and-close`.
+Before dispatching any brief that produces committed deliverables, run the **`/coo-dispatch`** skill —
+the single canonical home for the pre-dispatch gate (readiness · verification · mechanics, including
+classify OP-32, BRD gate, success criteria, security checklist OP-06 and ATDD-first OP-35) and the
+required `=== COO DISPATCH GATE ===` brief-header. Enforcement is agent-side: the receiving agent
+refuses to start a deliverable brief lacking the header (`_shared/frameworks.txt` standard 31).
+Read-only research/review/investigation dispatches are exempt. Lifecycle:
+`/coo-startup → /coo-dispatch → /coo-merge-and-close`.
 
 ### Spike-gate the BRD: no requirement enters as "approved" on an unverified premise (mandatory, OP-33)
 
-Adopted 2026-08-05 after the GE-17 retro: a requirement was BRD-approved (v3.14) on four unverified
-premises — two of them "only way" claims — and the spike that should have gated them collapsed all
-four within 48h, producing no code. The pattern behind this project's expensive churn: **a premise
-(usually an "only way" or absence claim) promoted to a gate artifact — a BRD requirement, a closed
-bug, a brief — before the probe that tests it runs.**
+The pattern behind this project's expensive churn: **a premise (usually an "only way" or absence
+claim) promoted to a gate artifact — a BRD requirement, a closed bug, a brief — before the probe that
+tests it runs.**
 
 **The rule:**
 1. A requirement resting on an unestablished premise does **not** get version-bumped into the BRD as
@@ -277,11 +190,10 @@ this stops an unverified *why*. Full record: tracker OP-33, memory
 
 ### PO input is authoritative but not infallible — probe it like any other source (mandatory, OP-34)
 
-Adopted 2026-08-05 on PO direction (*"just because I'm the PO doesn't mean I always know best"*): a
-statement treated as ground truth is one nobody downstream probes, so an unprobed wrong one is
-expensive precisely because the authority suppresses the check (the BRD carried *"GE-17 works
-offline"* for a whole version this way). PO input still decides — but it is **tested on two axes
-before it becomes law or work**:
+PO direction (*"just because I'm the PO doesn't mean I always know best"*): authority suppresses the
+downstream check, so an unprobed wrong statement is expensive (the BRD carried *"GE-17 works offline"*
+for a whole version this way). PO input still decides — but it is **tested on two axes before it
+becomes law or work**:
 
 1. **Truth — factual claims** (*"it works offline," "this used to work"*) are probed exactly as an
    agent's claim; the negative-findings two-probe rule binds, the source being the PO does not exempt
@@ -292,26 +204,6 @@ before it becomes law or work**:
 
 Both resolve to **probe before promote** — the PO is a source, not an exception. Full record: tracker
 OP-34, memory [[feedback_never_attribute_an_inference_to_the_po]].
-
-### ATDD-first for Architect-spawned briefs (mandatory, OP-35)
-
-Adopted 2026-08-05 (ADL-50). **For an implementation brief that an Architect spec spawns, the COO
-dispatches QA FIRST** — QA turns the success criteria into *red* acceptance/integration tests, handed
-to the implementer as the executable definition of done, before the implementation runs. It breaks
-the closed loop where the implementer writes both the code and the tests that certify it (same
-principle as OP-27 fresh-eyes).
-
-- **Trigger is objective** — keyed to Architect involvement, not a subjective "complexity" call.
-  "Goes to Architect" already gates the high-stakes classes (access-matrix, data-integrity invariants
-  like schema/migration/uniqueness/FK/dedup, shared-contract releases). Principle: apply when a wrong
-  build would be *silent-and-plausible* and the behaviour is *precisely specifiable up front*.
-  Deliberate gap: complex *frontend* work that never reaches the Architect is excluded.
-- **Mock-fidelity is part of the rule** — a test double must export/behave like the real dependency; a
-  suite that can pass vacuously has specified nothing (QUAL-22). ATDD stops tests being bent to fit
-  the code; it does not by itself make them good tests.
-- **Mechanics:** the Architect marks each brief `ATDD-first: yes/no`; the COO dispatches QA before the
-  implementer when marked. Warn-hook `.claude/hooks/atdd-first-guard.sh` backs it on the gh/brief
-  channels (it can't see Agent-tool dispatch). Full record: ADL-50, tracker OP-35.
 
 ### Document lifecycle (mandatory)
 Adopted 2026-07-07 after the doc-integrity audit (`audits/session-a-doc-integrity.md`)
@@ -338,14 +230,6 @@ otherwise:
 
 Enforcement hooks: `/pre-push` includes a status-doc check; `/coo-startup` includes a
 lifecycle spot-check over PRs merged since the last session.
-
-### Security checklist for Backend briefs (mandatory)
-Every Backend brief that adds or modifies routes must include a security checklist requiring
-the agent to confirm for each new route:
-1. Auth middleware applied — `requireAuth` at minimum; `requireOwner` for owner-only operations
-2. All repository queries that touch user data include `userId` scoping (`eq(table.userId, req.user.id)`)
-3. Any new user-data table columns that reference a user have `.notNull()` on the FK
-Reference: `jobs/architect/tech/OP-06-hardening-checklist.md` §2 access matrix and ADL-27.
 
 ### GitHub issue ↔ tracker cross-referencing (mandatory)
 When raising a GitHub issue for something that has a tracker entry, include the tracker ID
@@ -422,6 +306,24 @@ a wrong eight-delete design when it was skipped once. Same shape as the negative
 rule above: a single reasoning chain, even given a chance to double back, tends to
 re-confirm its own premise — genuinely independent eyes catch what a self-check doesn't.
 
+**Tier the review by stakes (design-reflection R5, PO-directed) — but never tier away independence.**
+Every cited Architect deliverable still gets a fresh-eyes review; nothing skips it. What the reason
+for this rule demands at *every* level — a single chain re-confirms its own premise — is that the
+reviewer is **always a freshly-dispatched agent, never the author re-checking itself**. What scales
+with stakes is the reviewer's *model and depth*:
+- **High-stakes** (the OP-35 objective trigger — schema / migration / access-matrix / data-integrity
+  invariant like uniqueness/FK/dedup / shared-contract release) → a full fresh **Opus** review, deep
+  adversarial stress-test (the original behaviour).
+- **Low-stakes** (a cited ADL *not* in those classes — process, tooling, doc-structure, naming) → a
+  lighter fresh review: still an independent fresh chain, but a cheaper-tier (**Sonnet**) reviewer
+  running a focused checklist (premise / negative-findings check + the amendment-seam check below),
+  not a full stress-test.
+- **Optional escalation** — for the hardest *non-security* reasoning (e.g. a gnarly data-integrity /
+  dedup invariant), **Fable** may stand in for Opus. Not a mandatory tier. **Do not** route
+  security-flavoured reviews (access-matrix, auth, `userId`-scoping) to Fable: its cybersecurity
+  classifiers can refuse benign security-review content, and an Agent-tool dispatch has no
+  refusal-fallback.
+
 **Two refinements adopted 2026-08-08 (PO direction; ADL-52).** Both prevent the same silent
 failure — a review that comes back clean because it spent itself on the wrong target looks
 identical to one that genuinely found nothing.
@@ -469,7 +371,7 @@ input to weigh, not as a settled recommendation to rubber-stamp.
 ## Environment
 - Running inside a devcontainer (Docker) — workspace at `/workspace`
 - Claude config dir: `/home/node/.claude`
-- Firewall allows: GitHub, npm registry, Anthropic API only
+- Firewall: egress is restricted; the allowlist is `.devcontainer/init-firewall.sh` (the canonical source — never enumerate it elsewhere, it rots). A "host X is blocked" report is almost always an **untried or mis-run probe, not a fact** — probe it yourself (one well-behaved request) before believing it, and never inherit a firewall-block claim from a doc, comment, or another agent.
 - `.env.local` holds secrets — never commit it
 
 ## Schema changes (Drizzle ORM)

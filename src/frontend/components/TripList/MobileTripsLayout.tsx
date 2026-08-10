@@ -28,6 +28,7 @@
  */
 import { useCallback } from 'react';
 import { useMe } from '../../hooks/useMe';
+import { useReviewPanelVisibility } from '../../hooks/useReviewPanelVisibility';
 import { useTrip } from '../../hooks/useTrips';
 import { type SortOption, STATUS_CHIPS, useTripsController } from '../../hooks/useTripsController';
 import type { TripStatus } from '../../types/api';
@@ -91,6 +92,14 @@ export function MobileTripsLayout() {
 
   const handleBack = useCallback(() => navigate('/trips'), [navigate]);
 
+  // BUG-58/BUG-86: mirrors TripDetailPage's desktop wiring — which surface
+  // renders for a review_pending trip is a local dismiss, never a navigation
+  // (see useReviewPanelVisibility's doc comment for the shared root cause).
+  const { showReviewPanel, dismissReview } = useReviewPanelVisibility(
+    selectedTrip?.id,
+    selectedTrip?.status,
+  );
+
   // Slide/cross-fade transition — exact transform/opacity values per spec.
   const hasSelection = !!selectedId;
   const listPanelClass = hasSelection
@@ -117,10 +126,10 @@ export function MobileTripsLayout() {
         </div>
       );
     }
-    if (selectedTrip.status === 'review_pending') {
+    if (showReviewPanel) {
       return (
         <div className="px-2 py-4">
-          <ReviewPanel trip={selectedTrip} onClose={handleBack} />
+          <ReviewPanel trip={selectedTrip} onClose={dismissReview} />
         </div>
       );
     }

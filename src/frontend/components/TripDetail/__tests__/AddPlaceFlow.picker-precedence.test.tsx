@@ -93,6 +93,8 @@ function renderFlow() {
       tripStartDate="2026-01-01"
       tripEndDate="2026-01-10"
       isFirstPlace={false}
+      tripCountries={[]}
+      onManageCountries={vi.fn()}
     />,
   );
 }

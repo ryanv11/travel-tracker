@@ -231,6 +231,33 @@ describe('ReviewPanel', () => {
   });
 
   // ----------------------------------------------------------------
+  // BUG-58 regression (reopened 2026-08-08): forward transition (Lock) must
+  // not clear selection either
+  // ----------------------------------------------------------------
+
+  // BUG-58's original fix (see the "Return to Planning" block above) only
+  // covered the BACKWARD status transition. Locking is a *forward* transition
+  // and this handler still called onClose() right after the mutation
+  // resolved — one level up, that navigates to '/trips' and drops the
+  // trip's :id, deselecting it the instant the lock succeeded. Fixed by
+  // removing the onClose() call here too, same as the backward case: once
+  // trip.status is 'locked', the parent (via useReviewPanelVisibility) stops
+  // rendering ReviewPanel for this trip and shows TripDetail instead, with
+  // the same trip still selected.
+  it('BUG-58 regression: locking does NOT call onClose', async () => {
+    mockLockMutateAsync.mockResolvedValue({});
+    const trip = makeTrip([makePlace([])]);
+    render(<ReviewPanel trip={trip} onClose={onClose} />);
+    await userEvent.click(screen.getByRole('button', { name: /Complete Review.*Lock Trip/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Lock Trip' }));
+
+    await waitFor(() => {
+      expect(mockLockMutateAsync).toHaveBeenCalledWith(10);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // ----------------------------------------------------------------
   // BUG-04 regression: Return to Planning button
   // ----------------------------------------------------------------
 

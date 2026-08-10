@@ -1,0 +1,46 @@
+TO: COO
+FROM: Architect
+DATE: 2026-08-08
+RE: BUG-87 — trip-country picker hard-filter design (ADL-53) COMPLETE
+
+HEADER
+  Tracker: BUG-87 · ADL-53 · BRD: proposes GE-20 (you formalize) · Branch:
+  feat/bug87-trip-country-picker-filter · PR: #<fill> · Design only, no production code.
+
+DESIGNED
+  How the trip's declared country SET hard-filters the add-place picker (both the GE-14 DB
+  search and the GE-15 geocode lookup). Deliverable: ADL-53-trip-country-picker-filter.md +
+  summary entry in the main log. Full table/reasoning there; report is signal only.
+
+THE PROBE THAT CHANGED THE DESIGN
+  The schema comment claims trip_countries is "derived from trip_places." It is NOT — two
+  probes (grep of write callers → only trip create/PATCH + the countries sub-router;
+  places.ts writes nothing on add. AND TripForm already has a country multi-select). So the
+  set is user-declared + editable TODAY; the hard filter is NOT circular; BUG-87 is missing
+  read-path wiring, not machinery. Stale comment to be corrected in the impl PR.
+
+PER-DECISION VERDICT
+  D1 New country_codes param (comma ISO) on /api/cities + /api/geocode — ADOPTED
+  D2 inArray + Nominatim countrycodes, union across the set — ADOPTED
+  D3 Zero-country trip => unconstrained + prompt (NOT hard-empty) — RECOMMENDED, OPEN Q1 (PO)
+  D4 Off-country add => day-one static empty-state to trip editor — RECOMMENDED, OPEN Q2 (PO)
+  D5 "Showing places in: <names>" note from trip.countries — ADOPTED
+  D7 BUG-90 seam: ISO-country granularity only; Scotland->GB; no ship-order dep — ADOPTED
+  D8 No schema change / no migration — ADOPTED
+  D9 OP-06: no new scoping; global reference data; GE-16 creator-scope preserved — ADOPTED
+  D10 ATDD-first: backend contract brief YES, frontend brief NO — ADOPTED
+
+CI: design/doc-only change (no source). PR CI expected green; confirming via ci-wait before
+  I consider the thread closed (see below).
+
+OPEN ISSUES / BLOCKERS (resolve with PO BEFORE dispatching fresh-eyes — OP-27 refinement 1)
+  Q1 Zero-declared-countries behaviour: unconstrained+prompt (rec) vs hard-empty+prompt?
+  Q2 Off-country-add UX: static empty-state (rec) vs inline discovery-probe "add France?"
+  Q3 "filtered by" note for large sets: count-and-truncate ok?
+  (Non-blocking: GE-15 single-country pre-confirm polish; the set-size cap value ~<=10.)
+
+WHAT'S UNBLOCKED
+  - You: formalize GE-20 (BRD §5.1 + version bump + BUG-87 brdRefs) — text + success criteria
+    ready in ADL §3. Per OP-33 it rests on no unverified premise => may enter approved.
+  - Then: OP-27 fresh-eyes on ADL-53 (whole doc), then Brief A (backend, ATDD-first: QA first)
+    + Brief B (frontend). BUG-90 has no ordering dependency and can proceed in parallel.

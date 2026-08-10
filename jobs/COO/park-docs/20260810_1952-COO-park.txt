@@ -1,0 +1,84 @@
+COO SESSION PARK — 2026-08-10 ("STATUS-DRIFT SWEEP + OP-40 REFINEMENT + REUSE STANDARD #32 + R1/QUAL-43 RESUMED THROUGH STAGE 1")
+4 PRs merged (#482–#484 + this close-out) · main green after each · R1 design complete + Stage-1 red-bar on main
+================================================================================
+
+## READ THIS FIRST
+
+1. **R1 / QUAL-43 is LIVE again (status: in_progress).** Design phase is COMPLETE and reviewed; the
+   build has STARTED (Stage 1 merged). The full resume state is in the QUAL-43 tracker note — read it.
+   **RESUME AT: Backend Stage 0** (`scope.ts` + an `assertOwned` assertion helper; refactor repos to
+   route EVERY ownership expression through the chokepoint — INCLUDING the `assertWritable` JS-comparison
+   gates at `places.ts:273`/`items.ts:95` per fresh-eyes finding F1 — plus the completeness grep guard;
+   keep the Stage-1 Part F matrix green). Then Stage 2 citiesRepository → Stage 3 referenceRepository
+   (global reads) → Stage 4 user-owned relocation + guard flip STRICTLY LAST (expand/contract, ADL-47).
+   Dispatch order + per-stage ATDD marks are in ADL-53 §11.
+
+2. **DEFERRED MERGE PASS (do before/around Stage 0):** the ADL-53 DESIGN is on PR #456
+   (`feat/adl53-userid-scoping-chokepoint`), NOT yet merged — deliberately, because it carries an
+   ADL-log insertion seam (main advanced 52→54 while ADL-53 sat on the branch; on merge, order the log
+   52→53→54 and resolve the after-52 seam). #461 is the FIRST/banked fresh-eyes review — CLOSE it as
+   superseded on that pass (its B1/B2 findings are resolved and recorded in ADL-53's revision history).
+   Merging #456 also closes the drift-canary's ADL-53 numbering-gap finding.
+
+3. **R1's fresh-eyes chain worked and is worth trusting:** revision cleared banked B1/B2 → OQ-1 resolved
+   ABSOLUTIST (PO) → a FRESH OPUS review (never Fable for userId-scoping) returned SOUND-WITH-FOLLOW-ONS
+   and its SEAM CHECK caught F1 (the "single change-point" claim was false because ownership is written
+   two ways). F1–F4 were folded (§R2) and COO-verified as reviewer-specified (no third review). Stage 1
+   QA then proved the isolation invariant holds today (no active bleed) as the regression net.
+
+4. **AWAITING PO (unchanged):** the 2026-08-08 Scotland retest UAT — 15 `done_pending_uat` items in
+   `jobs/PO/uat-log.md`. Untouched this session. On PO verdict: flip per the retest block.
+
+## What the session was, in one paragraph
+
+Started from a PO spot-check ("isn't ENV-01 done?") that opened into a FULL-TRACKER status-drift audit
+(285 items, 4 read-only agents, both drift directions). Corrections: ENV-01→done (firewall block gone,
+verified live), BRD-AD09→done (per-user model shipped), OP-36 re-scoped, and the real find QUAL-29 (done
+but only the frontend half shipped) SPLIT → new QUAL-45 for the security-load-bearing backend factory.
+The audit's blind spot (last session's deep audit fixed BRD-AD09's title but missed its status field)
+drove an OP-40 REFINEMENT: a tracker status-field lens (cheap canary Check E, calibrated to 0 FPs; the
+two harder shapes to the deep-audit lens). PO then endorsed elevating the ADL-53 chokepoint pattern to a
+reuse principle; independent Architect + Backend review (both adopt-with-changes) produced frameworks.txt
+STANDARD #32 (lead with the verified invariant, not the helper). Then RESUMED R1 through its design phase
+(revision → OQ-1 → Opus re-review → F1–F4 amendment) and shipped Stage 1 (QA cross-tenant matrix). Closed
+out here for a fresh R1 pickup.
+
+## Shipped & merged (PRs)
+
+- #482 status-drift sweep + QUAL-29 split→QUAL-45 + OP-40 Check E + status corrections (ENV-01/BRD-AD09/OP-36/QUAL-02).
+- #483 frameworks.txt standard #32 — "consolidate a verified invariant, not code that rhymes" (D-31 resolved).
+- #484 R1 QUAL-43 Stage 1 — cross-tenant isolation matrix (security.access-matrix.test.ts Part F), the ATDD red-bar.
+- (this) session close-out — QUAL-43→in_progress + R1 resume note, DEP-07 npm-advisories fold, inbox triage, park doc.
+
+## State of play (durable — tracker.json / STATUS.md)
+
+- **R1/QUAL-43:** in_progress. Design done + reviewed; Stage 1 merged. Resume = Backend Stage 0. QUAL-45 = the split-out admin-name-list backend factory (pending, architect, Opus OP-27-gated — separate thread).
+- **Open PRs:** #456 (ADL-53 design, banked for merge pass), #461 (first review, to close).
+- **Pre-existing P1:** QUAL-18 (CSP E2E blindspot).
+- **AWAITING PO:** Scotland retest UAT (15 items).
+- **Governance shipped this session:** frameworks #32 (reuse), OP-40 status-field lens (canary Check E + deep-audit lens).
+
+## Process notes worth keeping
+
+- **"Generated" ≠ correct.** STATUS.md is generated from tracker.json, so drift lives in the hand-maintained
+  status field — a full audit means auditing tracker.json, not trusting the render. QUAL-29 hid because #436
+  bulk-flipped six QUAL items to done with no per-entry note stamp.
+- **The seam check earned its keep (twice).** OP-27 refinement #2 caught ADL-53 F1; the OP-40 refinement was
+  itself a seam-miss (title fixed, status not) — apply the walk-the-consequence discipline to audits too.
+- **Probe your own proposed rule before promoting it.** Building the OP-40 status-field check revealed the
+  cheap regex wouldn't have caught the two motivating cases — split honestly (canary catches the narrow slice,
+  deep-audit lens the rest). Same discipline the Architect applied to the reuse principle (contract-first, not
+  helper-first).
+- **COO ERROR, recorded:** a queued `git reset --hard` ran while a checkout had aborted on `main` — moved local
+  main (fixed) AND discarded an uncommitted `uat-log.md` edit (unrecoverable; PO to re-apply if theirs). Lesson:
+  clear the working tree before branch/reset ops. Nothing wrong was pushed; origin never affected.
+
+## Open threads
+
+See `jobs/COO/open-dialogues.md` (Open = D-05/14/23/27/28/30; Parked = watch-if-recurs). D-30 (build-vs-buy)
+and the now-ratified reuse standard #32 are the same "reach for existing before writing new" family — frame
+D-30 with #32 when it comes up. D-31 was RESOLVED into frameworks #32 this session (deleted per delete-on-resolution).
+
+Suggested next: (a) pick up R1 — do the deferred #456 merge pass (resolve the ADL-log 52→53→54 seam, close #461),
+then dispatch Backend Stage 0; or (b) log the PO's Scotland retest UAT results and flip the 15 items.
+================================================================================

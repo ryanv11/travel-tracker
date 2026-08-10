@@ -130,3 +130,39 @@ DISPATCH GATE
     brief. This is enforcement on the artifact you actually receive (no hook can see an Agent-tool
     dispatch prompt). Read-only research/review/investigation dispatches are EXEMPT — they commit
     nothing and need no header. See the /coo-dispatch skill for the full gate and header spec.
+
+32. CONSOLIDATE A VERIFIED INVARIANT, NOT CODE THAT RHYMES (reuse-over-rewrite). Sharpens
+    ADL-18 (the repository boundary) and the "default to reuse, not duplication" preference —
+    it is NOT a new canonical home, and NOT a mandate to abstract anything that looks alike.
+    When the same rule must hold identically at many sites — authentication, row-level userId
+    scoping, identity resolution, external egress, access checks — express it once and prove
+    nothing bypasses it. The deliverable is the VERIFICATION, not the helper; "extract a helper"
+    is the RESULT, never the entry criterion (chasing "fewer hand-written components" as a goal
+    is what produced the duplication in the first place). Consolidate ONLY when ALL FOUR hold —
+    otherwise prefer the duplication:
+      (1) a single precisely-stateable INVARIANT/contract exists — not merely similar-looking
+          code (duplication is cheaper than the wrong abstraction);
+      (2) one site getting it wrong fails SILENTLY AND SEVERELY — cross-tenant read, auth
+          bypass, split identity; cosmetic duplication does not qualify;
+      (3) "single" is MECHANICALLY VERIFIED in CI — a grep/lint guard, a per-route cross-tenant
+          test, route-mount proof — not asserted in a comment. If you cannot verify "single,"
+          you have a HELPER, not a chokepoint; claim only the former. (ADL-53 F1: ownership was
+          written two ways — a SQL predicate AND a JS `!==` — so the "single gate" was nominal
+          until a grep covered both.)
+      (4) the contract is NARROW AND STABLE — if each new feature must widen its signature
+          (`includeShared`, then `isAdmin`…), the seam is wrong. Design a change as a predicate
+          swap INSIDE one function, not new parameters at every call site; do not build an
+          access-policy engine for a user base that does not exist.
+    Two safety properties always apply. KEEP THE INVOCATION EXPLICIT, not ambient —
+    `repo.findById(userId, id)` makes the invariant a required, visible, grep-able parameter;
+    consolidate the implementation, keep the call legible (QUAL-45 keeps `validateOwnership`
+    explicit). And QUANTIFY BEFORE YOU CONSOLIDATE — probe the real duplication and real risk
+    first (the negative-findings two-probe rule pointed at a refactor): QUAL-43 was briefed as
+    "~65 unsafe sites / top security risk" and the ADL-53 review found ~4-6 inline sites, global
+    (not user) data, and no active bleed. NOTE request-path vs data-path: a request-path gate
+    (middleware, e.g. `requireAuth` mounted on `/api/`) is structurally airtight — every route
+    mounts under it; a data-path invariant (per-resource row scoping) is NOT a single runtime
+    gate — the best achievable is one definition + a fence (CI guard + per-route test) that
+    proves nothing escapes. Do not import the middleware case's airtightness into the data case.
+    In-tree exemplars: `requireAuth`, the `/api/geocode` egress proxy, the repositories (ADL-18).
+    Worked example: ADL-53. Adopted 2026-08-10 (PO-ratified after Architect + Backend review).

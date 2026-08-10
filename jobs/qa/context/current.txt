@@ -319,3 +319,127 @@ NEXT STEPS (for incoming QA)
   lint notices in untouched files, confirmed pre-existing via diff against
   main). Full detail: jobs/qa/tech/20260808-qual-coverage-sweep.md
   Completion report: jobs/COO/inbox/
+
+================================================================================
+2026-08-08 — BUG-87 / GE-20 ATDD RED BAR (OP-35, trip-country picker filter)
+================================================================================
+
+  Branch: feat/bug87-ge20 (off main @ 4c38d90, pushed). PR opened, title
+  states "do not merge alone" per the ATDD handoff convention (CI shows the
+  new tests failing by design). Backend implements Brief A against this
+  branch next.
+
+  Turned ADL-54/GE-20's success criteria + the fresh-eyes review's F1/F2
+  edge cases into RED acceptance/integration tests BEFORE Backend writes
+  any implementation:
+    - src/backend/routes/__tests__/ge20-cities-country-filter.test.ts
+      (GET /api/cities?country_codes=, real migration-backed test DB)
+    - src/backend/routes/__tests__/ge20-geocode-country-filter.test.ts
+      (GET /api/geocode?country_codes=, fidelity-extended nominatim-client
+      double)
+
+  Result: 5/11 RED for the right reason (clean AssertionErrors — wrong
+  row/candidate counts, no import/exception noise) against main: single-
+  country narrow (cities), multi-country union (cities), off-country empty
+  (cities), client-args + union (geocode), off-country empty (geocode). 6/11
+  already pass on main — 4 genuine regression guards (absent-param
+  backward-compat ×2, the F4 seam vs the POST /api/cities D12 single
+  country_code create constraint ×2) and 2 F1 empty-string guards that pass
+  VACUOUSLY today (no filtering logic exists yet to trip the footgun) but
+  are kept and labelled honestly — they exist to catch the specific naive
+  `inArray(col, [])`-always-pushed implementation bug the fresh-eyes review
+  flagged as the most important non-blocking finding (F1: would silently
+  invert the PO's Q1 SHOW-ALL ruling). All 6 non-red tests are explicitly
+  labelled in-file (GUARD / REGRESSION GUARD), same discipline as the
+  BUG-76 ATDD precedent. No production code touched.
+
+  Mock-fidelity (OP-35/QUAL-22): the pre-existing nominatim-client.js
+  double in geocode.test.ts (BUG-79) is a dumb capture-and-return stub that
+  ignores countrycodes entirely — reusing it unmodified would have made
+  every GE-20 outcome-based geocode assertion pass vacuously. Extended it
+  in the new file: a small fixture candidate pool, filtered by countrycodes
+  as an allow-list (comma-split, case-insensitive), matching Nominatim's
+  documented behaviour — while still capturing raw call args for the
+  brief's explicit "assert on the CLIENT ARGS" instruction. Verified the
+  old double's lack of fidelity two ways (full file read + confirmed its
+  own 5 tests never branch on countrycodes) before deciding to extend
+  rather than reuse.
+
+  Full breakdown + design rationale: jobs/qa/tech/20260808-ge20-atdd-red-tests.md
+
+  NOTED GAP (not added to the red bar, flagging rather than silently
+  expanding scope): ADL-54 §4 recommends schema-level rejection of invalid
+  country_codes values and a ≤10-code cap as Brief A implementation
+  details; neither was in the dispatch's enumerated 7-item test list, so
+  neither is red-tested here. Also carrying forward the fresh-eyes
+  review's P2 (non-blocking): Nominatim's real multi-country countrycodes
+  behaviour is UNVERIFIED from this environment (firewall) — the geocode
+  double models documented behaviour, not a live probe. Recommend an early
+  real multi-country geocode check against staging before UAT trusts this.
+
+  NEXT: Backend implements against this branch until all 5 red assertions
+  are green, the 2 F1 guards still pass for the RIGHT reason (branching on
+  set.length, not accidental), and the 4 regression guards + full backend
+  suite stay green. type:check:all clean, no other suite regresses.
+  Completion report: jobs/COO/inbox/
+
+================================================================================
+2026-08-10 — QUAL-43 STAGE 1: CROSS-TENANT ROW-LEVEL ISOLATION MATRIX (ADL-53 §5.1)
+================================================================================
+
+  Branch: feat/qual43-stage1-crosstenant-matrix (off main, pushed). PR opened.
+  This IS the OP-35 red bar for the ADL-53 userId-scoping-chokepoint build —
+  authored before Backend touches scope.ts or relocates any query (Stage 0/2/
+  3/4 are downstream of this).
+
+  Extended src/backend/routes/__tests__/security.access-matrix.test.ts with a
+  new Part F (reused the file's existing real-libSQL two-user harness rather
+  than building a parallel rig, per the brief's reuse audit). Named every §5.1
+  user-owned getDb() path explicitly and asserted the F4 expected shape per
+  endpoint class:
+    - trips.ts:198/223 (trip-detail items)            → predicate read, scoped
+    - places.ts:231/253 (carry-forward, SEC-02)        → 404 (trip/place) +
+                                                          400 (cross-tenant
+                                                          source item id)
+    - places.ts:289/352 (activity tag/untag)           → 404, never 403
+    - cities.ts:703/748 (city carry-forward, IT-07)     → empty list
+    - cities.ts:766/792 (city items, SEC-01)            → empty list
+  items-helper.ts:87 has no route of its own — covered transitively via its
+  three call sites above. trips.ts:207-216's tripPlaceActivitiesMap join
+  inherits isolation from the prior findByIdOrThrow ownership check (ADL-53
+  F2) — no independent cross-tenant vector exists to test; noted, not a gap.
+
+  REAL libSQL (not the in-memory getDb mock): createTestDb() applies the real
+  migration files to a real @libsql/client :memory: connection (FKs ON, real
+  partial unique indexes) — getDb() is mocked only at the "which instance"
+  plumbing level, never the SQL engine. Two distinct real users seeded
+  throughout (USER_A_ID/USER_B_ID, the file's existing constants).
+
+  ANTI-VACUOUS (mutation-tested, not just reasoned about): temporarily
+  dropped trips.ts:223's eq(items.userId,userId) predicate — the trip-detail
+  test went red (rogue USER_B item leaked into USER_A's own view). Separately
+  dropped places.ts:253's SEC-02 predicate — the carry-forward test went red
+  (201 instead of 400 — USER_A's item would have been duplicated onto
+  USER_B's trip). Both reverted immediately; git diff --stat confirmed zero
+  production-code diff before commit; full suite re-verified green after.
+
+  RESULT: all 8 new Part F assertions are GREEN on current main — expected
+  per ADL-53 F5 (isolation holds by convention today, no active bleed). This
+  is the regression net for Stages 0/2/3/4, not evidence there's nothing to
+  build. NO red path found on current main — nothing to escalate as a latent
+  gap.
+
+  Verification: 808/808 backend tests green (was 800 before Part F's 8 new
+  tests), type:check:all clean, biome clean (5 pre-existing unrelated INFO
+  notices), status:check/tracker:check both OK. npm audit (fresh worktree
+  install): 6 MODERATE advisories, no HIGH/CRITICAL — reported to COO per
+  frameworks.txt rule 20, not blocking, no package changes made by this
+  thread.
+
+  Full detail: jobs/qa/tech/20260810-qual43-stage1-crosstenant-matrix.md
+  Completion report: jobs/COO/inbox/
+
+  NEXT: Backend implements Stage 0 (scope.ts) against this branch as the
+  substrate, then Stages 2/3/4 relocate the named §5.1 paths — Part F must
+  stay green through every relocation and go RED if any predicate or prior
+  ownership assertion is dropped mid-move.

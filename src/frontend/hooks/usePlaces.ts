@@ -35,9 +35,24 @@ interface UpdatePlaceDatesResult {
 
 /**
  * Adds a city to a trip as a place via POST /api/trips/:tripId/places.
- * On success, invalidates the trip detail query so the new place renders.
+ * On success, invalidates the trip list query so the new place renders
+ * everywhere it's read from — not just the trip detail view.
  *
  * UX-02: Optional arrivedOn / departedOn may be included in the POST body.
+ *
+ * BUG-93: this used to invalidate only ['trips', tripId] (the single-trip
+ * detail query) and ['map', 'shading'] (region/country fill). Neither one
+ * matches — under TanStack Query's prefix-matching invalidation — the bare
+ * ['trips'] list query (MapPage's `useTrips()`, no filters, queryKey
+ * ['trips', undefined]) that MapView/CityMarkers derive their pins from. A
+ * newly-added place's city already has resolved coordinates immediately (not
+ * a geocoding delay — verified against the reported Sydney case), but the
+ * map's own trips list stayed stale until something else happened to refetch
+ * it, so the new marker didn't paint until a manual refresh. Fixed the same
+ * way useRemovePlace already does it below (BUG-32's fix, same file):
+ * invalidate the broader ['trips'] key, which — per TanStack's prefix
+ * matching — also covers ['trips', tripId] as a suffix, so the trip detail
+ * view keeps refreshing exactly as before.
  *
  * @returns useMutation result. Call mutateAsync({ tripId, cityId, arrivedOn, departedOn }).
  */
@@ -60,8 +75,8 @@ export function useAddPlace() {
         ...(arrivedOn !== undefined && { arrived_on: arrivedOn }),
         ...(departedOn !== undefined && { departed_on: departedOn }),
       }),
-    onSuccess: (_result, vars) => {
-      void qc.invalidateQueries({ queryKey: ['trips', vars.tripId] });
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
     },
   });

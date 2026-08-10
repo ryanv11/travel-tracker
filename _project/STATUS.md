@@ -17,29 +17,19 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (85)
+## Open work (84)
 
-### P0 — Blockers (1)
-
-| ID | Title | Owner | Status |
-|---|---|---|---|
-| FEAT-IT | Item Logging | frontend | ◐ Partial |
-
-### P1 — Critical (3)
+### P1 — Critical (1)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
-| BUG-63 | Non-owner cannot add a place to a trip — categories/activities /active reads and POST /api/cities are all owner-gated (REPRODUCED + ROOT-CAUSED) | architect | ⬜ Pending |
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
-| QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | ⬜ Pending |
 
 ### P2 — Important (45)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
-| ENV-01 | Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall | coo | ⬜ Pending |
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
-| BRD-AD09 | Categories/activities are global seeded defaults; deactivation is owner-only (AD-09) | backend | ◐ Partial |
 | BRD-GE18 | Reference-data provenance and in-product attribution credits surface (GE-18) | frontend | ⬜ Pending |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
 | BRD-FL04 | Flight number lookup — auto-populate fields from flight number + date (FL-04) | backend | ⬜ Pending |
@@ -56,7 +46,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-48 | Country→state map shading zoom threshold too high / laggy | frontend | ⬜ Pending |
 | BUG-53 | Trip list place display: show state (not country) under city, surface country separately | ux | ⬜ Pending |
 | BUG-55 | City entry doesn't auto-populate country/state — CSP blocks the Nominatim call (deployment defect) | architect | ⬜ Pending |
-| BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | ⬜ Pending |
+| BUG-58 | Moving a trip backward in the status workflow deselects it from the left panel | frontend | done_pending_uat |
 | BUG-65 | A review_pending trip has no delete affordance — TR-14 is unreachable in that state | frontend | ⬜ Pending |
 | BUG-66 | ReviewPanel's forward Lock path repeats BUG-58's onClose()-after-mutation pattern | frontend | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
@@ -71,19 +61,21 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-81 | Disambiguation picker rows hard to skim — raw display_name shows county + postcode noise | frontend | done_pending_uat |
 | BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
 | BUG-85 | Stuck geocode-pending cities are invisible and unactionable — no visibility into the retry queue or its cause, no user recovery (GE-19) | architect | ⬜ Pending |
-| BUG-87 | Add-place picker does not narrow/rank candidates by the trip's assigned country/countries | architect | ⬜ Pending |
+| BUG-87 | Add-place picker does not narrow/rank candidates by the trip's assigned country/countries | architect | done_pending_uat |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
-| BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | ⬜ Pending |
+| BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
+| QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | 🔄 In progress |
+| QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
-| OP-36 | Apply ADL-49 — Nominatim (+optional MapTiler) firewall allowlist + recorded replay fixtures, on next container rebuild | coo | ⬜ Pending |
+| OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
 | QUAL-37 | Backup posture — COO memory dir + Turso DBs are unversioned/reseed-only; back up before non-disposable UAT data | coo | ⬜ Pending |
 | QUAL-38 | Goal-6 scorecard — one recurring PO-readable health report (escape/rework/flow/hook-violations/token-burn) | coo | ⬜ Pending |
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (36)
+### P3 — Minor (38)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -108,13 +100,15 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-69 | geocodeRetryQueue polls 'unresolvable' cities forever — no terminal branch | frontend | ⬜ Pending |
 | BUG-70 | Companion.is_active typed number but serialized boolean (third instance of the class) | frontend | ⬜ Pending |
 | BUG-82 | CityPicker rows keyboard-inaccessible (bare div onClick) + disabled has no visual state — a11y | frontend | ⬜ Pending |
-| BUG-86 | "Back to trip" button in review status deselects the trip instead of returning to the active view | frontend | ⬜ Pending |
+| BUG-86 | "Back to trip" button in review status deselects the trip instead of returning to the active view | frontend | done_pending_uat |
 | BUG-88 | Post-trip review has no trip-level or place-level rating (only item-level) | architect | ⬜ Pending |
 | BUG-89 | Country/city geocode lookup is intolerant of misspellings and informal spellings | backend | ⬜ Pending |
 | UX-13 | Grey out / lock the city name on the disambiguation picker screen (editing it there doesn't re-run the lookup) | frontend | ⬜ Pending |
-| UX-14 | First place's dates render in blue while later places' dates don't (inconsistent styling) | frontend | ⬜ Pending |
+| UX-14 | First place's dates render in blue while later places' dates don't (inconsistent styling) | frontend | done_pending_uat |
 | BUG-92 | Companions are not seeded from a global starting list | architect | ⬜ Pending |
-| BUG-93 | Newly-added place's map marker doesn't appear until a refresh (render lag on add) | frontend | ⬜ Pending |
+| BUG-93 | Newly-added place's map marker doesn't appear until a refresh (render lag on add) | frontend | done_pending_uat |
+| BUG-94 | GE-20 bypass: the manual '+Add new' country dropdown in the picker isn't restricted to the trip's countries | frontend | ⬜ Pending |
+| QUAL-44 | Stale file:line cross-references in comments — remaining low-value ones + adopt cite-symbols-not-lines | unassigned | ⬜ Pending |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 | QUAL-34 | Shared-record append collisions — union-merge driver for the ledger + per-agent context files (never adopted, 3rd recording) | coo | ⬜ Pending |
 | QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |
@@ -128,11 +122,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `████████████▓░░░░░░░` 35/57 | 35 | 22 | 4 |
+| feature | `█████████████░░░░░░░` 37/57 | 37 | 20 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `██████████████░░░░░░` 59/85 | 59 | 26 | 3 |
+| bug | `██████████████░░░░░░` 61/86 | 61 | 25 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 31/57 | 31 | 26 | 1 |
+| chore | `███████████░░░░░░░░░` 32/60 | 32 | 28 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -166,4 +160,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_176 done · 9 deferred · 5 closed · 85 open — 275 tracked items_
+_181 done · 9 deferred · 5 closed · 84 open — 279 tracked items_
