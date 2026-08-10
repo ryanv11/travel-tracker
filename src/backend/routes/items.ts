@@ -5,8 +5,11 @@
  * Handles item CRUD with type-specific extension rows.
  * Implements lazy experience extension row creation (ADL-14) on PATCH.
  *
- * ADL-18: All user-scoped queries go through itemRepository. No direct getDb()
- * calls for user-owned data.
+ * ADL-18: All user-scoped queries go through itemRepository. QUAL-43 Stage 4
+ * (ADL-53 §3 item 1) made that literal rather than aspirational: this file holds
+ * no database handle at all, which is why the wording changed from the original
+ * "no direct calls for user-owned data" — the route layer now cannot reach the
+ * ORM, scoped or otherwise, and `scripts/scope-completeness-check.sh` enforces it.
  */
 
 import { Router } from 'express';

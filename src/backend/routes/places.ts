@@ -8,20 +8,23 @@
  * placeRepository.assertWritable (ownership + lock) or run assertNotLocked
  * AFTER an ownership check (assertNotLocked itself is not user-scoped).
  *
- * ADL-18: User-scoped queries go through placeRepository. No direct getDb() calls
- * for user-owned data.
+ * ADL-18: User-scoped queries go through a repository — placeRepository for
+ * places and their activity tags, itemRepository for the carry-forward source
+ * items, referenceRepository for global city lookups. QUAL-43 Stage 4
+ * (ADL-53 §3 item 1) made that literal rather than aspirational: this file holds
+ * no database handle at all, which is why the wording changed from the original
+ * "no direct calls for user-owned data" — the route layer now cannot reach the
+ * ORM, scoped or otherwise, and `scripts/scope-completeness-check.sh` enforces it.
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
 import { Router } from 'express';
-import { getDb, items, tripPlaceActivitiesMap, tripPlaces } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
 import { activityRepository } from '../repositories/activities.js';
+import { itemRepository } from '../repositories/items.js';
 import { placeRepository } from '../repositories/places.js';
 import { referenceRepository } from '../repositories/reference.js';
-import { scopeToUser } from '../repositories/scope.js';
 import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
 import { CarryForwardBodySchema } from '../validation/items.schemas.js';
 import {
@@ -208,35 +211,26 @@ placesRouter.post(
     const placeId = parseInt(String(req.params.placeId), 10);
     if (Number.isNaN(tripId) || Number.isNaN(placeId)) throw new NotFoundError('Place');
 
-    const db = getDb();
+    // Verify placeId exists and belongs to tripId (also verifies trip ownership
+    // via userId, then the lock). QUAL-43 Stage 4: assertWritable used to be a
+    // separate call here followed by an inline read on a raw handle — it now
+    // travels inside findInWritableTrip, in the same order, so the two cannot
+    // drift apart.
+    const place = await placeRepository.findInWritableTrip(userId, tripId, placeId);
+    if (!place) throw new NotFoundError('Place');
 
-    // Verify placeId exists and belongs to tripId (also verifies trip ownership via userId)
-    await placeRepository.assertWritable(userId, tripId);
-
-    const placeRows = await db
-      .select({ id: tripPlaces.id, cityId: tripPlaces.cityId })
-      .from(tripPlaces)
-      .where(and(eq(tripPlaces.id, placeId), eq(tripPlaces.tripId, tripId)))
-      .limit(1);
-    if (!placeRows.length) throw new NotFoundError('Place');
-
-    const { cityId } = placeRows[0];
+    const { cityId } = place;
 
     // Verify target trip is not locked
     await assertNotLocked(tripId);
 
-    // Verify all source item IDs exist and belong to the requesting user (SEC-02)
+    // Verify all source item IDs exist and belong to the requesting user (SEC-02).
+    // QUAL-43 Stage 4: the read moved into itemRepository and the ownership
+    // predicate (composed from the chokepoint by Stage 3) travelled with it.
     const { source_item_ids: sourceItemIds } = req.body as { source_item_ids: number[] };
-    const foundItems = await db
-      .select({ id: items.id })
-      .from(items)
-      // QUAL-43 Stage 3: the ownership predicate is composed from the chokepoint
-      // (repositories/scope.ts) rather than hand-written. Term order is preserved
-      // exactly — this is a composition, not a relocation; Stage 4 moves the read
-      // itself into a repository and the composed predicate travels with it.
-      .where(and(inArray(items.id, sourceItemIds), scopeToUser(items, userId)));
+    const foundItemIds = await itemRepository.findOwnedIds(userId, sourceItemIds);
 
-    if (foundItems.length !== sourceItemIds.length) {
+    if (foundItemIds.length !== sourceItemIds.length) {
       throw new ValidationError('One or more source_item_ids do not exist');
     }
 
@@ -270,7 +264,6 @@ placesRouter.post(
     if (Number.isNaN(tripId) || Number.isNaN(placeId)) throw new NotFoundError('Place');
 
     const { activity_id } = req.body;
-    const db = getDb();
 
     // Verify place belongs to trip owned by user (ownership BEFORE lock check)
     const place = await placeRepository.findById(userId, placeId);
@@ -292,22 +285,14 @@ placesRouter.post(
     // BUG-27: locked trips are read-only — activity tagging is a write
     await assertNotLocked(tripId);
 
-    // Check duplicate
-    const existing = await db
-      .select({ tripPlaceId: tripPlaceActivitiesMap.tripPlaceId })
-      .from(tripPlaceActivitiesMap)
-      .where(
-        and(
-          eq(tripPlaceActivitiesMap.tripPlaceId, placeId),
-          eq(tripPlaceActivitiesMap.activityId, activity_id),
-        ),
-      )
-      .limit(1);
-    if (existing.length) throw new ConflictError('Activity already tagged to this place');
+    // Check duplicate. QUAL-43 Stage 4: both join-table operations moved into
+    // placeRepository; the ownership assertion above (findById) did not move,
+    // because it is what the relocated reads inherit their isolation from.
+    if (await placeRepository.isActivityTagged(placeId, activity_id)) {
+      throw new ConflictError('Activity already tagged to this place');
+    }
 
-    await db
-      .insert(tripPlaceActivitiesMap)
-      .values({ tripPlaceId: placeId, activityId: activity_id });
+    await placeRepository.addActivityTag(placeId, activity_id);
 
     res.status(201).json({ trip_place_id: placeId, activity_id });
   }),
@@ -333,15 +318,7 @@ placesRouter.delete(
     // BUG-27: locked trips are read-only — activity untagging is a write
     await assertNotLocked(place.tripId);
 
-    const db = getDb();
-    await db
-      .delete(tripPlaceActivitiesMap)
-      .where(
-        and(
-          eq(tripPlaceActivitiesMap.tripPlaceId, placeId),
-          eq(tripPlaceActivitiesMap.activityId, activityId),
-        ),
-      );
+    await placeRepository.removeActivityTag(placeId, activityId);
 
     res.status(204).send();
   }),

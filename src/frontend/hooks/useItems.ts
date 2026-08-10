@@ -29,7 +29,8 @@ export const DEFAULT_RATING_SORT_FILTER: RatingSortFilterState = {
 /**
  * Applies a client-side rating sort and/or minimum-rating filter to a list of
  * items, matching the semantics of the backend's sort_by=rating/min_rating
- * query params (src/backend/routes/items-helper.ts) so both surfaces behave
+ * query params (src/backend/repositories/items-helper.ts — relocated out of the
+ * route layer by QUAL-43 Stage 4) so both surfaces behave
  * identically per IT-09's success criteria:
  *
  *  - A `minRating` filter excludes unrated items entirely (never treats a

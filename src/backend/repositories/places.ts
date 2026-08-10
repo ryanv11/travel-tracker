@@ -94,18 +94,7 @@ export const placeRepository = {
       .where(eq(tripPlaces.tripId, tripId));
 
     const placeIds = placesRows.map((p) => p.id);
-    const allPlaceActivities =
-      placeIds.length > 0
-        ? await db
-            .select({
-              tripPlaceId: tripPlaceActivitiesMap.tripPlaceId,
-              id: activities.id,
-              name: activities.name,
-            })
-            .from(tripPlaceActivitiesMap)
-            .leftJoin(activities, eq(activities.id, tripPlaceActivitiesMap.activityId))
-            .where(inArray(tripPlaceActivitiesMap.tripPlaceId, placeIds))
-        : [];
+    const allPlaceActivities = await this.findActivitiesForPlaces(placeIds);
 
     return placesRows.map((p) => ({
       id: p.id,
@@ -128,6 +117,39 @@ export const placeRepository = {
         .filter((a) => a.tripPlaceId === p.id)
         .map((a) => ({ id: a.id, name: a.name })),
     }));
+  },
+
+  /**
+   * Returns the activity tags for the given trip_places, joined to the activity
+   * name. Returns [] for an empty placeId list without touching the database.
+   *
+   * ASSERTION-GUARDED, COMPOSES NOTHING (ADL-53 §2/F2). `trip_place_activities_map`
+   * is a join table with no `user_id` column of its own, so ownership cannot be
+   * expressed here as a `scopeToUser` predicate — the union type would reject the
+   * table, by design. Isolation is INHERITED: every caller resolves `placeIds`
+   * from a trip it has already proved ownership of —
+   *   - `findByTrip` above, after its own trip-ownership existence check;
+   *   - `routes/trips.ts` GET /:id, after `tripRepository.findByIdOrThrow`.
+   * A caller that passes place ids it has not verified would leak; do not add one.
+   *
+   * QUAL-43 Stage 4 (ADL-53 §6): relocated out of `routes/trips.ts`, where the
+   * identical query was inline, and merged with the copy that already lived in
+   * `findByTrip` — one join, two consumers.
+   */
+  async findActivitiesForPlaces(
+    placeIds: number[],
+  ): Promise<{ tripPlaceId: number; id: number | null; name: string | null }[]> {
+    if (placeIds.length === 0) return [];
+    const db = getDb();
+    return db
+      .select({
+        tripPlaceId: tripPlaceActivitiesMap.tripPlaceId,
+        id: activities.id,
+        name: activities.name,
+      })
+      .from(tripPlaceActivitiesMap)
+      .leftJoin(activities, eq(activities.id, tripPlaceActivitiesMap.activityId))
+      .where(inArray(tripPlaceActivitiesMap.tripPlaceId, placeIds));
   },
 
   /**
@@ -218,6 +240,37 @@ export const placeRepository = {
   },
 
   /**
+   * Asserts the parent trip is writable (owned by userId, not locked), then
+   * returns the place's id and city, or null if the place is not on that trip.
+   *
+   * ASSERTION-GUARDED (ADL-53 §2/F2). The select carries no ownership predicate
+   * of its own — `assertWritable` is the isolation, exactly as it is for
+   * `delete` and `updateDates`, whose `existing` lookups this mirrors term for
+   * term. Ordering is load-bearing and preserved: a non-owner gets NotFoundError
+   * (404, opaque per SE-05) before learning anything about the trip's lock state.
+   *
+   * QUAL-43 Stage 4 (ADL-53 §6): relocated from the carry-forward handler in
+   * `routes/places.ts`, which called `assertWritable` and then ran this select
+   * on a raw handle. The assertion did not move — it came WITH the query, so
+   * the two can no longer be separated by an edit to the route.
+   */
+  async findInWritableTrip(
+    userId: string,
+    tripId: number,
+    placeId: number,
+  ): Promise<{ id: number; cityId: number } | null> {
+    await this.assertWritable(userId, tripId);
+
+    const db = getDb();
+    const rows = await db
+      .select({ id: tripPlaces.id, cityId: tripPlaces.cityId })
+      .from(tripPlaces)
+      .where(and(eq(tripPlaces.id, placeId), eq(tripPlaces.tripId, tripId)))
+      .limit(1);
+    return rows[0] ?? null;
+  },
+
+  /**
    * Updates arrived_on/departed_on on a specific place.
    * Verifies the parent trip is writable and the place belongs to it.
    * Returns the updated TripPlace row.
@@ -262,6 +315,59 @@ export const placeRepository = {
       .where(eq(tripPlaces.id, placeId))
       .returning();
     return updated[0];
+  },
+
+  /**
+   * True if the activity is already tagged to the place.
+   *
+   * ASSERTION-GUARDED, COMPOSES NOTHING (ADL-53 §2/F2) — see
+   * `findActivitiesForPlaces` for why `trip_place_activities_map` cannot carry
+   * an ownership predicate. The caller must have proved it owns `placeId`
+   * first; `routes/places.ts` does so with `findById(userId, placeId)`, which
+   * IS the ownership assertion (it composes `scopeToUser(trips, …)` through its
+   * inner join) and which the handler needs regardless, for the place's tripId.
+   */
+  async isActivityTagged(placeId: number, activityId: number): Promise<boolean> {
+    const db = getDb();
+    const rows = await db
+      .select({ tripPlaceId: tripPlaceActivitiesMap.tripPlaceId })
+      .from(tripPlaceActivitiesMap)
+      .where(
+        and(
+          eq(tripPlaceActivitiesMap.tripPlaceId, placeId),
+          eq(tripPlaceActivitiesMap.activityId, activityId),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  },
+
+  /**
+   * Tags an activity onto a place. Assertion-guarded exactly as
+   * `isActivityTagged` is — place ownership AND the activity's own ownership
+   * (`activityRepository.validateOwnership`, ADL-46 §3.3/F1(b)) are the
+   * caller's preconditions, because neither is expressible against this join
+   * table.
+   */
+  async addActivityTag(placeId: number, activityId: number): Promise<void> {
+    const db = getDb();
+    await db.insert(tripPlaceActivitiesMap).values({ tripPlaceId: placeId, activityId });
+  },
+
+  /**
+   * Removes an activity tag from a place. Assertion-guarded as above — SEC-03's
+   * ownership check on `placeId` is the caller's precondition.
+   */
+  async removeActivityTag(placeId: number, activityId: number): Promise<void> {
+    const db = getDb();
+    await db
+      .delete(tripPlaceActivitiesMap)
+      .where(
+        and(
+          eq(tripPlaceActivitiesMap.tripPlaceId, placeId),
+          eq(tripPlaceActivitiesMap.activityId, activityId),
+        ),
+      );
   },
 
   /**

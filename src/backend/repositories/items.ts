@@ -7,7 +7,7 @@
  */
 
 import type { SQL } from 'drizzle-orm';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   getDb,
   itemCarRentals,
@@ -19,9 +19,9 @@ import {
 } from '../db/index.js';
 import type { Item } from '../db/schema.js';
 import { NotFoundError } from '../errors.js';
-import { fetchItemsWithExtensions } from '../routes/items-helper.js';
 import { ensureExperienceExtension } from '../services/items.service.js';
-import { assertWritable as assertTripWritable, scopeToUser } from './scope.js';
+import { fetchItemsWithExtensions } from './items-helper.js';
+import { assertWritable as assertTripWritable, ownedAnd, scopeToUser } from './scope.js';
 
 // ----------------------------------------------------------------
 // Repository
@@ -44,12 +44,15 @@ export const itemRepository = {
       minRating?: number;
     },
   ): Promise<Record<string, unknown>[]> {
-    const conditions: SQL[] = [eq(items.tripId, tripId), scopeToUser(items, userId)];
+    // QUAL-43 Stage 4: ownership is no longer threaded in through `conditions` —
+    // fetchItemsWithExtensions composes it from the chokepoint itself, given the
+    // required userId. These conditions narrow within the caller's own rows.
+    const conditions: SQL[] = [eq(items.tripId, tripId)];
     if (filters?.placeId) conditions.push(eq(items.tripPlaceId, Number(filters.placeId)));
     if (filters?.type) conditions.push(eq(items.itemType, filters.type));
     if (filters?.status) conditions.push(eq(items.status, filters.status));
 
-    return fetchItemsWithExtensions(and(...conditions), {
+    return fetchItemsWithExtensions(userId, and(...conditions), {
       sortBy: filters?.sortBy,
       sortOrder: filters?.sortOrder,
       minRating: filters?.minRating,
@@ -61,10 +64,31 @@ export const itemRepository = {
    * Returns null if not found or not owned.
    */
   async findById(userId: string, itemId: number): Promise<Record<string, unknown> | null> {
-    const results = await fetchItemsWithExtensions(
-      and(eq(items.id, itemId), scopeToUser(items, userId)),
-    );
+    const results = await fetchItemsWithExtensions(userId, eq(items.id, itemId));
     return results[0] ?? null;
+  },
+
+  /**
+   * Returns the subset of `itemIds` that exist AND are owned by userId. A
+   * caller compares the returned length against what it asked for; anything
+   * missing is either non-existent or someone else's, indistinguishably.
+   *
+   * PREDICATE-COMPOSED (ADL-53 §2). `items` carries its own `user_id`, so
+   * ownership is the chokepoint predicate via `ownedAnd`.
+   *
+   * QUAL-43 Stage 4 (ADL-53 §6): relocated from the carry-forward handler in
+   * `routes/places.ts`, where it was the SEC-02 source-item ownership check run
+   * on a raw handle. This is the filter that stops a caller carrying another
+   * user's item onto their own trip (Part F asserts it directly).
+   */
+  async findOwnedIds(userId: string, itemIds: number[]): Promise<number[]> {
+    if (itemIds.length === 0) return [];
+    const db = getDb();
+    const rows = await db
+      .select({ id: items.id })
+      .from(items)
+      .where(ownedAnd(items, userId, inArray(items.id, itemIds)));
+    return rows.map((r) => r.id);
   },
 
   /**
@@ -140,7 +164,7 @@ export const itemRepository = {
     const item = inserted[0];
     await insertExtension(item.id, data.itemType, extensionBody);
 
-    const result = await fetchItemsWithExtensions(eq(items.id, item.id));
+    const result = await fetchItemsWithExtensions(userId, eq(items.id, item.id));
     return result[0];
   },
 
@@ -176,7 +200,14 @@ export const itemRepository = {
 
     await updateExtension(itemType, itemId, extensionBody);
 
-    const result = await fetchItemsWithExtensions(eq(items.id, itemId));
+    // QUAL-43 Stage 4: the read-back is now owner-scoped like every other item
+    // read (userId is a required parameter of the helper). Through the routes
+    // this is indistinguishable from before — items.ts PATCH runs
+    // assertWritable + findRawByIdOrThrow, so a mismatched user 404s long
+    // before here. It only differs on a direct repository call with a user who
+    // does not own the item: the UPDATE above already matched zero rows, and
+    // the read-back now returns null rather than the owner's untouched row.
+    const result = await fetchItemsWithExtensions(userId, eq(items.id, itemId));
     return result[0] ?? null;
   },
 
