@@ -2,9 +2,54 @@
 
 **Tracker:** QUAL-43 (design-reflection R1) · absorbs BUG-84's routes→repo fold (U7/U8)
 **BRD:** n/a — internal structure/security; no user-facing requirement (confirmed with COO gate)
-**Status:** DESIGNED — spec only, no production code changed this thread. Implementation is
-staged (§6) and gated on OP-27 fresh-eyes + OP-35 ATDD-first QA.
-**Date:** 2026-08-08 · **Author:** Architect (design-reflection R1)
+**Status:** DESIGNED (REVISED 2026-08-10) — spec only, no production code changed this thread.
+Implementation is staged (§6, revised) and gated on a *second* OP-27 fresh-eyes review + OP-35
+ATDD-first QA.
+**Date:** 2026-08-08 · **Revised:** 2026-08-10 · **Author:** Architect (design-reflection R1)
+
+---
+
+## R. Revision log — 2026-08-10 (clears the OP-27 fresh-eyes blocking findings, PR #461)
+
+This revision resolves the two **blocking** findings from ADL-53's own fresh-eyes review
+(`jobs/architect/tech/20260808-ADL53-fresh-eyes-review.md`, PR #461) plus its three
+non-blocking notes. The design's **principles were validated** by that review (D1/D2/D3/D4/D7/D8
+and OQ-1/OQ-2/OQ-3 all credited); this is a bounded re-scope of the *migration plan* (§6) and a
+reconciliation of an internal numbering contradiction — **not** a redesign.
+
+- **B1 (blocking) — the migration was scoped one route too small.** The premise *"cities is the
+  last route holding `getDb()`"* (old §3 D2.1, old §6 S3) is **false**. I re-inventoried
+  `getDb()` across **all** route files myself as a fresh probe (grep + reading every handler); it
+  is called directly in **six** route files, several on **user-owned** tables. The fresh inventory
+  and its global-reference-read vs user-owned-read classification are now **§5.1 (new)**, and that
+  split is the **organising spine** of the revised staging plan (**§6, revised**). The user-owned
+  relocations are marked **`ATDD-first: yes`** with a cross-tenant isolation red-bar as their
+  executable definition of done, and staged expand/contract (ADL-47) so no intermediate commit
+  red-mains. The guard flip moves to **strictly last** (after *every* route is `getDb`-free), not
+  "after cities."
+- **B2 (blocking) — the COO OQ-4 adjudication contradicted §6's stage numbering.** Reconciled: the
+  old §6 stage table and the OQ-4 stage labels are both **stamped superseded** and replaced by one
+  coherent scheme in the revised §6. (I was explicitly authorised to revisit the OQ-4 adjudication
+  rather than force-fit the contradiction — see §11, new.) B1 independently grows the build from
+  three implementation briefs to **four** (the old single "S3" splits into a global-safe stage and
+  a user-owned-dangerous stage), which the revised §6 and §11 record.
+- **N1 — OP-06 seam.** Old §10 cited/instructed-updating OP-06 §5.1–5.3, which sits under a
+  `SUPERSEDED (2026-07-15)` banner. §10 (revised) now points at OP-06's **live** homes: §2.1
+  (current access matrix, ADL-46) and §6's **HC-05 / HC-10 / HC-11** cross-user isolation items.
+- **N2 — the "4 inline `eq(...userId...)`" count** is a fragile grep artifact (case-sensitive
+  probe missed `cities.ts:205`); it is **no longer treated as load-bearing** — D3's axis-split
+  carries the argument, not the exact number.
+- **N3 — cosmetic drift** (cities.ts line refs, the F4 "shading" over-claim) corrected inline
+  where it appears.
+- **ADL-log numbering (ADL-53 ↔ ADL-54).** `main` advanced ADL-52 → **ADL-54** (BUG-87 city-picker)
+  while ADL-53 stayed on this unmerged branch, so the log shows a 53-shaped gap on `main` and a
+  54-shaped gap here. The two numbers are **distinct — no duplicate** (verified: `main`'s log has
+  no ADL-53 entry; this branch's log has no ADL-54 entry). On merge, the ADL-53 log block slots in
+  **before** ADL-54; the only mechanical step is resolving the after-ADL-52 insertion seam so the
+  entries read 52 → 53 → 54 in order. Flagged for the merging COO in the completion report.
+
+Superseded material below is **retained in place** and stamped per the document-lifecycle rule;
+read the revised sections (§5.1, §6-revised, §10-revised, §11) as current truth.
 
 ---
 
@@ -16,10 +61,12 @@ staged (§6) and gated on OP-27 fresh-eyes + OP-35 ATDD-first QA.
 | D2 | Enforcement — can a forgotten filter be made *impossible*? | **No** (not cheaply in Drizzle). Make it **caught**: routes never call `getDb()` (grep-guard, fail-closed) + an ATDD cross-tenant matrix at every user-data route | High |
 | D3 | `citiesRepository` + `cityIdentityService` | Extract both from the 840-LOC god-route. Justified on **consolidation/testability/BUG-87-seam**, *not* as a cross-tenant fix — cities are global reference data | High |
 | D4 | Reuse, don't reinvent | Extend the existing `tripRepository`/`companionRepository` pattern (OP-06 §5.2/§5.3 already marks it PASS); the helper is the DRY collapse of `eq(table.userId, userId)` already written N times | High |
-| D5 | Global reads leave the route layer too | Route handlers touch **no** `getDb()` at all; global reference reads (countries/regions/city-by-id) route through unscoped-but-explicit repo methods so the guard is a trivial grep | Medium |
-| D6 | Staged migration (expand/contract where needed) | 5 stages, each independently green + deployable; every stage is a pure refactor with the existing suites as the regression net | High |
+| D5 | Global reads leave the route layer too | Route handlers touch **no** `getDb()` at all; global reference reads (countries/regions/city-by-id) route through unscoped-but-explicit repo methods so the guard is a trivial grep. **(REVISED §5.1: absolutist scope confirmed; its true cost is larger than first stated — six route files hold `getDb`, not one.)** | Medium |
+| D6 | Staged migration — organised by the global-vs-user-owned split (REVISED) | **6 stages, spined on §5.1's split**: global-reference-read consolidation (no cross-tenant axis, `ATDD-first: no`) is kept *separate* from user-owned-read relocation (silent-cross-tenant-drop risk → `ATDD-first: yes`, cross-tenant red-bar, expand/contract). Guard flip is **strictly last**. Each stage independently green + deployable | High |
 | D7 | Phase-3 seam shape | Design the single change-point signature (`scopeToUserOrShared`) now; defer sharing *semantics* (roles, `shared_with`) to Phase-3/SE-01 | High |
 | D8 | Explicitly out of scope | Transaction/atomicity (reflection risk #3), geocode dual-identity consolidation (risk #2 / GE-19), serializer unification (risk #5). Each rides its own decision | High |
+| **D9** | **Fresh `getDb`-in-routes inventory + global/user-owned classification (REVISED, B1)** | **Six route files call `getDb()` directly (cities, places, trips, map, admin, items-helper). Each call site is classified global-reference-read vs user-owned-read in §5.1; the classification determines its stage, its ATDD-first mark, and whether it carries a cross-tenant red-bar** | High |
+| **D10** | **Stage-numbering reconciliation (REVISED, B2)** | **The old §6 table and the COO OQ-4 adjudication assigned different work to S0/S2/S3. Both are stamped superseded; one coherent scheme replaces them (revised §6). Authorised to revisit the OQ-4 adjudication — see §11** | High |
 
 **The one-sentence throughline:** scoping is *already* structurally routed through repositories
 for every user-owned table (OP-06 §5.2 PASS) — the residual debt is that (a) the filter is
@@ -41,16 +88,31 @@ mis-aim the QA. The verified picture:
 returns **65** (probe 1: count; probe 2: per-file breakdown — map 11, trips 8, places 7,
 companions 6, categories 6, activities 6, items 4, cities 4, me 3, trip-countries 2). But the
 *majority* of these are `const userId = req.user!.id` immediately **passed into a repository or
-service** that scopes internally — not 65 independent hand-written WHERE clauses. `grep -rc
-"eq(.*userId" src/backend/routes/*.ts` finds only **4** inline `eq(...userId...)` predicates in
-route handlers. The scoping is far more structural than "65 loose sites" implies.
+service** that scopes internally — not 65 independent hand-written WHERE clauses. A case-sensitive `grep -rc
+"eq(.*userId" src/backend/routes/*.ts` finds **4** inline `eq(...userId...)` predicates in route
+handlers; a case-insensitive probe finds **5** (adds `cities.ts:205`'s creator-visibility predicate
+on the *global* cities table — a different axis, see F3/D3). The scoping is far more structural than
+"65 loose sites" implies. **(REVISION note, N2: the exact inline-predicate count is a fragile grep
+artifact and is *not* load-bearing — D3's global-vs-user-owned axis-split carries the argument.
+What *is* load-bearing is the `getDb`-in-routes inventory, re-probed fresh in §5.1.)**
 
 **F2 — The repository layer already exists and is the primary control.** Repositories present:
 `trips, items, places, companions, activities, tripCategories, shadingConfig, users` (+ the
 `shading.service`). OP-06 §5.2/§5.3 marks trip/place/item repository scoping and query predicates
 **PASS** — *"every mutating operation and every read … takes `userId` as a parameter and includes
 `eq(trips.userId, userId)`."* This ADL **completes and enforces** that doctrine; it does not
-introduce it. (Verified: OP-06-hardening-checklist.md §5.2, lines 357–376.)
+introduce it.
+
+> **CORRECTION (2026-08-10, B1).** "Every read goes through the repo" is the *goal* of this ADL,
+> **not** the current state — and this over-claim is exactly what let the old getDb inventory
+> undercount. Verified false at the *route* layer: `trips.ts:198` (trip-detail assembly) and
+> `places.ts:231` (carry-forward) run **user-owned raw reads in the handler** despite their tables
+> *having* repositories, and `items-helper.ts:87` is a `routes/` file running the item read for
+> both. Not a bleed today — the predicates are present and correct (I re-checked each) — but the
+> "already structural" story is weaker than F2 stated. "Has a repository" ≠ "holds no `getDb`". The
+> full picture is the fresh inventory in **§5.1**. Also: OP-06 §5.2 sits under a
+> `SUPERSEDED (2026-07-15)` banner — its live status is OP-06 §2.1 / §6 (see §10-revised); scope
+> the §5.2 PASS claim to the three named repositories, not "every route read".
 
 **F3 — `cities.ts` is the one route with no repository, but cities are GLOBAL data.** Two probes:
 (1) `ls src/backend/repositories/` — no `cities.ts`; (2) reading `cities.ts` — 840 LOC,
@@ -69,15 +131,18 @@ separate deliberately.
 probes: (1) reading `security.access-matrix.test.ts` — Part A (28 × unauth→401), Part B
 (25 × non-owner→403), Part C cross-user isolation covers **only** trips (empty list / 404),
 companions (empty), and nested POST items/places→404. (2) There is **no** per-route assertion
-that user B cannot *read* user A's items, places, shading, categories, or activities. So the
+that user B cannot *read* user A's items, places, categories, or activities. So the
 claim *"checks the tier gate, not that every row filter is present"* holds: Part C is a handful
 of routes, not the full user-data surface. **This is the exact gap the ATDD matrix (D2) closes.**
+*(N3 correction: shading cross-user isolation **is** already covered — `services/__tests__/shading.user-scope.test.ts` — so "shading" is removed from the uncovered list above; the gap is items/places/categories/activities reads.)*
 
 **F5 — No *active* cross-tenant hole was found; the invariant is simply not structural.** The
 non-owner UAT (2026-08-08) observed no data bleed, and I found no user-owned-table query in a
-route handler lacking either a `userId` predicate or a prior ownership assertion (checked the 4
-inline-`eq` sites + the `places.ts` carry-forward path, which carries `eq(items.userId, userId)`
-at `places.ts:253` and asserts `placeRepository.assertWritable(userId, tripId)` first). **This is
+route handler lacking either a `userId` predicate or a prior ownership assertion (re-checked
+2026-08-10 across the full fresh inventory in §5.1 — every user-owned raw read either carries its
+own predicate, e.g. `places.ts:253`'s `eq(items.userId, userId)`, `trips.ts:223`'s, `cities.ts:727`/`:771`'s
+`eq(trips.userId,…)`/`eq(items.userId,…)`, or is guarded by a prior ownership assertion, e.g.
+`placeRepository.assertWritable(userId, tripId)` before the carry-forward reads). **This is
 a gap-class defect (OP-32), not a live regression:** the risk is that a *future* edit introduces
 a hole and only the incomplete Part C would maybe catch it. The fix is to make the invariant
 structural and enforced *before* Phase-3, not to chase a bleed that isn't there today.
@@ -143,10 +208,22 @@ This is the load-bearing engineering call and the one the brief presses hardest 
 **Recommendation.** A two-layer *caught* net, plus an optional third:
 
 1. **Routes never call `getDb()` (mandatory, fail-closed).** A CI/lint guard asserts the string
-   `getDb` does not appear in `src/backend/routes/**`. Once every route is repo-routed (cities is
-   the last holdout — Stage 3), flip the guard to **error**. This makes "a route handler ran an
-   unscoped query against a user table" *impossible to merge* — the route layer physically has no
-   `db` handle. Trivially checkable (one grep), no ORM coupling, no false-negative surface.
+   `getDb` does not appear in `src/backend/routes/**`. Once every route is repo-routed, flip the
+   guard to **error**. This makes "a route handler ran an unscoped query against a user table"
+   *impossible to merge* — the route layer physically has no `db` handle. Trivially checkable (one
+   grep), no ORM coupling, no false-negative surface.
+
+   > **CORRECTION (2026-08-10, B1).** The original text here said *"cities is the last holdout"* and
+   > the guard flips *"after Stage 3 (cities)."* **That is false** and was the central blocking
+   > finding. A fresh cross-file re-inventory (§5.1) shows `getDb()` is called directly in **six**
+   > route files — cities, places, trips, map, admin, items-helper — several on **user-owned**
+   > tables. The guard can only flip to error **after every one of them is relocated** (revised §6,
+   > Stage 5), not after cities. The guard's *door-completeness* is unaffected and remains sound —
+   > the fresh-eyes review independently verified `getDb()` is the **only** exported ORM accessor
+   > (`src/backend/db/index.ts`: `_db` is a module-private `let`, `createLibSQLDb`/`createPostgresDb`
+   > are unexported, there is no `export const db`), so a route cannot obtain the handle without the
+   > literal string `getDb` appearing. The door is complete; the map of rooms behind it was drawn
+   > one route too small.
 2. **ATDD cross-tenant isolation matrix (mandatory, OP-35 red bar).** For **every** user-data
    route, seed a row owned by USER_A, authenticate as USER_B, assert USER_B cannot read or mutate
    it (empty list / 404 — opaque per SE-05, never 403). This is the behavioural net that closes
@@ -190,8 +267,8 @@ same load-bearing comments, same catch-unique-violation discipline):
 - **`src/backend/repositories/cities.ts`** — the DB access surface: search (GE-16 containment),
   `findById`, `findByOsmRef`, the create/insert-or-reuse primitives, PATCH curation, and the
   city-scoped item/carry-forward reads (`GET /:id/items`, `GET /:id/carry-forward`). The
-  user-owned reads *inside* these (carry-forward's `eq(trips.userId, userId)` at `cities.ts:728`,
-  items' `eq(items.userId, userId)` at `cities.ts:772`) compose `scopeToUser` like any other
+  user-owned reads *inside* these (carry-forward's `eq(trips.userId, userId)` at `cities.ts:727`,
+  items' `eq(items.userId, userId)` at `cities.ts:771`) compose `scopeToUser` like any other
   user-owned query — so cities' *user-owned* joins join the chokepoint even though the cities
   table itself does not.
 - **`src/backend/services/cityIdentityService.ts`** — the pure identity/find-or-create logic now
@@ -231,49 +308,133 @@ already blessed by ADL-18 and OP-06 §5.2. No new pattern is invented. The `scop
 literally the extracted common expression of what those repos already do by hand.
 
 **D5 (Medium):** The target end-state is **`getDb` appears in `src/backend/routes/**` zero times.**
-That means *global* reference reads currently inline in routes also move behind repo methods:
-- `cities.ts` country/region existence checks (`cities.ts:413`, `:431`) → `referenceRepository`
-  (or `citiesRepository`) lookups.
-- `map.ts` country-tier reads (`map.ts:115`, `:156`) → a `referenceRepository.getCountry(code)`.
-- `places.ts` city-existence reads (`places.ts:81`, `:176`) → `citiesRepository.findById`.
 
-**Why the absolutist version (Medium, flagged as an open question in §8):** a table-aware guard
-("no `getDb()` *touching a user table*") is hard for a grep and needs an AST rule; a blanket "no
-`getDb()` in routes" is a one-line fail-closed grep. The cost is a handful of thin global-read repo
-methods — bounded, mechanical, and it also improves the global-read call sites (one place to add
-caching later). I **recommend the absolutist version** but flag it as the one place appetite should
-be confirmed (the alternative is to leave global reads inline and make the guard AST-based — more
-machinery for a weaker guarantee).
+> **SUPERSEDED (2026-08-10) by §5.1 — retained for history.** The bullet list that stood here named
+> only *three* global-read sites (`cities.ts:413`/`:431`, `map.ts:115`/`:156`, `places.ts:81`/`:176`)
+> and framed the whole residual as *"a handful of thin global-read repo methods."* B1 shows that
+> was a large undercount and — worse — that it omitted the **user-owned** raw reads entirely. The
+> corrected, fully-probed inventory is **§5.1**; it drives the revised staging in §6. The
+> absolutist-vs-table-aware call itself (old OQ-1) still resolves **absolutist** — but its cost
+> basis is restated in §5.1/§11, not "a handful of methods."
+
+_Original text (retained):_ *That means global reference reads currently inline in routes also move
+behind repo methods — cities country/region checks, map country-tier reads, places city-existence
+reads → `referenceRepository`/`citiesRepository` lookups; the absolutist "no `getDb()` in routes"
+grep guard is preferred over a table-aware AST rule because it is a one-line fail-closed check._
 
 ---
 
-## 6. D6 — Staged migration path (each stage independently green + deployable)
+## 5.1 Fresh `getDb()`-in-routes inventory (REVISED 2026-08-10 — the B1 fix)
 
-Per ADL-47 (expand/contract) and the staging auto-deploy safety rule. **No stage changes
-behaviour; each is a pure refactor with the existing test suites as the regression net.** No schema
-change is required by this work at all (the `cities` table already has every column it needs), so
-there is no expand/contract *migration* here — the "staging" is purely code-refactor sequencing,
-which is simpler and lower-risk than ADL-46's. Order is load-bearing where noted.
+**Method (two probes that fail differently).** Probe 1: `grep -rn "getDb" src/backend/routes/*.ts`
+across all 12 route files. Probe 2: **read every matched handler** and classify what table each
+`const db = getDb()` query touches. (Probe 1 alone would miscount — three `getDb()` matches are
+comment lines `"No direct getDb()"` in `items.ts`/`trips.ts`/`places.ts` headers, and three in
+`cities.ts` are `ReturnType<typeof getDb>` *type* references, not call sites. Only reading the
+handlers separates a real call site from a mention, and — the load-bearing half — a *global*-table
+read from a *user-owned* one.)
+
+**Result — six route files hold a real `const db = getDb()` call site** (not one). Classification:
+
+| File · line | Query touches | Class | Ownership basis (why it's safe *today*) |
+|---|---|---|---|
+| `cities.ts:50,410,603,654` | cities / regions / countries — identity, search (GE-16), find-or-create | **Global-reference** | Cities are global reference data (nullable `createdByUserId`, `schema.ts:113-121`); visibility axis is GE-16 containment, not ownership |
+| `cities.ts:703` | `items ⋈ tripPlaces ⋈ trips` (city carry-forward) | **User-owned** | Explicit `eq(trips.userId, userId)` predicate (`:727`) |
+| `cities.ts:766` | `items ⋈ tripPlaces` (city items, SEC-01) | **User-owned** | Explicit `eq(items.userId, userId)` predicate (`:771`) |
+| `places.ts:74,163` | `cities ⋈ regions` (city-exists on POST/PATCH place) | **Global-reference** | Ownership of the *place* enforced separately via `placeRepository`; the city read is global lookup |
+| `places.ts:231` | `tripPlaces` + `items` (carry-forward, SEC-02) | **User-owned** | `placeRepository.assertWritable(userId, tripId)` first, **then** `eq(items.userId, userId)` (`:253`) |
+| `places.ts:289,352` | `tripPlaceActivitiesMap` (activity tag/untag) | **User-owned (join-table)** | Join table has no `userId` column; guarded by prior `placeRepository.findById(userId, placeId)` + `activityRepository.validateOwnership` |
+| `trips.ts:198` | `tripPlaceActivitiesMap ⋈ activities` + `items` (trip-detail assembly) | **User-owned** | `tripRepository.findByIdOrThrow(userId, tripId)` first; items read carries `eq(items.userId, userId)` (`:223`) via `fetchItemsWithExtensions` |
+| `map.ts:113,154` | `countries` (region-tier existence) | **Global-reference** | Global reference table; per-user shading is already behind `shading.service` |
+| `admin.ts:73,91,135,177,217` | `countries` / `regions` (CRUD) | **Global-reference** | Global tables; writes are `requireOwner`-gated, but the data itself is not user-owned |
+| `items-helper.ts:87` | `items` (+ extension left-joins) | **User-owned** | `fetchItemsWithExtensions(conditions?)` — **the scope is threaded in by the caller** via `conditions`; the helper itself applies no `userId` predicate |
+
+**Two consequences that drive the revised §6:**
+
+1. **The split is the spine.** *Global-reference relocations* (cities-identity, `places.ts:74/163`,
+   `map.ts`, `admin.ts`) are a **consolidation/testability** move with **no cross-tenant axis** —
+   relocating them cannot introduce a bleed because the tables aren't user-owned. *User-owned
+   relocations* (`cities.ts:703/766`, `places.ts:231/289/352`, `trips.ts:198`, `items-helper.ts:87`)
+   move a query where **silently dropping an `eq(table.userId, userId)` predicate — or dropping the
+   prior ownership assertion — is a plausible, invisible cross-tenant read.** These two classes get
+   different treatment (ATDD-first, red-bar, expand/contract) and must not be folded into one
+   "migrate routes" stage.
+
+2. **`items-helper.ts:87` is the sharpest case.** It reads a user-owned table but *contains no
+   scope of its own* — every caller (`items.ts`, `trips.ts:225`, and after S2 the cities item route)
+   is trusted to pass a `conditions` that includes `eq(items.userId, userId)`. Relocating it into a
+   repository must **make the `userId` a required parameter of the method signature**, so the scope
+   can no longer be forgotten by a caller — this is the single highest-value user-owned relocation
+   and the ATDD matrix must assert it directly (seed USER_A items, call as USER_B, expect empty).
+
+**OQ-1 resolution stands (absolutist), cost restated.** The absolutist "no `getDb()` in routes"
+grep guard is still preferred over a table-aware AST rule — a grep is fail-closed and bulletproof;
+an AST rule is more machinery for a weaker guarantee. What B1 changes is the *cost*: the residual
+is **not** "a handful of thin global-read methods." It is the global relocations **plus** the
+user-owned relocations above. That cost is still worth paying (the global half is mechanical; the
+user-owned half is work this ADL wants done *anyway* to reach the chokepoint), but the appetite for
+the global-read relocations (§6 Stage 3) should be confirmed against the true, larger scope — see §11.
+
+---
+
+## 6. D6 — Staged migration path (REVISED 2026-08-10 — spined on the global/user-owned split)
+
+> **SUPERSEDED (2026-08-10) — the original five-stage S0–S4 table is retained at the bottom of this
+> section for history.** It folded *all* getDb relocation into one stage ("S3: global reads + guard
+> flip, cities was the last holdout"), which B1 showed (a) understates the scope to one route when it
+> is six, and (b) has **no ATDD bar on the user-owned half** — exactly the silent-cross-tenant hazard
+> the split below exists to prevent. The revised plan makes §5.1's global-vs-user-owned split the
+> *organising spine*, not an addendum.
+
+Per ADL-47 (expand/contract) and the staging auto-deploy safety rule. **No stage changes behaviour;
+each is a pure refactor with the existing test suites (+ the new S1 matrix) as the regression net.**
+No schema change is required (the `cities` table already has every column), so there is no
+expand/contract *migration* — the expand/contract shape applies to the **code**: for each user-owned
+relocation, *expand* (add the repo method carrying the `userId` predicate/ownership assertion) →
+*switch* (repoint the route, delete the inline `getDb` read; the S1 matrix stays green across the
+switch) → *contract* (flip the guard to error, once every route is clean). Order is load-bearing
+where noted.
+
+| Stage | What ships | ATDD-first | Cross-tenant red-bar? | Green by | Deployable alone? |
+|---|---|---|---|---|---|
+| **Stage 0 — Chokepoint** | `scope.ts` (`scopeToUser`/`ownedAnd`) added; existing repos refactored to compose it — **pure DRY refactor**, zero call-site behaviour change | **yes** (access-matrix invariant; silent-and-plausible if wrong) | via S1 (below) | existing repo + access-matrix suites | Yes |
+| **Stage 1 — Red bar (QA)** | **ATDD cross-tenant isolation matrix**, authored red-first (QA, OP-35). **Must name the user-owned composite/threaded read paths from §5.1** — trip-detail assembly (`trips.ts:198`), carry-forward (`places.ts:231`, `cities.ts:703`), city items (`cities.ts:766`), `items-helper` reads, activity-tag join reads (`places.ts:289/352`) — not just tier gates. This is the executable DoD for Stages 2 & 4 | **is the ATDD** | **defines it** | passes on Stage-0 (already-correct) behaviour | Yes (coverage only) |
+| **Stage 2 — Cities extraction** | `citiesRepository` + `cityIdentityService` extracted from `cities.ts`; logic moved verbatim, handlers thin. Its two user-owned joins (`:703`/`:766`) compose `scopeToUser` | **yes** (identity/data-integrity invariants; **mock-fidelity**: exercise the real `insertCityOrReuse` catch-path + partial unique indexes, not a vacuous stub — QUAL-22) | GE-16 **containment** (global data — *not* vacuous ownership); the two user-owned joins covered by S1 | existing cities/adl46 suites + S1 | Yes |
+| **Stage 3 — Global-read consolidation (the SAFE half)** | Global reference reads relocated out of routes into `referenceRepository`: `map.ts:113/154`, `admin.ts:73/91/135/177/217`, `places.ts:74/163` (cities-identity global reads land in Stage 2). **No cross-tenant axis — global tables** | **no** (mechanical; failure visible; existing suites are the net) | **No** — global reference data, no ownership to assert | existing suites | Yes |
+| **Stage 4 — User-owned-read relocation (the DANGEROUS half)** | User-owned raw reads relocated into repositories composing `scopeToUser` / requiring a `userId` param: `trips.ts:198`, `places.ts:231/289/352`, `items-helper.ts:87` (→ `userId` becomes a **required** method parameter). Each relocation staged **expand → switch** with the S1 matrix green before *and* after every switch | **yes** (access-matrix; dropping an `eq(userId)` or an upstream ownership assertion is silent-and-plausible) | **Yes** — the S1 matrix asserts each relocated path (seed USER_A, call as USER_B, expect empty/404) | S1 matrix + existing suites | Yes (each switch independently green) |
+| **Stage 5 — Guard contract** | Flip the `getDb`-in-routes guard to **error**. Introduced warn-only earlier (expand); flipped here (contract). **Strictly last** — only valid once Stages 2 + 3 + 4 leave `routes/**` `getDb`-free | **no** (the guard is its own test) | n/a | guard green + full suite | Yes — may ride the last relocation PR |
+| **Stage 6 — Phase-3 seam** | *(Design only — not built now)* `scopeToUser` → `scopeToUserOrShared`. Deferred to Phase-3/SE-01 | — | — | — | — |
+
+**Ordering constraints (easy to violate):**
+- **Stage 0 before Stage 1's green** — the matrix proves the `scope.ts` refactor preserved scoping.
+- **Stage 0 before Stage 4** — the user-owned repo methods compose `scopeToUser`, so it must exist.
+- **Stage 1 before Stage 4's switches** — the matrix is the red-bar; it must exist *and assert the
+  specific §5.1 paths* before any of them is relocated (dropping a predicate mid-relocation is
+  otherwise invisible).
+- **Stages 2, 3, 4 in any order among themselves — but all three before Stage 5.** The guard flip is
+  invalid while *any* route still holds `getDb`; flipping after "cities only" (the old S3) would go
+  **CI-red on `main`** against `places.ts`/`trips.ts`/`map.ts`/`admin.ts`/`items-helper.ts` — the
+  broken-trunk state ADL-47's discipline exists to prevent. This is the deployability half of B1.
+
+**Old→new stage mapping (for anyone who read the superseded plan):** old S0 → Stage 0 (unchanged);
+old S1 → Stage 1 (unchanged, now *must name* the user-owned paths); old S2 → Stage 2 (unchanged);
+**old S3 splits into Stage 3 (global, safe, no-ATDD) + Stage 4 (user-owned, ATDD-first, NEW — was
+missing) + Stage 5 (guard flip, now strictly-last-after-all-routes, not after-cities)**; old S4 →
+Stage 6.
+
+<details><summary><b>SUPERSEDED original §6 table (2026-08-08) — retained for history</b></summary>
 
 | Stage | What ships | Green by | Deployable alone? |
 |---|---|---|---|
-| **S0** | `scope.ts` (`scopeToUser`/`ownedAnd`) added; existing repos refactored to compose it — **pure DRY refactor**, zero call-site behaviour change | existing repo + access-matrix suites | Yes |
-| **S1** | **ATDD cross-tenant matrix** authored (QA, OP-35) — red first, then green against S0's already-correct scoping. This is the executable DoD for everything after | new isolation suite passes on current behaviour | Yes (adds coverage only) |
-| **S2** | `citiesRepository` + `cityIdentityService` extracted from `cities.ts` — logic moved verbatim; handlers become thin | existing cities/adl46 suites | Yes |
-| **S3** | Global reference reads moved out of routes (`referenceRepository`); **then flip the `getDb`-in-routes guard to fail-closed** (cities was the last holdout) | guard green + full suite | Yes — guard flip is the last step, after the layer is clean |
-| **S4** | *(Design only — not built now)* Phase-3 seam: `scopeToUser` → `scopeToUserOrShared`. Deferred to Phase-3/SE-01 | — | — |
+| **S0** | `scope.ts` (`scopeToUser`/`ownedAnd`) added; existing repos refactored to compose it | existing repo + access-matrix suites | Yes |
+| **S1** | ATDD cross-tenant matrix authored (QA, OP-35) — red first, then green against S0 | new isolation suite passes | Yes |
+| **S2** | `citiesRepository` + `cityIdentityService` extracted from `cities.ts` | existing cities/adl46 suites | Yes |
+| **S3** | Global reference reads moved out of routes; then flip the `getDb`-in-routes guard (*"cities was the last holdout"* — **false, see B1**) | guard green + full suite | Yes |
+| **S4** | *(Design only)* Phase-3 seam `scopeToUser` → `scopeToUserOrShared` | — | — |
 
-**Ordering constraints that are easy to violate:**
-- S0 **before** S1's green (the matrix proves S0 preserved scoping).
-- S3's guard flip **after** S2 (cities is the last route holding `getDb()`; flipping earlier fails
-  CI on cities legitimately). This is the one "expand/contract"-shaped step: add the repo methods
-  (expand) → repoint routes (switch) → flip the guard to error (contract).
-
-**ATDD-first marking (OP-35), per brief — each implementation brief this ADL spawns:**
-- S0 `scope.ts` + repo refactor — **ATDD-first: yes** (access-matrix invariant; silent-and-plausible if wrong).
-- S1 cross-tenant matrix — **is the ATDD** (authored by QA first).
-- S2 cities extraction — **ATDD-first: yes** (data-integrity/identity invariants; the GE-16 containment + identity algebra must be pinned red before the move). **Mock-fidelity check required:** the cities identity tests must exercise the real `insertCityOrReuse` catch-path and the partial unique indexes, not a stub that can pass vacuously (QUAL-22).
-- S3 global-read move + guard flip — **ATDD-first: no** (mechanical; failure is visible — the guard itself is the test).
+Original ATDD marks: S0 yes · S1 is-the-ATDD · S2 yes · **S3 no (unsound for the user-owned portion
+the old S3 silently contained — the B1 fix)**.
+</details>
 
 ---
 
@@ -291,7 +452,7 @@ export function scopeToUser(table: UserOwnedTable, userId: string): SQL {
 ```
 
 **Reasoning:**
-- The whole point of D1 is that after S0, "who may see this row" is answered in **one** function
+- The whole point of D1 is that after Stage 0 (`scope.ts`), "who may see this row" is answered in **one** function
   for every user-owned table. Phase-3 becomes a localized change with the ATDD matrix (D2) as its
   regression net — the matrix's per-route assertions are exactly what a sharing change must not
   break for the *owner* case and must *newly satisfy* for the *shared* case.
@@ -304,6 +465,11 @@ export function scopeToUser(table: UserOwnedTable, userId: string): SQL {
 ---
 
 ## 8. Open questions for the COO (flagged, not guessed — resolve before OP-27 fresh-eyes)
+
+> **STATUS (2026-08-10):** all four OQ were resolved by the COO Adjudication (below) before the first
+> fresh-eyes review. The revision restates **OQ-1's cost** (unchanged decision, larger scope — §5.1)
+> and **supersedes OQ-4's stage numbering** (§11). OQ-2/OQ-3 stand as adjudicated. The list below is
+> retained as the original author-flagged set.
 
 Per the brief and the 2026-08-08 OP-27 refinement (settle author-flagged questions *before*
 dispatching the reviewer), these are the calls I deliberately did not make:
@@ -342,22 +508,35 @@ would widen the class silently (OP-32 rule 4):
 
 ---
 
-## 10. OP-06 security checklist alignment
+## 10. OP-06 security checklist alignment (REVISED 2026-08-10 — N1 seam fix)
 
-This ADL is squarely an OP-06 §5 (isolation enforcement layers) deliverable and strengthens it:
-- **§5.1 route guards** — unchanged (`requireAuth` global); this adds the *ownership* layer the §5.1
-  "Gap" note calls out ("route handlers do NOT enforce ownership beyond passing userId to the repo").
-- **§5.2 repository scoping** — the `scopeToUser` helper makes the PASS **DRY and universal**; the
-  `citiesRepository` removes the last route that bypasses the repo layer.
-- **§5.3 query predicates** — the ATDD matrix converts §5.3's per-table PASS *claims* into
-  *executable per-route assertions* (closing F4).
-- **§5.5 combination rationale** — this ADL is a direct application: three layers (guard removes the
-  route class, helper makes the repo filter reviewable, ATDD matrix catches the residual).
+> **N1 correction.** The original §10 cited OP-06 **§5.1–5.3** as current *and* instructed updating
+> that wording when the stages land. But OP-06 §5 sits under a `> SUPERSEDED (2026-07-15)` banner —
+> its live homes are **§2.1** (current access matrix, ADL-46) and **§6**'s HC items. Pointing
+> maintenance at a historical section is exactly the document-lifecycle failure the review flagged.
+> This section now points at the live homes. The §5.x prose below is kept only as the historical
+> map of *where the doctrine originated*, not as the section to update.
+
+This ADL is an OP-06 **isolation-enforcement** deliverable and strengthens it against the **live**
+checklist:
+- **HC-05 (companion/shading not readable by non-owners), HC-10 (cross-user access → 404), HC-11
+  (list endpoints return empty for ungranted users)** — the Stage 1 ATDD cross-tenant matrix
+  converts these per-item PASS *claims* into *executable per-route assertions* across the full
+  user-owned surface (closing F4's gap: Part C today covers only a handful of routes).
+- **§2.1 access matrix (ADL-46, current model)** — the `scopeToUser` helper makes its row-ownership
+  rule **DRY and universal** (one predicate, composed everywhere); the `citiesRepository` +
+  user-owned relocations (Stage 4) remove the last routes that bypass the repo layer.
 - **HC-07 null-ownership** — untouched; `cities.createdByUserId` nullability is the *intended*
-  global-data exception (schema.ts:113-121), not a scoping hole, and this ADL does not disturb it.
+  global-data exception (`schema.ts:113-121`), not a scoping hole, and this ADL does not disturb it.
+- *(Historical origin — the doctrine this ADL completes was first written in the now-superseded OP-06
+  §5.1 route-guards / §5.2 repository-scoping / §5.3 query-predicate / §5.5 combination-rationale
+  layers; that is where "three layers in combination" comes from. Do **not** update §5.x — update
+  §2.1 / §6.)*
 
-The same-PR document-lifecycle rule (OP-09): when S2/S3 land, OP-06 §5.2/§5.3's PASS/FAIL wording
-and §5.1's "Gap" note must be updated to point at the chokepoint (flagged for the implementing PRs).
+**Same-PR document-lifecycle rule (OP-09):** when Stage 2 (cities) and Stage 4 (user-owned
+relocation) land, the implementing PRs update OP-06's **live** status — **§2.1** and the relevant
+**HC-05/10/11** verification notes — to cite the chokepoint, and update this ADL's own §5.1
+inventory rows to "relocated". (Flagged for the implementing PRs.)
 
 ---
 
@@ -376,10 +555,17 @@ PO product decisions):
 - **OQ-3 — `cityIdentityService` boundary: DB / IDENTITY ONLY.** The service owns find-or-create /
   wildcard-upgrade / merge (identity); it does **not** own geocode orchestration (that stays in
   `geocoding.service.ts`). Keeps the seam narrow and avoids re-entangling the two subsystems.
-- **OQ-4 — build shape: CONFIRMED.** Three implementation briefs (S0 extract `citiesRepository` /
+- **OQ-4 — build shape: CONFIRMED.** ~~Three implementation briefs (S0 extract `citiesRepository` /
   `cityIdentityService`; S2 migrate routes + fold BUG-84 U7/U8; S3 the chokepoint + grep guard) + one
   QA brief (S1), **QA-first** per OP-35. ATDD-first marks as authored: S0 yes · S1 IS the ATDD · S2 yes
-  (+ mock-fidelity on the identity catch-path) · S3 no.
+  (+ mock-fidelity on the identity catch-path) · S3 no.~~
+  > **SUPERSEDED (2026-08-10) by §11 — retained for history (B2).** This wording assigned S0/S2/S3
+  > *different work than §6's own table* (here S0 = cities, S3 = chokepoint; in §6 S0 = `scope.ts`,
+  > S2 = cities, S3 = guard) — the two numberings inverted the ADL's declared load-bearing ordering,
+  > so an implementer told "dispatch S0 → S2 → S3 in dependency order" received two incompatible
+  > definitions. B1 independently forced a re-stage. **§11 is the reconciled build shape** (now
+  > **four** implementation briefs + one QA brief, on the revised §6 stage numbering). QA-first and
+  > the OQ-1/2/3 resolutions above are unchanged.
 
 **Reframe recorded (negative-findings correction):** the "~65 unsafe sites" premise the COO briefed
 this on was overstated. The author's two-probe finding stands — only **4** inline `eq(...userId...)`
@@ -392,3 +578,50 @@ enforcement, not an urgent security fire).
 clause-2 refinement scope the **whole** ADL — specifically check the seam between the new sections and
 OP-06 §5.1/§5.2/§5.3, and whether the "caught not impossible" D2 call (getDb-zero + grep guard + ATDD
 matrix) genuinely closes the gap a rewrite would claim to.
+
+---
+
+## 11. Reconciled build shape (REVISED 2026-08-10 — resolves B2; supersedes OQ-4's numbering)
+
+The COO OQ-4 adjudication above and the original §6 table used contradictory stage numbers (B2). One
+coherent scheme now governs — the **revised §6 stages** — and the build the COO dispatches maps onto
+them as follows. B1 grows this from three implementation briefs to **four** (the old single "migrate
+routes / S3" splits into a global-safe brief and a user-owned-dangerous brief).
+
+**Dispatch order (QA-first per OP-35), on the revised §6 numbering:**
+
+| # | Brief | Revised §6 stage | Role | ATDD-first | Depends on |
+|---|---|---|---|---|---|
+| 1 | Cross-tenant isolation matrix (**names the §5.1 user-owned paths**) | Stage 1 | **QA** | is the ATDD | Stage 0 landed |
+| 2 | `scope.ts` + refactor existing repos to compose it | Stage 0 | Backend | yes | — (but authored before #1 goes green) |
+| 3 | `citiesRepository` + `cityIdentityService` extraction (+ fold BUG-84 U7/U8) | Stage 2 | Backend | yes (+ mock-fidelity) | Stage 0 |
+| 4 | Global-reference-read consolidation → `referenceRepository` (map/admin/places-global) | Stage 3 | Backend | **no** | Stage 0 |
+| 5 | User-owned-read relocation (trips-detail, places carry-forward + activity joins, items-helper) **+ guard flip to error as its final contract step** | Stages 4 → 5 | Backend | **yes** (guard flip step: no) | Stages 0, 1, 2, 3 |
+
+> Sequencing note: #2 (`scope.ts`) is the substrate — it must land before #1 can go green and before
+> #3/#5 compose the helper. #1 (QA matrix) is *authored red first* and must **assert the §5.1
+> user-owned paths by name** before #5 relocates any of them. #5's guard flip (Stage 5) is valid only
+> once #3, #4, and #5's relocations have left `routes/**` `getDb`-free — flipping earlier red-mains.
+
+**Authorisation note (probe-the-COO, OP-34).** The brief explicitly authorised revisiting the OQ-4
+adjudication rather than force-fitting its contradiction with §6. I did: OQ-4's *intent* (design-only,
+QA-first, ~three-to-four briefs) is sound and preserved; only its **stage labels** were wrong, and
+they are superseded here. The COO should **ratify this reconciled numbering** (and the OQ-1 cost
+restatement in §5.1/§11) before the second fresh-eyes dispatch — see the open item below.
+
+### Open items for the COO (flagged, not guessed)
+
+- **OQ-1 cost re-confirmation (not a re-decision).** OQ-1 stands **absolutist**; the *decision* is
+  unchanged. But §5.1 shows its cost is larger than the adjudication assumed ("a handful of thin
+  global-read methods" → six route files incl. user-owned relocations). Confirm appetite for **Stage
+  3** (relocating *global* reads purely to make the guard a clean grep) now that its true, larger
+  scope is visible. **My rec: keep it** — Stage 3 is mechanical/no-ATDD and Stage 4 is work needed to
+  reach the chokepoint anyway; the alternative (leave global reads inline + an AST guard) is more
+  machinery for a weaker guarantee. *This is a confirmation, not a blocking fork.*
+- **ADL-log numbering (mechanical, for the merging COO).** `main` advanced ADL-52 → ADL-54 while
+  ADL-53 sat on this branch (§R). No duplicate; on merge, order the log 52 → 53 → 54 and resolve the
+  after-ADL-52 insertion seam. No decision required — just don't let the merge drop or mis-order the
+  ADL-53 log block.
+
+No other open questions — OQ-2 (defer ESLint) and OQ-3 (`cityIdentityService` = DB/identity only)
+remain resolved as the COO adjudicated; the fresh-eyes review credited both.
