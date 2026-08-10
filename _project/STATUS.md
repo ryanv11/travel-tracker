@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (84)
+## Open work (83)
 
 ### P1 — Critical (1)
 
@@ -25,13 +25,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (45)
+### P2 — Important (44)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
-| ENV-01 | Geocoding retry queue stuck — Nominatim blocked by devcontainer firewall | coo | ⬜ Pending |
 | FUTURE-03 | Companion model — linked/unlinked users with invite flow | coo | ⬜ Pending |
-| BRD-AD09 | Categories/activities are per-user lists, userId-scoped, owner-managed (AD-09) | backend | ◐ Partial |
 | BRD-GE18 | Reference-data provenance and in-product attribution credits surface (GE-18) | frontend | ⬜ Pending |
 | BRD-PH03 | Photo management accessible from trip detail header (PH-03) | frontend | ◐ Partial |
 | BRD-FL04 | Flight number lookup — auto-populate fields from flight number + date (FL-04) | backend | ⬜ Pending |
@@ -66,10 +64,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-87 | Add-place picker does not narrow/rank candidates by the trip's assigned country/countries | architect | done_pending_uat |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
 | BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
+| QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | QUAL-25 | Spike — build ADL-48's gazetteer for real and measure it before committing to S1/S2/S3 | architect | done_pending_uat |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
-| OP-36 | Apply ADL-49 — Nominatim (+optional MapTiler) firewall allowlist + recorded replay fixtures, on next container rebuild | coo | ⬜ Pending |
+| OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
 | QUAL-37 | Backup posture — COO memory dir + Turso DBs are unversioned/reseed-only; back up before non-disposable UAT data | coo | ⬜ Pending |
 | QUAL-38 | Goal-6 scorecard — one recurring PO-readable health report (escape/rework/flow/hook-violations/token-burn) | coo | ⬜ Pending |
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
@@ -122,11 +121,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `█████████████▓░░░░░░` 36/57 | 36 | 21 | 4 |
+| feature | `█████████████░░░░░░░` 37/57 | 37 | 20 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `██████████████░░░░░░` 60/86 | 60 | 26 | 3 |
+| bug | `██████████████░░░░░░` 61/86 | 61 | 25 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 32/58 | 32 | 26 | 2 |
+| chore | `███████████░░░░░░░░░` 32/59 | 32 | 27 | 2 |
 
 <details>
 <summary>Deferred (10)</summary>
@@ -161,4 +160,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_179 done · 10 deferred · 5 closed · 84 open — 278 tracked items_
+_181 done · 10 deferred · 5 closed · 83 open — 279 tracked items_

@@ -173,6 +173,10 @@ echo "session count (session_end entries): $sc"
   is not itself the second probe — re-probe before acting), and remediate with
   **delete-and-point** (delete the rot-prone specific, point to the single maintained source,
   don't restate). Surface findings in the pickup summary. Clean → note "drift-canary clean".
+  Checks: A dangling `.claude/hooks/*.sh` refs · B broken CLAUDE/CODEBASE links · C/D ADL-log
+  contiguity + reference resolvability · E tracker `status` vs latest note segment (open item
+  carrying a shipped/`-> done` stamp, or a `done_pending_uat` recording a UAT PASS — the narrow,
+  regex-catchable slice of the status-field lens; the two broader shapes are the deep audit's, above).
 - **Deep coherence audit due (every 15th)** → dispatch a **read-only** agent (research/review,
   no worktree needed) to sweep beyond the canary's cheap checks: BRD ↔ code ↔ schema drift,
   tracker-vs-reality, doc-rot across `jobs/**`, and any newly-recognised rot class. It reports
@@ -184,6 +188,18 @@ echo "session count (session_end entries): $sc"
   code contradicts, plus post-migration comment drift in `schema.ts` / god-routes. Point the sweep
   there first. (This semantic "claim-vs-code" check is deliberately NOT in the canary — a cheap
   regex would false-positive on every bug that legitimately describes a missing behaviour.)
+  **Tracker `status`-field lens (added 2026-08-09, OP-40 refinement — the load-bearing catch for the
+  two drift shapes the 2026-08-09 sweep found, neither of which the canary's cheap Check E can see):**
+  (1) **status-vs-title/code** — an item whose *title* or *shipped code* says the work landed while
+  `status` is still `pending`/`partial` (BRD-AD09: per-user model in `schema.ts` + a title edited to
+  match, status left `partial`; last session's audit fixed the title and missed the status one seam
+  away). (2) **`done` with no closing stamp** — a `done` item whose note carries no closing
+  `PR #`/`SHIPPED`/`UAT PASS` line, especially any flipped in a *bulk* status sync, is the highest-risk
+  place a half-shipped item hides (QUAL-29: only its frontend half shipped, bulk-flipped to `done` in
+  the #436 sync with no per-entry stamp). For both, apply the OP-27 amendment-seam discipline to the
+  audit's **own** edits: after correcting a title/note, walk the consequence to the `status` field —
+  a fix that stops one step short looks identical to no fix. The canary's Check E catches only the
+  narrower "note stamped shipped but status still open" sub-class; these two need this agent's reasoning.
 - Neither due → note "drift-cadence: nothing due this session" and move on.
 
 ### 1. Scheduled health-check flags
