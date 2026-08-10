@@ -2082,3 +2082,46 @@ HANDOFF TO COO: (1) DESIGN ONLY, no code — the ADL is the deliverable. (2) Res
 spec, THEN dispatch OP-27 fresh-eyes (second Architect, told to critique). (3) When S2/S3 implement,
 OP-06 §5.1 Gap note + §5.2/§5.3 PASS/FAIL wording must point at the chokepoint (same-PR OP-09).
 (4) No BRD gate — internal structure, no new requirement ID (COO-confirmed n/a in the dispatch).
+
+================================================================================
+2026-08-10 · ADL-53 REVISION — clear the OP-27 fresh-eyes B1/B2 (PR #456, extends)
+================================================================================
+Second pass on ADL-53, revising to clear the two BLOCKING findings from its own fresh-eyes
+review (PR #461). Principles were validated (D1/D2/D3/D4/D7/D8 credited) — this was a bounded
+re-scope of the migration plan, NOT a redesign. Deliverable: revised
+jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md, committed to the same feat branch.
+
+FRESH getDb() INVENTORY (did the probe myself, did NOT inherit "6"): grep across all 12 route
+files + READ every matched handler. Real `const db = getDb()` call sites live in SIX files
+(items.ts/trips.ts/places.ts header comments "No direct getDb()" and cities.ts's three
+`ReturnType<typeof getDb>` are NOT call sites). Per-site global-vs-user-owned classification
+is now §5.1. GLOBAL-reference reads: cities-identity (S2), places.ts:74/163, map.ts:113/154,
+admin.ts:73/91/135/177/217. USER-OWNED reads: cities.ts:703/766 (already compose scopeToUser),
+places.ts:231 (carry-forward, SEC-02 eq(items.userId)), places.ts:289/352 (activity join,
+upstream ownership), trips.ts:198 (trip-detail assembly), items-helper.ts:87 (items; scope
+THREADED by caller conditions → must become a required userId param).
+
+B1 FIX: the global-vs-user-owned split is now the SPINE of §6 (not an addendum). Global half =
+Stage 3 (ATDD-first: no, no red-bar — global data). User-owned half = Stage 4 (ATDD-first: YES,
+cross-tenant red-bar = the Stage-1 matrix asserting each path, expand/contract per relocation).
+Guard flip = Stage 5, STRICTLY LAST (after all six route files getDb-free) — old S3's
+"flip after cities" would CI-red main against the other 5 files. Old §6 S0–S4 table retained in
+a <details> block; the false "cities is the last holdout" premise corrected at §3 D2.1 & §5 D5.
+
+B2 FIX: COO OQ-4 adjudication assigned S0/S2/S3 DIFFERENT work than §6's table — both stamped
+superseded; one coherent scheme in revised §6 + new §11. Build grows 3→4 impl briefs (old single
+"migrate routes/S3" splits into global-safe + user-owned-dangerous). Was AUTHORISED to revisit
+OQ-4 rather than force-fit; did (intent preserved, only stage labels were wrong).
+
+N1: §10 re-pointed at OP-06 LIVE homes (§2.1 access matrix + HC-05/10/11), off the SUPERSEDED
+§5.1-5.3. N2: inline-eq count de-load-beared. N3: cities line refs 728/772→727/771, shading
+removed from F4 uncovered list (shading.user-scope.test.ts covers it).
+
+ADL-LOG NUMBERING: main advanced 52→54 (BUG-87) while ADL-53 stayed here. Distinct numbers, NO
+dup (verified both logs). Resolves on merge: order 52→53→54, fix the after-52 insertion seam.
+
+HANDOFF TO COO: (1) Two OPEN ITEMS flagged in §11 — (a) OQ-1 cost re-CONFIRMATION (decision
+unchanged/absolutist, but Stage-3 scope larger than adjudged — confirm appetite; rec: keep),
+(b) ADL-log merge ordering (mechanical). (2) Ratify the reconciled §11 numbering. (3) THEN
+dispatch the SECOND fresh-eyes review — fresh Opus (high-stakes userId-scoping/access-matrix
+class; NEVER Fable). (4) When Stage 2/Stage 4 implement, update OP-06 §2.1 + HC-05/10/11 same-PR.
