@@ -72,11 +72,26 @@ dispatching, not after. Skip only for a single mechanical brief that is plainly 
    tiered. **Fable** is an optional escalation for the hardest *non-security* reasoning only — never
    for access-matrix/auth/`userId`-scoping reviews (its cyber classifiers can refuse them).
 
+9. **Provenance — separate COO additions from Architect spec, and license the probe (PO-directed
+   2026-08-10).** A brief routinely *mixes* the two: the spec's line numbers have drifted, its
+   exit-check was under-specified, a scoping call had to be made. Fold those in — but if COO-added
+   text is indistinguishable from Architect spec, the agent cannot probe the COO's half, because
+   everything reads as settled design. That is the **OP-34 failure pointed at the COO**: authority
+   suppresses the downstream check, so an unprobed wrong instruction is expensive.
+   - **Label every COO addition, override or correction inline**, stating *what the spec said* and
+     *what you changed it to and why* — not just that it changed.
+   - **Explicitly invite challenge**: the agent is told to probe COO-added items and report back
+     rather than comply silently. Labelling alone reads as "obey this bit specially"; the invitation
+     is what makes it checkable.
+   - **Never launder a COO decision into "the spec says".** Architect text stays attributed to the
+     Architect. Inherited-from-a-doc is not pre-verified (OP-29) — and a COO paraphrase of a spec is
+     a COO claim, not the spec.
+
 **Mechanics**
-9. **Isolation** — any git-touching role agent gets `isolation: "worktree"`; the brief's first step
+10. **Isolation** — any git-touching role agent gets `isolation: "worktree"`; the brief's first step
    confirms `pwd`/toplevel matches the worktree, then `npm install` before anything needing node_modules.
-10. **Tracker cross-ref** — the brief names the tracker ID; the tracker entry names the issue #.
-11. **Model tiering** — right tier for the stakes; scaffolding scaled to the model, never the guardrails.
+11. **Tracker cross-ref** — the brief names the tracker ID; the tracker entry names the issue #.
+12. **Model tiering** — right tier for the stakes; scaffolding scaled to the model, never the guardrails.
 
 ## Required brief header
 
@@ -90,6 +105,7 @@ Success criteria: <measurable done>
 ATDD-first (OP-35): <yes — QA dispatched first | no — why>
 Security checklist (OP-06): <applies — named in brief | n/a>
 Reuse audit: <what was checked / what is reused>
+COO additions: <what in this brief is COO-added vs Architect spec — agent is invited to probe these | none>
 Isolation: <worktree | read-only>
 Fresh-eyes (OP-27): <planned | n/a>
 =========================
