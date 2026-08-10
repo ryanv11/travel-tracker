@@ -1,0 +1,194 @@
+BACKEND PARK DOCUMENT — 2026-08-10
+THREAD: QUAL-43 / ADL-53 §6 Stage 0 — the userId-scoping chokepoint
+BRANCH: feat/qual43-stage0-scope-chokepoint (off main @ 178f41d)
+TRACKER: QUAL-43 · BRD: n/a (internal structural refactor)
+GITHUB ISSUE: none. QUAL-43 is tracker-only — two probes that fail
+  differently: (1) `gh issue list --state all --search "QUAL-43"` returned
+  nothing and a title scan of all open issues found no scoping/chokepoint
+  issue; (2) the tracker entry's own notes carry no issue number, which the
+  CLAUDE.md cross-referencing rule requires when one exists. PR body therefore
+  references QUAL-43 + ADL-53 §6 Stage 0 rather than "Closes #N".
+
+================================================================
+1. WHAT SHIPPED
+================================================================
+
+NEW  src/backend/repositories/scope.ts
+NEW  scripts/scope-completeness-check.sh   (npm run scope:check)
+MOD  src/backend/repositories/{trips,items,places,companions,activities,
+       tripCategories,shadingConfig}.ts
+MOD  package.json                          (scope:check script)
+MOD  .claude/skills/pre-push/SKILL.md      (scope:check wired into /pre-push)
+
+No file was rewritten wholesale. Every source change was a targeted edit;
+scope.ts and the check script are new files. (OP-28 declaration: no full-file
+rewrite of any existing source file occurred in this thread.)
+
+================================================================
+2. THE CHOKEPOINT — WHAT IT ACTUALLY IS
+================================================================
+
+Two mechanisms, ONE definition (ADL-53 F2). Stated precisely because the ADL
+itself had to be corrected on this point:
+
+  scopeToUser(table, userId) -> SQL
+      The ownership PREDICATE. For tables carrying their own user_id column.
+  ownedAnd(table, userId, ...extra) -> SQL
+      scopeToUser composed with caller conditions, ownership first.
+  assertOwned(userId, tripId) -> Promise<void>
+      The ownership ASSERTION as an EXISTENCE CHECK composed from
+      scopeToUser. 404 (NotFoundError), opaque per SE-05, never 403.
+  assertWritable(userId, tripId) -> Promise<void>
+      assertOwned + the locked-trip check. One query, not two.
+
+UserOwnedTable = activities | companions | items | mapShadingConfig |
+                 tripCategories | tripPlaces | trips
+
+That union is exactly the set of tables in schema.ts carrying a user_id
+column (verified by grepping schema.ts for userId column definitions: lines
+201, 228, 254, 287, 325, 426, 562 — seven tables, seven union members).
+
+THE COMPILE-TIME CONSTRAINT IS VERIFIED, NOT ASSUMED. A throwaway module
+(src/backend/__scope-negative-probe.ts, created and deleted) passed `trips`,
+`cities` and `countries` to scopeToUser. tsc accepted `trips` and emitted
+TS2345 on exactly the `cities` and `countries` lines. Passing a global
+reference table is a compile error, as ADL-53 §2 claims.
+
+================================================================
+3. HOW EQUIVALENCE WAS PROTECTED
+================================================================
+
+The brief's equivalence bar was 808/808 with no test edited. Three things
+kept that honest rather than lucky:
+
+(a) ARGUMENT ORDER PRESERVED AT EVERY SITE. Where the ownership predicate
+    came first, the site became ownedAnd(...). Where it came last, it stayed
+    `and(eq(id, …), scopeToUser(…))`. The AND terms are emitted in the same
+    order as before, so the generated SQL is byte-identical. Reordering
+    would almost certainly have been harmless — but "almost certainly" is
+    not an equivalence argument, and this cost nothing.
+
+(b) THE .where() FOOTGUN (ADL-53 F3) WAS HANDLED EXPLICITLY.
+    tripRepository.findAll builds a $dynamic() query: the first .where()
+    carries the scope, and the status-filtered branch RE-APPLIES it because
+    Drizzle's .where() REPLACES rather than appends. Both terminal .where()
+    calls now carry scopeToUser. This is the one site in the refactor where
+    a natural-looking simplification (compose into the first .where() only)
+    would have silently dropped the scope on the filtered path — and every
+    existing test would still have passed. A comment at the site records
+    why, so the next reader does not "clean it up".
+
+(c) THE WRITE GATES KEEP THEIR EXACT SEMANTICS. The old code selected
+    {status, userId} by trip id, then checked existence, then ownership,
+    then lock. The new code selects {status} by (id AND scope), then checks
+    existence, then lock. Both produce: missing -> 404, other user's ->
+    404, locked -> LockError, and critically a NON-OWNER OF A LOCKED TRIP
+    STILL GETS 404, never the lock error. Still exactly one query.
+
+Result: 808/808 backend (identical to the pre-Stage-0 baseline I re-ran
+myself on main before touching anything), 388/388 frontend, Part F 7/7.
+No test file was modified. No test assertion was relaxed.
+
+================================================================
+4. THE COMPLETENESS CHECK — AND WHY IT IS NOT VACUOUS
+================================================================
+
+scripts/scope-completeness-check.sh, exit-non-zero on any residual.
+
+Scans src/backend/repositories/*.ts at maxdepth 1 — production sources only,
+which excludes __tests__/ by construction rather than by a name filter.
+
+TWO regexes, because ownership was written two ways (ADL-53 F1):
+  predicate   eq\([A-Za-z_$][A-Za-z0-9_$]*\.userId
+  comparison  \.userId[[:space:]]*[!=]==
+
+The predicate is permitted ONLY in scope.ts. The comparison is permitted
+NOWHERE — including scope.ts — because the chokepoint expresses ownership as
+SQL, never as an application-layer compare. That is a deliberate tightening
+beyond the ADL's wording and it is free.
+
+A check that only ever passes is worse than no check, so I mutation-tested
+it. FOUR injected failures, each of which it caught (exit 1):
+  A. a predicate residual in a non-scope repository file        -> FAIL
+  B. an application-comparison residual                         -> FAIL
+  C. scope.ts deleted entirely                                  -> FAIL
+  D. scope.ts present but no longer defining the predicate      -> FAIL
+C and D matter: without them, deleting or gutting the chokepoint would make
+every other assertion pass vacuously.
+
+BLIND SPOT, STATED: it matches TEXT, not syntax. A comment quoting either
+pattern trips it. That is deliberate — it fails closed. The remedy is to
+reword the comment (OP-30: fix your own text first), never to add an
+exemption. scope.ts's own header says so, so the next author does not learn
+this by tripping it.
+
+Wired into /pre-push, NOT into CI. Per the brief, CI wiring is a follow-up.
+
+================================================================
+5. FINDINGS THAT QUALIFY ADL-53 (read these before Stage 4)
+================================================================
+
+F-A. FOUR OWNERSHIP PREDICATES LIVE IN services/, AND NO ADL-53 STAGE OWNS
+     THEM. src/backend/services/shading.service.ts:169, 209, 247, 291 each
+     write eq(trips.userId, userId) by hand. They are outside this brief's
+     scope (repositories/**) and outside the completeness check's scope —
+     correctly, per the brief. But they are also outside EVERY ADL-53 stage.
+     Two probes that fail differently: (1) grepping ADL-53 for "services/"
+     yields only cityIdentityService (a NEW Stage-2 file), a passing remark
+     that shading sits "behind shading.service" used to argue map.ts is
+     safe, and a test-coverage note — no stage assignment; (2) reading the
+     §6 stage table end to end: Stage 0 = repositories, Stages 2/3/4 =
+     routes/**, Stage 5 = the guard flip. Nothing names services/**.
+     CONSEQUENCE: ADL-53's D1/D7 "single Phase-3 change-point" is NOT
+     reached by the current staging even after Stage 5 — a sharing change
+     would still have to find and edit shading.service.ts separately. This
+     is structurally the SAME shape as the F1 finding the second fresh-eyes
+     review caught (ownership expressed in a second place that the stage's
+     grep never looks at), one directory over. Not a bleed: all four
+     predicates are present and correct today, and
+     services/__tests__/shading.user-scope.test.ts covers cross-user
+     isolation. It is a completeness gap in the PLAN, needing a COO/Architect
+     stage assignment — not something an implementation brief should absorb
+     unilaterally.
+
+F-B. assertOwned SHIPS WITH NO PRODUCTION CALLER. Two probes that fail
+     differently: (1) grep for assertOwned across all of src/ returns only
+     its own definition and two doc-comment mentions; (2) enumerating every
+     importer of ./scope.js shows all seven import scopeToUser/ownedAnd/
+     assertWritable and none imports assertOwned. Its first caller is Stage
+     4's tripPlaceActivitiesMap join reads. It ships now because ADL-53 §2
+     and the brief's success criterion (1) both name it as part of the
+     chokepoint contract. It therefore also has no direct test coverage.
+
+F-C. NO NEW TESTS WERE ADDED, DELIBERATELY. Success criterion (4) fixed the
+     bar at exactly 808/808 "unchanged from the pre-Stage-0 baseline". Adding
+     a scope.ts unit suite would have moved that number and made the
+     equivalence claim harder to read, so I did not. scopeToUser, ownedAnd
+     and assertWritable are covered transitively and heavily (every
+     repository suite plus Part F). assertOwned is not covered at all — see
+     F-B. Recommend Stage 4's brief carry direct coverage for it.
+
+F-D. LINE NUMBERS IN ADL-53 HAVE DRIFTED, AS THE BRIEF WARNED. The two
+     JS-comparison gates the ADL cites at places.ts:273 / items.ts:95 were
+     at places.ts:281 / items.ts:103. Both were located by content. Every
+     predicate site named in §5.1 that falls inside repositories/** was
+     found; nothing cited was missing.
+
+================================================================
+6. STATE AT PARK
+================================================================
+
+Branch feat/qual43-stage0-scope-chokepoint, two commits (source +
+housekeeping), working tree clean, PR open against main, CI green.
+Nothing left uncommitted. PR not merged — COO merges.
+
+WHAT THIS UNBLOCKS: Stages 2, 3 and 4 can now compose the helper (Stage 0
+was the substrate blocking all three). Stage 4 additionally re-runs
+npm run scope:check as part of its own exit criteria, as does Stage 5.
+
+WHAT IT DOES NOT DO: no route was touched; no citiesRepository,
+referenceRepository or cityIdentityService exists; the getDb-in-routes guard
+still does not exist (no ADL-53 stage creates it — §3 describes it in
+recommendation voice and Stage 5 only "flips" it; the COO reached the same
+conclusion independently before dispatch). Stage 5 will need to create it,
+not merely flip it.

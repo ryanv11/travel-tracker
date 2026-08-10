@@ -1,3 +1,57 @@
+BACKEND CONTEXT — 2026-08-10 (QUAL-43 / ADL-53 Stage 0 thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: shipped the userId-scoping chokepoint (ADL-53 §6 Stage 0) on
+  branch feat/qual43-stage0-scope-chokepoint. Pure DRY refactor of
+  src/backend/repositories/** — zero behaviour change, 808/808 backend tests
+  unchanged, no test edited.
+  1. NEW src/backend/repositories/scope.ts — the single definition of row
+     ownership. Two mechanisms, one definition (ADL-53 F2):
+     - scopeToUser(table, userId) / ownedAnd(table, userId, ...extra) — the
+       ownership PREDICATE, for tables carrying a user_id column. The
+       UserOwnedTable union (activities, companions, items, mapShadingConfig,
+       tripCategories, tripPlaces, trips) makes passing a global reference
+       table a COMPILE ERROR — verified by probe, not assumed: a throwaway
+       module passing `cities`/`countries` produced TS2345 on exactly those
+       two lines while `trips` compiled.
+     - assertOwned(userId, tripId) / assertWritable(userId, tripId) — the
+       ownership ASSERTION, as an existence check composed from scopeToUser.
+       assertOwned has NO production caller yet (its first is Stage 4's
+       join-table relocations); it exists because §2 defines it as part of
+       the chokepoint contract. Deliberate, flagged to COO.
+  2. 34 predicate sites across 7 repositories now compose the helper. Argument
+     ORDER was preserved at each site (scope-first sites use ownedAnd,
+     scope-last sites keep `and(eq(id,…), scopeToUser(…))`) so the generated
+     SQL is byte-identical — the cheapest possible equivalence argument.
+  3. BOTH JS-comparison write gates folded in (the ADL-53 F1 gap):
+     placeRepository.assertWritable and itemRepository.assertWritable no
+     longer re-derive ownership in application code; they delegate to
+     scope.assertWritable. Lock check preserved EXACTLY, including ordering —
+     a non-owner still gets 404 and never learns a trip is locked. Still one
+     query per call (status is selected alongside the scoped existence check
+     rather than assertOwned + a second read).
+  4. ADL-53 F3 (Drizzle .where() REPLACES, does not append) handled in
+     tripRepository.findAll: the scope is re-composed into the filtered
+     branch. Composing into the first .where() only would have dropped the
+     scope on the status-filtered path — invisible to every existing test.
+  5. NEW scripts/scope-completeness-check.sh (npm run scope:check), wired into
+     /pre-push. Matches BOTH ownership forms; predicate permitted only in
+     scope.ts, application-comparison permitted NOWHERE (including scope.ts).
+     Also fails if scope.ts is missing or no longer defines the predicate, so
+     deleting the chokepoint cannot make it pass vacuously. Proven fail-closed
+     against four injected residuals, not merely observed to pass.
+  6. Scanned production repository sources only (excluding __tests__) per COO
+     decision — repositories/__tests__/shadingConfig.test.ts has two
+     legitimate userId assertions that are test assertions, not ownership
+     logic. Those tests were NOT edited.
+  KNOWN BLIND SPOT of the check: it matches text, not syntax, so a comment
+  quoting either pattern trips it. Deliberate (fails closed); the fix is to
+  reword the comment, never to widen the exemption (OP-30).
+  OUT OF SCOPE and untouched: routes/** (Stages 2/3/4), the getDb-in-routes
+  guard (Stage 5, and it does not exist yet — no stage owns its creation),
+  services/shading.service.ts (4 ownership predicates live there, outside the
+  ADL's Stage-0 charter — flagged to COO).
+
+=== PRIOR STATUS: BUG-87/GE-20 Brief A thread ===
 BACKEND CONTEXT — 2026-08-08 (BUG-87/GE-20 Brief A thread, latest)
 PROJECT: Travel Tracker
 CURRENT STATUS: implemented GE-20's country_codes read-path filter (BRD

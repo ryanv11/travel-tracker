@@ -1,0 +1,99 @@
+TO: COO
+FROM: Backend
+DATE: 2026-08-10
+TRACKER: QUAL-43 · PR #487 · GitHub issue: none (see note) · BRD: n/a
+BRANCH: feat/qual43-stage0-scope-chokepoint (off main @ 178f41d)
+SPEC: ADL-53 §6 Stage 0 + the §R2 F1/F2/F3 folds
+
+WHAT WAS BUILT
+Created src/backend/repositories/scope.ts — the single definition of row
+ownership — and routed every ownership expression in the production repository
+sources through it (34 predicate sites + both JS-comparison write gates).
+Landed scripts/scope-completeness-check.sh as a committed, re-runnable exit
+check, wired into /pre-push.
+
+ACCEPTANCE CRITERIA
+1. scope.ts exports scopeToUser/ownedAnd/assertOwned per §2 ......... PASS
+   (assertWritable too; UserOwnedTable compile constraint PROBE-VERIFIED —
+   tsc accepted `trips`, emitted TS2345 for `cities` and `countries`)
+2. Every ownership expression in repositories/** routes through it .. PASS
+   (34 predicates + places.ts/items.ts assertWritable JS gates)
+3. Completeness check exits clean, sole match = scope.ts's own def ... PASS
+4. npm run test:backend 808/808, unchanged from baseline ............ PASS
+   (baseline re-run by me on main before any edit: 51 files / 808 tests.
+   No test file modified; no assertion relaxed)
+5. Part F still green ............................................... PASS (7/7)
+6. Zero call-site behaviour change .................................. PASS
+
+Also green: frontend 388/388, type:check:all, biome ci, status:check,
+tracker:check, scope:check. Full /pre-push clean.
+
+SECURITY CHECKLIST (OP-06) — userId scoping IS the subject
+1. Auth middleware — no route added or modified; every existing
+   requireAuth/requireOwner binding untouched.
+2. Repository query scoping — strengthened: all 34 predicate sites and both
+   write gates now resolve through one definition, machine-verified by
+   scope:check rather than by convention.
+3. FK .notNull() — no schema change, no new user-data column.
+Write-gate semantics preserved exactly, ordering included: a non-owner of a
+LOCKED trip still receives 404, never the lock error (SE-05 opacity).
+
+FULL-FILE REWRITES (OP-28)
+None. Every existing source file was changed by targeted edit. scope.ts and
+scope-completeness-check.sh are new files.
+
+FINDINGS THAT CONTRADICT OR QUALIFY ADL-53
+A. [MOST IMPORTANT] Four hand-written ownership predicates live in
+   src/backend/services/shading.service.ts (:169, :209, :247, :291), and NO
+   ADL-53 stage owns them. Two probes that fail differently: (1) grepping
+   ADL-53 for "services/" yields only cityIdentityService (a new Stage-2
+   file), a passing remark that shading sits "behind shading.service" used to
+   argue map.ts is safe, and a test-coverage note — no stage assignment;
+   (2) reading §6's stage table end to end — Stage 0 = repositories,
+   Stages 2/3/4 = routes/**, Stage 5 = guard flip; nothing names services/**.
+   CONSEQUENCE: D1/D7's "single Phase-3 change-point" is NOT reached by the
+   current staging even after Stage 5 — a sharing change would still have to
+   find and edit shading.service.ts separately. This is structurally the SAME
+   shape as the F1 finding the second fresh-eyes review caught (ownership
+   expressed in a second place the stage's grep never looks at), one directory
+   over. NOT a bleed: all four are correct today and
+   services/__tests__/shading.user-scope.test.ts covers cross-user isolation.
+   It is a completeness gap in the PLAN. Needs a COO/Architect stage
+   assignment; I did not absorb it — it is outside this brief's scope
+   (repositories/**) and widening scope silently is the failure mode OP-32
+   rule 4 exists to stop.
+B. assertOwned ships with no production caller and therefore no test
+   coverage. Two probes: grep across all of src/ finds only its definition
+   and doc mentions; enumerating all seven importers of ./scope.js shows none
+   imports it. Its first caller is Stage 4's tripPlaceActivitiesMap join
+   reads. It ships because §2 and success criterion (1) both name it as part
+   of the contract. RECOMMEND Stage 4's brief carry direct coverage for it.
+C. I added NO new tests, deliberately: criterion (4) fixed the bar at exactly
+   808/808 "unchanged from baseline", and a scope.ts unit suite would have
+   moved that number. scopeToUser/ownedAnd/assertWritable are covered
+   transitively and heavily. If you would rather have direct unit coverage of
+   scope.ts, that is a one-line call and I will add it.
+D. Line-number drift confirmed, as your brief predicted: the JS gates cited at
+   places.ts:273 / items.ts:95 were at :281 / :103. Located by content. Every
+   §5.1 site falling inside repositories/** was found; nothing cited was
+   missing.
+E. Confirming your resolution 3 from a third angle: the getDb-in-routes guard
+   genuinely does not exist yet, and no stage CREATES it — §3 describes it in
+   recommendation voice, Stage 5 only "flips" it. Stage 5's brief will need to
+   author it, not merely flip it.
+
+OPEN ISSUES / BLOCKERS
+None blocking. Two follow-ups you own:
+- Wire scope:check into CI (deliberately out of scope this stage, per brief).
+- Assign a stage for finding A (services/** ownership predicates).
+Document lifecycle: ADL-53 §10 assigns the OP-06 §2.1 / HC-05/10/11 updates to
+the Stage 2 and Stage 4 PRs specifically, so Stage 0 changes no status/verdict
+document. Flagging so the omission reads as deliberate, not missed.
+
+WHAT IS NOW UNBLOCKED
+Stage 0 was the substrate blocking Stages 2, 3 and 4 — all three can now
+compose the helper. Stages 4 and 5 can re-verify the invariant identically by
+re-running npm run scope:check, which is why it shipped as a committed script
+rather than a one-time grep.
+
+CI: PR #487 — all checks green (scripts/ci-wait.sh pr 487).

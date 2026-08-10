@@ -17,6 +17,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { activities, getDb } from '../db/index.js';
 import type { Activity } from '../db/schema.js';
 import { ACTIVITIES } from '../db/seed-data.js';
+import { ownedAnd, scopeToUser } from './scope.js';
 
 export const activityRepository = {
   /**
@@ -43,7 +44,7 @@ export const activityRepository = {
     const rows = await db
       .select({ id: activities.id })
       .from(activities)
-      .where(eq(activities.userId, userId))
+      .where(scopeToUser(activities, userId))
       .limit(1);
     if (!rows.length) {
       await activityRepository.seedDefaults(userId);
@@ -56,7 +57,7 @@ export const activityRepository = {
     return db
       .select()
       .from(activities)
-      .where(eq(activities.userId, userId))
+      .where(scopeToUser(activities, userId))
       .orderBy(asc(activities.name));
   },
 
@@ -66,7 +67,7 @@ export const activityRepository = {
     return db
       .select()
       .from(activities)
-      .where(and(eq(activities.userId, userId), eq(activities.isActive, 1)))
+      .where(ownedAnd(activities, userId, eq(activities.isActive, 1)))
       .orderBy(asc(activities.name));
   },
 
@@ -76,7 +77,7 @@ export const activityRepository = {
     const rows = await db
       .select()
       .from(activities)
-      .where(and(eq(activities.id, id), eq(activities.userId, userId)))
+      .where(and(eq(activities.id, id), scopeToUser(activities, userId)))
       .limit(1);
     return rows[0] ?? null;
   },
@@ -110,7 +111,7 @@ export const activityRepository = {
     const updated = await db
       .update(activities)
       .set(updates)
-      .where(and(eq(activities.id, id), eq(activities.userId, userId)))
+      .where(and(eq(activities.id, id), scopeToUser(activities, userId)))
       .returning();
     return updated[0] ?? null;
   },
@@ -141,7 +142,7 @@ export const activityRepository = {
     const rows = await db
       .select({ id: activities.id })
       .from(activities)
-      .where(and(eq(activities.userId, userId), inArray(activities.id, activityIds)));
+      .where(ownedAnd(activities, userId, inArray(activities.id, activityIds)));
     const validIds = new Set(rows.map((r) => r.id));
     return activityIds.filter((id) => !validIds.has(id));
   },

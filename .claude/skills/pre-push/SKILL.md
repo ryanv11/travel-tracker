@@ -12,7 +12,15 @@ npm run test:backend       # Backend unit tests
 npm run test:frontend      # Frontend unit tests
 npm run status:check       # _project/STATUS.md in sync with tracker.json
 npm run tracker:check      # tracker.json integrity — no duplicate IDs, brdRefs valid
+npm run scope:check        # userId-scoping chokepoint — no hand-authored ownership in repositories/
 ```
+
+If `scope:check` fails it has found an ownership expression in
+`src/backend/repositories/**` that does not resolve through
+`repositories/scope.ts` (QUAL-43 / ADL-53 §6 Stage 0) — either an
+`eq(<table>.userId, …)` predicate or an ownership comparison written in
+application code. Route it through `scopeToUser`/`ownedAnd` (predicate) or
+`assertOwned`/`assertWritable` (existence check); do not exempt the site.
 
 If `status:check` fails, run `npm run status` and commit the regenerated
 `_project/STATUS.md` alongside your change — STATUS.md is generated, never hand-edited.

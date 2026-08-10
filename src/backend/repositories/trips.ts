@@ -27,6 +27,7 @@ import type { Trip } from '../db/schema.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { activityRepository } from './activities.js';
 import { companionRepository } from './companions.js';
+import { ownedAnd, scopeToUser } from './scope.js';
 import { tripCategoryRepository } from './tripCategories.js';
 
 // ----------------------------------------------------------------
@@ -58,10 +59,14 @@ export const tripRepository = {
   async findAll(userId: string, filters?: TripFilters): Promise<Trip[]> {
     const db = getDb();
 
-    let query = db.select().from(trips).where(eq(trips.userId, userId)).$dynamic();
+    // ADL-53 F3: Drizzle's `.where()` REPLACES the predicate, it does not append.
+    // On this `$dynamic()` builder the scope must therefore be re-composed into
+    // the filtered branch below — carrying it only on the first `.where()` would
+    // silently drop it whenever a status filter is supplied.
+    let query = db.select().from(trips).where(scopeToUser(trips, userId)).$dynamic();
 
     if (filters?.status) {
-      query = query.where(and(eq(trips.userId, userId), eq(trips.status, filters.status)));
+      query = query.where(ownedAnd(trips, userId, eq(trips.status, filters.status)));
     }
 
     const allTrips = await query.orderBy(desc(trips.startDate));
@@ -115,7 +120,7 @@ export const tripRepository = {
     const rows = await db
       .select()
       .from(trips)
-      .where(and(eq(trips.id, tripId), eq(trips.userId, userId)))
+      .where(and(eq(trips.id, tripId), scopeToUser(trips, userId)))
       .limit(1);
     return rows[0] ?? null;
   },
@@ -185,7 +190,7 @@ export const tripRepository = {
     const updated = await db
       .update(trips)
       .set(updates)
-      .where(and(eq(trips.id, tripId), eq(trips.userId, userId)))
+      .where(and(eq(trips.id, tripId), scopeToUser(trips, userId)))
       .returning();
     return updated[0] ?? null;
   },
@@ -198,7 +203,7 @@ export const tripRepository = {
     const db = getDb();
     const deleted = await db
       .delete(trips)
-      .where(and(eq(trips.id, tripId), eq(trips.userId, userId)))
+      .where(and(eq(trips.id, tripId), scopeToUser(trips, userId)))
       .returning({ id: trips.id });
     return deleted.length > 0;
   },
