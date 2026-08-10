@@ -457,6 +457,7 @@ the verdict line stays blank until you run it.
       **This item is still testable — the blocker below does not affect it.**
 
 > **BLOCKER for the rest of the non-owner pass (added 2026-07-28, BUG-63).**
+> **RESOLVED 2026-08-09 — BUG-63 shipped in the ADL-46 release and PASSED UAT in the 2026-08-08 non-owner round; closed `done`. The rest of this note is historical.**
 > Ryan reproduced BUG-63 on staging while testing as a non-owner and captured the console.
 > A non-owner **cannot add a place to a trip at all**: `GET /api/admin/categories/active`,
 > `GET /api/admin/activities/active` and `POST /api/cities` all return **403**, because each
