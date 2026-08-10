@@ -152,6 +152,34 @@ drift ledger: an editing session that produced zero new ledger entries means the
 PostToolUse hooks are silently broken — investigate before trusting this session's
 typecheck feedback.
 
+### 0.5 Drift-cadence check (OP-40, design-reflection R2)
+
+The forward-looking half of the model — a periodic sweep for the stale-inheritable / doc-rot
+class that no incident-born rule catches and that, until now, only the PO caught. Runs on a
+session cadence, not every session. The session counter is the append-only `session_end`
+count in the drift ledger:
+
+```bash
+sc=$(grep -c '"action":"session_end"' /workspace/.planning/drift-ledger.jsonl)
+echo "session count (session_end entries): $sc"
+# Fast drift canary — every 5th session
+[ $((sc % 5)) -eq 0 ] && bash /workspace/scripts/drift-canary.sh || echo "drift-canary: not due (runs every 5th session)"
+# Deep coherence audit — every 15th session (flag only; see below)
+[ $((sc % 15)) -eq 0 ] && echo "DEEP COHERENCE AUDIT DUE this session (every 15th) — run it before other work" \
+  || echo "deep coherence audit: not due (runs every 15th session)"
+```
+
+- **Drift canary due** → triage any findings per the negative-findings rule (a canary claim
+  is not itself the second probe — re-probe before acting), and remediate with
+  **delete-and-point** (delete the rot-prone specific, point to the single maintained source,
+  don't restate). Surface findings in the pickup summary. Clean → note "drift-canary clean".
+- **Deep coherence audit due (every 15th)** → dispatch a **read-only** agent (research/review,
+  no worktree needed) to sweep beyond the canary's cheap checks: BRD ↔ code ↔ schema drift,
+  tracker-vs-reality, doc-rot across `jobs/**`, and any newly-recognised rot class. It reports
+  findings to the COO; the COO triages and remediates delete-and-point. This is the periodic
+  in-house version of the manual two-scanner audit run 2026-08-08.
+- Neither due → note "drift-cadence: nothing due this session" and move on.
+
 ### 1. Scheduled health-check flags
 
 Adopted 2026-07-28 alongside the daily/weekly cloud health-check routines (see
