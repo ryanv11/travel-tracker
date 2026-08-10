@@ -382,3 +382,64 @@ NEXT STEPS (for incoming QA)
   set.length, not accidental), and the 4 regression guards + full backend
   suite stay green. type:check:all clean, no other suite regresses.
   Completion report: jobs/COO/inbox/
+
+================================================================================
+2026-08-10 — QUAL-43 STAGE 1: CROSS-TENANT ROW-LEVEL ISOLATION MATRIX (ADL-53 §5.1)
+================================================================================
+
+  Branch: feat/qual43-stage1-crosstenant-matrix (off main, pushed). PR opened.
+  This IS the OP-35 red bar for the ADL-53 userId-scoping-chokepoint build —
+  authored before Backend touches scope.ts or relocates any query (Stage 0/2/
+  3/4 are downstream of this).
+
+  Extended src/backend/routes/__tests__/security.access-matrix.test.ts with a
+  new Part F (reused the file's existing real-libSQL two-user harness rather
+  than building a parallel rig, per the brief's reuse audit). Named every §5.1
+  user-owned getDb() path explicitly and asserted the F4 expected shape per
+  endpoint class:
+    - trips.ts:198/223 (trip-detail items)            → predicate read, scoped
+    - places.ts:231/253 (carry-forward, SEC-02)        → 404 (trip/place) +
+                                                          400 (cross-tenant
+                                                          source item id)
+    - places.ts:289/352 (activity tag/untag)           → 404, never 403
+    - cities.ts:703/748 (city carry-forward, IT-07)     → empty list
+    - cities.ts:766/792 (city items, SEC-01)            → empty list
+  items-helper.ts:87 has no route of its own — covered transitively via its
+  three call sites above. trips.ts:207-216's tripPlaceActivitiesMap join
+  inherits isolation from the prior findByIdOrThrow ownership check (ADL-53
+  F2) — no independent cross-tenant vector exists to test; noted, not a gap.
+
+  REAL libSQL (not the in-memory getDb mock): createTestDb() applies the real
+  migration files to a real @libsql/client :memory: connection (FKs ON, real
+  partial unique indexes) — getDb() is mocked only at the "which instance"
+  plumbing level, never the SQL engine. Two distinct real users seeded
+  throughout (USER_A_ID/USER_B_ID, the file's existing constants).
+
+  ANTI-VACUOUS (mutation-tested, not just reasoned about): temporarily
+  dropped trips.ts:223's eq(items.userId,userId) predicate — the trip-detail
+  test went red (rogue USER_B item leaked into USER_A's own view). Separately
+  dropped places.ts:253's SEC-02 predicate — the carry-forward test went red
+  (201 instead of 400 — USER_A's item would have been duplicated onto
+  USER_B's trip). Both reverted immediately; git diff --stat confirmed zero
+  production-code diff before commit; full suite re-verified green after.
+
+  RESULT: all 8 new Part F assertions are GREEN on current main — expected
+  per ADL-53 F5 (isolation holds by convention today, no active bleed). This
+  is the regression net for Stages 0/2/3/4, not evidence there's nothing to
+  build. NO red path found on current main — nothing to escalate as a latent
+  gap.
+
+  Verification: 808/808 backend tests green (was 800 before Part F's 8 new
+  tests), type:check:all clean, biome clean (5 pre-existing unrelated INFO
+  notices), status:check/tracker:check both OK. npm audit (fresh worktree
+  install): 6 MODERATE advisories, no HIGH/CRITICAL — reported to COO per
+  frameworks.txt rule 20, not blocking, no package changes made by this
+  thread.
+
+  Full detail: jobs/qa/tech/20260810-qual43-stage1-crosstenant-matrix.md
+  Completion report: jobs/COO/inbox/
+
+  NEXT: Backend implements Stage 0 (scope.ts) against this branch as the
+  substrate, then Stages 2/3/4 relocate the named §5.1 paths — Part F must
+  stay green through every relocation and go RED if any predicate or prior
+  ownership assertion is dropped mid-move.

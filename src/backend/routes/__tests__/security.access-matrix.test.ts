@@ -7,6 +7,11 @@
  *   2. If requireOwner: add a Part B row (non-owner → 403)
  *   3. If route accesses user-owned data: verify cross-user case in Part C or service unit test
  *
+ * Part F (QUAL-43 / ADL-53) is the ATDD row-level cross-tenant matrix for the
+ * §5.1 user-owned getDb() paths specifically — a deeper dimension than Part C's
+ * per-route spot checks: it names every §5.1 path and asserts the expected
+ * shape per endpoint class (empty result for reads, 404 for mutations).
+ *
  * Exempt from Part A: /health (liveness probe), /geo/* (public static — OP-06 §1.2)
  * Not in Part B: /api/map/shading/countries/:code and /api/map/shading/regions/:code
  *   are requireAuth only (not owner-restricted) — intentional per OP-06 §2 access matrix.
@@ -24,6 +29,7 @@
  *   services/__tests__/shading.user-scope.test.ts (plus the Part C rows below).
  */
 
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
 import { createTestDb, type TestDb } from '../../repositories/__tests__/test-db.js';
@@ -137,6 +143,68 @@ async function seedTrip(db: TestDb, userId: string): Promise<number> {
     })
     .returning({ id: schema.trips.id });
   return inserted[0].id;
+}
+
+// ----------------------------------------------------------------
+// Part F seed helpers (QUAL-43 / ADL-53 §5.1 — cross-tenant matrix)
+// ----------------------------------------------------------------
+
+/** Cities are global reference data (ADL-53 F3) — no userId column. */
+async function seedCity(db: TestDb, countryCode = 'US', name = 'Test City'): Promise<number> {
+  const rows = await db
+    .insert(schema.cities)
+    .values({ name, countryCode, geocodeStatus: 'resolved' })
+    .returning({ id: schema.cities.id });
+  return rows[0].id;
+}
+
+async function seedTripPlace(
+  db: TestDb,
+  tripId: number,
+  cityId: number,
+  userId: string,
+): Promise<number> {
+  const now = new Date().toISOString();
+  const rows = await db
+    .insert(schema.tripPlaces)
+    .values({ tripId, cityId, userId, createdAt: now, updatedAt: now })
+    .returning({ id: schema.tripPlaces.id });
+  return rows[0].id;
+}
+
+async function seedItem(
+  db: TestDb,
+  opts: {
+    tripId: number;
+    tripPlaceId: number | null;
+    userId: string;
+    itemType?: string;
+    status?: string;
+  },
+): Promise<number> {
+  const now = new Date().toISOString();
+  const rows = await db
+    .insert(schema.items)
+    .values({
+      tripId: opts.tripId,
+      tripPlaceId: opts.tripPlaceId,
+      userId: opts.userId,
+      itemType: opts.itemType ?? 'note',
+      status: opts.status ?? 'confirmed',
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning({ id: schema.items.id });
+  return rows[0].id;
+}
+
+async function seedActivity(db: TestDb, userId: string, name = 'Test Activity'): Promise<number> {
+  const now = new Date().toISOString();
+  const rows = await db
+    .insert(schema.activities)
+    .values({ userId, name, isActive: 1, createdAt: now, updatedAt: now })
+    .returning({ id: schema.activities.id });
+  return rows[0].id;
 }
 
 // ----------------------------------------------------------------
@@ -668,5 +736,274 @@ describe('Part E — Non-owner can READ global countries/regions; WRITES stay ow
       .send({ name: 'Updated' });
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'Forbidden' });
+  });
+});
+
+// ================================================================
+// Part F — QUAL-43 / ADL-53 Stage 1: cross-tenant row-level isolation
+// matrix for the §5.1 user-owned read/mutate paths.
+//
+// This is the OP-35 red bar for the userId-scoping chokepoint build
+// (ADL-53). It names every §5.1 user-owned path explicitly and asserts
+// the F4 expected shape per endpoint class: EMPTY RESULT for
+// cross-tenant reads, 404 (never 403 — SE-05, opaque) for cross-tenant
+// mutations. Runs against the same real libSQL (:memory:) instance as
+// the rest of this file (createTestDb() — real FKs, real migrations,
+// real partial unique indexes; see repositories/__tests__/test-db.ts).
+// Seeds TWO distinct real users (USER_A/USER_B) throughout.
+//
+// items-helper.ts:87 (fetchItemsWithExtensions) has no route of its
+// own — it is exercised transitively here via trips.ts:198 (F1 below)
+// and cities.ts:703/766 (F3/F4 below), its three call sites.
+//
+// trips.ts:207-216's tripPlaceActivitiesMap join (trip-detail place
+// activities) carries no userId column and inherits isolation from the
+// prior tripRepository.findByIdOrThrow ownership check (ADL-53 F2:
+// "assertion-guarded, composes nothing") — placeIds passed into that
+// join are already scoped to the caller's own trip, so there is no
+// independent cross-tenant vector to construct a red assertion against;
+// this is a structural read of the code, not a gap in this matrix.
+// ================================================================
+
+describe('Part F — Cross-tenant row-level isolation (QUAL-43 / ADL-53 §5.1)', () => {
+  beforeEach(async () => {
+    await seedUser(testDb!, USER_A_ID, 'clerk_user_a', 'usera@example.com', 1);
+    await seedUser(testDb!, USER_B_ID, 'clerk_user_b', 'userb@example.com', 0);
+    await seedCountry(testDb!, 'US', 'United States');
+  });
+
+  // --------------------------------------------------------------
+  // F1 — trips.ts:198 trip-detail assembly (predicate-composed items read)
+  //
+  // Expected shape (F4): the read isolates by construction — this is not
+  // a cross-tenant CALLER test (Part C already covers GET /api/trips/:id
+  // → 404 for a non-owner caller) but a proof that the inline
+  // `eq(items.userId, userId)` predicate at trips.ts:223 is load-bearing
+  // for the OWNER's own view. A second item is inserted directly against
+  // the DB with the SAME trip/place but a DIFFERENT userId (a
+  // hypothetical write-path anomaly) to construct the exact condition the
+  // predicate exists to guard. ANTI-VACUOUS: if that predicate were
+  // dropped (i.e. the assembly filtered on trip_place_id alone), the
+  // rogue item would appear in USER_A's own trip-detail response — this
+  // assertion fires on that removal.
+  // --------------------------------------------------------------
+  it('GET /api/trips/:id — trip-detail items are scoped to the caller, not just the trip/place (trips.ts:198/223)', async () => {
+    const tripAId = await seedTrip(testDb!, USER_A_ID);
+    const cityId = await seedCity(testDb!);
+    const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
+    const ownItemId = await seedItem(testDb!, {
+      tripId: tripAId,
+      tripPlaceId: placeAId,
+      userId: USER_A_ID,
+    });
+    // Rogue row: same trip_id/trip_place_id, but owned by USER_B — constructs
+    // the exact shape the eq(items.userId, userId) predicate must exclude.
+    const rogueItemId = await seedItem(testDb!, {
+      tripId: tripAId,
+      tripPlaceId: placeAId,
+      userId: USER_B_ID,
+    });
+
+    mockAuthEnabled = true;
+    mockIsOwner = 1;
+    mockUserId = USER_A_ID;
+
+    const res = await supertest(app).get(`/api/trips/${tripAId}`);
+    expect(res.status).toBe(200);
+
+    const place = res.body.places.find((p: { id: number }) => p.id === placeAId);
+    const itemIds = place.items.map((i: { id: number }) => i.id);
+    expect(itemIds).toContain(ownItemId);
+    expect(itemIds).not.toContain(rogueItemId);
+  });
+
+  // --------------------------------------------------------------
+  // F2 — places.ts:231 carry-forward POST (SEC-02)
+  //
+  // (a) Full cross-tenant call: mutation → 404 (opaque, SE-05), via
+  //     placeRepository.assertWritable's ownership check.
+  // (b) The SEC-02 predicate itself: USER_B, acting entirely within their
+  //     OWN trip/place, supplies USER_A's item id as a source_item_id.
+  //     Expected: 400 (source item not found/owned), never a silent
+  //     carry-forward of another user's data. ANTI-VACUOUS: this is the
+  //     `eq(items.userId, userId)` filter at places.ts:253 firing —
+  //     if dropped, foundItems.length would equal sourceItemIds.length
+  //     and USER_A's item would be duplicated onto USER_B's trip (201).
+  // --------------------------------------------------------------
+  it('POST /api/trips/:tripId/places/:placeId/carry-forward — cross-tenant trip/place → 404, never 403', async () => {
+    const tripAId = await seedTrip(testDb!, USER_A_ID);
+    const cityId = await seedCity(testDb!);
+    const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
+    const itemAId = await seedItem(testDb!, {
+      tripId: tripAId,
+      tripPlaceId: placeAId,
+      userId: USER_A_ID,
+      status: 'next_time',
+    });
+
+    mockAuthEnabled = true;
+    mockIsOwner = 0;
+    mockUserId = USER_B_ID;
+
+    const res = await supertest(app)
+      .post(`/api/trips/${tripAId}/places/${placeAId}/carry-forward`)
+      .send({ source_item_ids: [itemAId] });
+    expect(res.status).toBe(404);
+    expect(res.status).not.toBe(403);
+  });
+
+  it("POST .../carry-forward — SEC-02: caller cannot carry forward ANOTHER user's item into their own trip", async () => {
+    const tripAId = await seedTrip(testDb!, USER_A_ID);
+    const cityId = await seedCity(testDb!);
+    const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
+    const itemAId = await seedItem(testDb!, {
+      tripId: tripAId,
+      tripPlaceId: placeAId,
+      userId: USER_A_ID,
+      status: 'next_time',
+    });
+
+    // USER_B's OWN trip/place — the write-gate ownership check passes;
+    // only the item-ownership predicate stands between USER_B and
+    // carrying USER_A's item onto their own trip.
+    const tripBId = await seedTrip(testDb!, USER_B_ID);
+    const placeBId = await seedTripPlace(testDb!, tripBId, cityId, USER_B_ID);
+
+    mockAuthEnabled = true;
+    mockIsOwner = 0;
+    mockUserId = USER_B_ID;
+
+    const res = await supertest(app)
+      .post(`/api/trips/${tripBId}/places/${placeBId}/carry-forward`)
+      .send({ source_item_ids: [itemAId] });
+    expect(res.status).toBe(400);
+    expect(res.status).not.toBe(201);
+  });
+
+  // --------------------------------------------------------------
+  // F3 — cities.ts:703 GET /:id/carry-forward (predicate-composed read, SE-05/IT-07)
+  //
+  // Cities are global reference data (ADL-53 F3/D3) — the route itself is
+  // reachable by any authenticated user (no 404 expected). Isolation is
+  // enforced by the eq(trips.userId, userId) predicate at cities.ts:748.
+  // Expected shape (F4): EMPTY RESULT for the cross-tenant caller.
+  // Positive control (USER_A) proves the fixture/status/type filters are
+  // actually satisfiable — an always-empty response for the wrong reason
+  // (e.g. a bad status literal) would otherwise pass vacuously.
+  // --------------------------------------------------------------
+  it("GET /api/cities/:id/carry-forward — cross-tenant caller sees an empty list, not the owner's next_time items", async () => {
+    const tripAId = await seedTrip(testDb!, USER_A_ID);
+    const cityId = await seedCity(testDb!);
+    const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
+    const itemAId = await seedItem(testDb!, {
+      tripId: tripAId,
+      tripPlaceId: placeAId,
+      userId: USER_A_ID,
+      itemType: 'restaurant',
+      status: 'next_time',
+    });
+
+    // Positive control: the owner sees their own next_time item at this city.
+    mockAuthEnabled = true;
+    mockIsOwner = 1;
+    mockUserId = USER_A_ID;
+    const ownerRes = await supertest(app).get(`/api/cities/${cityId}/carry-forward`);
+    expect(ownerRes.status).toBe(200);
+    expect(ownerRes.body.map((r: { id: number }) => r.id)).toContain(itemAId);
+
+    // Cross-tenant: same city (global data), different caller → empty.
+    mockIsOwner = 0;
+    mockUserId = USER_B_ID;
+    const res = await supertest(app).get(`/api/cities/${cityId}/carry-forward`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  // --------------------------------------------------------------
+  // F4 — cities.ts:766 GET /:id/items (predicate-composed read, SEC-01/IT-09)
+  //
+  // Same shape as F3: global route, isolation via eq(items.userId, userId)
+  // at cities.ts:792. Expected shape (F4): EMPTY RESULT cross-tenant.
+  // --------------------------------------------------------------
+  it("GET /api/cities/:id/items — cross-tenant caller sees an empty list, not the owner's completed items (SEC-01)", async () => {
+    const tripAId = await seedTrip(testDb!, USER_A_ID);
+    const cityId = await seedCity(testDb!);
+    const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
+    const itemAId = await seedItem(testDb!, {
+      tripId: tripAId,
+      tripPlaceId: placeAId,
+      userId: USER_A_ID,
+      itemType: 'restaurant',
+      status: 'completed',
+    });
+
+    // Positive control.
+    mockAuthEnabled = true;
+    mockIsOwner = 1;
+    mockUserId = USER_A_ID;
+    const ownerRes = await supertest(app).get(`/api/cities/${cityId}/items`);
+    expect(ownerRes.status).toBe(200);
+    expect(ownerRes.body.map((r: { id: number }) => r.id)).toContain(itemAId);
+
+    // Cross-tenant.
+    mockIsOwner = 0;
+    mockUserId = USER_B_ID;
+    const res = await supertest(app).get(`/api/cities/${cityId}/items`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  // --------------------------------------------------------------
+  // F5 — places.ts:289/352 activity tag/untag (assertion-guarded, no
+  // userId column on the join table — ownership inherited from a prior
+  // placeRepository.findById(userId, placeId) call).
+  //
+  // Expected shape (F4): 404 for both cross-tenant mutations, never 403.
+  // --------------------------------------------------------------
+  it('POST /api/trips/:tripId/places/:placeId/activities — cross-tenant place → 404, never 403 (places.ts:289)', async () => {
+    const tripAId = await seedTrip(testDb!, USER_A_ID);
+    const cityId = await seedCity(testDb!);
+    const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
+    const activityAId = await seedActivity(testDb!, USER_A_ID);
+
+    mockAuthEnabled = true;
+    mockIsOwner = 0;
+    mockUserId = USER_B_ID;
+
+    const res = await supertest(app)
+      .post(`/api/trips/${tripAId}/places/${placeAId}/activities`)
+      .send({ activity_id: activityAId });
+    expect(res.status).toBe(404);
+    expect(res.status).not.toBe(403);
+  });
+
+  it('DELETE /api/trips/:tripId/places/:placeId/activities/:activityId — cross-tenant place → 404, never 403 (places.ts:352)', async () => {
+    const tripAId = await seedTrip(testDb!, USER_A_ID);
+    const cityId = await seedCity(testDb!);
+    const placeAId = await seedTripPlace(testDb!, tripAId, cityId, USER_A_ID);
+    const activityAId = await seedActivity(testDb!, USER_A_ID);
+    await testDb!
+      .insert(schema.tripPlaceActivitiesMap)
+      .values({ tripPlaceId: placeAId, activityId: activityAId });
+
+    mockAuthEnabled = true;
+    mockIsOwner = 0;
+    mockUserId = USER_B_ID;
+
+    const res = await supertest(app).delete(
+      `/api/trips/${tripAId}/places/${placeAId}/activities/${activityAId}`,
+    );
+    expect(res.status).toBe(404);
+    expect(res.status).not.toBe(403);
+
+    // Sanity: the tag USER_B just 404'd against still exists — the request
+    // was rejected before any mutation, not silently no-op'd on someone
+    // else's row. Confirms this is a real ownership gate, not a delete
+    // that happened to affect zero rows for an unrelated reason.
+    const stillTagged = await testDb!
+      .select()
+      .from(schema.tripPlaceActivitiesMap)
+      .where(eq(schema.tripPlaceActivitiesMap.tripPlaceId, placeAId));
+    expect(stillTagged.length).toBe(1);
   });
 });
