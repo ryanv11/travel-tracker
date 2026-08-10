@@ -66,7 +66,11 @@ dispatching, not after. Skip only for a single mechanical brief that is plainly 
    (`requireAuth`/`requireOwner`), `userId` scoping on every user-data query, `.notNull()` on user FKs.
    Ref: `jobs/architect/tech/OP-06-hardening-checklist.md` §2 access matrix + ADL-27.
 8. **Fresh-eyes (OP-27)** — if an Architect deliverable that will be cited elsewhere, plan the
-   second-Architect review; resolve the author's own flagged open questions *first*.
+   second-Architect review; resolve the author's own flagged open questions *first*. Tier the
+   reviewer by stakes (R5): **Opus** + full stress-test for the OP-35 high-stakes classes, **Sonnet**
+   + focused checklist for low-stakes; independence (a fresh chain, never self-review) is never
+   tiered. **Fable** is an optional escalation for the hardest *non-security* reasoning only — never
+   for access-matrix/auth/`userId`-scoping reviews (its cyber classifiers can refuse them).
 
 **Mechanics**
 9. **Isolation** — any git-touching role agent gets `isolation: "worktree"`; the brief's first step
