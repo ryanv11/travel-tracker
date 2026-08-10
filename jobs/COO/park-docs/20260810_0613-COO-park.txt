@@ -1,0 +1,93 @@
+COO SESSION PARK — 2026-08-09/10 ("DESIGN-REFLECTION GOVERNANCE THREAD CLOSED — R2/R3/R5a SHIPPED + R2 DOGFOODED")
+6 PRs merged (#475–#480) · main green after each · clean tree · branches = main + 2 banked-R1 PRs
+================================================================================
+
+## READ THIS FIRST
+
+1. **The design-reflection GOVERNANCE thread is DONE.** R4 (prior session, OP-39) + R2 + R3 + R5(a)
+   all shipped this session. What REMAINS of the reflection is only the ENGINEERING half, both gated
+   on R1:
+   - **R1 / QUAL-43** (citiesRepository + central scopeToUser) — BANKED. PRs #456 (design) + #461
+     (fresh-eyes review, 2 BLOCKING findings) are OPEN by design. RESUME needs an ADL-53 revision:
+     re-inventory getDb across the SIX route files (not one), split global-read consolidation from
+     user-owned-read relocation, re-mark ATDD, reconcile the 52→54 ADL numbering gap. NOTE: R1 *is* a
+     userId-scoping/security review → its OP-27 fresh-eyes must be OPUS, **not Fable** (see R5a below).
+   - **R5(b)** geocode dual-identity consolidation — sequenced AFTER R1.
+
+2. **AWAITING PO (unchanged, separate from reflection work):** the 2026-08-08 Scotland dogfood UAT —
+   **BUG-87** (trip-country picker filter) + **Bundle B** (BUG-58/86/91/93/UX-14) on staging. jobs/PO/
+   uat-log.md has the RETEST block. On PO PASS: flip those to done.
+
+3. **New standing machinery this session (all live now):**
+   - **OP-40** (R2): `scripts/drift-canary.sh` runs every 5th session + a DEEP coherence audit every
+     15th, both wired into `/coo-startup` step 0.5; a per-wave PRE-MORTEM in `/coo-dispatch`. Session
+     counter = session_end count in the drift ledger. First dogfood (session 75) found 7 real drift
+     items — deep audit earns its keep; the cheap canary caught none of them (they need cross-doc
+     reasoning). Highest-yield deep-audit lens: append-only records never re-summarized (tracker
+     notes/titles, Status:Decided ADLs, post-migration comments).
+   - **OP-39 / R3:** `atdd-first-guard.sh` REMOVED (subsumed by the dispatch gate); `negative-findings-
+     guard.sh` KEPT (guards jobs/** writes + tracker notes + PR bodies, which the gate never sees).
+   - **OP-27 / R5a:** fresh-eyes review TIERED by stakes — Opus (full stress-test) for the OP-35
+     high-stakes classes, Sonnet (focused checklist) for low-stakes; **independence never tiered**.
+     Fable is an OPTIONAL escalation for the hardest NON-security reasoning only — NEVER access-matrix/
+     auth/userId-scoping (its cyber classifiers refuse benign security content; Agent-tool dispatch has
+     no refusal-fallback). Cost isn't the driver at fresh-eyes' low volume; the refusal hazard is.
+
+4. **Delete-and-point is the settled prune discipline** (D-29 → OP-40). Corollary captured this
+   session (memory feedback_memory_is_not_a_canonical_home): delete-and-point may only target a
+   CHECKED-IN home the reader loads (CLAUDE.md / frameworks / skills / ADLs / tracker) — NEVER memory
+   (agents don't load COO memory; it isn't PR-reviewed). Only war-stories move to memory; the rule stays.
+
+## What the session was, in one paragraph
+
+COO pickup (clean startup, all hooks green, main green) → continued the design-reflection work. Shipped
+R3 (governance prune: CLAUDE.md 507→390, pre-dispatch rules homed in /coo-dispatch; then removed the
+redundant atdd-first-guard hook after probing that negative-findings-guard was only partially subsumed).
+Then R2 (forward-looking drift cadence + pre-mortem, OP-40) → DOGFOODED it before merge on PO direction:
+two read-only audit agents found 7 verified drift items, converged on the same refinement, which was
+folded into a follow-up PR (canary v2 + drift remediation: ADL-04/06 SUPERSEDED stamps, pre-push count,
+schema comment, BRD-AD09 title, FEAT-IT notes). Closed FEAT-IT (P0) + BUG-63 (P1) to done on PO UAT
+verdicts. Then R5(a): tiered OP-27 fresh-eyes by stakes — with a claude-api-reference-probed decision to
+keep Opus as the high-stakes default and fence Fable off from security reviews. Closed the session with
+R1/R5(b) explicitly deferred as the remaining (engineering) half.
+
+## Shipped & merged (6 PRs, #475–#480)
+
+- #475 R3 governance prune (CLAUDE.md 507→390; /coo-dispatch canonical home).
+- #476 R3 remove atdd-first-guard (subsumed by OP-39; negative-findings-guard kept + inaccuracy fixed).
+- #477 R2 forward-looking drift-cadence + per-wave pre-mortem (OP-40; drift-canary.sh + step 0.5).
+- #478 R2 dogfood follow-up (canary v2 Checks C/D; drift remediation; ADL-04/06 stamps; FEAT-IT/BRD-AD09).
+- #479 close FEAT-IT (P0) + BUG-63 (P1) to done — PO UAT verdicts; UAT-log blocker stamped.
+- #480 R5a tier OP-27 fresh-eyes by stakes.
+
+## State of play (durable — tracker.json / STATUS.md / open-dialogues)
+
+- **Reflection:** R2/R3/R4/R5a DONE. R1 (QUAL-43) banked + R5(b) after it = the only remaining threads.
+- **AWAITING PO:** BUG-87 UAT + Bundle B retest (both staging).
+- **Ready, not dispatched:** geocoder-picker remainder (BUG-72/81, UX-13, BUG-89); BUG-94 (GE-20 manual-add
+  bypass, P3); QUAL-44 (file:line cleanup, P3).
+- **Architect-gated, pending:** BUG-85/GE-19 (stuck-record ADL), BUG-88 (rating), BUG-90 (home-nations as
+  countries), BUG-92 (companion seed).
+- **Pre-existing P1s:** QUAL-18 (CSP E2E blindspot). (BUG-63 now closed.)
+- **Open PRs:** #456, #461 (banked R1 only).
+
+## Process notes worth keeping
+
+- **The dogfood pattern worked** — running R2's own deep audit before merging it validated the mechanism
+  AND surfaced 7 real drift items AND refined its own design. Deep audit > cheap canary for semantic drift;
+  both agents independently pointed at "append-only records never re-summarized" as the drift hotspot.
+- **Probe subsumption before removing enforcement** — "the gate subsumes both hooks" was only half true;
+  reading the hooks showed negative-findings-guard covers jobs/**/tracker/PR-body surfaces the gate can't.
+- **Fable ≠ drop-in for Opus on security reviews** — its cyber classifiers refuse benign security content;
+  Agent-tool dispatch has no fallback. Probed via the claude-api skill, not memory (OP-34 probe-before-promote).
+
+## Open threads
+
+See `jobs/COO/open-dialogues.md` (Open = D-05/14/23/27/28; Parked = watch-if-recurs). D-29 was RESOLVED
+this session (promoted to OP-40, deleted per the delete-on-resolution rule). Design-reflection source memo
+(historical snapshot): jobs/COO/20260808-design-reflection.md — R1/R5b are its only un-shipped items.
+
+Suggested next: either (a) kick off R1 — dispatch the ADL-53 revision (Architect, worktree-isolated) →
+OP-27 fresh-eyes (OPUS, not Fable — it's a security review) → QA ATDD → staged build; or (b) log the PO's
+BUG-87 + Bundle B UAT results and dispatch the geocoder-picker remainder.
+================================================================================
