@@ -201,12 +201,38 @@ if [ "$MODE" = "pr" ]; then
         exit 1
     fi
 
+    # STALE-HEAD GUARD (QUAL-46, open dialogue D-24 — recurred 2026-08-10, PR #491).
+    # head_sha was pinned once, before the watch. A `git push` whose PR-head propagation
+    # lands a moment later leaves this whole watch reporting on the PREVIOUS commit — and
+    # the PASS line above would confirm a SHA nobody asked about. That is a fail-OPEN on
+    # the project's primary CI gate: the caller reads "all green" and merges untested code.
+    # So re-resolve the head AFTER the watch and compare. A moved head is not a pass.
+    final_head=$(gh pr view "$TARGET" --repo "$REPO" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+    if ! is_sha "$final_head"; then
+        # Fail closed: unable to confirm what we just tested (same discipline as $rollup above).
+        echo "[ci-wait] FAIL — could not re-resolve the head of PR #$TARGET to confirm" >&2
+        echo "[ci-wait]        the watched commit is still current. Refusing to report PASS." >&2
+        exit 2
+    fi
+    if [ "$final_head" != "$head_sha" ]; then
+        echo "[ci-wait] FAIL — PR #$TARGET head MOVED during the watch." >&2
+        echo "[ci-wait]        watched:  $head_sha" >&2
+        echo "[ci-wait]        head now: $final_head" >&2
+        echo "[ci-wait]        The result above describes a commit that is no longer the head." >&2
+        echo "[ci-wait]        Re-run ci-wait.sh; do NOT merge on the strength of this run." >&2
+        exit 1
+    fi
+
     if [ "$rollup" -eq 0 ]; then
         echo "[ci-wait] PASS — all $check_count check(s) green on PR #$TARGET @ $head_sha."
         exit 0
     else
         echo "[ci-wait] FAIL — $rollup check(s) not green on PR #$TARGET @ $head_sha:" >&2
+        # Name them. A bare count with an empty list is indistinguishable from a transient
+        # (observed 2026-08-10 on PR #456), which leaves the reader nothing to act on.
         gh pr checks "$TARGET" --repo "$REPO" 2>&1 | grep -v $'\tpass\t' >&2 || true
+        echo "[ci-wait]        (If nothing is listed above, a duplicate-trigger run was still" >&2
+        echo "[ci-wait]         in flight — re-run to distinguish a transient from a real failure.)" >&2
         exit 1
     fi
 fi

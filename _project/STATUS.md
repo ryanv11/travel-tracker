@@ -124,7 +124,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `█████████████░░░░░░░` 37/57 | 37 | 20 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `██████████████░░░░░░` 61/86 | 61 | 25 | 3 |
+| bug | `██████████████░░░░░░` 62/87 | 62 | 25 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
 | chore | `███████████░░░░░░░░░` 32/60 | 32 | 28 | 1 |
 
@@ -160,4 +160,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_181 done · 9 deferred · 5 closed · 84 open — 279 tracked items_
+_182 done · 9 deferred · 5 closed · 84 open — 280 tracked items_
