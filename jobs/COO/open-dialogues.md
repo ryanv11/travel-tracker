@@ -28,6 +28,14 @@ Checked at every `/coo-startup` pickup and by the Restart Preview step in `/coo-
 
 ## Open
 
+### D-30: A build-vs-buy rule
+**Raised:** 2026-08-09 · **Status:** PO wants to discuss; not yet framed. Placeholder so it isn't lost.
+
+PO flagged wanting a standing **build-vs-buy** rule at some point — when the team should reach for an
+existing library/service vs. build in-house. No framing yet; the PO will open the discussion. Likely
+touches the same territory as the GE-17 gazetteer spike (build-vs-buy decided by spike) and the
+"default to reuse, not duplication" preference. Promote to an ADL/CLAUDE.md rule if it lands.
+
 ### D-23: Enumerate the container's CREDENTIALS, the way we just enumerated its hosts
 **Raised:** 2026-08-04 · **Status:** proposed by the COO, flagged to the PO, not commissioned.
 
