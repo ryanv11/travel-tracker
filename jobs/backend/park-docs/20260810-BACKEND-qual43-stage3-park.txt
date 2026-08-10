@@ -1,0 +1,211 @@
+BACKEND PARK DOCUMENT — 2026-08-10
+THREAD: QUAL-43 / ADL-53 §6 Stage 3 — global reference reads, shading
+        composition, guard authoring, CI wiring
+BRANCH: feat/qual43-stage3-global-reads-guard (off main @ 73322ef)
+TRACKER: QUAL-43 · BRD: n/a (internal structural refactor)
+GITHUB ISSUE: none. Two probes that fail differently: (1) `gh issue list
+  --state all --limit 200 --json number,title` grepped for QUAL-43 returned
+  nothing; (2) the tracker entry's own notes carry no issue number, which the
+  CLAUDE.md cross-referencing rule requires when one exists — and the Stage 0
+  and Stage 1 PRs (#487, #484) both used a tracker-ID title with no
+  "Closes #N". PR body references QUAL-43 + ADL-53 §6 Stage 3 instead.
+
+================================================================
+1. WHAT SHIPPED
+================================================================
+
+NEW  src/backend/repositories/reference.ts     (referenceRepository)
+MOD  src/backend/routes/map.ts                 (2 global reads relocated)
+MOD  src/backend/routes/admin.ts               (5 global reads relocated)
+MOD  src/backend/routes/places.ts              (2 global reads relocated;
+                                                1 predicate composed)
+MOD  src/backend/services/shading.service.ts   (4 predicates composed)
+MOD  scripts/scope-completeness-check.sh       (widened + 2nd check)
+MOD  .github/workflows/ci.yml                  (scope:check step)
+
+OP-28 DECLARATION — one full-file rewrite, deliberate:
+  scripts/scope-completeness-check.sh was rewritten in full. Reason: the
+  change is structural, not additive — the file goes from one check over one
+  directory to two checks over two enforcement zones, which reshapes the
+  enumeration, the scan loop, the verdict block and the entire header
+  rationale. A sequence of Edits would have produced the same end state less
+  legibly. ALL pre-existing documented rationale was preserved verbatim or
+  extended, none deleted: the two-pattern justification (F1), the
+  permitted-matches rule, the test-exclusion reasoning, and the stated
+  text-not-syntax blind spot all survive intact. Every other change in this
+  thread was a targeted Edit; reference.ts is a new file.
+
+No existing test file was modified. No test was added (ATDD-first: no — see §4).
+
+================================================================
+2. PART A — referenceRepository
+================================================================
+
+src/backend/repositories/reference.ts, mirroring the tripRepository shape
+(`export const referenceRepository = { async method() {...} }`).
+
+  listCountries()                              admin GET /countries
+  findCountryByCode(cc)                        admin PATCH /countries/:cc
+  findCountryRegionTier(cc)                    map x2, admin POST regions
+  updateCountry(cc, updates)                   admin PATCH /countries/:cc
+  listRegionsByCountry(cc)                     admin GET /countries/:cc/regions
+  findRegionInCountry(regionId, cc)            admin PATCH region
+  createRegion(cc, name, iso, now)             admin POST region
+  updateRegionName(regionId, name, updatedAt)  admin PATCH region
+  findCityWithRegion(cityId)                   places POST  (BUG-80 LEFT JOIN)
+  cityExists(cityId)                           places PATCH (ADL-46 D11)
+
+Queries moved VERBATIM — same projections, same predicates, same ordering,
+same .limit(1). HTTP concerns (404 / ValidationError) stayed in the routes;
+methods return data or null. findCountryRegionTier collapses three call sites
+that had the identical narrow projection (map.ts x2 + admin POST region).
+
+The one shape change: admin's PATCH-country update object went from
+`Record<string, unknown>` to an exported `CountryConfigUpdate` interface. The
+conditional-assignment logic stayed in the route; only the type is narrowed.
+Semantics are unchanged (Drizzle's .set() ignores absent keys either way).
+
+DELIBERATELY UNSCOPED, and the file header says so at length. countries /
+regions / cities are global reference data; there is no cross-tenant axis to
+protect, and adding a userId predicate here would be exactly as wrong as
+omitting one from a user-owned read. scope.ts's UserOwnedTable union makes
+that structural — passing any of the three to scopeToUser is a compile error.
+
+================================================================
+3. PART B — the four shading predicates
+================================================================
+
+services/shading.service.ts :169, :209, :247, :291 now compose
+scopeToUser(trips, userId). A COMPOSITION, not a relocation — the queries
+stay in the service.
+
+  :169  getTripCountriesStats     .where(...)         -> scopeToUser
+  :209  getAllCountryShading      leftJoin ON-clause  -> scopeToUser
+  :247  getCountryShading         leftJoin ON-clause  -> scopeToUser
+  :291  getRegionShading          leftJoin ON-clause  -> scopeToUser
+
+THE LOAD-BEARING DETAIL, documented in the file header so it survives a
+future edit: three of the four sit in a LEFT JOIN's ON-clause, not a WHERE.
+These are aggregate queries driven FROM countries / FROM regions, so a
+country or region with no matching trip MUST still produce a row (state
+never_visited). Moving the ownership predicate out of the ON-clause and into
+a WHERE would turn each LEFT JOIN into an effective INNER JOIN and silently
+drop every unvisited unit from the map — a much larger visible regression
+than a scoping bug, but silent in a naive refactor. Join semantics preserved
+exactly; only the predicate's spelling changed.
+
+F3 FOOTGUN (ADL-53 §6): checked and does not apply here. None of the four is
+a $dynamic() or multi-.where() builder; each has at most one terminal
+.where(). The two that DO have a .where() (:248 countries, :292 regions) carry
+a country/region filter there, with ownership in the join — untouched.
+
+OP-06: the four sites are the only ownership expressions in this file, all
+still present, all still on trips. No route gained or lost auth middleware.
+services/__tests__/shading.user-scope.test.ts green, unmodified.
+
+================================================================
+4. PARTS C & D — the two guards, one script
+================================================================
+
+scripts/scope-completeness-check.sh now holds two checks.
+
+CHECK 1 — ownership completeness. Scope widened from repositories/*.ts to all
+of src/backend/** minus __tests__, in TWO ZONES:
+
+  ZONE A  ENFORCED (exit 1)  src/backend/repositories/*.ts  — clean, 10 files
+  ZONE B  REPORTED (warn)    the rest of src/backend/**     — 41 files, 2 hits
+
+Zone B cannot be enforced yet: routes/cities.ts:748 and :792 hold user-owned
+predicates that STAGE 2 owns exclusively (concurrent worktree), and this
+thread must not edit that file. Enforcing now would red this PR's own CI and
+red main on merge — the broken-intermediate-state ADL-47 exists to prevent.
+So the widened scope lands warn-first (expand), and Stage 5 promotes it
+(contract) — the same shape the brief already specified for Check 2.
+
+This is a WARN TIER, NOT AN ALLOWLIST. No exemption, exclusion or allowlist
+was added beyond the pre-existing __tests__ exclusion (OP-30 respected). Every
+residual is named, located and counted on every run, under an unmistakable
+warning banner. The script — not a human hand-inventory — now defines the
+residual set, which was the whole point of ADL-53 §7's CORRECTION.
+
+CHECK 2 — `getDb` in src/backend/routes/** (warn-only). AUTHORED here. No
+ADL-53 stage created it; Stage 5 only "flips" it, and cannot flip what does
+not exist. Added as a second check in the same script, not a second script.
+
+  MENTIONS-vs-CALL-SITES DECISION: counts MENTIONS of the literal string.
+  Reasoning, recorded because Stage 5 inherits it:
+    - Counting `const db = getDb()` call sites is EVADABLE and forfeits the
+      guard's whole claim — `const d = getDb()`, `const { select } = getDb()`,
+      or passing getDb as a value all sail past. Door-completeness is a
+      property of the STRING (getDb is the only exported ORM accessor,
+      independently verified by ADL-53's fresh-eyes review), and the string is
+      what makes this a one-line fail-closed grep rather than an AST rule.
+    - The false positives are cheap and self-clearing: a comment is reworded
+      (OP-30) and the ReturnType<typeof getDb> type refs leave routes/ anyway
+      when Stage 2 moves the helpers that use them.
+    - It matches the sibling check, which also matches text, not syntax.
+  To keep that strict-but-honest, each match is CLASSIFIED in the output
+  (call-site / type-ref / import / comment / mention) so Stage 5 can see at a
+  glance what is real relocation work and what is a rewording.
+
+CURRENT COUNTS (the numbers Stages 4 and 5 watch go to zero):
+  Check 1 Zone B : 2  (both routes/cities.ts — Stage 2)
+  Check 2        : 21 mentions across 5 files —
+                     cities.ts 10 (6 call-site, 3 type-ref, 1 import) [S2]
+                     places.ts  5 (3 call-site, 1 import, 1 comment)  [S4]
+                     trips.ts   3 (1 call-site, 1 import, 1 comment)  [S4]
+                     items-helper.ts 2 (1 call-site, 1 import)        [S4]
+                     items.ts   1 (comment — a rewording, not work)
+
+FAIL-CLOSED VERIFIED with four injected faults on a scratch copy of the tree,
+each of which must exit 1 and did:
+  T1 Zone A predicate residual        -> exit 1, 1 RESIDUAL reported
+  T2 Zone A JS-comparison residual    -> exit 1, 1 RESIDUAL reported
+  T3 chokepoint definition gutted     -> exit 1, correct diagnostic
+  T4 routes/ directory deleted        -> exit 1, correct diagnostic
+Plus a fifth structural guard added: a Zone B enumeration that returns zero
+files is treated as a broken enumeration and fails, so the widened scan cannot
+pass vacuously the way a silently-empty find would.
+
+================================================================
+5. PART E — CI
+================================================================
+
+.github/workflows/ci.yml, `biome` job, new step "Backend scope guards"
+running `npm run scope:check`. That job is already the de-facto repo-invariant
+job (it carries STATUS.md freshness and tracker.json integrity), so this
+matches the existing convention and restructures nothing. scope:check remains
+in /pre-push as well — CI is the enforcement, pre-push is the fast local echo.
+
+================================================================
+6. WHAT STAGE 4 / STAGE 5 INHERIT
+================================================================
+
+- places.ts:253's items-ownership predicate is ALREADY composed
+  (scopeToUser(items, userId), term order preserved). Stage 4 relocates the
+  read into a repository; the composed predicate travels with it and the
+  relocation cannot silently lose a hand-written eq() that is no longer there.
+- places.ts still holds 3 getDb call sites (:211 carry-forward, :273/:336
+  activity tag/untag), trips.ts 1 (:198), items-helper.ts 1 (:87). All Stage 4.
+- Stage 5 flips Check 2 to error AND promotes Check 1 Zone B to enforced. Both
+  are single-line changes in the verdict block; the header documents both.
+- Before Stage 5 flips Check 2, four comment lines must be reworded
+  (items.ts:8, places.ts:11, trips.ts:10) — trivial, but they WILL block if
+  left, exactly as the mentions decision above intends.
+
+================================================================
+7. VERIFICATION
+================================================================
+
+  npm run test:backend    51 files / 808 tests  (baseline: 51 / 808) — green
+  npm run type:check:all  clean
+  npm run check (biome)   clean
+  npm run scope:check     PASS (Zone A clean; warns as designed)
+  Zero existing test files modified. Zero behaviour change.
+
+The 808/808 identity before and after is the whole evidence base for "no
+behaviour change": ATDD-first is `no` for this stage precisely because the
+existing suites — including Stage 1's cross-tenant matrix (Part F) already on
+main — are the regression net, and global reference tables have no
+cross-tenant axis for a new test to assert against without being vacuous
+(the QUAL-22 trap ADL-53 §4 warns about).

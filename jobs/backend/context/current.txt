@@ -600,3 +600,54 @@ mutations in useAdmin.ts. BUG-51 stays open until that lands.
        files consume test-db.ts" undercounts the total duplication. Same
        staleness risk, not touched this thread; flagged to COO as a
        follow-up-sized finding.
+
+================================================================
+2026-08-10 — QUAL-43 / ADL-53 §6 Stage 3 (branch:
+  feat/qual43-stage3-global-reads-guard)
+================================================================
+   - NEW src/backend/repositories/reference.ts — referenceRepository, mirroring
+     the tripRepository shape. Holds the GLOBAL reference reads relocated out of
+     routes: countries/regions CRUD (admin.ts x5), region-tier existence reads
+     (map.ts x2), global city lookups on POST/PATCH place (places.ts x2).
+     Queries moved verbatim; HTTP concerns stayed in the routes. Deliberately
+     UNSCOPED — countries/regions/cities are global reference data, and
+     scope.ts's UserOwnedTable union makes scoping them a compile error.
+   - map.ts and admin.ts are now getDb-free. places.ts is NOT and could not be:
+     its remaining 3 call sites are user-owned reads belonging to Stage 4. The
+     brief's DoD asked for all three files getDb-free; that overreaches ADL-53
+     §6, which assigns places.ts:74/163 to Stage 3 and :231/:289/:352 to Stage 4.
+     Flagged to COO rather than silently doing Stage 4's work.
+   - services/shading.service.ts: the four hand-written trips-ownership
+     predicates (:169/:209/:247/:291) now compose scopeToUser. A composition,
+     not a relocation. THREE OF THE FOUR ARE IN A LEFT JOIN ON-CLAUSE, not a
+     WHERE — load-bearing, and now documented in the file header: these are
+     aggregates driven FROM countries/FROM regions, so moving the predicate to
+     a WHERE would turn each LEFT JOIN into an effective INNER JOIN and drop
+     every unvisited country/region from the map. F3 footgun checked and does
+     not apply (no $dynamic(), no multi-.where()).
+   - scripts/scope-completeness-check.sh: FULL-FILE REWRITE (declared, OP-28) —
+     one check over one directory became two checks over two zones. All prior
+     documented rationale preserved. Now scans all of src/backend/** minus
+     tests, with repositories/ ENFORCED and the remainder WARN-ONLY. Zone B
+     cannot be enforced yet: routes/cities.ts:748/:792 are Stage 2's, and
+     enforcing would red main on merge (ADL-47). A warn tier, NOT an allowlist —
+     no exemption added (OP-30); every residual is named and counted.
+   - The getDb-in-routes guard was AUTHORED here as a second check in the SAME
+     script (no ADL-53 stage created it; Stage 5 can only flip what exists).
+     Warn-only. Counts MENTIONS of the literal string, not `const db = getDb()`
+     call sites — a call-site pattern is evadable and door-completeness is a
+     property of the string — with each match classified
+     (call-site/type-ref/import/comment) so Stage 5 sees work vs. rewording.
+     Current: 21 mentions across 5 files; Zone B residuals: 2.
+   - Guard verified FAIL-CLOSED with 4 injected faults on a scratch tree
+     (Zone A predicate, Zone A JS-compare, gutted chokepoint, missing routes
+     dir) — all exit 1. Added a 5th structural guard so an empty Zone B
+     enumeration fails rather than passing vacuously.
+   - scope:check wired into CI (.github/workflows/ci.yml, biome job — already
+     the de-facto repo-invariant job). It was pre-push-only, a local pre-filter
+     CI never runs.
+   - places.ts:253's items predicate also composed (same mechanical shape as
+     the shading sites) so Stage 4's relocation cannot lose a hand-written eq()
+     that is no longer there.
+   - Backend suite: 51 files / 808 tests, identical to baseline. Zero test files
+     modified, zero behaviour change. Biome + type:check:all clean.
