@@ -2904,6 +2904,17 @@
     },
 
     {
+      "id": "QUAL-46",
+      "type": "bug",
+      "title": "ci-wait.sh reports PASS against a stale head SHA — fail-open on the primary CI gate",
+      "status": "done",
+      "owner": "coo",
+      "priority": "P1",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Promoted from open-dialogue D-24 on 2026-08-10 after a CONFIRMED recurrence (D-24 filed 2026-08-04 as watch-if-recurs; its stated trigger was 'if it recurs, file it'). D-24 entry deleted from open-dialogues.md per the delete-on-resolution rule. RECURRENCE (captured, PR #491): after `git push` updated the branch, `ci-wait.sh pr 491` printed 'PASS - all 18 checks green @ 617d6fa' while the PR head was actually 17b8cdf. Verified by comparing `git rev-parse` on the pushed local ref against `gh pr view --json headRefOid` immediately after: they matched each other and BOTH differed from the SHA ci-wait reported. ROOT CAUSE (read, not inferred): ci-wait.sh:123 resolves head_sha ONCE before the watch begins and the PASS line at :205 prints that same pinned value; a push whose PR-head propagation lands a moment after that read leaves the entire watch - and its verdict - describing the PREVIOUS commit. This is a fail-OPEN on the project's primary CI gate: the caller reads 'all green' and merges code nothing tested. Note it is NOT caught by the post-merge main-CI check (BUG-24 rule) in the dangerous case, because that check runs after the merge has already landed. FIX (exactly the remedy D-24 predicted): re-resolve the PR head AFTER the watch completes and compare against the watched SHA; a moved head exits 1 with both SHAs printed and an explicit 'do NOT merge on the strength of this run'. Failure to re-resolve exits 2 (fail-closed, same discipline as the existing unparseable-rollup path). ALSO FIXED in the same change, from a second observation the same day on PR #456: the FAIL path printed a bare count with an empty finding list when a duplicate-trigger run was still in flight, making a transient indistinguishable from a real failure - it now says so explicitly. Branch mode was left unchanged: it filters runs by headSha at :231/:244/:267, so it already compares rather than assuming. Files: scripts/ci-wait.sh."
+    },
+    {
       "id": "QUAL-45",
       "type": "chore",
       "title": "Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b)",
