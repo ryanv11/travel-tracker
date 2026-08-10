@@ -3752,3 +3752,8 @@
 {"ts":"2026-08-10T05:56:58Z","action":"edit","file":"/workspace/CLAUDE.md"}
 {"ts":"2026-08-10T05:57:08Z","action":"edit","file":"/workspace/.claude/skills/coo-dispatch/SKILL.md"}
 {"ts":"2026-08-10T05:57:26Z","action":"edit","file":"/workspace/_project/tracker.json"}
+{"ts":"2026-08-10T06:04:58Z","action":"write","file":"/home/node/.claude/projects/-workspace/memory/feedback_memory_is_not_a_canonical_home.md"}
+{"ts":"2026-08-10T06:05:29Z","action":"edit","file":"/home/node/.claude/projects/-workspace/memory/MEMORY.md"}
+{"ts":"2026-08-10T06:05:52Z","action":"edit","file":"/home/node/.claude/projects/-workspace/memory/MEMORY.md"}
+{"ts":"2026-08-10T06:14:06Z","action":"write","file":"/workspace/jobs/COO/park-docs/20260810_0613-COO-park.txt"}
+{"ts":"2026-08-10T06:14:17Z","action":"reviewed"}
