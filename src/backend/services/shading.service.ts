@@ -7,6 +7,25 @@
  * Country and region shading use bulk aggregate SQL queries for efficiency.
  * The shading config (6 rows per user) is cached in memory per userId and
  * invalidated on PATCH — see ADL-28 (AD-07) R2.
+ *
+ * OWNERSHIP (QUAL-43 Stage 3, ADL-53 §7 CORRECTION 2026-08-10)
+ * ------------------------------------------------------------------
+ * The four `trips`-ownership predicates in this file compose the chokepoint
+ * `scopeToUser(trips, userId)` (repositories/scope.ts) rather than hand-writing
+ * a raw column-equality test against the trips owner column. They were correct
+ * before and are unchanged in behaviour — `scopeToUser` returns exactly the same
+ * predicate the four sites spelled out by hand — but they now share
+ * the single ownership definition every repository uses, so Phase-3 sharing
+ * (ADL-53 D7) reaches this service too. This is a COMPOSITION, not a relocation:
+ * the queries stay here.
+ *
+ * Three of the four compose into a LEFT JOIN's ON-clause, not a WHERE. That
+ * placement is load-bearing and is preserved exactly: these are aggregate
+ * queries driven `FROM countries`/`FROM regions`, so a country or region with no
+ * matching trip must still produce a row (state `never_visited`). Moving the
+ * ownership predicate from the ON-clause into a WHERE would turn each LEFT JOIN
+ * into an effective INNER JOIN and silently drop every unvisited unit from the
+ * map. Covered by `services/__tests__/shading.user-scope.test.ts`.
  */
 
 import { and, eq, sql } from 'drizzle-orm';
@@ -19,6 +38,7 @@ import {
   tripPlaces,
   trips,
 } from '../db/index.js';
+import { scopeToUser } from '../repositories/scope.js';
 import { shadingConfigRepository } from '../repositories/shadingConfig.js';
 
 // ----------------------------------------------------------------
@@ -166,7 +186,7 @@ async function getTripCountriesStats(
     })
     .from(tripCountries)
     .leftJoin(trips, eq(trips.id, tripCountries.tripId))
-    .where(eq(trips.userId, userId))
+    .where(scopeToUser(trips, userId))
     .groupBy(tripCountries.countryCode);
   return new Map(
     rows.map((r) => [
@@ -206,7 +226,7 @@ export async function getAllCountryShading(userId: string): Promise<CountryShadi
     .from(countries)
     .leftJoin(cities, eq(cities.countryCode, countries.countryCode))
     .leftJoin(tripPlaces, eq(tripPlaces.cityId, cities.id))
-    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
+    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), scopeToUser(trips, userId)))
     .groupBy(countries.countryCode, countries.regionTierEnabled);
 
   return rows.map((r) => {
@@ -244,7 +264,7 @@ export async function getCountryShading(
     .from(countries)
     .leftJoin(cities, eq(cities.countryCode, countries.countryCode))
     .leftJoin(tripPlaces, eq(tripPlaces.cityId, cities.id))
-    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
+    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), scopeToUser(trips, userId)))
     .where(eq(countries.countryCode, countryCode))
     .groupBy(countries.countryCode, countries.regionTierEnabled);
 
@@ -288,7 +308,7 @@ export async function getRegionShading(
     .from(regions)
     .leftJoin(cities, eq(cities.regionId, regions.id))
     .leftJoin(tripPlaces, eq(tripPlaces.cityId, cities.id))
-    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
+    .leftJoin(trips, and(eq(trips.id, tripPlaces.tripId), scopeToUser(trips, userId)))
     .where(eq(regions.countryCode, countryCode))
     .groupBy(regions.id);
 

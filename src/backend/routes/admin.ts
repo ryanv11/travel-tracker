@@ -25,13 +25,12 @@
  * fail-closed behaviour asserted by the access-matrix suite (ADL-46 §8.2 verified counterpoint).
  */
 
-import { and, eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { countries, getDb, regions } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody } from '../middleware/validate.js';
+import { type CountryConfigUpdate, referenceRepository } from '../repositories/reference.js';
 import {
   CreateRegionSchema,
   UpdateCountrySchema,
@@ -70,8 +69,7 @@ export const adminRouter = Router();
 adminRouter.get(
   '/countries',
   asyncHandler(async (_req, res) => {
-    const db = getDb();
-    const rows = await db.select().from(countries).orderBy(countries.name);
+    const rows = await referenceRepository.listCountries();
     res.json(
       rows.map((r) => ({
         country_code: r.countryCode,
@@ -88,13 +86,8 @@ adminRouter.get(
   '/countries/:countryCode/regions',
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
-    const db = getDb();
 
-    const rows = await db
-      .select()
-      .from(regions)
-      .where(eq(regions.countryCode, countryCode))
-      .orderBy(regions.name);
+    const rows = await referenceRepository.listRegionsByCountry(countryCode);
 
     res.json(
       rows.map((r) => ({
@@ -132,18 +125,13 @@ adminRouter.patch(
   validateBody(UpdateCountrySchema),
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
-    const db = getDb();
 
-    const existing = await db
-      .select()
-      .from(countries)
-      .where(eq(countries.countryCode, countryCode))
-      .limit(1);
-    if (!existing.length) throw new NotFoundError('Country');
+    const existing = await referenceRepository.findCountryByCode(countryCode);
+    if (!existing) throw new NotFoundError('Country');
 
     const { region_tier_enabled, region_tier_label } = req.body;
     const now = new Date().toISOString();
-    const updates: Record<string, unknown> = { updatedAt: now };
+    const updates: CountryConfigUpdate = { updatedAt: now };
 
     if (region_tier_enabled !== undefined) {
       updates.regionTierEnabled = region_tier_enabled ? 1 : 0;
@@ -152,13 +140,7 @@ adminRouter.patch(
       updates.regionTierLabel = region_tier_label;
     }
 
-    const updated = await db
-      .update(countries)
-      .set(updates)
-      .where(eq(countries.countryCode, countryCode))
-      .returning();
-
-    const r = updated[0];
+    const r = await referenceRepository.updateCountry(countryCode, updates);
     res.json({
       country_code: r.countryCode,
       name: r.name,
@@ -174,27 +156,17 @@ adminRouter.post(
   validateBody(CreateRegionSchema),
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
-    const db = getDb();
 
-    const countryRow = await db
-      .select({ regionTierEnabled: countries.regionTierEnabled })
-      .from(countries)
-      .where(eq(countries.countryCode, countryCode))
-      .limit(1);
-    if (!countryRow.length) throw new NotFoundError('Country');
+    const country = await referenceRepository.findCountryRegionTier(countryCode);
+    if (!country) throw new NotFoundError('Country');
 
-    if (countryRow[0].regionTierEnabled === 0) {
+    if (country.regionTierEnabled === 0) {
       throw new ValidationError('Country does not have region tier enabled');
     }
 
     const { name, iso3166_2 } = req.body;
     const now = new Date().toISOString();
-    const inserted = await db
-      .insert(regions)
-      .values({ countryCode, name, iso3166_2, createdAt: now, updatedAt: now })
-      .returning();
-
-    const r = inserted[0];
+    const r = await referenceRepository.createRegion(countryCode, name, iso3166_2, now);
     res.status(201).json({
       id: r.id,
       country_code: r.countryCode,
@@ -214,23 +186,12 @@ adminRouter.patch(
     const regionId = parseInt(String(req.params.regionId), 10);
     if (Number.isNaN(regionId)) throw new NotFoundError('Region');
 
-    const db = getDb();
-    const existing = await db
-      .select()
-      .from(regions)
-      .where(and(eq(regions.id, regionId), eq(regions.countryCode, countryCode)))
-      .limit(1);
-    if (!existing.length) throw new NotFoundError('Region');
+    const existing = await referenceRepository.findRegionInCountry(regionId, countryCode);
+    if (!existing) throw new NotFoundError('Region');
 
     const { name } = req.body;
     const now = new Date().toISOString();
-    const updated = await db
-      .update(regions)
-      .set({ name, updatedAt: now })
-      .where(eq(regions.id, regionId))
-      .returning();
-
-    const r = updated[0];
+    const r = await referenceRepository.updateRegionName(regionId, name, now);
     res.json({
       id: r.id,
       country_code: r.countryCode,

@@ -10,12 +10,11 @@
  * in server.ts) is the only gate — every handler scopes to req.user!.id.
  */
 
-import { eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { countries, getDb } from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
+import { referenceRepository } from '../repositories/reference.js';
 import { shadingConfigRepository } from '../repositories/shadingConfig.js';
 import {
   getAllCountryShading,
@@ -110,20 +109,15 @@ mapRouter.get(
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
     const userId = req.user!.id;
-    const db = getDb();
 
-    const countryRow = await db
-      .select({ regionTierEnabled: countries.regionTierEnabled })
-      .from(countries)
-      .where(eq(countries.countryCode, countryCode))
-      .limit(1);
-    if (!countryRow.length) throw new NotFoundError('Country');
+    const country = await referenceRepository.findCountryRegionTier(countryCode);
+    if (!country) throw new NotFoundError('Country');
 
     const shading = await getCountryShading(countryCode, userId);
     if (!shading) throw new NotFoundError('Country');
 
     const regionShading =
-      countryRow[0].regionTierEnabled === 1 ? await getRegionShading(countryCode, userId) : [];
+      country.regionTierEnabled === 1 ? await getRegionShading(countryCode, userId) : [];
 
     res.json({
       country_code: shading.countryCode,
@@ -151,16 +145,11 @@ mapRouter.get(
   '/shading/regions/:countryCode',
   asyncHandler(async (req, res) => {
     const countryCode = String(req.params.countryCode).toUpperCase();
-    const db = getDb();
 
-    const countryRow = await db
-      .select({ regionTierEnabled: countries.regionTierEnabled })
-      .from(countries)
-      .where(eq(countries.countryCode, countryCode))
-      .limit(1);
-    if (!countryRow.length) throw new NotFoundError('Country');
+    const country = await referenceRepository.findCountryRegionTier(countryCode);
+    if (!country) throw new NotFoundError('Country');
 
-    if (countryRow[0].regionTierEnabled === 0) {
+    if (country.regionTierEnabled === 0) {
       throw new ValidationError('Country does not have region tier enabled');
     }
 
