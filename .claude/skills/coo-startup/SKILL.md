@@ -145,6 +145,11 @@ rm -rf "$canary_tmp"
 # integrity problem — duplicate ID, missing field, or a brdRef not present in the BRD).
 npm run --silent tracker:check >/dev/null 2>&1 \
   && echo "tracker-check OK" || echo "FAIL: tracker-check reports a tracker.json integrity problem"
+
+# drift-cadence gate (OP-40) must produce a tick line. It is warn-only and always exits 0,
+# so exit status proves nothing — assert on the OUTPUT, or a broken gate reads as "nothing due".
+bash /workspace/scripts/drift-cadence.sh check | grep -q "^drift-cadence: tick=" \
+  && echo "drift-cadence gate OK" || echo "FAIL: drift-cadence gate produced no tick line"
 ```
 
 Any FAIL → fix the hook before doing anything else this session. Secondary tell for the
@@ -156,18 +161,47 @@ typecheck feedback.
 
 The forward-looking half of the model — a periodic sweep for the stale-inheritable / doc-rot
 class that no incident-born rule catches and that, until now, only the PO caught. Runs on a
-session cadence, not every session. The session counter is the append-only `session_end`
-count in the drift ledger:
+session cadence, not every session.
+
+**Ask the gate; never recompute the cadence by hand:**
 
 ```bash
-sc=$(grep -c '"action":"session_end"' /workspace/.planning/drift-ledger.jsonl)
-echo "session count (session_end entries): $sc"
-# Fast drift canary — every 5th session
-[ $((sc % 5)) -eq 0 ] && bash /workspace/scripts/drift-canary.sh || echo "drift-canary: not due (runs every 5th session)"
-# Deep coherence audit — every 15th session (flag only; see below)
-[ $((sc % 15)) -eq 0 ] && echo "DEEP COHERENCE AUDIT DUE this session (every 15th) — run it before other work" \
-  || echo "deep coherence audit: not due (runs every 15th session)"
+bash /workspace/scripts/drift-cadence.sh check
 ```
+
+It prints the tick and, for each check, `DUE` or `not due — next in N tick(s)`.
+**Run only what it reports DUE, then record it** — an unrecorded run re-fires next session:
+
+```bash
+bash /workspace/scripts/drift-canary.sh          # if the canary is DUE
+bash /workspace/scripts/drift-cadence.sh record canary
+
+# deep audit DUE → dispatch the read-only agent (below), then:
+bash /workspace/scripts/drift-cadence.sh record deep
+```
+
+> **Why a script and not a `% 5` one-liner** (rewritten 2026-08-10, PO-caught). The old
+> one-liner counted `session_end` ledger entries and tested `count % N`. Both halves failed at
+> once: the SessionEnd hook stopped receiving its event, freezing the count for three sessions
+> (the hook script and its wiring are both fine — root cause upstream is **UNVERIFIED**; probes
+> run were a synthetic-input canary of `session-end.sh` and a read of the `settings.json` wiring,
+> neither of which can observe whether the harness emitted the event); and a modulus keeps no
+> record of whether the check actually **ran**, so a frozen count re-fired the most expensive
+> check in the system every session. The silent direction is worse: freeze on a non-multiple and
+> the audit never fires again with nothing to say so — the exact fail-silent class OP-40 exists
+> to catch, inside OP-40's own machinery.
+>
+> The gate now keys on the **invariant** — *due = distance since the last recorded run has
+> reached the interval* — and derives its tick from the **max of three differently-failing
+> session sources** (`session_end`, `reviewed`, park docs; they read 75/70/68 for the same
+> history, each undercounting different sessions). A **wall-clock staleness backstop** is the
+> second axis: if every source froze at once, ticks would stop growing and time still forces the
+> check. Absolute tick value is meaningless — only differences are used. Rationale in full sits
+> in the script header.
+>
+> Known limit, stated rather than papered over: the "sources disagree" warning only fires on a
+> large spread, so a *single* source that quietly stops is not itself flagged. It doesn't need to
+> be — `max` means one dead source cannot distort the cadence.
 
 - **Drift canary due** → triage any findings per the negative-findings rule (a canary claim
   is not itself the second probe — re-probe before acting), and remediate with
@@ -177,7 +211,7 @@ echo "session count (session_end entries): $sc"
   contiguity + reference resolvability · E tracker `status` vs latest note segment (open item
   carrying a shipped/`-> done` stamp, or a `done_pending_uat` recording a UAT PASS — the narrow,
   regex-catchable slice of the status-field lens; the two broader shapes are the deep audit's, above).
-- **Deep coherence audit due (every 15th)** → dispatch a **read-only** agent (research/review,
+- **Deep coherence audit due** → dispatch a **read-only** agent (research/review,
   no worktree needed) to sweep beyond the canary's cheap checks: BRD ↔ code ↔ schema drift,
   tracker-vs-reality, doc-rot across `jobs/**`, and any newly-recognised rot class. It reports
   findings to the COO; the COO triages and remediates delete-and-point. This is the periodic
@@ -201,6 +235,10 @@ echo "session count (session_end entries): $sc"
   a fix that stops one step short looks identical to no fix. The canary's Check E catches only the
   narrower "note stamped shipped but status still open" sub-class; these two need this agent's reasoning.
 - Neither due → note "drift-cadence: nothing due this session" and move on.
+- **Whatever you ran, record it before moving on** (`drift-cadence.sh record canary|deep`).
+  Recording is what makes the gate idempotent — the run, not the session number, is what
+  stops it re-firing. A check you ran but didn't record will be reported DUE again next
+  session, and re-running a deep audit costs a whole agent dispatch.
 
 ### 1. Scheduled health-check flags
 
