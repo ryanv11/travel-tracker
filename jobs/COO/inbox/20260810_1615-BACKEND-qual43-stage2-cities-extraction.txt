@@ -1,0 +1,79 @@
+TRACKER: QUAL-43 (ADL-53 §4/D3, §6 Stage 2) · also discharges BUG-84 U7/U8
+PR: #491 · GitHub issue: none (QUAL-43 is tracker-only — two probes: gh issue
+    search returns nothing; the tracker notes carry no issue number)
+BRD: n/a (internal structural refactor)
+BRANCH: feat/qual43-stage2-cities-extraction
+
+WHAT WAS BUILT
+Extracted citiesRepository (DB access surface) and cityIdentityService (the D13 /
+BUG-75 identity algebra) out of the 840-LOC cities god-route; routes/cities.ts is
+now 418 LOC of thin handlers with zero getDb call sites.
+
+ACCEPTANCE CRITERIA
+1. Both modules exist, logic moved verbatim ....................... PASS
+2. Handlers thin, no `const db = getDb()` in routes/cities.ts ..... PASS
+   (stronger: the route imports nothing from drizzle-orm or db/index.js)
+3. The two user-owned joins compose scopeToUser ................... PASS
+4. test:backend green, no existing test file modified ............. PASS (808 -> 827)
+5. scope:check clean ............................................. PASS
+6. Zero behaviour change — same SQL, status codes, error shapes ... PASS
+
+SECURITY CHECKLIST (OP-06) — no new routes; the two relocated user-owned reads:
+1. Auth middleware — unchanged (app-level requireAuth; PATCH keeps requireOwner)
+2. Scoping — carry-forward and city-items now compose scopeToUser(trips|items,
+   userId) through the chokepoint, with and() term order preserved so the emitted
+   SQL is byte-identical. Asserted by Part F of security.access-matrix.test.ts
+   (unmodified, green). Cities' own creator predicates stay hand-written: they key
+   on cities.createdByUserId — creator VISIBILITY on global reference data, not
+   ownership. `cities` is absent from UserOwnedTable, so routing it through
+   scopeToUser is a compile error by construction.
+3. New user-data FK columns — none added.
+
+CI: PR #491 — scripts/ci-wait.sh reports all 18 checks green.
+
+OP-28 DECLARATION (full-file source rewrite): routes/cities.ts was rewritten
+whole, deliberately — the extraction removes ~500 of 861 lines, and an edit
+sequence would reach the identical result with more chances to mis-anchor.
+Nothing was reworded; the diff is deletions plus call-site substitution. The two
+shared-record docs touched (ADL-53 §5.1 rows, OP-06 §2.1 one row) were amended
+with Edit.
+
+WERE ANY COO ADDITIONS WRONG? Two qualifications, no reversals.
+1. "Verbatim" held everywhere except one unavoidable adaptation, flagged as the
+   brief asked. The three identity functions took `db` as their first parameter
+   and issued their own selects. ADL-53 §4 puts the query surface in the
+   repository and the algebra in the service, so those queries had to leave the
+   functions and the `db` parameter had to go. Each query moved body-intact into
+   a named repository method; each function's control flow moved body-intact.
+   Nothing was re-expressed, renamed or tidied. Flagging rather than silently
+   contorting, per the brief.
+2. "Do not modify any existing test file" was correct and cost nothing — 808
+   passed untouched, which is what makes the zero-diff claim checkable. Worth
+   noting it is only half a net: it proves nothing broke that was covered, not
+   that the moved logic is right. That is why the new suite is mutation-tested
+   (2 injected defects, both caught) rather than merely green.
+   The concurrency note was also correct — I touched no file in Stage 3's set,
+   and hit no conflict on scope-completeness-check.sh (I did not need to edit it).
+
+CONTRADICTING ADL-53: nothing. One judgement call inside its wording: the three
+global reference lookups (country region-tier, region-in-country, region-by-id)
+landed in citiesRepository per §6 Stage 3's "cities-identity global reads land in
+Stage 2". No duplication with Stage 3's referenceRepository today (places.ts:74/163
+is a different query), but consolidating "region by id" later is reasonable.
+
+OPEN ISSUES / BLOCKERS
+- No bug found in the moved logic. Positive finding about what I read while
+  relocating it — not a clean bill of health for paths I did not exercise.
+- Stage 5 still has no getDb guard to flip, and route files already contain the
+  literal string in comments (items.ts:8, places.ts:11 both say "No direct
+  getDb()"). Whoever builds it must settle comment-vs-call-site up front. I
+  reworded my own header to avoid the literal rather than adding to the problem.
+- scope-completeness-check.sh passes on citiesRepository because its regex matches
+  `.userId` and the column is `.createdByUserId`. Correct pass, but regex-shaped —
+  flagged, not touched (widening or narrowing it is not an implementer's call).
+
+NOW UNBLOCKED
+BUG-87's city-picker backend has the repository seam ADL-53 D3 promised. BUG-84
+U7/U8 discharged. Stage 5's guard is one route file closer to flippable.
+Detail: jobs/backend/park-docs/20260810-BACKEND-qual43-stage2-park.txt
+Module map: jobs/backend/tech/20260810-cities-module-boundary.md
