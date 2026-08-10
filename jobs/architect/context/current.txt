@@ -2125,3 +2125,51 @@ unchanged/absolutist, but Stage-3 scope larger than adjudged — confirm appetit
 (b) ADL-log merge ordering (mechanical). (2) Ratify the reconciled §11 numbering. (3) THEN
 dispatch the SECOND fresh-eyes review — fresh Opus (high-stakes userId-scoping/access-matrix
 class; NEVER Fable). (4) When Stage 2/Stage 4 implement, update OP-06 §2.1 + HC-05/10/11 same-PR.
+
+================================================================================
+2026-08-10 (later) — ADL-53 FOLLOW-ON FOLD (second OP-27 fresh-eyes: SOUND-WITH-FOLLOW-ONS)
+Branch: feat/adl53-userid-scoping-chokepoint (extends PR #456) · QUAL-43
+================================================================================
+
+The revised ADL-53 PASSED its second fresh Opus review — B1/B2 genuinely resolved, no
+cross-tenant hole, design SHIPS. Reviewer raised 4 bounded follow-ons + 1 UNVERIFIED note.
+All folded into ADL-53 (new §R2 documents each landing). VERIFIED each against live code
+before folding — not a redesign.
+
+F1 [HIGH] — "single change-point" false as code stood. Ownership is TWO expressions:
+(a) SQL predicate eq(table.userId,userId) — foldable into scopeToUser; (b) a JS COMPARE —
+assertWritable (repositories/places.ts:273, items.ts:95) does `if (rows[0].userId !== userId)
+throw NotFound` with NO eq-predicate to collapse (READ both sites — confirmed). A grep-driven
+Stage 0 misses it. FOLDED: Stage 0 charter WIDENED (fold JS gates through chokepoint —
+assertWritable becomes .where(and(eq(trips.id,tripId), scopeToUser(trips,userId))), lock check
+preserved) + completeness EXIT-CHECK (grep BOTH `eq(\w+\.userId` AND `\.userId\s*[!=]==`,
+sole allowed match = scope.ts's own def) + D1/D7/§2/§7 wording corrected to "contingent on
+Stage 0 folding the JS gates".
+
+F2 [MED] — chokepoint is TWO mechanisms, one undefined. scopeToUser needs a userId column;
+tripPlaceActivitiesMap join reads (places.ts:289/352, trips.ts:207-216) have none — guarded by
+a PRIOR assertion, not a predicate. Doc named assertOwned 3x but §2 never DEFINED it. FOLDED:
+§2 now defines the assertion helper (assertOwned; assertWritable = its writable instance) as
+first-class; §5.1 + §6 Stage 4 LABEL each site predicate-composed vs assertion-guarded. Honest
+framing: "one predicate helper + one assertion helper", not "one function".
+
+F3 [LOW] — Drizzle .where() OVERWRITES. tripRepository.findAll (trips.ts:61,64) re-applies the
+predicate on the filtered branch (confirmed by read). FOLDED: §6 Stage 0 footgun line —
+scopeToUser must appear in EVERY terminal .where(and(...)), never only the first.
+
+F4 [LOW] — Stage 1 matrix conflated read- vs mutate-isolation. FOLDED: §6 Stage 1 specifies
+shape PER CLASS — empty result for cross-tenant reads, 404 for cross-tenant mutations.
+
+UNVERIFIED — reviewer did NOT run test:backend; "existing suites green" unconfirmed. FOLDED:
+§11 brief #1 (QA) must run the matrix on a REAL libSQL instance (FKs + partial unique indexes),
+seed TWO distinct real users, and confirm the backend suites green BEFORE Stage 0 (equivalence
+baseline). QUAL-22 mock-fidelity applies to the matrix.
+
+BEYOND-SPEC CHECK (brief's gate): every fold is exactly the reviewer's specified fix. ONE
+clarifying refinement, entailed by the reviewer's own "zero residual HAND-AUTHORED" wording and
+flagged for transparency: the Stage-0 grep's sole permitted match = scope.ts's own definition.
+Narrows how the exit-check reads, NOT the design → does NOT trigger a re-review.
+
+HANDOFF TO COO: design SHIPS. No third full review (these were the reviewer's own fixes; no
+fold exceeded spec). Ready for COO to dispatch the build per §11 (QA-first, OP-35): brief #1 QA
+matrix carries the F4 shapes + the UNVERIFIED real-libSQL/two-user requirements.

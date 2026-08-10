@@ -2,10 +2,11 @@
 
 **Tracker:** QUAL-43 (design-reflection R1) · absorbs BUG-84's routes→repo fold (U7/U8)
 **BRD:** n/a — internal structure/security; no user-facing requirement (confirmed with COO gate)
-**Status:** DESIGNED (REVISED 2026-08-10) — spec only, no production code changed this thread.
-Implementation is staged (§6, revised) and gated on a *second* OP-27 fresh-eyes review + OP-35
-ATDD-first QA.
-**Date:** 2026-08-08 · **Revised:** 2026-08-10 · **Author:** Architect (design-reflection R1)
+**Status:** DESIGNED (REVISED 2026-08-10; FOLLOW-ONS FOLDED 2026-08-10) — spec only, no production
+code changed this thread. The second OP-27 fresh-eyes review (fresh Opus) returned
+**SOUND-WITH-FOLLOW-ONS** — the design ships; its four follow-ons (F1–F4) + one UNVERIFIED note are
+folded here (see **§R2**). Implementation is staged (§6, revised) and gated on OP-35 ATDD-first QA.
+**Date:** 2026-08-08 · **Revised:** 2026-08-10 · **Follow-ons folded:** 2026-08-10 · **Author:** Architect (design-reflection R1)
 
 ---
 
@@ -53,17 +54,81 @@ read the revised sections (§5.1, §6-revised, §10-revised, §11) as current tr
 
 ---
 
+## R2. Follow-on fold — 2026-08-10 (second OP-27 fresh-eyes review: verdict SOUND-WITH-FOLLOW-ONS)
+
+The revised ADL-53 passed its **second** OP-27 fresh-eyes review (fresh Opus — high-stakes
+userId-scoping/access-matrix class): B1/B2 genuinely resolved, no cross-tenant hole, the design
+ships. The reviewer raised **four bounded follow-ons + one UNVERIFIED note**; all are folded below.
+These are reviewer-specified fixes, **not a redesign** — each was verified against live code before
+folding (probes noted). Where each landed:
+
+- **F1 [HIGH] — the "single Phase-3 change-point" claim is false as code stands: ownership is
+  expressed *two* ways.** (a) a **SQL predicate** (`findById`/list-reads' `eq(table.userId, userId)`),
+  foldable into `scopeToUser`; and (b) an **application-layer JS comparison** — `assertWritable`
+  (`repositories/places.ts:273`, `repositories/items.ts:95`) selects `where(eq(trips.id, tripId))`
+  then does `if (rows[0].userId !== userId) throw NotFoundError` — which has **no `eq(*.userId, …)`
+  predicate for a grep-driven Stage 0 to collapse (verified: read both sites 2026-08-10)**. Stage 0
+  as originally scoped ("collapse the `eq(table.userId, userId)` predicate") would never touch
+  `assertWritable`, leaving write-gate ownership as a separate JS check while `scopeToUser` becomes
+  the single *read*-scoping point — so D7/D1's "exactly one edit for Phase-3" is quietly false.
+  **Folded:** Stage 0's charter is **widened** (§6 Stage 0) so *every* ownership expression in
+  `repositories/**` — JS-comparison gates included — resolves through the chokepoint
+  (`assertWritable` becomes a `.where(and(eq(trips.id, tripId), scopeToUser(trips, userId)))`
+  existence check, **preserving the lock check**); a **completeness exit-check** mirroring the routes
+  `getDb` guard is specified (grep for **both** `eq(\w+\.userId` predicates **and**
+  `\.userId\s*[!=]==` comparisons returns clean, sole allowed match = the chokepoint's own definition
+  in `scope.ts`); and the D1/D7 "single change-point" wording is corrected to hold **only once Stage 0
+  covers the JS gates too** (§0 D1/D7, §2, §7).
+- **F2 [MED] — the chokepoint is two mechanisms, one undefined.** `scopeToUser(table, userId)` needs a
+  `userId` column, but three user-owned reads run against `tripPlaceActivitiesMap` (a join table with
+  **no `userId` column**): `places.ts:289/352` (activity tag/untag) and the `placeActivities` read at
+  `trips.ts:207-216`. §5.1 correctly says these are guarded by a **prior ownership assertion** (verified:
+  `placeRepository.findById(userId, placeId)` precedes both join reads at places.ts) — but §6 Stage 4
+  mislabelled them as "composing `scopeToUser`" (they inherit isolation, they compose nothing), and the
+  doc **named `assertOwned`** (D1 row, §2 header, §3 layer-3) while §2's code **never defined it**.
+  **Folded:** §2 now defines the **second helper as a first-class part of the chokepoint** — an
+  ownership-assertion (`assertOwned`; the existing `assertWritable` is its writable-path instance)
+  returning **404** for derived/join-table reads that carry no `userId` column of their own; §5.1 and §6
+  Stage 4 now **label each user-owned site** *predicate-composed (`scopeToUser`)* or *assertion-guarded
+  (`assertOwned`/`assertWritable`)*. The chokepoint is honestly **"one predicate helper + one assertion
+  helper,"** not "one function."
+- **F3 [LOW] — Drizzle `.where()`-replaces footgun in the Stage 0 refactor.** `tripRepository.findAll`
+  (`repositories/trips.ts:61,64`) re-applies the full predicate on the filtered branch because
+  `.where()` **overwrites** rather than appends (verified: read the method 2026-08-10 — `:61` sets
+  `.where(eq(trips.userId, userId))`, `:64` re-applies `and(eq(trips.userId, userId), eq(trips.status,
+  …))`). **Folded:** a footgun line in §6 Stage 0 — on any `$dynamic()`/multi-`.where()` builder,
+  `scopeToUser` must appear in **every** terminal `.where(and(...))`, never only the first.
+- **F4 [LOW] — Stage 1 matrix conflates read-isolation vs mutate-isolation.** **Folded:** §6 Stage 1
+  now specifies expected shape **per endpoint class** — **empty result** for cross-tenant *reads* (city
+  items, carry-forward list) and **404** for cross-tenant *mutations* (activity POST/DELETE on another
+  user's place).
+- **UNVERIFIED note (carried into the Stage 1 QA brief).** The reviewer did **not** run `test:backend`;
+  "existing suites green as the regression net" is **UNVERIFIED** (its blind spot: a suite that is
+  already red would invalidate the Stage-0 equivalence argument). **Folded:** §6 Stage 1 now requires the
+  QA brief to (a) confirm the cross-tenant matrix runs against a **real libSQL instance** (FKs + partial
+  unique indexes, per QUAL-22 mock-fidelity) and seeds **two distinct real users**, and (b) confirm the
+  existing backend suites are green *before* Stage 0 lands, as the equivalence baseline.
+
+**Scope note (per the brief's "flag anything beyond the reviewer's spec" gate).** Every fold above is
+exactly the reviewer's specified fix. **One clarifying refinement**, entailed by the reviewer's own
+"zero residual **hand-authored** userId ownership" wording and called out for transparency: the Stage-0
+completeness grep's *sole permitted match* is the single chokepoint definition inside `scope.ts` (which
+necessarily contains `eq(table.userId, userId)`) — every other match is a residual to resolve. This
+narrows *how the exit-check is read*, not the design, and does **not** trigger a re-review.
+
+---
+
 ## 0. Summary table (decisions)
 
 | # | Decision | Recommendation | Confidence |
 |---|---|---|---|
-| D1 | The chokepoint | One composable `scopeToUser(qb, table, userId)` / `assertOwned` helper that every user-owned query composes; it is the single Phase-3 change-point | High |
+| D1 | The chokepoint | **Two** composable helpers — a `scopeToUser(table, userId)` **predicate** (for tables with a `userId` column) **and** an `assertOwned`/`assertWritable` **ownership-assertion** (for derived/join-table reads that carry none) — that every user-owned query routes through. **(REVISED 2026-08-10 F1/F2:** the "single Phase-3 change-point" holds **only once Stage 0 also folds the JS-comparison ownership gates** like `assertWritable` into the chokepoint — as code stood it did not; see §R2, §2, §6 Stage 0, §7.) | High |
 | D2 | Enforcement — can a forgotten filter be made *impossible*? | **No** (not cheaply in Drizzle). Make it **caught**: routes never call `getDb()` (grep-guard, fail-closed) + an ATDD cross-tenant matrix at every user-data route | High |
 | D3 | `citiesRepository` + `cityIdentityService` | Extract both from the 840-LOC god-route. Justified on **consolidation/testability/BUG-87-seam**, *not* as a cross-tenant fix — cities are global reference data | High |
 | D4 | Reuse, don't reinvent | Extend the existing `tripRepository`/`companionRepository` pattern (OP-06 §5.2/§5.3 already marks it PASS); the helper is the DRY collapse of `eq(table.userId, userId)` already written N times | High |
 | D5 | Global reads leave the route layer too | Route handlers touch **no** `getDb()` at all; global reference reads (countries/regions/city-by-id) route through unscoped-but-explicit repo methods so the guard is a trivial grep. **(REVISED §5.1: absolutist scope confirmed; its true cost is larger than first stated — six route files hold `getDb`, not one.)** | Medium |
 | D6 | Staged migration — organised by the global-vs-user-owned split (REVISED) | **6 stages, spined on §5.1's split**: global-reference-read consolidation (no cross-tenant axis, `ATDD-first: no`) is kept *separate* from user-owned-read relocation (silent-cross-tenant-drop risk → `ATDD-first: yes`, cross-tenant red-bar, expand/contract). Guard flip is **strictly last**. Each stage independently green + deployable | High |
-| D7 | Phase-3 seam shape | Design the single change-point signature (`scopeToUserOrShared`) now; defer sharing *semantics* (roles, `shared_with`) to Phase-3/SE-01 | High |
+| D7 | Phase-3 seam shape | Design the single change-point signature (`scopeToUserOrShared`) now; defer sharing *semantics* (roles, `shared_with`) to Phase-3/SE-01. **(REVISED 2026-08-10 F1:** "single change-point" is contingent — it is true for *read-scoping* once `scope.ts` exists, and true for *ownership* only once Stage 0 also folds the JS-comparison gates (`assertWritable`) through the chokepoint; the assertion helper `assertOwned`/`assertWritable` is the second edit-point a sharing change touches for derived/join reads — see §7.) | High |
 | D8 | Explicitly out of scope | Transaction/atomicity (reflection risk #3), geocode dual-identity consolidation (risk #2 / GE-19), serializer unification (risk #5). Each rides its own decision | High |
 | **D9** | **Fresh `getDb`-in-routes inventory + global/user-owned classification (REVISED, B1)** | **Six route files call `getDb()` directly (cities, places, trips, map, admin, items-helper). Each call site is classified global-reference-read vs user-owned-read in §5.1; the classification determines its stage, its ATDD-first mark, and whether it carries a cross-tenant red-bar** | High |
 | **D10** | **Stage-numbering reconciliation (REVISED, B2)** | **The old §6 table and the COO OQ-4 adjudication assigned different work to S0/S2/S3. Both are stamped superseded; one coherent scheme replaces them (revised §6). Authorised to revisit the OQ-4 adjudication — see §11** | High |
@@ -153,7 +218,7 @@ structural and enforced *before* Phase-3, not to chase a bleed that isn't there 
 
 ---
 
-## 2. D1 — The chokepoint: one `scopeToUser` / `assertOwned` helper
+## 2. D1 — The chokepoint: one predicate helper (`scopeToUser`) + one assertion helper (`assertOwned`/`assertWritable`)
 
 **Recommendation.** Introduce one small module, `src/backend/repositories/scope.ts`, exporting the
 single predicate that every user-owned query composes. Repositories call it instead of writing
@@ -177,15 +242,48 @@ export function scopeToUser(table: UserOwnedTable, userId: string): SQL {
 export function ownedAnd(table: UserOwnedTable, userId: string, ...extra: (SQL | undefined)[]): SQL {
   return and(scopeToUser(table, userId), ...extra)!;
 }
+
+/** The SECOND chokepoint mechanism (REVISED 2026-08-10, F2). For a read whose target row has NO
+ *  `userId` column of its own — a derived/join-table read (e.g. `tripPlaceActivitiesMap`), or a
+ *  write-gate that must reject a non-owner opaquely — ownership cannot be expressed as a
+ *  `scopeToUser` predicate; it is expressed as an ASSERTION against the owning row and returns 404
+ *  (opaque per SE-05, never 403). `assertWritable` (already in `placeRepository`/`itemRepository`,
+ *  `repositories/places.ts:273` / `repositories/items.ts:95`) is this helper's writable-path
+ *  instance; it MUST itself route ownership through the predicate — an existence check, not a JS
+ *  compare — so the two mechanisms share one ownership definition:
+ *
+ *    async assertOwned(userId: string, tripId: number): Promise<void> {  // read-gate variant
+ *      const [row] = await getDb().select({ id: trips.id })
+ *        .from(trips)
+ *        .where(and(eq(trips.id, tripId), scopeToUser(trips, userId)))  // <- through the chokepoint
+ *        .limit(1);
+ *      if (!row) throw new NotFoundError('Trip');                       // 404, opaque (SE-05)
+ *    }
+ *    // assertWritable = assertOwned + the `status === 'locked' -> LockError()` check, preserved.
+ */
+export function assertOwned(/* … */): Promise<void>; // contract only — see §6 Stage 0 for the fold
 ```
+
+**The chokepoint is two mechanisms, not one (REVISED 2026-08-10, F2).** Honestly stated, it is **one
+predicate helper (`scopeToUser`) + one assertion helper (`assertOwned`/`assertWritable`)**. A read
+against a table with a `userId` column *composes the predicate*; a read against a derived/join table
+with no `userId` column (`tripPlaceActivitiesMap`) is *guarded by the assertion* on the owning row and
+**inherits** isolation — it composes nothing. Both are first-class parts of the single ownership
+definition: `assertWritable`/`assertOwned` express ownership by calling `scopeToUser` in an existence
+check (never a hand-written `rows[0].userId !== userId` JS compare — see §6 Stage 0, the F1 fold), so
+there remains **one** place ownership is defined even though there are **two** ways it is applied.
 
 **Reasoning (High confidence):**
 - It is the **DRY collapse** of a predicate already written ~a dozen times across repos —
   low-risk, mechanical, and each repo's existing tests prove equivalence.
-- It is the **single Phase-3 change-point** (D7): `owner` → `owner OR shared-with(user, resource)`
-  becomes an edit to `scopeToUser`, not an edit to N repositories. This is the headline reason the
-  reflection raised the priority — sharing changes the *access predicate*, and after this there is
-  exactly one.
+- It is the **single Phase-3 change-point** for read-scoping (D7): `owner` → `owner OR
+  shared-with(user, resource)` becomes an edit to `scopeToUser`, not an edit to N repositories. This
+  is the headline reason the reflection raised the priority — sharing changes the *access predicate*,
+  and after this there is exactly one. **(REVISED 2026-08-10, F1/F2:** for derived/join reads with no
+  `userId` column, the sharing change is applied via the assertion helper `assertOwned`/`assertWritable`,
+  which *calls* `scopeToUser` — so the ownership definition stays single even though sharing touches
+  the predicate directly for predicate-composed reads and via the assertion for assertion-guarded ones.
+  This single-ness holds only once Stage 0 folds the JS-comparison gates in — see §6 Stage 0.)
 - The `UserOwnedTable` union does real structural work: passing a global table (`cities`,
   `countries`, `regions`) to `scopeToUser` is a **compile error**, so the "is this user data?"
   question is answered in the type system, once, rather than re-litigated at each call site.
@@ -339,15 +437,15 @@ read from a *user-owned* one.)
 | File · line | Query touches | Class | Ownership basis (why it's safe *today*) |
 |---|---|---|---|
 | `cities.ts:50,410,603,654` | cities / regions / countries — identity, search (GE-16), find-or-create | **Global-reference** | Cities are global reference data (nullable `createdByUserId`, `schema.ts:113-121`); visibility axis is GE-16 containment, not ownership |
-| `cities.ts:703` | `items ⋈ tripPlaces ⋈ trips` (city carry-forward) | **User-owned** | Explicit `eq(trips.userId, userId)` predicate (`:727`) |
-| `cities.ts:766` | `items ⋈ tripPlaces` (city items, SEC-01) | **User-owned** | Explicit `eq(items.userId, userId)` predicate (`:771`) |
+| `cities.ts:703` | `items ⋈ tripPlaces ⋈ trips` (city carry-forward) | **User-owned — predicate-composed (`scopeToUser`)** | Explicit `eq(trips.userId, userId)` predicate (`:727`) → composes `scopeToUser(trips, userId)` |
+| `cities.ts:766` | `items ⋈ tripPlaces` (city items, SEC-01) | **User-owned — predicate-composed (`scopeToUser`)** | Explicit `eq(items.userId, userId)` predicate (`:771`) → composes `scopeToUser(items, userId)` |
 | `places.ts:74,163` | `cities ⋈ regions` (city-exists on POST/PATCH place) | **Global-reference** | Ownership of the *place* enforced separately via `placeRepository`; the city read is global lookup |
-| `places.ts:231` | `tripPlaces` + `items` (carry-forward, SEC-02) | **User-owned** | `placeRepository.assertWritable(userId, tripId)` first, **then** `eq(items.userId, userId)` (`:253`) |
-| `places.ts:289,352` | `tripPlaceActivitiesMap` (activity tag/untag) | **User-owned (join-table)** | Join table has no `userId` column; guarded by prior `placeRepository.findById(userId, placeId)` + `activityRepository.validateOwnership` |
-| `trips.ts:198` | `tripPlaceActivitiesMap ⋈ activities` + `items` (trip-detail assembly) | **User-owned** | `tripRepository.findByIdOrThrow(userId, tripId)` first; items read carries `eq(items.userId, userId)` (`:223`) via `fetchItemsWithExtensions` |
+| `places.ts:231` | `tripPlaces` + `items` (carry-forward, SEC-02) | **User-owned — assertion-guarded then predicate-composed** | `placeRepository.assertWritable(userId, tripId)` first (→ `assertOwned`/`assertWritable` helper), **then** `eq(items.userId, userId)` (`:253`, → `scopeToUser(items, userId)`) |
+| `places.ts:289,352` | `tripPlaceActivitiesMap` (activity tag/untag) | **User-owned (join-table) — assertion-guarded (`assertOwned`)** | Join table has **no `userId` column** → cannot compose `scopeToUser`; guarded by prior `placeRepository.findById(userId, placeId)` + `activityRepository.validateOwnership` (verified: `findById(userId, placeId)` precedes both join reads at `places.ts`) |
+| `trips.ts:198` | `tripPlaceActivitiesMap ⋈ activities` + `items` (trip-detail assembly) | **User-owned — assertion-guarded (join reads) then predicate-composed (items)** | `tripRepository.findByIdOrThrow(userId, tripId)` first (→ `assertOwned`); the join read against `tripPlaceActivitiesMap` (`:207-216`) has no `userId` column and *inherits* isolation; the items read carries `eq(items.userId, userId)` (`:223`) via `fetchItemsWithExtensions` (→ `scopeToUser`) |
 | `map.ts:113,154` | `countries` (region-tier existence) | **Global-reference** | Global reference table; per-user shading is already behind `shading.service` |
 | `admin.ts:73,91,135,177,217` | `countries` / `regions` (CRUD) | **Global-reference** | Global tables; writes are `requireOwner`-gated, but the data itself is not user-owned |
-| `items-helper.ts:87` | `items` (+ extension left-joins) | **User-owned** | `fetchItemsWithExtensions(conditions?)` — **the scope is threaded in by the caller** via `conditions`; the helper itself applies no `userId` predicate |
+| `items-helper.ts:87` | `items` (+ extension left-joins) | **User-owned — predicate-composed (via caller-threaded scope → required `userId` param)** | `fetchItemsWithExtensions(conditions?)` — **the scope is threaded in by the caller** via `conditions`; the helper itself applies no `userId` predicate. Stage 4 makes `userId` a **required** parameter so the scope can no longer be forgotten |
 
 **Two consequences that drive the revised §6:**
 
@@ -397,13 +495,28 @@ where noted.
 
 | Stage | What ships | ATDD-first | Cross-tenant red-bar? | Green by | Deployable alone? |
 |---|---|---|---|---|---|
-| **Stage 0 — Chokepoint** | `scope.ts` (`scopeToUser`/`ownedAnd`) added; existing repos refactored to compose it — **pure DRY refactor**, zero call-site behaviour change | **yes** (access-matrix invariant; silent-and-plausible if wrong) | via S1 (below) | existing repo + access-matrix suites | Yes |
-| **Stage 1 — Red bar (QA)** | **ATDD cross-tenant isolation matrix**, authored red-first (QA, OP-35). **Must name the user-owned composite/threaded read paths from §5.1** — trip-detail assembly (`trips.ts:198`), carry-forward (`places.ts:231`, `cities.ts:703`), city items (`cities.ts:766`), `items-helper` reads, activity-tag join reads (`places.ts:289/352`) — not just tier gates. This is the executable DoD for Stages 2 & 4 | **is the ATDD** | **defines it** | passes on Stage-0 (already-correct) behaviour | Yes (coverage only) |
+| **Stage 0 — Chokepoint** | `scope.ts` (`scopeToUser`/`ownedAnd` predicate helper **+ `assertOwned` assertion helper**, F2) added; existing repos refactored to route **every** ownership expression through it — **both** `eq(table.userId, userId)` **predicates and JS-comparison gates** like `assertWritable` (F1: `repositories/places.ts:273`, `repositories/items.ts:95` become existence checks `.where(and(eq(trips.id, tripId), scopeToUser(trips, userId)))`, **preserving the lock check**). **Pure DRY refactor**, zero call-site behaviour change | **yes** (access-matrix invariant; silent-and-plausible if wrong) | via S1 (below) | existing repo + access-matrix suites | Yes |
+| **Stage 1 — Red bar (QA)** | **ATDD cross-tenant isolation matrix**, authored red-first (QA, OP-35). **Must name the user-owned composite/threaded read paths from §5.1** — trip-detail assembly (`trips.ts:198`), carry-forward (`places.ts:231`, `cities.ts:703`), city items (`cities.ts:766`), `items-helper` reads, activity-tag join reads (`places.ts:289/352`) — not just tier gates. **Expected shape per endpoint class (F4):** cross-tenant *reads* assert **empty result** (city items, carry-forward list, trip-detail); cross-tenant *mutations* assert **404** (activity POST/DELETE on another user's place) — never 403 (opaque, SE-05). This is the executable DoD for Stages 2 & 4 | **is the ATDD** | **defines it** | passes on Stage-0 (already-correct) behaviour | Yes (coverage only) |
 | **Stage 2 — Cities extraction** | `citiesRepository` + `cityIdentityService` extracted from `cities.ts`; logic moved verbatim, handlers thin. Its two user-owned joins (`:703`/`:766`) compose `scopeToUser` | **yes** (identity/data-integrity invariants; **mock-fidelity**: exercise the real `insertCityOrReuse` catch-path + partial unique indexes, not a vacuous stub — QUAL-22) | GE-16 **containment** (global data — *not* vacuous ownership); the two user-owned joins covered by S1 | existing cities/adl46 suites + S1 | Yes |
 | **Stage 3 — Global-read consolidation (the SAFE half)** | Global reference reads relocated out of routes into `referenceRepository`: `map.ts:113/154`, `admin.ts:73/91/135/177/217`, `places.ts:74/163` (cities-identity global reads land in Stage 2). **No cross-tenant axis — global tables** | **no** (mechanical; failure visible; existing suites are the net) | **No** — global reference data, no ownership to assert | existing suites | Yes |
-| **Stage 4 — User-owned-read relocation (the DANGEROUS half)** | User-owned raw reads relocated into repositories composing `scopeToUser` / requiring a `userId` param: `trips.ts:198`, `places.ts:231/289/352`, `items-helper.ts:87` (→ `userId` becomes a **required** method parameter). Each relocation staged **expand → switch** with the S1 matrix green before *and* after every switch | **yes** (access-matrix; dropping an `eq(userId)` or an upstream ownership assertion is silent-and-plausible) | **Yes** — the S1 matrix asserts each relocated path (seed USER_A, call as USER_B, expect empty/404) | S1 matrix + existing suites | Yes (each switch independently green) |
+| **Stage 4 — User-owned-read relocation (the DANGEROUS half)** | User-owned raw reads relocated into repositories, **each by its §5.1 mechanism (F2):** *predicate-composed* reads compose `scopeToUser` — `items-helper.ts:87` (→ `userId` becomes a **required** method parameter), the items reads inside `trips.ts:198`/`places.ts:231`; *assertion-guarded* reads route through `assertOwned`/`assertWritable` and **inherit** isolation (compose nothing) — the `tripPlaceActivitiesMap` join reads at `places.ts:289/352` and `trips.ts:207-216`. Each relocation staged **expand → switch** with the S1 matrix green before *and* after every switch | **yes** (access-matrix; dropping an `eq(userId)` predicate *or* a prior ownership assertion is silent-and-plausible) | **Yes** — the S1 matrix asserts each relocated path per its class (seed USER_A, call as USER_B, expect **empty** for reads / **404** for mutations) | S1 matrix + existing suites | Yes (each switch independently green) |
 | **Stage 5 — Guard contract** | Flip the `getDb`-in-routes guard to **error**. Introduced warn-only earlier (expand); flipped here (contract). **Strictly last** — only valid once Stages 2 + 3 + 4 leave `routes/**` `getDb`-free | **no** (the guard is its own test) | n/a | guard green + full suite | Yes — may ride the last relocation PR |
 | **Stage 6 — Phase-3 seam** | *(Design only — not built now)* `scopeToUser` → `scopeToUserOrShared`. Deferred to Phase-3/SE-01 | — | — | — | — |
+
+**Stage 0 detail — completeness exit-check + the `.where()` footgun (REVISED 2026-08-10, F1/F3):**
+- **Completeness exit-check (F1) — mirrors the routes `getDb` guard.** Stage 0 is done only when a
+  grep asserts **zero residual hand-authored userId ownership** in `repositories/**`, matching **both**
+  forms — `eq(\w+\.userId` (predicate) **and** `\.userId\s*[!=]==` (JS comparison, e.g.
+  `rows[0].userId !== userId`). The **sole permitted match** is the single chokepoint definition inside
+  `scope.ts` (which necessarily contains `eq(table.userId, userId)`); every other match is a residual
+  that must be routed through `scopeToUser`/`assertOwned` before Stage 0 closes. Without this second
+  regex, a grep-driven Stage 0 collapses the SQL predicates and **silently leaves `assertWritable`'s JS
+  compare** as a separate ownership check — the exact gap F1 caught.
+- **The `.where()`-replaces footgun (F3).** Drizzle's `.where()` **overwrites**, it does not append. On
+  any `$dynamic()`/multi-`.where()` builder — `tripRepository.findAll` (`repositories/trips.ts:61,64`)
+  is the live example, which re-applies the userId predicate on its filtered branch — `scopeToUser` must
+  appear in **every** terminal `.where(and(...))`, never only the first. A refactor that composes
+  `scopeToUser` into the first `.where()` only would **drop the scope on the filtered path**.
 
 **Ordering constraints (easy to violate):**
 - **Stage 0 before Stage 1's green** — the matrix proves the `scope.ts` refactor preserved scoping.
@@ -444,18 +557,28 @@ the old S3 silently contained — the B1 fix)**.
 exactly one function:
 
 ```ts
-// Phase-3 (DESIGN — not built now). The ONLY edit sharing requires.
+// Phase-3 (DESIGN — not built now). The ONE ownership DEFINITION sharing edits.
 export function scopeToUser(table: UserOwnedTable, userId: string): SQL {
   // today:   return eq(table.userId, userId);
   // Phase-3: return or(eq(table.userId, userId), sharedWith(table, userId));
 }
 ```
 
+> **REVISED 2026-08-10 (F1/F2) — "the ONLY edit" is one definition applied two ways.** *Predicate-composed*
+> reads (tables with a `userId` column) pick up sharing from this one function directly. *Assertion-guarded*
+> reads (derived/join tables with no `userId` column — the `tripPlaceActivitiesMap` reads) pick it up
+> **through the assertion helper `assertOwned`/`assertWritable`, which calls `scopeToUser`** — so sharing
+> still has one *definition*, but a reviewer must verify the assertion helpers route through it (they must
+> not re-hand-roll ownership as a JS compare — F1). This single-definition property is **contingent on
+> Stage 0 folding the JS-comparison gates in**; before that fold, `assertWritable` was a second,
+> independent ownership site a Phase-3 change would have had to find separately.
+
 **Reasoning:**
-- The whole point of D1 is that after Stage 0 (`scope.ts`), "who may see this row" is answered in **one** function
-  for every user-owned table. Phase-3 becomes a localized change with the ATDD matrix (D2) as its
-  regression net — the matrix's per-route assertions are exactly what a sharing change must not
-  break for the *owner* case and must *newly satisfy* for the *shared* case.
+- The whole point of D1 is that after Stage 0 (`scope.ts` + the assertion helper), "who may see this row"
+  is defined in **one** place for every user-owned table — applied as a predicate where a `userId` column
+  exists and via an ownership assertion where it does not. Phase-3 becomes a localized change with the ATDD
+  matrix (D2) as its regression net — the matrix's per-route assertions are exactly what a sharing change
+  must not break for the *owner* case and must *newly satisfy* for the *shared* case.
 - **Deferred deliberately:** the *shape* of `sharedWith` (a `shared_with` join table? a role column?
   read-only vs read-write grades?) is Phase-3/SE-01 product scope, not this ADL's. Designing it now
   would be speculative (project memory: *"don't architect for the current user base"* cuts both
@@ -602,6 +725,19 @@ routes / S3" splits into a global-safe brief and a user-owned-dangerous brief).
 > #3/#5 compose the helper. #1 (QA matrix) is *authored red first* and must **assert the §5.1
 > user-owned paths by name** before #5 relocates any of them. #5's guard flip (Stage 5) is valid only
 > once #3, #4, and #5's relocations have left `routes/**` `getDb`-free — flipping earlier red-mains.
+
+**Brief #1 (QA matrix) — mandatory environment/fidelity requirements (REVISED 2026-08-10, UNVERIFIED
+note from the second fresh-eyes review).** The reviewer did **not** run `test:backend`, so "the existing
+backend suites are green as the regression net" is **UNVERIFIED** (blind spot: an already-red suite would
+invalidate the Stage-0 equivalence argument the whole plan rests on). The QA brief must therefore:
+- **Run the matrix against a real libSQL instance**, not a mock — with **FK enforcement and the partial
+  unique indexes** live — because the isolation invariants (404 on cross-tenant, empty on cross-tenant
+  read) are exactly the class a vacuous double passes silently (QUAL-22 mock-fidelity).
+- **Seed two distinct real users** (USER_A owner, USER_B caller) — a single-user fixture cannot express a
+  cross-tenant assertion at all.
+- **Confirm the existing backend suites are green *before* Stage 0 lands**, and record that baseline, so
+  the Stage-0 "pure DRY refactor, behaviour unchanged" claim has an established equivalence reference
+  rather than an assumed one.
 
 **Authorisation note (probe-the-COO, OP-34).** The brief explicitly authorised revisiting the OQ-4
 adjudication rather than force-fitting its contradiction with §6. I did: OQ-4's *intent* (design-only,
