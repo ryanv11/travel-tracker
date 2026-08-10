@@ -625,3 +625,21 @@ restatement in §5.1/§11) before the second fresh-eyes dispatch — see the ope
 
 No other open questions — OQ-2 (defer ESLint) and OQ-3 (`cityIdentityService` = DB/identity only)
 remain resolved as the COO adjudicated; the fresh-eyes review credited both.
+
+### COO/PO resolution — 2026-08-10 (both open items closed before the fresh-eyes re-dispatch)
+
+Per the OP-27 refinement (settle the author's flagged open items *first*, so the reviewer spends its
+one pass on blind spots, not gaps already surfaced), both items above are now closed:
+
+- **OQ-1 — guard scope: ABSOLUTIST, CONFIRMED (PO decision 2026-08-10).** The PO confirmed appetite for
+  the larger Stage-3 scope now visible in §5.1: keep the guard absolutist (`getDb()` zero in
+  `routes/**`), relocating global-reference reads too, rather than a table-aware/AST guard. Deciding
+  dimension was guard enforceability vs. migration scope — the whole point of QUAL-43 is replacing a
+  per-site convention judgment with a single grep-verifiable invariant, which a relaxed guard would
+  reintroduce. The Architect's and COO's recommendations both stood. **Stage 3 is in scope.**
+- **ADL-log numbering — ratified.** On merge, order the log 52 → 53 → 54; no duplicate (verified both
+  logs). Mechanical, the merging COO owns the insertion seam. No design impact.
+
+This section is the settled record; the two items are no longer open. The document is ready for the
+second OP-27 fresh-eyes review (fresh **Opus** agent — high-stakes userId-scoping/access-matrix class,
+never Fable — scoping the whole amended document and its seams per ADL-52 clause 2).
