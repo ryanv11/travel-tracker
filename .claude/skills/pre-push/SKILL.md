@@ -19,7 +19,7 @@ If `status:check` fails, run `npm run status` and commit the regenerated
 
 Contract tests require a live backend — only run `npm run test:contract` if the backend is running locally.
 
-**This is a fast pre-filter, not the gate.** It runs 5 of the 9 required checks; E2E, contract,
+**This is a fast pre-filter, not the gate.** It runs a subset of the CI checks (the authoritative job list is `ci.yml` + `security.yml`); E2E, contract,
 `npm audit`, Gitleaks and Semgrep only run in CI. A green pre-push does **not** mean CI will pass —
 `scripts/ci-wait.sh pr <n>` after pushing is the authoritative gate and is mandatory (this is the
 "pre-commit green but CI red" trap: those five checks don't run locally, and base skew is caught only

@@ -68,6 +68,12 @@ This log is the authoritative record of every material technical decision made o
 **Date:** 2026-03-07
 **Status:** Decided
 
+> SUPERSEDED (2026-08-09) by ADL-32 (hosted DB = Turso/libSQL, not PostgreSQL) and ADL-15
+> (`db:push` is permanently forbidden — hard-blocked by `.claude/hooks/block-db-push.sh`;
+> migrate-only). The "critical migration test: run `drizzle-kit push`" below names the one
+> operation the repo forbids everywhere else, and the OneDrive-sync rationale is dropped
+> (BRD v3.0 superseded NF-01/NF-04). Retained for history. Found by the OP-40 deep audit.
+
 **Decision:** SQLite for Phase 1 (local). PostgreSQL for Phase 2 (hosted). Migration is a configuration change only.
 
 **Options considered:**
@@ -104,6 +110,10 @@ This log is the authoritative record of every material technical decision made o
 
 **Date:** 2026-03-07
 **Status:** Decided
+
+> SUPERSEDED (2026-07-18) by BRD OQ-02 (RESOLVED — packaged `.app` dropped) and NF-09 / ADL-32
+> (hosted web app accessed via browser). The Electron `.app` release target below is no longer
+> the direction. Retained for history. Stamp added 2026-08-09 (OP-40 deep audit).
 
 **Decision:** Beta phase uses no packaging — Express server runs via `npm start`, user opens `localhost:3001` in browser. Release phase uses Electron to package the app as a macOS `.app`.
 
