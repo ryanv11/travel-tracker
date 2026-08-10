@@ -1,0 +1,197 @@
+BACKEND PARK DOCUMENT — 2026-08-10
+THREAD: QUAL-43 / ADL-53 §4 (D3) + §6 Stage 2 — citiesRepository +
+  cityIdentityService extraction. Also discharges BUG-84 U7/U8.
+BRANCH: feat/qual43-stage2-cities-extraction (off main)
+TRACKER: QUAL-43 · BRD: n/a (internal structural refactor)
+GITHUB ISSUE: none. Two probes that fail differently, matching the Stage 0
+  thread's finding: (1) `gh issue list --state all --search "QUAL-43"` returns
+  nothing; (2) the tracker entry's own notes carry no issue number, which the
+  CLAUDE.md cross-referencing rule requires whenever one exists. PR body
+  therefore cites QUAL-43 + ADL-53 §4 rather than "Closes #N".
+
+================================================================
+1. WHAT SHIPPED
+================================================================
+
+NEW  src/backend/repositories/cities.ts                       (~390 LOC)
+NEW  src/backend/services/cityIdentityService.ts              (~240 LOC)
+NEW  src/backend/services/__tests__/cityIdentityService.test.ts (19 tests)
+MOD  src/backend/routes/cities.ts                             (861 -> 418 LOC)
+MOD  jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md   (§5.1 rows)
+MOD  jobs/architect/tech/OP-06-hardening-checklist.md          (§2.1 one row)
+
+OP-28 DECLARATION: routes/cities.ts WAS rewritten as a whole file, deliberately.
+Reason: the extraction removes ~500 lines (three module-level functions, every
+query body, and the entire drizzle/db import block) from a 861-line file. A
+sequence of Edits would have produced the identical result with more chances to
+mis-anchor. Nothing was reworded on the way past — every surviving comment,
+branch and status code is byte-identical to the original; the diff is
+deletions plus call-site substitution. The two shared-record docs above were
+amended with Edit, never Write.
+
+================================================================
+2. THE SPLIT — WHAT WENT WHERE, AND WHY THAT LINE
+================================================================
+
+citiesRepository (repositories/cities.ts) — the DB ACCESS SURFACE:
+  search                          GE-16 search + region LEFT JOIN (BUG-72)
+  findByIdWithRegion / findById   GET /:id (BUG-29/BUG-80) / existence checks
+  findByOsmRef                    BUG-75 v3 §B2/B3 carried-ref lookup
+  findByIdentityKey               D13 step 1 (name NOCASE, country, COALESCE)
+  findRegionlessUpgradeCandidate  D13 step 2 candidate (status whitelist +
+                                  creator-or-null)
+  findByNameAndCountry            D13 step 2b reverse match, LIMIT 2
+  insert / updateCity             the create + curate primitives
+  findCountryRegionTier /
+    findRegionInCountry /
+    findRegionById                the global reference validations the
+                                  create/curate paths run
+  findCarryForwardItems           IT-07, composes scopeToUser(trips, userId)
+  findCityItems                   IT-09 / SEC-01, composes scopeToUser(items,…)
+
+cityIdentityService (services/cityIdentityService.ts) — the IDENTITY ALGEBRA:
+  findOrUpgradeCity          ADL-46 D13 three-step find-or-upgrade
+  createOrReuseCarriedCity   BUG-75 v3 §B1-B3 carried-OSM identity
+  insertCityOrReuse          M1/F3 caught-violation -> re-select-and-reuse
+
+THE LINE IS "does it emit SQL or does it decide?" The three identity functions
+previously took `db` as their first parameter and issued their own selects.
+That parameter is GONE — they compose repository primitives instead. This is
+the one place a purely mechanical move was impossible: the ADL puts the query
+surface in the repository and the algebra in the service, so the queries had to
+leave the functions. Each query moved BODY-INTACT into a named repository
+method; the control flow (step order, the early `return null` on the has-region
+path, the catch-then-reselect) moved body-intact into the service. Nothing was
+re-expressed.
+
+WHAT STAYED IN THE ROUTE, DELIBERATELY:
+  - The resolve-then-create geocode ORCHESTRATION (resolveCityName, the
+    fire-and-forget resolveCity after a pending insert, the 'ambiguous' skip).
+    ADL-53 OQ-3, COO-adjudicated: cityIdentityService is DB/identity only.
+  - serializeCity — ADL-53 §9 lists serializer unification as out of scope.
+  - Request/response shape and the parseInt/NaN 404 guards.
+The two geocoder calls that DID move (resolveCity inside the wildcard upgrade,
+resolveByOsmId inside createOrReuseCarriedCity) are inside the identity
+algorithms themselves, not orchestration around them.
+
+================================================================
+3. THE TWO AXES — WHY ONLY SOME PREDICATES COMPOSE THE CHOKEPOINT
+================================================================
+
+This file now holds ownership predicates AND creator predicates, and they are
+not the same thing. Both module headers say so, because the next reader will
+otherwise "fix" one of them.
+
+  COMPOSES scopeToUser (user-owned):
+    findCarryForwardItems  -> scopeToUser(trips, userId)
+    findCityItems          -> scopeToUser(items, userId)
+  Cities' user-owned JOINS join the chokepoint even though cities does not.
+
+  HAND-WRITTEN, CORRECTLY (global reference data):
+    search's GE-16 containment            cities.createdByUserId
+    findRegionlessUpgradeCandidate's
+      creator-or-null upgrade scoping     cities.createdByUserId
+  These are CREATOR-VISIBILITY / write-through-scoping on a global table
+  (nullable created_by_user_id, ON DELETE SET NULL), not row ownership. The
+  type system enforces the distinction: `cities` is deliberately absent from
+  UserOwnedTable, so passing it to scopeToUser is a compile error.
+  scripts/scope-completeness-check.sh does not flag them either — its regex
+  matches `.userId`, and the column is `.createdByUserId`. That is a correct
+  pass, not a lucky one, but it is worth knowing it is regex-shaped: a future
+  rename of the column to `.userId` on a global table would silently start
+  matching. Flagged, not fixed — widening or narrowing that check is not an
+  implementation brief's call (OP-30).
+
+SQL EQUIVALENCE was protected the same way Stage 0 protected it: the term
+ORDER inside each and(...) is unchanged, so the emitted SQL is byte-identical
+rather than merely logically equivalent. Both sites had the predicate in the
+middle of the condition list, so neither could use ownedAnd (which puts scope
+first) without reordering. Using scopeToUser positionally was the cheaper
+equivalence argument.
+
+================================================================
+4. THE NEW TESTS — AND WHY THEY ARE NOT VACUOUS
+================================================================
+
+src/backend/services/__tests__/cityIdentityService.test.ts, 19 tests, using
+repositories/__tests__/test-db.ts (real migrations replayed into :memory:,
+PRAGMA foreign_keys = ON).
+
+MOCK FIDELITY (QUAL-22, the brief's explicit requirement). Nothing stubs
+insertCityOrReuse's catch path. The violations are produced by the database:
+  uniq_cities_osm_ref             UNIQUE(osm_type, osm_id) WHERE osm_id NOT NULL
+  uniq_cities_pending_per_creator UNIQUE(name NOCASE, country, COALESCE(region,0),
+                                  COALESCE(creator,'')) WHERE status='pending'
+Both are exercised by separate tests that provoke them for different reasons.
+FKs being ON is what makes "a NON-unique constraint error is rethrown, not
+swallowed into a false reuse branch" a real assertion — isUniqueViolation is
+deliberately narrow, and that narrowness is now tested rather than trusted.
+
+The race test does not fake the race at the boundary: the mocked
+resolveByOsmId INSERTS the competing row as a side effect between the ref
+check and this request's insert, so the live index is what rejects the second
+insert and the re-select is what recovers.
+
+MUTATION-TESTED, not merely green. Two defects injected, each caught:
+  A. removed `if (!isUniqueViolation(err)) throw err;`
+     -> "rethrows a constraint error that is NOT a unique violation" FAILED
+  B. added 'resolved' to the step-2 upgrade status whitelist
+     -> "declines a resolved region-less row" FAILED
+Both files restored from a scratch-dir copy (never `git stash` — refs/stash is
+shared across worktrees, OP-20) and re-verified green.
+
+DELIBERATELY NOT ASSERTED: cross-tenant OWNERSHIP isolation on `cities`. There
+is none to assert — cities are global reference data — and a test pretending
+otherwise passes vacuously against an index that had been dropped (ADL-53 D3's
+explicit scope guard). What IS asserted on this table is the creator-scoped
+upgrade rule. GE-16 containment itself is already covered by ADL-46 Group C
+(unmodified, green). The two user-owned joins are covered by Part F of
+security.access-matrix.test.ts (Stage 1, unmodified, green).
+
+================================================================
+5. FINDINGS / THINGS THE NEXT STAGE SHOULD KNOW
+================================================================
+
+F-A. NO BUG WAS FOUND IN THE MOVED LOGIC. The brief asked me to report rather
+     than fix anything that looked like a genuine defect. Reading every branch
+     while relocating it, I found none — the D13 step ordering, the has-region
+     early return, the status whitelist, the 200-vs-201 selection and the
+     ambiguous-skip on the queue re-fire all behave as their comments claim.
+     This is a positive finding about what I read, not a clean bill of health
+     for paths I did not exercise.
+
+F-B. THE THREE GLOBAL REFERENCE LOOKUPS (countries region-tier, region-in-
+     country, region-by-id) LANDED IN citiesRepository, per ADL-53 §6 Stage 3's
+     wording that "cities-identity global reads land in Stage 2". Stage 3
+     creates a referenceRepository for map.ts/admin.ts/places.ts. There is no
+     query-level duplication today (places.ts:74/163 reads cities JOIN regions,
+     a different query), but a future consolidation of "region by id" into
+     referenceRepository is a reasonable follow-up. Not done here: it would
+     mean editing a file in Stage 3's concurrent set.
+
+F-C. STAGE 5 STILL HAS NO GUARD TO FLIP, and route files already contain the
+     literal string in comments (items.ts:8 and places.ts:11 both say "No
+     direct getDb()"). Whoever builds that guard must decide comment-vs-call-
+     site up front. I reworded my own header to avoid the literal string
+     rather than adding to the problem (OP-30: fix your own text first).
+
+F-D. routes/cities.ts now imports NOTHING from drizzle-orm or db/index.js.
+     That is the mechanical property Stage 5's guard wants, reached one route
+     early.
+
+================================================================
+6. STATE AT PARK
+================================================================
+
+Branch feat/qual43-stage2-cities-extraction, working tree clean, PR open
+against main, CI green. Nothing left uncommitted. PR not merged — COO merges.
+
+TESTS: 827 passed / 52 files (baseline 808 / 51, re-run on this branch's merge
+base before touching anything). +19 = exactly the new suite. NO existing test
+file was modified — the zero-behaviour-diff claim is therefore checkable, not
+asserted.
+GATES: npm run scope:check PASS · npm run type:check:all PASS · /pre-push green.
+
+WHAT THIS UNBLOCKS: BUG-87's city-picker backend now has the repository seam
+ADL-53 D3 promised. BUG-84 U7/U8 (routes -> repo fold for cities) is
+discharged. Stage 5's guard is two route files closer to being flippable.
