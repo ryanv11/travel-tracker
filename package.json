@@ -25,6 +25,7 @@
     "status": "node scripts/status.js",
     "status:check": "node scripts/status.js --check",
     "tracker:check": "node scripts/tracker-check.js",
+    "scope:check": "bash scripts/scope-completeness-check.sh",
     "test:backend": "vitest run --config vitest.config.backend.ts",
     "test:backend:watch": "vitest --config vitest.config.backend.ts",
     "test:frontend": "vitest run --config vitest.config.frontend.ts",

@@ -17,6 +17,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb, tripCategories } from '../db/index.js';
 import type { TripCategory } from '../db/schema.js';
 import { TRIP_CATEGORIES } from '../db/seed-data.js';
+import { ownedAnd, scopeToUser } from './scope.js';
 
 export const tripCategoryRepository = {
   /**
@@ -45,7 +46,7 @@ export const tripCategoryRepository = {
     const rows = await db
       .select({ id: tripCategories.id })
       .from(tripCategories)
-      .where(eq(tripCategories.userId, userId))
+      .where(scopeToUser(tripCategories, userId))
       .limit(1);
     if (!rows.length) {
       await tripCategoryRepository.seedDefaults(userId);
@@ -58,7 +59,7 @@ export const tripCategoryRepository = {
     return db
       .select()
       .from(tripCategories)
-      .where(eq(tripCategories.userId, userId))
+      .where(scopeToUser(tripCategories, userId))
       .orderBy(asc(tripCategories.name));
   },
 
@@ -68,7 +69,7 @@ export const tripCategoryRepository = {
     return db
       .select()
       .from(tripCategories)
-      .where(and(eq(tripCategories.userId, userId), eq(tripCategories.isActive, 1)))
+      .where(ownedAnd(tripCategories, userId, eq(tripCategories.isActive, 1)))
       .orderBy(asc(tripCategories.name));
   },
 
@@ -78,7 +79,7 @@ export const tripCategoryRepository = {
     const rows = await db
       .select()
       .from(tripCategories)
-      .where(and(eq(tripCategories.id, id), eq(tripCategories.userId, userId)))
+      .where(and(eq(tripCategories.id, id), scopeToUser(tripCategories, userId)))
       .limit(1);
     return rows[0] ?? null;
   },
@@ -112,7 +113,7 @@ export const tripCategoryRepository = {
     const updated = await db
       .update(tripCategories)
       .set(updates)
-      .where(and(eq(tripCategories.id, id), eq(tripCategories.userId, userId)))
+      .where(and(eq(tripCategories.id, id), scopeToUser(tripCategories, userId)))
       .returning();
     return updated[0] ?? null;
   },
@@ -143,7 +144,7 @@ export const tripCategoryRepository = {
     const rows = await db
       .select({ id: tripCategories.id })
       .from(tripCategories)
-      .where(and(eq(tripCategories.userId, userId), inArray(tripCategories.id, categoryIds)));
+      .where(ownedAnd(tripCategories, userId, inArray(tripCategories.id, categoryIds)));
     const validIds = new Set(rows.map((r) => r.id));
     return categoryIds.filter((id) => !validIds.has(id));
   },

@@ -9,6 +9,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { companions, getDb } from '../db/index.js';
 import type { Companion } from '../db/schema.js';
+import { ownedAnd, scopeToUser } from './scope.js';
 
 export const companionRepository = {
   /** Returns all companions owned by userId (active + inactive), name ascending. */
@@ -17,7 +18,7 @@ export const companionRepository = {
     return db
       .select()
       .from(companions)
-      .where(eq(companions.userId, userId))
+      .where(scopeToUser(companions, userId))
       .orderBy(asc(companions.name));
   },
 
@@ -27,7 +28,7 @@ export const companionRepository = {
     return db
       .select()
       .from(companions)
-      .where(and(eq(companions.userId, userId), eq(companions.isActive, 1)))
+      .where(ownedAnd(companions, userId, eq(companions.isActive, 1)))
       .orderBy(asc(companions.name));
   },
 
@@ -37,7 +38,7 @@ export const companionRepository = {
     const rows = await db
       .select()
       .from(companions)
-      .where(and(eq(companions.id, id), eq(companions.userId, userId)))
+      .where(and(eq(companions.id, id), scopeToUser(companions, userId)))
       .limit(1);
     return rows[0] ?? null;
   },
@@ -71,7 +72,7 @@ export const companionRepository = {
     const updated = await db
       .update(companions)
       .set(updates)
-      .where(and(eq(companions.id, id), eq(companions.userId, userId)))
+      .where(and(eq(companions.id, id), scopeToUser(companions, userId)))
       .returning();
     return updated[0] ?? null;
   },
@@ -101,7 +102,7 @@ export const companionRepository = {
     const rows = await db
       .select({ id: companions.id })
       .from(companions)
-      .where(and(eq(companions.userId, userId), inArray(companions.id, companionIds)));
+      .where(ownedAnd(companions, userId, inArray(companions.id, companionIds)));
     const validIds = new Set(rows.map((r) => r.id));
     return companionIds.filter((id) => !validIds.has(id));
   },

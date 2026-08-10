@@ -16,12 +16,12 @@ import {
   itemHotels,
   itemRestaurants,
   items,
-  trips,
 } from '../db/index.js';
 import type { Item } from '../db/schema.js';
-import { LockError, NotFoundError } from '../errors.js';
+import { NotFoundError } from '../errors.js';
 import { fetchItemsWithExtensions } from '../routes/items-helper.js';
 import { ensureExperienceExtension } from '../services/items.service.js';
+import { assertWritable as assertTripWritable, scopeToUser } from './scope.js';
 
 // ----------------------------------------------------------------
 // Repository
@@ -44,7 +44,7 @@ export const itemRepository = {
       minRating?: number;
     },
   ): Promise<Record<string, unknown>[]> {
-    const conditions: SQL[] = [eq(items.tripId, tripId), eq(items.userId, userId)];
+    const conditions: SQL[] = [eq(items.tripId, tripId), scopeToUser(items, userId)];
     if (filters?.placeId) conditions.push(eq(items.tripPlaceId, Number(filters.placeId)));
     if (filters?.type) conditions.push(eq(items.itemType, filters.type));
     if (filters?.status) conditions.push(eq(items.status, filters.status));
@@ -62,7 +62,7 @@ export const itemRepository = {
    */
   async findById(userId: string, itemId: number): Promise<Record<string, unknown> | null> {
     const results = await fetchItemsWithExtensions(
-      and(eq(items.id, itemId), eq(items.userId, userId)),
+      and(eq(items.id, itemId), scopeToUser(items, userId)),
     );
     return results[0] ?? null;
   },
@@ -77,7 +77,7 @@ export const itemRepository = {
     const rows = await db
       .select()
       .from(items)
-      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), eq(items.userId, userId)))
+      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), scopeToUser(items, userId)))
       .limit(1);
     if (!rows.length) throw new NotFoundError('Item');
     return rows[0];
@@ -91,17 +91,16 @@ export const itemRepository = {
    * Verifies the trip exists, is owned by userId, and is not locked.
    * Mirrors placeRepository.assertWritable — child inserts (items) carry no
    * userId scoping of their own, so the owning trip must be checked before create.
+   *
+   * ADL-53 Stage 0 (F1): ownership is no longer re-derived here. It is delegated
+   * to the chokepoint's assertion helper, which expresses it as an existence
+   * check composed from `scopeToUser` — so this write gate and every read share
+   * one definition of "owned". Behaviour is unchanged: NotFoundError (404,
+   * opaque per SE-05) when missing or owned by another user, LockError when
+   * locked.
    */
   async assertWritable(userId: string, tripId: number): Promise<void> {
-    const db = getDb();
-    const rows = await db
-      .select({ status: trips.status, userId: trips.userId })
-      .from(trips)
-      .where(eq(trips.id, tripId))
-      .limit(1);
-    if (!rows.length) throw new NotFoundError('Trip');
-    if (rows[0].userId !== userId) throw new NotFoundError('Trip');
-    if (rows[0].status === 'locked') throw new LockError();
+    await assertTripWritable(userId, tripId);
   },
 
   async create(
@@ -173,7 +172,7 @@ export const itemRepository = {
     await db
       .update(items)
       .set(baseUpdates)
-      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), eq(items.userId, userId)));
+      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), scopeToUser(items, userId)));
 
     await updateExtension(itemType, itemId, extensionBody);
 
@@ -189,7 +188,7 @@ export const itemRepository = {
     const db = getDb();
     const deleted = await db
       .delete(items)
-      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), eq(items.userId, userId)))
+      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), scopeToUser(items, userId)))
       .returning({ id: items.id });
     return deleted.length > 0;
   },

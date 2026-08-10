@@ -17,7 +17,8 @@ import {
   trips,
 } from '../db/index.js';
 import type { TripPlace } from '../db/schema.js';
-import { ConflictError, LockError, NotFoundError } from '../errors.js';
+import { ConflictError, NotFoundError } from '../errors.js';
+import { assertWritable as assertTripWritable, scopeToUser } from './scope.js';
 
 // ----------------------------------------------------------------
 // Types
@@ -67,7 +68,7 @@ export const placeRepository = {
     const tripRows = await db
       .select({ id: trips.id })
       .from(trips)
-      .where(and(eq(trips.id, tripId), eq(trips.userId, userId)))
+      .where(and(eq(trips.id, tripId), scopeToUser(trips, userId)))
       .limit(1);
     if (!tripRows.length) throw new NotFoundError('Trip');
 
@@ -138,7 +139,7 @@ export const placeRepository = {
     const rows = await db
       .select({ p: tripPlaces })
       .from(tripPlaces)
-      .innerJoin(trips, and(eq(trips.id, tripPlaces.tripId), eq(trips.userId, userId)))
+      .innerJoin(trips, and(eq(trips.id, tripPlaces.tripId), scopeToUser(trips, userId)))
       .where(eq(tripPlaces.id, placeId))
       .limit(1);
     return rows[0]?.p ?? null;
@@ -269,16 +270,15 @@ export const placeRepository = {
    *
    * Used directly by route handlers that need to verify writeability before
    * any nested operation (carry-forward, activity tagging, etc.).
+   *
+   * ADL-53 Stage 0 (F1): ownership is no longer re-derived here. It is delegated
+   * to the chokepoint's assertion helper, which expresses it as an existence
+   * check composed from `scopeToUser` — so this write gate and every read share
+   * one definition of "owned". Behaviour is unchanged: a trip owned by another
+   * user is indistinguishable from a missing one (404, opaque per SE-05), and a
+   * non-owner never learns that a trip is locked.
    */
   async assertWritable(userId: string, tripId: number): Promise<void> {
-    const db = getDb();
-    const rows = await db
-      .select({ status: trips.status, userId: trips.userId })
-      .from(trips)
-      .where(eq(trips.id, tripId))
-      .limit(1);
-    if (!rows.length) throw new NotFoundError('Trip');
-    if (rows[0].userId !== userId) throw new NotFoundError('Trip');
-    if (rows[0].status === 'locked') throw new LockError();
+    await assertTripWritable(userId, tripId);
   },
 };

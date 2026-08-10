@@ -8,10 +8,11 @@
  * is idempotent and safe to call defensively.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, mapShadingConfig } from '../db/index.js';
 import type { MapShadingConfig } from '../db/schema.js';
 import { MAP_SHADING_CONFIG } from '../db/seed-data.js';
+import { ownedAnd, scopeToUser } from './scope.js';
 
 /** Default seed values for the 6 shading states (MP-05: 'never_visited' excluded). */
 const DEFAULT_SHADING_CONFIG: Array<{ stateKey: string; displayName: string; colorHex: string }> =
@@ -24,11 +25,14 @@ export const shadingConfigRepository = {
    */
   async findAll(userId: string): Promise<MapShadingConfig[]> {
     const db = getDb();
-    let rows = await db.select().from(mapShadingConfig).where(eq(mapShadingConfig.userId, userId));
+    let rows = await db
+      .select()
+      .from(mapShadingConfig)
+      .where(scopeToUser(mapShadingConfig, userId));
 
     if (rows.length === 0) {
       await shadingConfigRepository.seedDefaults(userId);
-      rows = await db.select().from(mapShadingConfig).where(eq(mapShadingConfig.userId, userId));
+      rows = await db.select().from(mapShadingConfig).where(scopeToUser(mapShadingConfig, userId));
     }
 
     return rows;
@@ -45,7 +49,7 @@ export const shadingConfigRepository = {
       db
         .select()
         .from(mapShadingConfig)
-        .where(and(eq(mapShadingConfig.userId, userId), eq(mapShadingConfig.stateKey, stateKey)))
+        .where(ownedAnd(mapShadingConfig, userId, eq(mapShadingConfig.stateKey, stateKey)))
         .limit(1);
 
     let rows = await select();
@@ -53,7 +57,7 @@ export const shadingConfigRepository = {
       const anyRows = await db
         .select()
         .from(mapShadingConfig)
-        .where(eq(mapShadingConfig.userId, userId))
+        .where(scopeToUser(mapShadingConfig, userId))
         .limit(1);
       if (!anyRows.length) {
         await shadingConfigRepository.seedDefaults(userId);
@@ -82,7 +86,7 @@ export const shadingConfigRepository = {
     const updated = await db
       .update(mapShadingConfig)
       .set(updates)
-      .where(and(eq(mapShadingConfig.userId, userId), eq(mapShadingConfig.stateKey, stateKey)))
+      .where(ownedAnd(mapShadingConfig, userId, eq(mapShadingConfig.stateKey, stateKey)))
       .returning();
     return updated[0] ?? null;
   },
