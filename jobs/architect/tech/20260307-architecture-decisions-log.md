@@ -4502,6 +4502,67 @@ target is indistinguishable from one that genuinely found nothing:
 - open-dialogues **D-16** and **D-25** move from Open → Resolved, pointing here (this PR).
 - No behaviour/code change; it binds COO dispatch sequencing and reviewer-brief scoping.
 
+## ADL-53 — The userId-scoping chokepoint: one `scopeToUser` helper + a universal repository layer
+
+**Date:** 2026-08-08 · **Author:** Architect (design-reflection R1) · **Status:** DESIGNED —
+spec only, no production code changed. Implementation is staged and gated on OP-27 fresh-eyes +
+OP-35 ATDD-first QA. Full design: `jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md`.
+
+**Trigger.** COO dispatch of QUAL-43 (design-reflection R1, PO-directed: *"start with the design
+reflection work"*). The reflection (`jobs/COO/20260808-design-reflection.md` §1) named row-level
+userId-scoping as *"a convention, not a structure — enforced at ~65 hand-threaded `req.user!.id`
+sites with no central `authorize(user, resource)` chokepoint"* — simultaneously the top security
+risk and the main thing making Phase-3 sharing expensive. Absorbs BUG-84's routes→repo fold (U7/U8).
+
+**Finding that reframed the brief (two-probe, §1 of the design doc).** The "~65 sites" is exact but
+mostly benign: only **4** inline `eq(...userId...)` predicates exist in route handlers; the rest are
+`req.user!.id` passed straight into repositories that already scope internally (OP-06 §5.2/§5.3 marks
+this PASS). The real debt is three-fold, not "65 unsafe sites": (a) the filter is *written N times*
+not *composed once* (Phase-3 pain); (b) nothing *enforces* the convention; (c) one route —
+`cities.ts` (840 LOC, no repository) — bypasses the layer entirely, **but cities are global
+reference data** (`schema.ts:113-121`), so its scoping axis is creator-visibility (GE-16), not
+ownership. No *active* cross-tenant hole was found (gap-class per OP-32, not a regression); the
+invariant is simply not structural yet.
+
+**Decision (8 rulings, full text in the standalone file):**
+- **D1** One composable `scopeToUser(table, userId)`/`ownedAnd` helper (`repositories/scope.ts`)
+  every user-owned query composes; a `UserOwnedTable` type union makes passing a global table a
+  compile error. It is the single Phase-3 change-point.
+- **D2** A forgotten filter cannot be made a cheap *compile error* in Drizzle (three typed-wrapper
+  options considered and rejected as primary). Make it **caught**: routes call `getDb()` **zero**
+  times (fail-closed grep guard) + an **ATDD cross-tenant isolation matrix at every user-data route**
+  (OP-35 red bar) — the exact gap the access-matrix test's tier-only Part C leaves open. Optional
+  fast-follow ESLint rule for the in-repo residual.
+- **D3** Extract `citiesRepository` + `cityIdentityService` from `cities.ts` — logic moved verbatim.
+  Justified on **consolidation/testability/BUG-87-seam**, explicitly **NOT** as a cross-tenant fix
+  (cities are global — framing it so would send QA to write vacuous tests, the QUAL-22 trap).
+- **D4/D5** Extend the existing `tripRepository` pattern (no new pattern); target end-state is
+  `getDb` absent from `routes/**` (global reads move behind repo methods too — the clean guard).
+- **D6** Five-stage migration, each independently green + deployable, pure refactor throughout (no
+  schema change needed). QA-first (S1) per OP-35; guard flips fail-closed last (S3, after cities).
+- **D7** Design the Phase-3 seam signature (`scopeToUserOrShared`) now; defer sharing *semantics*
+  (roles/`shared_with`) to Phase-3/SE-01.
+- **D8** Explicitly out of scope: transactions/atomicity (risk #3), geocode dual-identity
+  consolidation (risk #2/GE-19), serializer unification (risk #5) — each rides its own decision.
+
+**Alternatives considered.** Typed pre-filtered query builder / branded row type / runtime SQL
+assertion — all three rejected as the *primary* enforcement because they fight Drizzle's fluent API
+(`.where()` replaces not appends; `$dynamic()`/joins leak) or guard the wrong point (return type,
+not query; request-time, not build-time). Defence-in-depth (OP-06 §5.5's own doctrine) is the
+correct posture; "impossible" here would be a rewrite bolted to security theatre.
+
+**Open questions flagged for COO (resolve before OP-27 fresh-eyes, per ADL-52 clause 1):** OQ-1
+absolutist-vs-table-aware guard (rec: absolutist); OQ-2 ESLint rule now-or-defer (rec: defer);
+OQ-3 `cityIdentityService` boundary — DB/identity only vs also geocode orchestration (rec: DB only);
+OQ-4 confirm three implementation briefs (S0/S2/S3) + one QA brief (S1), QA-first.
+
+**Implementation implications.**
+- New: `src/backend/repositories/scope.ts`, `src/backend/repositories/cities.ts`,
+  `src/backend/services/cityIdentityService.ts`, a CI/lint `getDb`-in-routes guard, an ATDD
+  cross-tenant isolation suite. No schema/migration change.
+- When S2/S3 land, OP-06 §5.1's "Gap" note and §5.2/§5.3 PASS/FAIL wording must be updated to point
+  at the chokepoint (same-PR OP-09 rule — flagged for the implementing PRs).
+- ATDD-first marks: S0 yes, S1 is-the-ATDD, S2 yes (+mock-fidelity on the identity catch-path), S3 no.
 ## ADL-54 — Narrow the add-place picker by the trip's declared country SET (hard filter)
 
 **Date:** 2026-08-08 · **Author:** Architect · **Status:** DESIGN — pending OP-27 fresh-eyes, GE-20

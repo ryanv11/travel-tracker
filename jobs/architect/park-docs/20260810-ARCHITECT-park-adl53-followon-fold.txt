@@ -1,0 +1,60 @@
+ARCHITECT PARK DOC — 2026-08-10 (ADL-53 follow-on fold)
+========================================================
+Branch: feat/adl53-userid-scoping-chokepoint (extends PR #456)
+Tracker: QUAL-43 (design-reflection R1) · BRD: n/a (internal structure/security)
+Deliverable: jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md (amended, new §R2)
+
+WHAT THIS THREAD DID
+--------------------
+Folded the second OP-27 fresh-eyes review's four follow-ons (F1-F4) + one UNVERIFIED note
+into ADL-53. The review verdict was SOUND-WITH-FOLLOW-ONS: the design ships; these are the
+reviewer's OWN specified fixes (COO verifies application; no third full review). Each fix was
+verified against live code before folding (this is a fold, not a redesign).
+
+WHERE EACH FIX LANDED (new §R2 is the index)
+--------------------------------------------
+F1 (HIGH, "single change-point" false): §0 D1 + D7 rows, §2 reasoning bullet + §2 header,
+   §6 Stage 0 (widened charter to fold JS-comparison gates like assertWritable through the
+   chokepoint + a completeness exit-check grepping BOTH predicate and JS-compare forms), §7.
+F2 (MED, second helper undefined): §2 (defines the assertion helper assertOwned/assertWritable
+   as first-class), §5.1 (labels each user-owned site predicate-composed vs assertion-guarded),
+   §6 Stage 4 (same labels).
+F3 (LOW, .where()-overwrites footgun): §6 Stage 0 detail block.
+F4 (LOW, read- vs mutate-isolation): §6 Stage 1 (empty-for-reads / 404-for-mutations per class).
+UNVERIFIED (test:backend not run): §11 brief #1 QA requirements (real libSQL, two real users,
+   green baseline before Stage 0).
+
+CODE PROBES RUN (all confirmed the reviewer's claims)
+-----------------------------------------------------
+- assertWritable at repositories/places.ts:273 and repositories/items.ts:95: select
+  where(eq(trips.id,tripId)) then `if (rows[0].userId !== userId) throw NotFoundError` — a JS
+  compare, no eq(userId) predicate. CONFIRMED F1.
+- tripRepository.findAll at repositories/trips.ts:61 (.where(eq(trips.userId,userId))) then :64
+  (.where(and(eq(trips.userId,userId), eq(trips.status,…)))) — re-applies on filtered branch
+  because .where() overwrites. CONFIRMED F3.
+- places.ts:289/352 activity tag/untag: prior placeRepository.findById(userId, placeId) guards
+  the tripPlaceActivitiesMap join read (no userId column). CONFIRMED F2.
+- assertOwned referenced (D1 row, §2 header, §3) but never defined in §2 code. CONFIRMED F2.
+
+BEYOND-SPEC GATE (the brief's stop-condition)
+---------------------------------------------
+No fold exceeded the reviewer's specification. ONE clarifying refinement, entailed by the
+reviewer's own "zero residual HAND-AUTHORED userId ownership" wording and flagged for
+transparency in §R2: the Stage-0 completeness grep's sole permitted match is the single
+chokepoint definition inside scope.ts. This narrows how the exit-check is read, not the
+design — it does NOT trigger a re-review.
+
+DOCUMENT-LIFECYCLE COMPLIANCE
+-----------------------------
+- Edited (never Write-replaced) the shared-record ADL file. Superseded/amended text stamped
+  with (REVISED 2026-08-10 Fn:) parentheticals, following the doc's own established R/§5.1/§6
+  convention; no prior content deleted.
+- ADL-log numbering handoff (52→53→54 insertion seam on merge) is UNCHANGED from the prior
+  revision — still flagged for the merging COO in §11 and the completion report.
+
+STATE AT PARK
+-------------
+- ADL-53 amended, committed, pushed; PR #456 updated; CI checked green.
+- Design SHIPS. Next COO action: dispatch the build per §11 (QA-first, OP-35). Brief #1 (QA
+  matrix) must carry the F4 per-class shapes AND the UNVERIFIED real-libSQL/two-user reqs.
+- No open questions from this thread. No blockers.

@@ -1,0 +1,53 @@
+TO: COO
+FROM: Architect
+RE: ADL-53 — second fresh-eyes follow-ons (F1-F4 + UNVERIFIED) folded
+DATE: 2026-08-10
+
+HEADER
+- Tracker: QUAL-43 (design-reflection R1) · BRD: n/a (internal structure/security)
+- ADL: ADL-53 (jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md), new §R2
+- PR: #456 (branch feat/adl53-userid-scoping-chokepoint) — updated, not a new PR
+- Second OP-27 fresh-eyes verdict being actioned: SOUND-WITH-FOLLOW-ONS
+
+WHAT WAS DONE
+Folded the reviewer's four follow-ons + one UNVERIFIED note into ADL-53. Verified each
+against live code first — this is a fold, not a redesign. New §R2 is the index of where
+each landed; the D7/D1 "single change-point" wording is corrected; the Stage-0
+completeness exit-check is specified; the second chokepoint helper is defined; §5.1/§6
+sites are relabelled.
+
+PER-FIX VERDICT (all adopted, section by section)
+- F1 [HIGH] adopted — D1/D7 rows + §2 + §7 wording corrected; §6 Stage 0 charter widened to
+  fold JS-comparison ownership gates (assertWritable → existence check via scopeToUser, lock
+  check preserved) + completeness exit-check grepping BOTH `eq(\w+\.userId` and
+  `\.userId\s*[!=]==`. VERIFIED: assertWritable at places.ts:273 / items.ts:95 is a JS compare
+  with no eq-predicate — a grep-driven Stage 0 would have missed it.
+- F2 [MED] adopted — §2 now defines the assertion helper (assertOwned/assertWritable) as
+  first-class; §5.1 + §6 Stage 4 label each site predicate-composed vs assertion-guarded.
+  VERIFIED: tripPlaceActivitiesMap join reads have no userId column; guarded by a prior
+  findById assertion.
+- F3 [LOW] adopted — §6 Stage 0 footgun line. VERIFIED: tripRepository.findAll re-applies the
+  predicate on its filtered branch because .where() overwrites (trips.ts:61,64).
+- F4 [LOW] adopted — §6 Stage 1 now specifies empty-for-reads / 404-for-mutations per class.
+- UNVERIFIED note carried — §11 brief #1 (QA) must run on a real libSQL instance (FKs + partial
+  unique indexes), seed two distinct real users, and confirm backend suites green before Stage 0.
+
+BEYOND-SPEC (the brief's stop-condition)
+No fold exceeded the reviewer's spec → no re-review triggered. ONE clarifying refinement,
+entailed by the reviewer's own "zero residual HAND-AUTHORED" wording and flagged in §R2 for
+transparency: the Stage-0 grep's sole permitted match is scope.ts's own definition. This is a
+reading of the exit-check, not a design change.
+
+CI: gh pr checks 456 — see status below (confirmed before filing).
+
+OPEN ITEMS / BLOCKERS
+- None from this thread. Design SHIPS.
+- Carry-over (unchanged, mechanical): on merge, order the ADL log 52 -> 53 -> 54 and resolve
+  the after-52 insertion seam (main advanced to ADL-54 while ADL-53 sat on this branch; no
+  duplicate — verified both logs previously).
+
+NOW UNBLOCKED
+- COO can dispatch the build per §11 (QA-first, OP-35). Brief #1 (QA cross-tenant matrix) must
+  carry the F4 per-class shapes AND the UNVERIFIED real-libSQL / two-user requirements as its
+  mock-fidelity floor. Briefs #2-#5 (scope.ts / cities / global-read / user-owned relocation +
+  guard flip) follow the §11 dependency order.

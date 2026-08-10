@@ -1,0 +1,63 @@
+TO: COO
+FROM: Architect
+RE: ADL-53 revision — OP-27 fresh-eyes B1/B2 cleared (QUAL-43, design-reflection R1)
+DATE: 2026-08-10
+
+HEADER
+- Tracker: QUAL-43 · ADL-53 · PR #456 (extended) · Branch: feat/adl53-userid-scoping-chokepoint
+- BRD: n/a (internal structure/security; no new requirement ID — confirmed in dispatch)
+- Deliverable: revised jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md (DESIGN-ONLY)
+
+WHAT WAS DONE (1-2 sentences)
+Revised ADL-53 to clear the two BLOCKING findings from its own fresh-eyes review (PR #461).
+Bounded revision — the review validated the principles; this re-scoped the migration plan
+around a fresh getDb inventory and reconciled an internal stage-numbering contradiction.
+
+FRESH getDb INVENTORY (I ran the probe myself; did NOT inherit "6")
+SIX route files hold a real `const db = getDb()` call site (three grep hits are header
+comments; three are `ReturnType<typeof getDb>` type refs — separated by reading the handlers):
+  GLOBAL-reference reads (no cross-tenant axis): cities-identity (410/603/654/50),
+    places.ts:74/163, map.ts:113/154, admin.ts:73/91/135/177/217.
+  USER-OWNED reads (silent-drop risk): cities.ts:703/766, places.ts:231/289/352,
+    trips.ts:198, items-helper.ts:87 (scope threaded by caller → must become required userId param).
+Full per-site classification is now ADL §5.1.
+
+PER-DECISION VERDICT
+- B1 (migration scoped one route too small) — RESOLVED. §5.1 = the fresh inventory; the
+  global-vs-user-owned split is now the SPINE of §6. Global half = Stage 3 (ATDD-first: no,
+  no red-bar). User-owned half = Stage 4 (ATDD-first: YES, cross-tenant matrix as the red-bar,
+  expand/contract per relocation). Guard flip = Stage 5, STRICTLY LAST (all six files clean) —
+  the old "flip after cities" would CI-red main against the other five.
+- B2 (OQ-4 adjudication contradicted §6 numbering) — RESOLVED. Both stamped superseded; one
+  coherent scheme in revised §6 + new §11. Build grows 3→4 impl briefs + 1 QA-first brief.
+  I was authorised to revisit OQ-4 and did — its intent is preserved, only the stage labels
+  were wrong.
+- N1 (§10 cited superseded OP-06 §5) — FIXED. Now points at LIVE homes §2.1 + HC-05/10/11.
+- N2/N3 — FIXED. Inline-eq count de-load-beared; line refs 728/772→727/771; shading removed
+  from F4's uncovered list.
+- Principles (D1/D2/D3/D4/D7/D8) — UNCHANGED. Superseded text retained in place (lifecycle rule).
+
+CI
+- No code changed (markdown only). npm run check exit 0 (5 pre-existing test-file infos,
+  unrelated; biome ignores md); status:check up-to-date; tracker:check OK (282 items).
+- gh pr checks #456 — will confirm green via scripts/ci-wait.sh before this lands as done.
+
+OPEN ITEMS FOR COO/PO (flagged in ADL §11 — resolve BEFORE the second fresh-eyes dispatch,
+per the ADL-52 clause-1 refinement)
+1. OQ-1 cost RE-CONFIRMATION (not a re-decision). Absolutist getDb guard STANDS; but §5.1
+   shows Stage-3's true cost is larger than the adjudication assumed ("a handful of thin
+   global-read methods" → six files incl. user-owned relocations). Confirm appetite for
+   Stage 3 (relocating GLOBAL reads purely to keep the guard a clean grep). MY REC: keep
+   absolutist — Stage 3 is mechanical/no-ATDD, Stage 4 is needed to reach the chokepoint
+   anyway, and the table-aware-AST alternative is more machinery for a weaker guarantee.
+2. ADL-LOG numbering (mechanical). main advanced ADL-52 → ADL-54 (BUG-87) while ADL-53 stayed
+   on this branch. Distinct numbers, NO duplicate (verified both logs). On merge, order the
+   log 52 → 53 → 54 and resolve the after-52 insertion seam. No decision — just a merge note.
+
+BLOCKERS: none.
+
+WHAT IS NOW UNBLOCKED
+The second OP-27 fresh-eyes review can be dispatched once you ratify §11's numbering and
+resolve the two open items above. That review must be a FRESH OPUS agent (high-stakes
+userId-scoping / access-matrix class — NEVER Fable), scoping the WHOLE amended document and
+the seams (ADL-52 clause 2). After it clears: 4 backend briefs + 1 QA-first brief per §11.

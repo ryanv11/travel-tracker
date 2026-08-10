@@ -1,0 +1,81 @@
+================================================================================
+ARCHITECT PARK DOC — 2026-08-08
+ADL-53: userId-scoping chokepoint (QUAL-43 / design-reflection R1)
+Branch: feat/adl53-userid-scoping-chokepoint  ·  DESIGN ONLY (no production code)
+================================================================================
+
+WHAT THIS THREAD WAS
+--------------------
+COO dispatched QUAL-43 — the highest-priority structural work from the 2026-08-08 design
+reflection (§1). Deliverable: an ADL designing (1) a citiesRepository + cityIdentityService,
+(2) a SINGLE scopeToUser/authorize chokepoint every user-data query composes, (3) the staged
+migration off the ~65 inline req.user!.id sites, (4) a single Phase-3 owner-OR-shared
+change-point. Must address how a forgotten filter becomes impossible-or-caught, no-regression,
+and OP-06. Absorbs BUG-84's routes→repo fold (U7/U8). ATDD-first at implementation (not this
+design thread).
+
+DELIVERABLES (committed to the branch)
+--------------------------------------
+- jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md   (full 10-section design)
+- jobs/architect/tech/20260307-architecture-decisions-log.md  (ADL-53 main-log entry appended)
+- jobs/architect/context/current.txt                        (2026-08-08 block appended)
+- jobs/COO/inbox/20260808_*-ARCHITECT-adl53-chokepoint-complete.txt (completion report)
+
+THE ONE THING TO CARRY FORWARD
+------------------------------
+I did NOT inherit the brief's "~65 unsafe sites, build one chokepoint" frame. Two probes
+(grep count + per-file/per-predicate breakdown) show the 65 is exact but mostly benign — only
+4 inline eq(userId) predicates in route handlers; the rest pass req.user!.id into repositories
+that already scope (OP-06 §5.2/§5.3 = PASS). The honest problem is three-fold: the filter is
+(a) not DRY, (b) not enforced, (c) not universal (cities.ts has no repo). And cities are GLOBAL
+data (schema.ts:113-121) — so citiesRepository is a consolidation/testability/BUG-87-seam move,
+NOT a cross-tenant fix. Getting that precise matters: framing cities as user-owned would send QA
+to write vacuous cross-tenant tests on a global table (the QUAL-22 trap). This is the
+"question the frame" rule applied by the author, for once, not the PO.
+
+THE LOAD-BEARING ENGINEERING CALL (D2)
+--------------------------------------
+"Structurally impossible" is too expensive in TypeScript+Drizzle — I considered a typed
+pre-filtered builder, a branded row type, and a runtime SQL assertion, and rejected all three as
+PRIMARY (they fight .where()-replaces-not-appends / $dynamic() / joins, or guard the wrong point).
+The correct posture is defence-in-depth (OP-06 §5.5's own doctrine): routes call getDb() ZERO
+times (fail-closed grep guard removes the route-level class entirely) + scopeToUser makes the
+repo filter a one-line review + an ATDD cross-tenant matrix at every user-data route is the
+regression net. If the reviewer/PO pushes for "impossible", that is the tradeoff to re-litigate —
+but I believe caught-with-3-layers is genuinely stronger than a rewrite-plus-theatre.
+
+STATE FOR THE NEXT ARCHITECT (fresh-eyes reviewer)
+--------------------------------------------------
+- The ADL flags FOUR open questions (§8, OQ-1..4) DELIBERATELY unresolved. Per ADL-52 clause 1,
+  the COO takes PO decisions on these and amends the spec BEFORE dispatching you. If you receive
+  the spec with OQ-1..4 still open, that step was skipped — say so.
+- Where to aim your one pass (my own weakest calls, named honestly):
+  * D5 (Medium) — the "getDb absent from routes entirely" absolutism. Is moving global reference
+    reads behind repo methods worth it vs. an AST-based table-aware guard? This is the least-sure
+    decision.
+  * D2's claim that no typed compile-time guard is worth it. Try to break it — if there is a cheap
+    Drizzle idiom I missed that makes a forgotten scope a compile error without a builder rewrite,
+    that changes the recommendation. Probe the actual Drizzle .where()/$dynamic() behaviour, don't
+    take my rejection on faith (the "reviewers' negative claims need probing too" rule).
+  * D3's verbatim-move claim — does extracting findOrUpgradeCity/createOrReuseCarriedCity/
+    insertCityOrReuse actually preserve behaviour, including the GE-16 containment SQL and the
+    catch-unique-violation + db.batch() atomicity? The ADL-46 review's lesson: where a spec asserts
+    what a move preserves, hand-execute it, don't read it.
+- NOT re-open: cities are global data (verified schema.ts:113-121); the db.transaction() avoidance
+  is preserved on purpose (separate decision, risk #3); geocode dual-identity consolidation is
+  OUT of scope (risk #2/GE-19).
+
+VERIFIED FACTS (so they aren't re-probed)
+-----------------------------------------
+- 65 req.user refs across src/backend/routes/ (grep); 4 inline eq(userId) predicates in handlers.
+- Repositories present: trips, items, places, companions, activities, tripCategories,
+  shadingConfig, users. cities.ts = the ONLY route with no repository (ls + read).
+- OP-06 §5.2/§5.3 already mark trip/place/item repository scoping + query predicates PASS.
+- access-matrix test Part C covers cross-user isolation for trips + companions + nested POST
+  only — NOT a per-route read matrix (the gap the ATDD closes).
+- No schema change needed by this work (cities table already has every column).
+
+GIT/CI
+------
+DESIGN ONLY — docs only, no source diff. CI expected green (no code). PR references QUAL-43.
+COO merges, not me.

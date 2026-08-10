@@ -1,0 +1,87 @@
+ARCHITECT PARK DOCUMENT — 2026-08-10
+ADL-53 revision: clear the OP-27 fresh-eyes B1/B2 blocking findings
+================================================================================
+
+WHAT THIS SESSION DID
+Revised jobs/architect/tech/ADL-53-userid-scoping-chokepoint.md (the userId-scoping
+chokepoint + citiesRepository design) to clear the 2 BLOCKING findings from its own
+fresh-eyes review (jobs/architect/tech/20260808-ADL53-fresh-eyes-review.md, PR #461).
+Committed to the SAME branch feat/adl53-userid-scoping-chokepoint (extends PR #456).
+This was a BOUNDED REVISION — the review validated the principles (D1/D2/D3/D4/D7/D8 and
+OQ-1/OQ-2/OQ-3 all credited); only the migration plan and an internal numbering
+contradiction needed fixing. DESIGN-ONLY: no production code changed.
+
+BRANCH / PR
+- Branch: feat/adl53-userid-scoping-chokepoint (based on origin/feat/... NOT main)
+- PR #456 (extended; description updated to note it now clears #461's B1/B2)
+- Review lived on chore/adl53-fresh-eyes-review (PR #461), read via git show.
+
+THE FRESH getDb INVENTORY (B1 core — did the probe MYSELF, did not inherit "6")
+Probe 1: grep -rn "getDb" src/backend/routes/*.ts. Probe 2: read every matched handler.
+Trap avoided: three matches are "No direct getDb()" HEADER COMMENTS (items.ts:8,
+trips.ts:10, places.ts:11); three in cities.ts are `ReturnType<typeof getDb>` TYPE refs
+(170/249/316). Only reading the handlers separates a real call site from a mention — and,
+load-bearing, a global-table read from a user-owned one.
+
+SIX route files hold a real `const db = getDb()` call site. Classification (now ADL §5.1):
+  GLOBAL-reference (consolidation move, no cross-tenant axis, ATDD-first: no, NO red-bar):
+    - cities.ts:50/410/603/654 (identity/search — S2's target)
+    - places.ts:74/163 (city-exists on POST/PATCH place)
+    - map.ts:113/154 (countries region-tier existence)
+    - admin.ts:73/91/135/177/217 (countries/regions CRUD; owner-gated writes, global tables)
+  USER-OWNED (relocation with silent-cross-tenant-drop risk, ATDD-first: YES, red-bar):
+    - cities.ts:703 (carry-forward, eq(trips.userId) @:727) — already composes scopeToUser
+    - cities.ts:766 (city items SEC-01, eq(items.userId) @:771)
+    - places.ts:231 (carry-forward: assertWritable THEN eq(items.userId) @:253, SEC-02)
+    - places.ts:289/352 (tripPlaceActivitiesMap join; upstream placeRepository.findById(userId))
+    - trips.ts:198 (trip-detail assembly: activities join + items via fetchItemsWithExtensions)
+    - items-helper.ts:87 (items; SCOPE THREADED BY CALLER conditions — sharpest case)
+
+items-helper.ts:87 is the sharpest: it reads a user-owned table but applies NO scope of its
+own — callers pass eq(items.userId,userId) in `conditions`. Relocating it must make userId a
+REQUIRED method parameter so a caller can no longer forget it. The ATDD matrix must assert it
+directly (seed USER_A items, call as USER_B, expect empty).
+
+WHAT CHANGED IN THE ADL (all via Edit, supersession-stamped, history retained)
+- Added §R revision log (top) + revised the Status/Date header.
+- §0 summary table: revised D5/D6, added D9 (fresh inventory + classification) and D10
+  (numbering reconciliation).
+- §1 F2: CORRECTION note — "every read goes through the repo" is the GOAL not current state
+  (trips.ts/places.ts/items-helper run user-owned raw reads in handlers). This over-claim is
+  WHY the old inventory undercounted. F4: removed shading over-claim (N3). F5: re-checked
+  across full inventory, line refs corrected.
+- §3 D2.1: corrected the false "cities is the last holdout" premise; kept the reviewer's
+  credit that getDb() is the ONLY exported ORM door (grep guard's door is complete).
+- §5 D5: superseded (retained) → points at new §5.1 (the full inventory table).
+- §5.1 NEW: the fresh inventory + global/user-owned split + OQ-1 cost restatement.
+- §6 REVISED: split-spined 6-stage plan (Stage 0 chokepoint / 1 QA matrix / 2 cities /
+  3 GLOBAL reads safe / 4 USER-OWNED dangerous / 5 guard flip strictly-last / 6 Phase-3).
+  Old S0-S4 table retained in a <details> block. Old→new mapping given.
+- §8: status note pointing at §11 for OQ-1/OQ-4.
+- §10 REVISED (N1): points at OP-06 LIVE homes (§2.1 + HC-05/10/11), off superseded §5.
+- COO Adjudication OQ-4: struck through + superseded stamp → §11.
+- §11 NEW: reconciled build shape (4 impl briefs + 1 QA, on revised §6 numbering) +
+  two open items for COO (OQ-1 cost re-confirmation; ADL-log merge ordering).
+
+OPEN ITEMS FOR COO (flagged in §11 — resolve BEFORE the second fresh-eyes dispatch)
+1. OQ-1 cost RE-CONFIRMATION (not a re-decision): absolutist guard stands; but §5.1 shows
+   Stage-3's true scope is larger than the adjudication assumed ("a handful of thin
+   global-read methods"). Confirm appetite for relocating global reads purely to keep the
+   guard a clean grep. MY REC: keep it (Stage 3 is mechanical/no-ATDD; Stage 4 is needed
+   anyway; the AST-guard alternative is more machinery for a weaker guarantee).
+2. ADL-log numbering (mechanical): main advanced 52→54; ADL-53 sat here. No dup. On merge
+   order 52→53→54 and resolve the after-52 insertion seam. Don't drop/mis-order the block.
+
+NEXT STEPS (COO)
+(1) Ratify §11's reconciled numbering + resolve the two §11 open items with PO where needed.
+(2) Dispatch the SECOND OP-27 fresh-eyes review — FRESH OPUS (high-stakes userId-scoping /
+    access-matrix class; NEVER Fable — its cybersecurity classifier can refuse benign
+    security-review dispatches). Scope the WHOLE amended document + the seams (ADL-52 clause 2).
+(3) On implementation: 4 backend briefs + 1 QA-first brief per §11; when Stage 2/Stage 4 land,
+    update OP-06 §2.1 + HC-05/10/11 same-PR (OP-09), and flip this ADL's §5.1 rows to "relocated".
+(4) No BRD gate (internal structure, no new requirement ID — COO-confirmed n/a).
+
+VERIFICATION
+- npm run check → exit 0 (5 pre-existing infos in a test file, unrelated; biome ignores md).
+- npm run status:check → up to date. npm run tracker:check → OK, 282 items.
+- Type-check/test suites unaffected by a markdown-only change; CI is authoritative gate.
