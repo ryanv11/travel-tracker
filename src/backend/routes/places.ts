@@ -14,12 +14,14 @@
 
 import { and, eq, inArray } from 'drizzle-orm';
 import { Router } from 'express';
-import { cities, getDb, items, regions, tripPlaceActivitiesMap, tripPlaces } from '../db/index.js';
+import { getDb, items, tripPlaceActivitiesMap, tripPlaces } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody } from '../middleware/validate.js';
 import { activityRepository } from '../repositories/activities.js';
 import { placeRepository } from '../repositories/places.js';
+import { referenceRepository } from '../repositories/reference.js';
+import { scopeToUser } from '../repositories/scope.js';
 import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
 import { CarryForwardBodySchema } from '../validation/items.schemas.js';
 import {
@@ -71,34 +73,18 @@ placesRouter.post(
     if (Number.isNaN(tripId)) throw new NotFoundError('Trip');
 
     const { city_id, arrived_on, departed_on } = req.body;
-    const db = getDb();
 
-    // Verify city exists. BUG-80: LEFT JOIN regions so this response's city
-    // object also carries region_name/region_iso — same city-shaped-payload
-    // consistency as every other route touched by this fix, even though (per
-    // usePlaces.ts's useAddPlace) the frontend only reads place.id/warnings
-    // off this response today and re-fetches trip detail for display.
-    const cityRows = await db
-      .select({
-        id: cities.id,
-        name: cities.name,
-        countryCode: cities.countryCode,
-        regionId: cities.regionId,
-        regionName: regions.name,
-        regionIso: regions.iso3166_2,
-        latitude: cities.latitude,
-        longitude: cities.longitude,
-        geocodeStatus: cities.geocodeStatus,
-      })
-      .from(cities)
-      .leftJoin(regions, eq(regions.id, cities.regionId))
-      .where(eq(cities.id, city_id))
-      .limit(1);
-    if (!cityRows.length) throw new NotFoundError('City');
+    // Verify city exists. BUG-80: the repository read LEFT JOINs regions so this
+    // response's city object also carries region_name/region_iso — same
+    // city-shaped-payload consistency as every other route touched by this fix,
+    // even though (per usePlaces.ts's useAddPlace) the frontend only reads
+    // place.id/warnings off this response today and re-fetches trip detail for
+    // display.
+    const city = await referenceRepository.findCityWithRegion(city_id);
+    if (!city) throw new NotFoundError('City');
 
     // placeRepository.create verifies trip ownership + lock status + duplicate check
     const place = await placeRepository.create(userId, tripId, city_id, arrived_on, departed_on);
-    const city = cityRows[0];
 
     res.status(201).json({
       id: place.id,
@@ -160,7 +146,6 @@ placesRouter.patch(
     if (Number.isNaN(tripId) || Number.isNaN(placeId)) throw new NotFoundError('Place');
 
     const { arrived_on, departed_on, city_id } = req.body;
-    const db = getDb();
 
     // Ownership + lock verified before any read/mutation (audit invariant 17)
     await placeRepository.assertWritable(userId, tripId);
@@ -173,12 +158,7 @@ placesRouter.patch(
     // bad city_id is a 404 rather than an FK error. Ownership is already enforced
     // on the place above, so this opens no new access surface.
     if (city_id !== undefined && city_id !== existing.cityId) {
-      const cityRows = await db
-        .select({ id: cities.id })
-        .from(cities)
-        .where(eq(cities.id, city_id))
-        .limit(1);
-      if (!cityRows.length) throw new NotFoundError('City');
+      if (!(await referenceRepository.cityExists(city_id))) throw new NotFoundError('City');
     }
 
     // BUG-28: validate effective date order against the merged result — stored
@@ -250,7 +230,11 @@ placesRouter.post(
     const foundItems = await db
       .select({ id: items.id })
       .from(items)
-      .where(and(inArray(items.id, sourceItemIds), eq(items.userId, userId)));
+      // QUAL-43 Stage 3: the ownership predicate is composed from the chokepoint
+      // (repositories/scope.ts) rather than hand-written. Term order is preserved
+      // exactly — this is a composition, not a relocation; Stage 4 moves the read
+      // itself into a repository and the composed predicate travels with it.
+      .where(and(inArray(items.id, sourceItemIds), scopeToUser(items, userId)));
 
     if (foundItems.length !== sourceItemIds.length) {
       throw new ValidationError('One or more source_item_ids do not exist');

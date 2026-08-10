@@ -12,15 +12,33 @@ npm run test:backend       # Backend unit tests
 npm run test:frontend      # Frontend unit tests
 npm run status:check       # _project/STATUS.md in sync with tracker.json
 npm run tracker:check      # tracker.json integrity — no duplicate IDs, brdRefs valid
-npm run scope:check        # userId-scoping chokepoint — no hand-authored ownership in repositories/
+npm run scope:check        # backend scope guards — ownership chokepoint + getDb-in-routes
 ```
 
-If `scope:check` fails it has found an ownership expression in
-`src/backend/repositories/**` that does not resolve through
-`repositories/scope.ts` (QUAL-43 / ADL-53 §6 Stage 0) — either an
-`eq(<table>.userId, …)` predicate or an ownership comparison written in
-application code. Route it through `scopeToUser`/`ownedAnd` (predicate) or
-`assertOwned`/`assertWritable` (existence check); do not exempt the site.
+`scope:check` runs **two** checks and also runs in CI (QUAL-43 Stage 3), so a
+failure here is a failure there.
+
+**Check 1 — ownership completeness.** It scans all of `src/backend/**` (minus
+`__tests__`) for ownership expressed by hand — either an `eq(<table>.userId, …)`
+predicate or an ownership comparison written in application code. Route the site
+through `scopeToUser`/`ownedAnd` (predicate) or `assertOwned`/`assertWritable`
+(existence check); **do not exempt it**.
+
+Two zones while the QUAL-43 migration is in flight (ADL-53 §6):
+`src/backend/repositories/*.ts` is **enforced** — a residual there fails the
+build. The rest of `src/backend/**` is **reported** (`WARN-RESIDUAL`) but does
+not fail, because Stages 2 and 4 have not finished relocating those reads yet.
+A warn is a real residual, not an exemption; Stage 5 promotes Zone B to enforced.
+
+**Check 2 — `getDb` in routes** (`WARN-GETDB`, warn-only until ADL-53 §6 Stage 5).
+Route handlers must not be able to obtain a DB handle. It counts *mentions* of
+the literal string, not just `const db = getDb()` call sites, and tags each match
+`[call-site|type-ref|import|comment]` — a `comment` tag means reword the comment
+(OP-30: fix your own text), not that work is owed.
+
+If either check flags something you just wrote, fix your code or your text —
+never add an exclusion to the script (OP-30: scanner suppressions need COO
+sign-off).
 
 If `status:check` fails, run `npm run status` and commit the regenerated
 `_project/STATUS.md` alongside your change — STATUS.md is generated, never hand-edited.

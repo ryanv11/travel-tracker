@@ -1,0 +1,104 @@
+TRACKER: QUAL-43 (ADL-53 §6 Stage 3 + §7 CORRECTION) · PR #492 · BRD: n/a
+BRANCH: feat/qual43-stage3-global-reads-guard (off main @ 73322ef)
+GITHUB ISSUE: none — QUAL-43 is tracker-only (2 probes: full `gh issue list
+  --json` title scan finds none; tracker notes carry no issue number).
+
+WHAT WAS BUILT
+Global reference reads relocated out of map/admin/places into a new
+referenceRepository; the four shading.service ownership predicates composed
+onto the scope.ts chokepoint; scope-completeness-check.sh widened to all of
+src/backend/** and given a second, warn-only getDb-in-routes check; scope:check
+wired into CI. Zero behaviour change.
+
+ACCEPTANCE CRITERIA
+1 referenceRepository holds the relocated global reads .............. PASS
+2 map.ts/admin.ts/places.ts hold no `const db = getDb()` ............ PARTIAL
+    map.ts and admin.ts: PASS. places.ts: NOT DONE, deliberately — see
+    DEVIATIONS 1. This criterion overreaches ADL-53 §6.
+3 Four shading predicates compose scopeToUser ....................... PASS
+4 Check scans all src/backend/** minus tests and exits clean ........ PARTIAL
+    Scans it; exits clean in the two-zone sense only — see DEVIATIONS 2.
+5 Warn-only getDb-in-routes guard in the same script ................ PASS
+6 scope:check runs in CI ............................................ PASS
+    Verified from the run log, not just a green tick: the step executed and
+    emitted its WARN output (run 31441102441).
+7 test:backend green, no existing test file modified ................ PASS
+    51 files / 808 tests, identical to baseline. Zero test files touched.
+8 Zero behaviour change ............................................. PASS
+
+SECURITY CHECKLIST (OP-06) — applies to the shading sites only; no route
+gained or lost auth middleware, no new route, no schema change.
+1 Auth middleware ...... unchanged (no route added/modified in its gating)
+2 Ownership preserved .. PASS. All four predicates still present, still on
+    trips, still scoping the same query. scopeToUser returns exactly the
+    predicate they spelled by hand. shading.user-scope.test.ts green, unmodified.
+    LOAD-BEARING: three of the four are in a LEFT JOIN ON-clause, not a WHERE.
+    Moving them to a WHERE would make each LEFT JOIN an effective INNER JOIN
+    and drop every unvisited country/region from the map. Preserved exactly and
+    now documented in the file header so a future edit does not undo it.
+3 FK notNull ........... n/a (no new column)
+
+CI: all 18 checks green on PR #492 @ ebd3232 (scripts/ci-wait.sh pr 492).
+
+DEVIATIONS FROM THE BRIEF (the COO additions you asked me to probe)
+1 places.ts cannot be getDb-free in Stage 3. ADL-53 §6 assigns places.ts:74/163
+  to Stage 3 and :231/:289/:352 (user-owned reads) to Stage 4. I did Stage 3's
+  two. Doing the rest would be Stage-4 work inside a stage marked
+  ATDD-first: no. The brief's DoD item 1 is wrong on this file, not the ADL.
+2 The widened check cannot exit clean as one enforced zone. routes/cities.ts
+  :748/:792 hold user-owned predicates that STAGE 2 owns exclusively; I must
+  not edit that file. A single enforced zone would red this PR and red main on
+  merge (ADL-47). Resolved with two zones: repositories/ ENFORCED, the widened
+  remainder WARN-ONLY, promoted by Stage 5 — the same expand/contract shape the
+  brief already specified for Part D. NOT an allowlist: no exemption added
+  (OP-30); every residual is named and counted every run.
+3 Also composed places.ts:253's items predicate (same mechanical shape as Part
+  B) so Stage 4's relocation cannot lose a hand-written eq() no longer there.
+
+PARTS B-E — WHAT I'D CHALLENGE
+Nothing in B, D or E. All three were right and all three were corroborated
+independently by QUAL-43's own tracker notes, which already record the
+services/** gap, "no stage CREATES the getDb guard", and "wire scope:check into
+CI" as an open COO follow-up. Part B belongs in Stage 3, not Stage 4: these are
+compositions of correct predicates, not relocations, and putting them in Stage 4
+would have forced a temporary allowlist in the widened check. Composing into a
+leftJoin ON-clause is the right shape — the alternative changes join semantics.
+Part C's INTENT was right and is the most valuable thing in this stage; only its
+"exits clean" success criterion was unachievable, for the trunk-safety reason in
+DEVIATIONS 2.
+
+OP-28 DECLARATION — one full-file rewrite: scripts/scope-completeness-check.sh.
+One check over one directory became two checks over two zones, reshaping the
+enumeration, scan loop, verdict block and header. All prior documented rationale
+preserved (two-pattern justification, permitted-matches rule, test-exclusion
+reasoning, stated text-not-syntax blind spot). Everything else was targeted
+edits; reference.ts is a new file.
+
+PART D DECISION — mentions, not call sites. A `const db = getDb()` pattern is
+evadable (`const d = getDb()`, destructuring, passing getDb as a value) and
+door-completeness is a property of the STRING. Each match is tagged
+[call-site|type-ref|import|comment] so Stage 5 sees real work vs. rewording.
+Current: 21 mentions / 5 files. Before Stage 5 flips it, 3 comment lines
+(items.ts:8, places.ts:11, trips.ts:10) need rewording — trivial, and exactly
+what the decision intends.
+
+GUARD FAIL-CLOSED VERIFICATION (not assumed — 4 injected faults on a scratch
+tree, each must exit 1 and did): Zone A predicate residual; Zone A JS-comparison
+residual; gutted chokepoint definition; missing routes/ dir. Added a 5th
+structural guard so an empty Zone B enumeration fails rather than passing
+vacuously.
+
+OPEN ITEMS FOR THE COO
+- ADL-53 needs a stamp I deliberately did NOT make: §3 item 1 / §6 Stage 5
+  should record that the guard was AUTHORED in Stage 3, and that Stage 5 now has
+  TWO promotions (flip Check 2 to error AND promote Check 1 Zone B to enforced).
+  ADL-53 is an Architect shared record and Stage 0 set the precedent that the
+  COO records stage status separately (#488/#489) — flagged, not edited.
+- .claude/skills/pre-push/SKILL.md WAS updated in this PR (document-lifecycle
+  rule 1: it asserted scope:check scans only repositories/ and holds one check).
+- Stage 5's brief must cover both promotions, not just the guard flip.
+
+UNBLOCKED: Stage 4 (user-owned relocation) — its residual set is now defined by
+the script's output, not a hand inventory. Stage 2 is unaffected; cities.ts was
+not touched.
+BLOCKERS: none.

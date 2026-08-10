@@ -22,6 +22,13 @@ jobs:
         run: npm run status:check
       - name: tracker.json integrity
         run: npm run tracker:check
+      # QUAL-43 / ADL-53: backend scope guards. Was pre-push-only, which is a
+      # local pre-filter CI never runs — a guard living only there is bypassed by
+      # anyone who skips the checklist. Fails the build on hand-authored ownership
+      # in src/backend/repositories/; warns (by design, until ADL-53 §6 Stage 5)
+      # on the widened scan and on `getDb` in routes.
+      - name: Backend scope guards
+        run: npm run scope:check
 
   typecheck:
     name: Type Check
