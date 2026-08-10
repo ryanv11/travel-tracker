@@ -3,28 +3,28 @@
  *
  * City search, creation, carry-forward query, and city-level item history.
  * Geocoding is attempted immediately on city creation; failures are silent (GE-12).
+ *
+ * ADL-53 §4 / D3 (QUAL-43 Stage 2): the handlers here are thin. Every query
+ * lives in `citiesRepository`; the identity / find-or-create algebra lives in
+ * `cityIdentityService`. This file opens no database handle of its own — every
+ * query is a repository call (ADL-53 D5).
+ * What remains in the handlers is request/response shape plus the
+ * resolve-then-create geocode ORCHESTRATION, which OQ-3 deliberately kept out
+ * of the identity service.
  */
 
-import { and, asc, desc, eq, inArray, isNull, like, notInArray, or, sql } from 'drizzle-orm';
 import { Router } from 'express';
-import {
-  cities,
-  countries,
-  getDb,
-  itemExperiences,
-  itemHotels,
-  itemRestaurants,
-  items,
-  regions,
-  tripPlaces,
-  trips,
-} from '../db/index.js';
 import { NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
-import { isUniqueViolation } from '../services/db-errors.js';
-import { resolveByOsmId, resolveCity, resolveCityName } from '../services/geocoding.service.js';
+import { citiesRepository } from '../repositories/cities.js';
+import {
+  createOrReuseCarriedCity,
+  findOrUpgradeCity,
+  insertCityOrReuse,
+} from '../services/cityIdentityService.js';
+import { resolveCity, resolveCityName } from '../services/geocoding.service.js';
 import {
   CityItemsQuerySchema,
   CreateCitySchema,
@@ -33,9 +33,6 @@ import {
 } from '../validation/cities.schemas.js';
 
 export const citiesRouter = Router();
-
-/** A full cities row, as returned by a select()/insert().returning(). */
-type CityRow = typeof cities.$inferSelect;
 
 // ----------------------------------------------------------------
 // GET /api/cities  (search)
@@ -51,68 +48,11 @@ citiesRouter.get(
     };
     const userId = req.user!.id;
 
-    const db = getDb();
-
-    const conditions = [like(cities.name, `%${q}%`)];
-    // GE-20 (ADL-54 D1/D2, fresh-eyes F4): country_code (singular, D12) and
-    // country_codes (plural, the trip filter SET) are separate params.
-    // Cities-path precedence contract (F4 — unspecified by the ADL, stated
-    // here per the fresh-eyes recommendation): the single explicit
-    // country_code wins when both are present, matching the geocode-path
-    // precedence D1 already states. No current caller sends both (verified:
-    // useCities.ts sends only `q`), so this branch is defensive totality,
-    // not a live path.
-    if (country_code) {
-      conditions.push(eq(cities.countryCode, country_code));
-    } else if (country_codes && country_codes.length > 0) {
-      // F1 (fresh-eyes, load-bearing): only push inArray when the set is
-      // NON-EMPTY. A present-but-empty country_codes ('' -> []) means
-      // "not yet constrained" (PO Q1 ruling) and must fall through to no
-      // filter at all — inArray(col, []) compiles to SQL `false`, which
-      // would silently return zero rows and invert that ruling.
-      conditions.push(inArray(cities.countryCode, country_codes));
-    }
-
-    // ADL-46 GE-16 / D5 containment (§4.4): a 'pending' city is visible only in
-    // its creator's own searches; it becomes globally visible once 'resolved'.
-    // The IS NULL branch (F3) is load-bearing and permanent, not a legacy
-    // artefact — ON DELETE SET NULL regenerates a NULL creator on every user
-    // deletion, so a row that is pending AND has no known creator must be global
-    // (seeded, pre-column, or creator-since-deleted), never invisible-to-everyone.
-    // 'unresolvable' rows are NOT globally visible — they were never resolved, so
-    // they stay creator-scoped (or global when the creator is NULL) exactly like
-    // 'pending'. Only 'resolved' promotes a row to the shared catalogue.
-    const containment = or(
-      eq(cities.geocodeStatus, 'resolved'),
-      eq(cities.createdByUserId, userId),
-      isNull(cities.createdByUserId),
-    );
-
-    // BUG-72: enrich each row with the region's human-readable name and ISO
-    // code so the frontend can render "city, state, country" instead of a
-    // bare region_id integer (which the client cannot resolve across
-    // countries — it only loads the region list for one selected country).
-    // LEFT JOIN is load-bearing, not cosmetic: an INNER join would drop every
-    // row with a NULL region_id (any city in a non-region-tier country, or a
-    // region-tier city not yet assigned one) out of search results entirely,
-    // silently narrowing the GE-16 containment result set above. region_id
-    // itself stays in the response unchanged — existing consumers depend on it.
-    const results = await db
-      .select({
-        id: cities.id,
-        name: cities.name,
-        country_code: cities.countryCode,
-        region_id: cities.regionId,
-        region_name: regions.name,
-        region_iso: regions.iso3166_2,
-        latitude: cities.latitude,
-        longitude: cities.longitude,
-        geocode_status: cities.geocodeStatus,
-      })
-      .from(cities)
-      .leftJoin(regions, eq(regions.id, cities.regionId))
-      .where(and(...conditions, containment))
-      .orderBy(cities.name);
+    const results = await citiesRepository.search(userId, {
+      q,
+      countryCode: country_code,
+      countryCodes: country_codes,
+    });
 
     res.json(results);
   }),
@@ -137,270 +77,6 @@ function serializeCity(row: {
     longitude: row.longitude,
     geocode_status: row.geocodeStatus,
   };
-}
-
-/**
- * ADL-46 D13 (§4.2.1) — the three-step find-or-create, steps 1 & 2. Returns an
- * existing (or wildcard-upgraded) city row for (name, countryCode, regionId), or
- * null if a genuine insert is needed. NOT creator-scoped: the unique index is
- * global, so pass 1 must be able to return another user's pending row (OP-27 P2 /
- * §8 row 6) rather than colliding with the index on insert.
- *
- *   Step 1 — exact match on (name COLLATE NOCASE, country_code, COALESCE(region_id,0)),
- *            mirroring uniq_cities_name_country_region_ci exactly. Creator- and
- *            status-blind: the unique index is unconditional, so a filtered
- *            step 1 would miss another user's row and the follow-on insert
- *            would collide on it (ADL-46 F1/F2 ruling §3.1/§3.3 amendment 2).
- *   Step 2 — WILDCARD UPGRADE: if the request carries a region and step 1 missed,
- *            adopt a region-less row of the same name+country by SETTING its
- *            region_id. A region-less row is an under-specified record, not a
- *            different city — specialising it prevents the duplicate that naively
- *            adding `AND COALESCE(region_id,0)=…` would create (the BUG-33 class).
- *            ADL-46 F1/F2 ruling §3.3 (R1): scoped to rows the caller may
- *            legitimately mutate — `geocode_status IN ('pending','unresolvable')`
- *            (whitelist, not `<> 'resolved'`: fails closed on a future status)
- *            AND `(created_by_user_id = caller OR created_by_user_id IS NULL)`.
- *            A `resolved` row is visible to the caller (GE-16) but must NOT be
- *            upgradeable — read-through is global because the index is global;
- *            write-through is scoped because nothing forces it to be. Declining
- *            falls through to the ordinary insert on a distinct identity key
- *            (legal under D13, at most one extra row per name+country). On a
- *            successful upgrade the retry budget resets and, if the adopted row
- *            is still 'pending', resolution is re-fired — the region is the
- *            question, and a region-constrained lookup can collapse an
- *            ambiguity the unconstrained one could not (ruling §2.5/§3.3
- *            amendment 3). Not fired for an adopted 'unresolvable' row: the
- *            geocoder returned zero candidates, and a region constraint cannot
- *            turn zero into some (ruling §2.5 asymmetry).
- *
- *   Step 2b (reverse, NO region requested) — collapse to (name, country_code)
- *            regardless of region. This is the "today's behaviour" case the old
- *            `(name, country_code)` unique index enforced, which §4.2.1 requires
- *            we preserve:
- *              • exactly ONE row matches → return it (single-match, NO regression);
- *              • TWO OR MORE match → return null; the caller creates a 'pending'
- *                row and leaves D14 disambiguation to the frontend, rather than
- *                silently picking one (§4.2.1 / D14, QA B4).
- *            Without this, a region-tier country holding exactly one *regioned*
- *            match (e.g. only "Springfield, IL") would miss step 1 (its
- *            COALESCE(region_id,0) ≠ 0), skip step 2 (no region requested), and
- *            the caller would INSERT a second, region-less duplicate — the BUG-33
- *            class arriving through the reverse door.
- */
-async function findOrUpgradeCity(
-  db: ReturnType<typeof getDb>,
-  name: string,
-  countryCode: string,
-  regionId: number | null,
-  callerUserId: string,
-) {
-  const regionKey = regionId ?? 0;
-
-  // Step 1 — exact match on the composite identity key. Creator- and
-  // status-blind on purpose (see doc comment above).
-  const exact = await db
-    .select()
-    .from(cities)
-    .where(
-      and(
-        eq(cities.countryCode, countryCode),
-        sql`${cities.name} = ${name} COLLATE NOCASE`,
-        sql`COALESCE(${cities.regionId}, 0) = ${regionKey}`,
-      ),
-    )
-    .limit(1);
-  if (exact.length) return exact[0];
-
-  // Step 2 — wildcard upgrade (only when the request carries a region).
-  // ADL-46 F1/F2 ruling §3.3 (R1): whitelist status + creator-or-null scoping.
-  if (regionId != null) {
-    const regionless = await db
-      .select()
-      .from(cities)
-      .where(
-        and(
-          eq(cities.countryCode, countryCode),
-          sql`${cities.name} = ${name} COLLATE NOCASE`,
-          isNull(cities.regionId),
-          inArray(cities.geocodeStatus, ['pending', 'unresolvable']),
-          or(eq(cities.createdByUserId, callerUserId), isNull(cities.createdByUserId)),
-        ),
-      )
-      .limit(1);
-    if (regionless.length) {
-      const now = new Date().toISOString();
-      const upgraded = await db
-        .update(cities)
-        .set({ regionId, geocodeAttempts: 0, updatedAt: now })
-        .where(eq(cities.id, regionless[0].id))
-        .returning();
-      const upgradedRow = upgraded[0];
-      // Re-ask: the region is the question, and a region-constrained lookup
-      // can collapse an ambiguity the unconstrained one could not. Never fired
-      // for an adopted 'unresolvable' row (ruling §2.5 asymmetry — zero
-      // candidates cannot become some just because a region was added).
-      if (upgradedRow.geocodeStatus === 'pending') {
-        resolveCity(upgradedRow.id).catch(() => {
-          /* handled internally — defensive catch */
-        });
-      }
-      return upgradedRow;
-    }
-    // Has-region path ends here: step 1 + step 2 are authoritative for a
-    // region-bearing request. Do NOT fall through to the reverse branch below.
-    return null;
-  }
-
-  // Step 2b — reverse single-match (only when NO region was requested). Match on
-  // (name, country_code) regardless of region; exactly one → return it (the
-  // no-regression case §4.2.1 mandates), two or more → null (ambiguous → caller
-  // creates pending, D14 disambiguates).
-  const sameName = await db
-    .select()
-    .from(cities)
-    .where(and(eq(cities.countryCode, countryCode), sql`${cities.name} = ${name} COLLATE NOCASE`))
-    .limit(2);
-  if (sameName.length === 1) return sameName[0];
-
-  return null;
-}
-
-/** BUG-75 v3 §B2/B3 — an existing row already carrying this exact OSM ref, if any. */
-async function findCityByOsmRef(
-  db: ReturnType<typeof getDb>,
-  osmType: string | null | undefined,
-  osmId: number | null | undefined,
-): Promise<CityRow | null> {
-  if (osmType == null || osmId == null) return null;
-  const rows = await db
-    .select()
-    .from(cities)
-    .where(and(eq(cities.osmType, osmType), eq(cities.osmId, osmId)))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
-/**
- * BUG-75 v3 §B3/M1/F3 — the caught-unique-violation → re-select-and-reuse
- * pattern shared by every create-path INSERT (both the legacy resolved/
- * pending inserts below and the carried-ref inserts in
- * createOrReuseCarriedCity). A concurrent request for the same real place
- * wins the INSERT race; the loser catches the violation, re-selects, and
- * reuses the winner's row — never a 500, never a silent duplicate attempt.
- *
- * Not wrapped in db.transaction(): a single INSERT is already atomic w.r.t.
- * the unique index in SQLite, and a live probe against this project's libSQL
- * :memory: test client showed db.transaction() nulls out the client's
- * connection, breaking every subsequent query on it (repositories/trips.ts
- * documents the same finding) — the catch + re-select pattern here is
- * correct without an explicit transaction wrapper.
- */
-async function insertCityOrReuse(
-  insert: () => Promise<CityRow[]>,
-  reselect: () => Promise<CityRow | null | undefined>,
-): Promise<{ row: CityRow; created: boolean }> {
-  try {
-    const inserted = await insert();
-    return { row: inserted[0], created: true };
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-    const existing = await reselect();
-    if (existing) return { row: existing, created: false };
-    throw err;
-  }
-}
-
-/**
- * BUG-75 v3 §B1-B3 — find-or-create by the CARRIED OSM identity
- * (osm_type, osm_id), bypassing the legacy (name, country, region) match
- * entirely (B2: the legacy fallback fires only when the incoming pick has NO
- * osm_id — firing it here would collapse distinct real places sharing
- * (name, country, region) onto each other, exactly the coexistence case this
- * feature exists to fix).
- *
- *   (a) an existing row already carrying this exact ref → reuse directly, no
- *       /lookup call (bounds egress: a repeat create of an already-known
- *       place costs zero additional Nominatim requests).
- *   (b) miss → canonicalize by ID via resolveByOsmId (F1, /lookup?osm_ids=).
- *       The server re-derives canonical coords/name from its OWN lookup; the
- *       carried ref only SELECTS which real place this is (v3 §2.3 — no
- *       client-trusted coordinates).
- *   (c)/(d) INSERT — resolved if canonicalized, else PENDING carrying the ref
- *       (M-B: covers BOTH genuinely offline/error AND a stale/reclassified
- *       carried id the same way, since both degrade to the same self-healing
- *       pending state on the create path — the standing 15-minute queue
- *       picks it up via resolveCity's carried-ref branch, which is where the
- *       two cases DO diverge, M-B's terminal 'unresolvable'). Both INSERTs
- *       go through insertCityOrReuse (M1/F3).
- */
-async function createOrReuseCarriedCity(
-  db: ReturnType<typeof getDb>,
-  input: {
-    osmType: 'node' | 'way' | 'relation';
-    osmId: number;
-    displayName: string | null;
-    name: string;
-    countryCode: string;
-    regionId: number | null;
-    userId: string;
-  },
-): Promise<{ city: CityRow; created: boolean }> {
-  const { osmType, osmId, displayName, name, countryCode, regionId, userId } = input;
-
-  const existingByRef = await findCityByOsmRef(db, osmType, osmId);
-  if (existingByRef) return { city: existingByRef, created: false };
-
-  const canonical = await resolveByOsmId(osmType, osmId);
-  const now = new Date().toISOString();
-
-  if (canonical) {
-    const { row, created } = await insertCityOrReuse(
-      () =>
-        db
-          .insert(cities)
-          .values({
-            name: canonical.name?.trim() || name,
-            countryCode,
-            regionId,
-            latitude: canonical.latitude,
-            longitude: canonical.longitude,
-            osmType: canonical.osmType ?? osmType,
-            osmId: canonical.osmId ?? osmId,
-            displayName: canonical.displayName ?? displayName,
-            geocodeStatus: 'resolved',
-            createdByUserId: userId,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning(),
-      () => findCityByOsmRef(db, osmType, osmId),
-    );
-    return { city: row, created };
-  }
-
-  // M-B: offline/error OR a stale/reclassified carried id — both degrade to
-  // a pending row retaining the carried ref so a later resolve (the
-  // standing queue) can canonicalize or terminally resolve it.
-  const { row, created } = await insertCityOrReuse(
-    () =>
-      db
-        .insert(cities)
-        .values({
-          name,
-          countryCode,
-          regionId,
-          osmType,
-          osmId,
-          displayName,
-          geocodeStatus: 'pending',
-          createdByUserId: userId,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning(),
-    () => findCityByOsmRef(db, osmType, osmId),
-  );
-  return { city: row, created };
 }
 
 // ----------------------------------------------------------------
@@ -428,17 +104,12 @@ citiesRouter.post(
   asyncHandler(async (req, res) => {
     const { name, country_code, region_id, osm_type, osm_id, display_name } = req.body;
     const userId = req.user!.id;
-    const db = getDb();
 
     // Verify country exists
-    const countryRows = await db
-      .select({ regionTierEnabled: countries.regionTierEnabled })
-      .from(countries)
-      .where(eq(countries.countryCode, country_code))
-      .limit(1);
-    if (!countryRows.length) throw new NotFoundError('Country');
+    const country = await citiesRepository.findCountryRegionTier(country_code);
+    if (!country) throw new NotFoundError('Country');
 
-    const { regionTierEnabled } = countryRows[0];
+    const { regionTierEnabled } = country;
 
     // region_id is OPTIONAL when region_tier_enabled = 1, but MUST be NULL when 0.
     if (regionTierEnabled === 0 && region_id != null) {
@@ -449,13 +120,9 @@ citiesRouter.post(
     // ISO code so the geocoder lookup can be disambiguated by region (D12 step 2).
     let regionIso: string | null = null;
     if (region_id != null) {
-      const regionRows = await db
-        .select({ id: regions.id, iso: regions.iso3166_2 })
-        .from(regions)
-        .where(and(eq(regions.id, region_id), eq(regions.countryCode, country_code)))
-        .limit(1);
-      if (!regionRows.length) throw new NotFoundError('Region');
-      regionIso = regionRows[0].iso;
+      const region = await citiesRepository.findRegionInCountry(region_id, country_code);
+      if (!region) throw new NotFoundError('Region');
+      regionIso = region.iso;
     }
 
     // BUG-75 v3 §2.3/§B1-B3 — carried-pick branch. B2: a carried osm_id takes
@@ -468,7 +135,7 @@ citiesRouter.post(
     // unchanged — the server never trusts client coordinates (§2.3; none are
     // even accepted by CreateCitySchema).
     if (osm_type != null && osm_id != null) {
-      const result = await createOrReuseCarriedCity(db, {
+      const result = await createOrReuseCarriedCity({
         osmType: osm_type,
         osmId: osm_id,
         displayName: display_name ?? null,
@@ -483,7 +150,7 @@ citiesRouter.post(
 
     // ── Legacy (name, country, region) branch — unchanged shape ──
     // Pass 1 (§4.3 step 2) — find-or-create against the user's submitted name.
-    const found1 = await findOrUpgradeCity(db, name, country_code, region_id ?? null, userId);
+    const found1 = await findOrUpgradeCity(name, country_code, region_id ?? null, userId);
     if (found1) {
       res.status(200).json(serializeCity(found1));
       return;
@@ -507,7 +174,6 @@ citiesRouter.post(
       // Pass 2 (§4.3 step 4a) — find-or-create against the CANONICAL name. This
       // is the step that does the real convergence work and is easy to omit.
       const found2 = await findOrUpgradeCity(
-        db,
         canonicalName,
         country_code,
         region_id ?? null,
@@ -534,24 +200,21 @@ citiesRouter.post(
       const now = new Date().toISOString();
       const { row: insertedRow, created } = await insertCityOrReuse(
         () =>
-          db
-            .insert(cities)
-            .values({
-              name: canonicalName,
-              countryCode: country_code,
-              regionId: region_id ?? null,
-              latitude: best.latitude,
-              longitude: best.longitude,
-              osmType: best.osmType ?? null,
-              osmId: best.osmId ?? null,
-              displayName: best.displayName ?? null,
-              geocodeStatus: 'resolved',
-              createdByUserId: userId,
-              createdAt: now,
-              updatedAt: now,
-            })
-            .returning(),
-        () => findCityByOsmRef(db, best.osmType, best.osmId),
+          citiesRepository.insert({
+            name: canonicalName,
+            countryCode: country_code,
+            regionId: region_id ?? null,
+            latitude: best.latitude,
+            longitude: best.longitude,
+            osmType: best.osmType ?? null,
+            osmId: best.osmId ?? null,
+            displayName: best.displayName ?? null,
+            geocodeStatus: 'resolved',
+            createdByUserId: userId,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        () => citiesRepository.findByOsmRef(best.osmType, best.osmId),
       );
       res.status(created ? 201 : 200).json(serializeCity(insertedRow));
       return;
@@ -569,19 +232,16 @@ citiesRouter.post(
     const now = new Date().toISOString();
     const { row: city, created } = await insertCityOrReuse(
       () =>
-        db
-          .insert(cities)
-          .values({
-            name,
-            countryCode: country_code,
-            regionId: region_id ?? null,
-            geocodeStatus: 'pending',
-            createdByUserId: userId,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning(),
-      () => findOrUpgradeCity(db, name, country_code, region_id ?? null, userId),
+        citiesRepository.insert({
+          name,
+          countryCode: country_code,
+          regionId: region_id ?? null,
+          geocodeStatus: 'pending',
+          createdByUserId: userId,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      () => findOrUpgradeCity(name, country_code, region_id ?? null, userId),
     );
 
     // Fire-and-forget the queue re-resolution so a legitimate city created while
@@ -602,8 +262,8 @@ citiesRouter.post(
       });
     }
 
-    const fresh = await db.select().from(cities).where(eq(cities.id, city.id)).limit(1);
-    res.status(created ? 201 : 200).json(serializeCity(fresh[0] ?? city));
+    const fresh = await citiesRepository.findById(city.id);
+    res.status(created ? 201 : 200).json(serializeCity(fresh ?? city));
   }),
 );
 
@@ -621,31 +281,9 @@ citiesRouter.get(
     const cityId = parseInt(String(req.params.id), 10);
     if (Number.isNaN(cityId)) throw new NotFoundError('City');
 
-    const db = getDb();
+    const city = await citiesRepository.findByIdWithRegion(cityId);
+    if (!city) throw new NotFoundError('City');
 
-    // BUG-80: LEFT JOIN regions so this city-shaped payload also carries
-    // region_name/region_iso, matching GET /api/cities (search). LEFT, not
-    // INNER: a NULL region_id (non-region-tier country, or a region-tier city
-    // not yet assigned one) must still return the city row, not 404 it.
-    const rows = await db
-      .select({
-        id: cities.id,
-        name: cities.name,
-        countryCode: cities.countryCode,
-        regionId: cities.regionId,
-        regionName: regions.name,
-        regionIso: regions.iso3166_2,
-        latitude: cities.latitude,
-        longitude: cities.longitude,
-        geocodeStatus: cities.geocodeStatus,
-      })
-      .from(cities)
-      .leftJoin(regions, eq(regions.id, cities.regionId))
-      .where(eq(cities.id, cityId))
-      .limit(1);
-    if (!rows.length) throw new NotFoundError('City');
-
-    const city = rows[0];
     res.json({
       id: city.id,
       name: city.name,
@@ -672,22 +310,16 @@ citiesRouter.patch(
     const cityId = parseInt(String(req.params.id), 10);
     if (Number.isNaN(cityId)) throw new NotFoundError('City');
 
-    const db = getDb();
-
     // Verify city exists
-    const cityRows = await db.select().from(cities).where(eq(cities.id, cityId)).limit(1);
-    if (!cityRows.length) throw new NotFoundError('City');
+    const existing = await citiesRepository.findById(cityId);
+    if (!existing) throw new NotFoundError('City');
 
     const { region_id } = req.body as { region_id?: number | null };
 
     // If region_id is provided (non-null), verify the region exists
     if (region_id != null) {
-      const regionRows = await db
-        .select({ id: regions.id })
-        .from(regions)
-        .where(eq(regions.id, region_id))
-        .limit(1);
-      if (!regionRows.length) throw new ValidationError('region_id does not exist');
+      const region = await citiesRepository.findRegionById(region_id);
+      if (!region) throw new ValidationError('region_id does not exist');
     }
 
     const now = new Date().toISOString();
@@ -697,7 +329,7 @@ citiesRouter.patch(
         ? { regionId: region_id ?? null, updatedAt: now }
         : { updatedAt: now };
 
-    const updated = await db.update(cities).set(setValues).where(eq(cities.id, cityId)).returning();
+    const updated = await citiesRepository.updateCity(cityId, setValues);
 
     const city = updated[0];
     res.json({
@@ -721,35 +353,8 @@ citiesRouter.get(
     const cityId = parseInt(String(req.params.id), 10);
     if (Number.isNaN(cityId)) throw new NotFoundError('City');
 
-    const db = getDb();
-
-    // ER schema §6.2: next_time items for this city across the user's trips (ADL-18)
     const userId = req.user!.id;
-    const rows = await db
-      .select({
-        id: items.id,
-        itemType: items.itemType,
-        status: items.status,
-        notes: items.notes,
-        sourceTripName: trips.name,
-        sourceTripEndDate: trips.endDate,
-        restaurantName: itemRestaurants.name,
-        hotelPropertyName: itemHotels.propertyName,
-      })
-      .from(items)
-      .innerJoin(tripPlaces, eq(tripPlaces.id, items.tripPlaceId))
-      .innerJoin(trips, eq(trips.id, tripPlaces.tripId))
-      .leftJoin(itemRestaurants, eq(itemRestaurants.itemId, items.id))
-      .leftJoin(itemHotels, eq(itemHotels.itemId, items.id))
-      .where(
-        and(
-          eq(tripPlaces.cityId, cityId),
-          eq(items.status, 'next_time'),
-          eq(trips.userId, userId),
-          notInArray(items.itemType, ['flight', 'car_rental']),
-        ),
-      )
-      .orderBy(desc(trips.endDate));
+    const rows = await citiesRepository.findCarryForwardItems(userId, cityId);
 
     res.json(
       rows.map((r) => ({
@@ -784,60 +389,12 @@ citiesRouter.get(
       sort_order?: 'asc' | 'desc';
     };
 
-    const db = getDb();
-
-    // ER schema §6.1: completed items at this city — scoped to the requesting user (SEC-01)
-    const conditions = [
-      eq(tripPlaces.cityId, cityId),
-      eq(items.userId, userId),
-      inArray(items.itemType, ['restaurant', 'hotel', 'experience']),
-      eq(items.status, 'completed'),
-    ];
-    if (type) conditions.push(eq(items.itemType, type));
-
-    const effectiveRatingSql = sql<
-      number | null
-    >`COALESCE(${itemRestaurants.rating}, ${itemHotels.rating}, ${itemExperiences.rating})`;
-
-    const query = db
-      .select({
-        id: items.id,
-        itemType: items.itemType,
-        status: items.status,
-        notes: items.notes,
-        tripName: trips.name,
-        tripStartDate: trips.startDate,
-        restaurantName: itemRestaurants.name,
-        restaurantRating: itemRestaurants.rating,
-        restaurantPostVisitNotes: itemRestaurants.postVisitNotes,
-        hotelPropertyName: itemHotels.propertyName,
-        hotelRating: itemHotels.rating,
-        hotelPostVisitNotes: itemHotels.postVisitNotes,
-        experienceRating: itemExperiences.rating,
-        experiencePostVisitNotes: itemExperiences.postVisitNotes,
-        // Computed rating for sort/filter — COALESCE across types
-        effectiveRating: effectiveRatingSql,
-      })
-      .from(items)
-      .innerJoin(tripPlaces, eq(tripPlaces.id, items.tripPlaceId))
-      .innerJoin(trips, eq(trips.id, tripPlaces.tripId))
-      .leftJoin(itemRestaurants, eq(itemRestaurants.itemId, items.id))
-      .leftJoin(itemHotels, eq(itemHotels.itemId, items.id))
-      .leftJoin(itemExperiences, eq(itemExperiences.itemId, items.id))
-      .where(and(...conditions))
-      .$dynamic();
-
-    // Default: sort by rating DESC (existing behaviour). sort_by=rating makes it explicit;
-    // sort_order=asc flips the direction.
-    const useRatingSort = !sort_by || sort_by === 'rating';
-    const rows = await query.orderBy(
-      useRatingSort && sort_order === 'asc' ? asc(effectiveRatingSql) : desc(effectiveRatingSql),
-    );
-
-    // Apply min_rating filter in JS (simpler than raw SQL for this case)
-    const filtered = min_rating
-      ? rows.filter((r) => r.effectiveRating != null && r.effectiveRating >= Number(min_rating))
-      : rows;
+    const filtered = await citiesRepository.findCityItems(userId, cityId, {
+      type,
+      minRating: min_rating,
+      sortBy: sort_by,
+      sortOrder: sort_order,
+    });
 
     res.json(
       filtered.map((r) => ({
