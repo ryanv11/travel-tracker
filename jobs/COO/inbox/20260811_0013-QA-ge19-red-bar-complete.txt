@@ -2,7 +2,7 @@ TO: COO
 FROM: QA
 RE: GE-19 / BUG-85 ATDD red bar — geocode status-lifecycle acceptance criteria (ADL-55 §7)
 
-TRACKER: BUG-85 · BRD: GE-19 (v3.20) · BRANCH: test/ge19-red-bar · PR: <filled after push>
+TRACKER: BUG-85 · BRD: GE-19 (v3.20) · BRANCH: test/ge19-red-bar · PR: #512 (CI green, 18/18)
 CLASS (OP-32): gap · ROLE: independent ATDD red bar — I wrote the tests, did NOT implement behaviour.
 
 WHAT WAS TESTED (build ref main 524e32b): acceptance criteria 1–8 and 10, service + API level,
@@ -38,7 +38,7 @@ FINDINGS (2 items — action for COO):
 OWNED ELSEWHERE (noted so nothing falls through): crit 9 (label strings) = Frontend component tests;
 crit 11 (nextGeocodeState table test) = Backend, co-located with the pure function.
 
-CI: full backend suite 849 passed | 10 skipped; type:check:all clean; biome clean. PR CI: <after push>.
+CI: full backend suite 849 passed | 10 skipped; type:check:all clean; biome clean. PR #512 CI: green (18/18).
 BLOCKERS: none. FILES: src/backend/{services/__tests__/geocoding.ge19-lifecycle,
 services/__tests__/cityIdentity.ge19-reopen-reuse, routes/__tests__/geocode-queue.ge19}.test.ts +
 jobs/qa/tech/20260811-ge19-red-bar.md. Do NOT merge (COO reviews/merges).

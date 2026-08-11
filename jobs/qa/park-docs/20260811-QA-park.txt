@@ -5,8 +5,8 @@ Session: GE-19 / BUG-85 ATDD RED BAR (ADL-55 §7 criteria 1–8, 10)
 STATE AT PARK
 ────────────────────────────────────────────────────────────────────────
 Branch:  test/ge19-red-bar  (off main 524e32b)
-PR:      test(GE-19): ATDD red bar — geocode status-lifecycle acceptance
-         criteria (ADL-55 §7)   [PR # filled after push; CI green required]
+PR:      #512 — test(GE-19): ATDD red bar — geocode status-lifecycle
+         acceptance criteria (ADL-55 §7)   [CI green, 18/18 @ 18182a3]
 Status:  Red bar delivered and demonstrated. Do NOT merge — COO reviews/merges.
 
 ────────────────────────────────────────────────────────────────────────
