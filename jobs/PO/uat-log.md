@@ -51,6 +51,92 @@ Screenshots: save to `jobs/PO/screenshots/[date]-[short-description].png`
 
 ## Open Sessions
 
+### ▶▶ START HERE — outstanding queue as of 2026-08-10 (COO-compiled)
+
+**Everything below is what's actually left.** 16 items sit `done_pending_uat` in the tracker; **13 are
+yours to test** and **3 are not testable from the app at all** (listed at the bottom — I'm not going to
+make you look for something you can't see).
+
+The detailed steps already exist further down this file — this block is the index so you can run it in
+one sitting without deciding what's still relevant. **Reply `N PASS` / `N FAIL: <what you saw>` / `N N/A`.**
+
+**Build check first (10 seconds):** open `/health` on staging and confirm the commit SHA matches the
+latest `main`. If it doesn't, staging is stale and everything below is void — tell me and I'll chase it.
+*(That check exists because of QUAL-26, which is itself item 12.)*
+
+---
+
+#### A. Bundle B retests — 5 items, fixes shipped in PR #458
+
+Full steps are in the **RETEST — Bundle B** block below. Unchanged, still outstanding.
+
+1. **BUG-58** — locking a trip keeps it selected
+2. **BUG-86** — "Back to trip" returns to the trip
+3. **BUG-91** — trip-create form doesn't submit early on Enter
+4. **BUG-93** — new place's map marker appears without a refresh
+5. **UX-14** — blue date tooltip reads sensibly *(not a bug — just confirm the wording)*
+
+#### B. City-picker cluster — 5 items, all PARTIAL last round
+
+These are the ones you marked partial on 2026-08-08; the detailed expectations are in **Group 2** below.
+Worth doing as one pass since they share a flow.
+
+6. **BUG-71** — ambiguous city name offers a disambiguation choice rather than silently auto-resolving
+7. **BUG-72** — picker rows are distinguishable from each other
+8. **BUG-73** — a geocode lookup failure is visibly signalled, not silent
+9. **BUG-74** — an *upstream* geocoder failure is signalled too, not just a browser↔backend failure
+10. **BUG-81** — picker rows are skimmable (no county/postcode noise, no raw coordinates)
+
+> Your three specific complaints from last round were: coordinates shown in the picker, two
+> indistinguishable rows, and the city name editable on the picker screen when it shouldn't be. Please
+> check those explicitly — if any survives, that's a FAIL regardless of the tracker status.
+
+#### C. New since last round — 3 items
+
+11. **BUG-87 / GE-20 — add-place picker narrows by the trip's countries.**
+    Steps: open a trip whose country is set (e.g. a UK trip) → add a place → search a city name that
+    exists in several countries (**"Newport"** is the exact case you hit).
+    Expected: candidates are narrowed/ranked to the trip's declared countries — you should no longer get
+    only USA Newports on a UK trip. A trip with **no** country set should prompt rather than filter to nothing.
+    Result:
+
+12. **QUAL-26 — you can tell which build staging is serving.**
+    Steps: open `/health` on staging.
+    Expected: a commit SHA is present and matches the latest `main`. (This is the same check as the build
+    check above — record it once.)
+    Result:
+
+13. **QUAL-43 — nothing broke in the big backend refactor.** ⚠️ *This one is a smoke test, not a feature.*
+    Today the entire backend data-access layer was restructured (six merged stages). **Zero behaviour was
+    meant to change**, 827 automated tests agree, and no user-facing feature was touched — but the blast
+    radius is every read in the app, so it wants one pass by a human.
+    Steps: no special flow — just do a normal loop. Open the trip list → open a trip → view its places and
+    items → add a place → add an item → check the map renders → open the admin panel.
+    Expected: **everything behaves exactly as it did before.** Anything that feels different is a FAIL and
+    I want to hear about it even if it seems trivial.
+    Result:
+
+---
+
+#### NOT yours to test — 3 items I'm taking off your queue
+
+Each is `done_pending_uat` but has **nothing a person can observe in the app**. My recommendation is to
+flip all three to `done` on verification I can do myself; say the word and I will.
+
+- **DEP-05** — a dependency security advisory fix. Invisible by nature; verified by CI's vulnerability
+  scan being green, which it is.
+- **QUAL-20** — the post-deploy smoke-check machinery. It's infrastructure that checks deployments; it
+  has no UI. I verify it by watching it run.
+- **QUAL-25** — a *spike*, merged as documentation. Its own tracker note says it is **all inert**:
+  nothing imports it, no schema change, no migration. There is literally nothing to exercise — the status
+  is stale rather than pending.
+
+> **Why this matters beyond the three items:** roughly a fifth of your UAT queue was work you had no way
+> to test, which makes the queue look more daunting than it is and buries the items that genuinely need
+> your eyes. Related to open-dialogue **D-28** (a cap on pending-UAT items) — this is evidence for it.
+
+---
+
 ### UAT Session — 2026-08-08 (Scotland dogfood trial — batched UAT of the planning-first build)
 
 **Scope:** Every shipped-but-unverified change (26 `done_pending_uat` items). Run top to bottom — the
