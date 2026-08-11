@@ -23,7 +23,7 @@ criteria QA turns into the red bar.
 |---|----------|--------|------------|
 | **D1** | Terminal-state model | **One new status value `needs_attention` (additive to the CHECK) + one new nullable `geocode_cause` column** ∈ {`ambiguous`,`unreachable`}. NOT reuse of `unresolvable`; NOT a purely-derived predicate. | High |
 | **D1a** | Transition timing | **Ambiguous → `needs_attention` on the FIRST ambiguous verdict** (not after burning 5 retries — ambiguity is deterministic). Unreachable → stays `pending`+`cause=unreachable`, retries; at the cap → `needs_attention`+`cause=unreachable`. This **refines ADL-46 D10** — flagged (OQ-3). | Medium |
-| **D2** | Re-opening a terminal record | **Primary = GE-16 re-point (reused, not reinvented):** `PATCH /api/places/:id {city_id}` points the place at the correct city; the stuck row is abandoned and drops from the derived queue. **Secondary (region-less case) = the existing wildcard-upgrade path, extended** to admit `needs_attention` and reset it to `pending`/attempts 0/`cause` null + re-fire. No new endpoint. | High |
+| **D2** | Re-opening a terminal record | **Primary = GE-16 re-point (reused, not reinvented):** `PATCH /api/trips/:tripId/places/:placeId {city_id}` points the place at the correct city; the stuck row is abandoned and drops from the derived queue. **[CORRECTED 2026-08-11: the earlier draft cited `PATCH /api/places/:id` as "verified built" — that route does not exist; `placesRouter` is mounted nested under `/api/trips/:tripId/places` (server.ts:211, trips.ts:47). The mechanism is built and works; only the path string was wrong. Caught by the GE-19 QA red bar writing an actual request against it — two probes: no `/api/places` mount, and the nested mount at places.ts:121.]** **Secondary (region-less case) = the existing wildcard-upgrade path, extended** to admit `needs_attention` and reset it to `pending`/attempts 0/`cause` null + re-fire. No new endpoint. | High |
 | **D3** | Queue visibility | **A derived, userId-scoped server query, NOT a maintained client list.** New read composing `scopeToUser(trips, userId)` — same pattern as `findCarryForwardItems`. Cross-user isolation is structural (the `trips` join is the ownership axis), not a filter that can be forgotten. Retires the NR-06 localStorage list as source of truth. | High |
 | **D4** | Cause labelling | **Persisted in `geocode_cause`** (not fully derivable — two probes §3). Endpoint returns stable `status`+`cause` codes; the **frontend** owns the display copy so wording changes need no backend deploy. | High |
 | **D5** | Module boundary | **No new "lifecycle module."** Extract only the *policy* as a pure function `nextGeocodeState(row, verdict) → {status, attempts, cause}` (trivially table-testable — serves OP-35); leave DB writes + geocoder IO in `resolveCity`; the queue query lands in `citiesRepository`, where sibling user-scoped city reads already live. Net growth of the 554-LOC `geocoding.service.ts` is ~3 small branches. | Medium-High |
@@ -404,7 +404,7 @@ The **build** is ATDD-first. QA writes these to a red bar before implementation:
    existing row — no second row (asserts step-1 status-blindness, §8).
 7. **In-place re-open:** supplying a region for a **region-less** `needs_attention` city resets it to
    `pending`/attempts 0/`cause` null and re-fires resolution → it resolves.
-8. **Re-point recovery:** `PATCH /api/places/:id {city_id}` to a corrected city drops the abandoned
+8. **Re-point recovery:** `PATCH /api/trips/:tripId/places/:placeId {city_id}` to a corrected city drops the abandoned
    stuck city from the user's queue (BRD end-to-end recovery criterion).
 9. The `(status, cause)` → label mapping (§4) renders the correct string for every combination.
 10. `needs_attention`/`unresolvable` rows are counted in the needs-attention bucket, **not** the
@@ -488,7 +488,7 @@ this section.**
   /api/geocode-queue` route (`requireAuth`, OQ-5 path). ATDD-first.
 - **Frontend:** replace the NR-06 localStorage source of truth with a poll of the new endpoint (OQ-4);
   render the panel grouped by in-progress vs needs-attention; the `(status,cause)`→copy map (§4);
-  wire the recovery actions to the existing re-point (`ChangeCityModal` / `PATCH /api/places`) and
+  wire the recovery actions to the existing re-point (`ChangeCityModal` / `PATCH /api/trips/:tripId/places/:placeId`) and
   delete flows. Not ATDD-first (UAT-visible UI, OP-35 frontend exclusion).
 - **Docs same-PR:** refresh the stale `findByIdentityKey` "unconditional index" comment (§8); update
   any OP-06 / status-doc that asserts the three-state geocode model.
