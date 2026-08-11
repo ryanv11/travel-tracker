@@ -1,0 +1,116 @@
+BACKEND PARK DOC — QUAL-50 (item create atomicity + BUG-95 extension-write gate)
+Date: 2026-08-10
+Branch: fix/qual50-item-atomicity (off main @36284da)
+Tracker: QUAL-50 (chore) — closes BUG-95 on merge
+Class (OP-32): gap. BRD: n/a (internal atomicity / test-infra).
+
+================================================================================
+WHAT SHIPPED
+================================================================================
+Three pieces, all in src/backend/repositories/ (+ its __tests__):
+
+1. itemRepository.create — ATOMIC base + extension insert.
+   Was: insert base (autocommit) → insertExtension (autocommit) → fetch.
+   A throw between the two stranded an ORPHAN base `items` row.
+   Now: db.transaction(tx => { insert base; insertExtension(tx,…); read via tx;
+   return result }). One transaction; a mid-create failure rolls the base row
+   back. Return value + created shape byte-identical.
+
+2. itemRepository.update — BUG-95 gate.
+   Was: scoped UPDATE (userId+tripId+itemId) then updateExtension() ALWAYS.
+   Extension tables carry NO user_id, so a non-owner whose scoped UPDATE matched
+   zero rows still mutated the extension row.
+   Now: UPDATE …returning({id}); if matched.length===0 return null BEFORE
+   updateExtension. Composes the existing scopeToUser predicate (no parallel
+   check). baseUpdates always sets updatedAt, so an owner always matches — no
+   false early-return.
+
+3. createFileBackedTestDb() — repositories/__tests__/test-db.ts (additive).
+   Per-test file:<unique tmp> client (mkdtempSync) + cleanup() the caller runs
+   in afterEach. Reuses the cached DDL snapshot; PRAGMA foreign_keys=ON; partial
+   unique indexes stay enforced. createTestDb (:memory:) remains the default.
+
+================================================================================
+THE DESIGN CHALLENGE TO THE SPIKE (read this before extending)
+================================================================================
+The QUAL-48 spike (jobs/backend/tech/20260810-qual48-transaction-spike.md §5)
+concluded create "cannot copy executeCarryForward's trick" of surviving :memory:
+— because create has a trailing fetch after its writes, and any query AFTER a
+db.transaction() on a :memory: client throws (the client nulls #db and the next
+query reopens an EMPTY in-memory db; empirically re-confirmed here).
+
+That premise loses a plank: create CAN copy the trick — move the fetch INSIDE
+the transaction and return its result, so create issues no post-tx query on the
+client. executeCarryForward survives :memory: for exactly this reason
+(places.ts returns the tx result with no query afterward). Doing the same in
+create means:
+  • create itself is :memory:-safe.
+  • The file-backed client is required ONLY in tests that issue a further query
+    AFTER a create on the same client — NOT every create call site.
+This shrank the blast radius from "every item-creating test file" (feared:
+7+ route files) to ONE file (repositories/__tests__/items.test.ts, the repo
+unit tests that query after create). The full 845-test backend suite stayed
+green with no route/service/contract test touched — verified empirically, not
+reasoned: route tests seed via direct inserts and assert on the POST *response
+body*, never create-then-query on the same client.
+
+Not a spike error — the spike's GO verdict and mechanism are all correct; it
+just under-explored one cheaper implementation shape for create. Recorded so a
+future author doesn't over-convert to file-backed on the spike's wording.
+
+LATENT (documented, not new): a FUTURE test that does create-then-query on a
+:memory: client will break — inherent to db.transaction() on :memory:, same
+constraint that already governs executeCarryForward (trips.ts:288 etc.).
+createFileBackedTestDb's header says exactly when to reach for it.
+
+================================================================================
+ATDD — RED BAR (shown against pre-fix production code)
+================================================================================
+repositories/__tests__/items.test.ts, 2 new tests, RED before / GREEN after:
+
+  × leaves no orphan base item when the extension insert fails mid-create
+    AssertionError: expected [ { id: 1, tripId: 1, …(10) } ] to have a length
+    of +0 but got 1              (orphan base row survived the failed create)
+
+  × does not mutate the extension row when a non-owner calls update (BUG-95)
+    AssertionError: expected 'HACKED' to be 'Air France'
+                                          (non-owner mutated the extension)
+
+Orphan test forces failure deterministically: DROP TABLE item_flights so the
+extension insert throws AFTER the base insert; then asserts SELECT items === 0.
+Its trailing SELECT (a query after a transaction) is why it NEEDS file-backed.
+BUG-95 test: USER_A owns a flight; USER_B calls update with an airline change;
+asserts result===null AND owner's airline unchanged.
+
+Post-fix: repo items.test.ts 35/35 green; full backend suite 845/845 green.
+
+================================================================================
+VERIFICATION
+================================================================================
+npm run test:backend        → 53 files / 845 tests PASS
+npm run type:check:all      → clean (frontend + backend)
+npm run scope:check         → PASS (0 residuals; getDb still not in routes)
+Per-setup delta probe        → :memory: 1.61ms/setup vs file-backed 5.56ms/setup
+
+================================================================================
+FILES
+================================================================================
+  src/backend/repositories/items.ts          — create (tx), update (gate),
+                                                insertExtension(db,…) signature
+  src/backend/repositories/items-helper.ts   — DbHandle type; optional dbHandle
+                                                param on fetchItemsWithExtensions
+  src/backend/repositories/__tests__/test-db.ts    — createFileBackedTestDb
+  src/backend/repositories/__tests__/items.test.ts — file-backed setup + 2 tests
+                                                + reworded stale wrong-user comment
+
+OP-28: no full-file rewrites. All four files edited in place (additive).
+drizzle-kit patch untouched (ADL-15).
+
+================================================================================
+FOLLOW-UPS / NON-GOALS
+================================================================================
+• update was intentionally NOT wrapped in a transaction — BUG-95 is fixed by the
+  match-gate; update has no orphan-pair hazard (single extension write, gated).
+• No route/service change. POST/PATCH handlers unchanged; the atomicity + gate
+  live entirely in the repository.
+EOF

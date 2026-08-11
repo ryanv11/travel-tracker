@@ -10,12 +10,13 @@
  *   - delete: removes item, returns false for wrong user
  */
 
+import { sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../db/schema.js';
 import { NotFoundError } from '../../errors.js';
 import type { TestDb } from './test-db.js';
 import {
-  createTestDb,
+  createFileBackedTestDb,
   OTHER_USER_ID,
   seedCity,
   seedCountry,
@@ -55,15 +56,30 @@ const { itemRepository } = await import('../items.js');
 // ----------------------------------------------------------------
 // Test setup
 // ----------------------------------------------------------------
+//
+// QUAL-50: this suite uses the FILE-BACKED test client, not `:memory:`.
+// `itemRepository.create` now wraps its base + extension inserts in one
+// `db.transaction()`. On a `:memory:` client the query issued after a
+// transaction reopens an empty database (see createFileBackedTestDb's header),
+// which would break every create-then-query test here. The file-backed client
+// reopens the same file and observes the committed/rolled-back state — the exact
+// behaviour these tests assert on. Each test gets a unique temp path with
+// per-test cleanup.
+
+let cleanupDb: (() => void) | null = null;
 
 beforeEach(async () => {
-  testDb = await createTestDb();
+  const backed = await createFileBackedTestDb();
+  testDb = backed.db;
+  cleanupDb = backed.cleanup;
   await seedTestUser(testDb, TEST_USER_ID);
   await seedTestUser(testDb, OTHER_USER_ID, 'user_other');
 });
 
 afterEach(() => {
   testDb = null;
+  cleanupDb?.();
+  cleanupDb = null;
 });
 
 // ----------------------------------------------------------------
@@ -208,6 +224,28 @@ describe('itemRepository.create', () => {
       .from(schema.items)
       .where(eq(schema.items.id, item.id as number));
     expect(rows[0].userId).toBe(TEST_USER_ID);
+  });
+
+  // QUAL-50 (ATDD): base insert + extension insert must be ATOMIC. If the
+  // extension insert fails mid-create, no orphan base `items` row may survive.
+  // Failure is forced deterministically by dropping the extension table so its
+  // insert throws "no such table" AFTER the base row is inserted. The trailing
+  // read here (SELECT after a transaction) is why this test needs the
+  // file-backed client — a `:memory:` client would throw on it regardless.
+  it('leaves no orphan base item when the extension insert fails mid-create', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db);
+
+    // Force insertExtension to fail: remove the flight extension table.
+    await db.run(sql`DROP TABLE item_flights`);
+
+    await expect(
+      itemRepository.create(TEST_USER_ID, trip.id, { itemType: 'flight' }, { airline: 'AF' }),
+    ).rejects.toThrow();
+
+    // No base `items` row may have been left behind by the failed create.
+    const rows = await db.select().from(schema.items);
+    expect(rows).toHaveLength(0);
   });
 });
 
@@ -494,14 +532,15 @@ describe('itemRepository.update', () => {
   });
 
   it('does not persist changes when update is called for wrong user/trip combination', async () => {
-    // The update WHERE clause scopes by userId — no rows are changed.
-    // The repository returns whatever fetchItemsWithExtensions finds by itemId,
-    // so status is NOT updated even though the call returns a non-null object.
+    // The update WHERE clause scopes by userId — no rows are changed. Since the
+    // scoped UPDATE matched nothing, update() returns null (QUAL-43 Stage 4
+    // scoped the read-back; QUAL-50 also short-circuits before the extension
+    // write) and the base row is untouched.
     const db = testDb!;
     const trip = await seedTrip(db, { userId: OTHER_USER_ID });
     const item = await itemRepository.create(OTHER_USER_ID, trip.id, { itemType: 'flight' }, {});
 
-    await itemRepository.update(
+    const result = await itemRepository.update(
       TEST_USER_ID,
       trip.id,
       item.id as number,
@@ -510,9 +549,44 @@ describe('itemRepository.update', () => {
       'flight',
     );
 
+    expect(result).toBeNull();
+
     // Verify the other user's item was NOT changed
     const notChanged = await itemRepository.findById(OTHER_USER_ID, item.id as number);
     expect(notChanged!.status).toBe('consider');
+  });
+
+  // QUAL-50 / BUG-95 (ATDD): the extension write must be gated on the scoped
+  // UPDATE having matched. Extension tables (item_flights, …) carry no user_id,
+  // so a non-owner reaching update() must NOT be able to mutate the extension
+  // row. USER_A owns the item; USER_B attempts to change its airline.
+  it('does not mutate the extension row when a non-owner calls update (BUG-95)', async () => {
+    const db = testDb!;
+    const trip = await seedTrip(db, { userId: OTHER_USER_ID }); // owned by USER_A
+    const item = await itemRepository.create(
+      OTHER_USER_ID,
+      trip.id,
+      { itemType: 'flight' },
+      { airline: 'Air France' },
+    );
+
+    // USER_B (TEST_USER_ID) — does not own the item — tries to mutate the
+    // extension. The scoped UPDATE matches zero rows, so the extension write
+    // must not happen and the call must not silently succeed.
+    const result = await itemRepository.update(
+      TEST_USER_ID,
+      trip.id,
+      item.id as number,
+      {},
+      { airline: 'HACKED' },
+      'flight',
+    );
+
+    expect(result).toBeNull();
+
+    // The owner's extension row must be exactly as created.
+    const owner = await itemRepository.findById(OTHER_USER_ID, item.id as number);
+    expect(owner!.airline).toBe('Air France');
   });
 });
 

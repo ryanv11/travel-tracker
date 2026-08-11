@@ -37,6 +37,16 @@ import { type ItemRow, serializeItem } from '../serializers/item.js';
 import { ownedAnd } from './scope.js';
 
 /**
+ * A database handle that is EITHER the singleton connection or an open
+ * transaction (QUAL-50). Both expose the same query builder, so a query can be
+ * run inside a `db.transaction()` by threading the `tx` through. Derived from
+ * `getDb()`'s return type so it tracks the real driver type.
+ */
+type Db = ReturnType<typeof getDb>;
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+export type DbHandle = Db | Tx;
+
+/**
  * Fetches items owned by `userId` with all extension fields left-joined.
  * Returns flat objects with type-specific fields merged in.
  *
@@ -49,13 +59,18 @@ import { ownedAnd } from './scope.js';
  * @param opts.sortBy - If 'rating', sort by effective rating across type-specific tables.
  * @param opts.sortOrder - 'asc' or 'desc'. Defaults to 'desc' when sortBy is 'rating'.
  * @param opts.minRating - If set, only return items with effectiveRating >= minRating.
+ * @param dbHandle - Optional connection-or-transaction handle (QUAL-50). When a
+ *   caller runs this read INSIDE a `db.transaction()` (so the created rows are
+ *   visible and no query is issued on the client after the transaction — the
+ *   `:memory:` reopen hazard), it passes the `tx`. Defaults to `getDb()`.
  */
 export async function fetchItemsWithExtensions(
   userId: string,
   conditions?: SQL,
   opts?: { sortBy?: 'rating'; sortOrder?: 'asc' | 'desc'; minRating?: number },
+  dbHandle?: DbHandle,
 ): Promise<Record<string, unknown>[]> {
-  const db = getDb();
+  const db = dbHandle ?? getDb();
 
   const effectiveRatingSql = sql<
     number | null
