@@ -16,25 +16,28 @@ npm run scope:check        # backend scope guards — ownership chokepoint + get
 ```
 
 `scope:check` runs **two** checks and also runs in CI (QUAL-43 Stage 3), so a
-failure here is a failure there.
+failure here is a failure there. **Both checks are enforced** — as of QUAL-43
+Stage 5 (2026-08-10) there is no warn tier left in either one.
 
-**Check 1 — ownership completeness.** It scans all of `src/backend/**` (minus
-`__tests__`) for ownership expressed by hand — either an `eq(<table>.userId, …)`
-predicate or an ownership comparison written in application code. Route the site
-through `scopeToUser`/`ownedAnd` (predicate) or `assertOwned`/`assertWritable`
-(existence check); **do not exempt it**.
+**Check 1 — ownership completeness** (`RESIDUAL`). It scans all of
+`src/backend/**` (minus `__tests__`) for ownership expressed by hand — either an
+`eq(<table>.userId, …)` predicate or an ownership comparison written in
+application code. Route the site through `scopeToUser`/`ownedAnd` (predicate) or
+`assertOwned`/`assertWritable` (existence check); **do not exempt it**. The
+predicate form is permitted *only* in `repositories/scope.ts`; the JS-comparison
+form is permitted nowhere, including there.
 
-Two zones while the QUAL-43 migration is in flight (ADL-53 §6):
-`src/backend/repositories/*.ts` is **enforced** — a residual there fails the
-build. The rest of `src/backend/**` is **reported** (`WARN-RESIDUAL`) but does
-not fail, because Stages 2 and 4 have not finished relocating those reads yet.
-A warn is a real residual, not an exemption; Stage 5 promotes Zone B to enforced.
+> Until Stage 5 this had two zones — `repositories/` enforced, the rest of
+> `src/backend/**` warn-only — because Stages 2/4 were still relocating reads out
+> of `routes/**` and failing on them would have red-ed `main` (ADL-47
+> expand/contract). Both are enforced now.
 
-**Check 2 — `getDb` in routes** (`WARN-GETDB`, warn-only until ADL-53 §6 Stage 5).
-Route handlers must not be able to obtain a DB handle. It counts *mentions* of
-the literal string, not just `const db = getDb()` call sites, and tags each match
-`[call-site|type-ref|import|comment]` — a `comment` tag means reword the comment
-(OP-30: fix your own text), not that work is owed.
+**Check 2 — `getDb` in routes** (`GETDB`). Route handlers must not be able to
+obtain a DB handle at all, so the required count is **zero**. It counts *mentions*
+of the literal string, not just `const db = getDb()` call sites, and tags each
+match `[call-site|type-ref|import|comment]` — a `comment` tag means reword the
+comment (OP-30: fix your own text) and you are done; any other tag means a read
+needs relocating into a repository.
 
 If either check flags something you just wrote, fix your code or your text —
 never add an exclusion to the script (OP-30: scanner suppressions need COO
