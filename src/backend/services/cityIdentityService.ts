@@ -25,36 +25,43 @@ import { resolveByOsmId, resolveCity } from './geocoding.service.js';
 /**
  * ADL-46 D13 (§4.2.1) — the three-step find-or-create, steps 1 & 2. Returns an
  * existing (or wildcard-upgraded) city row for (name, countryCode, regionId), or
- * null if a genuine insert is needed. NOT creator-scoped: the unique index is
- * global, so pass 1 must be able to return another user's pending row (OP-27 P2 /
- * §8 row 6) rather than colliding with the index on insert.
+ * null if a genuine insert is needed. NOT creator-scoped: pass 1 must be able to
+ * return another user's (or a terminal) row for this identity key so the request
+ * REUSES it rather than minting a duplicate (OP-27 P2 / §8 row 6).
  *
- *   Step 1 — exact match on (name COLLATE NOCASE, country_code, COALESCE(region_id,0)),
- *            mirroring uniq_cities_name_country_region_ci exactly. Creator- and
- *            status-blind: the unique index is unconditional, so a filtered
- *            step 1 would miss another user's row and the follow-on insert
- *            would collide on it (ADL-46 F1/F2 ruling §3.1/§3.3 amendment 2).
+ *   Step 1 — exact match on (name COLLATE NOCASE, country_code, COALESCE(region_id,0)).
+ *            Creator- AND status-blind ON PURPOSE. Since migration 0017 there is no
+ *            unconditional (name,country,region) unique index — uniqueness on that
+ *            key is enforced only by the PARTIAL uniq_cities_pending_per_creator
+ *            (WHERE geocode_status='pending'), so a TERMINAL row
+ *            (needs_attention/unresolvable) has left that index and no longer blocks
+ *            a duplicate insert. A status-filtered step 1 would miss such a row and
+ *            the caller would mint a SECOND row for the same key (GE-19 §7.6). So
+ *            reuse-not-duplicate — not "collide with a global index" — is why the
+ *            lookup is blind (the global unconditional index was dropped by 0017).
  *   Step 2 — WILDCARD UPGRADE: if the request carries a region and step 1 missed,
  *            adopt a region-less row of the same name+country by SETTING its
  *            region_id. A region-less row is an under-specified record, not a
  *            different city — specialising it prevents the duplicate that naively
  *            adding `AND COALESCE(region_id,0)=…` would create (the BUG-33 class).
- *            ADL-46 F1/F2 ruling §3.3 (R1): scoped to rows the caller may
- *            legitimately mutate — `geocode_status IN ('pending','unresolvable')`
- *            (whitelist, not `<> 'resolved'`: fails closed on a future status)
- *            AND `(created_by_user_id = caller OR created_by_user_id IS NULL)`.
+ *            ADL-46 F1/F2 ruling §3.3 (R1) + GE-19 / ADL-55 §R F1: scoped to rows
+ *            the caller may legitimately mutate — `geocode_status IN
+ *            ('pending','unresolvable','needs_attention')` (whitelist, not
+ *            `<> 'resolved'`: fails closed on a future status) AND
+ *            `(created_by_user_id = caller OR created_by_user_id IS NULL)`.
  *            A `resolved` row is visible to the caller (GE-16) but must NOT be
- *            upgradeable — read-through is global because the index is global;
- *            write-through is scoped because nothing forces it to be. Declining
- *            falls through to the ordinary insert on a distinct identity key
- *            (legal under D13, at most one extra row per name+country). On a
- *            successful upgrade the retry budget resets and, if the adopted row
- *            is still 'pending', resolution is re-fired — the region is the
- *            question, and a region-constrained lookup can collapse an
- *            ambiguity the unconstrained one could not (ruling §2.5/§3.3
- *            amendment 3). Not fired for an adopted 'unresolvable' row: the
- *            geocoder returned zero candidates, and a region constraint cannot
- *            turn zero into some (ruling §2.5 asymmetry).
+ *            upgradeable — read-through is creator-blind (step 1 reuses any
+ *            creator's row); write-through is scoped because nothing forces it to
+ *            be. Declining falls through to the ordinary insert on a distinct
+ *            identity key (legal under D13, at most one extra row per name+country).
+ *            On a successful upgrade the retry budget resets; a needs_attention
+ *            adoptee is additionally RE-OPENED to 'pending'/cause null (GE-19 /
+ *            ADL-55 §R F1, the third edit) so that — like an already-'pending'
+ *            adoptee — resolution re-fires: the region is the question, and a
+ *            region-constrained lookup can collapse an ambiguity the unconstrained
+ *            one could not (ruling §2.5/§3.3 amendment 3). NOT reset or re-fired for
+ *            an adopted 'unresolvable' row: the geocoder returned zero candidates,
+ *            and a region constraint cannot turn zero into some (ruling §2.5 asymmetry).
  *
  *   Step 2b (reverse, NO region requested) — collapse to (name, country_code)
  *            regardless of region. This is the "today's behaviour" case the old
@@ -93,16 +100,29 @@ export async function findOrUpgradeCity(
     );
     if (regionless) {
       const now = new Date().toISOString();
+      // GE-19 / ADL-55 §R F1 (the THIRD edit) + §3.3: a needs_attention row
+      // adopted by supplying a region is RE-OPENED — reset to a fresh 'pending'
+      // with cause cleared — so the re-fire guard below reopens it. Without this
+      // status/cause reset the row would stay needs_attention, the guard would be
+      // false, and it would be stranded with no path back to 'pending' (the exact
+      // BUG-85 stuck class, reintroduced on the recovery path). The 'unresolvable'
+      // asymmetry is PRESERVED untouched (ruling §2.5 / ADL-55 §3.3): a no-match
+      // cannot become a match by adding a region, so an adopted 'unresolvable' row
+      // is neither status-reset nor re-fired — only its region and attempt budget
+      // move. A 'pending' adoptee already has the right status; only its budget resets.
+      const reopen = regionless.geocodeStatus === 'needs_attention';
       const upgraded = await citiesRepository.updateCity(regionless.id, {
         regionId,
         geocodeAttempts: 0,
+        ...(reopen ? { geocodeStatus: 'pending', geocodeCause: null } : {}),
         updatedAt: now,
       });
       const upgradedRow = upgraded[0];
-      // Re-ask: the region is the question, and a region-constrained lookup
-      // can collapse an ambiguity the unconstrained one could not. Never fired
-      // for an adopted 'unresolvable' row (ruling §2.5 asymmetry — zero
-      // candidates cannot become some just because a region was added).
+      // Re-ask: the region is the question, and a region-constrained lookup can
+      // collapse an ambiguity the unconstrained one could not. Fires whenever the
+      // adopted row is now 'pending' (it already was, or was just reopened from
+      // needs_attention). Never fired for an adopted 'unresolvable' row (ruling
+      // §2.5 asymmetry — zero candidates cannot become some just by adding a region).
       if (upgradedRow.geocodeStatus === 'pending') {
         resolveCity(upgradedRow.id).catch(() => {
           /* handled internally — defensive catch */

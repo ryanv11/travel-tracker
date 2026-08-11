@@ -161,7 +161,7 @@ describe('GE-19 REGRESSION GUARD (BUG-85) §7.6 — re-add of a needs_attention 
 // re-fire guard only fires for 'pending'). Assert the reset EXPLICITLY.
 // ================================================================
 // GE-19 RED BAR (BUG-85) — unskip when implemented
-describe.skip('GE-19 RED BAR (BUG-85) §7.7 — region supplied re-opens a region-less needs_attention row in place', () => {
+describe('GE-19 RED BAR (BUG-85) §7.7 — region supplied re-opens a region-less needs_attention row in place', () => {
   it('resets the region-less needs_attention row to pending/attempts 0/cause null, sets the region, and re-fires resolveCity', async () => {
     const regionId = await seedRegionTierUS(testDb!);
     // A region-LESS needs_attention row (region_id NULL), some retry budget spent.

@@ -141,7 +141,7 @@ afterEach(() => {
 // NULL, and NO further retry budget is consumed (attempts unchanged).
 // ================================================================
 // GE-19 RED BAR (BUG-85) — unskip when implemented
-describe.skip('GE-19 RED BAR (BUG-85) §7.1 — ambiguous verdict → needs_attention/ambiguous, no retries', () => {
+describe('GE-19 RED BAR (BUG-85) §7.1 — ambiguous verdict → needs_attention/ambiguous, no retries', () => {
   it('an ambiguous verdict marks the row needs_attention with cause=ambiguous and does NOT increment attempts', async () => {
     const cityId = await seedRegionCity(testDb!, { geocodeAttempts: 0 }); // regionIso = US-CO
     // Two candidates that disagree with the row's selected region (US-CO) and
@@ -196,7 +196,7 @@ describe.skip('GE-19 RED BAR (BUG-85) §7.1 — ambiguous verdict → needs_atte
 // (~:413). Cap is 5; seed attempts=4 so the next failing attempt is the cap.
 // ================================================================
 // GE-19 RED BAR (BUG-85) — unskip when implemented
-describe.skip('GE-19 RED BAR (BUG-85) §7.2 — recoverable error at cap → needs_attention/unreachable (both sites)', () => {
+describe('GE-19 RED BAR (BUG-85) §7.2 — recoverable error at cap → needs_attention/unreachable (both sites)', () => {
   it('name-search site: an error at the attempt cap transitions to needs_attention/unreachable, never pending-at-cap', async () => {
     const cityId = await seedPlainCity(testDb!, { geocodeAttempts: 4 });
     nextSearchResult = { status: 'error' }; // recoverable (network/timeout/5xx/429)

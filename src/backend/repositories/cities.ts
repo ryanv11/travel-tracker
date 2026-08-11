@@ -25,7 +25,7 @@
  * lives in `../services/cityIdentityService.ts`, not here.
  */
 
-import { and, asc, desc, eq, inArray, isNull, like, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, like, ne, notInArray, or, sql } from 'drizzle-orm';
 import {
   cities,
   countries,
@@ -196,12 +196,19 @@ export const citiesRepository = {
 
   /**
    * ADL-46 D13 step 1 — exact match on the composite identity key
-   * (name COLLATE NOCASE, country_code, COALESCE(region_id,0)), mirroring
-   * uniq_cities_name_country_region_ci exactly.
+   * (name COLLATE NOCASE, country_code, COALESCE(region_id,0)).
    *
-   * Creator- and status-blind ON PURPOSE: the unique index is unconditional, so
-   * a filtered lookup would miss another user's row and the follow-on insert
-   * would collide on it (ADL-46 F1/F2 ruling §3.1/§3.3 amendment 2).
+   * Creator- AND status-blind ON PURPOSE. GE-19 / ADL-55 §R F4 (comment
+   * refresh): the earlier justification — "the unique index is unconditional, so
+   * a filtered lookup would collide on insert" — is STALE. Migration 0017 dropped
+   * the unconditional uniq_cities_name_country_region_ci and replaced it with two
+   * PARTIALS; the (name,country,region) key is now enforced only by
+   * uniq_cities_pending_per_creator (WHERE geocode_status='pending'). A terminal
+   * row (needs_attention/unresolvable) has therefore LEFT that index and would NOT
+   * block a duplicate insert. So the blindness is still correct, for a different
+   * reason: it makes a re-add REUSE the existing row (found here before any insert
+   * is attempted) instead of minting a second row for the same key — the exact
+   * duplicate-safety GE-19 §7.6 pins (ADL-46 F1/F2 ruling §3.1/§3.3 amendment 2).
    */
   async findByIdentityKey(
     name: string,
@@ -227,14 +234,18 @@ export const citiesRepository = {
    * ADL-46 D13 step 2 — the region-less row this request may legitimately
    * adopt (the wildcard upgrade), or null.
    *
-   * ADL-46 F1/F2 ruling §3.3 (R1): scoped to rows the caller may legitimately
-   * MUTATE — `geocode_status IN ('pending','unresolvable')` (a whitelist, not
+   * ADL-46 F1/F2 ruling §3.3 (R1) + GE-19 / ADL-55 §R F1: scoped to rows the
+   * caller may legitimately MUTATE — `geocode_status IN
+   * ('pending','unresolvable','needs_attention')` (a whitelist, not
    * `<> 'resolved'`: it fails closed on a future status) AND
-   * `(created_by_user_id = caller OR created_by_user_id IS NULL)`. A `resolved`
-   * row is visible to the caller (GE-16) but must NOT be upgradeable —
-   * read-through is global because the index is global; write-through is scoped
-   * because nothing forces it to be. This is creator-scoping on global data
-   * (see the header), not row ownership.
+   * `(created_by_user_id = caller OR created_by_user_id IS NULL)`. GE-19 adds
+   * `needs_attention` so a region-less STUCK row is adoptable — supplying a region
+   * is the D2 in-place re-open, and the caller (findOrUpgradeCity) resets a
+   * needs_attention adoptee back to 'pending'/cause null and re-fires resolution.
+   * A `resolved` row is visible to the caller (GE-16) but must NOT be upgradeable —
+   * read-through is creator-blind (step 1 reuses any creator's row); write-through
+   * is scoped because nothing forces it to be. This is creator-scoping on global
+   * data (see the header), not row ownership.
    */
   async findRegionlessUpgradeCandidate(
     name: string,
@@ -250,7 +261,7 @@ export const citiesRepository = {
           eq(cities.countryCode, countryCode),
           sql`${cities.name} = ${name} COLLATE NOCASE`,
           isNull(cities.regionId),
-          inArray(cities.geocodeStatus, ['pending', 'unresolvable']),
+          inArray(cities.geocodeStatus, ['pending', 'unresolvable', 'needs_attention']),
           or(eq(cities.createdByUserId, callerUserId), isNull(cities.createdByUserId)),
         ),
       )
@@ -439,5 +450,49 @@ export const citiesRepository = {
     return minRating
       ? rows.filter((r) => r.effectiveRating != null && r.effectiveRating >= Number(minRating))
       : rows;
+  },
+
+  /**
+   * GE-19 / ADL-55 D3 §5.1 — the DERIVED, userId-scoped geocode queue: the
+   * requesting user's OWN cities that are not yet resolved (pending /
+   * needs_attention / unresolvable), so the frontend can render the geocode-status
+   * indicator split into in-progress vs needs-attention buckets (ADL-55 §4). The
+   * queue is a QUERY, never a stored per-user list — it retires the NR-06
+   * localStorage retry queue as the indicator's source of truth (OQ-4).
+   *
+   * SECURITY (OP-06, criterion 4): ownership is STRUCTURAL. The query reaches
+   * cities only through the user's own trip_places -> trips, and the trips join
+   * composes the QUAL-43 scoping chokepoint (scopeToUser) — the identical shape to
+   * findCarryForwardItems / findCityItems above. A city referenced SOLELY by
+   * another user's trips has no qualifying trip_places row and cannot appear; there
+   * is no hand-authored ownership predicate that could be forgotten. `cities`
+   * itself is global reference data (no user_id column, absent from
+   * UserOwnedTable) — its ownership axis is the trips join, not the cities row.
+   *
+   * DISTINCT because one city may be referenced by several of the user's places or
+   * trips. `<> 'resolved'` returns the whole indicator set in one query; the client
+   * splits in-progress (status='pending') from needs-attention (status IN
+   * ('needs_attention','unresolvable')) on the returned status. region_name is
+   * LEFT-joined for the frontend label; ordered by name for a stable render.
+   */
+  async findUserGeocodeQueue(userId: string) {
+    const db = getDb();
+    return db
+      .selectDistinct({
+        id: cities.id,
+        name: cities.name,
+        country_code: cities.countryCode,
+        region_id: cities.regionId,
+        region_name: regions.name,
+        region_iso: regions.iso3166_2,
+        geocode_status: cities.geocodeStatus,
+        geocode_cause: cities.geocodeCause,
+      })
+      .from(cities)
+      .innerJoin(tripPlaces, eq(tripPlaces.cityId, cities.id))
+      .innerJoin(trips, eq(trips.id, tripPlaces.tripId))
+      .leftJoin(regions, eq(regions.id, cities.regionId))
+      .where(and(scopeToUser(trips, userId), ne(cities.geocodeStatus, 'resolved')))
+      .orderBy(cities.name);
   },
 };
