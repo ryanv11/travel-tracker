@@ -1,4 +1,45 @@
 =============================================================================
+ADL-56 CACHED-VS-LIVE ADD-PLACE SEAM (BUG-97/98/73) — PREPENDED 2026-08-11, DOES NOT REPLACE ANY BLOCK BELOW
+=============================================================================
+Deliverable: jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (+ ADL-56 log entry).
+Branch: chore/adl-bug97-cached-live-seam. DESIGN ONLY — no production code, no migration.
+Tracker: BUG-97 (primary), BUG-98, BUG-73 (message copy). BRD: refines GE-15/16/19/D12/D14; proposes GE-21.
+
+THE SEAM (two verified live-code defects): (1) POST /api/cities plain-name path — findOrUpgradeCity step-2b
+(cityIdentityService.ts:142-145) reuses a SINGLE cached name+country match (findByNameAndCountry capped at 2,
+repositories/cities.ts:278-285) BEFORE resolveCityName→classifyCandidates runs. One cached "Newport, Oregon"
+=> reused blind; Springfield (2+ cached) => falls through => multi-region ambiguous => needs_attention.
+(2) FE picker fires on osm_id distinctness (decideCityDisambiguation.ts:60); BE fires needs_attention on
+region_iso distinctness (geocoding.service.ts:188-190) — two same-state Newports get a FE picker but are
+silently resolved by the BE name path.
+
+DEDUP PREMISE — VERIFIED, TWO PROBES THAT FAIL DIFFERENTLY:
+  P1 schema.ts (181/189-196/202): only unique indexes on cities are uniq_cities_osm_ref (PARTIAL, WHERE
+     osm_id IS NOT NULL) + uniq_cities_pending_per_creator (PARTIAL, WHERE pending) + chk_cities_osm_both_or_neither.
+  P2 migration DDL: 0015 created the unconditional (name,country,region) unique; 0017 DROPPED it; grep of all
+     *.sql confirms the two partials are the only survivors.
+  VERDICT: osm_id dedup is REAL but PARTIAL — covers only osm_id-bearing rows. NULL-osm_id rows (legacy/
+  pending/terminal/seeded) are NOT deduped. So "always show picker → match by osm_id" (PO floated) is NOT
+  dedup-safe; safety comes from the SURFACE reusing cached rows by id. A NEW (name,country,region) unique
+  index is the WRONG fix (reopens BUG-33 / kills same-region coexistence). No new index; no new route/table.
+
+SIX DECISIONS: D1 routing (cache reuses, never selects; one surface, explicit pick). D2 ONE ambiguity
+definition = distinct real place (distinct osm_id after same-place collapse, ε on coords); region_iso demoted;
+shared golden-fixture set across both TS trees. D3 dedup verdict above + expose osm_type/osm_id on GET
+/api/cities search (only additive API change). D4 BUG-98: backfill region_id when NULL+region-tier+unambiguous
+resolve (NULL is not a user value → D12 rule-3 preserved). D5 BUG-73: 5 message states (cache-empty ≠
+live-empty ≠ live-failed). D6 UX owns copy/badge/escape-hatch wording.
+
+HIGHEST RISK (aim fresh-eyes): D2's change to classifyCandidates (background resolver) + the collapse ε — the
+one change that can SILENTLY corrupt (over-collapse binds two real places as one). ATDD-first: YES (backend/
+shared-contract); 6 red tests specified in §10.
+
+FLAGGED OPEN (COO→PO before fresh-eyes): Q1 always-live vs cached-first (rec cached-first); Q2 confirm D12
+rule-3 wording refinement; Q3 gate step-2b reuse behind live-agreement? (rec no); Q4 phasing cut line if ε
+work deferred. GE-21 proposed — does NOT rest on an unverified premise (dedup verified incl. holes), so may
+enter approved not spike-gated if COO/PO accept §2. No BUG-97/BUG-98 GitHub issue exists yet (COO to raise).
+
+=============================================================================
 BUG-87 TRIP-COUNTRY PICKER FILTER (ADL-54) — PREPENDED 2026-08-08, DOES NOT REPLACE ANY BLOCK BELOW
 =============================================================================
 Deliverable: jobs/architect/tech/ADL-53-trip-country-picker-filter.md (ADL-53 in the main log).

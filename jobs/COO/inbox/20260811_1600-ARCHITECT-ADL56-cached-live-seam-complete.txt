@@ -1,0 +1,66 @@
+TO: COO
+FROM: Architect
+RE: ADL-56 — cached-vs-live add-place disambiguation seam (BUG-97 / BUG-98 / BUG-73)
+DATE: 2026-08-11
+
+HEADER: ADL-56 · no GitHub issue yet (none exists for BUG-97/BUG-98 — verified via gh issue list;
+please raise + cross-ref) · BRD refines GE-15/16/19/D12/D14, proposes GE-21 · Branch:
+chore/adl-bug97-cached-live-seam · PR: opening after /pre-push.
+
+WHAT WAS DECIDED
+Design (spec only, no code, no migration) closing the seam where the create path's cached
+find-or-create pre-empts the live ambiguity classifier, plus the FE/BE ambiguity-definition
+divergence and the BUG-98 region-null policy gap. Full design + probes:
+jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md.
+
+THE SIX DECISIONS (all recommended; none blocked)
+- D1 routing: the cache may REUSE an already-identified place but never SELECT among places. One
+  disambiguation surface (cached rows + live candidates), binding by explicit pick only. Reconciles
+  the BUG-72 tension: the catalogue is SHOWN, never silently chosen.
+- D2 FE/BE: ONE ambiguity definition — >1 distinct real place (distinct osm_id after collapsing
+  same-place multi-granularity dupes, ε on coords). region_iso demoted to the GE-15 auto-fill signal.
+  Kept single by a shared golden-fixture set across the two TS trees (std 32).
+- D3 dedup: VERIFIED with two probes (below). osm_id dedup is real but PARTIAL. One additive API
+  field (osm_type/osm_id on GET /api/cities search). NO new (name,country,region) unique index.
+- D4 BUG-98: backfill region_id when NULL + region-tier + region-unambiguous resolve (NULL is not a
+  user value → D12 rule-3 preserved). Refines D12 wording.
+- D5 BUG-73: five message states (cache-empty ≠ live-empty ≠ live-failed). Copy → UX.
+- D6 UX owns picker/label copy, cached-vs-live badge, escape-hatch wording, message strings.
+
+DEDUP-PREMISE VERDICT + THE TWO PROBES (the load-bearing bit)
+PROBE 1 (schema.ts direct): only unique indexes on cities are uniq_cities_osm_ref (PARTIAL, WHERE
+  osm_id IS NOT NULL), uniq_cities_pending_per_creator (PARTIAL, WHERE pending), + the both-or-neither
+  CHECK. No unconditional (name,country,region) unique.
+PROBE 2 (migration DDL, independent): 0015 created the unconditional index, 0017 DROPPED it; grep of
+  all *.sql confirms the two partials are the only survivors.
+VERDICT: PARTIALLY TRUE. osm_id dedup holds between osm-bearing rows; it does NOT dedup NULL-osm_id
+  rows (legacy/pending/terminal/seeded). So the PO's "always show picker → match by osm_id" is NOT
+  dedup-safe as floated — safety comes from the surface reusing cached rows by id. IMPORTANT: a new
+  (name,country,region) unique index is the WRONG fix (reopens BUG-33 / kills same-region
+  coexistence). This inverts the brief's anticipated "database follow-up: a unique index" — flagging
+  loudly per my role.
+
+FLAGGED OPEN (resolve with PO BEFORE fresh-eyes — OP-27 refinement 1)
+Q1 (PO) always-live-picker (PO floated) vs cached-first+escape-hatch (my rec — cost/latency only).
+Q2 (PO/COO) confirm the D12 rule-3 wording refinement.
+Q3 (cost) gate step-2b reuse behind a live-agreement check? (rec: no).
+Q4 (phasing) cut line if the classifyCandidates ε-collapse (highest risk) is deferred.
+
+NEW REQUIREMENT NEEDING THE BRD GATE
+GE-21 proposed (§11, text + success criteria written, not invented). Does NOT rest on an unverified
+premise (dedup verified incl. holes) → may enter approved rather than spike-gated if you/PO accept §2.
+
+ATDD-FIRST: YES for the backend/shared-contract brief (silent-and-plausible dedup + shared FE/BE
+contract). Six red acceptance tests specified in §10 (mock-fidelity called out). NO for pure
+presentation except the message-state routing.
+
+CI: n/a — no code commit this thread (design + docs only). PR carries doc changes only.
+
+OPEN ISSUES / BLOCKERS: none blocking. Nothing merges until Q1-Q4 settle and the fresh-eyes Opus
+review clears it. Aim the reviewer at: D2's classifyCandidates ε-collapse (only silent-corruption
+risk), the H1 disposition, the P2 osm-on-search seam, and the D4-vs-ADL46/ADL55 whole-document seam.
+
+WHAT IS NOW UNBLOCKED
+- COO→PO: resolve Q1-Q4 + BRD gate for GE-21; raise BUG-97/BUG-98 GitHub issues + cross-ref.
+- Then: dispatch the OP-27 fresh-eyes Opus reviewer against the amended, settled spec.
+- Then: the ATDD-first implementation wave (Brief A backend/shared, Brief B frontend + message states).

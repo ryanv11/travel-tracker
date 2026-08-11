@@ -1,0 +1,95 @@
+ARCHITECT PARK DOC — 2026-08-11
+Session: ADL-56 — the cached-vs-live add-place disambiguation seam (BUG-97/BUG-98/BUG-73)
+Branch: chore/adl-bug97-cached-live-seam · DESIGN ONLY (no code, no migration)
+
+================================================================================
+WHAT THIS SESSION PRODUCED
+================================================================================
+- jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md   (full design — the deliverable)
+- ADL-56 summary+pointer entry in jobs/architect/tech/20260307-architecture-decisions-log.md
+- jobs/architect/context/current.txt — ADL-56 block prepended (append-only convention)
+- Completion report to jobs/COO/inbox/
+
+STATUS: DESIGN, pending (a) COO→PO resolution of the 4 flagged open questions, (b) OP-27 fresh-eyes
+Opus review (HIGH stakes — data-integrity/dedup invariant + shared FE/BE contract; NEVER Fable),
+(c) an ATDD-first implementation wave. Nothing merges until OQs settle and fresh-eyes clears it.
+
+================================================================================
+THE PROBLEM (PO UAT 2026-08-11)
+================================================================================
+"Newport" auto-resolved to Oregon with no ambiguity prompt; "Springfield" prompts correctly. Two
+verified live-code defects in one seam + a D12 policy gap (BUG-98).
+
+================================================================================
+THE SIX DECISIONS (recommendations)
+================================================================================
+D1 ROUTING: the cache may REUSE an already-identified place but never SELECT among places. One
+   disambiguation surface unions cached rows + live candidates; binding by explicit pick only.
+D2 FE/BE: ONE definition of ambiguity = >1 distinct real place (distinct osm_id AFTER collapsing
+   same-place multi-granularity dupes by name+region+≈coords ε). region_iso demoted to the GE-15
+   auto-fill signal. Kept single by a SHARED golden-fixture set across both TS trees.
+D3 DEDUP (two probes — see below): osm_id dedup real but PARTIAL. Expose osm_type/osm_id on GET
+   /api/cities search (only additive API change). NO new (name,country,region) unique index.
+D4 BUG-98: backfill region_id when NULL + region-tier + region-unambiguous resolve. NULL is not a
+   user value, so D12 rule-3 (protect a SUPPLIED value) is preserved. Refines D12 wording.
+D5 BUG-73: 5 message states — cache-empty ≠ live-empty ≠ live-failed. Copy → UX.
+D6 UX owns picker/label copy, cached-vs-live badge, escape-hatch wording, message strings.
+
+================================================================================
+DEDUP PREMISE — VERIFIED (the load-bearing bit; probes recorded so fresh-eyes can re-run)
+================================================================================
+PROBE 1 (schema.ts, read directly): the ONLY unique indexes on cities are
+  - uniq_cities_osm_ref: PARTIAL UNIQUE (osm_type, osm_id) WHERE osm_id IS NOT NULL   (schema.ts:181)
+  - uniq_cities_pending_per_creator: PARTIAL WHERE geocode_status='pending'           (schema.ts:189-196)
+  - chk_cities_osm_both_or_neither CHECK                                              (schema.ts:202)
+  No unconditional (name,country,region) unique index.
+PROBE 2 (migration DDL, independent): 0015 created uniq_cities_name_country_region_ci; 0017
+  DROPPED it (header §1 + CREATE statements) and made the two partials; grep of all *.sql confirms
+  they are the only survivors (0018 recreates them identically).
+VERDICT: osm_id dedup is REAL but PARTIAL — covers only osm_id-bearing rows. NULL-osm_id rows
+  (legacy / pending / unresolvable / needs_attention / seeded) are NOT deduped. Consequences:
+  - The PO's "always show picker → match by osm_id" is NOT dedup-safe as floated (a live pick can
+    duplicate a NULL-osm_id cached row of the same place — H1).
+  - Safety comes from the SURFACE reusing cached rows BY id, not from a DB constraint.
+  - A new (name,country,region) unique index is the WRONG fix — reopens BUG-33, kills the
+    same-region coexistence 0017 deliberately enabled. THIS INVERTS THE BRIEF'S ANTICIPATED
+    "database follow-up: a unique index." Say so loudly.
+
+================================================================================
+FLAGGED OPEN QUESTIONS (COO→PO, resolve BEFORE fresh-eyes — OP-27 refinement 1)
+================================================================================
+Q1 (PO product) always-live-picker (PO floated) vs cached-first+escape-hatch (my rec). Cost/latency
+   is the only axis; correctness is closed either way by D1.
+Q2 (PO/COO) confirm the D12 rule-3 wording refinement (NULL backfillable).
+Q3 (cost) gate step-2b reuse behind a live-agreement check? Rec: no (FE surface + D2 already close it).
+Q4 (phasing) cut line if the classifyCandidates ε-collapse (highest risk) is deferred: ship FE
+   surface + D1 + D4 + D5, leave BE on region_iso as documented interim.
+
+================================================================================
+WHERE TO AIM THE FRESH-EYES OPUS REVIEWER (§13 of the ADL)
+================================================================================
+1. §4 classifyCandidates → place-level + the collapse ε — the ONLY change that can SILENTLY corrupt.
+2. §2 H1 disposition (accept+self-heal baseline vs best-effort collapse day one) — probe the real
+   staging NULL-osm_id population if reachable.
+3. §3 P2 seam — does exposing osm_id + FE identity-matching collapse the live/cached duplicate on
+   EVERY path (incl. ChangeCityModal re-point), or only AddPlaceFlow?
+4. Whole-document seam: does D4's backfill invalidate any ADL-46 (D12/D13) or ADL-55 verdict —
+   specifically the findOrUpgradeCity wildcard-upgrade/needs_attention re-open path that ALSO writes
+   region_id? Walk the knock-ons.
+
+================================================================================
+HANDOFF TO COO
+================================================================================
+1. Resolve Q1-Q4 with the PO; amend the ADL FIRST; THEN dispatch the fresh-eyes Opus reviewer
+   (scope the WHOLE document + the seam vs ADL-46/ADL-55).
+2. BRD gate: GE-21 proposed (§11). Does NOT rest on an unverified premise (dedup verified incl.
+   holes) → may enter approved not spike-gated if COO/PO accept §2. Success criteria in §11.
+3. Raise GitHub issues for BUG-97 (+ BUG-98) and cross-ref (none exist — verified via gh issue list);
+   put the tracker ID in the issue title, the issue number back in the tracker notes.
+4. Implementation wave is ATDD-first: YES (backend/shared-contract). QA writes the 6 red tests in
+   §10 (mock-fidelity: the geocode double must return the real {status,candidates,truncated} shape).
+5. Likely brief split: Brief A backend/shared (collapse util + classifyCandidates + region backfill +
+   search osm fields) ATDD-first YES; Brief B frontend (unified surface + message states) — the
+   collapse is pinned by the SHARED fixture set, not a shared module (separate TS trees).
+
+BUGS DISCOVERED THIS THREAD: none new (all design; the two seam defects are BUG-97, already tracked).

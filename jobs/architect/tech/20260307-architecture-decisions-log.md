@@ -4672,3 +4672,53 @@ dismiss (new per-user table)? OQ-2 (PO): five-label set is the target? OQ-3 (COO
 D10 refinement (ambiguous terminal-on-first)? OQ-4 (COO/frontend): retire NR-06 localStorage? OQ-5
 (Backend): endpoint path. No code or migration merges from this ADL until the OQs are settled and
 fresh-eyes clears it.
+
+## ADL-56 — The cached-vs-live add-place disambiguation seam (BUG-97 / BUG-98 / BUG-73)
+
+**Date:** 2026-08-11 · **Author:** Architect · **Status:** DESIGN — pending (a) COO→PO resolution of the
+flagged open questions, (b) OP-27 fresh-eyes **Opus** review (HIGH: data-integrity/dedup invariant + shared
+FE/BE contract — **never Fable**), (c) an ATDD-first implementation wave. No production code, no migration.
+Full design + tables + probes: `jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md`.
+**Tracker:** BUG-97 (primary) · BUG-98 · BUG-73 (message copy) · **BRD:** refines GE-15/GE-16/GE-19/D12/D14,
+proposes **GE-21** (PROPOSED, COO→PO gate). **Reuses (no parallel path):** `classifyCandidates`,
+`decideCityDisambiguation`, `findOrUpgradeCity`/`createOrReuseCarriedCity`, GE-19 `needs_attention` (ADL-55),
+`CityPicker`, `GET /api/cities` + `GET /api/geocode`. **Zero new routes / tables / indexes.**
+
+**Trigger.** PO UAT 2026-08-11: "Newport" auto-resolved to Oregon with no ambiguity prompt while
+"Springfield" prompts. Two verified defects in one seam: (1) the create path's cache short-circuit
+(`findOrUpgradeCity` step-2b, `cityIdentityService.ts:142-145`) reuses a single cached name+country match
+**before** the live classifier runs; (2) FE fires the picker on `osm_id` distinctness while BE fires
+`needs_attention` on `region_iso` distinctness — so two same-state Newports get a FE picker but are silently
+resolved by the BE. Plus BUG-98: a region-tier city with the region left blank resolves region-null
+("Australia, no state set") because D12 rule-3 blocks the backfill.
+
+**Decisions (summary — full reasoning/probes in the standalone file).**
+- **D1 routing rule:** the cache may **reuse** an already-identified place but never **select** among places.
+  One disambiguation **surface** unions cached rows + live candidates; binding is by explicit pick only. The
+  silent single-cache substitution loses its authority to auto-resolve an un-disambiguated name.
+- **D2 FE/BE reconciliation:** ONE definition — *more than one distinct real place*, distinct `(osm_type,
+  osm_id)` **after collapsing same-place multi-granularity duplicates** (same name+region+≈coords ε). `region_iso`
+  demoted to the GE-15 auto-fill signal. Kept single by a **shared golden-fixture set** across both TS trees
+  (std 32). Highest-risk element (touches the background resolver `classifyCandidates`) → aimed at fresh-eyes.
+- **D3 dedup verdict (TWO PROBES — schema.ts + migration DDL, fail differently):** osm_id dedup is **real but
+  PARTIAL** (`uniq_cities_osm_ref` is `WHERE osm_id IS NOT NULL`) — it does NOT cover NULL-osm_id (legacy /
+  pending / terminal / seeded) rows. "Always show picker → match by osm_id" is therefore **not** dedup-safe as
+  floated; safety comes from the surface **reusing cached rows by `id`**. **A new `(name,country,region)` unique
+  index is the WRONG fix** — it reopens BUG-33 / kills legitimate same-region coexistence (the index 0017
+  removed). One additive API field: expose `osm_type`/`osm_id` on `GET /api/cities` search (no DB change).
+- **D4 BUG-98:** **backfill** `region_id` from the resolved candidate when NULL in a region-tier country **and**
+  the resolve is region-unambiguous. Backfilling a NULL is **not** overwriting a user value — refines D12 rule-3
+  (which protects a *supplied* value). Region-ambiguous resolves don't backfill (they are a D1/D2 picker case).
+- **D5 BUG-73:** five message states; cache-empty ≠ live-empty ≠ live-failed. Define WHEN each fires; the
+  cache-empty message never implies the place is absent; escape hatch always present. Copy → UX.
+- **D6:** ADL owns the behavioral/data contract; UX owns picker/label copy, cached-vs-live badge, escape-hatch
+  wording, message strings.
+
+**ATDD-first:** YES (backend/shared-contract — silent-and-plausible dedup + shared FE/BE contract); NO for pure
+presentation except the message-state routing. Six red acceptance tests specified in the standalone file §10.
+
+**Flagged open questions (resolve before fresh-eyes).** Q1 (PO): always-live-picker vs cached-first
+(rec: cached-first — cost/latency). Q2 (PO/COO): confirm the D12 rule-3 wording refinement. Q3 (cost): gate
+step-2b reuse behind a live-agreement check? (rec: no). Q4 (phasing): cut line if the ε collapse work is
+deferred. No new BUG-97/BUG-98 GitHub issue exists yet (COO to raise + cross-ref). No code or migration merges
+until the OQs settle and fresh-eyes clears it.
