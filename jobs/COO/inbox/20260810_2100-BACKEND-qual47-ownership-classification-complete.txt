@@ -46,7 +46,10 @@ with a real parent FK passes. Both are now written claims, not omissions.
 
 FULL-FILE REWRITES (OP-28): none. Two new files; every existing file amended with Edit.
 
-CI: PR #497 — scripts/ci-wait.sh pr 497 (see below).
+CI: PR #497 GREEN — ci-wait.sh: "PASS — all 18 check(s) green @ 2a7e0e0". Check 3's OUTPUT
+confirmed from the run log itself (gh api .../actions/runs/31456411692/logs), not inferred from a
+tick: "Check 3 (ownership classification, enforced) — 21 schema table(s) classified ... 8 carry a
+users.id foreign key, each either owned-by-column or explained."
 
 OPEN ITEMS
 - QUAL-47 has no tracker entry and no GitHub issue. Two probes: grep of tracker.json found
