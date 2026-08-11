@@ -2816,7 +2816,7 @@
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-08-08 owner UAT (finding 6.3, PO 'yes'). On the picker/disambiguation screen the city name entered on the previous screen is editable, but editing it does NOT re-run the geocode lookup, so a changed value silently mismatches the candidates. Grey out / make read-only with a hint to go back to change it. Small frontend fix; part of the geocoder-picker bundle."
+      "notes": "Found 2026-08-08 owner UAT (finding 6.3, PO 'yes'). On the picker/disambiguation screen the city name entered on the previous screen is editable, but editing it does NOT re-run the geocode lookup, so a changed value silently mismatches the candidates. Grey out / make read-only with a hint to go back to change it. Small frontend fix; part of the geocoder-picker bundle. || RE-CONFIRMED in PO UAT 2026-08-11 (Finding 2): the City Name input (AddPlaceFlow.tsx:676-683) stays editable while the picker is shown; editing it does NOT re-fire the lookup (no useEffect watches newCityName), and on pick it sends the edited name with the OLD candidate's osm_id — a name/identity mismatch. Fix: make the input read-only/greyed once a lookup has run, with a 'go Back to change' hint."
     },
 
     {
@@ -2924,6 +2924,39 @@
       "brdRefs": ["GE-19"],
       "phase": 6,
       "notes": "Found by the PO during BUG-85/GE-19 UAT 2026-08-11. The collapsed needs-attention BADGE (not the panel, which reads fine) renders `{needsAttentionCount} need attention` at GeocodeQueueIndicator.tsx:124 and in the aria-label at :114 — grammatically wrong at every count ('1 need' should be '1 needs'; only 2+ takes 'need'). PO-specified fix, which also sidesteps verb agreement by adding the noun: '1 place needs attention' / 'N places need attention'. FIX: pluralize both the visible badge (:124) and the aria-label (:114) as `${n} place${n===1?'':'s'} need${n===1?'s':''} attention`; consider mirroring the 'place(s)' noun on the resolving chip for consistency. Add a component test asserting the string at n=1 and n=2. Cosmetic, does NOT block GE-19 (done); tracked separately. || FIXED 2026-08-11, PR #520 (main @ dfc4fdb). Badge + aria-label now pluralize: '1 place needs attention' / 'N places need attention' (PO wording); the resolving chip was mirrored to '1 place resolving' for parallelism (agent consistency call, flagged for PO — easy to revert). Two shared helpers so the visible copy and the aria-label can't drift; component test asserts n=1 and n=2 for both. 403 frontend tests."
+    },
+    {
+      "id": "BUG-97",
+      "type": "bug",
+      "title": "Add-place ambiguity is pre-empted by a single cached city match (the cached-vs-live seam)",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P2",
+      "brdRefs": ["GE-16", "GE-19"],
+      "phase": 6,
+      "notes": "Found 2026-08-11 by PO UAT (Newport auto-resolved to Oregon with no ambiguity prompt) + a read-only COO investigation that confirmed the mechanism. THE SEAM: the backend create path gates the entire LIVE ambiguity classifier behind a cached find-or-create. findOrUpgradeCity step-2b (cityIdentityService.ts:142-145) reuses a SINGLE cached name+country match (findByNameAndCountry capped at 2, repositories/cities.ts:278-285) BEFORE classifyCandidates ever runs; the search-dropdown click path reuses a cached row with zero geocoding. So Springfield (2+ cached rows) falls through to the live classifier -> multi-region ambiguous -> needs_attention (GE-19), but Newport (1 cached 'Newport, Oregon') is reused blind. The PO's cached-vs-live instinct was right about the EFFECT (cache pre-empts) though the classifier itself runs on live Nominatim, not cache. SECOND DEFECT (same seam): a FE/BE ambiguity-DEFINITION divergence — the frontend picker fires on osm_id (place-level) distinctness (decideCityDisambiguation.ts:60) while the backend fires needs_attention on region_iso (region-level) distinctness (geocoding.service.ts:188-190), so a place-ambiguous-but-region-unambiguous city (two same-state Newports) is shown a picker by the FE yet silently resolved by the BE name path. THIRD (folds in BUG-73's partial): the DB-search 'No matches in <country>' message reflects the cached search, not a live lookup, so it is misleading (PO: 'Add new' then returns live results). ARCHITECT-LEVEL: this is the design seam between 'reuse the catalogue' (BUG-72 convergence) and 'don't auto-pick an ambiguous city' (GE-16/BUG-71/GE-19). Wants an ADL that decides how a live-ambiguous name is routed to disambiguation even when one cached row exists, and reconciles the FE/BE ambiguity definitions + the message copy. UNVERIFIED (investigation blind spot): could not inspect staging DB rows / replay the live Nominatim call, so cannot prove WHICH reuse path fired for the PO's Newport nor why the FE '+Add new' picker didn't fire; the cached-reuse short-circuit is a verified code path that fully accounts for the symptom."
+    },
+    {
+      "id": "BUG-98",
+      "type": "bug",
+      "title": "City resolved in a region-tier country with state left blank is saved region-null, not backfilled (Melbourne -> 'Australia, no state set')",
+      "status": "pending",
+      "owner": "architect",
+      "priority": "P3",
+      "brdRefs": ["GE-16"],
+      "phase": 6,
+      "notes": "Found 2026-08-11 by PO UAT (added Melbourne without a state -> saved 'Australia (no state set)', no picker, no needs_attention) + COO investigation. DISTINCT from BUG-97 — here the live classifier DID run and returned 'ok' (within AU, Melbourne is one region, AU-VIC), so it resolved. But D12 rule-3 'never overwrite the user's country/region' means the geocoder NEVER backfills region_id: the resolved insert uses regionId = region_id ?? null (cities.ts:191) and commitResolvedOrMerge sets coords/OSM ref but not region (geocoding.service.ts:297-312). Result: a city resolved to Victoria's coordinates but region_id null, rendered 'Australia (no state set)'. The geocoder unambiguously knew the region and deliberately didn't apply it. POLICY RULING (Architect): either backfill region_id from the resolved candidate's region_iso when the user left it null in a region-tier country, OR route 'region-tier + null region + resolved' to needs_attention. No local bug — a D12 policy decision. Likely folds into BUG-97's ADL."
+    },
+    {
+      "id": "UX-15",
+      "type": "ux",
+      "title": "Blue-date tooltip copy 'set explicitly for this place' is unclear to users",
+      "status": "pending",
+      "owner": "frontend",
+      "priority": "P3",
+      "brdRefs": ["DP-06"],
+      "phase": 6,
+      "notes": "Split from UX-14's UAT pass 2026-08-11. The blue-date tooltip now EXISTS (UX-14 passed) but the PO: 'I don't know what 'set explicitly for this place' is meant to tell a user.' Reword the tooltip to convey what the blue accent means in plain terms (that this place carries its own dates rather than inheriting the trip/hotel fallback, per BRD-DP06 / ADL-24). Copy-only frontend change."
     },
     {
       "id": "BUG-95",

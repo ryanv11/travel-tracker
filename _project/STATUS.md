@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (82)
+## Open work (85)
 
 ### P1 — Critical (1)
 
@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (41)
+### P2 — Important (42)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -62,6 +62,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
 | BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
 | QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | done_pending_uat |
+| BUG-97 | Add-place ambiguity is pre-empted by a single cached city match (the cached-vs-live seam) | architect | ⬜ Pending |
 | QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | QUAL-26 | You cannot tell which build staging is serving — put the commit SHA in /health, the UI and the shakedown | backend | done_pending_uat |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
@@ -71,7 +72,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (40)
+### P3 — Minor (42)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -105,6 +106,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-93 | Newly-added place's map marker doesn't appear until a refresh (render lag on add) | frontend | done_pending_uat |
 | BUG-94 | GE-20 bypass: the manual '+Add new' country dropdown in the picker isn't restricted to the trip's countries | frontend | ⬜ Pending |
 | QUAL-44 | Stale file:line cross-references in comments — remaining low-value ones + adopt cite-symbols-not-lines | unassigned | ⬜ Pending |
+| BUG-98 | City resolved in a region-tier country with state left blank is saved region-null, not backfilled (Melbourne -> 'Australia, no state set') | architect | ⬜ Pending |
+| UX-15 | Blue-date tooltip copy 'set explicitly for this place' is unclear to users | frontend | ⬜ Pending |
 | QUAL-48 | Spike — does a file-backed libSQL test client honour db.transaction() (unblocks items base+extension atomicity)? | backend | ⬜ Pending |
 | QUAL-49 | One serializer per entity, every handler routed through it (the persisted-but-dropped-from-response class) | backend | done_pending_uat |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
@@ -122,7 +125,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `█████████████░░░░░░░` 37/57 | 37 | 20 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `███████████████░░░░░` 65/89 | 65 | 24 | 3 |
+| bug | `██████████████░░░░░░` 65/91 | 65 | 26 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
 | chore | `████████████░░░░░░░░` 37/64 | 37 | 27 | 1 |
 
@@ -158,4 +161,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_190 done · 9 deferred · 5 closed · 82 open — 286 tracked items_
+_190 done · 9 deferred · 5 closed · 85 open — 289 tracked items_
