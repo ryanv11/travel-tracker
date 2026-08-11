@@ -4615,3 +4615,60 @@ Brief B (frontend) threads `trip.countries` into `AddPlaceFlow`/`MobileTripDetai
 the note + zero-country prompt + empty-state. GE-20 proposed with success criteria for COO to
 formalize (BRD §5.1 + version bump + BUG-87 `brdRefs`). Open product calls Q1/Q2/Q3 to PO before
 fresh-eyes (OP-27 refinement 1). No code merges from this ADL until fresh-eyes clears it.
+
+## ADL-55 — GE-19 geocode status-lifecycle model (BUG-85)
+
+**Date:** 2026-08-10 · **Author:** Architect · **Status:** DESIGN — pending (a) resolution of the
+flagged open questions, (b) OP-27 fresh-eyes **Opus** review (high-stakes: schema/migration +
+userId-scoping access boundary — **never Fable** for this one), (c) implementation. No production
+code, no migration generated. Full design: `jobs/architect/tech/ADL-55-geocode-status-lifecycle.md`.
+**Tracker:** BUG-85 · **BRD:** GE-19 (v3.20, approved, Architect-gated) · **Absorbs:** R5b
+(design-reflection secondary audit §1b) · **Reuses:** GE-16 re-point (ADL-46 D11), the QUAL-43
+chokepoint (ADL-53 `repositories/scope.ts`), the wildcard-upgrade path (`cityIdentityService`).
+
+**Trigger.** BUG-85 / secondary-audit §1c: a city that cannot auto-resolve is left `pending` forever
+(silently dropped from the scan at `geocode_attempts >= cap` but still counted as in-progress),
+unactionable — the PO hit a stuck "Geocoding pending (1)" badge on their own account. The
+status-lifecycle model is a BRD-named Architect ADL decision.
+
+**Decision (summary — see standalone file for tables, per-decision reasoning, and probes).**
+- **D1 terminal-state model:** add **one** status value `needs_attention` (additive to
+  `chk_cities_geocode_status`) **+ one** nullable `geocode_cause` column ∈ {`ambiguous`,`unreachable`}.
+  Rejected reusing `unresolvable` (conflates recovery semantics + labels — two probes) and a
+  purely-derived `pending AND attempts>=cap` (leaves the invalid state representable; index bloat;
+  cause not derivable anyway). Make the invalid state **unrepresentable** — a stuck row is not
+  `pending`.
+- **D1a transitions:** ambiguous → `needs_attention` on the **first** verdict (deterministic answer ⇒
+  retrying is waste — **refines ADL-46 D10**, flagged); recoverable errors retry then transition to
+  `needs_attention` **actively at the cap** (never sits `pending`-at-cap).
+- **D2 re-open:** primary recovery is **GE-16 re-point reused** (`PATCH /api/places/:id {city_id}` →
+  stuck row abandoned, drops from the derived queue); secondary in-place re-open for the region-less
+  case extends the existing wildcard-upgrade path (whitelist +`needs_attention`, reset
+  status/attempts/cause + re-fire). No new endpoint.
+- **D3 queue visibility (security-load-bearing):** a **derived userId-scoped server query** composing
+  `scopeToUser(trips, userId)` (same pattern as `findCarryForwardItems`) — cross-user isolation is
+  structural via the `trips` join, adding one row to the QUAL-43 matrix. Retires the NR-06 localStorage
+  list as source of truth. **Must not** hand-roll `eq(trips.userId, …)` (scope-guard build-enforced).
+- **D4 cause labelling:** persisted in `geocode_cause` (not derivable — two probes); endpoint returns
+  `status`+`cause` codes, frontend owns display copy.
+- **D5 module boundary:** **no new lifecycle module**; extract only the *policy* as a pure function
+  `nextGeocodeState(row,verdict)` (the OP-35 table-test unit), keep IO in `resolveCity`, put the query
+  in `citiesRepository`. `geocoding.service.ts` grows ~net-flat.
+- **R5b:** **closes as overtaken-by-events** — the name-fallback algebra composes with the lifecycle
+  via two local edits inside GE-19's own build (whitelist +`needs_attention`; `findByIdentityKey`
+  stays status-blind — the probe that settled it). One doc nit: that method's "unconditional index"
+  comment is stale post-0017; refresh in the implementing PR.
+
+**Migration (specified, not generated).** CHECK change ⇒ SQLite 12-step table rebuild (as 0017). Two
+warnings: it regenerates `uniq_cities_pending_per_creator` and **will recur ADL-15 bug 4** (COALESCE
+comma-split — hand-correct as 0017 did); trailing backfill `pending AND attempts>=5 → needs_attention`
+(`cause` NULL — historical cause UNVERIFIED). Lands as a **single green step** (single-instance;
+`start` migrates before serving; every change backward-compatible with old code) — not multi-PR
+expand/contract; reverts to staged if any of those three ceases to hold.
+
+**Flagged open questions (resolve before fresh-eyes).** OQ-1 (PO, HIGH — gates whether any new table
+exists): does "remove from queue" mean remove-the-reference (rec: yes, zero new state) or a soft-
+dismiss (new per-user table)? OQ-2 (PO): five-label set is the target? OQ-3 (COO): adopt the ADL-46
+D10 refinement (ambiguous terminal-on-first)? OQ-4 (COO/frontend): retire NR-06 localStorage? OQ-5
+(Backend): endpoint path. No code or migration merges from this ADL until the OQs are settled and
+fresh-eyes clears it.
