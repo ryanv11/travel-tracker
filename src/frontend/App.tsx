@@ -12,10 +12,10 @@
 
 import { UserButton } from '@clerk/react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { GeocodeQueueIndicator } from './components/GeocodeQueue/GeocodeQueueIndicator';
 import { LocationPinIcon } from './components/icons';
 import { BuildStamp } from './components/shared/BuildStamp';
 import { TripsLayout } from './components/TripList/TripsLayout';
-import { useGeocodeRetryQueue } from './hooks/useGeocodeRetryQueue';
 import { AdminPage } from './pages/AdminPage';
 import { CityItemsPage } from './pages/CityItemsPage';
 import { MapPage } from './pages/MapPage';
@@ -25,7 +25,6 @@ import { TripDetailPage } from './pages/TripDetailPage';
  * Root application component with navigation and route definitions.
  */
 export function App() {
-  const { pendingCount, retryAll, dismiss } = useGeocodeRetryQueue();
   const location = useLocation();
 
   // WP-03/C9: on /trips, the mobile layout supplies its own header + bottom tab
@@ -87,27 +86,11 @@ export function App() {
           Admin
         </NavLink>
 
-        {/* NR-06: offline geocoding indicator */}
-        {pendingCount > 0 && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              title="Geocoding pending — click to retry now"
-              onClick={retryAll}
-              className="flex items-center gap-1.5 px-2.5 py-1 border border-amber-600 rounded-md bg-yellow-100 text-amber-800 text-xs font-medium cursor-pointer"
-            >
-              ☁ Geocoding pending ({pendingCount})
-            </button>
-            <button
-              type="button"
-              title="Dismiss — stop retrying"
-              onClick={dismiss}
-              className="px-2 py-1 border border-gray-300 rounded-md bg-white text-gray-500 text-xs cursor-pointer"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
+        {/* GE-19 / ADL-55 (BUG-85): interactive, user-scoped geocode-status
+            indicator — reads GET /api/geocode-queue (the source of truth),
+            splits resolving vs needs-attention, and offers per-city recovery.
+            Supersedes the NR-06 localStorage retry-queue badge. */}
+        <GeocodeQueueIndicator />
 
         {/* Right-hand group: QUAL-26 build stamp + NR-14 user account menu (sign-out).
             The group owns `ml-auto` rather than the UserButton, so the stamp stays pinned

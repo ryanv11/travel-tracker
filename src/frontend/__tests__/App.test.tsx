@@ -12,7 +12,10 @@
  * behave identically to Map/Trips regardless of owner status.
  *
  * Mocks:
- *   - useGeocodeRetryQueue() — inert (no pending geocodes)
+ *   - GeocodeQueueIndicator — stubbed inert (GE-19/ADL-55; the real one polls
+ *     GET /api/geocode-queue via react-query and this file renders App with no
+ *     QueryClientProvider — its own coverage lives in
+ *     components/GeocodeQueue/__tests__/GeocodeQueueIndicator.test.tsx)
  *   - useHealth() — inert (QUAL-26 build stamp; this file renders App with no
  *     QueryClientProvider, and the stamp is not what these tests are about —
  *     its own coverage lives in components/shared/__tests__/BuildStamp.test.tsx)
@@ -36,8 +39,8 @@ import { App } from '../App';
 // Mocks
 // ----------------------------------------------------------------
 
-vi.mock('../hooks/useGeocodeRetryQueue', () => ({
-  useGeocodeRetryQueue: () => ({ pendingCount: 0, retryAll: vi.fn(), dismiss: vi.fn() }),
+vi.mock('../components/GeocodeQueue/GeocodeQueueIndicator', () => ({
+  GeocodeQueueIndicator: () => <div data-testid="geocode-indicator-stub" />,
 }));
 
 vi.mock('../hooks/useHealth', () => ({

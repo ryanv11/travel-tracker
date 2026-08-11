@@ -1,0 +1,126 @@
+FRONTEND PARK DOCUMENT — GE-19 / BUG-85 interactive geocode queue + recovery
+Date: 2026-08-11
+Branch: feat/ge19-frontend (off main 33134eb — includes merged backend PR #514)
+Tracker: BUG-85 · BRD: GE-19 (v3.20) · Design: ADL-55
+
+================================================================================
+SUMMARY
+================================================================================
+Final build step of GE-19. The geocoding indicator is now interactive and
+user-scoped: it reads GET /api/geocode-queue (the source of truth), splits the
+queue into a visually-distinct needs-attention bucket vs a resolving count, and
+offers per-city recovery (re-point / remove) by reusing existing surfaces. The
+NR-06 localStorage retry queue is retired as the badge's data source. The
+feature is READY FOR PO UAT.
+
+================================================================================
+FILES
+================================================================================
+NEW
+- src/frontend/components/GeocodeQueue/GeocodeQueueIndicator.tsx
+    The indicator: badge (two separate counts) + panel + recovery wiring.
+    Sub-component NeedsAttentionRow renders one stuck city and its per-place
+    Change-city / Remove controls (read-only for locked trips).
+- src/frontend/hooks/useGeocodeQueue.ts
+    react-query poll of GET /api/geocode-queue (refetchInterval 30s, staleTime
+    15s, refetch on focus). Exposes entries + resolving/needsAttention buckets
+    and counts. On queue-content-signature change it invalidates ['cities'] and
+    ['trips'] so search + map pins reflect a background resolution (preserves
+    and extends the retired service's "resolved cities reappear" behaviour).
+- src/frontend/utils/geocodeQueueLabels.ts
+    Pure: geocodeQueueLabel(status,cause) → §4 copy; isNeedsAttentionStatus;
+    bucketGeocodeQueue. The criteria-9/10 unit under test.
+- src/frontend/utils/__tests__/geocodeQueueLabels.test.ts
+- src/frontend/components/GeocodeQueue/__tests__/GeocodeQueueIndicator.test.tsx
+
+MODIFIED
+- src/frontend/App.tsx — inline NR-06 badge block + useGeocodeRetryQueue removed;
+    renders <GeocodeQueueIndicator/> in the nav instead.
+- src/frontend/__tests__/App.test.tsx — mock swapped from useGeocodeRetryQueue
+    to a GeocodeQueueIndicator stub (App.test renders with no QueryClientProvider).
+- src/frontend/components/TripDetail/AddPlaceFlow.tsx — dropped
+    geocodeRetryQueue.add(city) + its import; the user-facing "still confirming"
+    message is kept.
+- src/frontend/hooks/usePlaces.ts — useAddPlace/useRemovePlace/useChangeCity
+    onSuccess now also invalidate ['geocode-queue'].
+- src/frontend/types/api.ts — GeocodeStatus += 'needs_attention'; new
+    GeocodeCause + GeocodeQueueEntry.
+
+DELETED (retired NR-06 localStorage source of truth, OQ-4)
+- src/frontend/services/geocodeRetryQueue.ts
+- src/frontend/hooks/useGeocodeRetryQueue.ts
+- src/frontend/services/__tests__/geocodeRetryQueue.test.ts
+- src/frontend/hooks/__tests__/useGeocodeRetryQueue.test.tsx
+
+================================================================================
+KEY DESIGN DECISIONS / THINGS A REVIEWER SHOULD KNOW
+================================================================================
+1. NEEDS-ATTENTION VISUAL TREATMENT — FLAGGED FOR PO UAT (COO instruction).
+   No UX mockup specified this. Chosen default: the needs-attention badge is an
+   amber warning chip ("⚠ N need attention", border-amber-500/bg-amber-50);
+   the resolving chip is muted/neutral ("☁ M resolving"). In the panel,
+   needs-attention rows have an amber card + ⚠ label; resolving rows are muted
+   with a ⟳. This is a sensible default, NOT final — PO should confirm or
+   redirect during UAT.
+
+2. CITY→PLACE JOIN FOR RECOVERY (the one contract-shape decision).
+   GET /api/geocode-queue returns CITIES, but re-point and remove are place
+   operations ({tripId, placeId}). Rather than ask backend for a place id on
+   the queue shape, the join derives from useTrips (GET /api/trips), which the
+   app already loads and whose places carry city_id. This is NOT a second
+   source of truth: the queue owns "which of my cities are stuck", the trips
+   list owns "which of my places reference that city". Every queue city has ≥1
+   referencing place by construction — the queue and the trips list both derive
+   from the same userId-scoped trip_places → trips join. This is the honest fix;
+   it did not require a backend/contract change.
+
+3. LOCALSTORAGE RETIREMENT — two-probe negative check (CLAUDE.md rule).
+   Probe A: grep across src for geocodeRetryQueue / useGeocodeRetryQueue /
+   GEOCODE_RETRY_STORAGE_KEY / 'geocode_retry_queue' — non-test readers were
+   only App.tsx (badge) and AddPlaceFlow.tsx (.add()). Probe B: grep every
+   localStorage usage in src/frontend for geocode/retry — the key is
+   read/written ONLY inside geocodeRetryQueue.ts. Nothing else load-bearing
+   reads it, so the four files were safely deleted. Server-side processQueue is
+   untouched — only the badge's read-source changed.
+
+4. NO "dismiss" / retry buttons. OQ-1: no soft-dismiss (removing the place is
+   the only clear). Retry is server-driven (processQueue), so the old client
+   retryAll/dismiss are gone with the localStorage service.
+
+5. "extend the pending-indicator component" — there was NO standalone indicator
+   component; the badge was inline JSX in App.tsx. I extracted it into a real
+   component and extended its behaviour (not a parallel second badge). Flagged
+   to COO as a minor brief-vs-reality mismatch, not a deviation.
+
+================================================================================
+ACCEPTANCE CRITERIA (ADL-55 §7 — frontend-scoped)
+================================================================================
+- Criterion 9 (label map): PASS — geocodeQueueLabels.test.ts covers all 6 §4
+  (status,cause) pairs + the unresolvable-any-cause fallthrough; component test
+  asserts all six labels render in the panel.
+- Criterion 10 (needs-attention distinct, not in resolving count): PASS —
+  bucketGeocodeQueue unit test + component test (separate badge counts, separate
+  sections, ambiguous city never in a resolving row).
+- Recovery (re-point + remove wired): built + smoke-tested (modal mounts with
+  the referencing place's ids; Remove present; locked trip read-only). End-to-end
+  verification is UAT/E2E, not a component test (OP-35 frontend exclusion).
+
+================================================================================
+CHECKS
+================================================================================
+frontend suite 401/401 · backend 871/871 (untouched) · type:check:all clean ·
+biome ci exit 0 (5 pre-existing infos, none mine) · status/tracker/scope PASS.
+npm audit: 6 MODERATE pre-existing (no packages added by this thread) — reported
+to COO, not blocking per framework std 20.
+
+================================================================================
+NOT DONE / FOLLOW-UPS
+================================================================================
+- Needs-attention styling awaits PO UAT confirmation (see #1).
+- A city referenced only by places in LOCKED trips shows read-only recovery
+  ("unlock to fix") — matches PlaceSection's existing locked rule; if the PO
+  wants in-panel unlock that is a separate ask.
+- No BRD edit (GE-19 already approved v3.20). ADL-55 §10 asked the *implementing*
+  PR to stamp GE-19's "exact status-lifecycle model is an Architect ADL decision"
+  inline as resolved (→ ADL-55); that is a shared-record (BRD) edit outside this
+  frontend brief — flagged to COO to confirm the backend PR #514 or COO handles it.
