@@ -1,0 +1,82 @@
+QUAL-43 Stage 5 (guard contract) · PR #495 · BRD n/a · feat/qual43-stage5-guard-contract
+
+WHAT WAS BUILT
+Both backend scope guards in scripts/scope-completeness-check.sh flipped from warn to
+enforced — the contract half of ADL-47's expand/contract, and the last stage of QUAL-43.
+Zero production behaviour change; counts were already zero and I verified that before
+touching anything.
+
+ACCEPTANCE CRITERIA
+1. Check 2 (getDb in routes/**) is an error, non-zero on any mention — PASS
+2. Check 1 Zone B promoted warn -> enforced — PASS
+3. Both promotions verified fail-closed by injected fault — PASS
+4. test:backend 827/827, zero test files modified — PASS
+5. Full /pre-push green; CI 18/18 green at a31406b — PASS
+6. ZERO src/backend logic change — PASS (one COMMENT-ONLY edit, declared below)
+
+SECURITY CHECKLIST — n/a, no routes added or modified. No route gained or lost auth
+middleware. No scanner suppression, allowlist, nosemgrep, lint-disable or regex
+narrowing added or widened (OP-30).
+
+INJECTED FAULTS — all on a COPIED src/backend (script takes a repo-root arg), never the
+working tree, never git stash. Control passed first, so each failure is attributable.
+ALL EXIT 1: predicate in repositories/ · predicate in services/ (the Zone B promotion) ·
+.userId !== comparison in a repository AND separately inside scope.ts · getDb() call site
+in a route · getDb in a route COMMENT only · scope.ts deleted · scope.ts gutted · both
+invariants at once (both reported, no short-circuit) · repositories/ removed · Zone A find
+pattern broken · Zone B exclusion over-widened.
+EXIT 0: residual under __tests__ — the one documented exclusion, as designed.
+
+CI OUTPUT CONFIRMED, NOT INFERRED. Pulled run 31446277953 via gh api .../logs and read the
+Biome job: "scope-completeness-check: PASS / Check 1 (ownership, enforced) — 0 residuals
+across 53 backend source(s) / Check 2 (getDb in routes, enforced) — 0 mention(s) across 12
+route file(s)." Same counts as locally. gh run view --log-failed not used (QUAL-27).
+
+DOC LIFECYCLE (OP-09, same PR)
+ADL-53 §3 item 1 stamped BUILT AND ENFORCED · §6 Stage 5 row stamped SHIPPED, single-flip
+wording corrected, detail note added for the second promotion · OP-06 HC-10/HC-11
+STRENGTHENED, VERDICTS UNCHANGED (both still PASS) · OP-06 HC-05 checked and deliberately
+NOT changed (router-level tier gate, untouched by QUAL-43 — Stage 4's finding still holds)
+· /pre-push skill and ci.yml comment both said warn-only, corrected · scope.ts header note
+said the guard greps "this directory" (false since Stage 3), corrected.
+tracker.json NOT touched — its QUAL-43 notes are your chronological log; Stage 4 did the
+same. The Stage 5 entry is yours to append.
+
+FULL-FILE REWRITES (OP-28): NONE. Every change was an Edit, including the script itself
+where a rewrite would have been permitted — the door-completeness and mentions-not-call-
+sites reasoning is still correct and was preserved, warn-only passages stamped not deleted.
+The single src/backend edit is comment-only in scope.ts's file header; git diff on that
+file is one comment hunk.
+
+COO ADDITIONS — WHAT I'D CHALLENGE
+Both of your additions were right and I took them. The "two promotions" framing is correct
+for a reason the ADL never wrote down: Check 1 and Check 2 have the SAME expand/contract
+shape, and only one was named in the contract step. The injected-fault requirement earned
+its keep twice — it caught nothing wrong in the flip, but forcing it made me probe my OWN
+justification for keeping the enumeration split, which I had reasoned about rather than
+tested.
+
+ONE DEVIATION, declared: the script's header predicted the two zones would "collapse into
+one" on promotion. The POLICY collapsed (one label, one verdict, one strength); the
+ENUMERATION did not. Each half carries a non-emptiness assertion that catches a future edit
+to the script's own find predicates — merged, either mistake would leave the check scanning
+a fraction of the tree and printing PASS. Verified by injecting exactly those two edits
+(last two faults above) rather than asserting it. If you want the literal collapse instead,
+it is a small change, but I'd be removing a self-test to satisfy a sentence.
+
+OPEN ISSUES
+- The guard is regex-shaped and that is now load-bearing: Check 1 matches `.userId`, so an
+  ownership column named otherwise is invisible. The pass on cities.createdByUserId is
+  correct (global reference data) but it is a near-miss with build consequences now. Keep
+  naming ownership columns userId. Recorded in the park doc and the cities-module doc.
+- assertOwned still has no production caller (re-verified, two probes that fail differently:
+  grep across src returns only scope.ts's export + two comments; separately, all ten
+  importers of scope.js name scopeToUser/ownedAnd/assertWritable, none names assertOwned).
+  Stage 4 declined to manufacture one and was right. Not a defect — a caller count.
+- Stage 4's pre-existing itemRepository.update / updateExtension gap is untouched and still
+  open. Unreachable via HTTP. Belongs to whoever owns the next items pass.
+
+NOW UNBLOCKED
+QUAL-43 / ADL-53 is built through Stage 5. Stage 6 (the Phase-3 scopeToUserOrShared seam)
+is design-only. The invariant Phase-3 sharing depends on — one definition of "who may see
+this row" — is now machine-enforced on every push and in CI rather than remembered.
