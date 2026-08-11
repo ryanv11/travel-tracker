@@ -1,0 +1,141 @@
+DATABASE PARK DOCUMENT — 2026-08-10
+THREAD: GE-19 / BUG-85 — geocode status-lifecycle SUBSTRATE (migration 0018)
+BRANCH: feat/ge19-migration (off main bf965a2)
+TRACKER: BUG-85   BRD: GE-19 (v3.20, approved)   SPEC: ADL-55 §3.5   DEFECT CLASS: gap
+
+================================================================================
+1. WHAT WAS ASKED, AND WHAT SHIPPED
+================================================================================
+Asked: implement ADL-55 §3.5 verbatim — the schema substrate for GE-19. Add the new
+terminal status 'needs_attention' to cities' geocode_status CHECK, add a new nullable
+geocode_cause column (+ its CHECK), generate + hand-correct the migration, apply it,
+backfill capped-pending rows. Substrate ONLY — no routes, services, or frontend, no
+GE-19 behaviour (that is the QA red-bar → Backend → Frontend chain that follows).
+
+Shipped exactly that, as ONE migration (ADL-55 §3.5 specifies a single green step, not an
+EXPAND/SWITCH split — one additive nullable column needs no expand phase):
+
+  src/backend/db/schema.ts                                   UPDATED (Edit, not Write):
+      cities.geocodeStatus CHECK widened + 'needs_attention'; NEW geocodeCause
+      text('geocode_cause') (nullable, no default); NEW check chk_cities_geocode_cause.
+  src/backend/migrations/0018_bug85_geocode_needs_attention.sql   NEW — 12-step rebuild
+      + trailing backfill UPDATE.
+  src/backend/migrations/meta/0018_snapshot.json             NEW
+  src/backend/migrations/meta/_journal.json                  UPDATED (1 new entry)
+  jobs/database/tech/0018_bug85_geocode_needs_attention.sql  archived copy
+
+================================================================================
+2. THE THING A FUTURE READER MUST NOT GET WRONG — THREE hand-corrections, all
+   PREDICTED by the 20260806 BUG-75 park doc. Read that doc before any cities migration.
+================================================================================
+The CHECK widening has no SQLite ALTER, so drizzle-kit emits the __new_cities table
+rebuild (same shape as 0017). That rebuild reproduces three drizzle-kit-0.31.9 defects
+on cities. All three were hand-corrected and re-verified against schema.ts:
+
+(1) "0015 ORIGINAL BUG" — the generated INSERT...SELECT put the NEW geocode_cause
+    column in BOTH the INSERT column list AND the SELECT, selecting it FROM THE OLD
+    cities table where it does not yet exist. db:migrate failed at runtime with
+    "no such column: geocode_cause". Fix (mirrors 0015:48-50): keep geocode_cause in the
+    INSERT list, supply NULL as its SELECT literal. Existing rows carry NULL cause
+    (ADL-55 §3.5 pt 2; the §4 null-cause label is the deliberate generic — we do NOT
+    assert 'ambiguous' for historical rows).
+
+(2) ADL-15 BUG 4 (COALESCE-comma-split) on uniq_cities_pending_per_creator — drizzle
+    split COALESCE("region_id",0) and COALESCE("created_by_user_id",'') on their internal
+    commas into bogus separate quoted identifiers, and wrapped `"name" COLLATE NOCASE` as
+    one literal identifier. Rewritten to 0017:82's proven form, byte-verified against
+    schema.ts's uniqueIndex('uniq_cities_pending_per_creator').
+
+(3) uniq_cities_osm_ref WHERE hand-simplified from drizzle's table-qualified
+    `WHERE "cities"."osm_id" IS NOT NULL` back to the bare `WHERE osm_id IS NOT NULL`.
+    This is the EXACT scenario the 20260806 park doc §2 predicted: a future migration
+    that regenerates these indexes re-emits the qualified form, and the still-live
+    bug75-identity-migration.test.ts:84 matches /osm_id\s+is\s+not\s+null/i — the `"` that
+    closes the qualified identifier sits between the column name and the whitespace, so
+    `\s+` fails and the green test goes red on a functionally-correct DDL. This surfaced
+    as the one failing test on the first full test:backend run; fixing the WHERE fixed it.
+    idx_cities_geocode's WHERE was left table-qualified (as 0017 did) — no test depends on
+    its WHERE form, and mirroring 0017 exactly is the faithful shape.
+
+Note: (1) and (2) would have HARD-FAILED (migrate error / invalid SQL). (3) applies fine
+functionally but fails a test regex — all three are real corrections, not cosmetic.
+
+================================================================================
+3. WHY A SINGLE MIGRATION, NOT EXPAND/SWITCH (contrast with BUG-75's two migrations)
+================================================================================
+BUG-75 (0016/0017) split EXPAND then SWITCH because it added THREE columns AND rebuilt the
+index set AND added a CHECK — the INSERT...SELECT "0015 bug" was avoided by having EXPAND
+add the columns to the real table first, so SWITCH's SELECT was valid. GE-19 adds ONE
+nullable column and one CHECK value; ADL-55 §3.5 explicitly specifies a single rebuild
+whose INSERT...SELECT "carries existing columns (geocode_cause defaults NULL for existing
+rows)". The NULL-literal correction (§2 pt 1) is precisely that — so a single migration is
+both correct and the approved spec. ADL-47 single-green-step conditions (§3.5): Railway
+single-instance; start script runs migrate before serving; every change backward-compatible
+with OLD code. All hold (see §5).
+
+================================================================================
+4. VERIFICATION PERFORMED (fresh scratch DB, throwaway libsql scripts, deleted after use)
+================================================================================
+- Fresh DB, all 18 migrations applied clean via db:migrate (SQLITE_PATH scratch file).
+- db:generate AFTER the hand-edits reports "No schema changes" — schema.ts and the 0018
+  snapshot are in sync; the SQL hand-edits do NOT desync the snapshot (snapshot derives
+  from schema.ts, not the SQL). Future generate will report no drift.
+- sqlite_master inspection: geocode_cause column present (nullable); chk_cities_geocode_status
+  includes needs_attention; chk_cities_geocode_cause present; uniq_cities_pending_per_creator
+  keeps COALESCE sentinels + COLLATE NOCASE + partial WHERE geocode_status='pending';
+  uniq_cities_osm_ref bare WHERE.
+- CHECK probes: needs_attention with cause ambiguous / unreachable / NULL all accepted;
+  pending+unreachable accepted; status='bogus' REJECTED; cause='whoops' REJECTED.
+- Uniqueness probes (users + country seeded first to satisfy FKs): userA + userB same
+  (name,country,region) pending = both OK (creator-scoped); userA duplicate 'newport' vs
+  'Newport' pending = REJECTED (COLLATE NOCASE); userA needs_attention same place = OK
+  (partial index only covers pending); NULL-creator sentinel: one OK, duplicate REJECTED.
+- Backfill predicate test (rows inserted with varied status/attempts, exact migration
+  UPDATE run): only pending>=5 → needs_attention; cause stays NULL; resolved/unresolvable/
+  pending<5 untouched. Fresh-DB backfill affected 0 rows (expected — table empty at that
+  point in migration history; staging's one known stuck row city 6 is orphaned per tracker).
+- test:backend 845/845 pass. type:check:all clean. scope:check PASS (Check 3: cities still
+  global-reference, unchanged; 21 tables classified).
+
+================================================================================
+5. SINGLE-GREEN-STEP / BACKWARD-COMPAT — HELD (two probes that fail differently)
+================================================================================
+Claim: no existing code path mis-handles the new 'needs_attention' status or geocode_cause.
+  Probe A (behavioural): 845/845 backend tests pass unchanged.
+  Probe B (static, code-read):
+    - serializers/city.ts types geocode_status as plain `string` (no union, no switch, no
+      exhaustive match) and passes it through; it does NOT serialize geocode_cause at all —
+      a backward-compatible field OMISSION, not a mis-handle. The cause-emitting endpoint
+      is a later brief.
+    - NO Zod enum validates geocode_status (grep of validation/*.ts: enums exist only for
+      itemType/itemStatus/tripStatus/osmType/sort — none for geocode status).
+    - processQueue selects WHERE geocode_status='pending' AND attempts<CAP → excludes
+      needs_attention. findRegionlessUpgradeCandidate uses inArray(['pending','unresolvable'])
+      → excludes needs_attention (comment: "fails closed on a future status").
+    - The resolved/unresolvable early-guard in resolveCity (geocoding.service.ts:390-391)
+      would fall through for needs_attention, BUT all three non-test callers of resolveCity
+      fire only on 'pending' rows: processQueue (predicate), cityIdentityService:107 (guarded
+      by ===' pending' + the whitelist above), and routes/cities.ts:245 (fires on a freshly
+      created 'pending' row). So the fall-through is unreachable for needs_attention today.
+The two probes fail differently: a passing suite can hide a latent static path (B catches),
+a static read can miss a runtime path (A catches). ADL F1/F3 + whitelist extension are the
+BACKEND brief's edits; their absence here is fail-closed, not a regression.
+
+================================================================================
+6. WHAT'S NOW UNBLOCKED
+================================================================================
+The GE-19 chain's substrate is live: 'needs_attention' is a legal terminal status and
+geocode_cause is a live nullable column with its CHECK. Unblocks, in order:
+  - QA red-bar brief (ADL-55 §7 acceptance criteria → failing tests).
+  - Backend brief: nextGeocodeState pure fn; cap-as-active-transition; whitelist +
+    'needs_attention'; findOrUpgradeCity re-open reset (status/attempts/cause + re-fire,
+    ADL F1); findUserGeocodeQueue composing scopeToUser(trips,userId); GET /api/geocode-queue.
+  - Frontend brief: retire the NR-06 localStorage queue; poll the endpoint; (status,cause)
+    → label map; wire re-point/delete recovery.
+
+================================================================================
+7. NEXT DATABASE THREAD
+================================================================================
+None from Database on GE-19 — substrate complete, pending COO merge of feat/ge19-migration.
+ADL-48 S2 (gazetteer tables) remains the next queued Database item, still blocked on the
+GE-17/GE-18 BRD gate and the §8.3 Turso cold-seed timing probe — untouched by this thread.

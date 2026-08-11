@@ -681,3 +681,65 @@ NEXT DATABASE THREAD:
   landing and COO merging the release branch. ADL-48 S2 (gazetteer tables)
   remains the next queued item, still blocked on the BRD gate (GE-17/GE-18)
   and the §8.3 Turso cold-seed timing probe.
+
+================================================================================
+THREAD — GE-19 / BUG-85 geocode status-lifecycle SUBSTRATE (migration 0018) — 2026-08-10
+================================================================================
+BRANCH: feat/ge19-migration (off main bf965a2)   TRACKER: BUG-85   BRD: GE-19 (v3.20)
+SPEC:   ADL-55 §3.5 (OP-27-reviewed, merged) — implemented verbatim, substrate only.
+
+WHAT SHIPPED (schema + one migration; NO routes/services/frontend):
+  src/backend/db/schema.ts  — cities: (a) chk_cities_geocode_status widened to add
+    'needs_attention'; (b) NEW nullable column geocodeCause text('geocode_cause');
+    (c) NEW check chk_cities_geocode_cause (IN ('ambiguous','unreachable') OR IS NULL).
+  src/backend/migrations/0018_bug85_geocode_needs_attention.sql — 12-step table
+    rebuild (the CHECK widening has no SQLite ALTER), + trailing backfill UPDATE.
+  meta/0018_snapshot.json NEW, meta/_journal.json UPDATED.
+
+THREE HAND-CORRECTIONS to drizzle-generated SQL (all predicted by the 20260806
+BUG-75 park doc — read it before touching cities migrations again):
+  (1) "0015 original bug" — the generated INSERT...SELECT pulled the NEW
+      geocode_cause column FROM the OLD cities table (no such column → runtime
+      failure "no such column: geocode_cause"). Fixed by supplying NULL as the
+      SELECT literal (0015's template), keeping geocode_cause in the INSERT list.
+      Existing rows carry NULL cause (ADL-55 §3.5 pt 2). This is why ADL-55 keeps
+      it a SINGLE migration, not an EXPAND/SWITCH split — one additive nullable
+      column needs no expand phase, only the NULL-literal correction.
+  (2) ADL-15 bug 4 (COALESCE-comma-split) on uniq_cities_pending_per_creator —
+      drizzle split COALESCE("region_id",0)/COALESCE("created_by_user_id",'') on
+      their internal commas into bogus quoted identifiers and wrapped
+      "name" COLLATE NOCASE as one literal identifier. Rewritten to 0017:82's form.
+  (3) uniq_cities_osm_ref WHERE hand-simplified from the table-qualified
+      "cities"."osm_id" IS NOT NULL back to the bare osm_id IS NOT NULL — the exact
+      scenario the 20260806 park doc §2 warned about: bug75-identity-migration.test.ts:84
+      matches /osm_id\s+is\s+not\s+null/i, which the "-closed qualified form fails.
+      idx_cities_geocode left table-qualified (as 0017 did; no test depends on its WHERE).
+
+VERIFICATION (fresh scratch DB, all 18 migrations applied clean):
+  - db:migrate clean; db:generate reports "No schema changes" (schema.ts ⇔ snapshot in sync).
+  - sqlite_master: new column + both CHECKs present; uniq_cities_pending_per_creator
+    keeps COALESCE sentinels + COLLATE NOCASE + partial WHERE geocode_status='pending'.
+  - CHECK probes: needs_attention (all causes) accepted; bad status / bad cause rejected.
+  - Uniqueness probes: two creators same place = OK; same creator dup (COLLATE NOCASE) =
+    rejected; needs_attention same place = OK (not in pending index); NULL-creator sentinel OK.
+  - Backfill predicate: only pending>=5 flips to needs_attention, cause stays NULL;
+    resolved/unresolvable/pending<5 untouched. Fresh DB backfill = 0 rows (expected).
+  - test:backend 845/845; type:check:all clean; scope:check PASS (cities still global-reference).
+
+SINGLE-GREEN-STEP PREMISE — HELD (two probes that fail differently):
+  Probe A (behavioural): 845/845 backend tests pass unchanged — no status-enumerating
+    test broke. Probe B (static): serializers/city.ts types geocode_status as plain
+    `string` (no union/switch/exhaustiveness) and does NOT emit geocode_cause (backward-
+    compatible field omission); NO Zod enum validates geocode_status; processQueue's
+    predicate and findRegionlessUpgradeCandidate's ['pending','unresolvable'] whitelist
+    both exclude needs_attention (fail-closed); all 3 non-test callers of resolveCity fire
+    only on 'pending' rows, so the resolved/unresolvable if-guard fall-through
+    (geocoding.service.ts:390-391) never sees needs_attention. No existing path mis-handles
+    the new status/column. The ADL's F1/F3 + whitelist edits are the Backend brief's job;
+    their ABSENCE here is fail-closed, not a regression.
+
+NEXT DATABASE THREAD:
+  None from Database on GE-19 — substrate is done. Next in the GE-19 chain is the
+  QA red-bar brief then Backend (nextGeocodeState, cap-as-transition, whitelist +
+  needs_attention, findOrUpgradeCity re-open reset, findUserGeocodeQueue) then Frontend.
+  ADL-48 S2 (gazetteer tables) remains queued, still blocked on the GE-17/GE-18 BRD gate.
