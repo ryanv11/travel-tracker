@@ -95,7 +95,9 @@ export function MobileTripsLayout() {
   // BUG-58/BUG-86: mirrors TripDetailPage's desktop wiring — which surface
   // renders for a review_pending trip is a local dismiss, never a navigation
   // (see useReviewPanelVisibility's doc comment for the shared root cause).
-  const { showReviewPanel, dismissReview } = useReviewPanelVisibility(
+  // BUG-86 round 2: returnToReview gives the dismissed trip view an explicit
+  // way back to ReviewPanel, mirrored from TripDetailPage's desktop wiring.
+  const { showReviewPanel, dismissReview, returnToReview } = useReviewPanelVisibility(
     selectedTrip?.id,
     selectedTrip?.status,
   );
@@ -133,7 +135,13 @@ export function MobileTripsLayout() {
         </div>
       );
     }
-    return <MobileTripDetailView trip={selectedTrip} onBack={handleBack} />;
+    return (
+      <MobileTripDetailView
+        trip={selectedTrip}
+        onBack={handleBack}
+        onReturnToReview={returnToReview}
+      />
+    );
   }
 
   return (
