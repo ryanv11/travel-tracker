@@ -39,7 +39,7 @@ jobs/backend/tech/qual48-transaction-probe.mts (inert repro, probes A–F, outsi
 vitest include glob — CI never runs it; kept per QUAL-25 precedent — flag if you'd rather discard).
 NO src/backend/** change ships. drizzle-kit patch untouched.
 
-CI: (PR # and green status appended after ci-wait — see below)
+CI: PR #502 — all 18 checks GREEN (ci-wait exit 0 @ ea00e4c). Do not merge (spike, COO review).
 
 FOLLOW-ON: QUAL-48 part 2 + BUG-95 should PROCEED, on a per-test file-backed client design
 (unique temp path WITH cleanup — the spike variant leaked temp dirs), ATDD-first. Optionally
