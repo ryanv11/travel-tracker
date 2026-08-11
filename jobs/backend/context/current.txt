@@ -960,3 +960,38 @@ the tx result with no post-tx query (accident of shape, confirmed).
 All three secondary-audit §1d claims confirmed, none overturned. Follow-on
 QUAL-48 part 2 + BUG-95 recommended to proceed on a per-test file-backed client
 design (with temp-file cleanup — spike variant leaked dirs), ATDD-first.
+
+────────────────────────────────────────────────────────────────────
+BACKEND CONTEXT — 2026-08-10 (QUAL-50 item atomicity + BUG-95, latest)
+Branch fix/qual50-item-atomicity (off main @36284da). Closes BUG-95.
+The follow-on the QUAL-48 spike unblocked. THREE pieces, all shipped:
+
+1. create ATOMICITY. itemRepository.create now wraps base insert +
+   type-specific extension insert in ONE db.transaction(); a mid-create
+   failure (extension insert throws) rolls back the base row — no orphan.
+   KEY DESIGN CHOICE (challenges the spike's premise): the read-back runs
+   INSIDE the transaction and its result is returned directly, so create
+   issues NO query on the client AFTER the transaction — the same shape
+   executeCarryForward uses. The spike said "create cannot copy that trick"
+   because of its trailing fetch; it CAN, by moving the fetch inside the tx.
+   Consequence: create stays :memory:-safe, so the file-backed client is
+   needed ONLY where a test queries AFTER a create — not every create site.
+   Full backend suite (845) stayed green with only ONE test file converted.
+
+2. BUG-95 update gate. update's extension write is now gated on the scoped
+   UPDATE having matched a row (.returning({id}); matched.length===0 → return
+   null before updateExtension). Extension tables carry no user_id, so this
+   stops a non-owner mutating an extension row. Composes scopeToUser — no
+   parallel ownership check added.
+
+3. Test client. createFileBackedTestDb() in repositories/__tests__/test-db.ts
+   — per-test UNIQUE temp path (mkdtempSync) + cleanup() the caller runs in
+   afterEach (spike variant leaked temp dirs; this doesn't). Scoped to ONE
+   file: repositories/__tests__/items.test.ts (the transaction-using unit
+   tests). Partial unique indexes stay enforced (spike-verified; QUAL-22
+   mock-fidelity preserved). Per-setup cost: :memory: ~1.6ms vs file-backed
+   ~5.6ms; +~4ms/test over 35 tests — suite-wall delta within noise.
+
+ATDD: two regression tests written FIRST, shown RED against pre-fix code
+(orphan: "expected [ {id:1,…} ] length +0 got 1"; BUG-95: "expected 'HACKED'
+to be 'Air France'"), GREEN after. drizzle-kit patch untouched (ADL-15).

@@ -1,0 +1,38 @@
+BACKEND COMPLETION — QUAL-50 (item create atomicity + BUG-95 gate)
+Tracker: QUAL-50 (closes BUG-95) · PR: (opening) · BRD: n/a · Branch: fix/qual50-item-atomicity
+
+WHAT WAS BUILT
+itemRepository.create now wraps its base + extension insert in one db.transaction()
+(no orphan base row on mid-create failure); update gates the extension write on the
+scoped UPDATE having matched (BUG-95 — a non-owner can no longer mutate an extension
+row). Added a per-test file-backed test client, scoped to the one transaction-using
+test file.
+
+ACCEPTANCE CRITERIA
+- Per-test file-backed client, unique temp path + cleanup, scoped (not suite-wide): PASS
+  (createFileBackedTestDb; used only in repositories/__tests__/items.test.ts)
+- create base+extension in ONE transaction, no orphan on failure: PASS
+- BUG-95: update extension-write gated on scoped UPDATE match: PASS
+- Two regression tests RED-before / GREEN-after: PASS (RED output in park doc)
+- test:backend green, no unrelated test file modified: PASS (53 files / 845 tests)
+- No other production behaviour change: PASS
+
+SECURITY (OP-06 — access-matrix defect BUG-95)
+- Extension-write gate composes the existing scopeToUser predicate via the same scoped
+  UPDATE's .returning() — no parallel/hand-rolled ownership check added, assertion not
+  weakened. Non-owner update now returns null and performs no extension write.
+- No routes added/modified; scope:check PASS (getDb still absent from routes).
+
+CI: opening PR next; will confirm ci-wait.sh green against true head SHA before reporting done.
+
+DESIGN NOTE (challenge to the spike, detail in park doc)
+The spike said create "cannot copy executeCarryForward's :memory:-surviving shape" because
+of its trailing fetch. It CAN — move the fetch INSIDE the transaction and return it. That
+keeps create :memory:-safe, so file-backed was needed in ONE test file, not the 7+ feared.
+Full suite stayed green with no route/service/contract test touched. Spike's GO + mechanism
+were all correct; it just under-explored this cheaper shape.
+
+BLOCKERS: none. drizzle-kit patch untouched (ADL-15).
+
+UNBLOCKED: BUG-95 ready to close on merge; the file-backed client is available for any future
+test that must observe DB state across a db.transaction() boundary.
