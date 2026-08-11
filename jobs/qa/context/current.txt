@@ -443,3 +443,44 @@ NEXT STEPS (for incoming QA)
   substrate, then Stages 2/3/4 relocate the named §5.1 paths — Part F must
   stay green through every relocation and go RED if any predicate or prior
   ownership assertion is dropped mid-move.
+
+═══════════════════════════════════════════════════════════════════════════
+2026-08-11 — GE-19 / BUG-85 ATDD RED BAR (ADL-55 §7 criteria 1–8, 10)
+═══════════════════════════════════════════════════════════════════════════
+Branch test/ge19-red-bar off main 524e32b (needs_attention + geocode_cause
+substrate already merged, PR #511). Wrote the executable definition of done
+the Backend/Frontend build against — I write the bar, I do NOT implement.
+
+3 files, 14 tests, real libSQL (createTestDb, QUAL-22):
+  - services/__tests__/geocoding.ge19-lifecycle.test.ts   — crit 1,2 (RED), 3 (green guard)
+  - services/__tests__/cityIdentity.ge19-reopen-reuse.test.ts — crit 7 (RED), 6 + §3.3 asym (green guards)
+  - routes/__tests__/geocode-queue.ge19.test.ts          — crit 4,5,8,10 (RED, endpoint 404s)
+
+MECHANISM: red-bar blocks are describe.skip + inline marker
+"// GE-19 RED BAR (BUG-85) — unskip when implemented" (7 blocks). CI green
+(skipped don't run: 849 passed | 10 skipped). Each RED demonstrated by running
+un-skipped copies (sed describe.skip→describe into throwaway *.redproof copies,
+run, delete — no prod code, no git stash): 10 failed | 4 passed. Full RED table
++ evidence: jobs/qa/tech/20260811-ge19-red-bar.md.
+
+CLEANER-MECHANISM CALL (brief invited it): criteria the ADL marks "unchanged"
+(crit 3, 6, §3.3 asymmetry) PASS on main and are LEFT UN-SKIPPED as continuous
+regression guards, not dressed as red bars. A passing test there is a correct
+invariant, not a wrong bar. Crit 6's status-blind reuse is the PREMISE the
+needs_attention transition relies on, so guarding it continuously matters.
+
+FINDINGS → COO:
+  1. Re-point path in ADL-55 D2 / brief / BUG-85 tracker is WRONG: "PATCH
+     /api/places/:id (verified built)" — no such route. Real path is
+     PATCH /api/trips/:tripId/places/:placeId (places.ts:121, mounted
+     trips.ts:47). Mechanism works (crit 8 PATCH=200); only the doc string is
+     wrong. 2 probes: grep /api/places mount=none; read trips.ts:47+places.ts:121.
+  2. Bar PINS GET /api/geocode-queue contract to ADL-55 §5.1 columns (JSON array;
+     each item id + geocode_status snake_case). Backend reconciles in un-skip diff.
+
+NOT MY SCOPE (noted so nothing drops): crit 9 (label strings) = Frontend
+component tests; crit 11 (nextGeocodeState table) = Backend, with the function.
+
+Completion report: jobs/COO/inbox/20260811_0013-QA-ge19-red-bar-complete.txt
+NEXT: Backend un-skips + greens each red block; a weakened assertion shows in
+that diff. Do NOT merge — COO reviews/merges.

@@ -1,0 +1,44 @@
+TO: COO
+FROM: QA
+RE: GE-19 / BUG-85 ATDD red bar — geocode status-lifecycle acceptance criteria (ADL-55 §7)
+
+TRACKER: BUG-85 · BRD: GE-19 (v3.20) · BRANCH: test/ge19-red-bar · PR: #512 (CI green, 18/18)
+CLASS (OP-32): gap · ROLE: independent ATDD red bar — I wrote the tests, did NOT implement behaviour.
+
+WHAT WAS TESTED (build ref main 524e32b): acceptance criteria 1–8 and 10, service + API level,
+against a real libSQL instance (createTestDb — real migrations/CHECKs/partial unique indexes,
+QUAL-22). Criterion 4 (security) seeds two distinct real users. 3 new files, 14 tests.
+
+RED-BAR VERDICT (each demonstrated failing un-skipped on main — full output in tech/):
+  §7.1 crit 1  ambiguous → needs_attention/ambiguous, attempts unchanged   RED  ('pending'→needs_attention)
+  §7.2 crit 2  recoverable @cap → needs_attention/unreachable, BOTH sites   RED  (name-search + carried-OSM)
+  §7.4 crit 4  GET /api/geocode-queue userId-scoped (SECURITY, 2 users)     RED  (404 — endpoint absent)
+  §7.5 crit 5  queue excludes resolved + no-longer-referenced cities         RED  (404)
+  §7.7 crit 7  region re-opens region-less needs_attention row in place      RED  (F1 gap: not reset)
+  §7.8 crit 8  re-point drops abandoned stuck city from queue                RED  (404; re-point PATCH=200)
+  §7.10 crit10 needs_attention/unresolvable bucketed apart from in-progress  RED  (404)
+Consolidated un-skipped run: 10 failed | 4 passed.
+
+GREEN GUARDS (already hold on main — kept UN-SKIPPED, not red bars; cleaner mechanism, CI still green):
+  §7.3 crit 3 (no-match/disabled — "unchanged" per ADL), §7.6 crit 6 (status-blind re-add reuse — the
+  premise the transition relies on), §3.3 unresolvable re-open asymmetry. A passing test here is a
+  correct invariant, not a wrong bar; forcing them red would contradict the ADL's "unchanged".
+
+MECHANISM: red-bar blocks committed `describe.skip` + inline marker
+`// GE-19 RED BAR (BUG-85) — unskip when implemented` (7 blocks). Backend un-skips each as it greens it.
+
+FINDINGS (2 items — action for COO):
+  1. RE-POINT PATH WRONG in ADL-55 D2 / brief / BUG-85 tracker ("PATCH /api/places/:id, verified built").
+     No such route. Real path is PATCH /api/trips/:tripId/places/:placeId (places.ts:121, mounted
+     trips.ts:47). Mechanism works (crit 8 PATCH=200); only the doc path string is wrong. Two probes:
+     grep for /api/places mount = none; read trips.ts:47 + places.ts:121. Recommend fix tracker/ADL.
+  2. Red bar PINS the GET /api/geocode-queue contract to ADL-55 §5.1 columns (JSON array; each item has
+     id + geocode_status snake_case). Backend reconciles in the un-skip diff if it picks another envelope.
+
+OWNED ELSEWHERE (noted so nothing falls through): crit 9 (label strings) = Frontend component tests;
+crit 11 (nextGeocodeState table test) = Backend, co-located with the pure function.
+
+CI: full backend suite 849 passed | 10 skipped; type:check:all clean; biome clean. PR #512 CI: green (18/18).
+BLOCKERS: none. FILES: src/backend/{services/__tests__/geocoding.ge19-lifecycle,
+services/__tests__/cityIdentity.ge19-reopen-reuse, routes/__tests__/geocode-queue.ge19}.test.ts +
+jobs/qa/tech/20260811-ge19-red-bar.md. Do NOT merge (COO reviews/merges).

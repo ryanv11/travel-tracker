@@ -1,0 +1,89 @@
+QA PARK DOCUMENT — 2026-08-11
+Session: GE-19 / BUG-85 ATDD RED BAR (ADL-55 §7 criteria 1–8, 10)
+
+────────────────────────────────────────────────────────────────────────
+STATE AT PARK
+────────────────────────────────────────────────────────────────────────
+Branch:  test/ge19-red-bar  (off main 524e32b)
+PR:      #512 — test(GE-19): ATDD red bar — geocode status-lifecycle
+         acceptance criteria (ADL-55 §7)   [CI green, 18/18 @ 18182a3]
+Status:  Red bar delivered and demonstrated. Do NOT merge — COO reviews/merges.
+
+────────────────────────────────────────────────────────────────────────
+WHAT WAS DELIVERED
+────────────────────────────────────────────────────────────────────────
+The executable definition of done for GE-19 that the Backend + Frontend
+briefs build against. I wrote the acceptance tests; I did NOT implement the
+behaviour (OP-35 ATDD-first — QA is the red bar).
+
+3 new backend test files (real libSQL, QUAL-22 mock-fidelity):
+  1. src/backend/services/__tests__/geocoding.ge19-lifecycle.test.ts
+        §7.1 crit 1  ambiguous → needs_attention/ambiguous, no retries   [RED, skip]
+        §7.2 crit 2  recoverable @cap → needs_attention/unreachable,     [RED, skip]
+                     BOTH F2 sites (name-search ~:458, carried-OSM ~:413)
+        §7.3 crit 3  no-match unchanged; disabled increments nothing     [GREEN guard, unskipped]
+  2. src/backend/services/__tests__/cityIdentity.ge19-reopen-reuse.test.ts
+        §7.6 crit 6  re-add needs_attention city reuses row (no dup)     [GREEN guard, unskipped]
+        §7.7 crit 7  region re-opens region-less needs_attention in place[RED, skip] (F1 gap)
+        §3.3         unresolvable re-open asymmetry preserved            [GREEN guard, unskipped]
+  3. src/backend/routes/__tests__/geocode-queue.ge19.test.ts
+        §7.4 crit 4  GET /api/geocode-queue userId-scoped (SECURITY,     [RED, skip]
+                     2 real users — USER_B's stuck city never shown to A)
+        §7.5 crit 5  queue excludes resolved + no-longer-referenced      [RED, skip]
+        §7.8 crit 8  re-point drops abandoned stuck city from queue      [RED, skip]
+        §7.10 crit10 needs_attention/unresolvable bucketed apart         [RED, skip]
+
+Detail + full RED output table: jobs/qa/tech/20260811-ge19-red-bar.md
+Completion report: jobs/COO/inbox/20260811_0013-QA-ge19-red-bar-complete.txt
+
+────────────────────────────────────────────────────────────────────────
+SKIP-WITH-DEMONSTRATED-RED MECHANISM (how CI stays green while the bar is red)
+────────────────────────────────────────────────────────────────────────
+Red-bar blocks: describe.skip + inline marker
+  "// GE-19 RED BAR (BUG-85) — unskip when implemented"   (7 blocks total)
+Backend un-skips each block as it greens it; a weakened assertion shows in
+that diff. Verified: full backend suite 849 passed | 10 skipped (CI green).
+RED demonstrated by sed'ing describe.skip→describe into throwaway
+*.redproof.test.ts copies (same dir → imports resolve), running, deleting —
+no production code touched, no git stash (shared-ref hazard). Consolidated
+un-skipped run: 10 failed | 4 passed.
+
+CLEANER MECHANISM (brief invited proposals): the ADL marks crit 3/6/§3.3 as
+UNCHANGED invariants — they PASS on main, so I left them UN-SKIPPED as
+continuous regression guards rather than falsely dressing them as red bars.
+CI green either way. Crit 6's status-blindness is the premise the
+needs_attention transition depends on, so guarding it continuously is the
+right call.
+
+────────────────────────────────────────────────────────────────────────
+OPEN FINDINGS FOR THE COO (2)
+────────────────────────────────────────────────────────────────────────
+1. RE-POINT PATH WRONG in ADL-55 D2, the brief, and the BUG-85 tracker note:
+   all cite "PATCH /api/places/:id (verified built)". No such route exists.
+   Real path: PATCH /api/trips/:tripId/places/:placeId (places.ts:121,
+   accepts city_id via UpdatePlaceDatesSchema; mounted trips.ts:47). The
+   MECHANISM is built and works (crit 8's PATCH returns 200 in the red run) —
+   only the documented path STRING is wrong. Two probes: grep for any
+   /api/places mount = none; read trips.ts:47 + places.ts:121. Recommend the
+   COO correct the tracker/ADL pointer so the Backend/Frontend don't chase a
+   phantom route.
+2. The bar PINS the GET /api/geocode-queue response contract to the ADL-55
+   §5.1 columns: JSON array of city objects, each with at least id (number)
+   and geocode_status (snake_case, matching GET /api/cities search). If the
+   Backend chooses a different envelope it reconciles in the un-skip diff.
+
+────────────────────────────────────────────────────────────────────────
+OUT OF SCOPE (owned elsewhere — noted so nothing falls through)
+────────────────────────────────────────────────────────────────────────
+crit 9  (status,cause)→label strings   — Frontend brief component tests
+crit 11 nextGeocodeState table test    — Backend brief, co-located w/ the fn
+
+────────────────────────────────────────────────────────────────────────
+NEXT / IF RESUMED
+────────────────────────────────────────────────────────────────────────
+- After Backend implements: it un-skips each RED block; QA re-verifies the
+  un-skip diff did not weaken assertions and that crit 3/6/§3.3 guards stayed
+  green through the build.
+- Frontend brief owns crit 9; confirm it lands as component tests.
+- Watch the re-point path finding (#1) is actually corrected in the tracker/ADL
+  before the Backend/Frontend briefs cite it.
