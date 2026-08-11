@@ -19,6 +19,7 @@ import { asyncHandler } from '../middleware/error-handler.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
 import { citiesRepository } from '../repositories/cities.js';
+import { serializeCity, serializeCityWithRegion } from '../serializers/city.js';
 import {
   createOrReuseCarriedCity,
   findOrUpgradeCity,
@@ -58,26 +59,10 @@ citiesRouter.get(
   }),
 );
 
-/** Serialize a city row to the snake_case API shape. */
-function serializeCity(row: {
-  id: number;
-  name: string;
-  countryCode: string;
-  regionId: number | null;
-  latitude: number | null;
-  longitude: number | null;
-  geocodeStatus: string;
-}) {
-  return {
-    id: row.id,
-    name: row.name,
-    country_code: row.countryCode,
-    region_id: row.regionId,
-    latitude: row.latitude,
-    longitude: row.longitude,
-    geocode_status: row.geocodeStatus,
-  };
-}
+// QUAL-49: serializeCity / serializeCityWithRegion now live in
+// src/backend/serializers/city.ts — the single home for the city response shape.
+// POST/PATCH here return the BASE shape (no region join); GET /:id returns the
+// region-enriched shape. These are preserved byte-for-byte.
 
 // ----------------------------------------------------------------
 // POST /api/cities
@@ -284,17 +269,7 @@ citiesRouter.get(
     const city = await citiesRepository.findByIdWithRegion(cityId);
     if (!city) throw new NotFoundError('City');
 
-    res.json({
-      id: city.id,
-      name: city.name,
-      country_code: city.countryCode,
-      region_id: city.regionId,
-      region_name: city.regionName,
-      region_iso: city.regionIso,
-      latitude: city.latitude,
-      longitude: city.longitude,
-      geocode_status: city.geocodeStatus,
-    });
+    res.json(serializeCityWithRegion(city));
   }),
 );
 
@@ -331,16 +306,7 @@ citiesRouter.patch(
 
     const updated = await citiesRepository.updateCity(cityId, setValues);
 
-    const city = updated[0];
-    res.json({
-      id: city.id,
-      name: city.name,
-      country_code: city.countryCode,
-      region_id: city.regionId,
-      latitude: city.latitude,
-      longitude: city.longitude,
-      geocode_status: city.geocodeStatus,
-    });
+    res.json(serializeCity(updated[0]));
   }),
 );
 

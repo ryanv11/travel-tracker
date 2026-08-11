@@ -111,7 +111,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-44 | Stale file:line cross-references in comments — remaining low-value ones + adopt cite-symbols-not-lines | unassigned | ⬜ Pending |
 | BUG-95 | itemRepository.update writes the extension row even when the scoped UPDATE matched nothing (latent, not reachable via HTTP today) | backend | ⬜ Pending |
 | QUAL-48 | Spike — does a file-backed libSQL test client honour db.transaction() (unblocks items base+extension atomicity)? | backend | ⬜ Pending |
-| QUAL-49 | One serializer per entity, every handler routed through it (the persisted-but-dropped-from-response class) | backend | ⬜ Pending |
+| QUAL-49 | One serializer per entity, every handler routed through it (the persisted-but-dropped-from-response class) | backend | done_pending_uat |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 | QUAL-34 | Shared-record append collisions — union-merge driver for the ledger + per-agent context files (never adopted, 3rd recording) | coo | ⬜ Pending |
 | QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |

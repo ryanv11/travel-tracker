@@ -25,6 +25,8 @@ import { activityRepository } from '../repositories/activities.js';
 import { itemRepository } from '../repositories/items.js';
 import { placeRepository } from '../repositories/places.js';
 import { referenceRepository } from '../repositories/reference.js';
+import { serializeCityWithRegion } from '../serializers/city.js';
+import { serializePlaceListItem, serializePlaceRaw } from '../serializers/place.js';
 import { assertNotLocked, executeCarryForward } from '../services/items.service.js';
 import { CarryForwardBodySchema } from '../validation/items.schemas.js';
 import {
@@ -49,17 +51,10 @@ placesRouter.get(
 
     const result = await placeRepository.findByTrip(userId, tripId);
 
-    res.json(
-      result.map((p) => ({
-        id: p.id,
-        city_id: p.cityId,
-        arrived_on: p.arrivedOn ?? null,
-        departed_on: p.departedOn ?? null,
-        created_at: p.createdAt,
-        city: p.city,
-        activities: p.activities,
-      })),
-    );
+    // QUAL-49: `p.city` is already the region-enriched serialized city (built by
+    // placeRepository.findByTrip via the shared serializer); the place envelope
+    // is the list-item shape (dates + activities, no items).
+    res.json(result.map((p) => serializePlaceListItem(p, p.city, p.activities)));
   }),
 );
 
@@ -89,25 +84,9 @@ placesRouter.post(
     // placeRepository.create verifies trip ownership + lock status + duplicate check
     const place = await placeRepository.create(userId, tripId, city_id, arrived_on, departed_on);
 
-    res.status(201).json({
-      id: place.id,
-      city_id: place.cityId,
-      arrived_on: place.arrivedOn ?? null,
-      departed_on: place.departedOn ?? null,
-      created_at: place.createdAt,
-      city: {
-        id: city.id,
-        name: city.name,
-        country_code: city.countryCode,
-        region_id: city.regionId,
-        region_name: city.regionName,
-        region_iso: city.regionIso,
-        latitude: city.latitude,
-        longitude: city.longitude,
-        geocode_status: city.geocodeStatus,
-      },
-      activities: [],
-    });
+    // QUAL-49: same list-item place shape as GET — region-enriched city (no
+    // country_name), no items, empty activities on a fresh place.
+    res.status(201).json(serializePlaceListItem(place, serializeCityWithRegion(city), []));
   }),
 );
 
@@ -185,16 +164,9 @@ placesRouter.patch(
       city_id,
     );
 
-    res.json({
-      id: place.id,
-      trip_id: place.tripId,
-      city_id: place.cityId,
-      user_id: place.userId,
-      arrived_on: place.arrivedOn ?? null,
-      departed_on: place.departedOn ?? null,
-      created_at: place.createdAt,
-      updated_at: place.updatedAt,
-    });
+    // QUAL-49: PATCH returns the RAW trip_place row (trip_id, user_id,
+    // updated_at) — not the nested-city list shape. serializePlaceRaw pins it.
+    res.json(serializePlaceRaw(place));
   }),
 );
 

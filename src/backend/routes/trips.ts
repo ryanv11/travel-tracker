@@ -24,6 +24,13 @@ import { itemRepository } from '../repositories/items.js';
 import { placeRepository } from '../repositories/places.js';
 import { tripRepository } from '../repositories/trips.js';
 import {
+  cityRowFromPlaceJoin,
+  serializeCityWithCountry,
+  serializeCityWithRegion,
+} from '../serializers/city.js';
+import { serializePlaceDetail, serializePlaceSummary } from '../serializers/place.js';
+import { serializeTrip } from '../serializers/trip.js';
+import {
   CreateTripSchema,
   DeleteTripParamsSchema,
   ListTripsQuerySchema,
@@ -60,7 +67,16 @@ function validateTransition(from: string, to: string): void {
   }
 }
 
-/** Build the standard trip response shape (list item — minimal places for city pins) */
+/**
+ * Build the standard trip LIST response (minimal places for city pins).
+ *
+ * QUAL-49: the place + city hand-maps that used to live here (and, divergently,
+ * in GET /:id) are gone — this routes through the shared serializers. The LIST
+ * place is the SUMMARY shape ({id, city_id, city}) with a region-enriched city
+ * (region names, no country_name); GET /:id builds the fuller DETAIL shape from
+ * the SAME `getPlaces` rows. The two are intentionally different shapes, not one
+ * shape mapped twice — see serializers/place.ts.
+ */
 async function buildTripResponse(trip: {
   id: number;
   name: string;
@@ -77,38 +93,11 @@ async function buildTripResponse(trip: {
     tripRepository.getCountries(trip.id),
   ]);
 
-  const places = placesRows.map((p) => ({
-    id: p.id,
-    city_id: p.cityId,
-    city: {
-      id: p.cityId,
-      name: p.cityName,
-      country_code: p.cityCountryCode,
-      region_id: p.cityRegionId,
-      region_iso: p.cityRegionIso ?? null,
-      // BUG-80: region_iso was already selected here; region_name (the
-      // human-readable "Scotland" vs the ISO "GB-SCT") was not — same LEFT
-      // JOIN in tripRepository.getPlaces, one more column.
-      region_name: p.cityRegionName ?? null,
-      latitude: p.cityLatitude,
-      longitude: p.cityLongitude,
-      geocode_status: p.cityGeocodeStatus,
-    },
-  }));
+  const places = placesRows.map((p) =>
+    serializePlaceSummary(p, serializeCityWithRegion(cityRowFromPlaceJoin(p))),
+  );
 
-  return {
-    id: trip.id,
-    name: trip.name,
-    start_date: trip.startDate,
-    end_date: trip.endDate,
-    status: trip.status,
-    photo_album_ref: trip.photoAlbumRef,
-    created_at: trip.createdAt,
-    updated_at: trip.updatedAt,
-    ...assoc,
-    places,
-    countries: countriesRows,
-  };
+  return serializeTrip(trip, { associations: assoc, places, countries: countriesRows });
 }
 
 // ----------------------------------------------------------------
@@ -227,56 +216,24 @@ tripsRouter.get(
     // residual. OP-30 — reword your own text, never weaken the scanner.)
     const allItems = await itemRepository.findByTrip(userId, tripId);
 
-    // Assemble places
-    const places = placesRows.map((p) => ({
-      id: p.id,
-      city_id: p.cityId,
-      // BUG-31: these were previously omitted here even though placeRepository
-      // persists them correctly on PATCH — trip detail (the response PlaceSection
-      // renders from) never surfaced explicit place dates, so
-      // resolvePlaceDateRange (ADL-24 §5) always fell through to the hotel/trip
-      // fallback regardless of what was saved.
-      arrived_on: p.arrivedOn ?? null,
-      departed_on: p.departedOn ?? null,
-      created_at: p.createdAt,
-      city: {
-        id: p.cityId,
-        name: p.cityName,
-        country_code: p.cityCountryCode,
-        country_name: p.cityCountryName,
-        region_id: p.cityRegionId,
-        // BUG-80: this route already SELECTs regions.iso3166_2 and regions.name
-        // via tripRepository.getPlaces' LEFT JOIN onto `regions` (cityRegionIso /
-        // cityRegionName), but this response object never surfaced either —
-        // the dropped-join defect described in the brief. Two saved places for
-        // same-named cities in different regions ("Newport, Scotland" vs
-        // "Newport, Wales") rendered identically as "Newport United Kingdom"
-        // with nothing in the payload for the frontend to distinguish them by.
-        region_iso: p.cityRegionIso ?? null,
-        region_name: p.cityRegionName ?? null,
-        latitude: p.cityLatitude,
-        longitude: p.cityLongitude,
-        geocode_status: p.cityGeocodeStatus,
-      },
-      activities: placeActivities
-        .filter((a) => a.tripPlaceId === p.id)
-        .map((a) => ({ id: a.id, name: a.name })),
-      items: allItems.filter((i) => (i as Record<string, unknown>).trip_place_id === p.id),
-    }));
+    // Assemble places — the DETAIL shape (dates + activities + items, and a city
+    // carrying country_name). QUAL-49: BUG-31 (place dates) and BUG-80 (region_iso/
+    // region_name/country_name) are now structural — serializePlaceDetail +
+    // serializeCityWithCountry cannot silently drop these fields the way the old
+    // hand-map could. The city rows come from tripRepository.getPlaces, which
+    // LEFT JOINs regions AND countries.
+    const places = placesRows.map((p) =>
+      serializePlaceDetail(
+        p,
+        serializeCityWithCountry(cityRowFromPlaceJoin(p)),
+        placeActivities
+          .filter((a) => a.tripPlaceId === p.id)
+          .map((a) => ({ id: a.id, name: a.name })),
+        allItems.filter((i) => (i as Record<string, unknown>).trip_place_id === p.id),
+      ),
+    );
 
-    res.json({
-      id: trip.id,
-      name: trip.name,
-      start_date: trip.startDate,
-      end_date: trip.endDate,
-      status: trip.status,
-      photo_album_ref: trip.photoAlbumRef,
-      created_at: trip.createdAt,
-      updated_at: trip.updatedAt,
-      ...assoc,
-      places,
-      countries: countriesRows,
-    });
+    res.json(serializeTrip(trip, { associations: assoc, places, countries: countriesRows }));
   }),
 );
 
