@@ -514,10 +514,7 @@ describe('QUAL-49 characterization — ITEM shape (per type)', () => {
   for (const { type, body } of cases) {
     it(`POST /api/trips/:tripId/items — ${type} item shape`, async () => {
       const trip = await seedTrip(testDb!);
-      const res = await supertest(app)
-        .post(`/api/trips/${trip.id}/items`)
-        .send(body)
-        .expect(201);
+      const res = await supertest(app).post(`/api/trips/${trip.id}/items`).send(body).expect(201);
       expect(keys(res.body)).toEqual(ITEM_KEYS_BY_TYPE[type]);
     });
   }

@@ -67,11 +67,7 @@ export function serializePlaceSummary(p: { id: number; cityId: number }, city: o
  * places list & create place — dates + activities, no items. `city` is a
  * pre-serialized city object (region variant).
  */
-export function serializePlaceListItem(
-  p: PlaceCoreRow,
-  city: object,
-  activities: PlaceActivity[],
-) {
+export function serializePlaceListItem(p: PlaceCoreRow, city: object, activities: PlaceActivity[]) {
   return {
     ...placeCoreWithDates(p),
     city,

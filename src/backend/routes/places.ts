@@ -86,9 +86,7 @@ placesRouter.post(
 
     // QUAL-49: same list-item place shape as GET — region-enriched city (no
     // country_name), no items, empty activities on a fresh place.
-    res
-      .status(201)
-      .json(serializePlaceListItem(place, serializeCityWithRegion(city), []));
+    res.status(201).json(serializePlaceListItem(place, serializeCityWithRegion(city), []));
   }),
 );
 

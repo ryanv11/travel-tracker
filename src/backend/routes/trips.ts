@@ -23,7 +23,11 @@ import { validateBody, validateQuery } from '../middleware/validate.js';
 import { itemRepository } from '../repositories/items.js';
 import { placeRepository } from '../repositories/places.js';
 import { tripRepository } from '../repositories/trips.js';
-import { cityRowFromPlaceJoin, serializeCityWithCountry, serializeCityWithRegion } from '../serializers/city.js';
+import {
+  cityRowFromPlaceJoin,
+  serializeCityWithCountry,
+  serializeCityWithRegion,
+} from '../serializers/city.js';
 import { serializePlaceDetail, serializePlaceSummary } from '../serializers/place.js';
 import { serializeTrip } from '../serializers/trip.js';
 import {
