@@ -927,3 +927,36 @@ sentence. What it removes is the silent case: a table nobody classified.
 
 827/827 backend tests unchanged, zero test files modified. No production
 behaviour change — ownership.ts is imported type-only by scope.ts.
+
+────────────────────────────────────────────────────────────────────
+BACKEND CONTEXT — 2026-08-10 (QUAL-48 file-backed test-client spike)
+────────────────────────────────────────────────────────────────────
+OP-33 spike, branch chore/qual48-transaction-spike. NO production change
+ships — evidence only. Deliverable: jobs/backend/tech/20260810-qual48-
+transaction-spike.md + inert repro jobs/backend/tech/qual48-transaction-
+probe.mts.
+
+GO. A file-backed libSQL test client (file:<tmp>) honours db.transaction()
+AND lets a subsequent query on the SAME client survive — the exact half the
+:memory: double breaks. Mechanism (read, not guessed): @libsql/client
+sqlite3.js:145-149 nulls #db when handing the connection to the tx; the next
+client query reopens from #path — for :memory: a fresh EMPTY db (breaks), for
+a file the same file (works).
+
+Verify-checklist all settled: (1) file-backed tx + subsequent query VERIFIED
+(probe C vs :memory: probe A). (2) Cheaper option: file::memory:?cache=shared
+works with no file I/O BUT all shared-cache in-memory clients share ONE db
+per process (probe E) and named in-memory is rejected (probe F) — unsafe under
+fileParallelism:true. So file-backed is the safe default; NOT "only way".
+(3) Coexists with drizzle-kit patch (never runtime-imported) and partial
+unique indexes (enforced AND partial — dup osm ref rejected, two NULL-osm rows
+allowed). (4) 827/827 pass file-backed, +~3s wall (9.89→12.87s); test-db.ts
+measurement edit was REVERTED, suite confirmed back to baseline. (5) Unblocks
+wrapping itemRepository.create (base insert items.ts:148 + insertExtension:165
++ post-write fetch) atomically — :memory: forbids it because of the trailing
+fetch; executeCarryForward survives :memory: only because places.ts:245 returns
+the tx result with no post-tx query (accident of shape, confirmed).
+
+All three secondary-audit §1d claims confirmed, none overturned. Follow-on
+QUAL-48 part 2 + BUG-95 recommended to proceed on a per-test file-backed client
+design (with temp-file cleanup — spike variant leaked dirs), ATDD-first.
