@@ -1,0 +1,99 @@
+BACKEND PARK DOCUMENT — 2026-08-10
+THREAD: QUAL-49 — one serializer per entity (persisted-but-dropped-from-response class)
+BRANCH: refactor/qual49-entity-serializers   ISSUE: #504   PR: pending (do not merge — COO reviews)
+
+================================================================
+WHAT SHIPPED
+================================================================
+NEW src/backend/serializers/ — the shared home for entity → snake_case response
+serialization. Four modules:
+
+  city.ts   serializeCity (base: id,name,country_code,region_id,latitude,
+            longitude,geocode_status), serializeCityWithRegion (+region_iso,
+            region_name), serializeCityWithCountry (+country_name). Composed
+            (WithCountry → WithRegion → base). cityRowFromPlaceJoin() adapts the
+            `city*`-prefixed rows the place/trip joins return.
+  place.ts  serializePlaceSummary (trips LIST: {id,city_id,city}),
+            serializePlaceListItem (places GET/POST: +dates,+activities),
+            serializePlaceDetail (trips GET/:id: +dates,+activities,+items,
+            city carries country_name), serializePlaceRaw (places PATCH: raw
+            trip_place row — trip_id,user_id,updated_at, no nested city).
+            Caller passes a pre-serialized city so the city variant is explicit
+            at each site.
+  trip.ts   serializeTrip — the trip envelope shared by list + detail; caller
+            supplies the already-serialized `places` array.
+  item.ts   serializeItem + ItemRow — flattenItem moved VERBATIM out of
+            repositories/items-helper.ts; items-helper.ts now imports it.
+
+Handlers/repos routed through them:
+  routes/trips.ts   buildTripResponse → serializePlaceSummary + serializeTrip;
+                    GET/:id → serializePlaceDetail + serializeTrip. (The AC#3
+                    "two divergent place hand-maps" target — see DIVERGENCE 1.)
+  routes/cities.ts  POST/PATCH → serializeCity; GET/:id → serializeCityWithRegion.
+                    Local serializeCity() deleted (now imported).
+  routes/places.ts  GET → serializePlaceListItem; POST → serializePlaceListItem
+                    + serializeCityWithRegion; PATCH → serializePlaceRaw.
+  repositories/places.ts findByTrip builds its `.city` via serializeCityWithRegion
+                    (contract unchanged — a repo unit test asserts .city.name).
+  repositories/items-helper.ts fetchItemsWithExtensions → serializeItem.
+
+================================================================
+THE TWO DIVERGENCES (flagged to COO — preserved, not collapsed)
+================================================================
+DIVERGENCE 1 — the two trips.ts place maps are NOT the same shape.
+  The COO brief called them "the same place shape mapped two ways". My probe
+  found they are deliberately different: the LIST (buildTripResponse) is a
+  minimal "city pin" ({id,city_id,city}) — its own comment said so — and the
+  DETAIL (GET/:id) is the full place (dates + activities + items, city with
+  country_name). Both read the SAME tripRepository.getPlaces rows, so the data
+  is available in both; the LIST simply omits it on purpose. Collapsing them to
+  one identical output would ship every place's items+activities+country_name
+  inside every trip of the trips-list response — a real payload/behaviour change.
+  RESOLUTION: removed the DUPLICATION (both now share serializeCityWithRegion/
+  serializeCityWithCountry + the place serializers) while preserving each
+  endpoint's distinct shape. This is the honest reading of AC#3.
+
+DIVERGENCE 2 — the city response shape has 3 variants across the API.
+  base (cities POST/PATCH — those queries don't LEFT JOIN regions, so no
+  region_iso/region_name), base+region (cities GET/:id, places GET/POST, trips
+  LIST), base+region+country (trips DETAIL only — only getPlaces LEFT JOINs
+  countries). These reflect which tables each query joins. Making them uniform
+  (the "union is the right shape" instinct) would ADD fields to several
+  responses — a behaviour change and, for a raw userId-style field, exactly the
+  "newly EXPOSE a field" hazard the OP-06 note warns against. So each variant is
+  preserved byte-identical and the uniformity question is a FOLLOW-UP, not this
+  refactor. Candidate latent persisted-but-dropped bugs living in the gap:
+  cities POST/PATCH omit region_iso/region_name; every city site except trips
+  DETAIL omits country_name. Worth a COO/PO call on whether to close them (would
+  need the queries to join regions/countries + a shape change).
+
+================================================================
+CHARACTERIZATION TESTS (the ATDD bar — written FIRST, green now, must-stay-green)
+================================================================
+src/backend/routes/__tests__/serializer-characterization.test.ts (16 tests).
+Pins the EXACT sorted key set of every trip/place/city/item response + the
+load-bearing values (region_name, region_iso, country_name, arrived_on,
+departed_on). Compares parsed-object key SETS, not raw bytes — JSON key ORDER is
+not part of the contract (the composed serializers append region/country fields,
+so key order shifts; presence + value are identical). If a future edit drops a
+field, one of these fails loudly.
+
+================================================================
+STATE / GATES
+================================================================
+- test:backend 843 green (827 prior + 16 new), NO existing test edited.
+- type:check:all clean; scope:check PASS (serializers hold no db handle — no new
+  getDb-in-routes, no ownership residual); tracker/status green; biome clean.
+- /pre-push all green. CI: confirm scripts/ci-wait.sh pr <N> green before close.
+- Tracker QUAL-49 note appended with #504 + status (COO owns the status field).
+
+================================================================
+IF PICKING THIS UP
+================================================================
+- Do NOT collapse the trips.ts LIST/DETAIL place shapes into one — see DIV 1.
+- Any new city response: import from serializers/city.ts; pick the variant that
+  matches what your query joined (base / withRegion / withCountry). Do not
+  hand-write a city object.
+- Any new place response: serializers/place.ts. Any new item: it already flows
+  through serializeItem via fetchItemsWithExtensions.
+- The 3-city-variant uniformity question (DIV 2) is the open follow-up.

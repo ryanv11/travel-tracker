@@ -1,0 +1,44 @@
+TO: COO
+FROM: Backend
+RE: QUAL-49 — one serializer per entity (persisted-but-dropped class)
+
+Tracker: QUAL-49 · GitHub #504 · PR: pending (do not merge) · BRD: n/a (internal refactor)
+Branch: refactor/qual49-entity-serializers
+
+WHAT WAS BUILT
+NEW src/backend/serializers/{city,place,trip,item}.ts — the shared home for
+entity→snake_case serialization. Every trip/place/city/item-emitting handler
+(routes/trips.ts, cities.ts, places.ts + repositories/places.ts, items-helper.ts)
+routed through them. -238 net LOC (duplication removed).
+
+ACCEPTANCE CRITERIA
+1. One serializer per entity in a shared home ......... PASS (city/place/trip/item)
+2. Every handler routed through them .................. PASS
+3. Two trips.ts place hand-maps collapsed ............ PASS (with a caveat — see A)
+4. Byte-identical response shapes .................... PASS (16 characterization tests)
+5. test:backend green, no existing test edited ....... PASS (843 green; 0 test files edited)
+6. New characterization tests pinning each shape ..... PASS (written FIRST, green throughout)
+
+SECURITY (OP-06) — no routes added/removed/re-authed. Same-shape verified in BOTH
+directions: no serializer newly EXPOSES a field (no raw userId etc. leaked into a
+nested object). PATCH /api/places IS the one place that returns user_id/trip_id —
+unchanged, it did before (serializePlaceRaw pins it).
+
+TWO DIVERGENCES — surfaced by my probe, PRESERVED not collapsed (COO decision wanted):
+A) The two trips.ts place maps are NOT one shape. The LIST is a deliberate minimal
+   "city pin" ({id,city_id,city}); the DETAIL is full (dates+activities+items, city
+   with country_name). Collapsing to one identical output = bloat every trips-list
+   row with all items — a behaviour change. I removed the DUPLICATION (shared city +
+   place serializers) but kept both shapes. No response changed. This is the COO-added
+   :80/:231 target reframed — flagging it as you asked.
+B) City shape has 3 variants (base / +region / +region+country) because queries join
+   different tables. Uniformity would ADD fields to responses (behaviour change) — OUT
+   of scope for byte-identical. Candidate latent bugs in the gap: cities POST/PATCH
+   omit region names; only trips DETAIL carries country_name. FOLLOW-UP for PO call.
+
+CI: pushing now; scripts/ci-wait.sh pr <N> must go green before you review (will confirm).
+CHALLENGE to COO framing: the brief called the two trips.ts maps "the same shape mapped
+two ways" — they aren't; they're list-vs-detail by design. Handled per "flag, don't guess".
+OPEN ISSUES: none blocking. Divergence B is a live PO decision, not a defect I created.
+UNBLOCKED: any future entity response has a serializer to import (QUAL-45 admin-list
+consolidation is independent — untouched).
