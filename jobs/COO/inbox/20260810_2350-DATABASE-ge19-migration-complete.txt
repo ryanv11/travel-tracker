@@ -1,0 +1,56 @@
+TO: COO
+FROM: Database
+RE: GE-19 / BUG-85 schema migration substrate — COMPLETE
+
+HEADER
+  Tracker: BUG-85 · PR #511 · BRD: GE-19 (v3.20) · Branch: feat/ge19-migration
+  Spec: ADL-55 §3.5 (implemented verbatim, substrate only)
+
+WHAT WAS BUILT
+  schema.ts (Edit): cities.geocode_status CHECK + 'needs_attention'; NEW nullable
+  geocode_cause column + chk_cities_geocode_cause (IN ('ambiguous','unreachable') OR NULL).
+  Migration 0018 (12-step rebuild) + trailing backfill. No routes/services/frontend.
+
+ACCEPTANCE CRITERIA
+  (1) schema.ts adds needs_attention + geocode_cause .......... PASS
+  (2) migration applies cleanly via db:migrate (fresh 18-mig DB) PASS
+  (3) ADL-15 bug 4 hand-correction verified vs schema.ts ...... PASS
+  (4) backfill statement runs ................................ PASS (0 rows on fresh DB;
+      predicate tested: only pending>=5 flips, cause stays NULL, terminals untouched)
+  (5) test:backend still green (845) ......................... PASS (845/845)
+  (6) scope:check Check 3 classifies cities correctly ........ PASS (cities still global-reference)
+
+THREE HAND-CORRECTIONS (drizzle-kit; NOT just the one the brief expected)
+  (a) ADL-15 bug 4 on uniq_cities_pending_per_creator — the one you flagged. Diff:
+      GEN : ...(`"name" COLLATE NOCASE`,`country_code`,`COALESCE("region_id"`,` 0)`,`COALESCE("created_by_user_id"`,` '')`) WHERE "cities"."geocode_status" = 'pending';
+      FIX : ...("name" COLLATE NOCASE, `country_code`, COALESCE("region_id", 0), COALESCE("created_by_user_id", '')) WHERE geocode_status = 'pending';
+      (byte-matches 0017:82; functionally verified — COALESCE sentinels, COLLATE NOCASE,
+       partial WHERE all behave: creator-scoped dedup + case-fold collision confirmed.)
+  (b) "0015 original bug" — generated INSERT..SELECT pulled the NEW geocode_cause FROM the
+      old table (hard-failed at db:migrate, "no such column"). Fixed with NULL literal (0015
+      template). This is why ADL-55 keeps it a single migration; correction is exactly §3.5 pt 2.
+  (c) uniq_cities_osm_ref WHERE re-simplified to bare `osm_id IS NOT NULL` — the scenario the
+      2026-08-06 BUG-75 park doc §2 predicted; surfaced as the one red test on first run.
+  All three were pre-documented by the BUG-75 park doc — read it before any cities migration.
+
+MIGRATION VERIFIED: db:generate → hand-correct → db:migrate clean (never db:push, ADL-15).
+  db:generate re-run after edits: "No schema changes" (schema.ts ⇔ 0018 snapshot in sync).
+
+SINGLE-GREEN-STEP PREMISE: HELD. Two probes that fail differently — (A) 845/845 unchanged;
+  (B) code read: serializers/city.ts types status as plain `string` (no union/switch) & omits
+  geocode_cause (backward-compat omission); no Zod enum on geocode_status; processQueue +
+  findRegionlessUpgradeCandidate whitelist both exclude needs_attention (fail-closed); all 3
+  non-test resolveCity callers fire only on 'pending' rows, so the resolved/unresolvable guard
+  fall-through never sees needs_attention. No path mis-handles the new status/column.
+
+CI: PR #511 — all 18 checks GREEN @ fd033f0 (head SHA re-confirmed, QUAL-46). Not merged.
+
+OPEN ISSUES / BLOCKERS: none.
+
+NOTE FOR THE NEXT BRIEFS (not my scope — do NOT expect them here): ADL F1/F3 + the
+  ['pending','unresolvable','needs_attention'] whitelist extension + findOrUpgradeCity re-open
+  reset are the BACKEND brief; the stale findByIdentityKey "unconditional index" comment (F4)
+  is assigned to the implementation PR per ADL §8/§10 (already stale pre-change, not regressed).
+
+UNBLOCKED: QA red-bar (ADL-55 §7) → Backend (nextGeocodeState, cap-as-transition,
+  findUserGeocodeQueue, GET /api/geocode-queue) → Frontend. Substrate is live.

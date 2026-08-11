@@ -112,8 +112,15 @@ export const cities = sqliteTable(
     latitude: real('latitude'), // NULL while geocode_status = 'pending'
     longitude: real('longitude'), // NULL while geocode_status = 'pending'
     // 'pending' = awaiting Nominatim resolution; 'resolved' = coordinates confirmed;
-    // 'unresolvable' = geocoder answered "no match" — terminal, never retried (ADL-46 D10)
+    // 'unresolvable' = geocoder answered "no match" — terminal, never retried (ADL-46 D10);
+    // 'needs_attention' = retry-exhausted or ambiguous — terminal, user action required (GE-19 / ADL-55 D1)
     geocodeStatus: text('geocode_status').notNull().default('pending'),
+    // GE-19 / ADL-55 D1/D4: WHY a row is pending-retrying or needs_attention. NULLABLE by design —
+    // 'resolved' and 'unresolvable' rows carry no cause, and rows backfilled by migration 0018 keep it
+    // NULL (their historical cause is unknown, not asserted as 'ambiguous'). 'ambiguous' = multiple or
+    // unconfirmed region matches; 'unreachable' = recoverable geocoder failure (network/timeout/5xx/429).
+    // (status, cause) together yield the five user-facing labels (ADL-55 §4); the frontend owns the copy.
+    geocodeCause: text('geocode_cause'),
     geocodeAttemptedAt: text('geocode_attempted_at'), // ISO 8601 timestamp of last attempt
     // ADL-46 D10 (§4.4.1): incremented ONLY on recoverable failures (network/timeout/5xx/429).
     // The retry queue gives up at a cap (WHERE geocode_status = 'pending' AND geocode_attempts < CAP).
@@ -150,7 +157,15 @@ export const cities = sqliteTable(
     index('idx_cities_geocode').on(t.geocodeStatus).where(sql`${t.geocodeStatus} = 'pending'`),
     check(
       'chk_cities_geocode_status',
-      sql`${t.geocodeStatus} IN ('pending', 'resolved', 'unresolvable')`,
+      sql`${t.geocodeStatus} IN ('pending', 'resolved', 'unresolvable', 'needs_attention')`,
+    ),
+    // GE-19 / ADL-55 D1: geocode_cause is one of the two known causes or NULL ('resolved', 'unresolvable',
+    // and migration-0018-backfilled rows carry no cause). NULL is admitted explicitly: `IN (...)` alone
+    // evaluates to NULL (not FALSE) for a NULL value — which SQLite already treats as a passing CHECK — but
+    // the `IS NULL` disjunct states the intent at the schema layer rather than relying on that subtlety.
+    check(
+      'chk_cities_geocode_cause',
+      sql`${t.geocodeCause} IN ('ambiguous', 'unreachable') OR ${t.geocodeCause} IS NULL`,
     ),
     // BUG-75 / GE-16 (v3.19, design v3 §B2 SWITCH stage, migration 0017): the unconditional
     // uniq_cities_name_country_region_ci index (ADL-46 D13) is REPLACED by two partial unique
