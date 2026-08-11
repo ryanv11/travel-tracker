@@ -772,3 +772,74 @@ FINDINGS / JUDGEMENT CALLS worth carrying forward:
     also stamped: Stage 3 relocated those sites but never stamped the
     inventory, and leaving the table asserting live getDb sites that no longer
     exist is the stale-status failure the lifecycle rule exists to stop.
+
+================================================================
+2026-08-10 — QUAL-43 Stage 5: guard contract (ADL-53 §6) — FINAL STAGE
+Branch: feat/qual43-stage5-guard-contract
+================================================================
+The contract half of ADL-47's expand/contract. Nothing in src/backend
+changed; the counts were already zero. What changed is that they can no
+longer drift back.
+
+TWO PROMOTIONS, NOT ONE. ADL-53 §6 Stage 5 describes a single flip. The COO
+brief added the second and was right — I probed it before accepting.
+  Check 2 (getDb in routes/**): warn -> ERROR. Required count zero.
+  Check 1 Zone B (ownership outside repositories/): warn -> ENFORCED.
+Stage 3 built Check 1 with two zones for the same ADL-47 reason Check 2 was
+warn-only: routes/ still held predicates Stage 4 was chartered to relocate,
+and enforcing then would have red-ed main. Stage 4 emptied it. Left
+warn-only, a new hand-written predicate in services/** — exactly the
+shading.service.ts gap ADL-53 §7's CORRECTION records, and the reason the
+scan was widened at all — would have printed a warning forever.
+
+DESIGN CALL: the enumeration stays split in two even though the POLICY
+collapsed into one (the script's own header predicted "the two zones
+collapse into one"). Zone A/Zone B no longer differ in strength — one
+verdict covers both. They stay separately enumerated because each half
+carries its own non-emptiness assertion, and those assertions are what
+catch a future edit to the script's own `find` predicates. Under a single
+merged `find`, a broken pattern or an over-wide exclusion would leave the
+check scanning a fraction of the tree and reporting PASS. I verified this
+by injection rather than reasoning: breaking the Zone A pattern
+(*.ts -> *.tsx) and over-widening the Zone B exclusion each produce exit 1
+on an otherwise-clean tree. Header records both probes.
+
+Also: both checks now report before exiting, rather than the first failure
+short-circuiting. An implementer who fixes what the output named, pushes,
+and fails again on the half it withheld stops trusting the guard.
+
+INJECTED-FAULT MATRIX (scratch copy of src/backend, never the working tree,
+never git stash — the script takes a repo-root argument, so a copied tree is
+enough). Control passed first, so every failure is attributable to its fault:
+  predicate in repositories/                          exit 1
+  predicate in services/  (THE ZONE B PROMOTION)      exit 1
+  rows[0].userId !== userId in a repository           exit 1
+  same comparison INSIDE scope.ts (permitted nowhere) exit 1
+  getDb() call site in routes/  (THE FLIP)            exit 1
+  getDb in a routes/ COMMENT (text-match, by design)  exit 1
+  scope.ts DELETED                                    exit 1
+  scope.ts GUTTED                                     exit 1
+  both invariants at once -> BOTH reported            exit 1
+  repositories/ dir removed                           exit 1
+  residual under __tests__ (documented exclusion)     exit 0  <- as designed
+No exclusion, allowlist or regex narrowing was added anywhere (OP-30).
+
+BLIND SPOT worth carrying: the guard is regex-shaped. It matches `.userId`,
+so an ownership column named anything else is invisible to it — the pass on
+cities.createdByUserId is correct (global reference data) but it is a
+near-miss, and post-flip the margin has build consequences. Keep naming
+ownership columns userId. That is a reason to hold the naming convention,
+not to loosen the regex.
+
+DOCS (same-PR, OP-09): ADL-53 §3 item 1 + §6 Stage 5 stamped enforced and
+corrected to record BOTH promotions (the plan understated the work by one);
+OP-06 HC-10/HC-11 STRENGTHENED — verdicts unchanged, both still PASS, but
+HC-10's existing note claimed "machine-checked" for a route-layer half that
+was only warning, which is now true; HC-05 checked and deliberately NOT
+changed (it passes on the router-level tier gate, which QUAL-43 never
+touched); /pre-push skill and the ci.yml comment both described the guards
+as warn-only and were corrected; scope.ts's header note said the guard greps
+"this directory" when it has scanned all of src/backend/** since Stage 3.
+
+QUAL-43 / ADL-53 is now complete through Stage 5. Stage 6 (the Phase-3
+scopeToUserOrShared seam) is design-only and not built.

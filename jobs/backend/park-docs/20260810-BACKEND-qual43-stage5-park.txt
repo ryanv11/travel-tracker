@@ -1,0 +1,199 @@
+================================================================
+PARK DOCUMENT — Backend — 2026-08-10
+QUAL-43 Stage 5: guard contract (ADL-53 §6) — FINAL STAGE
+Branch: feat/qual43-stage5-guard-contract
+================================================================
+
+STATUS: complete. QUAL-43 / ADL-53 is built through Stage 5. Stage 6
+(the Phase-3 scopeToUserOrShared seam) is design-only and untouched.
+
+----------------------------------------------------------------
+1. WHAT THIS STAGE IS
+----------------------------------------------------------------
+The contract half of ADL-47's expand/contract. Both guards in
+scripts/scope-completeness-check.sh landed warn-first while Stages 2/3/4
+relocated reads out of routes/**; Stage 4 drove both counts to zero; this
+stage makes zero permanent.
+
+ZERO production behaviour change. The only edit under src/backend/** is a
+stale sentence in scope.ts's header comment (declared in §5 below). The
+counts were already zero before I touched anything — I verified that first,
+per the brief, because flipping a guard over a non-empty residual set would
+red main.
+
+Baseline at b0a9937, before any change:
+  Check 1 Zone A clean · Zone B 0 residuals · Check 2 0 mentions.
+
+----------------------------------------------------------------
+2. TWO PROMOTIONS, NOT ONE — the COO addition, probed and accepted
+----------------------------------------------------------------
+ADL-53 §6 Stage 5 describes ONE flip: getDb-in-routes warn -> error. The COO
+brief added a second — Check 1 Zone B — flagged it explicitly as COO-added
+and told me to push back if wrong. It is right, for a reason the ADL never
+wrote down:
+
+Stage 3 absorbed §7's CORRECTION (four hand-written ownership predicates
+sitting unowned in services/shading.service.ts, missed by TWO hand
+inventories) by WIDENING Check 1's scan from repositories/ to all of
+src/backend/**. But it landed the widened half warn-only, for exactly the
+same ADL-47 reason Check 2 was warn-only: routes/** still held user-owned
+predicates Stage 4 was chartered to relocate, and enforcing then would have
+failed the build on residuals a later stage was already going to remove.
+
+So the two guards have the SAME expand/contract shape and only one of them
+was named in the contract step. Left warn-only, the next hand-written
+predicate in services/** — the precise gap class that motivated the
+widening — would have printed a warning forever, which is functionally
+where it started.
+
+Both promotions shipped. Check 1 now has one verdict covering all of
+src/backend/** minus __tests__; Check 2 requires zero.
+
+----------------------------------------------------------------
+3. THE ONE DESIGN CALL I MADE AGAINST THE SCRIPT'S OWN PLAN
+----------------------------------------------------------------
+The script's Stage-3 header predicted that on promotion "the two zones
+collapse into one". The POLICY collapsed — one label (RESIDUAL), one
+verdict, one strength. The ENUMERATION did not, deliberately.
+
+Zone A and Zone B each carry a non-emptiness assertion ("repositories/
+yielded sources", "the widened scan yielded sources outside repositories/").
+Merged into a single find, either assertion is satisfiable by whatever half
+still matches, so a future edit to the script's own find predicates — a
+pattern that stops matching, an exclusion that widens past its target —
+could leave the check scanning a fraction of the tree and printing PASS.
+
+I did not assume that; I injected it. Breaking the Zone A pattern
+(*.ts -> *.tsx) and over-widening the Zone B exclusion each produce exit 1
+with the matching "enumeration is broken" message on an otherwise-clean
+tree. Both probes are recorded in the script header, because a justification
+that is only in a park doc does not survive the next refactor.
+
+Note the two assertions are NOT reachable by tree mutation alone — the
+directory-existence and chokepoint checks fire first. They protect against
+edits to the guard, not to the codebase. The header says so rather than
+implying broader coverage.
+
+Second, smaller call: both checks now report before exiting, instead of
+Check 1 short-circuiting. An implementer who fixes only what the output
+named, pushes, and fails again on the half it withheld learns to distrust
+the guard.
+
+----------------------------------------------------------------
+4. INJECTED-FAULT VERIFICATION
+----------------------------------------------------------------
+Method: the script takes a repo-root argument, so faults went into a COPIED
+src/backend under the scratch dir — the worktree was never dirtied and
+git stash was never used (refs/stash is shared across worktrees, OP-20).
+A control run on the pristine copy passed FIRST, so every failure below is
+attributable to its fault and not to the copy.
+
+  1  eq(items.userId, userId) in repositories/items.ts        exit 1
+  2  eq(trips.userId, userId) in services/shading.service.ts  exit 1   <- Zone B promotion
+  3  rows[0].userId !== userId in repositories/trips.ts       exit 1
+  3b same comparison INSIDE scope.ts (permitted nowhere)      exit 1
+  4  const db = getDb() in routes/trips.ts                    exit 1   <- the flip
+  4b getDb named in a routes/ COMMENT only                    exit 1   <- text-match, by design
+  5  scope.ts DELETED                                         exit 1
+  6  scope.ts GUTTED (emptied in place)                       exit 1
+  7  faults 1 + 4 together -> BOTH reported, then exit        exit 1
+  8  residual under repositories/__tests__/                   exit 0   <- documented exclusion, as designed
+  9  repositories/ directory removed                          exit 1
+ 10  Zone A find pattern broken (guard self-edit)             exit 1
+ 11  Zone B exclusion over-widened (guard self-edit)          exit 1
+
+Fault 8 is the only pass and it is the single documented exclusion, argued
+in the script header (test files legitimately assert on a row's userId and
+legitimately quote the patterns in comments describing coverage; rewriting
+them to satisfy a grep would weaken the tests to flatter the check).
+
+NO exclusion, allowlist, nosemgrep, lint-disable or regex narrowing was
+added or widened anywhere in this stage (OP-30).
+
+CI: confirmed by pulling the run log, not inferred from a green tick — see
+the completion report for the run id and the emitted PASS lines.
+
+----------------------------------------------------------------
+5. FULL-FILE REWRITES AND SOURCE EDITS (OP-28 declaration)
+----------------------------------------------------------------
+NONE. Every change was an Edit, including scripts/scope-completeness-check.sh
+(a source file, where a rewrite would have been permitted) — the header's
+door-completeness argument and mentions-not-call-sites reasoning are still
+correct and were preserved, with the superseded warn-only passages stamped
+rather than deleted.
+
+The single src/backend/** edit is COMMENT-ONLY, in scope.ts's file header:
+it said the guard "greps this directory", which has been false since Stage 3
+widened the scan to all of src/backend/**. Corrected under the doc-lifecycle
+rule; no code, no imports, no behaviour. `git diff` on that file shows one
+comment hunk and nothing else.
+
+----------------------------------------------------------------
+6. DOCS UPDATED IN THIS PR (same-PR lifecycle, OP-09)
+----------------------------------------------------------------
+- ADL-53 §3 item 1 — stamped BUILT AND ENFORCED, recording that the guard
+  was AUTHORED by Stage 3 (no stage chartered its creation; the Stage 0
+  agent caught that) and flipped here, and that Stage 5 flipped TWO guards.
+- ADL-53 §6 — Stage 5 row stamped SHIPPED with its "flip the guard"
+  wording struck and corrected; a "Stage 5 detail" note added after the
+  ordering constraints explaining the second promotion and why the plan
+  missed it.
+- OP-06 HC-10 and HC-11 — STRENGTHENED notes. Verdicts UNCHANGED (both
+  remain PASS). HC-10's existing Stage-0–4 note already claimed the
+  invariant was "machine-checked on every push and in CI"; that was
+  slightly stronger than the mechanism, since the route-layer half only
+  warned. It is now exactly true.
+- OP-06 HC-05 — CHECKED AND DELIBERATELY NOT CHANGED. Stage 4 recorded that
+  HC-05/10/11 cite the chokepoint with no verdict change; the brief asked me
+  to confirm that still holds rather than assume it. It does. HC-05 passes on
+  the router-level requireOwner tier gate, which QUAL-43 never touched, and
+  its note makes no machine-enforcement claim for this stage to strengthen.
+- .claude/skills/pre-push/SKILL.md — described both checks as warn-tiered.
+  Corrected; the warn history is kept as a stamped blockquote.
+- .github/workflows/ci.yml — its step comment said the guard "warns (by
+  design, until ADL-53 §6 Stage 5)". Corrected.
+- jobs/backend/tech/20260810-cities-module-boundary.md — added the
+  regex-margin note (below).
+- _project/tracker.json — NOT touched. Its QUAL-43 notes are a COO-maintained
+  chronological log and the COO appends the per-stage entry; Stage 4 did the
+  same. Flagged in the completion report instead.
+
+----------------------------------------------------------------
+7. THINGS THE NEXT AGENT SHOULD KNOW
+----------------------------------------------------------------
+- THE GUARD IS REGEX-SHAPED AND THAT IS NOW LOAD-BEARING. Check 1 matches
+  `.userId`. An ownership column named anything else is invisible to it. The
+  pass on cities.createdByUserId is CORRECT (cities is global reference data,
+  createdByUserId is deliberately outside the ownership axis) but it is a
+  near-miss, and post-flip the margin has build consequences rather than
+  warning consequences. Keep naming ownership columns `userId`. If the guard
+  ever goes quiet on a table you expect it to cover, suspect the column name
+  before suspecting the codebase.
+
+- BOTH CHECKS MATCH TEXT, NOT SYNTAX, AND BOTH NOW FAIL THE BUILD. A comment
+  that merely quotes `getDb` in a route file, or quotes the predicate form in
+  any backend source, reds CI. Verified (fault 4b). This is deliberate and
+  fails closed. THE FIX IS TO REWORD YOUR OWN COMMENT (OP-30) — routes/trips.ts
+  already carries a worked example of describing the rule instead of quoting
+  it. Never add an exclusion.
+
+- assertOwned STILL has no production caller. Carried forward from Stage 4 and
+  RE-VERIFIED here with two probes that fail differently, rather than inherited:
+  (a) `grep -rn assertOwned src` returns three hits, all inside scope.ts — one
+  export, two comments — and nothing anywhere else, tests included; (b) the
+  independent angle, `grep -rn "scope.js'" src/backend`, lists all ten importers
+  of the chokepoint and every one names scopeToUser / ownedAnd / assertWritable,
+  none names assertOwned. A stale grep pattern could produce (a) but not (b).
+  Stage 4 declined to manufacture a caller and was right; nothing in Stage 5
+  changes that. It remains
+  the correct shape for a read-gate on a trip whose owner is not otherwise
+  looked up — that site does not exist yet. Its correctness is not in doubt,
+  only its caller count.
+
+- The pre-existing itemRepository.update / updateExtension gap flagged by
+  Stage 4 is UNTOUCHED and still open. It is unreachable via HTTP. Whoever
+  owns the next items pass should read Stage 4's park doc §4.
+
+- If you need to test a change to this guard, copy src/backend into a scratch
+  dir and pass the copy's root as $1. Do not use git stash (refs/stash is
+  shared across worktrees) and do not mutate the working tree.

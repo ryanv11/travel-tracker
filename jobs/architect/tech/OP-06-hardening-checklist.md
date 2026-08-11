@@ -820,6 +820,12 @@ the WHERE clause includes both `trip_id = ?` and `user_id = ?`.
 > ran user-owned reads on a raw DB handle, so every path this item covers now reaches the database
 > through a repository. Machine-checked on every push and in CI by
 > `scripts/scope-completeness-check.sh` (`npm run scope:check`).
+>
+> **STRENGTHENED 2026-08-10 (Stage 5, PR #495).** Verdict still unchanged (PASS). That
+> machine-check is now **enforced rather than advisory**: a hand-authored ownership predicate
+> anywhere in `src/backend/**`, or any mention of `getDb` in a route file, fails the build.
+> Until this stage the route-layer half of it only printed a warning, so the sentence above
+> described a mechanism slightly stronger than the one that was running. It no longer does.
 
 **Verification:**
 - Contract test: Authenticate as user-A; request a trip belonging to user-B; confirm 404.
@@ -844,6 +850,11 @@ A new user with no trips receives `[]`.
 > `.where(...)`. Stage 4 extended the same property to the list reads that used to run in route
 > handlers: `fetchItemsWithExtensions` now takes `userId` as a **required** parameter and composes
 > ownership itself, so an item list cannot be produced unscoped.
+>
+> **STRENGTHENED 2026-08-10 (Stage 5, PR #495).** Verdict unchanged (PASS). `npm run scope:check`
+> now **fails** the build on a hand-authored ownership predicate anywhere in `src/backend/**`
+> (previously only inside `repositories/`), so a future list endpoint cannot reintroduce a
+> per-repository scoping term without CI rejecting it.
 
 **Verification:**
 - Contract test: Authenticate as a fresh user with no trips; GET `/api/trips` → `200 []`.

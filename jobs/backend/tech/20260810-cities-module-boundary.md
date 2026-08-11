@@ -42,6 +42,14 @@ They look alike and are not alike:
 `scripts/scope-completeness-check.sh` passes on this file because its regex matches `.userId` and
 the column is `.createdByUserId`. That is a correct pass, but note it is regex-shaped.
 
+> **UPDATED 2026-08-10 (QUAL-43 Stage 5, PR #495).** That check is now **enforced** rather than
+> warn-only, across all of `src/backend/**`. The pass above is still correct — `cities` is global
+> reference data and `createdByUserId` is deliberately outside the ownership axis — but the
+> regex-shaped margin now has build consequences rather than warning consequences. If a genuinely
+> user-owned column is ever named such that the regex misses it, the guard goes quiet rather than
+> loud; that is the blind spot to watch, and it is a reason to keep naming ownership columns
+> `userId`, not a reason to loosen the regex.
+
 ## Testing this logic directly
 
 `src/backend/services/__tests__/cityIdentityService.test.ts` is the direct unit suite (19 tests).
