@@ -345,7 +345,16 @@ describe('ADL-46 F1/F2 ruling — classifyCandidates (single shared classifier)'
 // Nominatim chokepoint faked.
 // ================================================================
 describe('ADL-46 F1/F2 ruling — resolveCity ambiguity (R2/R3/R4)', () => {
-  it('a multi-region fake leaves the row pending, coordinates NULL, attempts incremented, status NOT unresolvable', async () => {
+  // GE-19 / ADL-55 D1a / OQ-3 (COO-resolved) REFINES ADL-46 R4: an ambiguous
+  // verdict is DETERMINISTIC (the identical name+region query re-derives the
+  // identical verdict), so it is TERMINAL on the first verdict —
+  // needs_attention/ambiguous — rather than consuming the retry budget and
+  // sitting 'pending'. Still NOT 'unresolvable' (the geocoder did not say "no
+  // match"); still coordinates-NULL; re-askability preserved by the re-open path
+  // (findOrUpgradeCity resets attempts when a region is supplied). These two
+  // cases assert the refined lifecycle; the pre-GE-19 pending/+1 assertions are
+  // superseded.
+  it('a multi-region fake marks the row needs_attention/ambiguous on the first verdict, coordinates NULL, NO retry consumed', async () => {
     const cityId = await seedCountryAndCityWithRegion(testDb!); // regionIso = US-CO
     // Two candidates that do NOT match the city's selected region (US-CO) and
     // disagree with each other → ambiguous/region-unconfirmed.
@@ -361,10 +370,11 @@ describe('ADL-46 F1/F2 ruling — resolveCity ambiguity (R2/R3/R4)', () => {
     expect(ok).toBe(false);
 
     const [row] = await testDb!.select().from(schema.cities).where(eq(schema.cities.id, cityId));
-    expect(row.geocodeStatus).toBe('pending'); // NOT unresolvable — the geocoder did not say "no match"
+    expect(row.geocodeStatus).toBe('needs_attention'); // D1a: terminal on first verdict, NOT pending
+    expect(row.geocodeCause).toBe('ambiguous');
     expect(row.latitude).toBeNull();
     expect(row.longitude).toBeNull();
-    expect(row.geocodeAttempts).toBe(1); // R4: the ambiguity budget was consumed
+    expect(row.geocodeAttempts).toBe(0); // D1a: no retry spent on a deterministic answer
   });
 
   it('a row at attempts = CAP is not re-selected by processQueue, even with a multi-region fake available', async () => {
@@ -386,7 +396,9 @@ describe('ADL-46 F1/F2 ruling — resolveCity ambiguity (R2/R3/R4)', () => {
 
   // Bonus coverage beyond the mandatory five (R3, not separately enumerated in
   // ruling §4 but directly exercises the rule stated in §2.2 step 3 / §2.4).
-  it('bonus — R3: a region was requested but no candidate matches it → stays pending, never resolves outside the selected region', async () => {
+  // GE-19 / ADL-55 D1a: region-unconfirmed is ambiguous → needs_attention on the
+  // first verdict (was 'pending'/attempts=1 under ADL-46 R4).
+  it('bonus — R3: a region was requested but no candidate matches it → needs_attention/ambiguous, never resolves outside the selected region', async () => {
     const cityId = await seedCountryAndCityWithRegion(testDb!); // regionIso = US-CO
     nextResult = {
       status: 'ok',
@@ -397,9 +409,10 @@ describe('ADL-46 F1/F2 ruling — resolveCity ambiguity (R2/R3/R4)', () => {
     expect(ok).toBe(false);
 
     const [row] = await testDb!.select().from(schema.cities).where(eq(schema.cities.id, cityId));
-    expect(row.geocodeStatus).toBe('pending');
+    expect(row.geocodeStatus).toBe('needs_attention');
+    expect(row.geocodeCause).toBe('ambiguous');
     expect(row.latitude).toBeNull();
-    expect(row.geocodeAttempts).toBe(1);
+    expect(row.geocodeAttempts).toBe(0);
   });
 });
 

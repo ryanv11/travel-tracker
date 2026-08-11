@@ -1,0 +1,45 @@
+BACKEND COMPLETION — GE-19 / BUG-85 backend (geocode status lifecycle)
+Tracker: BUG-85 · BRD: GE-19 (v3.20) · Design: ADL-55 §3/§4/§5/§8/§R
+Branch: feat/ge19-backend · PR: #514
+
+WHAT: Greened the merged QA red bar (#512). nextGeocodeState pure state machine +
+resolveCity rewired; ambiguous→needs_attention on first verdict (D1a); both
+recoverable-error sites transition at cap (F2); needs_attention early-return (F3);
+findOrUpgradeCity re-opens a needs_attention adoptee + whitelist (F1); stale
+findByIdentityKey comment refreshed (F4); GET /api/geocode-queue (userId-scoped).
+
+ACCEPTANCE CRITERIA (ADL-55 §7):
+  1 ambiguous→needs_attention/ambiguous, no retry .......... PASS
+  2 recoverable at cap→needs_attention/unreachable (both) .. PASS
+  3 no-match/disabled regression guards .................... PASS (stayed green)
+  4 GET /api/geocode-queue userId-scoped (SECURITY) ........ PASS
+  5 excludes resolved / no-longer-referenced ............... PASS
+  6 re-add reuses row (dup-safety) ......................... PASS (stayed green)
+  7 in-place re-open resets + re-fires ..................... PASS
+  8 re-point drops abandoned city .......................... PASS
+  9 (label rendering) ...................................... FRONTEND scope (not built)
+  10 needs_attention/unresolvable bucketed apart ........... PASS
+  11 nextGeocodeState table test ........................... PASS (new, mine)
+All 7 RED BAR describe.skip blocks un-skipped; git diff confirms NO QA assertion changed.
+
+SECURITY (OP-06, GET /api/geocode-queue):
+  1 Auth: global requireAuth (app.use('/api/', requireAuth)); no owner gate owed.
+  2 Scope: query composes scopeToUser(trips, userId) — structural isolation, no
+    hand-rolled predicate. scope:check PASS (Check 1 = 0 residuals, Check 2 = 0
+    getDb in routes).
+  3 FK notNull: N/A — no schema change, no new table/user column (0018 already landed).
+
+CONTRACT: ADL matches QA envelope (JSON array; id + snake_case status/cause) — no
+reconciliation needed. Re-point path already fixed on main (#513).
+
+DECLARED (OP-28): updated 2 SUPERSEDED ADL-46 R4 ambiguity assertions in
+geocoding.service.test.ts (backend-owned, NOT a QA/ATDD file) to the D1a lifecycle —
+declared here per OP-28. No full-file rewrites.
+
+DOCS same-PR: api-reference 1.8→1.9 (needs_attention + geocode_cause enum, full
+/api/geocode-queue section). Stale three-state enum corrected.
+
+CI: GREEN — all 18 checks pass on PR #514 @ 332e92a (ci-wait.sh; true head re-confirmed, QUAL-46).
+UNBLOCKED: the FRONTEND GE-19 brief (poll /api/geocode-queue, retire NR-06
+localStorage, panel UI + label map, criterion 9).
+BLOCKERS: none.

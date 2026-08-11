@@ -51,7 +51,7 @@
  *     transaction wrapper.)
  */
 
-import { and, asc, eq, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, lt } from 'drizzle-orm';
 import { cities, getDb, regions, tripPlaces } from '../db/index.js';
 import { isUniqueViolation } from './db-errors.js';
 import {
@@ -303,6 +303,9 @@ async function commitResolvedOrMerge(
         osmId: candidate.osmId ?? null,
         displayName: candidate.displayName ?? null,
         geocodeStatus: 'resolved',
+        // GE-19 / ADL-55 §3.2: a resolved row carries no cause — clear any prior
+        // 'unreachable' a recoverable attempt may have written before this one won.
+        geocodeCause: null,
         geocodeAttemptedAt: resolvedAt,
         updatedAt: resolvedAt,
       })
@@ -355,9 +358,126 @@ async function mergeIntoWinner(loserId: number, osmType: string, osmId: number):
   return true;
 }
 
+// ================================================================
+// GE-19 / ADL-55 — the geocode STATUS LIFECYCLE (D1a / D5)
+// ================================================================
+
+/** The four persisted geocode statuses (schema `chk_cities_geocode_status`). */
+export type GeocodeStatus = 'pending' | 'resolved' | 'unresolvable' | 'needs_attention';
+/** The persisted cause discriminator (schema `chk_cities_geocode_cause`). */
+export type GeocodeCause = 'ambiguous' | 'unreachable' | null;
+
+/**
+ * GE-19 / ADL-55 D1a — the classified outcome of ONE resolution attempt, reduced
+ * to what the state machine needs. Produced inside `resolveCity` from whichever
+ * geocoder path ran (name-search or carried-OSM `/lookup`) and fed to
+ * {@link nextGeocodeState}. Distinct from {@link CandidateVerdict}, which decides
+ * "which candidate, if any" one step earlier.
+ *
+ *   - 'ok'          — a single confident candidate; coordinates are committed
+ *                     separately by `commitResolvedOrMerge` (which also clears cause).
+ *   - 'no_match'    — the geocoder answered with zero usable candidates, OR a
+ *                     carried OSM ref no longer resolves to a settlement (M-B).
+ *                     Terminal 'unresolvable' (ADL-46 D10, unchanged).
+ *   - 'ambiguous'   — eligible candidates disagree on region / the selected region
+ *                     could not be confirmed. Deterministic, so terminal on the
+ *                     FIRST verdict (D1a / OQ-3) — no retry is spent.
+ *   - 'unreachable' — a recoverable failure (network/timeout/5xx/429). Counts the
+ *                     attempt and retries below the cap; AT the cap it becomes
+ *                     needs_attention rather than sitting pending-at-cap (§R F2).
+ *   - 'disabled'    — GEOCODING_ENABLED=false / a global condition. Changes nothing
+ *                     (no increment) — one offline window must not burn a city's
+ *                     budget (ADL-46 D10).
+ */
+export type GeocodeLifecycleVerdict = 'ok' | 'no_match' | 'ambiguous' | 'unreachable' | 'disabled';
+
+/** The current-row fields the state machine reads — nothing else is needed. */
+export interface GeocodeStateInput {
+  geocodeStatus: GeocodeStatus;
+  geocodeAttempts: number;
+  geocodeCause: GeocodeCause;
+}
+
+/** The persisted policy fields a resolution attempt writes back. */
+export interface NextGeocodeState {
+  status: GeocodeStatus;
+  attempts: number;
+  cause: GeocodeCause;
+}
+
+/**
+ * GE-19 / ADL-55 D5 — THE geocode state machine (§3.2), extracted as a PURE
+ * function so the entire lifecycle is an exhaustive table test with no DB and no
+ * network (OP-35 criterion 11). Given the current row and one attempt's verdict,
+ * it returns the `{status, attempts, cause}` to persist. All IO stays in
+ * `resolveCity`: the 'ok' verdict is applied by `commitResolvedOrMerge`
+ * (coordinates + OSM ref + the merge fallback); every other verdict is applied by
+ * {@link applyGeocodeState} — a single UPDATE of exactly these three fields.
+ *
+ * Two deliberate changes vs. the pre-GE-19 behaviour (both in ADL-55 §3.2):
+ *   - 'ambiguous' is TERMINAL on the first verdict (needs_attention/ambiguous),
+ *     spending no further retry — the identical query returns the identical
+ *     verdict, so retrying is waste. Re-askability is preserved by the re-open
+ *     path (findOrUpgradeCity resets attempts when a region is supplied).
+ *   - the cap is an ACTIVE transition (increment-then-check) rather than a passive
+ *     `WHERE attempts < cap` drop, so a row never sits pending-at-cap forever.
+ *
+ * @param row     - The current geocode_status / _attempts / _cause of the row.
+ * @param verdict - The classified outcome of this resolution attempt.
+ */
+export function nextGeocodeState(
+  row: GeocodeStateInput,
+  verdict: GeocodeLifecycleVerdict,
+): NextGeocodeState {
+  switch (verdict) {
+    case 'ok':
+      // Coordinates confirmed — attempts no longer matter once resolved; cause clears.
+      return { status: 'resolved', attempts: row.geocodeAttempts, cause: null };
+    case 'no_match':
+      // Terminal: the geocoder answered "no usable match" (ADL-46 D10). Never retried.
+      return { status: 'unresolvable', attempts: row.geocodeAttempts, cause: null };
+    case 'ambiguous':
+      // D1a / OQ-3: deterministic → terminal on the first verdict, no retry spent.
+      return { status: 'needs_attention', attempts: row.geocodeAttempts, cause: 'ambiguous' };
+    case 'unreachable': {
+      // Recoverable: the failing attempt still counts. AT the cap the row becomes
+      // needs_attention/unreachable; below it, it stays pending and retries.
+      const attempts = row.geocodeAttempts + 1;
+      return attempts >= GEOCODE_ATTEMPT_CAP
+        ? { status: 'needs_attention', attempts, cause: 'unreachable' }
+        : { status: 'pending', attempts, cause: 'unreachable' };
+    }
+    case 'disabled':
+      // Global condition — change nothing at all (no increment). ADL-46 D10.
+      return { status: row.geocodeStatus, attempts: row.geocodeAttempts, cause: row.geocodeCause };
+  }
+}
+
+/**
+ * GE-19 / ADL-55 D5 — persists a non-'ok' {@link nextGeocodeState} result: the
+ * three policy fields plus the attempt timestamp, in one UPDATE. The 'ok' path
+ * does NOT flow through here — `commitResolvedOrMerge` writes coordinates + the
+ * OSM ref + the merge fallback and clears the cause itself.
+ */
+async function applyGeocodeState(cityId: number, next: NextGeocodeState): Promise<void> {
+  const db = getDb();
+  const now = new Date().toISOString();
+  await db
+    .update(cities)
+    .set({
+      geocodeStatus: next.status,
+      geocodeAttempts: next.attempts,
+      geocodeCause: next.cause,
+      geocodeAttemptedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(cities.id, cityId));
+}
+
 /**
  * Attempts to resolve coordinates for a single EXISTING city row via Nominatim
- * (the geocode queue / on-create trigger path). Applies D10's classification.
+ * (the geocode queue / on-create trigger path). Produces a lifecycle verdict and
+ * applies it through {@link nextGeocodeState} (ADL-46 D10 + GE-19 / ADL-55 §3.2).
  *
  * @param cityId - The cities.id to resolve.
  * @returns true if coordinates were resolved and saved, false otherwise.
@@ -370,6 +490,8 @@ export async function resolveCity(cityId: number): Promise<boolean> {
       id: cities.id,
       name: cities.name,
       geocodeStatus: cities.geocodeStatus,
+      geocodeAttempts: cities.geocodeAttempts,
+      geocodeCause: cities.geocodeCause,
       countryCode: cities.countryCode,
       regionIso: regions.iso3166_2,
       osmType: cities.osmType,
@@ -386,12 +508,27 @@ export async function resolveCity(cityId: number): Promise<boolean> {
     return false;
   }
 
-  // Never re-query a resolved city (ADL-10). Unresolvable rows are terminal.
+  // Terminal / do-not-touch states, all returning without a write:
+  //   resolved       — never re-queried (ADL-10).
+  //   unresolvable   — terminal (ADL-46 D10).
+  //   needs_attention— terminal, awaiting a user action (GE-19 / ADL-55 §R F3): a
+  //                    re-processed row must NOT be re-resolved unbidden. The
+  //                    re-open path (findOrUpgradeCity) is what returns it to
+  //                    'pending' when the user supplies a region.
   if (city.geocodeStatus === 'resolved') return true;
   if (city.geocodeStatus === 'unresolvable') return false;
+  if (city.geocodeStatus === 'needs_attention') return false;
 
   // GEOCODING_ENABLED=false is a GLOBAL condition — do NOT increment attempts.
   if (!geocodingEnabled()) return false;
+
+  // The pure state machine reads exactly these three fields; capture them once
+  // BEFORE the attempt so the cap decision uses the pre-attempt count.
+  const stateRow: GeocodeStateInput = {
+    geocodeStatus: city.geocodeStatus as GeocodeStatus,
+    geocodeAttempts: city.geocodeAttempts,
+    geocodeCause: city.geocodeCause as GeocodeCause,
+  };
 
   const attemptedAt = new Date().toISOString();
   await db
@@ -411,8 +548,9 @@ export async function resolveCity(cityId: number): Promise<boolean> {
       return false;
     }
     if (result.status === 'error') {
-      // Recoverable — increment, stay pending, retry later (up to cap).
-      await incrementAttempts(cityId);
+      // Recoverable — GE-19 / ADL-55 §R F2 (carried-OSM site): stay pending and
+      // retry below the cap, transition to needs_attention/unreachable AT it.
+      await applyGeocodeState(cityId, nextGeocodeState(stateRow, 'unreachable'));
       return false;
     }
 
@@ -421,14 +559,9 @@ export async function resolveCity(cityId: number): Promise<boolean> {
       // M-B (delta review): the carried object no longer resolves to a
       // settlement — deleted, or reclassified to a non-settlement type
       // (HTTP 200, zero/filtered rows). Distinct from disabled/error above.
-      // TERMINAL: a deleted/reclassified OSM object will not come back as a
-      // settlement — degrade safely (never a wrong-town pin), never retried
-      // again, rather than looping pending forever.
-      const now = new Date().toISOString();
-      await db
-        .update(cities)
-        .set({ geocodeStatus: 'unresolvable', geocodeAttemptedAt: now, updatedAt: now })
-        .where(eq(cities.id, cityId));
+      // TERMINAL 'unresolvable': a deleted/reclassified OSM object will not come
+      // back as a settlement — degrade safely, never retried again.
+      await applyGeocodeState(cityId, nextGeocodeState(stateRow, 'no_match'));
       console.info(
         `[GEO] City ${cityId} (${city.name}) unresolvable — carried osm ref no longer resolves to a settlement`,
       );
@@ -439,11 +572,10 @@ export async function resolveCity(cityId: number): Promise<boolean> {
   }
 
   // Non-carried — the existing name-search path. M-A (delta review, v2 §7
-  // rule 2c): now ALSO stamps the winning candidate's osm ref on every
-  // resolve, not only carried-pick resolves (via commitResolvedOrMerge
-  // below) — otherwise a freshly-resolved row is invisible to the
-  // resolved-by-OSM merge mechanism and two users resolving the same
-  // non-ambiguous city land as duplicate NULL-osm_id rows.
+  // rule 2c): commitResolvedOrMerge stamps the winning candidate's osm ref on
+  // every resolve, not only carried-pick resolves — otherwise a freshly-resolved
+  // row is invisible to the resolved-by-OSM merge mechanism and two users
+  // resolving the same non-ambiguous city land as duplicate NULL-osm_id rows.
   const result = await nominatimSearch({
     q: city.name,
     countrycodes: city.countryCode.toLowerCase(),
@@ -456,14 +588,14 @@ export async function resolveCity(cityId: number): Promise<boolean> {
   }
 
   if (result.status === 'error') {
-    // Recoverable — increment the counter, stay pending, retry later (up to cap).
-    await incrementAttempts(cityId);
+    // Recoverable — GE-19 / ADL-55 §R F2 (name-search site): stay pending and
+    // retry below the cap, transition to needs_attention/unreachable AT it.
+    await applyGeocodeState(cityId, nextGeocodeState(stateRow, 'unreachable'));
     return false;
   }
 
   // result.status === 'ok' — the geocoder answered. ADL-46 F1/F2 ruling §2.4:
-  // this is F1 — the single shared classifier replaces the old `pickBest`,
-  // which decided "is this ambiguous?" differently than resolveCityName did.
+  // the single shared classifier decides "which candidate, if any".
   const verdict = classifyCandidates(
     result.candidates,
     new Set([city.countryCode.toUpperCase()]),
@@ -471,45 +603,29 @@ export async function resolveCity(cityId: number): Promise<boolean> {
   );
 
   if (verdict.status === 'unresolved') {
-    // TERMINAL: the geocoder answered with no usable match. Never retried (D10).
-    const now = new Date().toISOString();
-    await db
-      .update(cities)
-      .set({ geocodeStatus: 'unresolvable', geocodeAttemptedAt: now, updatedAt: now })
-      .where(eq(cities.id, cityId));
+    // TERMINAL 'unresolvable': the geocoder answered with no usable match (D10).
+    await applyGeocodeState(cityId, nextGeocodeState(stateRow, 'no_match'));
     console.info(`[GEO] City ${cityId} (${city.name}) unresolvable — no match`);
     return false;
   }
 
   if (verdict.status === 'ambiguous') {
-    // ADL-46 F1/F2 ruling §2.4/§2.5 (R2/R3/R4): the geocoder DID answer, but
-    // could not confirm a single region — this is not a "no match" (D10's
-    // 'unresolvable' does not apply) and it must not guess (D14). Consume the
-    // existing geocode_attempts budget (a bounded question, re-askable if the
-    // row's region_id later changes — R1 §3.3) and leave the row 'pending'.
-    await incrementAttempts(cityId);
+    // GE-19 D1a / OQ-3 (refines ADL-46 D10/F1): the geocoder DID answer but could
+    // not confirm a single region — not a "no match" (D10 'unresolvable' does not
+    // apply) and it must not guess (D14). The answer is DETERMINISTIC, so this is
+    // terminal on the FIRST verdict: needs_attention/ambiguous, spending no
+    // further retry (pre-GE-19 this consumed the budget and stayed 'pending').
+    // Re-askability is preserved — the re-open path resets attempts when a region
+    // is later supplied.
+    await applyGeocodeState(cityId, nextGeocodeState(stateRow, 'ambiguous'));
     console.info(
-      `[GEO] City ${cityId} (${city.name}) ambiguous (${verdict.reason}): regions=${verdict.regionIsos.join(',')}`,
+      `[GEO] City ${cityId} (${city.name}) needs attention — ambiguous (${verdict.reason}): regions=${verdict.regionIsos.join(',')}`,
     );
     return false;
   }
 
   // verdict.status === 'ok'
   return commitResolvedOrMerge(cityId, verdict.best);
-}
-
-/** ADL-46 D10: increment the recoverable-failure counter for a pending row. */
-async function incrementAttempts(cityId: number): Promise<void> {
-  const db = getDb();
-  const now = new Date().toISOString();
-  await db
-    .update(cities)
-    .set({
-      geocodeAttempts: sql`${cities.geocodeAttempts} + 1`,
-      geocodeAttemptedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(cities.id, cityId));
 }
 
 /**

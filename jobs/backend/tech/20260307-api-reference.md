@@ -1,7 +1,12 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.8
-**Date:** 2026-08-08 (updated: GE-20/BUG-87, ADL-54 — `country_codes` documented on both
+**Version:** 1.9
+**Date:** 2026-08-11 (updated: GE-19/BUG-85, ADL-55 — new `geocode_status: "needs_attention"`
+terminal state + its `geocode_cause` discriminator documented; new `GET /api/geocode-queue`
+endpoint documented — the derived, userId-scoped per-user set of unresolved cities that drives the
+geocode-status indicator, replacing the NR-06 localStorage retry queue as source of truth, with the
+`(status, cause)` → label map and the re-point / supply-region recovery levers)
+**Previously:** 1.8, 2026-08-08 (updated: GE-20/BUG-87, ADL-54 — `country_codes` documented on both
 `GET /api/cities` and `GET /api/geocode`: the trip-country-scoped picker hard filter, its
 empty-string-means-unconstrained contract, the malformed-code/10-code-cap guards, and both
 endpoints' `country_code`-wins precedence when the singular and plural params are both
@@ -1044,7 +1049,15 @@ Search cities by name. Returns local database results only (Nominatim is not que
 ]
 ```
 
-`geocode_status` values: `"pending"` | `"resolved"` | `"unresolvable"`
+`geocode_status` values: `"pending"` | `"resolved"` | `"unresolvable"` | `"needs_attention"`
+
+`geocode_status: "needs_attention"` (GE-19 / ADL-55, BUG-85) — a **terminal** state for a city
+the geocoder could not auto-resolve: retry-exhausted (recoverable failures hit the attempt cap) or
+ambiguous (multiple/unconfirmed region matches). It requires user action and is bucketed apart from
+the in-progress/resolving count (`"pending"`). Its companion discriminator `geocode_cause`
+(`"ambiguous"` | `"unreachable"` | `null`) is NOT returned on this search shape or `GET
+/api/cities/:id` — it is surfaced by `GET /api/geocode-queue` (below), the derived per-user set of a
+user's own unresolved cities that drives the geocode-status indicator.
 
 `region_name` / `region_iso` (BUG-72, GitHub #351, 2026-08-01) — the joined `regions` row's
 `name` and `iso_3166_2`, added so the frontend can disambiguate same-named cities (e.g. two
@@ -1203,6 +1216,80 @@ this fix — added here as part of the same brief that touched its response shap
 
 **Errors:**
 - `404` — city not found, or `id` is not numeric
+
+---
+
+### GET /api/geocode-queue
+
+The requesting user's **derived, userId-scoped geocode queue** (GE-19 / ADL-55 D3, BUG-85): the set
+of that user's OWN cities that are not yet `resolved`. The frontend polls this to render the
+geocode-status indicator, splitting it into two buckets **client-side** on `geocode_status`:
+
+- **in-progress / resolving** — `geocode_status = "pending"`
+- **needs-attention** — `geocode_status IN ("needs_attention", "unresolvable")`
+
+This endpoint **replaces the NR-06 localStorage retry queue as the source of truth** for the
+indicator (ADL-55 OQ-4). It is a query, never a stored list: a city drops out automatically once it
+`resolved`s or the user no longer references it (all referencing places deleted or re-pointed).
+
+Mounted at `/api/geocode-queue`, `requireAuth` only (applied globally). Ownership is **structural** —
+the query reaches cities only through the user's own `trip_places → trips` and scopes on the trips
+join, so a city referenced solely by another user's trips never appears (no owner gate needed; cities
+are global reference data with no per-row owner).
+
+**Query Parameters:** none.
+
+**Response: `200 OK`** — a JSON array of the user's unresolved cities (may be empty), ordered by
+`name`. `geocode_cause` is `null` for a `pending`/`unresolvable` row and for backfilled
+`needs_attention` rows whose historical cause is unknown.
+```json
+[
+  {
+    "id": 6,
+    "name": "Denver",
+    "country_code": "US",
+    "region_id": 14,
+    "region_name": "Colorado",
+    "region_iso": "US-CO",
+    "geocode_status": "needs_attention",
+    "geocode_cause": "ambiguous"
+  },
+  {
+    "id": 9,
+    "name": "Springfield",
+    "country_code": "US",
+    "region_id": null,
+    "region_name": null,
+    "region_iso": null,
+    "geocode_status": "pending",
+    "geocode_cause": null
+  }
+]
+```
+
+`geocode_cause` values: `"ambiguous"` (multiple or unconfirmed region matches) | `"unreachable"`
+(recoverable geocoder failure — network/timeout/5xx/429) | `null`. The `(geocode_status,
+geocode_cause)` pair maps to the user-facing label **frontend-side** (ADL-55 §4 — the backend emits
+stable codes so copy changes need no backend deploy):
+
+| `geocode_status` | `geocode_cause` | label |
+|------------------|-----------------|-------|
+| `pending` | `null` | Resolving… |
+| `pending` | `unreachable` | Couldn't reach the geocoder — retrying |
+| `needs_attention` | `ambiguous` | Needs region — multiple matches |
+| `needs_attention` | `unreachable` | Gave up — couldn't reach the geocoder |
+| `needs_attention` | `null` | Couldn't be resolved — needs attention *(backfilled rows)* |
+| `unresolvable` | (any) | Not found |
+
+**Recovery levers** (both already built; the queue reflects the result of either):
+- **Re-point** a place off the stuck city onto a corrected one: `PATCH
+  /api/trips/:tripId/places/:placeId` with `{ "city_id": <correctedCityId> }` — the abandoned stuck
+  city then has no referencing place of the user's and leaves the queue.
+- **Supply a region** for a region-less `needs_attention` city (via the create/find path,
+  `POST /api/cities` / the picker) — the wildcard upgrade adopts the same row in place, resets it to
+  `pending`, and re-fires resolution.
+
+**Errors:** none beyond auth (`401` if unauthenticated).
 
 ---
 

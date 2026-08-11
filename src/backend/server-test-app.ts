@@ -31,6 +31,7 @@ import { categoriesRouter } from './routes/categories.js';
 import { citiesRouter } from './routes/cities.js';
 import { companionsRouter } from './routes/companions.js';
 import { geocodeRouter } from './routes/geocode.js';
+import { geocodeQueueRouter } from './routes/geocode-queue.js';
 import { mapRouter } from './routes/map.js';
 import { meRouter } from './routes/me.js';
 import { tripsRouter } from './routes/trips.js';
@@ -123,6 +124,7 @@ app.use('/api/companions', companionsRouter); // ADL-28 (AD-08): requireAuth onl
 app.use('/api/categories', categoriesRouter); // ADL-46 (AD-09, D3): requireAuth only, userId-scoped
 app.use('/api/activities', activitiesRouter); // ADL-46 (AD-09, D3): requireAuth only, userId-scoped
 app.use('/api/geocode', geocodeRouter); // ADL-46 (D7): geocoding proxy — requireAuth, egress chokepoint
+app.use('/api/geocode-queue', geocodeQueueRouter); // GE-19 (ADL-55 D3): userId-scoped derived geocode queue — requireAuth
 app.use('/api/me', meRouter); // BUG-26: identity endpoint for frontend owner gating
 
 // Health check — same handler shape as server.ts (QUAL-26: liveness + build identity).

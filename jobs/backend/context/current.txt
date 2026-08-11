@@ -1,3 +1,58 @@
+BACKEND CONTEXT — 2026-08-11 (GE-19 / BUG-85 backend — geocode status lifecycle, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: implemented the GE-19 backend (ADL-55 §3/§4/§5/§8/§R) on branch
+  feat/ge19-backend — greened the merged QA red bar (#512) without weakening any
+  assertion. All 7 `describe.skip` RED BAR blocks un-skipped and GREEN; the
+  nextGeocodeState table test (criterion 11) written and green.
+  1. nextGeocodeState(row, verdict) — the PURE state machine (ADL-55 D5),
+     co-located export in geocoding.service.ts; resolveCity rewired to
+     "produce verdict → nextGeocodeState → apply". applyGeocodeState writes the
+     three policy fields for every non-ok verdict; the ok path stays in
+     commitResolvedOrMerge (which now also clears geocode_cause).
+  2. D1a/OQ-3: an ambiguous verdict → needs_attention/cause='ambiguous' on the
+     FIRST verdict, NO retry consumed (refines ADL-46 D10/R4 — the ambiguous
+     branch used to incrementAttempts + stay pending). incrementAttempts REMOVED
+     (all three call sites now route through nextGeocodeState).
+  3. F2: BOTH recoverable-error sites (carried-OSM ~:407 and name-search ~:447)
+     now transition to needs_attention/unreachable AT the cap (attempts+1>=5),
+     never pending-at-cap. The cap is an active transition; processQueue's
+     WHERE attempts<CAP predicate stays as belt-and-braces.
+  4. F3: resolveCity early-returns on a needs_attention row (not re-resolved unbidden).
+  5. F1 (the third edit): findOrUpgradeCity resets a needs_attention adoptee to
+     geocode_status='pending', geocode_cause=null (so the re-fire guard fires),
+     and findRegionlessUpgradeCandidate's whitelist gained 'needs_attention'.
+     The 'unresolvable' asymmetry is preserved untouched (not reset, not re-fired).
+  6. F4: refreshed the stale findByIdentityKey "unconditional index" comment
+     (cities.ts) — 0017 replaced it with two partials; the sibling claims in
+     cityIdentityService.ts were swept too (same-PR doc-lifecycle).
+  7. D3: citiesRepository.findUserGeocodeQueue(userId) — selectDistinct composing
+     scopeToUser(trips, userId) (mirrors findCarryForwardItems), returns each
+     unresolved city with geocode_status + geocode_cause. New route
+     src/backend/routes/geocode-queue.ts (GET /api/geocode-queue, requireAuth via
+     the global mount, nosemgrep requireAuth-global convention), mounted in BOTH
+     server.ts and server-test-app.ts.
+  SECURITY (OP-06): the endpoint's only gate is the global requireAuth; the queue
+  query composes the QUAL-43 chokepoint (scopeToUser) so cross-user isolation is
+  STRUCTURAL — no hand-rolled ownership. No new table, no new user FK. scope:check
+  PASS (Check 2: 0 getDb in routes — the route delegates to the repo).
+  ADL-vs-QA reconciliation: the endpoint envelope is a JSON array of city objects
+  (id + snake_case geocode_status/geocode_cause), per the QA test's asserted
+  contract — matches ADL-55 §5.1. No divergence found (the re-point path was
+  already corrected on main by #513).
+  TWO PRE-EXISTING TESTS UPDATED (declared, OP-28): geocoding.service.test.ts's two
+  ADL-46 R4 ambiguity assertions ('stays pending'/attempts+1) were SUPERSEDED by
+  D1a and updated to needs_attention/ambiguous/attempts-unchanged. NOT a QA
+  red-bar file, not the frozen ATDD suite — the merged ADL-55 explicitly refines
+  ADL-46 D10. Verified via git diff that the three GE-19 QA files' assertions are
+  unchanged (only describe.skip → describe).
+  DOCS same-PR: api-reference 1.8 → 1.9 (needs_attention + geocode_cause enum;
+  full GET /api/geocode-queue section with the (status,cause)→label map + recovery
+  levers). NOT in my scope (frontend brief): NR-06 localStorage retirement, the
+  panel UI, label rendering (criterion 9). Full backend 871 tests green (57
+  files), type:check:all clean, scope:check PASS, all pre-push green.
+  Full detail: jobs/backend/park-docs/20260811-BACKEND-ge19-park.txt
+
+=== PRIOR STATUS: QUAL-49 entity-serializers thread ===
 BACKEND CONTEXT — 2026-08-10 (QUAL-49 entity-serializers thread, latest)
 PROJECT: Travel Tracker
 CURRENT STATUS: extracted per-entity serializers into NEW

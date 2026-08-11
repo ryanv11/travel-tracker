@@ -181,7 +181,7 @@ afterEach(() => {
 // a needs_attention city referenced SOLELY by USER_B never appears for USER_A.
 // ================================================================
 // GE-19 RED BAR (BUG-85) — unskip when implemented
-describe.skip('GE-19 RED BAR (BUG-85) §7.4 — GET /api/geocode-queue is userId-scoped (SECURITY)', () => {
+describe('GE-19 RED BAR (BUG-85) §7.4 — GET /api/geocode-queue is userId-scoped (SECURITY)', () => {
   it("USER_A's queue contains their own stuck city and NEVER USER_B's solely-referenced stuck city", async () => {
     // USER_A's stuck city.
     const tripA = await seedTrip(testDb!, USER_A_ID);
@@ -221,7 +221,7 @@ describe.skip('GE-19 RED BAR (BUG-85) §7.4 — GET /api/geocode-queue is userId
 // cities the user no longer references (the last referencing place removed).
 // ================================================================
 // GE-19 RED BAR (BUG-85) — unskip when implemented
-describe.skip('GE-19 RED BAR (BUG-85) §7.5 — queue excludes resolved and no-longer-referenced cities', () => {
+describe('GE-19 RED BAR (BUG-85) §7.5 — queue excludes resolved and no-longer-referenced cities', () => {
   it('a resolved city and an unreferenced city are absent; a still-referenced stuck city is present', async () => {
     const tripA = await seedTrip(testDb!, USER_A_ID);
 
@@ -267,7 +267,7 @@ describe.skip('GE-19 RED BAR (BUG-85) §7.5 — queue excludes resolved and no-l
 // via UpdatePlaceDatesSchema). This suite uses the real path.
 // ================================================================
 // GE-19 RED BAR (BUG-85) — unskip when implemented
-describe.skip('GE-19 RED BAR (BUG-85) §7.8 — re-point drops the abandoned stuck city from the queue', () => {
+describe('GE-19 RED BAR (BUG-85) §7.8 — re-point drops the abandoned stuck city from the queue', () => {
   it('after re-pointing the last place onto a corrected city, the stuck city leaves the queue', async () => {
     const tripA = await seedTrip(testDb!, USER_A_ID);
     const cityStuck = await seedCity(testDb!, 'MistypedTown', { geocodeCause: 'ambiguous' });
@@ -301,7 +301,7 @@ describe.skip('GE-19 RED BAR (BUG-85) §7.8 — re-point drops the abandoned stu
 // 'unresolvable') (needs-attention) without conflation.
 // ================================================================
 // GE-19 RED BAR (BUG-85) — unskip when implemented
-describe.skip('GE-19 RED BAR (BUG-85) §7.10 — needs_attention/unresolvable bucketed apart from in-progress', () => {
+describe('GE-19 RED BAR (BUG-85) §7.10 — needs_attention/unresolvable bucketed apart from in-progress', () => {
   it('returns pending, needs_attention and unresolvable rows distinguishably so the two buckets never conflate', async () => {
     const tripA = await seedTrip(testDb!, USER_A_ID);
 
