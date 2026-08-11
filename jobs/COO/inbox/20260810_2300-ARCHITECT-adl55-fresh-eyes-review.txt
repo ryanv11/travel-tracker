@@ -1,0 +1,239 @@
+ADL-55 — OP-27 FRESH-EYES REVIEW (high-stakes: schema/migration + userId-scoping)
+Reviewer: Architect (second, fresh chain — did not author ADL-55)
+Date: 2026-08-10
+Target: jobs/architect/tech/ADL-55-geocode-status-lifecycle.md
+        (settled version on origin/chore/adl-ge19-geocode-lifecycle, §1 RESOLVED-stamped commit 17d8046)
+
+================================================================================
+VERDICT: SOUND-WITH-FOLLOW-ONS
+================================================================================
+The four load-bearing claims all hold on the merits. The migration is correctly
+specified, the security query is structurally sound, and the duplicate-safety
+argument survives adversarial probing. There is ONE high-severity spec-consistency
+defect on the recovery path (F1 below): the §8 summary undercounts the edits the
+re-open actually needs, and the omitted edit is the exact thing that keeps a
+recovered city from stranding in `needs_attention` forever. The correct behaviour
+IS specified — in §10, tersely — and is backstopped by acceptance criterion §7.7,
+so this is a clarity/consistency fix to make before the implementation brief, not
+a design impossibility. Nothing here requires re-architecting.
+
+If the COO's bar is "the brief must be implementable right first time with no
+red-bar iteration," treat F1 as blocking-for-brief-clarity. On design soundness
+alone it is a follow-on.
+
+================================================================================
+THE FOUR LOAD-BEARING CLAIMS — CONFIRMED vs OVERTURNED
+================================================================================
+
+CLAIM 1 (the migration, §3.5) — CONFIRMED SOUND.
+- A CHECK change forces a full table rebuild on SQLite/libSQL — verified against
+  migration 0017, which did exactly this shape for `chk_cities_osm_both_or_neither`
+  (0017:5-13, 40-67). Doable without data loss: INSERT...SELECT carries every
+  column and `id` is preserved (0017:64). The ADL's claim is accurate.
+- ADL-15 bug 4 WILL recur on the regenerated `uniq_cities_pending_per_creator`
+  index — verified: 0017:77-82 is the exact hand-correction the ADL points at
+  (drizzle splits `COALESCE(region_id,0)` / `COALESCE(created_by_user_id,'')` on
+  their internal commas). The ADL's instruction to hand-correct that one index and
+  verify against schema.ts (schema.ts:174-182) is correct and precise.
+- The ADL-47 single-green-step argument holds. This migration is NOT breaking in
+  the ADL-47 sense: the CHECK is WIDENED (adds a value; existing writes still pass),
+  the new column is nullable, and old code tolerates the new schema — I verified
+  condition (iii) directly (see below). Single instance + migrate-before-serve
+  (start = `drizzle-kit migrate && tsx server.ts`) means no old-code/new-schema
+  overlap that matters. The ADL correctly states the reversion trigger if any of
+  (i)-(iii) ceases to hold.
+- Backfill (§3.5.3) is correct: `WHERE geocode_status='pending' AND attempts>=5`
+  runs as a trailing statement after index recreation; a pending->needs_attention
+  flip only REMOVES rows from the partial pending index, so it can never violate a
+  uniqueness constraint. cause=NULL for backfilled rows is handled by the generic
+  (needs_attention, null) label (§4).
+
+CLAIM 2 (D3, the security-load-bearing query, §5.1) — CONFIRMED SOUND. This is the
+finding that would have mattered most if wrong; it is not wrong.
+- The query composes the chokepoint, it does NOT hand-roll a predicate.
+  `scopeToUser(trips, userId)` returns `eq(trips.userId, userId)` (scope.ts:66) and
+  `trips` is a `UserOwnedTable`, so the composition is legal and identical to
+  `findCarryForwardItems` (cities.ts:376 — same `scopeToUser(trips, userId)` in the
+  WHERE, same trip_places->trips join as the ownership axis).
+- Cross-user isolation is structural, not a droppable filter. A city referenced
+  ONLY by user B's trips has no `trip_places` row whose `trips` row satisfies
+  `scopeToUser(trips, userId=A)`, so it cannot appear for A. I tried to find a join
+  path that leaks another user's stuck city: the only join is trip_places->trips,
+  trips is scoped, so the surviving trip_places are exactly A's; the LEFT JOIN to
+  regions adds only region_name and cannot add ownership; DISTINCT cannot widen the
+  set. No leak. Cities being a shared reference table is exactly the leakage GE-19
+  forbids and this query does not enable it — a user only ever sees a city their
+  OWN place points at, which is correct (the GE-16 note in §5.1 is right: search
+  containment governs discovery of OTHERS' rows, this governs your own queue).
+- The scope-completeness guard (QUAL-43 Stage 5, build-wide) would fail a
+  hand-rolled `eq(trips.userId,…)` anywhere in src/backend; the ADL explicitly
+  instructs the brief to use scopeToUser. Consistent.
+
+CLAIM 3 (R5b "closes as overtaken" — findByIdentityKey status-blindness, §8) —
+CONFIRMED SOUND.
+- findByIdentityKey IS status-blind and creator-blind — verified by reading it
+  (cities.ts:206-224): it matches on (country_code, name COLLATE NOCASE,
+  COALESCE(region_id,0)) with NO status and NO creator filter (:217-219).
+- I stress-tested the partial-index interaction the brief flagged: moving a row to
+  `needs_attention` DOES drop it out of `uniq_cities_pending_per_creator`
+  (WHERE geocode_status='pending', schema.ts:181) — but this enables no NEW
+  duplicate. On any re-add, step-1 findByIdentityKey finds the existing row
+  (whatever its status) and reuses it BEFORE any insert, so no second row is
+  created. The DB index is only a backstop for the concurrent-insert race where
+  step 1 returned null for BOTH callers; in that race both new rows are `pending`
+  (fresh inserts default pending), so the pending-per-creator index still catches
+  the loser. `needs_attention` rows never participate in that race because they
+  already exist and step 1 finds them.
+- Critically, this "out of the pending index" behaviour is IDENTICAL to the
+  already-shipped `unresolvable` status (also excluded by WHERE pending, and
+  already admitted to findRegionlessUpgradeCandidate's whitelist). ADL-55 adds no
+  new class of index-coverage risk. AC §7.6 pins it. Sound.
+
+CLAIM 4 (the re-open path — does re-point/re-open reset the lifecycle, or can a
+city strand in needs_attention?) — DESIGN CORRECT, SPEC UNDER-SPECIFIED. This is F1.
+See below. The DESIGN (§3.3 + §10) resets correctly; the §8 summary omits the edit
+that makes it true, and without that edit a recovered city strands in
+`needs_attention` with no path back to `pending`.
+
+================================================================================
+SEAM CHECKS RUN (ADL-52 refinement #2) — AND WHAT THEY FOUND
+================================================================================
+
+SEAM A — OQ-1 dropped the soft-dismiss `user_dismissed_cities` table. Does any
+later section still assume dismiss-state exists? RAN: grepped §3-§10 + the §5 query
++ §7 ACs + §10 implications for any dismiss/hide/user_dismissed reference.
+FINDING: CLEAN. The only mentions of soft-dismiss/user_dismissed_cities are inside
+OQ-1 itself (now stamped dropped). The §5.1 query is purely derived from references
+(no dismiss filter); AC §7.5 uses the remove-the-reference mechanism ("delete the
+last referencing place -> city leaves the queue"), which is OQ-1(a), not a table;
+§10 introduces no table. No orphaned assumption. PASS.
+
+SEAM B — OQ-3 flipped ambiguous -> needs_attention on the FIRST verdict. Does §3's
+state machine, §4's labels, and the ADL-46-refinement claim stay consistent, and
+does it break anything ADL-46 D10 actually relied on? RAN: cross-checked §3.2/§3.3/
+§4 against each other AND read ADL-46's actual ambiguous handling
+(20260801-ADL46-F1-F2-ruling.md §2.5/§2.6, R1/R4) rather than trusting ADL-55's
+summary.
+FINDINGS:
+- §3.2/§3.3/§4 are internally consistent for the ambiguous transition
+  (ambiguous -> needs_attention, attempts unchanged, cause=ambiguous; label
+  "Needs region — multiple matches"). PASS.
+- ADL-46 §2.5 EXPLICITLY rejected adding a new terminal state for ambiguity ("the
+  answer needs no new state") and kept ambiguous rows `pending`+budget-consuming.
+  ADL-55 reverses that. I checked each property ADL-46 §2.5/§2.6 relied on:
+    * "usable pending record" (GE-16): preserved — the row still exists and is
+      referenceable; map-pin suppression keys off NULL coords, not status, so a
+      needs_attention city is still pinless-but-usable. OK.
+    * skip fire-and-forget on ambiguous at create (§2.6): untouched by ADL-55. OK.
+    * unresolvable-adopt asymmetry (no re-fire): preserved in §3.3. OK.
+    * RE-ASKABILITY ("changing region_id resets the budget and re-asks", ADL-46
+      §2.5 / R1): This is the one that DEPENDS on the omitted edit. Under ADL-46 the
+      multi-region ambiguous row is `pending`, so the wildcard-upgrade's existing
+      `if (status==='pending')` re-fire (cityIdentityService.ts:106) triggers.
+      Under ADL-55 that row is `needs_attention`, so unless the upgrade resets it to
+      `pending`, the re-fire never fires and ADL-46's re-askability guarantee is
+      BROKEN. So OQ-3 does not break ADL-46 on its own — but OQ-3 + the incomplete
+      re-open edit set (F1) would. This is exactly the "amendment's consequences
+      stop one step early" seam the review exists to catch.
+- Note: for the region-UNCONFIRMED ambiguous case (regioned rows, e.g. city 6),
+  ADL-46's "re-askable if region_id changes" was already only theoretically true
+  (a regioned row's region only changes via owner-only PATCH /api/cities curation).
+  §9 flags this honestly and routes recovery to re-point (D2 primary). ADL-55 is
+  MORE honest here, not less. No regression.
+
+================================================================================
+FINDINGS (tiered)
+================================================================================
+
+--- F1 [HIGH — should-fix before the implementation brief; borderline blocking] ---
+The re-open edit set is UNDERCOUNTED. §8 asserts the lifecycle composes "via
+exactly TWO local edits" and names them as (1) widen findRegionlessUpgradeCandidate's
+whitelist to include needs_attention (cities.ts:253) and (2) keep findByIdentityKey
+status-blind. But the re-open specified in §3.3/§10 needs a THIRD, load-bearing edit
+that §8 does not name: findOrUpgradeCity must reset geocode_status -> 'pending' AND
+geocode_cause -> null in its upgrade UPDATE.
+
+Evidence (live code): cityIdentityService.ts:96-100 sets
+`{ regionId, geocodeAttempts: 0, updatedAt }` — it does NOT touch geocodeStatus. The
+re-fire is then guarded at :106 by `if (upgradedRow.geocodeStatus === 'pending')`.
+So if the whitelist (edit 1) admits a `needs_attention` row but the UPDATE does not
+reset its status, the adopted row remains `needs_attention`: the re-fire guard is
+false (no resolveCity), and the row is stranded in `needs_attention` with region set,
+attempts 0, and NO path back to pending — i.e. the exact BUG-85 stuck class,
+reintroduced on the recovery path, plus a broken ADL-46 re-askability guarantee.
+
+§10 DOES carry the correct behaviour ("findOrUpgradeCity re-open resets
+(status/attempts/cause + re-fire) for adopted needs_attention") — so the design is
+sound and, once status is set to 'pending' in the UPDATE, the existing :106 guard
+fires correctly. The defect is purely that §8 (the more emphatic section, framed as
+"the probe that settled it") contradicts §10 on the edit count, and an implementer
+trusting §8's "exactly two edits" would ship the strand. AC §7.7 catches it at the
+red bar, so it will not reach production — but it costs a QA iteration the fresh-eyes
+review is meant to pre-empt.
+RECOMMENDATION: Reconcile §8 to state THREE edits and spell out the findOrUpgradeCity
+change explicitly (reset geocode_status->'pending' + geocode_cause->null in the
+:96-100 UPDATE so the :106 re-fire guard triggers). The implementation brief should
+enumerate this as its own line item, not fold it into "widen the whitelist."
+
+--- F2 [NON-BLOCKING — belongs in the brief so QA scopes it] ---
+The nextGeocodeState extraction (§6/D5) must be fed a verdict vocabulary that
+already distinguishes (a) the carried-OSM "ref no longer a settlement" terminal
+(M-B, geocoding.service.ts:420-435 -> unresolvable) from name-search no_match, and
+(b) BOTH recoverable-error sites — carried-OSM (:413-417) AND name-search (:458-462)
+— must route through the new increment-THEN-check-cap transition. §3.2's verdict
+table lists these, but §6/§10 describe the extraction at a level where an implementer
+could wire only the name-search path and leave the carried-OSM error site still doing
+the old passive `incrementAttempts`-and-stay-pending, which would let a carried-ref
+row sit pending-at-cap — the very state §3.2 says can never occur.
+RECOMMENDATION: The brief and AC §7.2 should explicitly cover BOTH error sites, and
+name the carried-OSM M-B terminal as a distinct verdict feeding nextGeocodeState.
+
+--- F3 [NIT] ---
+resolveCity's early-return guards (geocoding.service.ts:390-391) handle 'resolved'
+and 'unresolvable' but not 'needs_attention'. In the intended design resolveCity is
+only ever called on pending rows (processQueue selects WHERE pending; the re-open
+resets to pending first), so no guard is strictly required — but adding
+`if (city.geocodeStatus === 'needs_attention') return false;` defends against an
+accidental direct call re-geocoding a terminal row. Implementer's call; worth a line
+in the brief.
+
+--- F4 [NIT — already self-flagged by the ADL, confirmed accurate] ---
+§8's "one honest residual": findByIdentityKey's doc comment (cities.ts:202-204)
+justifies its blindness by "the unique index is unconditional" — that IS stale;
+migration 0017 replaced the unconditional index with two partials (schema.ts:168-182).
+Confirmed. The blindness is still correct (reuse-not-duplicate across creators/
+statuses), only the stated reason is outrun. The ADL's recommendation to refresh the
+comment in the implementing PR (doc-lifecycle same-PR rule) is right.
+
+================================================================================
+BACKWARD-COMPAT (condition iii) — INDEPENDENTLY VERIFIED
+================================================================================
+I did not take §3.5(iii) on faith. Grepped every backend branch on geocode_status:
+- processQueue (geocoding.service.ts:536): WHERE pending — needs_attention excluded,
+  fine.
+- GE-16 search containment (cities.ts:112-116): OR(resolved, creator=me, creator
+  IS NULL) — a needs_attention row is simply not in the 'resolved' branch, so it
+  stays creator-scoped exactly like pending/unresolvable. No leak, no crash.
+- findRegionlessUpgradeCandidate old whitelist (cities.ts:253): needs_attention not
+  upgradeable by old code — it just won't upgrade it, as §3.5(iii) states.
+- resolveCity guards (:390-391): old code never receives a needs_attention row
+  (processQueue excludes it), so the missing guard is moot for old code.
+No backend branch mis-handles the new value. §3.5(iii) holds.
+
+================================================================================
+WHAT I TRIED TO BREAK AND COULD NOT
+================================================================================
+- D3 leaking another user's stuck city via any join path — could not; isolation is
+  structural via the scoped trips join.
+- A needs_attention + pending duplicate for the same identity key coexisting because
+  the terminal row left the pending index — could not; step-1 status-blindness
+  intercepts every re-add before insert, and the concurrent-insert race is still
+  covered because racing inserts are both pending.
+- The migration losing the one known stuck row (city 6) — no; INSERT...SELECT carries
+  it, and it is orphaned (0 trip_places) so it drops from the derived queue anyway.
+- OQ-3 breaking an ADL-46 guarantee on its own — no; the only ADL-46 property at risk
+  (re-askability) breaks only in combination with the F1 omission, which is the fix.
+
+Bottom line: fix F1's spec inconsistency (reconcile §8 with §10, enumerate the
+findOrUpgradeCity reset), fold F2 into the brief so QA scopes both error sites, and
+the design is ready to build. No re-architecture warranted.
