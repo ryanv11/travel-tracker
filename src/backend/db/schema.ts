@@ -12,6 +12,15 @@
  * column names and relationships are identical; only the table builder
  * and column type imports change.
  *
+ * ADDING A TABLE? It must also be classified in `ownership.ts` — whose data is
+ * this, and how is that expressed (its own `user_id` column, a named parent,
+ * global reference data, or identity). That is build-enforced: CHECK 3 of
+ * `scripts/scope-completeness-check.sh` fails on any table defined here and
+ * classified nowhere (QUAL-47). If a table is user data, its ownership column
+ * must be named `user_id` — the scope guard's CHECK 1 finds hand-authored
+ * ownership by that name, so an ownership column called anything else would be
+ * invisible to it.
+ *
  * @see jobs/architect/tech/20260307-ER-schema.md (v1.1 — original design, historical).
  *      Schema evolution since v1.1 (users, trip_countries, is_owner, place dates,
  *      user_id FKs) is recorded in the architecture-decisions-log (ADL-16/19/20/23/24/27).

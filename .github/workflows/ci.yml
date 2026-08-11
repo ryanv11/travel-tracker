@@ -22,13 +22,17 @@ jobs:
         run: npm run status:check
       - name: tracker.json integrity
         run: npm run tracker:check
-      # QUAL-43 / ADL-53: backend scope guards. Was pre-push-only, which is a
-      # local pre-filter CI never runs — a guard living only there is bypassed by
-      # anyone who skips the checklist. FULLY ENFORCED since ADL-53 §6 Stage 5
-      # (2026-08-10): fails the build on hand-authored ownership anywhere in
-      # src/backend/** and on any mention of `getDb` in src/backend/routes/**.
-      # Both were warn-only while Stages 2/3/4 were relocating reads; neither is
-      # now. Do not add exclusions to turn this green (OP-30).
+      # QUAL-43 / ADL-53 (+ QUAL-47): backend scope guards. Was pre-push-only,
+      # which is a local pre-filter CI never runs — a guard living only there is
+      # bypassed by anyone who skips the checklist. THREE CHECKS, ALL ENFORCED:
+      # fails the build on hand-authored ownership anywhere in src/backend/**, on
+      # any mention of `getDb` in src/backend/routes/**, and on any table in
+      # schema.ts not classified in src/backend/db/ownership.ts. Checks 1 and 2
+      # were warn-only while Stages 2/3/4 were relocating reads; neither is now,
+      # and Check 3 landed enforced. Do not add exclusions to turn this green
+      # (OP-30) — Check 3's manifest in particular is a classification, not an
+      # allowlist, and reclassifying a table to dodge a failure is worse than the
+      # failure.
       - name: Backend scope guards
         run: npm run scope:check
 
