@@ -1,0 +1,113 @@
+BACKEND PARK DOCUMENT — 2026-08-10
+THREAD: QUAL-48 — file-backed libSQL test-client spike (OP-33 spike-gate)
+BRANCH: chore/qual48-transaction-spike
+TYPE: spike — evidence + verify-checklist + go/no-go. NO production src/backend/** change.
+
+────────────────────────────────────────────────────────────────────
+WHAT THIS THREAD WAS
+────────────────────────────────────────────────────────────────────
+The 2026-08-08 design reflection claimed the project "has no transactions" and
+proposed a file-backed libSQL test client as the fix. The 2026-08-10 secondary
+audit (jobs/architect/tech/20260810-design-reflection-secondary-audit.md §1d)
+re-framed it: "no transactions" is FALSE, the real constraint is the :memory:
+test double, and the proposed fix ("a file-backed client honours transactions")
+was itself UNVERIFIED. This spike ran the probe.
+
+────────────────────────────────────────────────────────────────────
+RESULT: GO
+────────────────────────────────────────────────────────────────────
+A file-backed libSQL test client honours db.transaction() AND lets a subsequent
+query on the same client survive — the exact half the :memory: double breaks —
+while keeping partial unique indexes enforced, leaving the drizzle-kit patch
+untouched, and passing all 827 tests at +~3s wall.
+
+Full report: jobs/backend/tech/20260810-qual48-transaction-spike.md
+Inert repro: jobs/backend/tech/qual48-transaction-probe.mts (probes A–F, self-
+contained, outside every vitest include glob so CI never runs it — kept per the
+QUAL-25 gazetteer-spike precedent).
+
+────────────────────────────────────────────────────────────────────
+THE MECHANISM (read from node_modules, decisive)
+────────────────────────────────────────────────────────────────────
+@libsql/client lib-cjs/sqlite3.js:145-149 — transaction() hands the live
+connection to the tx object and sets this.#db = null. The NEXT client query
+calls #getDb(), sees null, and opens a NEW connection from #path:
+  - :memory:  -> a brand-new EMPTY in-memory db (schema/data gone) -> throws
+  - file:...  -> reopens the SAME file (committed data present) -> works
+drizzle wraps this at drizzle-orm/libsql/session.cjs:85 and does NOT close the
+tx connection after commit. Positive, self-verifying (code read) and it predicts
+every runtime probe.
+
+────────────────────────────────────────────────────────────────────
+VERIFY-CHECKLIST VERDICTS (each with its probe)
+────────────────────────────────────────────────────────────────────
+1. file-backed tx + subsequent query survives — VERIFIED yes.
+   Probe C (file:<tmp>): tx commits, subsequent SELECT = [{"c":1}], mid-tx
+   unique violation rolls back whole tx (no orphan). Probe A (:memory:, same
+   code, only URL differs): subsequent SELECT THROWS. Two probes fail
+   differently; mechanism read is the third.
+
+2. cheaper than file I/O? — VERIFIED a real alternative exists but is UNSAFE for
+   the parallel suite (so NOT "file-backed is the only way").
+   file::memory:?cache=shared works (probe D) with no file I/O, BUT all
+   shared-cache in-memory clients in one process share ONE db (probe E: a
+   separate client read another's table+row) and libSQL rejects a NAMED
+   in-memory db to isolate them (probe F: mode= param rejected; also read the
+   whitelist in @libsql/core config.js — in-memory mode whitelists only cache).
+   Under Vitest fileParallelism:true (threaded pool) two files collide. Viable
+   only with fileParallelism:false — its own cost. A @libsql/client version bump
+   was NOT probed — marked UNVERIFIED (only pinned ^0.14.0 tested).
+
+3. coexists with drizzle-kit patch + partial unique indexes — VERIFIED yes.
+   drizzle-kit: grep -rn drizzle-kit src/ = comments only, never a runtime
+   import; the test runtime builds schema via drizzle-orm/libsql/migrator, not
+   the drizzle-kit CLI the patch governs; file-backed suite still built its
+   schema through it and passed. Partial indexes: file-backed, a duplicate
+   (osm_type,osm_id) is REJECTED by uniq_cities_osm_ref while TWO osm_id-NULL
+   rows are BOTH allowed — proves the partial predicate is honoured, not a
+   silently-full index (the false-green risk the brief named).
+
+4. cost to 827-suite — VERIFIED passes, +~30% wall.
+   :memory: baseline 52 files / 827 tests / 9.89s (tests 5.79s).
+   file-backed 52 / 827 / 12.87s (tests 25.43s) — tests phase ~4.4x (per-test
+   file I/O) but import/transform dominate wall, so observable +~3s.
+   Revert re-run 827 / 10.01s — baseline restored. Blind spot noted: /tmp is
+   likely tmpfs here; a real-disk CI runner could differ.
+
+5. unblocks itemRepository.create atomic wrap — VERIFIED yes.
+   create = base insert items.ts:148 + insertExtension:165 + a trailing
+   fetchItemsWithExtensions (a SELECT AFTER the writes) — that trailing read is
+   exactly what :memory: forbids under a transaction. Probe C models the write
+   pair (rollback, no orphan) AND the post-tx read survives file-backed.
+   executeCarryForward (items.service.ts:116) survives :memory: only because its
+   route (places.ts:245) returns the tx result with NO post-tx query — accident
+   of shape, cannot be copied by create.
+
+────────────────────────────────────────────────────────────────────
+AUDIT CLAIMS (§1d) — ALL CONFIRMED, NONE OVERTURNED
+────────────────────────────────────────────────────────────────────
+- "no transactions" false: executeCarryForward runs db.transaction() in prod.
+- multi-step paths atomic via db.batch(): probe B (failed 2nd stmt rolls back 1st).
+- real constraint = :memory: breaks next query after a tx: probe A + mechanism.
+- reflection's fix was UNVERIFIED: now verified by this spike.
+The three avoidance comments cited exist verbatim (trips.ts:288,
+cityIdentityService.ts:138, geocoding.service.ts:45).
+
+────────────────────────────────────────────────────────────────────
+FOLLOW-ON (QUAL-48 part 2 + BUG-95) — RECOMMENDED DESIGN
+────────────────────────────────────────────────────────────────────
+Proceed. For the Backend brief (decisions, not settled here):
+- per-test file-backed client, unique temp path, WITH cleanup (spike variant
+  leaked temp dirs — the real fix must rm per test or global teardown).
+- optionally scope file-backed to only transaction-using tests to keep the
+  suite delta near zero; :memory: stays for the rest. Both are green.
+- do NOT touch the drizzle-kit patch (verified unnecessary, orthogonal).
+- ATDD-first (OP-35: silent atomicity + data-integrity): (a) create mid-failure
+  strands no orphan base item; (b) BUG-95 non-owner-cannot-mutate-extension-row.
+
+────────────────────────────────────────────────────────────────────
+STATE AT PARK
+────────────────────────────────────────────────────────────────────
+- test-db.ts UNMODIFIED (measurement edit reverted; suite reconfirmed 827/827).
+- Deliverables committed on chore/qual48-transaction-spike. PR open, do not merge.
+- No blockers. No open questions.
