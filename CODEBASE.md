@@ -185,6 +185,10 @@ src/
     ├── errors.ts               Typed error classes
     ├── db/
     │   ├── schema.ts           Drizzle schema — single source of truth for DB shape
+    │   ├── ownership.ts        Classifies EVERY table in schema.ts — user data (own user_id column
+    │   │                       / scoped through a named parent), global reference data, or identity.
+    │   │                       Source of the UserOwnedTable constraint on scopeToUser; a new table
+    │   │                       classified nowhere fails the build (QUAL-47, scope guard CHECK 3)
     │   ├── index.ts            DB client singleton
     │   ├── seed.ts             Seed runner
     │   ├── seed-data.ts        Default category/activity data + map shading defaults (companions

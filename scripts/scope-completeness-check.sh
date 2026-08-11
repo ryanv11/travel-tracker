@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# Backend scope guards — QUAL-43 / ADL-53.
+# Backend scope guards — QUAL-43 / ADL-53, extended by QUAL-47.
 #
-# ONE instrument, TWO invariants. They are deliberately in the same script
-# rather than two: they are adjacent assertions about the same property (where
-# ownership may be expressed, and where the DB handle may be obtained), and two
-# scripts asserting adjacent invariants is how they drift apart.
+# ONE instrument, THREE invariants. They are deliberately in the same script
+# rather than three: they are adjacent assertions about the same property (where
+# ownership may be expressed, where the DB handle may be obtained, and which
+# tables ownership is even a question for), and separate scripts asserting
+# adjacent invariants is how they drift apart.
 #
 #   CHECK 1 — Ownership completeness  (ADL-53 §6 Stage 0, widened by Stage 3)
 #   CHECK 2 — No `getDb` in routes    (ADL-53 §3 item 1, authored by Stage 3)
+#   CHECK 3 — Ownership classification completeness (QUAL-47)
 #
-# BOTH CHECKS ARE FULLY ENFORCED (2026-08-10, ADL-53 §6 Stage 5). Any match in
-# either one fails the build. Both landed warn-first on purpose — the QUAL-43
+# ALL THREE CHECKS ARE FULLY ENFORCED. Checks 1 and 2 were flipped to enforced
+# on 2026-08-10 (ADL-53 §6 Stage 5); Check 3 landed enforced. Any match in
+# either of the first two fails the build. Both landed warn-first on purpose — the QUAL-43
 # migration was mid-flight and failing on a residual a later stage was chartered
 # to remove would have red-ed the trunk (ADL-47 expand/contract). Stage 5 is the
 # CONTRACT half: Stages 2/3/4 drove both residual counts to zero, and this is the
@@ -170,10 +173,60 @@
 #   reword your own prose and you are done; the other tags mean a read needs
 #   relocating into a repository. Neither ever means adding an exemption here.
 #
-# BLIND SPOT (stated, not silently accepted): both checks match TEXT, not syntax,
-# so a comment quoting any pattern trips them. That is deliberate — it fails
-# closed. The fix is to reword the comment (OP-30: fix your own text), never to
-# add an exemption here.
+# BLIND SPOT (stated, not silently accepted): checks 1 and 2 match TEXT, not
+# syntax, so a comment quoting any pattern trips them. That is deliberate — it
+# fails closed. The fix is to reword the comment (OP-30: fix your own text), never
+# to add an exemption here.
+#
+# ================================================================
+# CHECK 3 — Ownership classification completeness  (ENFORCED)
+# ================================================================
+#
+# QUAL-47. Closes the soft edge Check 1 leaves behind, recorded as a carry-forward
+# when Checks 1 and 2 were flipped to enforced: CHECK 1 IS REGEX-SHAPED, and it
+# matches the ownership column by NAME. Its protection therefore rests on an
+# unwritten convention — that every user-owned table calls its ownership column
+# `userId`. A table whose ownership column were called `ownerId` would be
+# invisible to Check 1, would not be in the type union `scopeToUser` accepts, and
+# so would be pulled through no chokepoint and flagged by no guard. The near-miss
+# is already in the schema: `cities.created_by_user_id` exists and is correctly
+# NOT ownership (global reference data, provenance), which proves the naming
+# pattern occurs here rather than being hypothetical.
+#
+# WHAT CHECK 3 ASSERTS: every table in `schema.ts` is classified, exactly once, in
+# `src/backend/db/ownership.ts` — as user data owned by its own `user_id` column,
+# as user data scoped through a named parent, as global reference data, or as the
+# identity table. Each classification is then verified against the real schema:
+# an `owned-by-column` table must actually carry a `users.id` foreign key on a
+# column named `user_id`; an `owned-via-parent` table must actually reference the
+# parent it names, along a chain that terminates in an owned table; and any other
+# table carrying a `users.id` foreign key must state what that key means instead.
+#
+# A NEW TABLE NOBODY CLASSIFIED FAILS THE BUILD. That is the point — the check
+# does not try to decide whether a user foreign key means ownership (no static
+# rule can: `cities.created_by_user_id` is exactly that judgement). It forces
+# someone to decide, once, in writing, and fails closed until they do.
+#
+# IT IS NOT AN ALLOWLIST (OP-30). Nothing in the manifest is exempted from
+# anything, and no entry silences a check. Each entry makes a claim the build
+# tests against the schema; a wrong entry fails louder than no entry. The one
+# thing to never do is reclassify a table to make a failure go away.
+#
+# WHY CHECK 3 IS A SEPARATE FILE AND CHECKS 1/2 ARE NOT. It reads the schema
+# STRUCTURALLY — Drizzle's own table metadata via `getTableConfig` — instead of
+# grepping `schema.ts`, because "which tables carry which foreign keys" is a
+# property of the schema, not of its formatting. A regex answers it only while
+# everyone keeps writing the reference on one line, in one spelling, inside a
+# recognisable table block. That needs TypeScript, hence
+# `scripts/ownership-classification-check.ts`. It is NOT a second instrument: it
+# has no npm script and no CI step of its own, it is run from here, and its
+# verdict is folded into the one verdict below.
+#
+# BLIND SPOT (stated, not silently accepted): Check 3 proves a decision was
+# recorded and is consistent with the schema. It cannot prove the decision was
+# RIGHT — a table holding user data can still be classified `global-reference`
+# with a plausible sentence, and nothing here will catch that. What it removes is
+# the silent case: a table nobody classified at all.
 
 set -euo pipefail
 
@@ -329,7 +382,34 @@ for f in "${ROUTE_FILES[@]}"; do
 done
 
 # ----------------------------------------------------------------
-# Verdicts — BOTH checks are enforced (ADL-53 §6 Stage 5)
+# CHECK 3 — ownership classification (enforced)
+# ----------------------------------------------------------------
+# Runs the TypeScript implementation and captures its verdict. Every failure
+# path here is fail-closed: a missing implementation, a missing toolchain, or a
+# crash is a FAILURE, never a silent skip. A guard that quietly does nothing when
+# its runner is absent is worse than no guard, because the green tick still
+# appears (QUAL-27 is the local precedent for a tool that fails open).
+TSX_BIN="$ROOT/node_modules/.bin/tsx"
+CHECK3_SCRIPT="$ROOT/scripts/ownership-classification-check.ts"
+
+check3_rc=0
+check3_out=""
+
+if [ ! -f "$CHECK3_SCRIPT" ]; then
+  check3_out="CLASSIFY — CHECK 3's implementation is missing: scripts/ownership-classification-check.ts
+    It is not optional and it is not a second instrument; restore it (QUAL-47)."
+  check3_rc=1
+elif [ ! -x "$TSX_BIN" ]; then
+  check3_out="CLASSIFY — cannot run CHECK 3: no executable at node_modules/.bin/tsx
+    Run 'npm install' (a fresh worktree does not inherit node_modules). Treated as a
+    FAILURE rather than a skip so a missing toolchain cannot pass this guard."
+  check3_rc=1
+else
+  check3_out="$("$TSX_BIN" "$CHECK3_SCRIPT" 2>&1)" || check3_rc=$?
+fi
+
+# ----------------------------------------------------------------
+# Verdicts — ALL THREE checks are enforced (ADL-53 §6 Stage 5; QUAL-47)
 # ----------------------------------------------------------------
 # Every failure is reported before exiting. A run that breaks both invariants
 # must show both, not just the first: an implementer who fixes only what the
@@ -363,6 +443,12 @@ if [ "$getdb_hits" -gt 0 ]; then
   failed=1
 fi
 
+if [ "$check3_rc" -ne 0 ]; then
+  echo ""
+  echo "$check3_out"
+  failed=1
+fi
+
 if [ "$failed" -ne 0 ]; then
   exit 1
 fi
@@ -372,3 +458,4 @@ echo "scope-completeness-check: PASS"
 echo "  Check 1 (ownership, enforced) — 0 residuals across $((${#ZONE_A_FILES[@]} + ${#ZONE_B_FILES[@]})) backend source(s)"
 echo "    (${#ZONE_A_FILES[@]} in repositories/, ${#ZONE_B_FILES[@]} elsewhere; __tests__ excluded)."
 echo "  Check 2 (getDb in routes, enforced) — 0 mention(s) across ${#ROUTE_FILES[@]} route file(s)."
+echo "$check3_out"

@@ -1,0 +1,160 @@
+PARK DOCUMENT — BACKEND — QUAL-47
+Date: 2026-08-10
+Branch: feat/qual47-schema-ownership-classification
+Tracker: QUAL-47 (no tracker entry or GitHub issue existed at dispatch — see OPEN ITEMS)
+Related: QUAL-43 / ADL-53 (all six stages, merged earlier today)
+
+================================================================
+1. WHAT THE BRIEF ASKED FOR, AND WHAT I BUILT INSTEAD
+================================================================
+The COO proposed a TWO-LIST design: every table carrying a users.id foreign key
+must appear in exactly one of (a) UserOwnedTable, or (b) a new explicitly-reasoned
+non-ownership list; fail when a table is in neither, in both, or is listed but no
+longer exists. The brief explicitly invited a better expression of the invariant.
+
+I built ONE MANIFEST covering EVERY table, not two lists covering eight. Both
+differences are answers to questions the brief itself raised.
+
+DEVIATION 1 — the trigger is "a table exists", not "a table has a user FK".
+  The brief asked: could a user-owned table exist WITHOUT a users.id FK, and slip
+  past entirely? Yes — and not hypothetically. TEN of this schema's user-data
+  tables carry no users.id FK at all: the five item extension tables
+  (item_flights/hotels/car_rentals/restaurants/experiences) and five junctions
+  (trip_categories_map, trip_companions_map, trip_activities_map, trip_countries,
+  trip_place_activities_map). They are scoped through a parent via
+  assertOwned/assertWritable. A user-FK-triggered check covers 8 of this schema's
+  18 user-data tables and would be blind to a new table of that second shape.
+  Classifying every table makes the trigger something nothing can be added
+  without. Cost: one line per table, once.
+
+DEVIATION 2 — one manifest, and UserOwnedTable is DERIVED from it.
+  The brief's "in both lists" failure mode only exists because there are two
+  lists. TABLE_CLASSIFICATION is the single list; UserOwnedTable — the compile-time
+  constraint on scopeToUser — is extracted from its owned-by-column entries:
+
+      export type UserOwnedTable = Extract<
+        (typeof TABLE_CLASSIFICATION)[number],
+        { kind: 'owned-by-column' }
+      >['table'];
+
+  Two lists can disagree; one cannot. CHECK 3 therefore does not test for "in both
+  lists" — it tests for "classified twice", which is the residue of that failure
+  mode once the lists are merged (and which IS injected-fault verified).
+
+DEVIATION 3 — structural schema reading, not textual.
+  The brief flagged parsing schema.ts textually as fragile and asked for a sounder
+  enumeration if one existed. Drizzle's getTableConfig reads the BUILT table
+  object, so line breaks, import aliases, formatting and helper functions cannot
+  hide a foreign key. That needs TypeScript, hence the check's implementation is a
+  .ts file — but it is NOT a second instrument: no npm script, no CI step, run
+  from scope-completeness-check.sh, verdict folded into the one verdict.
+
+DEVIATION 4 — placement. The brief's instinct was scope.ts. The manifest is in
+  src/backend/db/ownership.ts instead: it is a statement about the SCHEMA (which
+  tables exist, what their user FKs mean), so it belongs beside schema.ts, and
+  scope.ts stays about the predicate. scope.ts imports the derived type TYPE-ONLY
+  and re-exports it, so callers still find UserOwnedTable where they always did
+  and the module contributes nothing at runtime.
+
+================================================================
+2. THE CLASSES, AND WHY EACH IS CHECKED
+================================================================
+owned-by-column   user data with its own user_id column; the tables scopeToUser
+                  accepts. CHECK: must really carry a users.id FK, AND that
+                  column must be NAMED user_id.
+owned-via-parent  user data with no ownership column; scoped through `parent`.
+                  CHECK: must really have an FK to the parent it names, and the
+                  chain must terminate in an owned-by-column table without cycling.
+global-reference  not user data. CHECK: non-empty `why`; and if it carries a
+                  users.id FK, a non-empty `userFkNote` saying what that key means.
+user-identity     the users table itself. CHECK: non-empty `why`.
+
+THE COLUMN-NAME CHECK IS THE POINT. CHECK 1 finds hand-authored ownership by
+matching the userId column name. Enforcing that every owned-by-column table
+actually uses user_id is what converts CHECK 1's coverage from a convention into
+a guarantee. The motivating case — a new table with `ownerId` — now fails twice:
+unclassified (3.1) or classified-and-misnamed (3.3).
+
+NOT AN ALLOWLIST (OP-30), and the code says so in three places. Nothing is
+exempted; each entry makes a claim the build tests against the schema, so a WRONG
+entry fails louder than no entry. No suppression was added anywhere.
+
+================================================================
+3. FAULT INJECTION — 11 FAULTS, ALL EXIT 1; CONTROL EXIT 0
+================================================================
+Method: tar-copy of the worktree (node_modules symlinked) into scratch, one fault
+per fresh copy, guard run against the copy root. No git stash, no dirty tree.
+Harness: scratchpad/inject.sh + apply-fault.mjs (scratch, not committed).
+
+  control (clean copy)                                         exit 0
+  new table with a users.id FK, classified nowhere             exit 1  [3.1]
+  same table classified owned-by-column, column named owner_id exit 1  [3.3]
+  trips classified twice (owned-by-column + global-reference)  exit 1  [3.1]
+  manifest entry for a table deleted from schema.ts            exit 1  [module load fails]
+  trips still owned-by-column after its users.id FK removed    exit 1  [3.3]
+  cities' userFkNote emptied while its user FK remains         exit 1  [3.4]
+  entry for a table defined outside schema.ts                  exit 1  [3.2]
+  item_flights claiming a parent it has no FK to               exit 1  [3.5]
+  trip_countries chain terminating in global reference data    exit 1  [3.5]
+  node_modules/.bin/tsx absent                                 exit 1  [fail-closed]
+  scripts/ownership-classification-check.ts deleted            exit 1  [fail-closed]
+
+The last two matter most. A guard whose runner is missing must FAIL, not skip —
+QUAL-27 is the local precedent for a tool that exits 0 with empty output and reads
+as "nothing failed". Both paths are explicit branches in the shell script.
+
+The deleted-table fault surfaces as a Node module-load error rather than a
+formatted message. That is by design and is documented: the manifest holds table
+OBJECTS, not names, so an entry for a deleted table cannot go stale quietly — it
+breaks the type check AND the module load. CHECK 3.2 catches the case objects
+cannot: an entry for a table defined somewhere other than schema.ts.
+
+Compile-time constraint RE-PROBED after switching UserOwnedTable to a derived
+type (it was originally probe-verified at Stage 0 against the hand-written union;
+a derivation change invalidates that evidence): scopeToUser(cities, …) and
+scopeToUser(tripCountries, …) both TS2345.
+
+================================================================
+4. LIMITS OF THE CHECK — STATED, NOT IMPLIED AWAY
+================================================================
+(a) It proves a decision was RECORDED and is CONSISTENT with the schema. It
+    cannot prove the decision was RIGHT. A table holding user data can still be
+    classified global-reference with a plausible sentence and nothing here
+    catches it. What is removed is the silent case: a table nobody classified.
+(b) Corollary dodge: a new user-data table with an oddly-named ownership column
+    could be classified owned-via-parent with a real parent FK, satisfying every
+    check while its own user column goes unscoped. That is now a deliberate
+    written claim rather than an omission — the best a static check can do.
+(c) CHECK 3 says nothing about whether a QUERY is scoped. That is CHECK 1's job.
+    The two are complementary: CHECK 3 makes sure CHECK 1 is looking at the right
+    set of columns; CHECK 1 makes sure ownership is expressed in one place.
+(d) `why` / `userFkNote` are checked for non-emptiness only. Reason QUALITY is a
+    review matter; a length or keyword rule would be theatre.
+
+================================================================
+5. FILES
+================================================================
+NEW   src/backend/db/ownership.ts                  the manifest + derived UserOwnedTable
+NEW   scripts/ownership-classification-check.ts    CHECK 3's implementation
+EDIT  scripts/scope-completeness-check.sh          CHECK 3 section + runner + verdict
+EDIT  src/backend/repositories/scope.ts            UserOwnedTable now imported/re-exported
+EDIT  src/backend/db/schema.ts                     header: adding a table means classifying it
+EDIT  tsconfig.backend.json                        include scripts/**/*.ts (type-check the checker)
+EDIT  .github/workflows/ci.yml                     step comment: two invariants -> three
+EDIT  .claude/skills/pre-push/SKILL.md             CHECK 3 documented
+EDIT  CODEBASE.md                                  db/ownership.ts in the repo map
+
+No file was rewritten wholesale. ownership.ts and the checker are new files;
+every existing file was amended with Edit.
+
+================================================================
+6. OPEN ITEMS FOR THE COO
+================================================================
+- QUAL-47 has NO tracker entry and NO GitHub issue. Two probes that fail
+  differently: grep of _project/tracker.json for "QUAL-47" returned nothing, and
+  `gh issue list --search QUAL-47 --state all` returned only an unrelated 2026-07-30
+  issue. Highest existing id is QUAL-46, so QUAL-47 is free. The PR therefore
+  carries no "Closes #N" line. Tracker entry is the COO's to write.
+- The pre-push skill lives in .claude/skills/, which is repo-tracked; the copy the
+  running session loads is /workspace/.claude/skills/. The edit is committed on the
+  branch and takes effect for everyone on merge.

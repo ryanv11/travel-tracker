@@ -1,0 +1,60 @@
+QUAL-47 · PR #497 (no GitHub issue exists) · BRD n/a · feat/qual47-schema-ownership-classification
+
+WHAT WAS BUILT
+CHECK 3 in scripts/scope-completeness-check.sh: every table in schema.ts must be classified
+exactly once in src/backend/db/ownership.ts, and each classification is verified against the
+real schema via Drizzle's table metadata rather than a grep.
+
+ACCEPTANCE CRITERIA
+1. Check 3 asserts every user-FK table is consciously classified ...... PASS (widened — see below)
+2. Fails on neither / both / stale-listing .......................... PASS (11 injected faults)
+3. Exits 0 on main as it stands ..................................... PASS (21 tables, 8 user-FK)
+4. Verified by injected faults with exit codes ...................... PASS (all 1; control 0)
+5. No production behaviour change ................................... PASS (type-only import)
+6. 827 backend tests, no test file modified; type:check:all clean .... PASS
+7. /pre-push fully green ............................................ PASS
+8. Docs updated same-PR (scope.ts, schema.ts, pre-push skill, ci.yml, CODEBASE.md) . PASS
+
+WHERE I DIFFER FROM YOUR PROPOSED DESIGN — you asked me to probe it, so:
+- TWO LISTS -> ONE MANIFEST OVER EVERY TABLE. Your trigger ("carries a users.id FK") covers 8 of
+  this schema's 18 user-data tables. TEN carry no users.id FK at all — the 5 item extension
+  tables and 5 junctions, scoped through a parent. A new table of that shape would be invisible
+  to the two-list check. Trigger is now "a table exists". Cost: one line per table.
+- "IN BOTH LISTS" IS NO LONGER EXPRESSIBLE. UserOwnedTable is now DERIVED from the manifest's
+  owned-by-column entries, so there is one list, not two. I removed the failure mode instead of
+  detecting it. "Classified twice" remains and is fault-tested.
+- TEXTUAL -> STRUCTURAL. getTableConfig reads the built table object; formatting, line breaks and
+  aliases cannot hide an FK. Needs TS, so the implementation is a .ts file — NOT a second
+  instrument: no npm script, no CI step, run from the one guard, one verdict.
+- PLACEMENT: db/ownership.ts, not scope.ts. It is a statement about the schema. scope.ts imports
+  the type ONLY and re-exports it, so runtime is untouched and callers are unaffected.
+- ADDED, unbriefed: the ownership COLUMN NAME (user_id) is now enforced. That is what converts
+  CHECK 1's regex from a convention into a guarantee, and it is the motivating case's second net.
+Your ground truth was correct — 8 user-FK tables, 7 already owned + cities. Verified three ways
+(full read of schema.ts, grep for users.id, structural introspection).
+
+INJECTED FAULTS (copied tree, no git stash) — control exit 0; all eleven exit 1:
+unclassified new table · ownership column named owner_id · classified twice · entry for a deleted
+table · owned-by-column with its user FK removed · cities userFkNote emptied · entry for a table
+outside schema.ts · parent with no FK to it · chain ending in global reference data · tsx absent ·
+check implementation deleted. The last two prove it fails closed, not open (QUAL-27 shape).
+
+LIMIT, stated: CHECK 3 proves a decision was recorded and is consistent with the schema. It cannot
+prove the decision was RIGHT — user data can still be classified global-reference with a plausible
+sentence. Corollary dodge: an oddly-named ownership column on a table classified owned-via-parent
+with a real parent FK passes. Both are now written claims, not omissions.
+
+FULL-FILE REWRITES (OP-28): none. Two new files; every existing file amended with Edit.
+
+CI: PR #497 GREEN — ci-wait.sh: "PASS — all 18 check(s) green @ 2a7e0e0". Check 3's OUTPUT
+confirmed from the run log itself (gh api .../actions/runs/31456411692/logs), not inferred from a
+tick: "Check 3 (ownership classification, enforced) — 21 schema table(s) classified ... 8 carry a
+users.id foreign key, each either owned-by-column or explained."
+
+OPEN ITEMS
+- QUAL-47 has no tracker entry and no GitHub issue. Two probes: grep of tracker.json found
+  nothing; gh issue list --search returned only an unrelated 2026-07-30 issue. Max is QUAL-46.
+- No scanner suppression was added anywhere (OP-30).
+
+UNBLOCKED: adding a table now forces the ownership question at build time, in one place, for
+Phase-3 sharing and for anyone writing a new user-data table.

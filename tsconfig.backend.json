@@ -17,6 +17,6 @@
     "incremental": true,
     "tsBuildInfoFile": ".cache/tsconfig.backend.tsbuildinfo"
   },
-  "include": ["src/backend/**/*", "drizzle.config.ts"],
+  "include": ["src/backend/**/*", "drizzle.config.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -29,19 +29,20 @@
  * build rather than warning. It matches text, not syntax, so do not quote either
  * flagged pattern in a comment in any backend source file — reword instead
  * (OP-30: fix your own text rather than weakening the scanner).
+ *
+ * That grep only sees ownership columns NAMED `userId`, which made the guard
+ * depend on an unwritten convention. QUAL-47 closed that: CHECK 3 of the same
+ * script requires every table in `schema.ts` to be classified in
+ * `db/ownership.ts`, requires each user-owned table's ownership column to be
+ * named `user_id`, and requires any other table carrying a `users.id` foreign key
+ * to state what that key means instead (`cities.created_by_user_id` is
+ * provenance). A table this file cannot scope is now a build failure rather than
+ * a silent omission.
  */
 
 import { and, eq, type SQL } from 'drizzle-orm';
-import {
-  type activities,
-  type companions,
-  getDb,
-  type items,
-  type mapShadingConfig,
-  type tripCategories,
-  type tripPlaces,
-  trips,
-} from '../db/index.js';
+import { getDb, trips } from '../db/index.js';
+import type { UserOwnedTable } from '../db/ownership.js';
 import { LockError, NotFoundError } from '../errors.js';
 
 /**
@@ -50,15 +51,14 @@ import { LockError, NotFoundError } from '../errors.js';
  * "is this table user data?" is answered once, in the type system, rather than
  * re-litigated at each call site. Passing a global reference table (`cities`,
  * `countries`, `regions`) is a compile error by construction.
+ *
+ * QUAL-47: this union is no longer written here. It is DERIVED from the
+ * `owned-by-column` entries of `db/ownership.ts`, which classifies every table in
+ * the schema and is build-enforced by CHECK 3 of the scope guard. Re-exported
+ * from here because this is where callers already look for it. A table becomes
+ * user-owned by being classified there — there is no second list to keep in step.
  */
-export type UserOwnedTable =
-  | typeof activities
-  | typeof companions
-  | typeof items
-  | typeof mapShadingConfig
-  | typeof tripCategories
-  | typeof tripPlaces
-  | typeof trips;
+export type { UserOwnedTable };
 
 /**
  * The single ownership predicate. Phase-3 sharing changes ONLY this function
