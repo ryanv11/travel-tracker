@@ -31,7 +31,29 @@ criteria QA turns into the red bar.
 
 ---
 
-## 1. Flagged open questions — resolve these BEFORE the fresh-eyes review (ADL-52 refinement)
+## 1. Flagged open questions — ALL RESOLVED 2026-08-10 (settled before fresh-eyes review, ADL-52 refinement)
+
+> **RESOLUTION STAMP (COO, 2026-08-10).** All five open questions are settled; every resolution
+> took the author's recommended option, so the ADL's primary design already reflects them and the
+> amendment is a trim of rejected alternatives, not a redesign. The reviewer receives a settled spec.
+>
+> - **OQ-1 → (a) remove the reference. RESOLVED by the PO.** *"My preference is to remove the place;
+>   if we find that there are real places the geocoder gets stuck on then we can modify."* No new
+>   table — the derived userId-scoped query is the whole mechanism. The soft-dismiss `user_dismissed_cities`
+>   branch (b) is **dropped**; it may return as a scoped follow-up *only if* a real ungeocodable-but-wanted
+>   place is observed in practice (a deliberate don't-build-the-speculative-second-mechanism call).
+> - **OQ-2 → five labels, confirmed.** The five plain-language labels are BRD GE-19's own text; the finer
+>   `multi-region` vs `region-unconfirmed` split stays in-memory, a later `cause` value if the PO wants
+>   distinct copy.
+> - **OQ-3 → adopt (ambiguous → `needs_attention` on the first verdict). RESOLVED by the COO.** Retrying a
+>   deterministic ambiguous verdict five times spends four 1-req/s Nominatim calls to re-derive the same
+>   answer; re-askability is preserved because the re-open path resets attempts. Refines ADL-46 D10.
+> - **OQ-4 → retire the NR-06 localStorage queue as source of truth. RESOLVED by the COO.** The server
+>   query is the single source of truth; the split source is the root of the badges-forever bug. The
+>   frontend brief removes the localStorage machinery rather than keeping it as a second cache.
+> - **OQ-5 → `GET /api/geocode-queue`.** A backend naming call, settled to the author's recommendation.
+>
+> The original analysis is retained below for the reviewer's context. **These are no longer open.**
 
 These are the calls that are not mine to make silently. I state a recommendation for each; the PO/COO
 decides, and the reviewer should receive a settled spec.
