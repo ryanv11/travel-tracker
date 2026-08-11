@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (85)
+## Open work (87)
 
 ### P1 — Critical (1)
 
@@ -75,7 +75,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (39)
+### P3 — Minor (41)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -110,6 +110,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-94 | GE-20 bypass: the manual '+Add new' country dropdown in the picker isn't restricted to the trip's countries | frontend | ⬜ Pending |
 | QUAL-44 | Stale file:line cross-references in comments — remaining low-value ones + adopt cite-symbols-not-lines | unassigned | ⬜ Pending |
 | BUG-95 | itemRepository.update writes the extension row even when the scoped UPDATE matched nothing (latent, not reachable via HTTP today) | backend | ⬜ Pending |
+| QUAL-48 | Spike — does a file-backed libSQL test client honour db.transaction() (unblocks items base+extension atomicity)? | backend | ⬜ Pending |
+| QUAL-49 | One serializer per entity, every handler routed through it (the persisted-but-dropped-from-response class) | backend | ⬜ Pending |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
 | QUAL-34 | Shared-record append collisions — union-merge driver for the ledger + per-agent context files (never adopted, 3rd recording) | coo | ⬜ Pending |
 | QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |
@@ -127,7 +129,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `██████████████░░░░░░` 62/88 | 62 | 26 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 33/61 | 33 | 28 | 1 |
+| chore | `██████████░░░░░░░░░░` 33/63 | 33 | 30 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -161,4 +163,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_183 done · 9 deferred · 5 closed · 85 open — 282 tracked items_
+_183 done · 9 deferred · 5 closed · 87 open — 284 tracked items_
