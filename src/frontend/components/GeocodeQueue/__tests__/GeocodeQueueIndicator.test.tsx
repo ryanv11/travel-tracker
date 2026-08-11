@@ -146,12 +146,12 @@ beforeEach(() => {
 // ----------------------------------------------------------------
 
 describe('criterion 10 — needs-attention distinct from resolving count', () => {
-  it('renders two separate badge counts (4 need attention, 2 resolving)', () => {
+  it('renders two separate badge counts (4 places need attention, 2 places resolving)', () => {
     render(<GeocodeQueueIndicator />);
     expect(screen.getByTestId('geocode-needs-attention-badge')).toHaveTextContent(
-      '4 need attention',
+      '4 places need attention',
     );
-    expect(screen.getByTestId('geocode-resolving-badge')).toHaveTextContent('2 resolving');
+    expect(screen.getByTestId('geocode-resolving-badge')).toHaveTextContent('2 places resolving');
     // The resolving count is NOT the grand total (6) — the four needs-attention
     // rows are not silently folded into it.
     expect(screen.getByTestId('geocode-resolving-badge')).not.toHaveTextContent('6');
@@ -178,6 +178,53 @@ describe('criterion 10 — needs-attention distinct from resolving count', () =>
     // …and never in a resolving row.
     expect(resolvingRows.some((r) => within(r).queryByText('Charlie', { exact: false }))).toBe(
       false,
+    );
+  });
+});
+
+// ----------------------------------------------------------------
+// BUG-96 — badge/aria-label grammar pluralizes correctly at every count
+// ----------------------------------------------------------------
+
+describe('BUG-96 — needs-attention and resolving copy pluralizes correctly', () => {
+  it('reads "1 place needs attention" / "1 place resolving" at count 1 (singular, correct verb agreement)', () => {
+    mockUseGeocodeQueue.mockReturnValue(
+      queueReturn([
+        entry(1, 'Alpha', 'pending', null),
+        entry(2, 'Bravo', 'needs_attention', 'ambiguous'),
+      ]),
+    );
+    render(<GeocodeQueueIndicator />);
+
+    expect(screen.getByTestId('geocode-needs-attention-badge')).toHaveTextContent(
+      '1 place needs attention',
+    );
+    expect(screen.getByTestId('geocode-resolving-badge')).toHaveTextContent('1 place resolving');
+    expect(screen.getByTestId('geocode-indicator')).toHaveAttribute(
+      'aria-label',
+      'Geocoding: 1 place needs attention, 1 place resolving. Open queue.',
+    );
+  });
+
+  it('reads "2 places need attention" / "3 places resolving" at count 2+ (plural verb agreement)', () => {
+    mockUseGeocodeQueue.mockReturnValue(
+      queueReturn([
+        entry(1, 'Alpha', 'pending', null),
+        entry(2, 'Bravo', 'pending', 'unreachable'),
+        entry(3, 'Charlie', 'pending', null),
+        entry(4, 'Delta', 'needs_attention', 'ambiguous'),
+        entry(5, 'Echo', 'needs_attention', null),
+      ]),
+    );
+    render(<GeocodeQueueIndicator />);
+
+    expect(screen.getByTestId('geocode-needs-attention-badge')).toHaveTextContent(
+      '2 places need attention',
+    );
+    expect(screen.getByTestId('geocode-resolving-badge')).toHaveTextContent('3 places resolving');
+    expect(screen.getByTestId('geocode-indicator')).toHaveAttribute(
+      'aria-label',
+      'Geocoding: 2 places need attention, 3 places resolving. Open queue.',
     );
   });
 });

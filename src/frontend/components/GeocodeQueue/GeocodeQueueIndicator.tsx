@@ -42,6 +42,30 @@ import { geocodeQueueLabel } from '../../utils/geocodeQueueLabels';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ChangeCityModal } from '../TripDetail/ChangeCityModal';
 
+/**
+ * BUG-96: pluralizes the badge/aria-label copy so verb agreement is correct
+ * at every count — "1 place needs attention" / "N places need attention".
+ * Shared by the visible needs-attention badge and its aria-label so the two
+ * copies of the phrase cannot drift apart.
+ */
+function needsAttentionPhrase(n: number): string {
+  return `${n} place${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} attention`;
+}
+
+/**
+ * BUG-96 consistency call: mirrors the "place(s)" noun onto the resolving
+ * chip so it reads as a parallel construction next to the needs-attention
+ * phrase above ("N places need attention" / "M places resolving") rather
+ * than an unrelated bare "M resolving". "1 resolving" was already
+ * grammatical on its own, but sitting next to the now-longer needs-attention
+ * phrase it read like a different kind of label — this keeps both chips
+ * reading as the same sentence shape. Shared by the badge and aria-label for
+ * the same reason as needsAttentionPhrase above.
+ */
+function resolvingPhrase(n: number): string {
+  return `${n} place${n === 1 ? '' : 's'} resolving`;
+}
+
 /** One place that references a stuck city, with the trip it belongs to. */
 interface PlaceRef {
   tripId: number;
@@ -111,7 +135,7 @@ export function GeocodeQueueIndicator() {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Geocoding: ${needsAttentionCount} need attention, ${resolvingCount} resolving. Open queue.`}
+        aria-label={`Geocoding: ${needsAttentionPhrase(needsAttentionCount)}, ${resolvingPhrase(resolvingCount)}. Open queue.`}
         className="flex items-center gap-1.5"
         data-testid="geocode-indicator"
       >
@@ -121,7 +145,7 @@ export function GeocodeQueueIndicator() {
             className="flex items-center gap-1 px-2.5 py-1 border border-amber-500 rounded-md bg-amber-50 text-amber-800 text-xs font-semibold cursor-pointer"
           >
             <span aria-hidden="true">⚠</span>
-            {needsAttentionCount} need attention
+            {needsAttentionPhrase(needsAttentionCount)}
           </span>
         )}
         {resolvingCount > 0 && (
@@ -130,7 +154,7 @@ export function GeocodeQueueIndicator() {
             className="flex items-center gap-1 px-2.5 py-1 border border-wp-border rounded-md bg-wp-bg-subtle text-wp-ink-muted text-xs font-medium cursor-pointer"
           >
             <span aria-hidden="true">☁</span>
-            {resolvingCount} resolving
+            {resolvingPhrase(resolvingCount)}
           </span>
         )}
       </button>
