@@ -1,0 +1,30 @@
+Tracker: n/a (audit; COO triages) · PR: chore/design-reflection-secondary-audit (number in PR) ·
+BRD: n/a · Branch: chore/design-reflection-secondary-audit
+
+WHAT: Secondary audit of the 2026-08-08 design reflection delivered at
+jobs/architect/tech/20260810-design-reflection-secondary-audit.md. Assessment only; no code
+or rule changed.
+
+CLAIMS OVERTURNED (you asked explicitly):
+- Claim 1 "R3 was never tracked / no trace anywhere" — OVERTURNED. R3 substantially SHIPPED
+  2026-08-09: issue #474, PRs #475/#476 (CLAUDE.md 507->390, rules homed in /coo-dispatch,
+  atdd-first-guard removed); main's session-close d2a9833 says "R2/R3/R5a shipped". Narrowly
+  true: no tracker ENTRY exists. Two of your three stated probe targets contain direct 'R3'
+  hits (coo-dispatch SKILL.md §"Canonical home (R3)"; tracker OP-35/OP-39 notes) — the probes
+  cannot have run as described. Doc §5 has the mechanism + the lesson.
+- Claim 2 "vanished because it subtracted" — OVERTURNED. It shipped FIRST; only its
+  bookkeeping is missing (subtraction leaves thinner trails — the milder form survives).
+
+OTHER VERDICTS: Claim 3 confirmed (seam real) but R5b's target already shrank (migration 0017
+pre-dates the reflection) -> fold into the GE-19 ADL. Claim 4 half-right (#5 untouched; #3
+reshaped + produced BUG-95; also db.transaction ALREADY in production and db.batch IS atomic —
+both live-probed). Claim 5: R1 repriced #3/#5, discharged neither.
+
+RANKED NEXT: 1 GE-19/BUG-85 ADL absorbing the R5b assessment (ATDD-first: yes) · 2 R3 residual
+(tracker entry + canary line-budget check + protected-branch demote; drop OP-ID merges) ·
+3 file-backed-test-client SPIKE (premise UNVERIFIED, OP-33) then items atomicity + BUG-95
+(yes) · 4 serializer unification brief (yes).
+
+CI: [see PR checks — ci-wait run before filing]
+OPEN ISSUES/BLOCKERS: none.
+UNBLOCKED: GE-19 ADL dispatch; R3 residual triage; debt #3 spike brief.

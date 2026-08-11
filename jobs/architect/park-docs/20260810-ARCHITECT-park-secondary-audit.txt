@@ -1,0 +1,40 @@
+PARK DOCUMENT — Architect — 2026-08-10 (secondary audit of the 2026-08-08 design reflection)
+Branch: chore/design-reflection-secondary-audit
+
+THREAD SCOPE
+Fresh-eyes secondary audit of what remains of the design reflection after R1 (QUAL-43,
+all six ADL-53 stages), R2 (OP-40), R4 (OP-39), R5a (OP-27 tiering) and QUAL-47 shipped.
+Assessment only — no application code changed, no rule changed.
+
+DELIVERABLE
+jobs/architect/tech/20260810-design-reflection-secondary-audit.md
+  §0 summary table · §1 per-item verdicts (a)-(e) · §2 re-framings · §3 missed findings ·
+  §4 ranked recommendation · §5 verdicts on the COO's five claims · §6 R3 residual proposal ·
+  §7 probe appendix.
+
+KEY OUTCOMES (signal only — the doc carries the evidence)
+- COO claims 1+2 OVERTURNED: R3 shipped 2026-08-09 (issue #474, PRs #475/#476); only the
+  tracker entry is missing. The COO's stated probes are falsified by direct hits in two of
+  the three stated targets.
+- R5b diminished (0017 already made OSM primary) -> fold into the GE-19 ADL.
+- BUG-85/GE-19 unchanged and now rank 1.
+- Debt #3 re-framed (production transaction exists; batch atomic — both probed live);
+  residual = items base+extension + BUG-95; file-backed-client premise UNVERIFIED, spike it.
+- Debt #5 untouched, cheaper post-R1.
+
+LIVE PROBES RUN THIS THREAD (scratch scripts, deleted after use)
+- :memory: libSQL + drizzle db.transaction -> tx OK, next query on same client throws
+  (confirms trips.ts:287-289 comment on @libsql/client ^0.14.0).
+- db.batch with failing 2nd statement -> 1st statement rolled back (batch is atomic).
+- qa-backend-fixes.test.ts re-run -> 16/16 green (the accidental-shape transaction test).
+
+BUGS DISCOVERED
+None new. BUG-95 (existing, pending P3) identified as debt #3's concrete instance.
+
+OPEN ITEMS FOR COO
+- Triage the audit's §4 ranking and §6 R3-residual items into tracker entries (the brief
+  assigns triage to the COO).
+- The §5 claim-1 lesson (record literal probe strings with negative findings) may warrant a
+  one-line refinement wherever the COO wants it homed — flagged, not actioned.
+
+NO UNCOMMITTED DELIVERABLES — all output committed to the branch before the completion report.
