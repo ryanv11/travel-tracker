@@ -1350,3 +1350,59 @@ suite 403/403 green (+2 from baseline), backend 871/871 untouched,
 type:check:all clean, biome ci exit 0 (same 5 pre-existing infos noted in
 every recent thread), status/tracker/scope:check all PASS. Copy-only —
 no logic, data, or styling change. See completion report for PR number.
+
+UPDATE 2026-08-11 — BUG-91 round 2 (branch fix/bug91-trip-create-click-submit
+off main, issue #529): PO UAT 2026-08-11 found the trip-create form still
+saved/closed when a country was selected by CLICK (PR #458's onKeyDown fix
+only covered Enter-in-search). The brief's lead hypothesis (a picker button
+lacking type="button") was FALSE — every picker element already has
+type="button", confirmed by reading TripForm.tsx. Could NOT reproduce a
+native submit from a plain click via three independent probes that could
+fail differently: (1) a jsdom+user-event component test with Name/dates
+PRE-FILLED before the click — the round-1 click test left required fields
+empty, which masks this exact case since the JS validation guard swallows a
+submit either way; (2) a live Chromium E2E test (Playwright) against the
+real running app; (3) the same E2E test with a broad search forcing the
+results dropdown to visually overlap the Create Trip button —
+document.elementFromPoint at the overlap point confirmed the dropdown row,
+not the button underneath, is the actual click target (CSS stacking is
+correct; z-10 absolute dropdown wins). This negative finding is reported to
+COO as materially important — the exact PO-observed mechanism remains
+unexplained (no webkit/Safari available in this container to test that
+angle; sudo needs a password, apt-get install blocked).
+FIX (defensive, mechanism-agnostic): rather than keep deny-listing
+individual interactive elements (the shape of gap that let a second trigger
+through #458), TripForm.tsx's Create Trip/Save Changes button is now
+type="button" calling handleSave directly — no button in the form is
+type="submit" anymore. Per the HTML implicit-submission algorithm, a form
+with no default (submit-type) button does nothing on Enter from ANY field
+in ANY browser, so this closes the original Enter-in-search bug, the click
+regression, and any other not-yet-seen implicit-submission trigger at the
+root instead of chasing the specific one reported. <form onSubmit> is kept
+as a no-op preventDefault safety net; the search input's onKeyDown Enter
+guard is left in place as harmless, now-redundant defense-in-depth.
+TRADE-OFF flagged explicitly (not BRD-required either way): Enter-in-the-
+Name-field no longer submits either — it was the round-1 agent's own "nice
+to have" judgment call, not a formal requirement; saving now always
+requires an explicit click/activation of the Save button. IMPORTANT: I
+verified via a direct jsdom test that SubmitEvent.submitter is NOT usable
+to distinguish "explicit button click" from "Enter-implicit-submission" —
+per spec, implicit submission simulates a click ON the form's default
+button, so submitter equals that button in BOTH cases. A first attempt at
+this fix used a submitter-based allow-list guard in handleSubmit; empirical
+testing proved it a complete no-op (never rejects anything) before it was
+committed — reverted in favour of the type="button" structural fix. Noting
+this so a future reader doesn't reach for submitter as a shortcut here.
+TESTS: TripForm.test.tsx +5 (click-with-fields-filled — the actual
+round-2 regression case; two-country click sequence; chip-remove click;
+Enter-in-Name no longer submits, documenting the trade-off; a structural
+invariant asserting no type="submit" element exists in the form, so a
+future edit can't silently reopen this). New permanent E2E test in
+trips-crud.spec.ts (BUG-91) exercises the real-browser click path end to
+end (form stays open on click, still saves via explicit Create Trip click)
+— jsdom alone wouldn't have caught a real-browser-only mechanism if that's
+what round 2 actually was. Full frontend suite 408/408 green (+5), backend
+871/871 untouched, full E2E suite 53/53 green (was 52 — did not exist
+before), type:check:all clean, biome check exit 0 (same 5 pre-existing
+infos), status/tracker/scope:check all PASS. See completion report for PR
+number.
