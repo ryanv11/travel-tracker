@@ -28,6 +28,23 @@ Checked at every `/coo-startup` pickup and by the Restart Preview step in `/coo-
 
 ## Open
 
+### D-32: Add-place cached-vs-live seam — fix sequencing (BUG-97/98 + BUG-86/91)
+**Raised:** 2026-08-11 · **Status:** plan proposed by the COO, PO deferred the sequencing call to a fresh session.
+
+PO UAT (2026-08-11) surfaced a cluster of add-place findings that share one root — the **cached-vs-live
+seam**: BUG-97 (a single cached city match pre-empts the live ambiguity classifier, so "Newport" silently
+resolved to Oregon; also a FE/BE ambiguity-definition divergence), BUG-98 (region-null in a region-tier
+country, "Melbourne → no state set"), and BUG-73's misleading "no matches" message (reflects the cached
+search). Plus two discrete functional bugs: **BUG-91** (clicking a country still auto-saves the trip-create
+form) and **BUG-86** (the "Back to trip" fix broke the path back to the review screen / status reversal).
+
+**COO recommendation (unconfirmed):** start the **Architect ADL for the seam** first — it carries
+product-shaped questions only the PO can answer (chiefly: *when a name is live-ambiguous but you already
+hold one cached row, should it still prompt?*) — and fix **BUG-91 + BUG-86 in parallel** (different code,
+no conflict). Hold **UX-13** (grey the picker name) and **UX-15** (tooltip copy) to ride the seam work,
+since both touch the picker. **Everything is already tracked** (BUG-97/98/86/91, UX-13/15); only the
+go-ahead and the sequencing are open. Pick up: confirm sequencing, then dispatch (ADL → OP-27 review → build).
+
 ### D-30: A build-vs-buy rule
 **Raised:** 2026-08-09 · **Status:** PO wants to discuss; not yet framed. Placeholder so it isn't lost.
 

@@ -1,0 +1,98 @@
+COO SESSION PARK — 2026-08-10/11 (LONG SESSION: QUAL-43 COMPLETE + DESIGN-REFLECTION TAIL + GE-19 SHIPPED & UAT-PASSED + FULL UAT ROUND)
+~40 PRs merged (#456, #486–#524) · main green after every one · GE-19 confirmed working on staging by the PO
+================================================================================
+
+## READ THIS FIRST — where to pick up
+
+1. **THE LIVE THREAD is the add-place cached-vs-live seam.** PO UAT found a cluster of add-place bugs
+   that share ONE root: the app checks its cached city list first, so a SINGLE cached match pre-empts the
+   live ambiguity check. This is why "Newport" silently resolved to Oregon while "Springfield" (many cached
+   rows) correctly went to needs_attention. Owned by **BUG-97** (P2, architect) — WANTS AN ARCHITECT ADL.
+   Sequencing is an open dialogue: **D-32** (jobs/COO/open-dialogues.md). The PO deferred the go-ahead to a
+   fresh session. COO rec: start the ADL (it has a product question for the PO — "when a name is
+   live-ambiguous but one cached row exists, should it still prompt?") and fix BUG-91+BUG-86 in parallel.
+
+2. **3 items still awaiting PO UAT** (jobs/PO/uat-log.md, now a lean list): BUG-74 (upstream-geocoder-error
+   signal — opportunistic, or COO can force one), and QUAL-43+QUAL-49 (backend-refactor smoke — the PO
+   largely covered it; on their nod = "covered" it closes).
+
+3. **GE-19 (BUG-85) is DONE and PO-UAT-PASSED** on staging (display + Change-city + Remove all confirmed).
+   The one open GE-19 follow-up is cosmetic (UX-15, tooltip copy) — BUG-96 grammar fix already shipped.
+
+## UAT round results (2026-08-11) — the whole board went through UAT this session
+
+- **PASS -> done (8):** BUG-58, BUG-71, BUG-72, BUG-81, BUG-87, BUG-93, QUAL-26, UX-14.
+  (BUG-71 passed on Springfield; the Newport case is a DISTINCT mechanism now owned by BUG-97, not a reopen.)
+- **Reopened -> pending (3):** BUG-73 (misleading "no matches" msg = cached search, not live — folds into
+  BUG-97), BUG-86 (the fix broke the path back to the review screen / status reversal), BUG-91 (clicking a
+  country still auto-saves the trip-create form; the fix only stopped Enter).
+- **NEW from a read-only investigation of the PO's Newport/Melbourne findings:**
+  - BUG-97 (P2, architect) — the cached-vs-live seam (see above).
+  - BUG-98 (P3, architect) — region-null in a region-tier country ("Melbourne -> no state set"); D12
+    never-backfill-region policy gap; likely folds into BUG-97's ADL.
+  - UX-15 (P3, frontend) — blue-date tooltip copy unclear (split from UX-14's pass).
+  - UX-13 (existing, pending) re-confirmed (grey the picker city-name; editing it does nothing).
+
+### BUG-97 investigation anchors (for the ADL author — COO-traced, read-only, 2026-08-11)
+- The short-circuit: `cityIdentityService.findOrUpgradeCity` step-2b (~:142-145) reuses a single
+  `findByNameAndCountry` match (repositories/cities.ts:278-285, capped at 2) BEFORE `classifyCandidates`
+  runs; the search-dropdown click path reuses a cached row with zero geocoding.
+- The classifier is LIVE everywhere (geocoding.service.ts classifyCandidates :158-193, on Nominatim
+  results) — the cache doesn't feed it, it PRE-EMPTS it. PO's instinct was right about the effect.
+- FE/BE ambiguity-definition divergence: FE picker fires on osm_id distinctness
+  (decideCityDisambiguation.ts:60); BE needs_attention fires on region_iso distinctness
+  (geocoding.service.ts:188-190).
+- Region-null (BUG-98): D12 rule-3 "never backfill region" — cities.ts:191 (`regionId: region_id ?? null`)
+  + commitResolvedOrMerge (:297-312) never set region even when the geocoder knew it.
+- UNVERIFIED: could not inspect staging DB rows / replay the live Nominatim call, so which reuse path fired
+  for the PO's specific Newport, and why the FE "+Add new" picker didn't fire, are unproven.
+
+## What shipped this session (the durable record)
+
+- **QUAL-43 / R1 — all six ADL-53 stages** (#456,#487,#491,#492,#494,#495): the userId-scoping chokepoint.
+  Every ownership expression in src/backend/** routes through repositories/scope.ts; routes getDb-free; both
+  guards build-enforced (pre-push + CI). **QUAL-47** (#497) added a schema-wide ownership-classification
+  guard (Check 3). QUAL-43/49 = done_pending_uat (smoke).
+- **Two governance-machinery fixes:** OP-40 drift-cadence gate rebuilt on recorded-runs not a modulus
+  (#486); QUAL-46 ci-wait.sh stale-head fail-open fixed (#493) — and it PROVED itself twice more this
+  session (flagged in-flight transients cleanly instead of an empty failure).
+- **Design-reflection tail:** Fable secondary audit (#499, overturned 2 COO claims incl. "R3 never
+  tracked" — R3 had shipped); QUAL-49 serializers (#506); QUAL-48 spike + QUAL-50 atomicity + BUG-95
+  (#502/#509).
+- **GE-19 (BUG-85) end-to-end:** ADL-55 (#503, OP-27 fresh-eyes fold F1-F4) -> migration (#511, 3
+  drizzle-kit defects hand-corrected) -> QA red bar (#512) -> backend (#514, userId-scoped endpoint) ->
+  frontend (#515) -> UAT PASS + BUG-96 grammar fix (#520). BRD GE-19 open question closed -> ADL-55.
+
+## Process notes worth keeping
+
+- **TWO COO save/write slips this session, both caught by verification, not luck:** (1) a queued
+  `git reset --hard` ran on main (earlier); (2) THIS session a tracker-flip python script built the change
+  in memory but omitted `open().write()`, so PR #523 shipped the new bug entries WITHOUT the 8 pass-flips /
+  3 reopens — caught because the done_pending_uat count didn't match, fixed in #524. Lesson: after a scripted
+  tracker edit, VERIFY the statuses landed (re-read), don't trust the script ran.
+- **The brief-provenance rule (OP-39 item 9) kept earning its keep** — agents corrected COO briefs across
+  QUAL-43/49/50, GE-19, and BUG-96 (the resolving-chip mirror); the QA red bar caught a false "verified
+  built" re-point path in ADL-55.
+- **Verify against artifacts, not reports** — every merge independently checked (scopeToUser composition,
+  migration no-drift, injected-fault red bars, byte-identical serializer shapes).
+- **UAT log is now a lean, steps+expected, top-to-bottom list** (PO direction); history in uat-archive.md.
+  3 non-PO-testable items (DEP-05/QUAL-20/QUAL-25) were COO-closed (their done_pending_uat status was wrong).
+
+## State of play (durable — tracker.json / STATUS.md)
+
+- **Open PRs:** none. **Worktrees:** none. **Main:** green @ (this close).
+- **done_pending_uat (3):** BUG-74, QUAL-43, QUAL-49.
+- **The seam thread (pending, the pickup):** BUG-97 (architect/ADL), BUG-98 (architect), BUG-86, BUG-91,
+  UX-13, UX-15. Sequencing = open-dialogue D-32.
+- **Pre-existing, untouched this session:** QUAL-18 (CSP E2E blindspot, P1), QUAL-45 (admin name-list
+  backend factory). ~72 pending items total (most pre-existing backlog).
+
+## Open threads
+See jobs/COO/open-dialogues.md — Open = D-05/14/23/27/28/30 and the NEW **D-32** (the add-place seam
+sequencing, the live pickup). D-31 resolved earlier; D-24 promoted to QUAL-46 this session.
+
+## Suggested next
+(a) Pick up D-32: confirm the seam sequencing with the PO, then dispatch the Architect ADL for BUG-97
+(+BUG-98) and, in parallel, fix BUG-91 + BUG-86. (b) Close QUAL-43/49 smoke on the PO's nod. (c) Force a
+BUG-74 upstream-geocoder-error test if the PO wants it.
+================================================================================
