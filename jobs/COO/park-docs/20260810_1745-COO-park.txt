@@ -1,0 +1,90 @@
+COO SESSION PARK — 2026-08-10 (late) ("QUAL-43 COMPLETE — ALL SIX STAGES + TWO GOVERNANCE DEFECTS FIXED")
+10 PRs merged (#486–#495) · main green after every single one
+================================================================================
+
+## READ THIS FIRST
+
+1. **QUAL-43 / R1 IS DONE.** All six ADL-53 stages shipped and merged today. Status is
+   `done_pending_uat`, deliberately NOT `done` — see item 3.
+
+2. **AWAITING PO (unchanged, now with one addition):** the 2026-08-08 Scotland retest UAT —
+   15 `done_pending_uat` items in `jobs/PO/uat-log.md`. **Add QUAL-43 to that round** rather than
+   running a separate one.
+
+3. **Two open PO decisions** are recorded at the bottom under "Needs the PO".
+
+## What shipped
+
+**QUAL-43 (six stages):** #487 Stage 0 (`scope.ts` chokepoint) · #484 Stage 1 (cross-tenant ATDD
+matrix, shipped last session) · #491 Stage 2 (`citiesRepository` + `cityIdentityService`;
+`routes/cities.ts` 861→418 LOC, imports neither `drizzle-orm` nor `db/index`) · #492 Stage 3
+(`referenceRepository`, four `shading.service.ts` predicates composed, `getDb` guard AUTHORED
+warn-only, `scope:check` widened to all of `src/backend/**` + wired into CI) · #494 Stage 4
+(user-owned relocation; `fetchItemsWithExtensions` now takes `userId` as a REQUIRED parameter) ·
+#495 Stage 5 (guard CONTRACT — both promotions enforced).
+
+**End state:** every ownership expression in `src/backend/**` resolves through
+`repositories/scope.ts`; `routes/**` is `getDb`-free; both invariants are build-enforced in
+pre-push AND CI. 827 backend tests green throughout, ZERO existing test files modified across all
+six stages.
+
+**Governance/tooling:** #486 OP-40 drift-cadence gate rebuilt · #489 ADL-53 `services/**`
+correction + the OP-39 brief-provenance rule · #490 ci-wait observation · #493 QUAL-46 ci-wait
+stale-head fail-open FIXED · #488/this close-out tracker records.
+
+## Two defects found and fixed IN our own governance machinery
+
+- **OP-40 cadence gate (#486).** PO caught it: "isn't this session 77 and we already ran the
+  audit?" The `session_end` counter had frozen (hook wired correctly, event stopped arriving —
+  root cause upstream **UNVERIFIED**), AND `count % N` kept no record of whether a check had RUN,
+  so the deep audit re-fired for three sessions. Rebuilt on the invariant *due = distance since
+  last recorded run*, tick = max of three differently-failing sources, plus a wall-clock staleness
+  backstop. The silent direction was the worse one: freeze on a non-multiple and the audit never
+  fires again with nothing to say so.
+- **QUAL-46 / ci-wait.sh (#493).** D-24 (filed 2026-08-04 as watch-if-recurs) RECURRED and is now
+  a tracker entry; D-24 deleted from open-dialogues per delete-on-resolution. `ci-wait.sh` reported
+  "PASS @ 617d6fa" when the head was 17b8cdf — a **fail-open on the primary CI gate**. Root cause
+  read, not inferred: `:123` pins the head once, before the watch. Fixed by re-resolving after the
+  watch and refusing a moved head. The post-merge main-CI check does NOT cover this case (it runs
+  after the merge lands). Mutation-tested.
+
+## Process notes worth keeping
+
+- **The brief-provenance rule (OP-39 item 9) earned its keep on first use.** Agents rejected THREE
+  COO additions across the stages; all three rejections were correct (Stage 3 refused `places.ts`
+  sites ADL-53 assigns to Stage 4 and refused a single enforced zone that would have red-ed `main`;
+  Stage 4 refused to manufacture an `assertOwned` caller that bought a redundant SELECT per request
+  to satisfy a checklist). Labelling COO additions is not enough — the brief must *invite challenge*,
+  or the agent reads a label as "obey this bit specially".
+- **Stage 3 caught, unprompted, that three of four shading predicates sit in a LEFT JOIN ON-clause** —
+  moving them to a WHERE would silently convert each join to INNER and drop every unvisited country
+  from the map. An agent that feels free to argue finds things a compliant one does not.
+- **Verify against artifacts, not reports.** Every stage was independently checked before merge
+  (import claims, test counts, injected-fault mutation tests of the guards at Stages 0/3/5). One
+  "discrepancy" I found — `scope:check` said 0 `getDb` in routes, my grep said 36 — was MY probe
+  being naive (all 36 were in `routes/__tests__/`). The two-probe rule cuts both ways.
+- **Sequencing paid off:** Stage 2 removed the residuals that forced Stage 3's two-zone concession,
+  so Zone B was already clean when Stage 4 arrived.
+
+## State of play
+
+- **QUAL-43:** done_pending_uat. **QUAL-46:** done. **BUG-95:** NEW, pending — latent
+  `itemRepository.update` extension-write (not reachable via HTTP today; two probes recorded).
+- **QUAL-45:** pending (admin name-list backend factory, separate thread).
+- **Pre-existing P1:** QUAL-18 (CSP E2E blindspot).
+- **Open PRs:** none. **Worktrees:** none. **Main:** green.
+
+## Needs the PO
+
+1. **QUAL-43 staging exercise** — fold into the Scotland retest round.
+2. **Keep naming ownership columns `userId`.** The enforced guard is regex-shaped: Check 1 matches
+   `.userId`, so an ownership column named anything else is invisible to it. The pass on
+   `cities.createdByUserId` is correct (global reference data) but it is a near-miss, and post-flip
+   the margin has BUILD consequences rather than warning consequences. Worth a naming convention
+   note somewhere durable if you agree.
+
+## Suggested next
+
+(a) Scotland retest UAT + QUAL-43 — the only items nobody but the PO can move.
+(b) BUG-95 (small, P3) or QUAL-45 (separate thread).
+================================================================================
