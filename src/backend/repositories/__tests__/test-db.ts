@@ -29,6 +29,8 @@
  * is shared, never the data.
  */
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@libsql/client';
@@ -95,6 +97,55 @@ export async function createTestDb() {
 }
 
 export type TestDb = Awaited<ReturnType<typeof createTestDb>>;
+
+/**
+ * A file-backed variant of {@link createTestDb} — QUAL-50 / QUAL-48 part 2.
+ *
+ * WHY THIS EXISTS: `@libsql/client`'s `db.transaction()` hands its live
+ * connection to the transaction and nulls the client's internal `#db`, so the
+ * NEXT query on the same client reopens a fresh connection from the client URL.
+ * For a `:memory:` client that fresh connection is a brand-new EMPTY database —
+ * so any query issued after a `db.transaction()` throws "no such table". A
+ * file-backed client reopens the SAME file and sees the committed (or
+ * rolled-back) state, which is exactly what a test asserting on the outcome of a
+ * transaction needs. The QUAL-48 spike verified this and that the partial unique
+ * indexes stay enforced (mock-fidelity, QUAL-22). See
+ * jobs/backend/tech/20260810-qual48-transaction-spike.md.
+ *
+ * SCOPE: reach for this ONLY in test files that need to observe the DB across a
+ * `db.transaction()` boundary (today: `itemRepository.create`'s atomic
+ * base+extension write, and any test that issues a further query after a create).
+ * `createTestDb()` (`:memory:`) stays the default everywhere else — it is faster
+ * and the file-backed client costs per-test file I/O (~+30% on a suite made
+ * entirely of these; the spike measured it).
+ *
+ * CLEANUP IS THE CALLER'S JOB: this returns a `cleanup()` the caller MUST invoke
+ * (afterEach) to close the client and remove the unique temp directory. The
+ * spike variant leaked temp dirs precisely because it skipped this — do not.
+ */
+export async function createFileBackedTestDb(): Promise<{ db: TestDb; cleanup: () => void }> {
+  const dir = mkdtempSync(join(tmpdir(), 'tt-testdb-'));
+  const file = join(dir, 'test.db');
+  const client = createClient({ url: `file:${file}` });
+
+  await client.execute('PRAGMA foreign_keys = ON;');
+
+  const ddlStatements = await getSchemaDdl();
+  await client.batch(ddlStatements, 'write');
+
+  const db = drizzle(client, { schema });
+
+  const cleanup = () => {
+    try {
+      client.close();
+    } catch {
+      /* already closed */
+    }
+    rmSync(dir, { recursive: true, force: true });
+  };
+
+  return { db, cleanup };
+}
 
 export const TEST_USER_ID = 'test-user-id';
 export const OTHER_USER_ID = 'other-user-id';

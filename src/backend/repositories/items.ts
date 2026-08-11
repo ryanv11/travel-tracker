@@ -20,7 +20,7 @@ import {
 import type { Item } from '../db/schema.js';
 import { NotFoundError } from '../errors.js';
 import { ensureExperienceExtension } from '../services/items.service.js';
-import { fetchItemsWithExtensions } from './items-helper.js';
+import { type DbHandle, fetchItemsWithExtensions } from './items-helper.js';
 import { assertWritable as assertTripWritable, ownedAnd, scopeToUser } from './scope.js';
 
 // ----------------------------------------------------------------
@@ -144,28 +144,37 @@ export const itemRepository = {
     const db = getDb();
     const now = new Date().toISOString();
 
-    const inserted = await db
-      .insert(items)
-      .values({
-        tripId,
-        tripPlaceId: data.tripPlaceId ?? null,
-        itemType: data.itemType,
-        status: data.status ?? 'consider',
-        notes: data.notes ?? null,
-        mapUrl: data.mapUrl ?? null,
-        isCarriedForward: data.isCarriedForward ? 1 : 0,
-        carriedFromItemId: data.carriedFromItemId ?? null,
-        userId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
+    // QUAL-50: the base insert and the type-specific extension insert are ONE
+    // transaction — a failure in the extension write must strand no orphan base
+    // `items` row. The read-back runs INSIDE the transaction and its result is
+    // returned directly, so no query is issued on the client AFTER the
+    // transaction commits (the shape executeCarryForward already relies on) —
+    // that keeps `create` safe on the `:memory:` test client too, where a
+    // post-transaction query would reopen an empty database.
+    return db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(items)
+        .values({
+          tripId,
+          tripPlaceId: data.tripPlaceId ?? null,
+          itemType: data.itemType,
+          status: data.status ?? 'consider',
+          notes: data.notes ?? null,
+          mapUrl: data.mapUrl ?? null,
+          isCarriedForward: data.isCarriedForward ? 1 : 0,
+          carriedFromItemId: data.carriedFromItemId ?? null,
+          userId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
 
-    const item = inserted[0];
-    await insertExtension(item.id, data.itemType, extensionBody);
+      const item = inserted[0];
+      await insertExtension(tx, item.id, data.itemType, extensionBody);
 
-    const result = await fetchItemsWithExtensions(userId, eq(items.id, item.id));
-    return result[0];
+      const result = await fetchItemsWithExtensions(userId, eq(items.id, item.id), undefined, tx);
+      return result[0];
+    });
   },
 
   /**
@@ -193,20 +202,28 @@ export const itemRepository = {
     if (data.notes !== undefined) baseUpdates.notes = data.notes;
     if (data.mapUrl !== undefined) baseUpdates.mapUrl = data.mapUrl;
 
-    await db
+    const matched = await db
       .update(items)
       .set(baseUpdates)
-      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), scopeToUser(items, userId)));
+      .where(and(eq(items.id, itemId), eq(items.tripId, tripId), scopeToUser(items, userId)))
+      .returning({ id: items.id });
+
+    // BUG-95 (QUAL-50): gate the extension write on the SAME scoped UPDATE
+    // having matched a row. The extension tables (item_flights, …) carry no
+    // user_id of their own, so a caller who does not own this item — whose
+    // ownership-scoped UPDATE above matched zero rows — must not be able to
+    // mutate the extension row. `baseUpdates` always sets `updatedAt`, so an
+    // owner's UPDATE always matches; a zero-row result means "not owned / not
+    // found". This composes the existing ownership predicate (`scopeToUser`)
+    // rather than adding a second, independent check.
+    if (matched.length === 0) return null;
 
     await updateExtension(itemType, itemId, extensionBody);
 
-    // QUAL-43 Stage 4: the read-back is now owner-scoped like every other item
-    // read (userId is a required parameter of the helper). Through the routes
-    // this is indistinguishable from before — items.ts PATCH runs
-    // assertWritable + findRawByIdOrThrow, so a mismatched user 404s long
-    // before here. It only differs on a direct repository call with a user who
-    // does not own the item: the UPDATE above already matched zero rows, and
-    // the read-back now returns null rather than the owner's untouched row.
+    // QUAL-43 Stage 4: the read-back is owner-scoped like every other item read
+    // (userId is a required parameter of the helper). Through the routes this is
+    // indistinguishable from before — items.ts PATCH runs assertWritable +
+    // findRawByIdOrThrow, so a mismatched user 404s long before here.
     const result = await fetchItemsWithExtensions(userId, eq(items.id, itemId));
     return result[0] ?? null;
   },
@@ -229,14 +246,18 @@ export const itemRepository = {
 // Extension row helpers (internal to this repository)
 // ----------------------------------------------------------------
 
-/** Inserts the type-specific extension row for a new item. */
+/**
+ * Inserts the type-specific extension row for a new item.
+ *
+ * QUAL-50: takes the active db/transaction handle so the extension insert runs
+ * in the SAME transaction as the base insert in `create` (atomicity).
+ */
 async function insertExtension(
+  db: DbHandle,
   itemId: number,
   itemType: string,
   body: Record<string, unknown>,
 ): Promise<void> {
-  const db = getDb();
-
   switch (itemType) {
     case 'flight':
       await db.insert(itemFlights).values({
