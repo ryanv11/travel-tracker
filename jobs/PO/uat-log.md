@@ -106,6 +106,12 @@ Worth doing as one pass since they share a flow.
     check above — record it once.)
     Result:
 
+14. **BUG-85 / GE-19 — stuck geocoding is now visible and recoverable.** *(NEW feature — the one you hit personally.)*
+    Steps: find a city that can't auto-resolve (the classic is a name several places share — search **"Springfield"** or **"Newport"** on a trip, or any village the geocoder doesn't know) → after adding it, look at the **"Geocoding pending"** indicator → **click it**.
+    Expected: a panel opens listing each stuck/pending city with its name, country, and a plain-language reason (e.g. *Needs region — multiple matches*, *Gave up after repeated attempts*). A **stuck** city shows as a distinct **needs-attention** state (amber warning), visually separate from ones still *Resolving…*, and is not lumped into the same count. You get a recovery action: **confirm the correct region** (re-point) resolves it and it leaves the queue; **remove** the place drops it from the indicator. You only ever see *your own* cities.
+    ⚠️ **Design note I need your eye on:** nobody speced how the needs-attention state should *look* — I used an amber ⚠ chip as a sensible default. Tell me if you want it different.
+    Result:
+
 13. **QUAL-43 — nothing broke in the big backend refactor.** ⚠️ *This one is a smoke test, not a feature.*
     Today the entire backend data-access layer was restructured (six merged stages). **Zero behaviour was
     meant to change**, 827 automated tests agree, and no user-facing feature was touched — but the blast
