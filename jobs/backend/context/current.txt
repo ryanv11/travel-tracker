@@ -843,3 +843,45 @@ as warn-only and were corrected; scope.ts's header note said the guard greps
 
 QUAL-43 / ADL-53 is now complete through Stage 5. Stage 6 (the Phase-3
 scopeToUserOrShared seam) is design-only and not built.
+
+
+================================================================
+2026-08-10 — QUAL-47: build-enforced ownership classification (CHECK 3)
+================================================================
+Branch feat/qual47-schema-ownership-classification. Closes the blind spot
+the Stage-5 entry above carried forward: CHECK 1 is regex-shaped and matches
+the ownership column by NAME, so its protection rested on the unwritten
+convention that every user-owned table calls that column userId.
+
+CHECK 3 requires every table in schema.ts to be classified exactly once in
+src/backend/db/ownership.ts (owned-by-column / owned-via-parent /
+global-reference / user-identity) and checks each claim against the real
+schema via Drizzle's getTableConfig — structural, not a grep of schema.ts.
+Today: 21 tables, 7 owned-by-column, 10 owned-via-parent, 3 global-reference,
+1 user-identity; 8 carry a users.id FK.
+
+Two deviations from the brief, both deliberate — see the completion report:
+ (1) classification covers EVERY table, not only the 8 with a user FK. Ten
+     user-data tables carry no users.id FK at all, so a user-FK trigger
+     cannot see them. Trigger is now 'a table exists'.
+ (2) ONE manifest, not two lists. UserOwnedTable is DERIVED from it, so
+     'a table is in both lists' is no longer expressible — the failure mode
+     is removed rather than detected.
+
+The ownership-column NAME (user_id) is now build-enforced for every
+owned-by-column table, which is what makes CHECK 1's regex safe rather than
+conventional.
+
+Verified by 11 injected faults on a copied tree (no git stash), all exit 1,
+control exit 0 — including tsx absent and the check file deleted, which
+confirms it fails closed rather than skipping. scope.ts's compile-time
+rejection of cities/tripCountries re-probed after the derivation change
+(TS2345, both).
+
+LIMIT, stated honestly: CHECK 3 proves a decision was recorded and is
+consistent with the schema. It cannot prove the decision was right — a table
+holding user data can still be classified global-reference with a plausible
+sentence. What it removes is the silent case: a table nobody classified.
+
+827/827 backend tests unchanged, zero test files modified. No production
+behaviour change — ownership.ts is imported type-only by scope.ts.
