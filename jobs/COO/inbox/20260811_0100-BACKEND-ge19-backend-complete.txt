@@ -1,6 +1,6 @@
 BACKEND COMPLETION — GE-19 / BUG-85 backend (geocode status lifecycle)
 Tracker: BUG-85 · BRD: GE-19 (v3.20) · Design: ADL-55 §3/§4/§5/§8/§R
-Branch: feat/ge19-backend · PR: <to be opened this thread>
+Branch: feat/ge19-backend · PR: #514
 
 WHAT: Greened the merged QA red bar (#512). nextGeocodeState pure state machine +
 resolveCity rewired; ambiguous→needs_attention on first verdict (D1a); both
@@ -39,7 +39,7 @@ declared here per OP-28. No full-file rewrites.
 DOCS same-PR: api-reference 1.8→1.9 (needs_attention + geocode_cause enum, full
 /api/geocode-queue section). Stale three-state enum corrected.
 
-CI: <scripts/ci-wait.sh pr N — to confirm green before this report is final>.
+CI: GREEN — all 18 checks pass on PR #514 @ 332e92a (ci-wait.sh; true head re-confirmed, QUAL-46).
 UNBLOCKED: the FRONTEND GE-19 brief (poll /api/geocode-queue, retire NR-06
 localStorage, panel UI + label map, criterion 9).
 BLOCKERS: none.
