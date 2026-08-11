@@ -21,11 +21,14 @@
  * Phase-3 sharing (ADL-53 D7/§7) edits `scopeToUser` and nothing else: the
  * assertion helpers pick the change up because they call it.
  *
- * MAINTENANCE NOTE: `scripts/scope-completeness-check.sh` greps this directory
- * for hand-authored ownership logic and permits the predicate form ONLY in this
- * file. It matches text, not syntax, so do not quote either flagged pattern in a
- * comment inside a repository source file — reword instead (OP-30: fix your own
- * text rather than weakening the scanner).
+ * MAINTENANCE NOTE: `scripts/scope-completeness-check.sh` greps ALL of
+ * `src/backend/**` (minus `__tests__`) for hand-authored ownership logic and
+ * permits the predicate form ONLY in this file; the JS-comparison form is
+ * permitted nowhere, including here. Widened from this directory alone by QUAL-43
+ * Stage 3 and ENFORCED build-wide by Stage 5 — a residual anywhere now fails the
+ * build rather than warning. It matches text, not syntax, so do not quote either
+ * flagged pattern in a comment in any backend source file — reword instead
+ * (OP-30: fix your own text rather than weakening the scanner).
  */
 
 import { and, eq, type SQL } from 'drizzle-orm';

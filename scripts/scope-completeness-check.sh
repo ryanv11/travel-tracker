@@ -9,6 +9,19 @@
 #   CHECK 1 — Ownership completeness  (ADL-53 §6 Stage 0, widened by Stage 3)
 #   CHECK 2 — No `getDb` in routes    (ADL-53 §3 item 1, authored by Stage 3)
 #
+# BOTH CHECKS ARE FULLY ENFORCED (2026-08-10, ADL-53 §6 Stage 5). Any match in
+# either one fails the build. Both landed warn-first on purpose — the QUAL-43
+# migration was mid-flight and failing on a residual a later stage was chartered
+# to remove would have red-ed the trunk (ADL-47 expand/contract). Stage 5 is the
+# CONTRACT half: Stages 2/3/4 drove both residual counts to zero, and this is the
+# step that makes zero permanent. The per-check sections below keep the
+# warn-first history stamped rather than deleted, because the reason a guard was
+# once weaker is the thing a future reader needs when tempted to weaken it again.
+#
+# NOTHING HERE IS AN ALLOWLIST. There is exactly one exclusion — `__tests__` —
+# argued for in CHECK 1 below. Adding a second is a scanner suppression and needs
+# COO sign-off (OP-30); the fix for a false positive is to reword your own text.
+#
 # Usage: scripts/scope-completeness-check.sh [repo-root]
 #
 # ================================================================
@@ -57,26 +70,47 @@
 #   `__tests__`: anything else that matches is a residual to FIX, not to exempt
 #   (OP-30 — widening a scanner's suppression is not an implementer's call).
 #
-# TWO ZONES (expand/contract, ADL-47) — the widened scope lands warn-first.
+# ONE ENFORCED SCOPE — the whole of `src/backend/**` (minus `__tests__`).
 #
-#   ZONE A — ENFORCED (fail-closed, exits non-zero):
-#     `src/backend/repositories/*.ts`. This invariant is TRUE today and must stay
-#     true; it is the Stage 0 exit-check, unchanged in strength.
+#   > SUPERSEDED (2026-08-10) by ADL-53 §6 Stage 5 — retained for history. This
+#   > section previously described TWO ZONES of differing strength: Zone A
+#   > (`repositories/*.ts`) ENFORCED, Zone B (the rest of `src/backend/**`)
+#   > warn-only, "promoted once the count reaches zero — at which point the two
+#   > zones collapse into one". Stage 4 drove Zone B to zero and Stage 5 has made
+#   > the promotion. A residual ANYWHERE under `src/backend/**` now fails.
 #
-#   ZONE B — REPORTED (warn-only, does NOT fail the build):
-#     the rest of `src/backend/**`. This invariant is NOT true yet: the QUAL-43
-#     migration is mid-flight and `routes/**` still holds user-owned reads that
-#     Stages 2 and 4 relocate into repositories. Failing the build on them now
-#     would red the trunk — the broken-intermediate-state ADL-47's expand/contract
-#     discipline exists to prevent.
+#   The two-zone split existed for one reason and that reason is spent: while
+#   Stages 2/3/4 were still relocating user-owned reads out of `routes/**`, an
+#   enforced Zone B would have failed the build on residuals a later stage was
+#   already chartered to remove. That is the broken-intermediate-state ADL-47's
+#   expand/contract discipline exists to prevent — not a judgement that ownership
+#   written by hand outside `repositories/` was ever acceptable.
 #
-#   Zone B is a WARN TIER, NOT AN ALLOWLIST: every residual is named, located and
-#   counted on every run. Nothing is exempted or hidden. Stage 5 (the contract
-#   step) promotes Zone B to enforced once the count reaches zero — at which point
-#   the two zones collapse into one.
+#   WHY THE ENUMERATION IS STILL SPLIT IN TWO despite the policy collapsing into
+#   one. The zones no longer differ in STRENGTH — both fail the build, and one
+#   verdict covers them. They stay separately enumerated because each half
+#   carries its own NON-EMPTINESS assertion (below): "`repositories/` yielded
+#   production sources" and "the widened scan yielded sources outside
+#   `repositories/`".
+#
+#   What those assertions actually protect against is a future EDIT TO THIS
+#   SCRIPT'S OWN ENUMERATION — a `find` predicate that stops matching, an
+#   exclusion that widens past its target. (A moved or missing directory is
+#   already caught by the directory-existence checks further down; these two are
+#   the layer behind that.) Under a single merged `find`, either mistake would
+#   leave the check scanning a fraction of the tree and reporting PASS, because a
+#   merged enumeration is satisfied by whatever half still matches. Split, each
+#   half must independently prove it found something.
+#
+#   Both were verified by injection rather than assumed (2026-08-10): breaking the
+#   Zone A pattern (`*.ts` → `*.tsx`) and over-widening the Zone B exclusion each
+#   produced exit 1 with the corresponding "enumeration is broken" message, on a
+#   tree that is otherwise clean. Same fail-closed reasoning as the chokepoint
+#   existence + definition checks below: a guard that can pass while inspecting
+#   nothing is not a guard.
 #
 # ================================================================
-# CHECK 2 — No `getDb` in routes  (WARN-ONLY in this stage)
+# CHECK 2 — No `getDb` in routes  (ENFORCED)
 # ================================================================
 #
 # ADL-53 §3 item 1: once every route is repo-routed, the route layer physically
@@ -88,22 +122,33 @@
 # db`), so a route cannot obtain the handle without the literal string `getDb`
 # appearing.
 #
-# WARN-ONLY HERE, BY DESIGN (ADL-53 §6 Stage 5 = "introduced warn-only earlier
-# (expand); flipped here (contract)"). Routes legitimately still hold `getDb`
-# until Stages 2 and 4 finish; making this an error now would red the trunk. The
-# count and the offending files are printed so Stages 4 and 5 can watch it reach
-# zero.
+# ENFORCED (2026-08-10, ADL-53 §6 Stage 5 — "introduced warn-only earlier
+# (expand); flipped here (contract)").
 #
-# MENTIONS, NOT CALL SITES — a deliberate choice, stated because Stage 5 flips
-# this to an error and will inherit it.
+#   > SUPERSEDED (2026-08-10) — retained for history. This check was authored
+#   > warn-only by Stage 3: routes legitimately still held `getDb` until Stages 2
+#   > and 4 relocated those reads, and erroring then would have red-ed the trunk.
+#   > Stage 4 took the count to zero across all 12 route files; Stage 5 flips it.
+#
+# The flip is what converts the door-completeness argument above from a
+# description into a guarantee. Warn-only, it merely narrated a route acquiring a
+# DB handle; enforced, "a route handler ran an unscoped query against a user
+# table" is not mergeable, because the route layer cannot obtain the handle at all.
+#
+# MENTIONS, NOT CALL SITES — a deliberate choice, restated here because this check
+# is now an error and every future reader inherits the consequence.
 #
 #   This check counts every occurrence of the literal string `getDb` in
 #   `src/backend/routes/**`, NOT just `const db = getDb()` call sites. Three
 #   classes of match are therefore counted that are not themselves unscoped
-#   queries: import bindings, `ReturnType<typeof getDb>` TYPE references
-#   (`cities.ts`), and comments asserting "No direct getDb()" (`items.ts`,
-#   `trips.ts`, `places.ts` headers). ADL-53 §5.1 flags exactly this as a
-#   counting trap, so the decision is made explicitly rather than by accident:
+#   queries: import bindings, `ReturnType<typeof getDb>` TYPE references, and
+#   comments asserting a route holds no direct handle. (Live examples of all three
+#   existed in `cities.ts`/`items.ts`/`trips.ts`/`places.ts` when this was written;
+#   Stages 2–4 removed every one, and the surviving route comments now DESCRIBE
+#   the rule rather than quote the string — e.g. `routes/trips.ts`. The classes are
+#   documented because they will recur, not because any instance is live.)
+#   ADL-53 §5.1 flags exactly this as a counting trap, so the decision is made
+#   explicitly rather than by accident:
 #
 #     - Counting call sites would make the guard EVADABLE and forfeit its whole
 #       claim. `const d = getDb()`, `const { select } = getDb()`, or passing
@@ -112,15 +157,18 @@
 #       of the STRING, and the string is the only thing that makes this a
 #       one-line fail-closed check rather than an AST rule (ADL-53 OQ-1).
 #     - The false positives are cheap and self-clearing. A comment is reworded
-#       (OP-30: fix your own text, never weaken the scanner) and the type refs
-#       leave `routes/` anyway when Stage 2 moves the helpers that use them into
-#       `citiesRepository`.
+#       (OP-30: fix your own text, never weaken the scanner); the type refs left
+#       `routes/` when Stage 2 moved the helpers using them into
+#       `citiesRepository`. Both predictions held — the count reached zero without
+#       a single exemption being added.
 #     - It matches the sibling check above, which also matches TEXT, not syntax,
 #       for the same fail-closed reason.
 #
 #   To keep that honest rather than merely strict, the output CLASSIFIES each
-#   match (call-site / type-ref / import / comment / mention) so Stage 5 can see
-#   at a glance what is real work and what is a rewording.
+#   match (call-site / type-ref / import / comment / mention). Now that the check
+#   is an error, the tag is the first thing to read on a failure: `comment` means
+#   reword your own prose and you are done; the other tags mean a read needs
+#   relocating into a repository. Neither ever means adding an exemption here.
 #
 # BLIND SPOT (stated, not silently accepted): both checks match TEXT, not syntax,
 # so a comment quoting any pattern trips them. That is deliberate — it fails
@@ -168,6 +216,11 @@ fi
 # ----------------------------------------------------------------
 # File enumeration
 # ----------------------------------------------------------------
+# Zone A and Zone B are ENFORCED IDENTICALLY (Stage 5) — the names survive only
+# because each half carries its own non-emptiness assertion, which is what stops
+# a broken `find` passing the check vacuously. Together they cover exactly
+# `src/backend/**/*.ts` minus `__tests__/`, with no overlap.
+#
 # Zone A — production repository sources (`-maxdepth 1` excludes `__tests__/`).
 mapfile -t ZONE_A_FILES < <(find "$REPO_DIR" -maxdepth 1 -name '*.ts' -type f | sort)
 
@@ -237,14 +290,18 @@ scan_ownership() {
   done
 }
 
+# Both scans carry the same label and the same weight (Stage 5); the counts stay
+# separate only so the PASS line can report the coverage of each enumeration.
 scan_ownership "RESIDUAL" "${ZONE_A_FILES[@]}"
 zone_a_residuals="$scan_hits"
 
-scan_ownership "WARN-RESIDUAL" "${ZONE_B_FILES[@]}"
+scan_ownership "RESIDUAL" "${ZONE_B_FILES[@]}"
 zone_b_residuals="$scan_hits"
 
+ownership_residuals=$((zone_a_residuals + zone_b_residuals))
+
 # ----------------------------------------------------------------
-# CHECK 2 — `getDb` in routes (warn-only)
+# CHECK 2 — `getDb` in routes (enforced)
 # ----------------------------------------------------------------
 getdb_hits=0
 getdb_files=0
@@ -263,7 +320,7 @@ for f in "${ROUTE_FILES[@]}"; do
       *'getDb()'*) kind="call-site" ;;
       *) kind="mention" ;;
     esac
-    echo "WARN-GETDB $rel:$lineno [$kind]"
+    echo "GETDB $rel:$lineno [$kind]"
     echo "    $stripped"
     getdb_hits=$((getdb_hits + 1))
     file_hits=$((file_hits + 1))
@@ -272,42 +329,46 @@ for f in "${ROUTE_FILES[@]}"; do
 done
 
 # ----------------------------------------------------------------
-# Verdicts
+# Verdicts — BOTH checks are enforced (ADL-53 §6 Stage 5)
 # ----------------------------------------------------------------
-if [ "$zone_b_residuals" -gt 0 ]; then
+# Every failure is reported before exiting. A run that breaks both invariants
+# must show both, not just the first: an implementer who fixes only what the
+# output named, pushes, and fails again on the half it withheld learns to
+# distrust the guard.
+failed=0
+
+if [ "$ownership_residuals" -gt 0 ]; then
   echo ""
-  echo "########################################################################"
-  echo "# WARNING (not a failure) — CHECK 1, ZONE B"
-  echo "# $zone_b_residuals hand-authored ownership site(s) outside src/backend/repositories/."
-  echo "# These are REAL residuals, listed above as WARN-RESIDUAL. They do not fail"
-  echo "# the build only because the QUAL-43 migration is mid-flight (ADL-53 §6"
-  echo "# Stages 2/4 relocate them). Stage 5 promotes Zone B to enforced."
-  echo "# This is a warn tier, NOT an allowlist — nothing here is exempt."
-  echo "########################################################################"
+  echo "scope-completeness-check: FAIL — CHECK 1"
+  echo "  $ownership_residuals hand-authored ownership site(s) in src/backend/**"
+  echo "  ($zone_a_residuals in repositories/, $zone_b_residuals elsewhere), listed above as RESIDUAL."
+  echo "  ADL-53 §6: every ownership expression in the production backend must resolve"
+  echo "  through src/backend/repositories/scope.ts — scopeToUser/ownedAnd for a"
+  echo "  predicate, assertOwned/assertWritable for an existence check. That single"
+  echo "  definition is what Phase-3 sharing (ADL-53 D7/§7) changes in one place."
+  echo "  Route the site through the chokepoint. Do NOT exempt it here (OP-30)."
+  failed=1
 fi
 
 if [ "$getdb_hits" -gt 0 ]; then
   echo ""
-  echo "########################################################################"
-  echo "# WARNING (not a failure) — CHECK 2"
-  echo "# 'getDb' appears $getdb_hits time(s) across $getdb_files route file(s)."
-  echo "# Target is ZERO (ADL-53 §3 item 1). Counted as MENTIONS, not call sites —"
-  echo "# see this script's header for why, and the [kind] tag on each line above"
-  echo "# for what is real relocation work vs. a rewording."
-  echo "# Warn-only until ADL-53 §6 Stage 5 flips it to an error."
-  echo "########################################################################"
+  echo "scope-completeness-check: FAIL — CHECK 2"
+  echo "  'getDb' appears $getdb_hits time(s) across $getdb_files route file(s)."
+  echo "  ADL-53 §3 item 1: the route layer holds no DB handle, so an unscoped query"
+  echo "  against a user table cannot be written there. Required count is ZERO."
+  echo "  Counted as MENTIONS, not call sites (see this script's header for why)."
+  echo "  Read the [kind] tag on each line above: 'comment' means reword your own"
+  echo "  prose; anything else means move the read into a repository. Neither means"
+  echo "  adding an exclusion here (OP-30)."
+  failed=1
 fi
 
-if [ "$zone_a_residuals" -gt 0 ]; then
-  echo ""
-  echo "scope-completeness-check: FAIL — $zone_a_residuals residual ownership site(s) outside the chokepoint."
-  echo "  ADL-53 §6 Stage 0: every ownership expression in src/backend/repositories/**"
-  echo "  must resolve through src/backend/repositories/scope.ts."
+if [ "$failed" -ne 0 ]; then
   exit 1
 fi
 
 echo ""
 echo "scope-completeness-check: PASS"
-echo "  Check 1 (ownership) — ${#ZONE_A_FILES[@]} enforced source(s) in repositories/ clean;"
-echo "    ${#ZONE_B_FILES[@]} further backend source(s) scanned, $zone_b_residuals warn-residual(s)."
-echo "  Check 2 (getDb in routes, warn-only) — $getdb_hits mention(s) across ${#ROUTE_FILES[@]} route file(s)."
+echo "  Check 1 (ownership, enforced) — 0 residuals across $((${#ZONE_A_FILES[@]} + ${#ZONE_B_FILES[@]})) backend source(s)"
+echo "    (${#ZONE_A_FILES[@]} in repositories/, ${#ZONE_B_FILES[@]} elsewhere; __tests__ excluded)."
+echo "  Check 2 (getDb in routes, enforced) — 0 mention(s) across ${#ROUTE_FILES[@]} route file(s)."

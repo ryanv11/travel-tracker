@@ -322,6 +322,26 @@ This is the load-bearing engineering call and the one the brief presses hardest 
    > are unexported, there is no `export const db`), so a route cannot obtain the handle without the
    > literal string `getDb` appearing. The door is complete; the map of rooms behind it was drawn
    > one route too small.
+
+   > **BUILT AND ENFORCED (2026-08-10, Stage 5 — PR #495).** This item is no longer a
+   > recommendation. The guard is `scripts/scope-completeness-check.sh` Check 2 (`npm run
+   > scope:check`, wired into `/pre-push` and the CI Biome job). It was **authored** warn-only by
+   > Stage 3 — nothing in §6 chartered its creation, only its flip, which the Stage 0 agent caught —
+   > and Stage 5 has now flipped it to an **error**: any occurrence of the literal string `getDb`
+   > under `src/backend/routes/**` (excluding `__tests__`) fails the build. Verified fail-closed by
+   > injection, not assumed: a re-introduced `getDb()` call site in `routes/trips.ts` exits 1, as
+   > does a comment merely *mentioning* it (the guard matches text, not syntax — deliberate, and the
+   > remedy is to reword the comment, never to exempt it).
+   >
+   > **Stage 5 flipped TWO guards, not one.** Check 1 (ownership completeness) had the same
+   > expand/contract shape: Stage 3 widened its scan from `repositories/` to all of
+   > `src/backend/**` but landed the widened half warn-only, because `routes/**` still held
+   > user-owned predicates Stage 4 was chartered to relocate. Stage 4 emptied it; Stage 5 promoted
+   > it. A hand-written ownership predicate anywhere in the production backend — including
+   > `services/**`, the directory whose four unowned predicates §7's CORRECTION records — now fails
+   > the build rather than printing a warning. Without that second promotion the §7 gap class would
+   > have remained permanently un-enforced, which is the condition that let it open in the first
+   > place.
 2. **ATDD cross-tenant isolation matrix (mandatory, OP-35 red bar).** For **every** user-data
    route, seed a row owned by USER_A, authenticate as USER_B, assert USER_B cannot read or mutate
    it (empty list / 404 — opaque per SE-05, never 403). This is the behavioural net that closes
@@ -508,7 +528,7 @@ where noted.
 | **Stage 2 — Cities extraction** | `citiesRepository` + `cityIdentityService` extracted from `cities.ts`; logic moved verbatim, handlers thin. Its two user-owned joins (`:703`/`:766`) compose `scopeToUser` | **yes** (identity/data-integrity invariants; **mock-fidelity**: exercise the real `insertCityOrReuse` catch-path + partial unique indexes, not a vacuous stub — QUAL-22) | GE-16 **containment** (global data — *not* vacuous ownership); the two user-owned joins covered by S1 | existing cities/adl46 suites + S1 | Yes |
 | **Stage 3 — Global-read consolidation (the SAFE half)** | Global reference reads relocated out of routes into `referenceRepository`: `map.ts:113/154`, `admin.ts:73/91/135/177/217`, `places.ts:74/163` (cities-identity global reads land in Stage 2). **No cross-tenant axis — global tables** | **no** (mechanical; failure visible; existing suites are the net) | **No** — global reference data, no ownership to assert | existing suites | Yes |
 | **Stage 4 — User-owned-read relocation (the DANGEROUS half)** | User-owned raw reads relocated into repositories, **each by its §5.1 mechanism (F2):** *predicate-composed* reads compose `scopeToUser` — `items-helper.ts:87` (→ `userId` becomes a **required** method parameter), the items reads inside `trips.ts:198`/`places.ts:231`; *assertion-guarded* reads route through `assertOwned`/`assertWritable` and **inherit** isolation (compose nothing) — the `tripPlaceActivitiesMap` join reads at `places.ts:289/352` and `trips.ts:207-216`. Each relocation staged **expand → switch** with the S1 matrix green before *and* after every switch | **yes** (access-matrix; dropping an `eq(userId)` predicate *or* a prior ownership assertion is silent-and-plausible) | **Yes** — the S1 matrix asserts each relocated path per its class (seed USER_A, call as USER_B, expect **empty** for reads / **404** for mutations) | S1 matrix + existing suites | Yes (each switch independently green) |
-| **Stage 5 — Guard contract** | Flip the `getDb`-in-routes guard to **error**. Introduced warn-only earlier (expand); flipped here (contract). **Strictly last** — only valid once Stages 2 + 3 + 4 leave `routes/**` `getDb`-free | **no** (the guard is its own test) | n/a | guard green + full suite | Yes — may ride the last relocation PR |
+| **Stage 5 — Guard contract** — **SHIPPED 2026-08-10 (PR #495)** | ~~Flip the `getDb`-in-routes guard to **error**.~~ **Flipped BOTH guards to error** (see the Stage 5 note below — this row understated the work by one promotion). Introduced warn-only earlier (expand); flipped here (contract). **Strictly last** — only valid once Stages 2 + 3 + 4 leave `routes/**` `getDb`-free | **no** (the guard is its own test) | n/a | guard green + full suite | Yes — may ride the last relocation PR |
 | **Stage 6 — Phase-3 seam** | *(Design only — not built now)* `scopeToUser` → `scopeToUserOrShared`. Deferred to Phase-3/SE-01 | — | — | — | — |
 
 **Stage 0 detail — completeness exit-check + the `.where()` footgun (REVISED 2026-08-10, F1/F3):**
@@ -536,6 +556,24 @@ where noted.
   invalid while *any* route still holds `getDb`; flipping after "cities only" (the old S3) would go
   **CI-red on `main`** against `places.ts`/`trips.ts`/`map.ts`/`admin.ts`/`items-helper.ts` — the
   broken-trunk state ADL-47's discipline exists to prevent. This is the deployability half of B1.
+
+**Stage 5 detail — the contract step flipped TWO guards, not one (recorded 2026-08-10, PR #495):**
+- The row above, and §3 item 1, describe **one** flip: `getDb`-in-routes warn → error. That is what
+  shipped as **Check 2** of `scripts/scope-completeness-check.sh`.
+- **Check 1 (ownership completeness) needed the same promotion and this plan did not name it.** Stage 0
+  built it enforced over `repositories/**`; Stage 3, absorbing §7's CORRECTION, *widened* its scan to all
+  of `src/backend/**` but landed the widened half **warn-only** — for the same ADL-47 reason as Check 2,
+  since `routes/**` still held the user-owned predicates Stage 4 was chartered to relocate, and enforcing
+  then would have red-ed `main`. Stage 4 took that count to zero. **Stage 5 promoted it.** Left
+  warn-only, a new hand-written predicate in `services/**` — exactly §7's `shading.service.ts` gap, the
+  reason the scan was widened at all — would have printed a warning forever.
+- Net effect: **every** ownership expression in the production backend, and **any** route-layer mention of
+  `getDb`, now fails the build. Both promotions were verified fail-closed by injected fault (Zone A
+  predicate, `services/**` predicate, JS `.userId !==` comparison including inside `scope.ts` itself,
+  `getDb` call site *and* bare comment mention in a route, `scope.ts` deleted, `scope.ts` gutted) — each
+  exits 1. The one documented exclusion, `__tests__`, still passes, as designed.
+- **Not a new invariant — the same invariant, made permanent.** Nothing in `src/backend/**` changed in
+  this stage; the counts were already zero. What changed is that they can no longer drift back.
 
 **Old→new stage mapping (for anyone who read the superseded plan):** old S0 → Stage 0 (unchanged);
 old S1 → Stage 1 (unchanged, now *must name* the user-owned paths); old S2 → Stage 2 (unchanged);

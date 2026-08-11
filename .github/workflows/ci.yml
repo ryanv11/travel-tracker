@@ -24,9 +24,11 @@ jobs:
         run: npm run tracker:check
       # QUAL-43 / ADL-53: backend scope guards. Was pre-push-only, which is a
       # local pre-filter CI never runs — a guard living only there is bypassed by
-      # anyone who skips the checklist. Fails the build on hand-authored ownership
-      # in src/backend/repositories/; warns (by design, until ADL-53 §6 Stage 5)
-      # on the widened scan and on `getDb` in routes.
+      # anyone who skips the checklist. FULLY ENFORCED since ADL-53 §6 Stage 5
+      # (2026-08-10): fails the build on hand-authored ownership anywhere in
+      # src/backend/** and on any mention of `getDb` in src/backend/routes/**.
+      # Both were warn-only while Stages 2/3/4 were relocating reads; neither is
+      # now. Do not add exclusions to turn this green (OP-30).
       - name: Backend scope guards
         run: npm run scope:check
 
