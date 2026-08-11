@@ -19,7 +19,6 @@ import {
   useCreateCity,
 } from '../../hooks/useCities';
 import { useAddPlace } from '../../hooks/usePlaces';
-import { geocodeRetryQueue } from '../../services/geocodeRetryQueue';
 import type { City, GeocodeCandidate } from '../../types/api';
 // BUG-75/UX-12 (design §9/§6, review MAJOR-1/MINOR-1): the shared
 // precedence decision and the shared candidate->city identity-carry mapping,
@@ -313,9 +312,12 @@ export function AddPlaceFlow({
         return;
       }
 
-      // NR-06: queue geocoding retry if city wasn't resolved yet
+      // GE-19 / ADL-55 (BUG-85): the geocode-status indicator now derives its
+      // queue server-side from the user's trip_places (GET /api/geocode-queue),
+      // so adding this place is itself what enrols the city — no client-side
+      // localStorage enqueue is needed (the retired NR-06 path, OQ-4). We still
+      // tell the user the location isn't confirmed yet.
       if (city.geocode_status !== 'resolved') {
-        geocodeRetryQueue.add(city);
         // BUG-75/UX-12 (MAJOR-2, AC-14, UX spec §3.4): tell the user the
         // location isn't confirmed yet rather than leaving them to guess why
         // nothing further happened.

@@ -78,6 +78,9 @@ export function useAddPlace() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
+      // GE-19/ADL-55: adding a place to a not-yet-resolved city enrols that
+      // city in the derived geocode queue — refresh the indicator now.
+      void qc.invalidateQueries({ queryKey: ['geocode-queue'] });
     },
   });
 }
@@ -101,6 +104,9 @@ export function useRemovePlace() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['trips'] });
       void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
+      // GE-19/ADL-55 recovery: removing the referencing place drops its city
+      // from the derived geocode queue — refresh the indicator now.
+      void qc.invalidateQueries({ queryKey: ['geocode-queue'] });
     },
   });
 }
@@ -169,6 +175,9 @@ export function useChangeCity() {
     onSuccess: (_result, vars) => {
       void qc.invalidateQueries({ queryKey: ['trips', vars.tripId] });
       void qc.invalidateQueries({ queryKey: ['map', 'shading'] });
+      // GE-19/ADL-55 recovery: re-pointing a place off a stuck city drops that
+      // city from the derived geocode queue — refresh the indicator now.
+      void qc.invalidateQueries({ queryKey: ['geocode-queue'] });
     },
   });
 }

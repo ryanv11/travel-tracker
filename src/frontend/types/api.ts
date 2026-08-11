@@ -21,16 +21,35 @@ export type ItemStatus = 'consider' | 'confirmed' | 'completed' | 'cancelled' | 
 
 /**
  * BUG-75/UX-12 build (COO-approved type-truth fix): aligned to the backend's
- * actual CHECK constraint (`src/backend/db/schema.ts:144` —
- * `chk_cities_geocode_status`, `IN ('pending', 'resolved', 'unresolvable')`).
+ * actual CHECK constraint (`src/backend/db/schema.ts` — `chk_cities_geocode_status`).
  * Previously said `'failed'`, a value the backend never sends — verified with
  * two probes (grep across src/frontend for a `'failed'` literal compared
  * against this type: none outside this declaration and one now-corrected test
  * fixture; read of the backend CHECK constraint itself) that no frontend logic
  * compared against `'failed'`, so the fix is a pure type-truth correction with
  * zero runtime ripple.
+ *
+ * GE-19 / ADL-55 (BUG-85): added `'needs_attention'` — a terminal state for a
+ * city the geocoder could not auto-resolve (retry-exhausted or ambiguous). It
+ * is distinct from `'unresolvable'` (a definitive "no match") and from
+ * `'pending'` (still resolving); the CHECK now admits
+ * `IN ('pending', 'resolved', 'unresolvable', 'needs_attention')`. Widening this
+ * union is safe: every existing consumer compares by equality (`=== 'resolved'`,
+ * `!== 'resolved'`, `=== 'unresolvable'`), none is an exhaustive switch.
  */
-export type GeocodeStatus = 'pending' | 'resolved' | 'unresolvable';
+export type GeocodeStatus = 'pending' | 'resolved' | 'unresolvable' | 'needs_attention';
+
+/**
+ * GE-19 / ADL-55 §4 (BUG-85): the companion discriminator for `geocode_status`,
+ * surfaced only by `GET /api/geocode-queue`. `(geocode_status, geocode_cause)`
+ * together select the user-facing label (see utils/geocodeQueueLabels.ts) — the
+ * backend emits stable codes so copy changes need no backend deploy.
+ *   - `'ambiguous'`   — multiple / unconfirmed region matches (needs a region)
+ *   - `'unreachable'` — recoverable geocoder failure (network / timeout / 5xx / 429)
+ *   - `null`          — a plain `pending`/`unresolvable` row, or a backfilled
+ *                       `needs_attention` row whose historical cause is unknown
+ */
+export type GeocodeCause = 'ambiguous' | 'unreachable' | null;
 
 export type ShadingStateKey =
   | 'never_visited'
@@ -203,6 +222,30 @@ export interface City {
   latitude: number | null;
   longitude: number | null;
   geocode_status: GeocodeStatus;
+}
+
+/**
+ * GE-19 / ADL-55 D3 (BUG-85): one row from `GET /api/geocode-queue` — the
+ * requesting user's own not-yet-`resolved` cities, derived server-side from
+ * their `trip_places → trips` (userId-scoped; a city referenced solely by
+ * another user never appears). This is the source of truth for the geocode
+ * indicator, replacing the retired NR-06 localStorage retry queue (OQ-4).
+ *
+ * Deliberately a distinct shape from `City`, not a reuse of it: the endpoint
+ * returns only what the indicator renders — no `latitude`/`longitude`/
+ * `country_name`, and it adds `geocode_cause` (which `City` never carries).
+ * `geocode_status` here is never `'resolved'` (the query excludes resolved
+ * rows); it is one of `pending` | `needs_attention` | `unresolvable`.
+ */
+export interface GeocodeQueueEntry {
+  id: number;
+  name: string;
+  country_code: string;
+  region_id: number | null;
+  region_name: string | null;
+  region_iso: string | null;
+  geocode_status: GeocodeStatus;
+  geocode_cause: GeocodeCause;
 }
 
 // ============================================================
