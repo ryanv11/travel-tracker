@@ -617,6 +617,13 @@ assessment against HC-05.
 router-level `requireOwner` on `adminRouter` covers the companions and shading-config
 routes, so non-owners receive 403 on read and write.
 
+> **NOTE 2026-08-10 (QUAL-43 / ADL-53 §6).** Verdict unchanged and its *basis* is unchanged — this
+> item passes on the router-level tier gate, which QUAL-43 did not touch. What did change is the
+> layer beneath it: the row-level ownership on `companions` and `map_shading_config` (and the four
+> predicates that had been sitting unowned in `services/shading.service.ts`) now composes
+> `scopeToUser` from `repositories/scope.ts` rather than being written by hand. Defence-in-depth
+> under the gate, not a change to the gate.
+
 **Verification:**
 - HC-04 passing is necessary but not sufficient. Verify specifically:
 - Contract test: Authenticate as non-owner; confirm GET `/api/admin/companions` → 403.
@@ -805,8 +812,20 @@ to prevent confirming the existence of resources the requesting user does not ow
 `NotFoundError` (→ 404) when the trip exists but is owned by a different user, because
 the WHERE clause includes both `trip_id = ?` and `user_id = ?`.
 
+> **UPDATED 2026-08-10 (QUAL-43 / ADL-53 §6 Stages 0–4).** Verdict unchanged (PASS); the
+> *mechanism* now has one home. That WHERE clause is no longer hand-written — the ownership term
+> comes from the chokepoint `scopeToUser` in `src/backend/repositories/scope.ts`, and the opaque
+> 404 for a non-owner is `assertOwned`/`assertWritable`, an existence check composed from the same
+> predicate (never an application-layer comparison). Stage 4 removed the last route handlers that
+> ran user-owned reads on a raw DB handle, so every path this item covers now reaches the database
+> through a repository. Machine-checked on every push and in CI by
+> `scripts/scope-completeness-check.sh` (`npm run scope:check`).
+
 **Verification:**
 - Contract test: Authenticate as user-A; request a trip belonging to user-B; confirm 404.
+- Executable since 2026-08-10: Part F of `src/backend/routes/__tests__/security.access-matrix.test.ts`
+  (QUAL-43 Stage 1) asserts 404 — explicitly *not* 403 — for each cross-tenant mutation path,
+  against a real libSQL instance seeded with two distinct users.
 
 ---
 
@@ -818,8 +837,18 @@ the WHERE clause includes both `trip_id = ?` and `user_id = ?`.
 **Current state: PASS** — `tripRepository.findAll(userId, filters)` scopes to userId.
 A new user with no trips receives `[]`.
 
+> **UPDATED 2026-08-10 (QUAL-43 / ADL-53 §6 Stages 0–4).** Verdict unchanged (PASS); the scoping is
+> now composed from the chokepoint (`scopeToUser`/`ownedAnd`, `repositories/scope.ts`) rather than
+> written per repository — including on `findAll`'s filtered branch, where Drizzle's `.where()`
+> *replaces* rather than appends (ADL-53 F3), so the ownership term appears in every terminal
+> `.where(...)`. Stage 4 extended the same property to the list reads that used to run in route
+> handlers: `fetchItemsWithExtensions` now takes `userId` as a **required** parameter and composes
+> ownership itself, so an item list cannot be produced unscoped.
+
 **Verification:**
 - Contract test: Authenticate as a fresh user with no trips; GET `/api/trips` → `200 []`.
+- Executable since 2026-08-10: Part F of `security.access-matrix.test.ts` asserts the empty-result
+  shape for each cross-tenant *read* path (city items, city carry-forward, trip-detail items).
 
 ---
 

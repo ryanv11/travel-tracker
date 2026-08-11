@@ -1,0 +1,70 @@
+QUAL-43 Stage 4 · PR #494 · BRD n/a (internal refactor) · feat/qual43-stage4-user-owned-relocation
+
+Relocated every remaining user-owned raw read out of routes/** into a repository by its
+ADL-53 §5.1 mechanism. Stage 5 is now a pure guard flip — no incidental work owed.
+
+ACCEPTANCE CRITERIA
+1. All user-owned reads relocated per §5.1 mechanism ................... PASS
+2. fetchItemsWithExtensions takes a REQUIRED userId parameter .......... PASS
+3. scope:check Check 2 reports ZERO getDb mentions in routes/** ........ PASS (was 11/4 files)
+4. Check 1 Zone A clean, Zone B zero residuals ......................... PASS
+5. Part F green before AND after every switch, unmodified .............. PASS (run switch by switch)
+6. test:backend green, no existing test file modified ................. PASS (52 files / 827 tests = baseline)
+7. Zero behaviour change ............................................... PASS
+
+SITES AND MECHANISM
+Predicate-composed (target carries user_id):
+ - items-helper.ts:87 — whole module git mv'd routes/ -> repositories/; userId required and first;
+   ownership composed inside via ownedAnd. Also removed an unlisted layering inversion:
+   itemRepository was importing a query out of the route layer.
+ - trips.ts:198 items read -> itemRepository.findByTrip (conditions already term-for-term identical).
+ - places.ts carry-forward SEC-02 check -> itemRepository.findOwnedIds.
+Assertion-guarded (no user_id column — inherits isolation, composes nothing; assertions stayed):
+ - trips.ts join read -> placeRepository.findActivitiesForPlaces (merged with the duplicate copy
+   already in placeRepository.findByTrip — one join, two consumers).
+ - places.ts activity tag/untag -> isActivityTagged / addActivityTag / removeActivityTag.
+ - places.ts carry-forward trip_places read -> placeRepository.findInWritableTrip, which now carries
+   the assertWritable that used to sit beside it. Mirrors delete/updateDates. 404 before 403 preserved.
+No predicate bolted onto a user_id-less join table; UserOwnedTable not widened; no ON-clause
+predicate moved to a WHERE (no join became an effective INNER JOIN).
+
+SECURITY CHECKLIST (OP-06) — no route added or modified in its auth posture
+1. Auth middleware — unchanged on every route; no nosemgrep annotation added or changed.
+2. Every relocated user-data query carries its ownership predicate (scopeToUser/ownedAnd) or its
+   prior ownership assertion (assertWritable / scoped findById / findByIdOrThrow).
+3. No new user-data column (no schema change in this stage).
+No scanner suppression added or widened — my own comment tripped Check 1 by quoting the predicate
+and was REWORDED (OP-30), not exempted.
+
+CI: 18/18 green on PR #494. D-24 guard applied — re-read the PR head after ci-wait; it is still
+27b5f01, and all 9 unique checks report success against that exact SHA.
+
+COO ADDITIONS I'D CHALLENGE — one, and it's real
+ - "assertOwned has no production caller; you are its first." I am not, and I did not manufacture
+   one. Every assertion-guarded read in this stage already sits behind a STRONGER gate that itself
+   composes scopeToUser: assertWritable on the write paths, a scoped findById/findByIdOrThrow on the
+   read paths. Adding assertOwned would have meant a redundant SELECT per request to satisfy a
+   checklist. It stays correct and unused; it is the right shape for a read-gate on a trip whose
+   owner is not otherwise looked up, and no such site exists yet. Needs a decision: leave it as the
+   documented seam, or retire it. I recommend LEAVE — it is named in scope.ts's contract, in the
+   check script's remediation text, and in ADL-53 §2; deleting it would cost more than it saves.
+The other two additions were right and I took them: the comment rewording belongs here (Check 2
+reaches zero in the same PR that empties the files), and switch-by-switch Part F runs were cheap.
+
+OPEN ITEMS FOR YOU
+ - PRE-EXISTING, NOT FIXED (out of scope; fixing it would be a behaviour change): itemRepository.update
+   calls updateExtension() regardless of whether the scoped UPDATE matched a row, and the extension
+   tables carry no user_id. Unreachable via HTTP (items.ts PATCH asserts first). Becomes live if a
+   future route calls itemRepository.update without a prior ownership assertion. Worth a tracker line.
+ - Making userId required also scoped itemRepository.update's read-back. Invisible through the routes.
+   The existing repository test for that path stays green but its COMMENT now describes the old
+   behaviour; I left it because the brief forbids touching existing test files.
+ - Same-PR doc lifecycle done: ADL-53 §5.1 rows stamped RELOCATED (mine, plus the three Stage 3 rows
+   that stage relocated but never stamped — two probes before stamping), and OP-06 HC-05/HC-10/HC-11
+   updated to cite the chokepoint. NO verdict changed; all three were PASS and remain PASS.
+ - No full-file source rewrite (OP-28). The only whole-file movement is the git mv of items-helper.ts,
+   whose contents changed by a header rewrite, one parameter and one .where().
+
+UNBLOCKED: Stage 5 (guard flip). Both zones sit at zero, so promoting Check 2 and Check 1 Zone B to
+enforced should be a one-line change per zone. Note the script matches TEXT, not syntax — once
+flipped, a comment quoting getDb or the predicate form reds the build. By design; reword the comment.

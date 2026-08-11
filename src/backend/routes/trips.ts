@@ -7,16 +7,21 @@
  * Status transition rules (TR-06, TR-07) are enforced by validateTransition().
  * Locked trip writes return 403 LockError.
  *
- * ADL-18: All user-scoped queries go through tripRepository. No direct getDb()
- * calls for user-owned data.
+ * ADL-18: All user-scoped queries go through a repository (tripRepository and,
+ * for the nested reads assembled by GET /:id, itemRepository/placeRepository).
+ * QUAL-43 Stage 4 (ADL-53 §3 item 1) made that literal rather than aspirational:
+ * this file holds no database handle at all, which is why the wording changed
+ * from the original "no direct calls for user-owned data" — the route layer now
+ * cannot reach the ORM, scoped or otherwise, and `scripts/scope-completeness-check.sh`
+ * enforces it.
  */
 
-import { eq, inArray } from 'drizzle-orm';
 import { Router } from 'express';
-import { activities, getDb, tripPlaceActivitiesMap } from '../db/index.js';
 import { LockError, NotFoundError, ValidationError } from '../errors.js';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
+import { itemRepository } from '../repositories/items.js';
+import { placeRepository } from '../repositories/places.js';
 import { tripRepository } from '../repositories/trips.js';
 import {
   CreateTripSchema,
@@ -26,7 +31,6 @@ import {
   UpdateTripStatusSchema,
 } from '../validation/trips.schemas.js';
 import itemsRouter from './items.js';
-import { fetchItemsWithExtensions } from './items-helper.js';
 import placesRouter from './places.js';
 import tripCountriesRouter from './trip-countries.js';
 
@@ -195,34 +199,33 @@ tripsRouter.get(
       tripRepository.getCountries(tripId),
     ]);
 
-    const db = getDb();
-
     // Load places with their cities
     const placesRows = await tripRepository.getPlaces(tripId);
 
-    // Load place activities
+    // Load place activities.
+    //
+    // QUAL-43 Stage 4 (ADL-53 §6): this join read was inline here. It is
+    // assertion-guarded, not predicate-composed — `trip_place_activities_map`
+    // has no `user_id` column, so it inherits its isolation from the
+    // `tripRepository.findByIdOrThrow` above, whose 404 is what keeps a
+    // non-owner from ever reaching this line. That assertion stays exactly
+    // where it was; only the raw read moved.
     const placeIds = placesRows.map((p) => p.id);
-    const placeActivities =
-      placeIds.length > 0
-        ? await db
-            .select({
-              tripPlaceId: tripPlaceActivitiesMap.tripPlaceId,
-              activityId: activities.id,
-              activityName: activities.name,
-            })
-            .from(tripPlaceActivitiesMap)
-            .leftJoin(activities, eq(activities.id, tripPlaceActivitiesMap.activityId))
-            .where(inArray(tripPlaceActivitiesMap.tripPlaceId, placeIds))
-        : [];
+    const placeActivities = await placeRepository.findActivitiesForPlaces(placeIds);
 
-    // Load all items for the trip with extension fields (scoped to userId)
-    const { and: drizzleAnd, eq: drizzleEq } = await import('drizzle-orm');
-    const { items } = await import('../db/index.js');
-    const tripItemsCondition = drizzleAnd(
-      drizzleEq(items.tripId, tripId),
-      drizzleEq(items.userId, userId),
-    );
-    const allItems = await fetchItemsWithExtensions(tripItemsCondition);
+    // Load all items for the trip with extension fields, scoped to userId.
+    //
+    // QUAL-43 Stage 4 (ADL-53 §6): this was an inline read that hand-built a
+    // trip-plus-owner conjunction and called the items query helper directly
+    // from the route — the same two terms itemRepository.findByTrip already
+    // composes from the chokepoint. Same conditions, same (absent) sort/filter
+    // options, same rows; the ownership term now travels with the repository
+    // method instead of being re-threaded by this handler.
+    //
+    // (Deliberately described rather than quoted: scripts/scope-completeness-check.sh
+    // matches text, not syntax, so a comment quoting the predicate reads as a
+    // residual. OP-30 — reword your own text, never weaken the scanner.)
+    const allItems = await itemRepository.findByTrip(userId, tripId);
 
     // Assemble places
     const places = placesRows.map((p) => ({
@@ -257,7 +260,7 @@ tripsRouter.get(
       },
       activities: placeActivities
         .filter((a) => a.tripPlaceId === p.id)
-        .map((a) => ({ id: a.activityId, name: a.activityName })),
+        .map((a) => ({ id: a.id, name: a.name })),
       items: allItems.filter((i) => (i as Record<string, unknown>).trip_place_id === p.id),
     }));
 

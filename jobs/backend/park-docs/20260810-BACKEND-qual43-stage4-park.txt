@@ -1,0 +1,189 @@
+================================================================
+PARK DOCUMENT — Backend — 2026-08-10
+QUAL-43 Stage 4: user-owned read relocation (ADL-53 §6)
+Branch: feat/qual43-stage4-user-owned-relocation
+================================================================
+
+STATUS: complete. Source + docs committed. Stage 5 (guard flip) is
+unblocked and is now a PURE flip — no incidental work owed.
+
+----------------------------------------------------------------
+1. WHAT THE WORKLIST ACTUALLY WAS
+----------------------------------------------------------------
+`npm run scope:check` at 2943f0c, not the ADL's line numbers (which
+have drifted repeatedly). It reported 11 `getDb` mentions across 4
+route files, tagged by kind:
+
+  items-helper.ts  :11 import   :87 call-site
+  places.ts        :11 comment  :17 import  :211/:273/:336 call-site
+  trips.ts         :10 comment  :16 import  :198 call-site
+  items.ts         :8  comment
+
+All 11 are gone. Check 2 now reports ZERO across 12 route files.
+Every site was located by content, never by line number.
+
+----------------------------------------------------------------
+2. THE MECHANISM SPLIT AS APPLIED (ADL-53 §5.1 / §2)
+----------------------------------------------------------------
+PREDICATE-COMPOSED — the target table carries its own user_id, so
+ownership is the chokepoint predicate:
+
+  a) fetchItemsWithExtensions (items-helper.ts:87)
+     `git mv src/backend/routes/items-helper.ts
+             src/backend/repositories/items-helper.ts`
+     Signature: fetchItemsWithExtensions(userId, conditions?, opts?)
+     — userId is REQUIRED and first. The helper composes ownership
+     itself: `.where(ownedAnd(items, userId, conditions))`. Callers
+     no longer thread the scope through `conditions`; a caller that
+     forgets it does not compile.
+
+     ADL-53 calls this the single highest-value relocation in the
+     stage and it is. It also fixed a layering inversion nobody had
+     listed: repositories/items.ts was importing a query out of
+     routes/.
+
+     F3 footgun checked: this builder has exactly ONE terminal
+     .where(). A comment at the call site records that any future
+     branch must repeat ownedAnd in EVERY terminal .where(), because
+     Drizzle's .where() overwrites rather than appends.
+     No LEFT JOIN ON-clause predicate was moved to a WHERE anywhere
+     in this stage — the five extension left-joins keep their ON
+     clauses untouched, so no join silently became an INNER JOIN.
+
+  b) trips.ts:198 items read -> itemRepository.findByTrip(userId, tripId)
+     The handler hand-built a trip-plus-owner conjunction and called
+     the helper directly. findByTrip composes exactly those two terms
+     and passes the same (all-undefined) opts object, so the orderBy
+     branch and the minRating branch both resolve identically. This
+     is a call-site swap, verified term by term before switching.
+
+  c) places.ts carry-forward SEC-02 check
+     -> itemRepository.findOwnedIds(userId, ids), which composes
+     ownedAnd(items, userId, inArray(items.id, ids)). Returns [] for
+     an empty id list without a round trip (inArray([]) already
+     returned no rows, so same result).
+
+ASSERTION-GUARDED — the target has no user_id column, so it INHERITS
+isolation and composes nothing. The prior ownership assertion IS the
+isolation; none was dropped, none was replaced by a predicate:
+
+  d) trips.ts trip_place_activities_map join
+     -> placeRepository.findActivitiesForPlaces(placeIds).
+     Merged with the byte-identical copy already inside
+     placeRepository.findByTrip — one join, two consumers (PO standing
+     reuse preference). The trips route's mapping changed from
+     a.activityId/a.activityName to a.id/a.name; same output shape.
+     tripRepository.findByIdOrThrow stays exactly where it was: its
+     404 is what stops a non-owner reaching that line.
+
+  e) places.ts activity tag/untag
+     -> placeRepository.isActivityTagged / addActivityTag /
+        removeActivityTag.
+     The route's placeRepository.findById(userId, placeId) stayed.
+     It is itself the ownership assertion — it composes
+     scopeToUser(trips, ...) through an inner join — and the handler
+     needs its result for the place's tripId regardless, so moving it
+     into the repository would have bought a second query and nothing
+     else. Route control flow is textually unchanged: ownership check,
+     activity-ownership check, lock check, duplicate check, mutate.
+     Audit invariant 17 (ownership BEFORE lock) preserved.
+
+  f) places.ts carry-forward trip_places read
+     -> placeRepository.findInWritableTrip(userId, tripId, placeId),
+     which calls this.assertWritable INTERNALLY. The route's separate
+     assertWritable call was removed because it moved, not because it
+     was dropped. This mirrors placeRepository.delete/updateDates,
+     which already assert internally before an identical `existing`
+     select. Ordering preserved exactly: NotFoundError (404, opaque
+     per SE-05) before LockError (403), so a non-owner still never
+     learns a trip is locked.
+
+DELIBERATELY NOT DONE: no predicate was bolted onto a join table with
+no user_id column (it would not compile — UserOwnedTable rejects it),
+and UserOwnedTable was not widened. Nor was a predicate added to the
+trip_places reads that ADL-53 classifies as assertion-guarded: adding
+eq(tripPlaces.userId, ...) would have been a real behaviour change on
+any row where trip_places.user_id and trips.user_id disagree, and
+"zero behaviour change" outranks tidiness.
+
+----------------------------------------------------------------
+3. VERIFICATION
+----------------------------------------------------------------
+Part F ran green BEFORE and AFTER every individual switch, unmodified,
+per the brief's sequencing (not batched). 70 tests in that file.
+
+Final:
+  npm run scope:check   Check 1 Zone A clean; Zone B 0 residuals;
+                        Check 2 = 0 mentions across 12 route files
+  npm run test:backend  52 files / 827 tests — identical to the
+                        pre-Stage-4 baseline captured on this branch
+  npm run test:frontend 54 files / 388 tests
+  npm run type:check:all clean
+  npm run check (biome) exit 0
+  status:check, tracker:check  clean
+
+ZERO existing test files modified (git status confirms).
+No route gained or lost auth middleware; no nosemgrep annotation added
+or changed; no scanner suppression added or widened.
+
+----------------------------------------------------------------
+4. THINGS THE NEXT AGENT SHOULD KNOW
+----------------------------------------------------------------
+- assertOwned STILL has no production caller. The brief expected Stage
+  4 to be its first; it is not, and I did not manufacture one. Every
+  assertion-guarded read in this stage already sits behind a STRONGER
+  gate that itself composes scopeToUser (assertWritable for the write
+  paths, a scoped findById/findByIdOrThrow for the read paths).
+  Forcing assertOwned in would have meant a redundant SELECT per
+  request to satisfy a checklist. It remains the right shape for a
+  read-gate on a trip whose owner is not otherwise looked up — that
+  site does not exist yet. Its correctness is not in doubt; only its
+  caller count.
+
+- itemRepository.update's read-back is now owner-scoped, a consequence
+  of making userId required. Invisible through the routes (items.ts
+  PATCH runs assertWritable + findRawByIdOrThrow first). It differs
+  only on a direct repository call by a non-owner: previously returned
+  the owner's untouched row, now returns null. The existing repository
+  test for that path does not assert the return value and stays green;
+  its COMMENT now describes the old behaviour, which I left alone
+  because the brief forbids touching existing test files. Worth a
+  one-line comment fix in some later pass.
+
+- PRE-EXISTING GAP, NOT FIXED (would have been a behaviour change, and
+  no relocation touches it): itemRepository.update calls
+  updateExtension() regardless of whether the scoped UPDATE matched
+  any row, and the extension tables (item_flights, item_hotels, ...)
+  carry no user_id of their own — they are assertion-guarded by the
+  caller. Unreachable via HTTP for the same reason as above. If
+  someone adds a route that calls itemRepository.update without a
+  prior ownership assertion, that becomes live. Flagged, not fixed.
+
+- Stage 5's guard flip: Check 2 is at zero and Check 1 Zone B is at
+  zero, so promoting BOTH to enforced should be a one-line change per
+  zone with no follow-on work. Note the script matches TEXT, not
+  syntax — once flipped, a comment quoting `getDb` or the predicate
+  form will red the build. That is by design; reword the comment.
+
+----------------------------------------------------------------
+5. DOCS UPDATED IN THIS PR (same-PR lifecycle, OP-09)
+----------------------------------------------------------------
+- ADL-53 §5.1: my four rows stamped RELOCATED (Stage 4), plus a
+  STATUS block recording that the table is now historical, not a
+  worklist. I ALSO stamped the three Stage 3 rows (map.ts, admin.ts,
+  places.ts:74/163) — Stage 3 relocated those sites but did not stamp
+  the inventory, and a table asserting live getDb sites that no longer
+  exist is exactly the stale-status failure the rule targets. Verified
+  with two probes that fail differently before stamping: scope:check's
+  enumeration, and reading each route for the referenceRepository call
+  that replaced the raw read.
+- OP-06 HC-05, HC-10, HC-11: mechanism notes added citing the
+  chokepoint. NO verdict changed — all three were PASS and remain
+  PASS; only the note about HOW they hold is updated.
+- src/frontend/hooks/useItems.ts: one comment's path reference
+  followed the moved file.
+
+No file was rewritten wholesale. Every doc edit was an Edit, never a
+Write. The only whole-file movement is the `git mv` of items-helper.ts,
+whose contents changed by a header rewrite, one parameter and one
+.where() — declared here per OP-28 for the avoidance of doubt.
