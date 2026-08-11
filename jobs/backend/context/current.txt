@@ -1,3 +1,45 @@
+BACKEND CONTEXT — 2026-08-10 (QUAL-49 entity-serializers thread, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: extracted per-entity serializers into NEW
+  src/backend/serializers/ (city.ts, place.ts, trip.ts, item.ts) and routed
+  every trip/place/city/item-emitting handler through them, on branch
+  refactor/qual49-entity-serializers (GitHub #504, PR pending). Byte-identical:
+  16 NEW characterization tests written FIRST + all 827 pre-existing backend
+  tests green (843 total), NO existing test file edited. type:check:all,
+  scope:check, tracker/status all green.
+  1. serializers/city.ts — serializeCity (base), serializeCityWithRegion
+     (+region_iso/region_name), serializeCityWithCountry (+country_name),
+     composed. Plus cityRowFromPlaceJoin() to adapt the `city*`-prefixed
+     place/trip join rows. The city→JSON mapping (BUG-80 surface) is now ONE
+     place; was hand-written at 6 sites.
+  2. serializers/place.ts — serializePlaceSummary (trips LIST),
+     serializePlaceListItem (places GET/POST), serializePlaceDetail (trips
+     GET/:id), serializePlaceRaw (places PATCH). FOUR genuinely-distinct place
+     shapes preserved exactly; caller picks the city variant.
+  3. serializers/trip.ts — serializeTrip envelope, shared by trips list + detail.
+  4. serializers/item.ts — flattenItem moved VERBATIM out of
+     repositories/items-helper.ts (renamed serializeItem, ItemRow exported);
+     items-helper now imports it. Every item response already flowed through it.
+  5. TWO DIVERGENCES surfaced by my probe and PRESERVED, not collapsed (flagged
+     to COO): (a) the two trips.ts place hand-maps are NOT the same shape — LIST
+     is a deliberate minimal "city pin" (id/city_id/city), DETAIL is full
+     (dates+activities+items, city carries country_name). Collapsing to one
+     identical output would bloat the list response — a behaviour change. I
+     removed the DUPLICATION (shared city serializer) while keeping both shapes.
+     (b) city shape has 3 variants across the API because queries join different
+     tables (cities POST/PATCH don't join regions → base; only trips getPlaces
+     joins countries → country_name). Both are candidate latent
+     persisted-but-dropped bugs but "fixing" them changes responses → OUT of
+     scope for a byte-identical refactor; flagged as follow-ups.
+  6. placeRepository.findByTrip still returns its serialized `.city` (a repo
+     unit test asserts .city.name) — kept the contract but it now builds that
+     city via the shared serializer internally rather than a hand-map.
+  OUT OF SCOPE, untouched: cities.ts carry-forward/city-items history
+  projections and map.ts shading (different projections, not the item/city
+  ENTITY shapes); companions/categories/activities private serializers (QUAL-45
+  owns their consolidation).
+
+=== PRIOR STATUS: QUAL-43 / ADL-53 Stage 2 thread ===
 BACKEND CONTEXT — 2026-08-10 (QUAL-43 / ADL-53 Stage 2 thread, latest)
 PROJECT: Travel Tracker
 CURRENT STATUS: extracted citiesRepository + cityIdentityService out of the
