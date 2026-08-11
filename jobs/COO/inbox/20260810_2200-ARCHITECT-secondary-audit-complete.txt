@@ -1,4 +1,4 @@
-Tracker: n/a (audit; COO triages) · PR: chore/design-reflection-secondary-audit (number in PR) ·
+Tracker: n/a (audit; COO triages) · PR: #499 ·
 BRD: n/a · Branch: chore/design-reflection-secondary-audit
 
 WHAT: Secondary audit of the 2026-08-08 design reflection delivered at
@@ -25,6 +25,6 @@ RANKED NEXT: 1 GE-19/BUG-85 ADL absorbing the R5b assessment (ATDD-first: yes) �
 3 file-backed-test-client SPIKE (premise UNVERIFIED, OP-33) then items atomicity + BUG-95
 (yes) · 4 serializer unification brief (yes).
 
-CI: [see PR checks — ci-wait run before filing]
+CI: PASS — all 18 checks green on PR #499 @ baaf71b (scripts/ci-wait.sh pr 499).
 OPEN ISSUES/BLOCKERS: none.
 UNBLOCKED: GE-19 ADL dispatch; R3 residual triage; debt #3 spike brief.
