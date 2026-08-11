@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (45)
+### P2 — Important (44)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -60,7 +60,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | done_pending_uat |
 | BUG-81 | Disambiguation picker rows hard to skim — raw display_name shows county + postcode noise | frontend | done_pending_uat |
 | BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
-| BUG-85 | Stuck geocode-pending cities are invisible and unactionable — no visibility into the retry queue or its cause, no user recovery (GE-19) | architect | done_pending_uat |
 | BUG-87 | Add-place picker does not narrow/rank candidates by the trip's assigned country/countries | architect | done_pending_uat |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
 | BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
@@ -75,7 +74,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (40)
+### P3 — Minor (41)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -109,6 +108,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-93 | Newly-added place's map marker doesn't appear until a refresh (render lag on add) | frontend | done_pending_uat |
 | BUG-94 | GE-20 bypass: the manual '+Add new' country dropdown in the picker isn't restricted to the trip's countries | frontend | ⬜ Pending |
 | QUAL-44 | Stale file:line cross-references in comments — remaining low-value ones + adopt cite-symbols-not-lines | unassigned | ⬜ Pending |
+| BUG-96 | Geocode collapsed-badge grammar: '1 need attention' should be '1 place needs attention' (verb agreement) | frontend | ⬜ Pending |
 | QUAL-48 | Spike — does a file-backed libSQL test client honour db.transaction() (unblocks items base+extension atomicity)? | backend | ⬜ Pending |
 | QUAL-49 | One serializer per entity, every handler routed through it (the persisted-but-dropped-from-response class) | backend | done_pending_uat |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
@@ -126,7 +126,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `█████████████░░░░░░░` 37/57 | 37 | 20 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `██████████████░░░░░░` 63/88 | 63 | 25 | 3 |
+| bug | `██████████████░░░░░░` 64/89 | 64 | 25 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
 | chore | `███████████░░░░░░░░░` 34/64 | 34 | 30 | 1 |
 
@@ -162,4 +162,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_185 done · 9 deferred · 5 closed · 86 open — 285 tracked items_
+_186 done · 9 deferred · 5 closed · 86 open — 286 tracked items_
