@@ -40,8 +40,8 @@ ACCEPTANCE CRITERIA:
 - New permanent E2E test (trips-crud.spec.ts) covers the real-browser click
   flow end to end — PASS
 
-CI: gh pr checks pending push — will confirm green via scripts/ci-wait.sh
-before considering this done; will follow up once pushed.
+CI: scripts/ci-wait.sh pr 530 — PASS, all 18 checks green
+(cc2af35f4bb8a846c5ef957ad7c66924146e5094).
 
 TESTS: frontend 408/408 (+5), backend 871/871 (untouched), full E2E
 53/53 (+1 new), type:check:all clean, biome exit 0 (5 pre-existing infos,
