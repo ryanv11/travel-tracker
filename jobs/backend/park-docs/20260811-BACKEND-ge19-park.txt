@@ -1,0 +1,157 @@
+BACKEND PARK DOCUMENT — GE-19 / BUG-85 backend (geocode status lifecycle)
+Date: 2026-08-11
+Branch: feat/ge19-backend  (off main @ 704e6bf)
+Tracker: BUG-85   BRD: GE-19 (v3.20)   Design: ADL-55 §3/§4/§5/§8/§R
+Class (OP-32): gap
+
+================================================================
+WHAT WAS BUILT
+================================================================
+The GE-19 backend — the largest step of the GE-19 rollout. The schema substrate
+(migration 0018, #511) and the QA red bar (#512) plus the re-point path fix (#513)
+were already merged; this brief makes the red bar GREEN by implementing ADL-55's
+state machine, cause persistence, the re-open path folds, and the userId-scoped
+queue endpoint.
+
+--- 1. nextGeocodeState — the pure state machine (ADL-55 D5) ---
+geocoding.service.ts gains an exported pure function
+  nextGeocodeState(row: GeocodeStateInput, verdict: GeocodeLifecycleVerdict)
+    -> { status, attempts, cause }
+covering every §3.2 cell. verdict ∈ {ok, no_match, ambiguous, unreachable,
+disabled}. No DB, no network — the whole lifecycle is a table test (criterion 11,
+new file services/__tests__/nextGeocodeState.test.ts, 13 cases incl. the cap
+boundary attempts=3→pending vs attempts=4→needs_attention).
+
+resolveCity is rewired to "produce verdict → nextGeocodeState → apply":
+  - a new applyGeocodeState(cityId, next) writes {geocodeStatus, geocodeAttempts,
+    geocodeCause, geocodeAttemptedAt, updatedAt} in one UPDATE for every non-ok
+    verdict.
+  - the 'ok' path stays in commitResolvedOrMerge (coordinates + OSM ref + merge
+    fallback), which now ALSO sets geocodeCause: null (a resolved row carries no
+    cause).
+  - the initial SELECT now also reads geocodeAttempts + geocodeCause (needed by
+    the state machine).
+  - the private incrementAttempts() helper is REMOVED — its three call sites
+    (carried-OSM error, name-search error, ambiguous) now all route through
+    nextGeocodeState. `sql` dropped from the drizzle import (was only used there).
+
+--- 2. D1a / OQ-3 — ambiguous is terminal on the first verdict ---
+An ambiguous verdict → needs_attention/cause='ambiguous', attempts UNCHANGED (no
+retry spent). Pre-GE-19 (ADL-46 D10/R4) this incrementAttempts'd and stayed
+pending. Deterministic answer ⇒ retrying was waste; re-askability is preserved by
+the re-open path (F1) resetting attempts when a region is later supplied.
+
+--- 3. F2 — both recoverable-error sites route the cap transition ---
+Both the carried-OSM lookup error (~:407) and the name-search error (~:447) now
+apply nextGeocodeState(row, 'unreachable'): stay pending + attempts+1 below the
+cap; needs_attention/cause='unreachable' AT the cap (attempts+1 >= 5). A row never
+sits pending-at-cap. processQueue's WHERE attempts<CAP predicate is kept as
+defense-in-depth.
+
+--- 4. F3 — needs_attention early-return ---
+resolveCity early-returns false on a needs_attention row (alongside resolved/
+unresolvable) so a re-processed row is not re-resolved unbidden.
+
+--- 5. F1 — the re-open path (the "third edit") ---
+cityIdentityService.findOrUpgradeCity: when the adopted region-less row is
+needs_attention, the upgrade UPDATE additionally sets geocode_status='pending',
+geocode_cause=null, so the existing re-fire guard (status === 'pending') fires and
+resolution re-runs against the now-region-constrained lookup. Without this the row
+would stay needs_attention, the guard would be false, and it would be stranded —
+the BUG-85 stuck class reintroduced on the recovery path.
+citiesRepository.findRegionlessUpgradeCandidate whitelist:
+  ['pending','unresolvable'] -> ['pending','unresolvable','needs_attention'].
+The 'unresolvable' asymmetry is PRESERVED untouched (ADL-55 §2.5 / §3.3): a
+no-match cannot become a match by adding a region, so an adopted unresolvable row
+is NOT status-reset and NOT re-fired — only its region + attempt budget move.
+
+--- 6. F4 — stale-comment refresh (same-PR doc-lifecycle) ---
+findByIdentityKey's doc comment (cities.ts) claimed "the unique index is
+unconditional"; migration 0017 replaced that with two partials. Reworded to state
+the correct reason the lookup is status/creator-blind (reuse-not-duplicate, since
+a terminal row leaves the pending partial index and no longer blocks a duplicate
+insert — the exact §7.6 duplicate-safety). Swept the sibling identical claims in
+cityIdentityService.ts's step-1/step-2 header comment.
+
+--- 7. D3 — the userId-scoped queue endpoint ---
+citiesRepository.findUserGeocodeQueue(userId): selectDistinct over cities INNER
+JOIN trip_places INNER JOIN trips LEFT JOIN regions, WHERE
+  and(scopeToUser(trips, userId), ne(cities.geocodeStatus, 'resolved'))
+ordered by name. Returns id, name, country_code, region_id, region_name,
+region_iso, geocode_status, geocode_cause (snake_case). Mirrors
+findCarryForwardItems' user-owned-join shape.
+New route src/backend/routes/geocode-queue.ts: geocodeQueueRouter, GET '/' →
+findUserGeocodeQueue(req.user!.id). Mounted at /api/geocode-queue in BOTH
+server.ts and server-test-app.ts. nosemgrep requireAuth-global annotation
+(existing convention, OP-30-sanctioned — not a new suppression).
+
+================================================================
+SECURITY CHECKLIST (OP-06) — new route GET /api/geocode-queue
+================================================================
+1. Auth: requireAuth — applied globally via app.use('/api/', requireAuth) in
+   server.ts / server-test-app.ts (the same gate every /api route mounts under).
+   The QA criterion-4 test proves 401 when auth disabled. No owner gate is owed —
+   it reads a user's OWN references, not an owner-only surface.
+2. Scoping: the queue query composes scopeToUser(trips, userId) — the QUAL-43
+   chokepoint. Cross-user isolation is STRUCTURAL: a city referenced solely by
+   another user's trips has no qualifying trip_places row and cannot appear. No
+   hand-rolled eq(...userId...) anywhere (scope:check Check 1 = 0 residuals;
+   Check 2 = 0 getDb in routes — the route delegates to the repo).
+3. New user-data column FK notNull: N/A — no schema change, no new table, no new
+   user-referencing column (cities is global reference data; 0018 already landed
+   the two additive columns). Criterion 4's cross-tenant test runs against real
+   libSQL with two seeded users (QUAL-22 mock-fidelity).
+
+================================================================
+RED BAR — un-skipped, GREEN, no assertion weakened
+================================================================
+7 `describe.skip` blocks flipped to `describe` (only that token changed):
+  geocoding.ge19-lifecycle.test.ts       §7.1 (crit 1), §7.2 (crit 2)
+  cityIdentity.ge19-reopen-reuse.test.ts §7.7 (crit 7)
+  geocode-queue.ge19.test.ts             §7.4 (crit 4), §7.5 (crit 5),
+                                         §7.8 (crit 8), §7.10 (crit 10)
+The GREEN-on-main regression guards in those files (§7.3, §7.6, §3.3) were already
+un-skipped and stayed passing. Verified via git diff that no assertion line in any
+of the three QA files changed — only the describe.skip→describe token.
+
+================================================================
+DELIBERATE / DECLARED CHANGES (OP-28)
+================================================================
+- Two pre-existing tests in geocoding.service.test.ts (the ADL-46 F1/F2 ruling
+  thread's own service test — NOT a QA GE-19 file, NOT the frozen ATDD suite)
+  asserted the ADL-46 R4 ambiguous behaviour (stays 'pending', attempts+1). ADL-55
+  D1a/OQ-3 explicitly supersedes that. Updated both to needs_attention/ambiguous/
+  attempts-unchanged with a comment naming the supersession. This is the correct
+  resolution of a settled-design conflict, not a weakened assertion — the QA red
+  bar (criterion 1) asserts the SAME new behaviour and passed un-modified.
+- No full-file source rewrites. All edits targeted.
+
+================================================================
+ADL-vs-QA CONTRACT RECONCILIATION
+================================================================
+None needed. The endpoint envelope the QA test asserts (JSON array of city
+objects; id + snake_case geocode_status/geocode_cause) matches ADL-55 §5.1. The
+re-point path the criterion-8 test uses (PATCH /api/trips/:tripId/places/:placeId)
+was already corrected on main by #513, consistent with ADL-55 D2's 2026-08-11
+correction.
+
+================================================================
+VERIFICATION
+================================================================
+- test:backend: 57 files / 871 tests green (includes the newly-live red-bar tests
+  + the new nextGeocodeState table test; authoritative count from the full run).
+- type:check:all: clean.  npm run check (biome): clean.
+- scope:check: PASS (all 3 checks enforced).  status:check / tracker:check: clean.
+- test:frontend: 388 green (untouched, sanity).
+- CI: see completion report / PR.
+
+================================================================
+NOT DONE — downstream (out of backend scope)
+================================================================
+- FRONTEND brief: retire the NR-06 localStorage retry queue (OQ-4), poll
+  /api/geocode-queue, render the panel grouped by in-progress vs needs-attention,
+  the (status,cause)→copy map (criterion 9), wire recovery actions. Not built here.
+- No BRD bump (GE-19 already v3.20). The GE-19 inline "status-lifecycle model is an
+  Architect ADL decision" is answered by ADL-55 — COO to stamp on merge if desired.
+
+Bugs Discovered: none.
