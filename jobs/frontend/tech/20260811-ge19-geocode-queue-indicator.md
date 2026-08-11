@@ -55,11 +55,22 @@ Buckets: **resolving** = `pending`; **needs-attention** = `needs_attention` ∪
 `unresolvable`. The badge's resolving number is `resolving.length` alone — a
 needs-attention row is never counted in it (criterion 10).
 
+> **UPDATE (2026-08-11, BUG-96):** the badge/aria-label copy below was
+> corrected for verb agreement — `⚠ N need attention` was grammatically wrong
+> at n=1. It now reads `⚠ 1 place needs attention` / `⚠ N places need
+> attention`, and the resolving chip mirrors the same "place(s)" noun for a
+> parallel construction: `☁ 1 place resolving` / `☁ N places resolving`. Both
+> phrases are built by two small shared helpers (`needsAttentionPhrase`,
+> `resolvingPhrase`) in `GeocodeQueueIndicator.tsx` so the visible badge and
+> its aria-label cannot say two different things. See branch
+> `fix/bug96-geocode-badge-grammar`. The visual treatment itself (amber vs
+> muted chip) — the part actually flagged for PO UAT below — is unaffected.
+
 ## Visual treatment — NOT UX-spec'd (flagged for PO UAT)
 
 No mockup specified the needs-attention state. Current default:
-- Badge: amber warning chip `⚠ N need attention` (border-amber-500/bg-amber-50)
-  next to a muted `☁ M resolving` chip.
+- Badge: amber warning chip `⚠ N places need attention` (border-amber-500/
+  bg-amber-50) next to a muted `☁ M places resolving` chip (BUG-96 copy).
 - Panel: needs-attention rows are amber cards with a ⚠ label + per-place
   `Change city` / `Remove` buttons; resolving rows are muted with a ⟳ and no
   actions. Locked-trip references render `locked — unlock to fix` (read-only,

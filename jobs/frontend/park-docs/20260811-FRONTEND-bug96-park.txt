@@ -1,0 +1,101 @@
+FRONTEND PARK DOCUMENT — BUG-96 geocode badge grammar
+Date: 2026-08-11
+Branch: fix/bug96-geocode-badge-grammar (off main f39d406)
+Tracker: BUG-96 · BRD: GE-19 · Found during BUG-85/GE-19 UAT (2026-08-11)
+
+================================================================================
+SUMMARY
+================================================================================
+Tiny, well-scoped copy fix from PO UAT. GeocodeQueueIndicator.tsx's collapsed
+needs-attention badge and its aria-label rendered `{n} need attention` at
+every count — grammatically wrong at n=1 ("1 need" should be "1 needs"). Fixed
+per the PO's exact wording: "1 place needs attention" / "N places need
+attention". No logic, data, or styling change.
+
+================================================================================
+FILES
+================================================================================
+MODIFIED
+- src/frontend/components/GeocodeQueue/GeocodeQueueIndicator.tsx
+    Two new small pure helpers, needsAttentionPhrase(n) and resolvingPhrase(n),
+    added just above the PlaceRef interface. Both the visible badge spans and
+    the button's aria-label now call these instead of interpolating the raw
+    count + a fixed string, so the badge copy and its aria-label cannot say two
+    different things.
+- src/frontend/components/GeocodeQueue/__tests__/GeocodeQueueIndicator.test.tsx
+    New describe block "BUG-96 — needs-attention and resolving copy pluralizes
+    correctly" with two tests: count=1 (asserts "1 place needs attention",
+    "1 place resolving", and the full aria-label string) and count=2+ (2 needs-
+    attention / 3 resolving, same three assertions pluralized). The
+    pre-existing criterion-10 test's literal-string assertions ('4 need
+    attention' / '2 resolving') were updated to the new copy — same behaviour
+    under test, only the expected strings changed; nothing weakened.
+- jobs/frontend/tech/20260811-ge19-geocode-queue-indicator.md
+    Amended (document lifecycle rule) — the badge-copy code examples now show
+    the corrected strings, with an UPDATE note pointing at this fix and this
+    branch. The UX-UAT flag (amber vs muted chip styling) is untouched — this
+    fix only changed the words inside the chips, not their treatment.
+
+================================================================================
+THE FIX, EXACTLY
+================================================================================
+needsAttentionPhrase(n) = `${n} place${n===1?'':'s'} need${n===1?'s':''} attention`
+  n=1 → "1 place needs attention"
+  n=2 → "2 places need attention"
+
+resolvingPhrase(n) = `${n} place${n===1?'':'s'} resolving`
+  n=1 → "1 place resolving"
+  n=2 → "2 places resolving"
+
+aria-label = `Geocoding: ${needsAttentionPhrase(n1)}, ${resolvingPhrase(n2)}. Open queue.`
+  e.g. "Geocoding: 1 place needs attention, 1 place resolving. Open queue."
+
+================================================================================
+RESOLVING-CHIP CONSISTENCY CALL (brief left this to my judgment)
+================================================================================
+The brief only mandated the needs-attention fix; the resolving chip ("N
+resolving") was already grammatically correct at every count on its own — no
+verb-agreement bug there. I chose to ALSO mirror the "place(s)" noun onto it
+("N places resolving") rather than leave it bare, because:
+- Once the needs-attention chip became a full noun phrase ("N places need
+  attention"), the two chips sitting side-by-side in the same badge read as
+  two different sentence shapes — one names what's counted, the other doesn't.
+- The change is free: "1 place resolving" reads exactly as naturally as
+  "1 resolving", and "N places resolving" reads better than "N resolving" next
+  to the now-longer needs-attention phrase.
+- It costs zero extra surface area — same two-line helper pattern, one more
+  call site, no new component or styling.
+If the PO prefers the shorter original "N resolving" (e.g. thinks the pairing
+reads fine as-is or the extra word adds clutter), it's a one-line revert of the
+resolvingPhrase call sites back to the raw count — flagging so this is an easy
+undo, not a load-bearing design decision.
+
+================================================================================
+CHECKS
+================================================================================
+GeocodeQueueIndicator.test.tsx: 11/11 (9 pre-existing + 2 new BUG-96 tests).
+npm run test:frontend: 403/403 (+2 from the 401 baseline noted in the prior
+GE-19 park doc). npm run test:backend: 871/871 (untouched — no backend file
+in this diff). npm run type:check / type:check:all: clean. npm run check
+(biome): clean (5 pre-existing infos in a backend test file this thread never
+touched — same count every recent thread has noted). npm run status:check /
+tracker:check / scope:check: all PASS (no tracker.json edit made this thread
+— BUG-96 status flip is COO's job at merge, per this project's established
+pattern). npm audit: not re-run — no package.json/package-lock.json change in
+this diff (copy-only fix).
+
+================================================================================
+NOT DONE / OUT OF SCOPE
+================================================================================
+- No restyling of the amber/muted treatment — copy only, per the brief's
+  explicit constraint.
+- No change to the panel's per-row labels (geocodeQueueLabel §4 map) — the PO
+  confirmed those read fine during UAT; BUG-96 was scoped to the collapsed
+  badge + its aria-label only.
+
+================================================================================
+NEXT STEPS (when resumed)
+================================================================================
+COO: review PR (see completion report for #), merge via /coo-merge-and-close
+when CI is green, flip BUG-96 status to done. No other frontend follow-up
+implied by this fix.

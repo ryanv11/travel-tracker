@@ -1,0 +1,43 @@
+FRONTEND COMPLETION REPORT
+Tracker: BUG-96 · GitHub PR #520 · BRD: GE-19 · Branch: fix/bug96-geocode-badge-grammar
+
+WHAT WAS BUILT
+Fixed verb agreement on the collapsed geocode needs-attention badge and its
+aria-label (GeocodeQueueIndicator.tsx:114/:124), plus mirrored the "place(s)"
+noun onto the resolving chip for consistency. Copy-only, no logic/data/styling
+change.
+
+FINAL STRINGS
+- Needs-attention: n=1 → "1 place needs attention" · n=2+ → "N places need
+  attention" (exact PO wording).
+- Resolving (consistency call, mine): n=1 → "1 place resolving" · n=2+ →
+  "N places resolving". Reasoning: "N resolving" alone was already
+  grammatical, but next to the now-longer needs-attention phrase it read as a
+  mismatched sentence shape — mirroring the noun keeps both chips reading as
+  the same construction. One-line revert if the PO prefers the shorter
+  original (see park doc).
+- aria-label combines both phrases, e.g. "Geocoding: 1 place needs attention,
+  1 place resolving. Open queue."
+
+ACCEPTANCE CRITERIA
+- Badge + aria-label pluralize correctly at n=1 and n=2+: PASS — new
+  component test block asserts exact strings for both.
+- Frontend type-check + tests green: PASS.
+
+TEST ADDED
+GeocodeQueueIndicator.test.tsx — new "BUG-96" describe block, 2 tests (count=1,
+count=2+), each asserting the visible badge text, the resolving chip text, and
+the full aria-label string. Pre-existing criterion-10 test's literal-string
+assertions updated to match the new copy (same behaviour, no assertion
+weakened).
+
+CI: gh pr checks 520 — 18/18 green (scripts/ci-wait.sh pr 520 → PASS).
+Re-confirmed true head: local HEAD, PR headRefOid, and the SHA CI tested all
+match 70a5a59 (QUAL-46 spot-check).
+
+OPEN ISSUES OR BLOCKERS: none.
+
+WHAT IS NOW UNBLOCKED
+Nothing downstream depends on this — cosmetic follow-up from BUG-85/GE-19 UAT,
+independent of the still-open UAT items in that thread's tracker note (test-
+geocoder footer observation). Ready for review/merge.

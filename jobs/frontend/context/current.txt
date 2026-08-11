@@ -1324,3 +1324,29 @@ build step — the feature is now ready for PO UAT. What shipped:
   (COO instruction). Full detail:
   jobs/frontend/park-docs/20260811-FRONTEND-ge19-park.txt and
   jobs/frontend/tech/20260811-ge19-geocode-queue-indicator.md.
+
+UPDATE 2026-08-11 — BUG-96 grammar fix on the GE-19 indicator (branch
+fix/bug96-geocode-badge-grammar off main f39d406). PO found during BUG-85/
+GE-19 UAT: the collapsed needs-attention badge and its aria-label rendered
+`{n} need attention` at every count, wrong at n=1 ("1 need attention" —
+only 2+ takes "need"). PO-specified wording, applied verbatim: "1 place
+needs attention" (n=1) / "N places need attention" (n>=2), same fix on the
+aria-label at GeocodeQueueIndicator.tsx:114 (previously undiscussed in the
+tracker note but the identical string, fixed alongside the badge per the
+brief). CONSISTENCY CALL (brief left to this thread's judgment): also
+mirrored the "place(s)" noun onto the resolving chip — "1 place resolving"
+/ "N places resolving" — rather than leaving it as bare "N resolving".
+"1 resolving" was already grammatical alone, but once the needs-attention
+chip became a full noun phrase, the two badges sitting side by side read as
+mismatched sentence shapes; mirroring the noun keeps them parallel. Two
+small pure helpers (needsAttentionPhrase, resolvingPhrase) share the
+pluralization ternary between the visible badge and the aria-label so the
+two copies of each phrase cannot drift. New BUG-96 test block in
+GeocodeQueueIndicator.test.tsx asserts the exact wording (badge text +
+aria-label) at count 1 and count 2+ for both chips; the pre-existing
+criterion-10 test's literal-string assertions updated for the new copy
+(behaviour/coverage unchanged, only the expected strings). Full frontend
+suite 403/403 green (+2 from baseline), backend 871/871 untouched,
+type:check:all clean, biome ci exit 0 (same 5 pre-existing infos noted in
+every recent thread), status/tracker/scope:check all PASS. Copy-only —
+no logic, data, or styling change. See completion report for PR number.
