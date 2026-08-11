@@ -702,3 +702,73 @@ mutations in useAdmin.ts. BUG-51 stays open until that lands.
      that is no longer there.
    - Backend suite: 51 files / 808 tests, identical to baseline. Zero test files
      modified, zero behaviour change. Biome + type:check:all clean.
+
+================================================================
+2026-08-10 — QUAL-43 Stage 4: user-owned read relocation (ADL-53 §6)
+Branch: feat/qual43-stage4-user-owned-relocation
+================================================================
+The last substantive stage. Every remaining user-owned raw read left
+routes/**, each by its §5.1 mechanism. Stage 5 is now a pure guard flip
+with no incidental work owed.
+
+RESULT: scope:check Check 2 = 0 getDb mentions across routes/** (from 11);
+Check 1 Zone A clean, Zone B 0 residuals. 827/827 backend tests, identical
+to the pre-Stage-4 baseline. ZERO test files modified. Zero behaviour change.
+
+PREDICATE-COMPOSED (target carries user_id):
+  - fetchItemsWithExtensions: whole module moved routes/ -> repositories/
+    (git mv, so the diff reads as a rename) and userId made a REQUIRED first
+    parameter. The ownership term is composed INSIDE via ownedAnd, so callers
+    no longer thread it through `conditions`; omitting it is a compile error.
+    This also removed a layering inversion — itemRepository was importing a
+    query out of the route layer.
+  - trips.ts trip-detail items read -> itemRepository.findByTrip(userId,
+    tripId). The hand-built condition was already term-for-term what
+    findByTrip composes, with the same (absent) sort/filter options — so this
+    is a call-site swap, not a re-derivation.
+  - places.ts carry-forward SEC-02 source-item check ->
+    itemRepository.findOwnedIds(userId, ids).
+
+ASSERTION-GUARDED (no user_id column on the target — inherits isolation,
+composes nothing; the prior assertion IS the isolation and stayed put):
+  - trips.ts trip_place_activities_map join ->
+    placeRepository.findActivitiesForPlaces, merged with the duplicate copy
+    already inside placeRepository.findByTrip. One join, two consumers.
+  - places.ts activity tag/untag -> placeRepository.isActivityTagged /
+    addActivityTag / removeActivityTag. The route keeps findById(userId,
+    placeId) — it is the ownership assertion AND the handler needs its result
+    for the place's tripId, so moving it would have cost a second query.
+  - places.ts carry-forward trip_places read ->
+    placeRepository.findInWritableTrip, which now carries the assertWritable
+    call that used to sit beside it in the handler. Mirrors delete/updateDates,
+    which already assert internally. Order preserved: 404 before 403.
+
+FINDINGS / JUDGEMENT CALLS worth carrying forward:
+  - assertOwned STILL has no production caller. The COO brief expected Stage 4
+    to be its first. It isn't, and forcing one would have added a redundant
+    SELECT: every assertion-guarded read here already sits behind a stronger
+    gate (assertWritable for writes, a scoped findById/findByIdOrThrow for
+    reads), each of which already composes scopeToUser. assertOwned is the
+    right shape for a read-gate on a trip whose owner is not otherwise looked
+    up — no such site exists in this stage.
+  - Making userId required also scoped itemRepository.update's read-BACK.
+    Through the routes this is invisible (items.ts PATCH runs assertWritable +
+    findRawByIdOrThrow first, so a mismatched user 404s long before). It
+    differs only on a direct repository call by a non-owner, which now returns
+    null instead of the owner's untouched row. Strictly safer; documented at
+    the call site.
+  - PRE-EXISTING, NOT FIXED (out of scope, would be a behaviour change):
+    itemRepository.update calls updateExtension() before/independently of any
+    ownership outcome, and the extension tables carry no user_id. Unreachable
+    via HTTP for the same reason as above. Flagged for whoever owns the next
+    items pass.
+  - The three ADL-18 header comments (items/places/trips) were reworded, not
+    deleted — they contained the literal string the guard counts. They are now
+    also TRUE. My own new comment in trips.ts tripped Check 1 by quoting the
+    predicate; reworded per OP-30 rather than touching the scanner.
+  - Same-PR doc lifecycle: ADL-53 §5.1 rows stamped RELOCATED, and OP-06
+    HC-05/HC-10/HC-11 updated to cite the chokepoint (verdicts unchanged — all
+    stay PASS; only the mechanism note changed). The Stage 3 rows in §5.1 were
+    also stamped: Stage 3 relocated those sites but never stamped the
+    inventory, and leaving the table asserting live getDb sites that no longer
+    exist is the stale-status failure the lifecycle rule exists to stop.
