@@ -2243,3 +2243,33 @@ Narrows how the exit-check reads, NOT the design → does NOT trigger a re-revie
 HANDOFF TO COO: design SHIPS. No third full review (these were the reviewer's own fixes; no
 fold exceeded spec). Ready for COO to dispatch the build per §11 (QA-first, OP-35): brief #1 QA
 matrix carries the F4 shapes + the UNVERIFIED real-libSQL/two-user requirements.
+
+================================================================================
+2026-08-10 (late) — SECONDARY AUDIT of the 2026-08-08 design reflection (fresh eyes)
+Branch: chore/design-reflection-secondary-audit · deliverable:
+jobs/architect/tech/20260810-design-reflection-secondary-audit.md
+================================================================================
+Assessment-only brief (no code, no rule changes). HEADLINE: the COO's premise that "R3 was
+never tracked / no trace anywhere" is OVERTURNED — R3 substantially SHIPPED 2026-08-09 (issue
+#474, PRs #475/#476: CLAUDE.md 507->390, pre-dispatch rules homed in /coo-dispatch,
+atdd-first-guard removed; session-close d2a9833 says "R2/R3/R5a shipped"). Two of the COO's
+three stated probe targets contain direct 'R3' hits (SKILL.md §"Canonical home (R3)"; tracker
+OP-35/OP-39 notes) — the probes were not run as described. TRUE narrowly: no tracker ENTRY
+exists (R3 is the only reflection rec without one; issue #474 has no tracker cross-ref).
+
+VERDICTS: (a) R3 = bounded residual only (tracker entry + line-budget-as-canary-check + one
+prose demotion; drop the OP-ID merges as overtaken). (b) R5b = DIMINISHED — migration 0017
+(2026-08-06, pre-dates the reflection) already made OSM-ref the primary identity; name path is
+already fallback-only; fold the residual decision into the GE-19 ADL. (c) BUG-85/GE-19 = fully
+real, unchanged, now the TOP item (3 probes: CHECK constraint, queue predicate :536, client
+removal rules). (d) Debt #3 = real but narrower: db.transaction ALREADY in production
+(items.service.ts:116 since PR #64, survives :memory: suites by accidental shape — re-proved
+the :memory: breakage live today); db.batch IS atomic (probed rollback); residual = items
+base+extension pair (BUG-95). File-backed-client premise UNVERIFIED -> spike first (OP-33).
+(e) Debt #5 = untouched, still real (trips.ts :85/:244 dual hand-map), cheaper post-R1.
+
+RANKED: 1 GE-19 ADL (absorbs R5b assessment; ATDD-first yes) · 2 R3 residual (bookkeeping +
+canary Check F) · 3 debt-#3 spike then items atomicity + BUG-95 (yes) · 4 serializer brief
+(yes). NEW findings: reflection's own §1 facts stale at authoring; append-only records never
+re-summarized (tracker-note compaction candidate); CLAUDE.md regrew 390->408 in one day;
+geocoding.service.ts (554 LOC) now the largest backend file.
