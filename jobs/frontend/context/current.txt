@@ -1278,3 +1278,49 @@ noted in the BUG-75 park doc). Not built: the copy-decision question in
 the brief was pre-answered (reuse BUG-71/73 text verbatim) so nothing was
 invented there. Full detail:
 jobs/frontend/park-docs/20260807-FRONTEND-bug81-bug74-park.txt.
+
+UPDATE 2026-08-11 — GE-19 / BUG-85 frontend: interactive geocode queue +
+recovery (branch feat/ge19-frontend off main 33134eb, which includes the
+merged backend PR #514 GET /api/geocode-queue). This is the FINAL GE-19
+build step — the feature is now ready for PO UAT. What shipped:
+- New src/frontend/components/GeocodeQueue/GeocodeQueueIndicator.tsx — the
+  interactive indicator that replaced the old inline "☁ Geocoding pending
+  (n)" button in App.tsx. Badge shows TWO structurally-separate counts, a
+  distinct amber "⚠ N need attention" segment and a muted "☁ M resolving"
+  segment (criterion 10 — needs-attention is never folded into the
+  resolving number). Clicking opens a panel (dropdown + click-away
+  backdrop) that lists each queued city with name, country/region and the
+  (status,cause) plain-language label (criterion 9, ADL-55 §4).
+- Source of truth is now a POLL of GET /api/geocode-queue via new
+  src/frontend/hooks/useGeocodeQueue.ts (refetchInterval 30s + focus +
+  mutation invalidation). RETIRED the NR-06 localStorage retry queue as the
+  badge's source of truth (OQ-4): DELETED services/geocodeRetryQueue.ts,
+  hooks/useGeocodeRetryQueue.ts and both their test files; removed the
+  geocodeRetryQueue.add() enqueue in AddPlaceFlow.tsx (adding a place now
+  enrols the city server-side). Two probes (grep for the symbols +
+  reading/grepping every localStorage geocode usage) confirmed nothing else
+  read the 'geocode_retry_queue' key. processQueue (server re-resolution)
+  is untouched — only where the badge READS state changed.
+- Recovery REUSES existing surfaces (no new UI): re-point via ChangeCityModal
+  (PATCH /api/trips/:tripId/places/:placeId {city_id}); remove = delete the
+  referencing place via useRemovePlace (OQ-1, no soft-dismiss). The queue
+  endpoint returns cities not places, so the city→place join derives from
+  useTrips (GET /api/trips, whose places carry city_id) — not a second
+  source of truth (queue owns "which cities are stuck", trips own "which
+  places reference them"; every queue city has ≥1 ref by construction).
+  Places in LOCKED trips render read-only ("locked — unlock to fix").
+- usePlaces.ts: useAddPlace/useRemovePlace/useChangeCity now also invalidate
+  ['geocode-queue'] so the panel refreshes instantly after a recovery.
+- Pure helpers src/frontend/utils/geocodeQueueLabels.ts (geocodeQueueLabel
+  §4 map + bucketGeocodeQueue split) — the criteria-9/10 unit under test.
+- Types: GeocodeStatus += 'needs_attention'; new GeocodeCause + GeocodeQueueEntry.
+- Tests: geocodeQueueLabels.test.ts (all 6+2 (status,cause) combos, bucketing)
+  + GeocodeQueueIndicator.test.tsx (badges, sections, labels, recovery smoke,
+  locked-trip read-only, empty). App.test.tsx mock swapped to stub the new
+  indicator. Full frontend suite 401/401 green, backend 871/871 untouched,
+  type:check:all clean, biome ci exit 0 (same 5 pre-existing infos),
+  scope:check PASS. FLAGGED FOR PO UAT: the exact needs-attention visual
+  treatment (amber warning) is a sensible default, not a UX-spec'd mockup
+  (COO instruction). Full detail:
+  jobs/frontend/park-docs/20260811-FRONTEND-ge19-park.txt and
+  jobs/frontend/tech/20260811-ge19-geocode-queue-indicator.md.

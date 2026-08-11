@@ -1,0 +1,56 @@
+TO: COO
+FROM: Frontend
+DATE: 2026-08-11
+RE: GE-19 / BUG-85 — frontend interactive geocode queue + recovery — COMPLETE (awaiting CI + UAT)
+
+HEADER
+- Tracker: BUG-85 · BRD: GE-19 (v3.20) · Design: ADL-55 · Branch: feat/ge19-frontend
+- PR: (opening after this report) — title
+  "feat(GE-19): frontend — interactive geocode queue, needs-attention state, recovery (ADL-55)"
+- This CLOSES the GE-19 build. Feature is ready for the PO's UAT.
+
+WHAT WAS BUILT
+The geocode indicator is now interactive + user-scoped: badge splits into a distinct
+needs-attention count and a resolving count; clicking opens a panel listing each queued
+city (name, country/region, plain-language cause) with per-city recovery. Source of truth
+is a poll of GET /api/geocode-queue; the NR-06 localStorage retry queue is retired as the
+badge's data source.
+
+ACCEPTANCE CRITERIA
+- (1) Interactive indicator + panel (name/country/cause) ............ PASS
+- (2) needs_attention distinct from resolving, not in that count .... PASS (criterion 10)
+- (3) Five §4 cause labels for every (status,cause) combination ..... PASS (criterion 9)
+- (4) Recovery wired: re-point (ChangeCityModal) + remove (place) ... PASS (built; E2E/UAT verifies end-to-end)
+- (5) Source of truth = poll of GET /api/geocode-queue; NR-06 retired  PASS
+- (6) Component tests for criteria 9 + 10; type-check + tests green .. PASS
+
+CI: pending — will run scripts/ci-wait.sh pr <N> (includes E2E) and confirm green before
+    this is truly done; PR number added to the tracker note on open.
+Local pre-push: biome exit 0, type:check:all clean, backend 871/871, frontend 401/401,
+    status/tracker/scope all PASS.
+
+DECISIONS / THINGS TO CONFIRM
+- NEEDS-ATTENTION VISUAL TREATMENT — FLAGGED FOR PO UAT per your instruction. No UX mockup
+  specified it. Default chosen: amber warning chip "⚠ N need attention" vs muted "☁ M
+  resolving"; amber panel cards for stuck cities. Sensible, not final — PO confirms or redirects.
+- CONTRACT SHAPE (honest fix, no backend change): the queue endpoint returns CITIES; re-point/
+  remove are place ops. I derived the city→place join from useTrips (GET /api/trips, places carry
+  city_id) rather than asking for a place id on the queue shape. Not a second source of truth —
+  every queue city has ≥1 referencing place by construction (same userId-scoped trip_places→trips).
+  No contract mismatch found; the API reference v1.9 matched the live endpoint.
+- localStorage retirement proven safe by TWO probes (symbol grep + every-localStorage-geocode-usage
+  grep): only App.tsx + AddPlaceFlow read it; deleted the service/hook + both tests. processQueue
+  (server re-resolution) untouched.
+- BRIEF-VS-REALITY (minor): there was no standalone "pending-indicator component" to extend — the
+  badge was inline in App.tsx. I extracted + extended it into a real component (not a parallel badge).
+- DOC-LIFECYCLE: ADL-55 §10 asks the *implementing* PR to stamp GE-19's inline "exact status-lifecycle
+  model is an Architect ADL decision" as resolved (→ ADL-55). That is a BRD (shared-record) edit
+  outside this frontend brief — please confirm backend PR #514 did it, or COO handles it.
+
+OPEN ISSUES / BLOCKERS: none blocking. npm audit: 6 MODERATE pre-existing (no packages added by
+    this thread) — reporting per framework std 20; your call on any action.
+
+NOW UNBLOCKED: PO UAT of GE-19 end-to-end (indicator → panel → re-point/remove → city leaves queue).
+
+Detail: jobs/frontend/park-docs/20260811-FRONTEND-ge19-park.txt ·
+        jobs/frontend/tech/20260811-ge19-geocode-queue-indicator.md
