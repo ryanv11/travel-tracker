@@ -1,0 +1,88 @@
+COO SESSION PARK — 2026-08-10/11 ("QUAL-43 COMPLETE + DESIGN-REFLECTION TAIL CLEARED + GE-19 SHIPPED END-TO-END")
+~29 PRs merged (#456, #486–#516) · main green after every one · fully autonomous back half (PO delegated)
+================================================================================
+
+## READ THIS FIRST
+
+1. **AWAITING PO — the whole board is now UAT.** 18 items `done_pending_uat`. The UAT log
+   (`jobs/PO/uat-log.md`) has a **START HERE block** compiled this session: 13 testable items grouped
+   (Bundle-B retests, city-picker cluster, 3 new incl. **GE-19 item 14**), plus 3 items pulled off the
+   PO's queue as not-app-testable (DEP-05/QUAL-20/QUAL-25 — COO to flip on its own verification).
+2. **GE-19 (BUG-85) is the headline new feature** and needs a real staging UAT — the PO hit it
+   personally. Its needs-attention **visual treatment (amber ⚠ chip) is a DEFAULT flagged for the PO**;
+   no UX mockup speced it. UAT item 14.
+3. **Two follow-ons deliberately NOT started, awaiting a PO steer** (both are the audit's lower ranks):
+   - **R3 residual** (design-reflection): the governance prune already SHIPPED 2026-08-09 (#474-#476);
+     what remains is bookkeeping — a tracker entry recording it + a warn-only CLAUDE.md soft-budget
+     canary check. COO error this session, corrected: I claimed "R3 was never tracked" on 3 probes that
+     shared one premise (all searched for R3's *content*, never the token "R3") — the Fable secondary
+     audit overturned it. The lesson (probes must fail differently) is the same one we police everywhere.
+   - **Debt #5 tail** — none; serializers (QUAL-49) shipped. Debt #3 tail — none; QUAL-50 shipped.
+
+## What shipped (in order)
+
+**QUAL-43 / R1 — ALL SIX ADL-53 STAGES (the security-invariant chokepoint):**
+#487 Stage 0 (scope.ts) · #491 Stage 2 (cities extraction) · #492 Stage 3 (global reads + guard authored
++ scope:check widened to src/backend/** + wired into CI) · #494 Stage 4 (user-owned relocation;
+fetchItemsWithExtensions userId now REQUIRED) · #495 Stage 5 (both guards flipped to enforced). Plus
+#456 (the deferred ADL-53 design merge). END STATE: every ownership expression in src/backend/**
+resolves through repositories/scope.ts; routes/** getDb-free; both invariants build-enforced in pre-push
+AND CI. QUAL-47 (#497) added a schema-wide ownership-classification guard (Check 3) — closes QUAL-43's
+last regex-shaped soft edge (an ownership column not named userId is invisible to Check 1). QUAL-43 =
+done_pending_uat (UAT = one smoke pass, folds into item 13).
+
+**Two governance defects fixed IN our own machinery:**
+- OP-40 drift-cadence gate (#486) — PO caught it: the session counter had frozen AND modulus-based
+  due-ness re-fired the deep audit for 3 sessions. Rebuilt on "due = distance since last RECORDED run",
+  tick = max of 3 differently-failing sources, + a wall-clock staleness backstop.
+- QUAL-46 / ci-wait.sh (#493) — D-24 recurred (PASS reported against a stale head SHA = fail-open on the
+  primary CI gate). Fixed: re-resolve the head after the watch, refuse a moved head; and name the failing
+  check on FAIL. **This fix proved itself twice more this session** — it correctly flagged in-flight
+  transients on #503 and #516 with "re-run to distinguish", instead of a bare empty failure.
+
+**Design-reflection tail (the audit + its 2a/3/5):**
+- Fable SECONDARY AUDIT (#499) of the remaining reflection items — overturned 2 COO claims (R3 shipped;
+  R3 didn't "vanish", it shipped first). Verify a Fable source like any other — I re-probed its
+  load-bearing claims before building on them; all held.
+- Item 5 / QUAL-49 (#506) — one serializer per entity; agent correctly challenged my "same shape twice"
+  framing (list-vs-detail by design) + flagged candidate latent dropped-field bugs (city region_iso/
+  country_name) for a later probe.
+- Item 3 / QUAL-48 spike (#502, GO) + QUAL-50 (#509) — file-backed test client adopted (needed in ONE
+  test file, not 7 — agent found a plank of the spike wrong), itemRepository.create wrapped atomically,
+  BUG-95 (non-owner extension mutation) fixed; COO independently verified the red bar (reverting the gate
+  writes 'HACKED').
+
+**Item 2a / GE-19 (BUG-85) — SHIPPED END-TO-END (the capstone):**
+ADL-55 authored → OQ-1 resolved by PO (remove-the-place, no new table) → OQ-3/4/5 by COO → fresh-eyes
+Opus review SOUND-WITH-FOLLOW-ONS (F1-F4 folded, COO-verified) → merged (#503). Then the build, strictly
+serial (no clash): #511 migration (needs_attention status + geocode_cause; drizzle-kit emitted THREE
+defects on the rebuild, all hand-corrected, db:generate no-drift) → #512 QA red bar (7 skip-blocks
+demonstrated RED; CAUGHT the false "PATCH /api/places/:id verified built" claim — corrected in #513) →
+#514 backend (nextGeocodeState policy + endpoint userId-scoped via scopeToUser — COO-verified structural
+isolation) → #515 frontend (interactive badge/panel polling the endpoint; localStorage retired as source
+of truth; recovery via existing re-point + remove). 871 backend + 401 frontend tests.
+
+## Process notes worth keeping
+
+- **The brief-provenance rule (OP-39 item 9, added this session) earned its keep repeatedly:** agents
+  rejected/corrected COO additions across QUAL-43 Stages 3/4, QUAL-49, QUAL-50, and GE-19 QA — every
+  challenge was correct. Labelling COO additions AND inviting challenge is what surfaced them.
+- **Verify against artifacts, not reports** — every merge independently checked (import claims, test
+  counts, injected-fault red bars, scopeToUser composition, migration no-drift). Caught nothing wrong
+  this session, which is the point: the discipline is the evidence.
+- **The re-point-path false-positive (D2 "verified built") is the OP-34 shape** — an attributed
+  "verified" claim nobody re-probed until QA wrote a real request against it. Positive-claim cousin of
+  the negative-findings rule.
+
+## State of play (durable — tracker.json / STATUS.md)
+
+- **Open PRs:** none. **Worktrees:** none. **Main:** green @ f00cc33.
+- **done_pending_uat:** 18 (see UAT START HERE). **Pre-existing P1:** QUAL-18 (CSP E2E blindspot).
+- **Not started, await PO steer:** R3-residual bookkeeping; QUAL-45 (admin name-list backend, separate
+  thread); the QUAL-49 candidate latent city-shape bugs (probe-before-mint).
+
+## Suggested next
+(a) PO runs the UAT START HERE block — especially GE-19 (item 14) on staging, and confirm/redirect its
+    amber needs-attention treatment. (b) On PO verdicts, flip the 18 done_pending_uat. (c) R3-residual
+    bookkeeping is a 30-min COO chore whenever.
+================================================================================
