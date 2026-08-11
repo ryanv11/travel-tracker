@@ -1,9 +1,9 @@
 # ADL-55 — GE-19 geocode status-lifecycle model (BUG-85)
 
-**Date:** 2026-08-10 · **Author:** Architect · **Status:** DESIGN — pending (a) resolution of the
-flagged open questions §1, (b) OP-27 fresh-eyes Opus review, (c) implementation. **No production
-code, no migration generated or applied.** This ADL specifies a migration; it does not run
-`db:generate` / `db:migrate`.
+**Date:** 2026-08-10 · **Author:** Architect · **Status:** DESIGN — SETTLED. (a) Open questions §1
+resolved 2026-08-10, (b) OP-27 fresh-eyes Opus review PASSED — SOUND-WITH-FOLLOW-ONS, F1–F4 folded
+(§R), (c) implementation pending. **No production code, no migration generated or applied.** This ADL
+specifies a migration; it does not run `db:generate` / `db:migrate`.
 **Tracker:** BUG-85 · **BRD:** GE-19 (v3.20, approved, Architect-gated) · **Absorbs:** R5b
 (design-reflection secondary audit §1b) · **Reuses:** GE-16 re-point (ADL-46 D11), the QUAL-43
 scoping chokepoint (ADL-53 `repositories/scope.ts`), the wildcard-upgrade path
@@ -27,7 +27,7 @@ criteria QA turns into the red bar.
 | **D3** | Queue visibility | **A derived, userId-scoped server query, NOT a maintained client list.** New read composing `scopeToUser(trips, userId)` — same pattern as `findCarryForwardItems`. Cross-user isolation is structural (the `trips` join is the ownership axis), not a filter that can be forgotten. Retires the NR-06 localStorage list as source of truth. | High |
 | **D4** | Cause labelling | **Persisted in `geocode_cause`** (not fully derivable — two probes §3). Endpoint returns stable `status`+`cause` codes; the **frontend** owns the display copy so wording changes need no backend deploy. | High |
 | **D5** | Module boundary | **No new "lifecycle module."** Extract only the *policy* as a pure function `nextGeocodeState(row, verdict) → {status, attempts, cause}` (trivially table-testable — serves OP-35); leave DB writes + geocoder IO in `resolveCity`; the queue query lands in `citiesRepository`, where sibling user-scoped city reads already live. Net growth of the 554-LOC `geocoding.service.ts` is ~3 small branches. | Medium-High |
-| **R5b** | Name-fallback consolidation | **Not load-bearing for GE-19; closes as overtaken-by-events.** The lifecycle composes with the existing identity algebra via exactly two local edits (both inside GE-19's own build). Probe: `findByIdentityKey` is status-blind. | High |
+| **R5b** | Name-fallback consolidation | **Not load-bearing for GE-19; closes as overtaken-by-events.** The lifecycle composes with the existing identity algebra via **three** local edits (corrected from two by fresh-eyes F1 — see §R), all inside GE-19's own build. Probe: `findByIdentityKey` is status-blind. | High |
 
 ---
 
@@ -104,6 +104,47 @@ Endpoint path. I specify the *contract* (§5); the path (`GET /api/geocode-queue
 `GET /api/cities/pending-queue` vs a sub-route of the existing `geocode.ts`) is a naming call for the
 Backend brief. Recommendation: `GET /api/geocode-queue` (it is neither a single-city read nor the
 Nominatim proxy).
+
+---
+
+## R. Fresh-eyes review fold (2026-08-10) — verdict SOUND-WITH-FOLLOW-ONS
+
+> A second, independent **Opus** Architect reviewed the settled ADL (full record:
+> `ADL-55-fresh-eyes-review.txt`, same directory). **All four load-bearing claims were confirmed** on
+> the merits — the migration (§3.5), the security-load-bearing userId-scoped query (§5.1, "tried every
+> join path and could not leak another user's stuck city"), the R5b status-blindness (§8), and the
+> re-open path *design*. Both seam checks were clean (OQ-1's dropped table left no dangling reference;
+> OQ-3 breaks ADL-46 only in combination with F1, below). Four follow-ons are folded here — reviewer-
+> specified fixes, **COO-verified against live code**, so no third review (the ADL-53 F1–F4 precedent).
+
+- **F1 [HIGH — folded]. The "two local edits" claim in §8 undercounts; the re-open needs a THIRD.**
+  §3.3 and AC §7.7 already specify the correct behaviour — a region-less `needs_attention` city, given a
+  region, resets to `pending`/`attempts=0`/`cause=null` and re-fires. But the code that would carry that
+  transition, `findOrUpgradeCity`'s upgrade UPDATE (`cityIdentityService.ts:96-100`), today sets **only**
+  `{regionId, geocodeAttempts:0, updatedAt}` — no status — and the re-fire is guarded at `:106` by
+  `if (upgradedRow.geocodeStatus === 'pending')`. **COO-verified: read both sites 2026-08-10.** So without
+  a third edit, an upgraded `needs_attention` row stays `needs_attention`, the guard is false, and it is
+  **stranded with no path back to `pending`** — the exact BUG-85 stuck-class reintroduced on the recovery
+  path, breaking ADL-46's re-askability. **Fix:** §8 is corrected to **three edits**; the third is that
+  `findOrUpgradeCity`'s upgrade UPDATE must set `geocode_status='pending', geocode_cause=null` **for a
+  `needs_attention` row** (matching §3.3). The `unresolvable` asymmetry is preserved untouched — a
+  no-match does not become a match by adding a region (§2.5), so `unresolvable` rows are **not** status-
+  reset and **not** re-fired. The implementation brief must implement this third edit and AC §7.7 tests it.
+- **F2 [MED — folded, non-blocking]. Both recoverable-error sites must route the cap transition.** The
+  `error` (recoverable) branch increments attempts and stays `pending` at **two** sites —
+  `geocoding.service.ts` carried-OSM (~`:413`) and name-search (~`:458`) — **COO-confirmed both are
+  increment-and-stay-pending today**. If only one routes the new at-cap → `needs_attention`/`cause=unreachable`
+  transition, a carried-ref row can still sit `pending`-at-cap forever (the original bug). **Fix:** AC §7.2
+  is scoped to **both** sites; the implementation brief covers both.
+- **F3 [nit — folded].** `resolveCity` (~`:390`) should early-return on a `needs_attention` row so a
+  re-processed row isn't re-resolved against its will; specified for the implementation brief.
+- **F4 [nit — folded].** The `findByIdentityKey` comment (`cities.ts:202-204`) claiming an unconditional
+  index is confirmed **stale** — migration 0017 replaced it with two partials. Fix the comment in the
+  implementation PR (same-PR doc-lifecycle, OP-09).
+
+**Net effect on the design: none.** F1 is a spec-consistency correction (the correct behaviour was already
+in §3.3/§7.7; §8's edit-count was wrong); F2 widens one AC's scope; F3/F4 are a guard and a comment. The
+schema, the migration shape, and the security query are unchanged and confirmed.
 
 ---
 
@@ -377,8 +418,9 @@ The **build** is ATDD-first. QA writes these to a red bar before implementation:
 
 **Question posed:** does the name-based fallback algebra need consolidating to reach a clean lifecycle,
 or is it fine to leave? **Verdict: fine to leave — R5b closes as overtaken-by-events.** GE-19's
-lifecycle composes with the existing identity algebra (`cityIdentityService`) via exactly **two local
-edits**, both inside GE-19's own build, no separate consolidation:
+lifecycle composes with the existing identity algebra (`cityIdentityService`) via exactly **three local
+edits** (corrected from two by the fresh-eyes review — F1, §R; the third resets a `needs_attention` row's
+status in `findOrUpgradeCity`'s upgrade UPDATE), all inside GE-19's own build, no separate consolidation:
 
 1. `findRegionlessUpgradeCandidate`'s status whitelist changes `['pending','unresolvable']` →
    `['pending','unresolvable','needs_attention']` (`cities.ts:253`) so a region-less stuck row is
