@@ -18,6 +18,7 @@ import {
 } from '../db/index.js';
 import type { TripPlace } from '../db/schema.js';
 import { ConflictError, NotFoundError } from '../errors.js';
+import { cityRowFromPlaceJoin, serializeCityWithRegion } from '../serializers/city.js';
 import { assertWritable as assertTripWritable, scopeToUser } from './scope.js';
 
 // ----------------------------------------------------------------
@@ -96,23 +97,17 @@ export const placeRepository = {
     const placeIds = placesRows.map((p) => p.id);
     const allPlaceActivities = await this.findActivitiesForPlaces(placeIds);
 
+    // QUAL-49: the nested city is built by the shared city serializer (region
+    // variant — this query LEFT JOINs regions but not countries, so no
+    // country_name), not a hand-written object. BUG-80's region_iso/region_name
+    // are therefore structural here, not a copy that can silently lag.
     return placesRows.map((p) => ({
       id: p.id,
       cityId: p.cityId,
       arrivedOn: p.arrivedOn ?? null,
       departedOn: p.departedOn ?? null,
       createdAt: p.createdAt,
-      city: {
-        id: p.cityId,
-        name: p.cityName,
-        country_code: p.cityCountryCode,
-        region_id: p.cityRegionId,
-        region_iso: p.cityRegionIso ?? null,
-        region_name: p.cityRegionName ?? null,
-        latitude: p.cityLatitude,
-        longitude: p.cityLongitude,
-        geocode_status: p.cityGeocodeStatus,
-      },
+      city: serializeCityWithRegion(cityRowFromPlaceJoin(p)),
       activities: allPlaceActivities
         .filter((a) => a.tripPlaceId === p.id)
         .map((a) => ({ id: a.id, name: a.name })),
