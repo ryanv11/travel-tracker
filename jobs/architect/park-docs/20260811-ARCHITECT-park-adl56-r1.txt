@@ -1,0 +1,93 @@
+ARCHITECT PARK DOC — 2026-08-11 (ADL-56 R1 AMENDMENT)
+Session: fold the PO's four §12 resolutions + two new live-staging UAT directives into ADL-56.
+Branch: chore/adl-bug97-cached-live-seam · PR #528 (CONTINUED existing branch) · DESIGN ONLY (no code, no migration)
+
+================================================================================
+WHAT THIS SESSION PRODUCED
+================================================================================
+- AMENDED jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (R1 — reconciled in place, seams walked)
+- AMENDED ADL-56 log entry in jobs/architect/tech/20260307-architecture-decisions-log.md
+- jobs/architect/context/current.txt — ADL-56 R1 block prepended (append-only convention)
+- Completion report to jobs/COO/inbox/
+
+STATUS: AMENDED, pending (a) COO→PO resolution of the ONE new flagged item (Q5, ChangeCityModal scope),
+(b) OP-27 fresh-eyes Opus review of the WHOLE amended document + the seam (HIGH stakes — NEVER Fable),
+(c) an ATDD-first Slice-1 implementation wave. No code or migration merges until Q5 settles + fresh-eyes clears.
+
+================================================================================
+THE THREE NEW DECISIONS (R1)
+================================================================================
+D7 (§3a) SELECT ≠ COMMIT (BUG-99). Every selection path (cached-search result, disambiguation CityPicker,
+   new-city form) SELECTS & populates a held identity + reveals dates; a SINGLE explicit "Add City & Place"
+   button is the ONLY write. Both createCity AND addPlace defer to that commit. Mirrors TripForm. Mobile =
+   same component (auto-covered). ChangeCityModal shares the anti-silent-commit guard (Q5).
+   - Fork (a) RESOLVED: defer BOTH writes ("Design B") — DEDUP-INVARIANT (dedup fires at createCity time,
+     deferral moves only WHEN, never WHAT row). Strictly fewer speculative rows. Full proof §3a fork(a) + §5.
+   - Anti-silent-commit GUARD: picker showing + nothing picked ⇒ commit inactive until an explicit choice
+     (pick a candidate OR "none of these — add as new" = creator-private pending, GE-12/16). Closes Melbourne.
+D8 (§3b) INVISIBLE CACHE/LIVE MERGE + trigger policy. Live lookup fires automatically → one seamless list.
+   TRIGGER PINNED: debounced + min-length-2 + cached-first-gated (fire only when cache lacks a confident single
+   exact match — Q1) + coalesced per (query,countrySet), DURING search not on submit. D5's 5 states survive
+   (they key off the live OUTCOME {status,candidates,failed}, not the trigger time). Pixels → UX.
+D9 (§10a) SLICE PHASING. Slice 1 = D7+D1+D8+D3/P2(osm-id-on-search)+D4+D5 (all PO-reported bugs, ATDD-first).
+   Slice 2 = D2 ε-classifier reconciliation (classifyCandidates place-level + collapse ε — the only silent-
+   corruption risk). GE-21 "FE and BE agree" met ONLY after Slice 2 = STAMPED §10a interim (ADL-47 discipline:
+   each slice independently green/deployable).
+
+================================================================================
+MELBOURNE RE-SCOPE (§6a) — the corrected mechanism
+================================================================================
+PO's real case (NOT BUG-98's original "no picker" note): a 2-option "Melbourne — Victoria" picker DID show
+(city+municipality, both AU-VIC), PO picked NEITHER, still saved region-null. Traced live: CityPicker is
+advisory but the form's "Add City & Place" submit stays present → handleCreateCity({region_id: null}) →
+plain-name create resolves 'ok' AU-VIC but region_id stays null (D12 rule-3 blocks backfill) → region-null.
+= BUG-98's region-null AND BUG-99's select≠commit gap in one seam.
+CLOSED IN SLICE 1 by D7+D4: (A) pick → osm_id → resolve → region set; (B) bare Add → D7 guard BLOCKS; (C)
+"add as new" → D4 backfills AU-VIC on the unambiguous resolve. Slice 2 ε-collapse only removes the spurious
+picker (cosmetic). BUG-98 → Slice 1; picker cosmetics → Slice 2.
+ADL-55 seam: D4 backfill (fires only when region_id NULL) and the wildcard-upgrade needs_attention re-open
+(fires only when regionId != null) are DISJOINT branches — no collision. A Melbourne pick routes through
+createOrReuseCarriedCity (osm-ref), not the wildcard upgrade at all.
+
+================================================================================
+THE ONE NEW FLAGGED OPEN QUESTION (COO→PO before fresh-eyes)
+================================================================================
+Q5 (§12): does D7's anti-silent-commit guard + P2 dedup extend to ChangeCityModal in Slice 1?
+  ChangeCityModal shares the SAME commit-on-pick anti-pattern (:105/127/155) + the P2 seam; both surfaces
+  already consume the shared decideCityDisambiguation + buildCreateCityDataFromCandidate utils.
+  REC: YES for the guard + P2 (near-zero via shared utils); NO for a dates/held-selection restructure (a
+  re-point has no dates). Scope confirmation, not a product fork. Flagged because it touches a surface the
+  PO's BUG-99 note did not name.
+
+================================================================================
+WHERE TO AIM FRESH-EYES (§13, re-aimed for R1) — scope WHOLE doc + seams
+================================================================================
+1. §4 classifyCandidates place-level + ε (Slice 2) — the only SILENT-CORRUPT change. Primary aim.
+2. §2 H1 disposition (accept+self-heal vs day-one best-effort collapse) — probe staging NULL-osm_id pop.
+3. §3/§5 P2 seam on BOTH AddPlaceFlow AND ChangeCityModal (R1 asserts both via shared utils — verify).
+4. Whole-doc seam: D4 backfill vs ADL-46 D12/D13 + ADL-55 re-open path (R1 §6a says disjoint — verify).
+5. §3a fork(a): is select≠commit deferral REALLY dedup-invariant? Any path needing identity resolved pre-commit
+   (carry-forward addedCityId lookup, a concurrent osm-ref race between two picks)?
+6. §6a Melbourne guard: does "no bind without explicit selection" close region-null on EVERY commit path, and is
+   the "add as new" escape hatch reachable in every state (never traps the user)?
+7. §10a slice boundary: is Slice 1 genuinely self-sufficient for the REPORTED bugs without the Slice-2 BE classifier?
+
+================================================================================
+HANDOFF TO COO
+================================================================================
+1. Resolve Q5 with the PO; amend the ADL if it changes the ChangeCityModal scope; THEN dispatch fresh-eyes Opus
+   (scope the WHOLE amended document + the R1 seams; NEVER Fable — identity/dedup reads security-adjacent).
+2. BRD gate: GE-21 amended (§11) for select≠commit + invisible merge. May enter approved (dedup verified incl.
+   holes; R1 additions rest on verified live-code, not premises) EXCEPT the Slice-2 "FE and BE agree" sub-criterion,
+   which should note the §10a interim or enter spike-gated until the ε-collapse lands.
+3. D12 rule-3 one-line wording amendment (NULL is backfillable) — record at BRD-gate time (Q2 resolved).
+4. Raise GitHub issues for BUG-97/BUG-98/BUG-99 and cross-ref (tracker ID in the issue title, issue # back in
+   tracker notes) — none exist yet. BUG-99 is NEW in the tracker (COO to add; folds into this ADL, not a separate fix).
+5. Slice-1 build is ATDD-first: QA writes the [S1] red tests (1,4,5,6,7,8,9,10) — mock-fidelity: the geocode
+   double returns the real {status,candidates,truncated} shape. OP-06 SEC line for Brief A: "preserve the existing
+   GE-16 containment predicate on the GET /api/cities search unchanged" (osm ids are public, not user data).
+6. Likely Slice-1 split: Brief A (backend/shared — osm-id-on-search field + D4 region backfill, ATDD-first:YES);
+   Brief B (frontend — unified surface + invisible-merge trigger + select≠commit + message states, ATDD-first:YES
+   for the D7 model + message-state routing + D8 trigger; NO for pure copy/badge/grouping).
+
+BUGS DISCOVERED THIS THREAD: none new beyond the already-in-scope BUG-99 (which the PO surfaced and this ADL folds in).

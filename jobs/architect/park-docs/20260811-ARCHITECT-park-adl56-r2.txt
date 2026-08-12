@@ -1,0 +1,63 @@
+ARCHITECT PARK DOCUMENT — 2026-08-11 (late) — ADL-56 R2 amendment
+Branch: chore/adl-bug97-cached-live-seam (CONTINUED — PR #528)
+
+WHAT THIS THREAD DID
+Amended ADL-56 in place (R1 -> R2) to resolve the OP-27 fresh-eyes BLOCKING finding B1 and fold
+the six reviewer non-blockers. No source code, no migration. Both docs (the standalone ADL-56 file
++ the ADL-log entry) amended, not rewritten (OP-28; R1 text preserved under SUPERSEDED stamps).
+CI all 18 green on #528 @ 2bbcfe5.
+
+THE BLOCKER (B1) AND ITS FIX
+- B1: R1's D8 §3b(3) "cached-first-gate" reintroduced BUG-97. It suppressed the live lookup when
+  exactly one exact-name cached row existed, so "Newport" (one cached "Newport, Oregon") showed
+  only Oregon; the alternatives were never fetched. A single cached row carries ZERO information
+  about whether other real places share the name — no threshold on a cache-only signal is safe.
+- FIX (PO Option A, invisible autofire): the live lookup fires on the SETTLED query (debounce 300ms
+  + min-2-chars) REGARDLESS of a single exact cached match. Bounded by debounce + min-length +
+  per-query session cache (<=1 call per distinct settled name). Staleness-safe (last-query-wins;
+  superseded responses discarded; in-flight cancelled). One isolated policy point (rollback seam:
+  enabled: auto|manual). Multi-user aggregate budget is the PARKED D-33 thread, NOT designed here.
+
+DECISIONS MADE THIS THREAD (beyond mechanically applying the PO's Option A)
+- Recommended the staleness fix as a React-Query hook keyed by (settledQuery, countrySet) — mirrors
+  useCitySearch (useCities.ts:160); last-query-wins + coalescing + abort come for free. Last-query-
+  wins is MANDATORY; abort-in-flight is a recommended optimisation (correctness holds from keying
+  alone). Alternative (imperative + query-token guard) noted but not preferred.
+- N4 guard-scope architect call: the anti-silent-commit guard covers mode 'picker' ONLY, not the
+  region-narrowing 'region' control. Region-null-pending there is a lower-harm GE-19 outcome the
+  backend re-derives, not a silent wrong-bind. §6a's "every path ends with a region" scoped to the
+  picker case accordingly.
+- Walked the D5 seam: corrected the now-false "no live call on a confident cache hit" claim in all
+  five places; added the cache-hit + live-augmenting S1 state.
+
+PROBE TRAIL (new §14 in the ADL) — all reviewer prescriptions verified against live code first
+(a reviewer's fix can itself be wrong). None was off. Key confirmations:
+- createOrReuseCarriedCity inserts with caller-supplied countryCode/regionId (cityIdentityService
+  .ts:210,223-224) — the /lookup supplies name/coords/osm only. => N3 is a real hazard.
+- commitResolvedOrMerge: try-block direct update :297-316 vs catch->mergeIntoWinner :321; classify
+  Candidates best=eligible[0] :192 can be NULL-region while region-unambiguous. => N5 both correct.
+- ChangeCityModal search is useCitySearch cached-only (:55); live fires only on "+Add new" (:124).
+  => N6 requires wiring the autofire, not just the P2 field.
+- Backend Nominatim client has AbortController + REQUEST_TIMEOUT_MS=5000 (nominatim-client.ts:48,
+  239-240); FE useCitySearch keys by query string (:160) but live lookupCityCountry (:108) is an
+  imperative promise, NOT keyed. => staleness must be ADDED for the live merge.
+
+SLICING (unchanged boundary; R2 folds distributed)
+- Slice 1: D7 (+N3 +N4) + D1 + D8/B1 autofire + D3/P2 (+N7) + D4/N5 + D5 + N6 Change-city merge.
+  ATDD tests [S1]: 1,4,5,6,7,8,9,10,11,12,13. Brief split A (backend/shared) + B (frontend).
+- Slice 2: D2 e-classifier reconciliation + N1 (deterministic representative osm_id) + N2 (NULL
+  region_iso under-collapse). ATDD tests [S2]: 2,3. Its own fresh-eyes review.
+
+OPEN / NEXT
+- GE-21 stays PROPOSED / spike-gated (OP-33). Do NOT promote until the FOCUSED OP-27 fresh-eyes
+  Opus re-review of the B1 fix + its seams passes. §13 names the R2 aim points (R2-a..R2-f):
+  autofire budget/race; the D5 seam strike; N3 completeness; N5 correctness; N6 re-point hazard;
+  dedup-invariance under B1. Route to Opus (never Fable — identity/dedup reads as security-adjacent).
+- No BUG-97/BUG-98/BUG-99 GitHub issue exists yet (COO to raise + cross-ref per CLAUDE.md).
+- Q2's D12 rule-3 one-line wording amendment is a COO BRD-gate task (backfilling a NULL is not
+  overwriting a supplied value).
+
+FILES
+- jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (R2, ~1000 lines; §14 new)
+- jobs/architect/tech/20260307-architecture-decisions-log.md (ADL-56 entry amended in place)
+- jobs/COO/inbox/20260811_<hhmm>-ARCHITECT-adl56-r2-amendment-complete.txt

@@ -1,4 +1,93 @@
 =============================================================================
+ADL-56 R1 AMENDMENT (BUG-97/98/99/73) — PREPENDED 2026-08-11, DOES NOT REPLACE ANY BLOCK BELOW
+=============================================================================
+Deliverable: AMENDED jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (+ its ADL-56 log entry).
+Branch: chore/adl-bug97-cached-live-seam (PR #528 — CONTINUED, not a fresh branch). DESIGN ONLY.
+Task: fold ALL FOUR §12 PO decisions + two new live-staging UAT directives into a settled, seam-walked spec.
+
+PO DECISIONS FOLDED (all RESOLVED 2026-08-11):
+  Q1 → CACHED-FIRST + INVISIBLE auto-merge (new D8 §3b pins the silent-live trigger: debounced +
+       cached-first-gated + coalesced, fires during search not on submit — so "seamless" ≠ live-per-keystroke).
+  Q2 → BACKFILL confirmed (D4; COO records the one-line D12 rule-3 wording amendment at BRD-gate).
+  Q3 → TRUST THE CACHE (no step-2b live-agreement gate).
+  Q4 → PHASE IT (new D9 §10a): Slice 1 = D7+D1+D8+D3/P2+D4+D5 (all PO-reported bugs, ATDD-first); Slice 2 =
+       D2 ε-classifier reconciliation. GE-21 "FE and BE agree" met only after Slice 2 — STAMPED interim.
+  BUG-99 → SELECT ≠ COMMIT (new D7 §3a): pick SELECTS & populates, single explicit "Add City & Place" COMMITS.
+
+TWO FLAGGED FORKS I WAS ASKED TO PROBE — both probed, neither PO directive is wrong:
+  (a) createCity/addPlace TIMING vs dedup: RESOLVED = defer BOTH writes to the explicit Add ("Design B").
+      DEDUP-INVARIANT — every dedup mechanism (createOrReuseCarriedCity.findByOsmRef, findOrUpgradeCity
+      identity-key reuse, insertCityOrReuse re-select, osm-ref partial unique index) fires AT createCity time;
+      deferral only moves WHEN createCity runs, never WHAT row it resolves. Strictly fewer speculative rows.
+  (b) Melbourne "dismiss-without-select saves region-null": DISSOLVES under D7. Traced live: the CityPicker is
+      advisory but the form's "Add" submit stays present → handleCreateCity region-null plain-name save
+      (AddPlaceFlow.tsx picker@761 + submit@892). Under D7's anti-silent-commit guard, a bare Add with the
+      picker showing is invalid; user must pick or "none of these — add as new". Region-null fully closed in
+      SLICE 1 (D7 removes the no-pick commit; D4 backfills AU-VIC on the unambiguous resolve). Slice 2's
+      ε-collapse only removes the spurious 2-option picker (cosmetic). BUG-98 → Slice 1; picker cosmetics → S2.
+
+SEAMS WALKED (OP-27 refinement 2, whole doc not just the amendment):
+  - select≠commit through §2/§3/§5 dedup → §3a fork(a) + §5 P2-R1 (dedup-invariant).
+  - invisible-merge trigger through D5 states → §3b + §7 R1 (5 states key off the live OUTCOME, survive auto-fire).
+  - Melbourne through BUG-98 §6 mechanism + ADL-55 needs_attention re-open → §6a (disjoint branches: wildcard
+    upgrade fires only when regionId!=null; D4 backfill only when NULL — no collision).
+  - §10 tests split [S1]/[S2] + tests 7-10 added (select≠commit BOTH pickers + Melbourne guard + D8 trigger).
+
+NEW FLAGGED OPEN (COO→PO before fresh-eyes) — the ONE genuine new item:
+  Q5 (§12): does the D7 anti-silent-commit guard + P2 dedup extend to ChangeCityModal in Slice 1? It shares the
+     SAME commit-on-pick anti-pattern (ChangeCityModal.tsx:105/127/155) + the P2 seam, both consume the shared
+     decideCityDisambiguation + buildCreateCityDataFromCandidate utils. REC: yes for the guard + P2 (near-zero
+     via shared utils), NO full dates/held-selection restructure (a re-point has no dates). Scope confirmation,
+     not a product fork — flagged because it touches a surface BUG-99's note did not name.
+
+VERIFIED LIVE-CODE (not inherited): BUG-99 two commit paths (AddPlaceFlow.tsx:611-613 cached-search;
+  :362→:289 picker); TripForm target pattern (selectedCountryCodes + handleSubmit) read directly; mobile reuses
+  AddPlaceFlow (import:32/render:280); D4 site routes/cities.ts step-4b regionId:region_id??null; classify
+  region_iso test geocoding.service.ts:188-190; identity algebra cityIdentityService.ts read in full.
+
+STATUS: AMENDED, pending Q5 resolution + OP-27 fresh-eyes Opus (WHOLE doc + seam). PR #528 updated. No code merges.
+=============================================================================
+ADL-56 CACHED-VS-LIVE ADD-PLACE SEAM (BUG-97/98/73) — PREPENDED 2026-08-11, DOES NOT REPLACE ANY BLOCK BELOW
+=============================================================================
+Deliverable: jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (+ ADL-56 log entry).
+Branch: chore/adl-bug97-cached-live-seam. DESIGN ONLY — no production code, no migration.
+Tracker: BUG-97 (primary), BUG-98, BUG-73 (message copy). BRD: refines GE-15/16/19/D12/D14; proposes GE-21.
+
+THE SEAM (two verified live-code defects): (1) POST /api/cities plain-name path — findOrUpgradeCity step-2b
+(cityIdentityService.ts:142-145) reuses a SINGLE cached name+country match (findByNameAndCountry capped at 2,
+repositories/cities.ts:278-285) BEFORE resolveCityName→classifyCandidates runs. One cached "Newport, Oregon"
+=> reused blind; Springfield (2+ cached) => falls through => multi-region ambiguous => needs_attention.
+(2) FE picker fires on osm_id distinctness (decideCityDisambiguation.ts:60); BE fires needs_attention on
+region_iso distinctness (geocoding.service.ts:188-190) — two same-state Newports get a FE picker but are
+silently resolved by the BE name path.
+
+DEDUP PREMISE — VERIFIED, TWO PROBES THAT FAIL DIFFERENTLY:
+  P1 schema.ts (181/189-196/202): only unique indexes on cities are uniq_cities_osm_ref (PARTIAL, WHERE
+     osm_id IS NOT NULL) + uniq_cities_pending_per_creator (PARTIAL, WHERE pending) + chk_cities_osm_both_or_neither.
+  P2 migration DDL: 0015 created the unconditional (name,country,region) unique; 0017 DROPPED it; grep of all
+     *.sql confirms the two partials are the only survivors.
+  VERDICT: osm_id dedup is REAL but PARTIAL — covers only osm_id-bearing rows. NULL-osm_id rows (legacy/
+  pending/terminal/seeded) are NOT deduped. So "always show picker → match by osm_id" (PO floated) is NOT
+  dedup-safe; safety comes from the SURFACE reusing cached rows by id. A NEW (name,country,region) unique
+  index is the WRONG fix (reopens BUG-33 / kills same-region coexistence). No new index; no new route/table.
+
+SIX DECISIONS: D1 routing (cache reuses, never selects; one surface, explicit pick). D2 ONE ambiguity
+definition = distinct real place (distinct osm_id after same-place collapse, ε on coords); region_iso demoted;
+shared golden-fixture set across both TS trees. D3 dedup verdict above + expose osm_type/osm_id on GET
+/api/cities search (only additive API change). D4 BUG-98: backfill region_id when NULL+region-tier+unambiguous
+resolve (NULL is not a user value → D12 rule-3 preserved). D5 BUG-73: 5 message states (cache-empty ≠
+live-empty ≠ live-failed). D6 UX owns copy/badge/escape-hatch wording.
+
+HIGHEST RISK (aim fresh-eyes): D2's change to classifyCandidates (background resolver) + the collapse ε — the
+one change that can SILENTLY corrupt (over-collapse binds two real places as one). ATDD-first: YES (backend/
+shared-contract); 6 red tests specified in §10.
+
+FLAGGED OPEN (COO→PO before fresh-eyes): Q1 always-live vs cached-first (rec cached-first); Q2 confirm D12
+rule-3 wording refinement; Q3 gate step-2b reuse behind live-agreement? (rec no); Q4 phasing cut line if ε
+work deferred. GE-21 proposed — does NOT rest on an unverified premise (dedup verified incl. holes), so may
+enter approved not spike-gated if COO/PO accept §2. No BUG-97/BUG-98 GitHub issue exists yet (COO to raise).
+
+=============================================================================
 BUG-87 TRIP-COUNTRY PICKER FILTER (ADL-54) — PREPENDED 2026-08-08, DOES NOT REPLACE ANY BLOCK BELOW
 =============================================================================
 Deliverable: jobs/architect/tech/ADL-53-trip-country-picker-filter.md (ADL-53 in the main log).
@@ -2273,3 +2362,61 @@ canary Check F) · 3 debt-#3 spike then items atomicity + BUG-95 (yes) · 4 seri
 (yes). NEW findings: reflection's own §1 facts stale at authoring; append-only records never
 re-summarized (tracker-note compaction candidate); CLAUDE.md regrew 390->408 in one day;
 geocoding.service.ts (554 LOC) now the largest backend file.
+
+================================================================================
+2026-08-11 (late) — ADL-56 R2 AMENDMENT: resolve fresh-eyes BLOCKING finding B1 + fold N1-N7
+Branch: chore/adl-bug97-cached-live-seam (CONTINUED #528) · deliverable:
+jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (+ ADL-log entry, amended in place)
+================================================================================
+B1 (the blocker): R1's D8 §3b(3) "cached-first-gate" reintroduced BUG-97 — it suppressed the live
+lookup on a single exact cached match, so "Newport" (one cached Oregon row) never fetched the
+Wales/England alternatives; user binds Oregon; Slice 1 did NOT close BUG-97. Reviewer's key point
+(correct, and I confirmed it): a single cached row carries ZERO info about whether other real
+places share the name — no threshold on a cache-only signal separates "only real Newport" from
+"only cached Newport," so the gate is not tunable-safe.
+
+FIX (PO Option A — invisible autofire, confirmed): the live lookup fires on the SETTLED query
+(existing debounce 300ms + min-2-chars, AddPlaceFlow.tsx:82/405) REGARDLESS of a single exact
+cached match. Cached rows render instantly; one live call folds alternatives into the same surface.
+Bounded (debounce + min-len + per-query session cache = <=1 call per distinct settled name) — this
+is NOT what Q1 rejected (Q1 forbade live-per-KEYSTROKE; once-per-settled is budget-safe at current
+scale). Multi-user AGGREGATE budget stays the PARKED D-33 thread — NOT designed here.
+STALENESS (PO-flagged, mandatory): last-query-wins — the live merge is keyed to the current settled
+query; a superseded/abandoned response is DISCARDED; in-flight cancelled. Recommended shape: lift
+the imperative lookupCityCountry().then() into a React-Query hook keyed by (settledQuery,countrySet)
+like useCitySearch (useCities.ts:160) — last-query-wins + coalescing + abort fall out for free.
+Last-query-wins is mandatory; abort is a recommended optimisation. ROLLBACK seam: one isolated
+policy point (enabled: auto|manual flag / the one hook) so switching to an explicit "search live"
+affordance is localized, not a rewrite (PO: "try it and roll back if it's an issue").
+
+SEAM KNOCK-ON (walked, OP-27 refinement 2): R1 asserted in FOUR places (§0 D8 row, §3b D5-recon,
+§7 R1 para, §10 test 10, §12 Q1) that "when the cache answers confidently no live call fires so
+S2/S4/S5 don't arise." FALSE under B1 (live always fires) — corrected in every one. New state:
+cache-hit + live-augmenting S1 (cached rows shown WHILE live augments; S1 copy must not imply the
+cached row is the only match).
+
+NON-BLOCKERS FOLDED (all probed against live code first — reviewer's fix can itself be wrong; new
+§14 records the probe trail; none was off):
+- N3 Slice1: held-selection invalidation on identity-field edit. D7's pick->hold->Add window is
+  new; a held live Wales-Newport osm_id surviving a Country edit to FR would store Wales-under-FR
+  (createOrReuseCarriedCity uses caller-supplied countryCode, cityIdentityService.ts:210,223-224).
+  Mirror main's Country-onChange reset (AddPlaceFlow.tsx:695-715). ATDD test 12.
+- N4 Slice1: guard scope = the PLACE picker (mode 'picker') only, NOT region-narrowing (mode
+  'region', :781-838). Region-null-pending is acceptable there (backend re-derives via GE-19, not a
+  silent wrong-bind; region is (optional)). §6a "ends with a region" made precise.
+- N5 Slice1: D4 backfill on the DIRECT-UPDATE success path only (geocoding.service.ts:297-316),
+  NEVER the mergeIntoWinner branch (:321, pre-existing winner may hold a user region). Derive from
+  the single distinct eligible region_iso, NOT best.regionIso (best=eligible[0] can be NULL-region
+  while region-unambiguous -> silently missed backfill). ATDD test 5 (a)/(b).
+- N6 Slice1: ChangeCityModal search is cached-only today (:55); wire the D8 autofire live merge into
+  it (not just the P2 field) so the correction surface loses the B1 hole. Q5 RESOLVED (PO: in scope).
+- N7 note: autofire raises H1 (NULL-osm_id cached row + live twin) exposure; day-one disposition
+  unchanged (D6 badge steers); §5 best-effort collapse has a clearer trigger to come forward.
+- N1/N2 -> Slice 2 scope (NOT fixed now): N1 deterministic representative osm_id for a collapsed
+  place; N2 (name,country,region_iso) collapse key under-collapses on a NULL region_iso granularity.
+
+DEDUP-INVARIANCE (walked per brief): B1 autofire changes when/whether the live CALL fires, not what
+a pick RESOLVES to — dedup fires at createCity/pick time regardless. New P2-R2 bullet in §5 states
+it; R2-f flags it for the re-review. GE-21 stays PROPOSED/spike-gated until the FOCUSED fresh-eyes
+Opus re-review of the B1 fix + seams passes (§11/§13 re-stamped). §10 grew to 13 ATDD tests.
+CI: all 18 green on #528 @ 2bbcfe5. NEXT: COO dispatches the focused Opus re-review (§13 R2-a..R2-f).
