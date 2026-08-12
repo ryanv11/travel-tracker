@@ -55,7 +55,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | done_pending_uat |
 | BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
-| BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | ⬜ Pending |
+| BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
 | QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | done_pending_uat |
 | BUG-97 | Add-place ambiguity is pre-empted by a single cached city match (the cached-vs-live seam) | architect | ⬜ Pending |
 | QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
@@ -91,7 +91,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-69 | geocodeRetryQueue polls 'unresolvable' cities forever — no terminal branch | frontend | ⬜ Pending |
 | BUG-70 | Companion.is_active typed number but serialized boolean (third instance of the class) | frontend | ⬜ Pending |
 | BUG-82 | CityPicker rows keyboard-inaccessible (bare div onClick) + disabled has no visual state — a11y | frontend | ⬜ Pending |
-| BUG-86 | "Back to trip" button in review status deselects the trip instead of returning to the active view | frontend | ⬜ Pending |
+| BUG-86 | "Back to trip" button in review status deselects the trip instead of returning to the active view | frontend | done_pending_uat |
 | BUG-88 | Post-trip review has no trip-level or place-level rating (only item-level) | architect | ⬜ Pending |
 | BUG-89 | Country/city geocode lookup is intolerant of misspellings and informal spellings | backend | ⬜ Pending |
 | UX-13 | Grey out / lock the city name on the disambiguation picker screen (editing it there doesn't re-run the lookup) | frontend | ⬜ Pending |

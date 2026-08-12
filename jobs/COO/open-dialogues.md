@@ -28,22 +28,16 @@ Checked at every `/coo-startup` pickup and by the Restart Preview step in `/coo-
 
 ## Open
 
-### D-32: Add-place cached-vs-live seam — fix sequencing (BUG-97/98 + BUG-86/91)
-**Raised:** 2026-08-11 · **Status:** plan proposed by the COO, PO deferred the sequencing call to a fresh session.
+### D-33: Multi-user geocoding scaling — does the shared cache suffice, or do we need coalescing / a hosted source?
+**Raised:** 2026-08-11 · **Status:** parked (PO agreed) — capture now, pull into an Architect ADL only when multi-user is actually on the roadmap. Sibling of D-30 (build-vs-buy).
 
-PO UAT (2026-08-11) surfaced a cluster of add-place findings that share one root — the **cached-vs-live
-seam**: BUG-97 (a single cached city match pre-empts the live ambiguity classifier, so "Newport" silently
-resolved to Oregon; also a FE/BE ambiguity-definition divergence), BUG-98 (region-null in a region-tier
-country, "Melbourne → no state set"), and BUG-73's misleading "no matches" message (reflects the cached
-search). Plus two discrete functional bugs: **BUG-91** (clicking a country still auto-saves the trip-create
-form) and **BUG-86** (the "Back to trip" fix broke the path back to the review screen / status reversal).
+Thinking ahead to multi-user, the PO asked whether the public-Nominatim 1 req/s budget forces request batching and/or a local/hosted geocoding source. Verified facts (recorded so they aren't re-derived):
+- **The shared catalogue already accretes cross-user.** A city is visible to every user the moment it is `resolved` (`repositories/cities.ts` search containment: `geocodeStatus='resolved' OR createdByUserId=caller OR createdByUserId IS NULL`), per the deliberate GE-16 / ADL-46 D5 design. Every resolved city any user adds is cached-first for everyone — "the growing shared cache reduces Nominatim reliance over time" is the *current* design, not aspirational. Residual live load at steady state = cache misses only.
+- **The 1 req/s is a shared, app-wide budget** (public nominatim.openstreetmap.org; single serialized chokepoint at 1100ms, `services/nominatim-client.ts`). Not a free tier with an in-place upgrade — heavy use needs self-hosting or a paid Nominatim-compatible provider. Because ALL egress funnels through one chokepoint, swapping endpoints later is a base-URL/auth change, not a rewrite.
+- **The earlier "no" to a local list (GE-17) was withdrawn on four grounds that ALL failed — none was multi-user** (offline=false, testability=false, ambiguity-detection=weakened, Scotland-coverage=false). So multi-user rate-budget is a genuinely NEW, un-probed argument, not one weighed and dismissed. Per OP-33 it is a multi-plank case owed the same probing the four dead planks got — and the verified cross-user accretion is its strongest counter-plank.
+- **Batching reality:** the queue already fires at ~1/sec; `/lookup` (by osm_id) already batches ids; `/search` (by name) cannot batch distinct names. The real multi-user win is COALESCING duplicate pending lookups (many users adding the same new city → one shared resolution).
 
-**COO recommendation (unconfirmed):** start the **Architect ADL for the seam** first — it carries
-product-shaped questions only the PO can answer (chiefly: *when a name is live-ambiguous but you already
-hold one cached row, should it still prompt?*) — and fix **BUG-91 + BUG-86 in parallel** (different code,
-no conflict). Hold **UX-13** (grey the picker name) and **UX-15** (tooltip copy) to ride the seam work,
-since both touch the picker. **Everything is already tracked** (BUG-97/98/86/91, UX-13/15); only the
-go-ahead and the sequencing are open. Pick up: confirm sequencing, then dispatch (ADL → OP-27 review → build).
+**Why parked, not spiked now:** sizing it needs user-count / add-rate / cache-miss-rate premises that don't exist yet; OP-33 says don't promote a design on premises we can't establish. Trigger to pull it: multi-user moves from "thinking ahead" to on the roadmap.
 
 ### D-30: A build-vs-buy rule
 **Raised:** 2026-08-09 · **Status:** PO wants to discuss; not yet framed. Placeholder so it isn't lost.
