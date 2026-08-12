@@ -29,6 +29,12 @@
  *
  * Locked trips show a read-only banner and hide all write controls (Delete is
  * the one deliberate exception, see above).
+ *
+ * BUG-86 (round 2, 2026-08-11 UAT): when a review_pending trip's ReviewPanel
+ * has been dismissed (see useReviewPanelVisibility), THIS is the view that
+ * renders instead — so it's also where the explicit path back to ReviewPanel
+ * belongs. Rendered only when trip.status === 'review_pending', since that's
+ * the only state ReviewPanel exists to return to.
  */
 import type { TripDetail as TripDetailType } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
@@ -46,14 +52,23 @@ import { useTripDetailController } from './useTripDetailController';
 interface TripDetailProps {
   /** Full trip detail data including places and items. */
   trip: TripDetailType;
+  /**
+   * BUG-86 (round 2): returns to ReviewPanel for a review_pending trip whose
+   * review surface was dismissed via "Back to Trip". Only rendered when
+   * trip.status === 'review_pending' — optional so existing non-review call
+   * sites/tests don't need to pass a no-op.
+   */
+  onReturnToReview?: () => void;
 }
 
 /**
  * Renders the detailed trip view. Called by TripDetailPage after data loads.
  *
  * @param trip - Full trip detail including nested places and items.
+ * @param onReturnToReview - BUG-86 round 2: returns to ReviewPanel for a
+ *   dismissed review_pending trip.
  */
-export function TripDetail({ trip }: TripDetailProps) {
+export function TripDetail({ trip, onReturnToReview }: TripDetailProps) {
   const c = useTripDetailController(trip);
 
   // TR-14: the confirmation step must name what will be lost — trip, places, items.
@@ -175,6 +190,19 @@ export function TripDetail({ trip }: TripDetailProps) {
                   className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-bg-surface text-wp-ink border border-wp-border hover:bg-wp-bg-subtle disabled:opacity-50 cursor-pointer"
                 >
                   Unlock
+                </button>
+              )}
+              {/* BUG-86 (round 2): this view renders for a review_pending trip
+                  whose ReviewPanel was dismissed via "Back to Trip" — this is
+                  the way back, so the round-trip doesn't depend on a lock/
+                  unlock status transition happening first. */}
+              {trip.status === 'review_pending' && onReturnToReview && (
+                <button
+                  type="button"
+                  onClick={onReturnToReview}
+                  className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-bg-surface text-wp-ink border border-wp-border hover:bg-wp-bg-subtle cursor-pointer"
+                >
+                  Back to Review
                 </button>
               )}
               {c.nextStep && (

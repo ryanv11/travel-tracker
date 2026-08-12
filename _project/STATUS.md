@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (77)
+## Open work (78)
 
 ### P1 — Critical (1)
 
@@ -55,9 +55,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | done_pending_uat |
 | BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
-| BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | ⬜ Pending |
 | QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | done_pending_uat |
 | BUG-97 | Add-place ambiguity is pre-empted by a single cached city match (the cached-vs-live seam) | architect | ⬜ Pending |
+| BUG-99 | Add Place: picking a result from either picker commits immediately, bypassing the optional dates | architect | ⬜ Pending |
 | QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 | OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
@@ -66,7 +66,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (40)
+### P3 — Minor (41)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -91,7 +91,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-69 | geocodeRetryQueue polls 'unresolvable' cities forever — no terminal branch | frontend | ⬜ Pending |
 | BUG-70 | Companion.is_active typed number but serialized boolean (third instance of the class) | frontend | ⬜ Pending |
 | BUG-82 | CityPicker rows keyboard-inaccessible (bare div onClick) + disabled has no visual state — a11y | frontend | ⬜ Pending |
-| BUG-86 | "Back to trip" button in review status deselects the trip instead of returning to the active view | frontend | ⬜ Pending |
+| BUG-86 | "Back to trip" button in review status deselects the trip instead of returning to the active view | frontend | done_pending_uat |
 | BUG-88 | Post-trip review has no trip-level or place-level rating (only item-level) | architect | ⬜ Pending |
 | BUG-89 | Country/city geocode lookup is intolerant of misspellings and informal spellings | backend | ⬜ Pending |
 | UX-13 | Grey out / lock the city name on the disambiguation picker screen (editing it there doesn't re-run the lookup) | frontend | ⬜ Pending |
@@ -100,6 +100,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-44 | Stale file:line cross-references in comments — remaining low-value ones + adopt cite-symbols-not-lines | unassigned | ⬜ Pending |
 | BUG-98 | City resolved in a region-tier country with state left blank is saved region-null, not backfilled (Melbourne -> 'Australia, no state set') | architect | ⬜ Pending |
 | UX-15 | Blue-date tooltip copy 'set explicitly for this place' is unclear to users | frontend | ⬜ Pending |
+| QUAL-51 | Demand-driven geocode response cache — cache Nominatim search results per (name, country) with a TTL (the multi-user live-call-rate lever) | architect | ⬜ Pending |
 | QUAL-48 | Spike — does a file-backed libSQL test client honour db.transaction() (unblocks items base+extension atomicity)? | backend | ⬜ Pending |
 | QUAL-49 | One serializer per entity, every handler routed through it (the persisted-but-dropped-from-response class) | backend | done_pending_uat |
 | QUAL-28 | The devcontainer allowlist matches IPs, not hostnames — any Cloudflare-proxied origin is reachable by pinning it to an allowlisted CF edge | architect | ⬜ Pending |
@@ -117,9 +118,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `█████████████░░░░░░░` 37/57 | 37 | 20 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `███████████████░░░░░` 70/91 | 70 | 21 | 3 |
+| bug | `███████████████░░░░░` 71/92 | 71 | 21 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `████████████░░░░░░░░` 38/64 | 38 | 26 | 1 |
+| chore | `████████████░░░░░░░░` 38/65 | 38 | 27 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -153,4 +154,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_198 done · 9 deferred · 5 closed · 77 open — 289 tracked items_
+_199 done · 9 deferred · 5 closed · 78 open — 291 tracked items_

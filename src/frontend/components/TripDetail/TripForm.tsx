@@ -5,7 +5,6 @@
  * Validates using the shared Zod schema from the backend.
  * On submit: POST /api/trips (create) or PATCH /api/trips/:id (edit).
  */
-import type React from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -79,8 +78,7 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
     setIds(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async () => {
     setValidationError('');
 
     if (!name.trim()) {
@@ -144,11 +142,31 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
         {isEditing ? 'Edit Trip' : 'New Trip'}
       </h2>
 
-      <form
-        onSubmit={(e) => {
-          void handleSubmit(e);
-        }}
-      >
+      {/*
+        BUG-91 (round 2): PO UAT 2026-08-11 found the create form still saved/
+        closed when a country was CLICKED, even though every picker control was
+        already type="button" and nothing in this file calls
+        form.requestSubmit()/.submit() — confirmed by reading, a jsdom
+        component-test repro, and a live Chromium E2E repro (including a case
+        where the results dropdown visually overlaps the Create Trip button)
+        all failing to reproduce a native submit from a plain click. The prior
+        fix (#458) blocked the one path it had found — Enter in the country
+        search field — with a scoped onKeyDown; a deny-list of one interaction,
+        which is exactly the shape of gap that let a second, still-unexplained
+        trigger through.
+        Rather than keep enumerating individual interactive elements, this
+        form no longer has a native submission path at all: the Save/Create
+        button below is type="button" and calls handleSave directly, and no
+        other button in the form is type="submit". Per the HTML implicit-
+        submission algorithm, a form with no default (submit-type) button does
+        nothing on Enter, in any field, from any browser — closing every
+        implicit-submission vector (the original Enter-in-search bug, the
+        unexplained click regression, and any future one) at the root instead
+        of chasing individual triggers. onSubmit is kept as a no-op safety net
+        only. The search input's onKeyDown Enter-guard is left in place as
+        harmless, now-redundant defense-in-depth.
+      */}
+      <form onSubmit={(e) => e.preventDefault()}>
         <div className="mb-4">
           <label className="block text-xs font-semibold text-gray-700 mb-1.5">Name *</label>
           <input
@@ -230,20 +248,15 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
               placeholder="Search countries…"
               value={countrySearch}
               onChange={(e) => setCountrySearch(e.target.value)}
-              // BUG-91: this is a filter box for the dropdown below it, not a
-              // submit trigger — without this, pressing Enter here falls
-              // through to the browser's native "Enter submits the form"
-              // behaviour (the form has a submit button, so any single-line
-              // text input inside it implicitly submits on Enter). That
-              // saved-and-closed the whole Create/Edit Trip modal the moment
-              // a user typed a country name and hit Enter out of habit
-              // (a common autocomplete gesture) — before they could review
-              // categories/companions or, worse, before setting dates in the
-              // same flow — and did so WITHOUT the typed country ever being
-              // added (only a click on a dropdown row commits it to
-              // selectedCountryCodes). Selecting a country by click already
-              // works correctly (the row buttons are type="button"); this
-              // only stops the implicit-submit path.
+              // BUG-91 original: this is a filter box for the dropdown below
+              // it, not a submit trigger — pressing Enter here shouldn't do
+              // anything but stop the keystroke from being treated as "confirm
+              // and move on" muscle memory. No longer load-bearing for
+              // preventing submission (see the form-level comment above: the
+              // form has no submit-type button left, so nothing can implicit-
+              // submit from any field) — kept as harmless, redundant
+              // defense-in-depth and to suppress any stray native behaviour
+              // browsers attach to Enter in a text input.
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -363,7 +376,10 @@ export function TripForm({ existingTrip, onClose }: TripFormProps) {
             Cancel
           </button>
           <button
-            type="submit"
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
             disabled={isSubmitting}
             className="px-4.5 py-2.5 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >

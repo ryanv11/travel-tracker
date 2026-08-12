@@ -28,22 +28,16 @@ Checked at every `/coo-startup` pickup and by the Restart Preview step in `/coo-
 
 ## Open
 
-### D-32: Add-place cached-vs-live seam — fix sequencing (BUG-97/98 + BUG-86/91)
-**Raised:** 2026-08-11 · **Status:** plan proposed by the COO, PO deferred the sequencing call to a fresh session.
+### D-33: Multi-user geocoding scaling — does the shared cache suffice, or do we need coalescing / a hosted source?
+**Raised:** 2026-08-11 · **Status:** parked (PO agreed) — capture now, pull into an Architect ADL only when multi-user is actually on the roadmap. Sibling of D-30 (build-vs-buy).
 
-PO UAT (2026-08-11) surfaced a cluster of add-place findings that share one root — the **cached-vs-live
-seam**: BUG-97 (a single cached city match pre-empts the live ambiguity classifier, so "Newport" silently
-resolved to Oregon; also a FE/BE ambiguity-definition divergence), BUG-98 (region-null in a region-tier
-country, "Melbourne → no state set"), and BUG-73's misleading "no matches" message (reflects the cached
-search). Plus two discrete functional bugs: **BUG-91** (clicking a country still auto-saves the trip-create
-form) and **BUG-86** (the "Back to trip" fix broke the path back to the review screen / status reversal).
+Thinking ahead to multi-user, the PO asked whether the public-Nominatim 1 req/s budget forces request batching and/or a local/hosted geocoding source. Verified facts (recorded so they aren't re-derived):
+- **The shared catalogue accretes cross-user — but that ALONE does NOT drop the interactive live-call rate (corrected 2026-08-12, PO-caught; the earlier "residual = cache misses only" premise was WRONG).** Resolved cities are visible to all (`repositories/cities.ts` containment: `geocodeStatus='resolved' OR createdByUserId=caller OR createdByUserId IS NULL`; GE-16 / ADL-46 D5), so the catalogue genuinely grows cross-user. BUT the add-place DISAMBIGUATION path (ADL-56 Slice 1) fires a live lookup on every settled query REGARDLESS of cache state — a cached row cannot self-report whether the name's full set of real places is present (a single cached "Newport, Oregon" cannot reveal the other Newports; that inability IS BUG-97). So accretion reduces reliance for the BACKGROUND resolve/lookup paths, NOT for interactive disambiguation, whose rate is flat (one call per settled add) under always-fire-live. **The lever that actually drops the interactive rate: cache the live SEARCH RESULT per `(name, country)` server-side with a TTL, so a repeat search of a name — by any user, within the TTL — skips the Nominatim call. That is the honest "shared cache reduces reliance" mechanism: caching the ambiguity resolution, not just the picked place. Without it the interactive rate never drops.**
+- **The 1 req/s is a shared, app-wide budget** (public nominatim.openstreetmap.org; single serialized chokepoint at 1100ms, `services/nominatim-client.ts`). Not a free tier with an in-place upgrade — heavy use needs self-hosting or a paid Nominatim-compatible provider. Because ALL egress funnels through one chokepoint, swapping endpoints later is a base-URL/auth change, not a rewrite.
+- **The earlier "no" to a local list (GE-17) was withdrawn on four grounds that ALL failed — none was multi-user** (offline=false, testability=false, ambiguity-detection=weakened, Scotland-coverage=false). So multi-user rate-budget is a genuinely NEW, un-probed argument, not one weighed and dismissed. Per OP-33 it is a multi-plank case owed the same probing the four dead planks got — and the verified cross-user accretion is its strongest counter-plank.
+- **Rate-drop levers (D-33 scope), in priority order:** (1) the per-`(name,country)` live-response cache above — the ONLY thing that drops the interactive rate as the cache warms (skips the call entirely for a repeat name); (2) COALESCE concurrent in-flight duplicate lookups (many users adding the same new city at once → one shared resolution); (3) hosted/paid Nominatim-compatible source if 1+2 still don't hold the budget. **Batching reality (why (2) is bounded):** the queue already fires at ~1/sec; `/lookup` (by osm_id) already batches ids; `/search` (by name) cannot batch distinct names — so coalescing helps only concurrent *duplicate* names, not distinct ones. That is why (1) is the primary lever.
 
-**COO recommendation (unconfirmed):** start the **Architect ADL for the seam** first — it carries
-product-shaped questions only the PO can answer (chiefly: *when a name is live-ambiguous but you already
-hold one cached row, should it still prompt?*) — and fix **BUG-91 + BUG-86 in parallel** (different code,
-no conflict). Hold **UX-13** (grey the picker name) and **UX-15** (tooltip copy) to ride the seam work,
-since both touch the picker. **Everything is already tracked** (BUG-97/98/86/91, UX-13/15); only the
-go-ahead and the sequencing are open. Pick up: confirm sequencing, then dispatch (ADL → OP-27 review → build).
+**Why parked, not spiked now:** sizing it needs user-count / add-rate / cache-miss-rate premises that don't exist yet; OP-33 says don't promote a design on premises we can't establish. Trigger to pull it: multi-user moves from "thinking ahead" to on the roadmap. **The per-`(name,country)` response-cache lever is now tracked as QUAL-51** (deferred, pulls with multi-user); this thread stays open for the broader question — does response-cache + coalescing suffice, or do we need a hosted/paid source.
 
 ### D-30: A build-vs-buy rule
 **Raised:** 2026-08-09 · **Status:** PO wants to discuss; not yet framed. Placeholder so it isn't lost.

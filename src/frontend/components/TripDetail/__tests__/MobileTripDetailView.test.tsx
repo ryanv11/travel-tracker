@@ -65,12 +65,15 @@ function makeTrip(overrides: Partial<TripDetailType> = {}): TripDetailType {
   };
 }
 
-function renderTrip(trip: TripDetailType) {
+function renderTrip(trip: TripDetailType, onReturnToReview?: () => void) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
-  return render(<MobileTripDetailView trip={trip} onBack={vi.fn()} />, { wrapper });
+  return render(
+    <MobileTripDetailView trip={trip} onBack={vi.fn()} onReturnToReview={onReturnToReview} />,
+    { wrapper },
+  );
 }
 
 describe('MobileTripDetailView — delete affordance (BUG-50/TR-14)', () => {
@@ -119,5 +122,38 @@ describe('MobileTripDetailView — delete affordance (BUG-50/TR-14)', () => {
 
     expect(apiDelete).not.toHaveBeenCalled();
     expect(screen.getByText('Unlock this trip?')).toBeInTheDocument();
+  });
+});
+
+// ----------------------------------------------------------------
+// BUG-86 round 2 (2026-08-11 UAT reopen): "Back to Review" control
+// ----------------------------------------------------------------
+// Mirrors TripDetail.test.tsx's desktop coverage — see that file for the
+// full rationale (this callout is the mobile equivalent of the desktop
+// stepper-card button, both wired to the same onReturnToReview prop).
+describe('MobileTripDetailView — "Back to Review" (BUG-86 round 2)', () => {
+  it('renders when status is review_pending and onReturnToReview is provided', () => {
+    renderTrip(makeTrip({ status: 'review_pending' }), vi.fn());
+    expect(screen.getByRole('button', { name: 'Back to Review' })).toBeInTheDocument();
+  });
+
+  it('calls onReturnToReview when clicked', async () => {
+    const onReturnToReview = vi.fn();
+    renderTrip(makeTrip({ status: 'review_pending' }), onReturnToReview);
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Review' }));
+    expect(onReturnToReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render for any other status', () => {
+    for (const status of ['planning', 'active', 'locked'] as const) {
+      const { unmount } = renderTrip(makeTrip({ status }), vi.fn());
+      expect(screen.queryByRole('button', { name: 'Back to Review' })).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('does not render when onReturnToReview is omitted, even in review_pending', () => {
+    renderTrip(makeTrip({ status: 'review_pending' }));
+    expect(screen.queryByRole('button', { name: 'Back to Review' })).not.toBeInTheDocument();
   });
 });
