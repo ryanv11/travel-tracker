@@ -1,11 +1,13 @@
 # ADL-56 — The cached-vs-live add-place disambiguation seam (BUG-97 / BUG-98 / BUG-99 / BUG-73)
 
-**Date:** 2026-08-11 · **Author:** Architect · **Status:** DESIGN — **AMENDED R1 2026-08-11** (all four §12
-open questions resolved by the PO + two new live-staging UAT directives folded in; slice phasing defined).
-Pending (a) OP-27 fresh-eyes **Opus** review of the WHOLE amended document + the seam (HIGH stakes:
-data-integrity/dedup invariant + a shared FE/BE contract — **never Fable**, it touches identity/dedup
-reasoning that reads as security-adjacent), (b) an ATDD-first Slice-1 implementation wave. No production
-code, no migration generated.
+**Date:** 2026-08-11 · **Author:** Architect · **Status:** DESIGN — **AMENDED R2 2026-08-11** (the OP-27
+fresh-eyes BLOCKING finding **B1** resolved — the D8 §3b(3) "cached-first-gate" reintroduced BUG-97; replaced by
+PO-directed **invisible autofire on the settled query**; six reviewer non-blockers N3–N7 folded into Slice 1,
+N1/N2 carried into Slice 2). Supersedes **R1 2026-08-11** (all four §12 open questions resolved by the PO + two
+new live-staging UAT directives folded in; slice phasing defined). Pending (a) a **focused OP-27 fresh-eyes Opus
+re-review** of the B1 fix + its seams (HIGH stakes: data-integrity/dedup invariant + a shared FE/BE contract —
+**never Fable**, it touches identity/dedup reasoning that reads as security-adjacent), (b) an ATDD-first Slice-1
+implementation wave. No production code, no migration generated.
 
 **Tracker:** BUG-97 (primary) · BUG-98 (folds in) · **BUG-99 (folds in — add-place picker selection
 commits prematurely; the select≠commit fix, D7)** · BUG-73 message-copy contract (folds in) ·
@@ -31,7 +33,31 @@ new routes. No new DB table, no new index.**
 >   **Slice 2** (the D2 ε-classifier reconciliation) is the higher-risk fast-follow. GE-21's "FE and BE agree"
 >   criterion is fully met only after Slice 2 — a **documented, stamped interim divergence**, not a silent half-ship.
 
----
+> **AMENDMENT R2 (2026-08-11) — the fresh-eyes BLOCKING finding B1, resolved; six non-blockers folded.**
+> The OP-27 fresh-eyes Opus reviewer found that R1's **D8 §3b(3) "cached-first-gate" reintroduced BUG-97**: it
+> suppressed the live lookup whenever the cache returned a single exact-name match, so typing "Newport" (one
+> cached "Newport, Oregon" row) showed only Oregon — the Wales/England/RI alternatives were never fetched, the
+> user bound Oregon, and Slice 1 did **not** close BUG-97. The reviewer's load-bearing point: **a single cached
+> row carries zero information about whether other real places share the name — no threshold on a cache-only
+> signal can tell "the only real Newport" from "the only *cached* Newport,"** so the gate cannot be tuned safe.
+> Reconciled INTO the sections below (not appended), per OP-27 refinement 2:
+> - **B1 → INVISIBLE AUTOFIRE (Option A, PO-directed).** The live lookup fires on the **settled query**
+>   (debounced 300ms + min-2-chars) **regardless of a single exact cached match** — the cached-first-*gate* is
+>   removed (§3b, superseded in place). Cached rows still render instantly; one live call folds the alternatives
+>   into the same surface. Bounded (debounce + min-length + per-query session cache = ≤1 call per distinct
+>   settled name), **staleness-safe** (last-query-wins; superseded responses discarded), and the fire trigger is
+>   **a single isolated policy point** so a rollback to an explicit "search live" affordance is localized (PO:
+>   "try it and roll back if it's an issue"). The multi-user AGGREGATE Nominatim budget stays the PARKED D-33
+>   thread — **not** designed here.
+> - **Seam knock-on (walked).** R1 asserted in four places — §0 D8 row, §3b's D5-reconciliation, §7's R1
+>   paragraph, §10 test 10, §12 Q1 — that "when the cache answers confidently, no live call fires, so
+>   S2/S4/S5 do not arise." That is **false under B1** (live always fires) and is corrected in every one of them.
+> - **N3–N7 folded into Slice 1** (each probed against live code, §14): N3 held-selection invalidation on an
+>   identity-field edit (§3a); N4 guard scope — picker vs region-narrowing (§6a); N5 D4 backfill placement +
+>   region derivation (§6/§6a); N6 Change-city live-merge scope (§3b/§5); N7 H1 exposure rises with autofire (§5).
+> - **N1/N2 carried into Slice 2's documented scope** (not fixed now): the ε-collapse needs a deterministic
+>   representative osm_id, and the collapse key under-collapses on a NULL region_iso granularity (§10a, §13).
+> - A **new §14** records the R2 probes (all reviewer prescriptions verified against live code before folding).
 
 ## §0 — Summary table
 
@@ -44,7 +70,7 @@ new routes. No new DB table, no new index.**
 | D5 | **BUG-73 message contract** | Five behavioral states, three of which are conflated today: cache-empty ≠ live-empty ≠ live-failed. Define WHEN each fires; the cache-empty message must never imply the place is absent; the live-lookup escape hatch is always present. Exact copy → UX. | High |
 | D6 | **UX delegation boundary** | ADL owns the behavioral/data contract (routing, identity/dedup, the ambiguity definition + collapse rule, region backfill, the message *state machine*, the API shape, **the select≠commit selection model D7, the silent-live-lookup trigger D8**). UX owns picker/label copy, the cached-vs-live badge, the "can't see your place?" affordance wording, message strings, visual grouping, **the affordance of the "Add City & Place" control and the "none of these — add as new" escape row**. | High |
 | **D7** | **Selection model (BUG-99 — select ≠ commit)** *(R1, new)* | Every selection path — cached-search result, disambiguation picker, new-city form — **selects & populates** a definite city identity and reveals the date fields; a **single explicit "Add City & Place" button is the ONLY write**. **Both** `createCity` (live/pending picks) **and** `addPlace` **defer** to that commit — a pick performs **no** network write. Dedup-invariant (§5). Mirrors `TripForm`. Mobile = same component; `ChangeCityModal` shares the anti-silent-commit guard. | High |
-| **D8** | **Invisible cache/live merge + silent-lookup trigger policy** *(R1, new — sharpens D1/D5)* | The live lookup fires **automatically** so the surface shows one seamless cached ∪ live list (no visible "do a full lookup" button). Trigger contract: **debounced** (≥ the existing search debounce), **min-length 2**, **cached-first-gated** (fires only when the cache does not already return a confident unambiguous single exact match — Q1), **coalesced** per `(query, countrySet)`. Fires **during** the debounced search (so live candidates appear in the surface), **not** deferred to submit. Pixels/copy → UX (D6). | High (contract) / Medium (the "confident single match" thinness threshold is a tunable) |
+| **D8** | **Invisible cache/live merge + silent-lookup trigger policy** *(R1; **B1-CORRECTED R2**)* | The live lookup fires **automatically** so the surface shows one seamless cached ∪ live list (no visible "do a full lookup" button). Trigger contract: **debounced** (the existing 300ms), **min-length 2**, fires **on the settled query regardless of a single exact cached match** (**R2 — the R1 "cached-first-gate" is removed; it reintroduced BUG-97, B1**), **per-query session-cached** so a repeat settled query does not re-fire, **staleness-safe** (last-query-wins; superseded/abandoned responses discarded, in-flight cancelled). Fires **during** the debounced search (so live candidates appear in the surface), **not** deferred to submit. The fire trigger is **one isolated policy point** (rollback seam). Pixels/copy → UX (D6). | High (contract) |
 | **D9** | **Slice phasing (Q4 resolved)** *(R1, new)* | **Slice 1** (all PO-reported bugs; lower risk): D7 + D1 cached-first routing + D8 invisible merge + D3/P2 osm-id-on-search + D4 region backfill + D5 states. Ships first, ATDD-first for the data-integrity/shared-contract parts. **Slice 2** (higher-risk fast-follow): D2 ε-classifier reconciliation (`classifyCandidates` place-level + collapse ε). GE-21's "FE and BE agree" is met **only after Slice 2** — documented interim divergence (§10a). | High |
 
 **One-line reconciliation of the BUG-72 tension the brief names:** *reuse the catalogue* (BUG-72) and *don't
@@ -232,12 +258,41 @@ and it is exactly what closes the Melbourne region-null save (§6). The *afforda
 "add as new" row being the only active path) is UX (D6); the *behavioral rule* — no bind without an explicit
 selection, escape hatch always present — is the contract.
 
+**Guard scope — the picker, not the region-narrowing control (N4, R2).** The anti-silent-commit guard covers the
+**place-level** disambiguation (the `CityPicker`, mode `picker` — ≥2 distinct real places). It does **not** extend
+to the region-narrowing `<select>` (mode `region`, `AddPlaceFlow.tsx:781-838`), and that is deliberate: an Add
+with mode `region` showing and no region picked writes a **region-null pending** row via `handleCreateCity` →
+`createCity({name, country, region_id: undefined})`, which is a *lower-harm* outcome than a silent wrong-bind — it
+routes through `resolveCityName` → the backend re-derives ambiguity → a `pending`/`needs_attention` row via the
+GE-19 lifecycle (ADL-55), **not** a silent commit of a guessed place. Region is also explicitly `(optional)` in
+the UI. So mode `region` + region-null-pending is **acceptable** and self-heals (a later resolve + D4 backfill
+sets the region). The guard fires **only** for place-level ambiguity, where the wrong outcome would be a silent
+bind to the wrong real place (BUG-97's actual failure). This makes §6a's "every Slice-1 path ends with a region"
+precise — see §6a.
+
+### D7 held-selection invalidation on an identity-field edit (N3, R2 — new pick→hold window).
+
+D7 introduces a **new** window that did not exist on `main`: pick → **hold** → later Add (on `main` the pick was
+the commit, so no field could change between pick and write). A held selection carries a definite identity — for
+a live pick, a candidate's `(osm_type, osm_id, region_iso, …)`. If a held **live** selection (say, a Wales
+Newport `osm_id`) **survives a later edit to an identity-bearing field** — most dangerously the Country `<select>`
+changed to `FR` — the commit would send that Wales `osm_id` **with `countryCode: 'FR'`**, and
+`createOrReuseCarriedCity` stores the row under the **caller-supplied** `countryCode`/`regionId`
+(`cityIdentityService.ts:210,223-224` — the canonical `/lookup` supplies name/coords/osm only, **not** the
+country), producing a Wales place filed under France. **Rule:** editing an identity-bearing field (Country, or
+re-editing the city Name) **after** a pick **invalidates the held selection** — it reverts to "no selection,"
+re-showing the surface. This mirrors `main`'s existing Country-`onChange` reset, which already clears
+`placePickerCandidates`/`candidateRegionIsos`/auto-fill state (`AddPlaceFlow.tsx:695-715`) — R2 extends that same
+reset to the held selection. Pinned as a D7 ATDD (§10 test 11).
+
 **Scope of the D7 build.** `AddPlaceFlow` is the surface with the dates and the PO-reported bug; the mobile view
 **renders the same `AddPlaceFlow` component** (`MobileTripDetailView.tsx:32,280`) — verified, so the fix is
 **one component, not two**, and needs no mobile-specific variant. `ChangeCityModal` re-points an existing
 place and shares the same commit-on-pick anti-pattern (`ChangeCityModal.tsx:105/127/155`) **and** the P2 dedup
-seam — but it has **no dates**, so it needs the anti-silent-commit guard + the P2 identity-matching, **not** a
-dates/held-selection restructure. Scope confirmation flagged as §12 Q5.
+seam — but it has **no dates**, so it needs the anti-silent-commit guard + the P2 identity-matching + the N6 live
+merge, **not** a dates/held-selection restructure. **R2 — Q5 resolved (PO confirmed Change-city is in scope):
+`ChangeCityModal` is in Slice 1** (§12 Q5, §5, §9); the held-selection invalidation above is `AddPlaceFlow`-only
+(no held/dates window in the re-point flow), but the guard + P2 + live merge bind both surfaces.
 
 **Testable (see §10 tests 7–9):** on the cached-search step, clicking a result populates a held selection and
 does **not** call `addPlace`; only the explicit Add commits, carrying the current date-field values. On the
@@ -247,7 +302,7 @@ write a region-null pending row (the Melbourne guard).
 
 ---
 
-## §3b — D8 Invisible cache/live merge + silent-lookup trigger policy (R1)
+## §3b — D8 Invisible cache/live merge + silent-lookup trigger policy (R1 · **B1-CORRECTED R2**)
 
 **Recommendation (PO direction: one seamless list; the live lookup is invisible/automatic, not a visible
 button).** This confirms D1's "one surface unions cached + live" and refines it: there is **no** visible "do a
@@ -259,32 +314,81 @@ app-wide shared 1 req/s public-Nominatim budget) is **the trigger policy for the
    cached search already uses (`DEBOUNCE_MS = 300`, `AddPlaceFlow.tsx:82`) — one call per settled query, not one
    per character.
 2. **Minimum length 2** — the existing `cityName.trim().length >= 2` gate (`:405`) applies unchanged.
-3. **Cached-first-gated (this is Q1 = cached-first, realised).** The live call fires **only when the cache does
-   not already answer confidently** — i.e. the cached search returned zero rows, or did not return a single
-   exact-name unambiguous catalogue match. When the catalogue already resolves the typed name to one place, **no
-   live call is made** (zero Nominatim cost on the common "already saved" path). The exact "confident single
-   match" threshold is a **tunable** (default: fire when cached rows == 0, or when >1 distinct-identity cached
-   rows match, or when the top cached row is not an exact case-insensitive name match).
-4. **Coalesced** per `(query, countrySet)` — one in-flight live call per distinct settled query; a re-render or
-   an unchanged debounced query must not re-fire it (React Query keying by value already gives the cached search
-   this; the live lookup must be keyed identically).
+3. **Fires on the settled query regardless of a single exact cached match (R2 — Option A, invisible autofire).**
+
+   > **SUPERSEDED (2026-08-11) by R2 finding B1 — retained for history.** R1 read: *"Cached-first-gated (this is
+   > Q1 = cached-first, realised). The live call fires only when the cache does not already answer confidently —
+   > i.e. the cached search returned zero rows, or did not return a single exact-name unambiguous catalogue
+   > match. When the catalogue already resolves the typed name to one place, no live call is made … The exact
+   > 'confident single match' threshold is a tunable."* **Why it was wrong (B1):** a single cached row carries
+   > **zero** information about whether other real places share the name. Typing "Newport" with one cached
+   > "Newport, Oregon" row is *exactly* a "confident single exact match," so the gate suppressed the live call —
+   > and the Wales / England / Rhode Island Newports were never fetched. The user bound Oregon and BUG-97 was
+   > **not** closed. No threshold on a cache-only signal can distinguish "the only *real* Newport" from "the only
+   > *cached* Newport," so the gate is not tunable-safe. It also contradicted D1's P1 exit criterion, §10 test 1,
+   > and GE-21.
+
+   **The R2 rule.** The live lookup fires on the **settled query** — `settled` = the existing debounce (item 1)
+   **and** min-length 2 (item 2) are satisfied — **whether or not the cache already returned an exact single
+   match.** Cached rows still render **instantly** (no waiting on the live call); the one live call folds the
+   alternatives into the same surface (the invisible merge). This is **not** what Q1 rejected: Q1 forbade live
+   **per-keystroke** for the budget. Firing **once per settled query** is bounded — debounce + min-length +
+   per-query session cache (item 4) = **at most one live call per distinct settled name**, and zero extra calls
+   on a re-typed or re-rendered query. The common "already saved, user picks the cached row before the live call
+   even returns" path costs one bounded background call, which the 1 req/s single-app budget absorbs at current
+   scale. (The multi-user **aggregate** budget is the **PARKED D-33 thread** — coalescing across users / a hosted
+   geocode source is **explicitly not designed here**.) The correct reading of "cached-first" (Q1) is therefore
+   **"cached rows render first and always; live always augments,"** not "suppress live when the cache has a hit."
+4. **Per-query session cache + coalesced** per `(query, countrySet)` — one in-flight live call per distinct
+   settled query; a re-render, or a return to an already-fired settled query, serves the cached live result and
+   does **not** re-fire (React Query keying by value already gives the cached search this; the live lookup must be
+   keyed identically — see the hook recommendation in item 6).
 5. **Fires during the debounced search, not on submit.** The PO wants the merged list visible *as the user
    chooses*, so live candidates must appear in the surface before commit — the live call is not deferred to a
-   submit action. (This does not reintroduce per-keystroke firing: 1 + 3 + 4 bound it to at most one call per
-   settled, cache-unanswered query.)
+   submit action. (This does not reintroduce per-keystroke firing: items 1 + 4 bound it to at most one call per
+   distinct settled query.)
+6. **Staleness-safety — last-query-wins (R2, PO-flagged, mandatory).** Because the live call is now bound to the
+   *settled query* rather than an explicit click, a response for a **superseded/abandoned** query must never
+   render. The live merge is **keyed to the current settled query**: a response whose query ≠ the current
+   debounced query is **discarded**, and an in-flight call is **cancelled** on query change. Two independently
+   sufficient mechanisms, both already present in the codebase: (a) the backend Nominatim chokepoint carries an
+   `AbortController` + `REQUEST_TIMEOUT_MS = 5000` (`nominatim-client.ts:48,239-240`); (b) the FE keys results by
+   query string — `useCitySearch`'s `queryKey: ['cities','search', query, codesParam]` (`useCities.ts:160`) is
+   the pattern. **Recommended shape: lift the live lookup out of the imperative `lookupCityCountry(...).then()`
+   promise it is today (`AddPlaceFlow.tsx:410`) into a React-Query hook keyed by `(settledQuery, countrySet)`**,
+   exactly like `useCitySearch` — last-query-wins, coalescing (item 4), and abort-on-key-change then fall out of
+   React Query's own machinery for free (the component always reads the *current* key's data, so a stale
+   response is simply never the active data). *Last-query-wins is mandatory; abort-in-flight is a recommended
+   optimisation on top* (correctness holds from keying alone — a stale response that is never read cannot
+   mis-render). **ATDD (see §10 test 10):** type A → live fires for A → change the query to B before A returns →
+   A's candidates **never** render in the surface.
+7. **Rollback-tunability — one isolated policy point (R2, PO: "try it and roll back if it's an issue").** Keep
+   the auto-fire trigger a **single, clearly-isolated policy seam** — a config/flag or the one hook from item 6
+   — so switching to the **explicit-affordance fallback** (cached-only + a visible "Search live for more places"
+   control that calls the *same* hook on demand) or throttling the auto-fire harder is a **localized change, not
+   a rewrite**. Concretely: the hook takes an `enabled: 'auto' | 'manual'` (or a `LIVE_AUTOFIRE` flag) read in
+   **one** place; `manual` renders the control and gates the hook's `enabled` on a click. Nothing else in the
+   surface changes between the two modes — the merge, dedup (P2), and select≠commit paths are identical.
 
 **Delegated to UX (D6):** whether a "searching online…" affordance shows while the live call is in flight, the
 cached-vs-live badge, grouping/ordering of cached vs live rows, and all copy. D8 owns *when the call fires and
 how it coalesces*; UX owns the pixels.
 
-**Reconciliation with D5's message states (walked, per the brief).** Moving *when* the live call fires (from the
-old explicit "+ Add new" click to the debounced search) does **not** collapse D5's five states, because each
+**Reconciliation with D5's message states (walked — B1-corrected R2).** Moving *when* the live call fires (from
+the old explicit "+ Add new" click to the debounced search) does **not** collapse D5's five states, because each
 state keys off the live call's **outcome**, which the `GET /api/geocode` `{status, candidates, failed}` shape
 already carries (BUG-73/74): cache-empty + live-pending → transient "searching…"; cache-empty + live-`ok`-with-
 candidates → S3; cache-empty + live-`ok`-zero → **S4 (live-empty)**; cache-empty + live-`error`/`disabled`/
-retries-exhausted → **S5 (live-failed)**; cache-hit → **S1** (and if the cache answered confidently, no live
-call fired at all — S2/S4/S5 do not arise). The auto-fire changes the *timing* of the live call, not the
-*state machine*; S2 (cache-empty) stays distinct from S4 (live-empty) and S5 (live-failed) exactly as §7 defines.
+retries-exhausted → **S5 (live-failed)**. **Corrected under B1:** because the live call now fires on **every**
+settled query (the cached-first-gate is gone), there is a **cache-hit + live-augmenting** surface that R1 wrote
+off — a cache hit shows **S1** (cached rows as reuse targets) **while the live call is still in flight and may
+append alternatives**, so S1's copy MUST NOT imply the cached row is the only match. The R1 claim *"if the cache
+answered confidently, no live call fired at all — S2/S4/S5 do not arise"* is **false under B1 and struck**: the
+live call always fires, so on a cache hit the same live outcomes (in-flight → terminal ok-with-candidates /
+ok-zero / failed) still occur, they simply layer **on top of** the shown cached rows instead of standing alone.
+The state machine is unchanged in *kind* (S2 cache-empty stays distinct from S4 live-empty and S5 live-failed
+exactly as §7 defines); B1 only removes the "no live call" branch. **N6:** these states bind on **both** the
+`AddPlaceFlow` search and the `ChangeCityModal` search (whose live merge R2 extends into Slice 1 — §5/§9).
 
 ---
 
@@ -342,7 +446,13 @@ The safety properties the merged surface MUST satisfy (testable; pixels delegate
   (osm ids are public OSM data). **This field is Slice 1 (D9)** — the invisible merge (D8) needs it to dedup the
   cached ∪ live union. **P2 must hold on BOTH consumers of the merged surface** — `AddPlaceFlow` *and*
   `ChangeCityModal` (both already consume the shared `decideCityDisambiguation` + `buildCreateCityDataFromCandidate`
-  utils), so the search-projection change lands the dedup in both without a second code path.
+  utils), so the search-projection change lands the **identity-dedup** in both without a second code path.
+  **N6 caveat (R2):** the shared projection field lands the *dedup*, but `ChangeCityModal`'s **search step is
+  cached-only today** — `useCitySearch(debouncedQuery)` with no live lookup (`ChangeCityModal.tsx:55`; its live
+  lookup fires only on the "+ Add new" click via `cityDisambig.runLookup`, `:124`). So closing the B1 Newport
+  hole on the **correction** surface requires **wiring the D8 autofire live merge into `ChangeCityModal`'s search
+  itself** (the same hook from §3b item 6), not merely exposing the projection field. Both are Slice 1 (Q5
+  resolved — §12).
 
 - **P2-R1 (select≠commit is dedup-invariant — the §5 walk the brief requires).** Deferring `createCity`/`addPlace`
   to the explicit commit (D7) changes **no** P2/§2/§3 guarantee. Every dedup mechanism — the osm-ref partial
@@ -352,6 +462,14 @@ The safety properties the merged surface MUST satisfy (testable; pixels delegate
   `createCity` at all. So "always show the picker → match back by identity" is exactly as dedup-safe (and exactly
   as exposed to the H1 NULL-osm_id hole) under D7 as without it — the deferral is orthogonal. Full derivation in
   §3a fork (a).
+- **P2-R2 (B1 autofire is dedup-invariant too — the walk the R2 brief requires).** B1 changes *when/whether the
+  live CALL fires* (now on every settled query, not gated on a cache hit); it does **not** change *what row a pick
+  resolves to*. Dedup still fires at `createCity`/pick time via the same four mechanisms above, and the P2
+  identity-collapse (cached ∪ live deduped by `(osm_type,osm_id)`) is applied to whatever candidate set the merge
+  produces regardless of what triggered the live call. So no reuse-by-id or osm-ref guarantee moves under autofire
+  — the merge shows more rows sooner, but a pick binds identically. The N6 `ChangeCityModal` extension inherits
+  this unchanged (its writes are `changeCity` re-points + the same `createOrReuseCarriedCity`/`findOrUpgradeCity`
+  create paths). Flagged for the focused re-review as R2-f (§13) — probed, not merely asserted.
 - **P3 (explicit binding).** cached → `POST /api/trips/:id/places {city_id}`; live → `POST /api/cities {osm_type,
   osm_id, …}` (`createOrReuseCarriedCity`); "none of these / add anyway" → `POST /api/cities {name, country,
   region?}` pending (`findOrUpgradeCity`). All three already exist.
@@ -370,6 +488,16 @@ because the cached row has none).** Two dispositions:
   same-region match, and flag it as needing the same fresh-eyes scrutiny. Recommend as a fast-follow **only if
   UAT shows real duplicate pollution**, not day one (avoids over-building against a legacy population that
   disposable-data churn removes anyway).
+
+**N7 (R2) — B1's autofire RAISES H1 exposure; the day-one answer is unchanged, but note the trigger.** Under R1's
+(removed) cached-first-gate, a confident cache hit fired no live call, so the "NULL-osm_id cached row + its live
+twin, shown twice" case (H1) rarely surfaced. B1's autofire fires the live call on **every** settled query, so a
+NULL-osm_id cached row (legacy/pending/terminal/seeded) will now **routinely** be shown alongside its live twin
+that it cannot collapse by osm_id. The **day-one disposition is still "accept + self-heal"** — the D6 "saved /
+reuse" badge steers the user to pick the cached row (which reuses by `id`, minting nothing), and the population is
+bounded/self-healing/detectable exactly as above. But the §5 **best-effort collapse** now has a **clearer trigger
+to come forward**: if UAT shows real duplicate pollution *because autofire surfaced these twins more often*, adopt
+it as the documented fast-follow. Named here so the knock-on is explicit, not so it is built day one.
 
 ---
 
@@ -400,6 +528,31 @@ Reasoning:
 **Testable:** adding a city in a region-tier country with the region left blank, whose lookup yields one
 confident region, persists that `region_id`; the same with a region the user explicitly chose is never
 overwritten; the same with an unseeded region leaves `region_id` NULL and still creates the city.
+
+### §6b — D4 backfill placement + region derivation (N5, R2 — two implementation-precision corrections)
+
+The reviewer flagged two ways a naive D4 build gets it wrong. Both verified against live code; both fold into the
+Slice-1 brief as mandatory:
+
+1. **Placement — the direct-update SUCCESS path only, NEVER the caught-violation merge.** At
+   `commitResolvedOrMerge` (`geocoding.service.ts:290-323`) the backfill goes **only** in the try-block direct
+   update (lines 297-316 — the branch that updates *this* row's coords/osm/status). The `catch` →
+   `mergeIntoWinner` branch (line 321) repoints trip_places onto a **pre-existing winner** row and deletes the
+   loser — that winner **may hold a user-supplied region** (D12 rule-3), so the merge branch must **never**
+   backfill it. Same at the create-path insert (`routes/cities.ts:186-203`): the backfill decorates the row being
+   inserted, and the `insertCityOrReuse` re-select-and-reuse fallback (which returns an *existing* row on a
+   caught violation) must not mutate that reused row's region.
+2. **Derive the region from the single distinct `region_iso` among eligible candidates, NOT from
+   `best.regionIso`.** `classifyCandidates` returns `best = eligible[0]` (`geocoding.service.ts:192`), and
+   `eligible[0]` **can carry a NULL `region_iso` even when the resolve is region-unambiguous** — e.g. `eligible =
+   [ {regionIso: null}, {regionIso: 'AU-VIC'} ]` yields `distinctRegionIsos = ['AU-VIC']` (length 1 → status
+   `ok`) but `best.regionIso === null`. Backfilling from `best.regionIso` would **silently miss** the backfill.
+   So derive the backfill region from **the single distinct non-null `region_iso`** of the eligible set
+   (`distinctRegionIsos(eligible)`, length 1), then map it to a seeded `region_id`. At `commitResolvedOrMerge`
+   the function today receives only the single `candidate`, so the caller (which holds the verdict/eligible set)
+   must derive the `region_iso` (or resolved `region_id`) and pass it down — the backfill cannot be computed from
+   `candidate` alone. The GE-15 best-effort fallback still applies: an unseeded `region_iso` leaves `region_id`
+   NULL and the row still saves. Pinned in §10 test 5's assertions.
 
 ### §6a — Melbourne re-scoped (R1) — BUG-98's real mechanism, and why it spans two slices + D7
 
@@ -432,9 +585,18 @@ and the plain-name commit path bypassed it.** It is the same seam as BUG-99, see
    then removes the *spurious two-option picker itself* (the annoyance of being asked to choose between what is
    really one place), so Melbourne resolves seamlessly with no picker at all.
 
+**N4 precision (R2) — "every path ends with a region" is scoped to the picker case.** Melbourne is a **mode
+`picker`** case (`distinctOsmIds.size > 1` — two Melbourne osm_ids), so the guard covers it and paths (A)/(B)/(C)
+above each end with a region. This is **not** a universal claim over all region-tier adds: a **mode `region`**
+case (a region-tier country whose name is region-ambiguous but carries no distinct osm_ids) can legitimately end
+**region-null-pending** if the user commits without picking a region — the guard does not fire there (N4, §3a),
+because that outcome is a lower-harm GE-19 `pending` row the backend re-derives and a later resolve + D4 backfills,
+not a silent wrong-place bind. So §6a's "ends with a region" holds for the **picker** paths; the region-narrowing
+path ends either with a chosen region or a self-healing region-null-pending — both acceptable.
+
 **Net (the honest phasing statement).** BUG-98's **region-null symptom is fully closed in Slice 1** (D7 removes
-the guess-without-a-pick commit; D4 backfills the region on the unambiguous resolve — every path ends with a
-region). What **Slice 2** adds is removing the **spurious two-option picker** (the D2 ε-collapse) so Melbourne
+the guess-without-a-pick commit; D4 backfills the region on the unambiguous resolve — every *picker* path ends
+with a region; a region-narrowing path ends with a chosen region or a self-healing region-null-pending row). What **Slice 2** adds is removing the **spurious two-option picker** (the D2 ε-collapse) so Melbourne
 resolves seamlessly with no picker at all — a disambiguation-quality (BUG-97-family) improvement, not the
 region-null fix. So: BUG-98 → Slice 1; the Melbourne *picker cosmetics* → Slice 2.
 
@@ -463,7 +625,7 @@ runs a **live** lookup that may find results — misleading, BUG-73).
 
 | State | Fires when | Behavioral contract |
 |---|---|---|
-| S1 cached-hit | `GET /api/cities` returned rows | Show them as reuse targets; no message needed. |
+| S1 cached-hit | `GET /api/cities` returned rows | Show them as reuse targets. **R2:** the live call still fires (B1) and may append live alternatives to the same surface, so S1 copy MUST NOT imply the cached rows are the only matches; a transient "searching…" affordance may show while the augmenting live call is in flight. |
 | S2 **cache-empty** | cached search returned nothing | Message MUST be scoped to *saved places* ("no **saved** places match…") and MUST NOT imply the place is absent; the live-lookup escape hatch is always offered. (Replaces today's absolute "No matches in <country>.") |
 | S3 live-candidates | `GET /api/geocode` `status:'ok'`, candidates present | Picker / tentative suggestion (existing D1/D2/GE-15). |
 | S4 **live-empty** | `GET /api/geocode` `status:'ok'`, zero candidates | "We looked and found no match for <name> in <country> — you can still add it as a new place." Distinct from S2 and S5; leads to the plain-name pending create. |
@@ -473,12 +635,16 @@ Reasoning: S5 is already distinguished (BUG-73/BUG-74). The **new** behavioral r
 (cache-empty) from S4 (live-empty) — the source of the misleading message — and guaranteeing the escape hatch
 in S2. The states are the contract; the strings are UX.
 
-**R1 — the states survive D8's auto-firing live call.** Under D8, the live lookup fires automatically during the
-debounced search rather than on an explicit "+ Add new" click. This does not collapse the five states: each keys
-off the live call's `{status, candidates, failed}` **outcome**, not off *when* it was triggered — so cache-empty
-+ live-pending ("searching…"), S3, S4, S5 remain individually distinguishable, and when the cache answers
-confidently no live call fires so S2/S4/S5 don't arise. Full walk in §3b. (The S2 "cache-empty" copy still MUST
-NOT imply the place is absent, since a live augment may follow.)
+**R1 — the states survive D8's auto-firing live call. (B1-corrected R2.)** Under D8, the live lookup fires
+automatically during the debounced search rather than on an explicit "+ Add new" click. This does not collapse
+the five states: each keys off the live call's `{status, candidates, failed}` **outcome**, not off *when* it was
+triggered — so cache-empty + live-pending ("searching…"), S3, S4, S5 remain individually distinguishable.
+**Corrected under B1:** the R1 sentence *"when the cache answers confidently no live call fires so S2/S4/S5 don't
+arise"* is **struck** — the cached-first-gate is removed, so the live call fires on **every** settled query. Its
+outcome now layers on top of a cache hit (the S1 "cache-hit + live-augmenting" case) rather than being skipped:
+S3/S4/S5 can therefore follow a cache hit too, appending to or annotating the shown cached rows. Full walk in
+§3b. (The S2 "cache-empty" copy still MUST NOT imply the place is absent, since a live augment may follow; and
+per **N6** the same states now bind on the `ChangeCityModal` search as well as `AddPlaceFlow`'s.)
 
 ---
 
@@ -507,8 +673,12 @@ the surface. UX consumes the states and contract above; it does not decide when 
   instead of calling them; the explicit button calls them. No route, contract, or payload changes for D7.
 - **Behavioral code changes (all in existing modules):** the shared same-place-collapse function + place-level
   `classifyCandidates` and `decideCityDisambiguation` (D2, **Slice 2**); the region backfill in the create insert
-  and `commitResolvedOrMerge` (D4, Slice 1); the FE unified surface + invisible-merge trigger + message states +
-  select≠commit selection model (D1/D5/D7/D8, Slice 1).
+  and `commitResolvedOrMerge` — **direct-update success path only, region derived from the single distinct
+  eligible `region_iso`** (D4/N5, Slice 1); the FE unified surface + **invisible-merge autofire hook keyed by
+  `(settledQuery, countrySet)` with an `enabled: auto|manual` rollback seam** (D8/B1, Slice 1) + message states +
+  select≠commit selection model + **held-selection invalidation on an identity-field edit** (D7/N3, Slice 1). The
+  same autofire hook + guard + P2 identity-dedup are wired into **`ChangeCityModal`'s search** (N6, Slice 1 —
+  cached-only today).
 - **Security checklist (OP-06) — named for the Slice-1 build brief.** No new routes ⇒ no new auth/scoping
   obligations. The one additive change is the `osm_type`/`osm_id` fields on the `GET /api/cities` search
   projection: **(1)** the endpoint stays exactly as `requireAuth`-scoped as today — the field addition does not
@@ -529,16 +699,20 @@ shared FE/BE contract; a wrong implementation is silent-and-plausible — a wron
 and the **select≠commit selection model (D7)** is pinned ATDD-first too: a regression there is silent-and-
 plausible (a place commits with the wrong/blank dates or bypasses the picker) and is precisely specifiable.
 **ATDD-first: NO** for the pure-presentation work (badge/label/copy/grouping — visible and recoverable in UAT),
-except the message-**state routing** (S2 vs S4 vs S5) and the **D8 trigger policy** (debounce/coalesce/cached-
-first-gate), which are behavioral and ARE pinned. **Slice 2's** `classifyCandidates` ε-collapse is ATDD-first:
-YES (it is the one change that can *silently corrupt*).
+except the message-**state routing** (S2 vs S4 vs S5), the **D8 trigger policy** (debounce / **autofire on the
+settled query** / **staleness last-query-wins** / coalesce — B1-corrected, no cached-first-gate), and the **N3
+held-selection invalidation**, which are behavioral and ARE pinned. **Slice 2's** `classifyCandidates` ε-collapse
+is ATDD-first: YES (it is the one change that can *silently corrupt*).
 
 Red acceptance tests to author before any implementer (each maps to a decision; **`[S1]`/`[S2]` = which slice
 owns it**; **mock-fidelity**: the geocode double must export/behave like `nominatim-client` — return the
 `{status,candidates,truncated}` shape, or the suite passes vacuously, QUAL-22):
-1. **`[S1]` (D1/D8/P1)** Name with 2+ distinct live places within the trip countries → the merged surface (cached
-   ∪ live, deduped by identity) is shown, nothing auto-bound; single cached row + additional live candidates →
-   all shown.
+1. **`[S1]` (D1/D8/P1 — the B1 regression test)** Name with 2+ distinct live places within the trip countries →
+   the merged surface (cached ∪ live, deduped by identity) is shown, nothing auto-bound. **The B1 case
+   explicitly:** typing "Newport" with **exactly one** cached row ("Newport, Oregon") **still fires the live
+   lookup** and shows the additional live Newports (Wales / England / RI) alongside the cached Oregon row — the
+   single exact cached match does **not** suppress the live call, and Oregon is never auto-bound. (This is the
+   test that fails against R1's cached-first-gate and passes under B1's autofire.)
 2. **`[S2]` (D2, BE name-path defense-in-depth)** A plain-name create that *bypasses the FE surface* (offline /
    direct API) for a live-ambiguous name resolves to `needs_attention`, not a silent `eligible[0]` (the Newport
    **backend** regression test). NOTE: in Slice 1 the FE surface already prevents the FE from *sending* such a
@@ -549,8 +723,13 @@ owns it**; **mock-fidelity**: the geocode double must export/behave like `nomina
 4. **`[S1]` (D3/P2)** A live candidate whose `(osm_type,osm_id)` equals a shown cached row appears once (the
    cached row); picking it attaches by `id` and creates no new row. Assert on BOTH `AddPlaceFlow` and
    `ChangeCityModal` surfaces.
-5. **`[S1]` (D4)** Region-tier country, region left blank, unambiguous resolve → `region_id` backfilled; explicit
-   user region never overwritten; unseeded region → `region_id` NULL and city still created.
+5. **`[S1]` (D4/N5)** Region-tier country, region left blank, unambiguous resolve → `region_id` backfilled;
+   explicit user region never overwritten; unseeded region → `region_id` NULL and city still created. **N5
+   assertions:** (a) the backfill fires on the **direct-update success path** but a resolve that hits the
+   caught-violation `mergeIntoWinner` branch does **not** overwrite the pre-existing winner's region; (b) a
+   region-unambiguous resolve whose `best = eligible[0]` carries a **NULL `region_iso`** while another eligible
+   candidate carries the single distinct `region_iso` **still backfills** (derivation is from the single distinct
+   eligible `region_iso`, not `best.regionIso`).
 6. **`[S1]` (D5)** cache-empty (S2), live-empty (S4), live-failed (S5) each render their own state; the escape
    hatch is present in S2.
 7. **`[S1]` (D7, cached-search pick)** Clicking a cached-search result **selects & populates** and does **not**
@@ -562,30 +741,62 @@ owns it**; **mock-fidelity**: the geocode double must export/behave like `nomina
 9. **`[S1]` (D7, Melbourne anti-silent-commit guard)** With a picker showing and **no** candidate selected, the
    commit path writes **no** region-null pending row; choosing the explicit **"none of these — add as new"** row
    creates a creator-private plain-name pending row (GE-12/GE-16). (Closes BUG-98's silent region-null save.)
-10. **`[S1]` (D8, trigger policy)** The silent live lookup is **debounced** (one call per settled query, not per
-    keystroke), **cached-first-gated** (no live call fires when the cached search already returns a confident
-    single exact match), and **coalesced** (an unchanged debounced query does not re-fire it). Mock the geocode
-    client and assert call count/timing.
+10. **`[S1]` (D8/B1, trigger policy)** The silent live lookup is **debounced** (one call per settled query, not
+    per keystroke); **fires on the settled query regardless of a single exact cached match** (assert a live call
+    IS made for "Newport" when exactly one exact cached row exists — the B1 assertion, the inverse of the removed
+    cached-first-gate); **per-query session-cached / coalesced** (returning to an already-fired settled query does
+    not re-fire; at most one in-flight call per distinct `(query, countrySet)`). Mock the geocode client and
+    assert call count/timing.
+11. **`[S1]` (D8/B1, staleness — last-query-wins)** Type A → the live lookup fires for A → change the query to B
+    **before** A returns → A's candidates **never** render in the surface (the merge is keyed to the current
+    settled query; a superseded response is discarded). Assert the surface shows only B's results.
+12. **`[S1]` (D7/N3, held-selection invalidation)** After a **live** candidate is picked (held, not committed),
+    editing an identity-bearing field — change Country, or re-edit the city Name — **invalidates the held
+    selection** (reverts to "no selection", re-shows the surface); a subsequent commit does **not** send the held
+    candidate's `osm_id` under the newly-chosen country (guards the Wales-`osm_id`-under-`FR` corruption via
+    `createOrReuseCarriedCity`'s caller-supplied `countryCode`).
+13. **`[S1]` (D8/N6, Change-city correction surface)** In `ChangeCityModal`, typing "Newport" with one cached
+    "Newport, Oregon" row **fires the live merge** and shows the alternative Newports (the B1 hole is closed on
+    the correction surface too, not only in `AddPlaceFlow`); picking a live twin of a NULL-osm_id cached row is
+    deduped by the P2 identity match where the ref allows.
 
 ---
 
 ## §10a — D9 Slice phasing (Q4 resolved: phase it, Slice 1 first) — R1
 
 **Slice 1 — "close every PO-reported bug," lower risk, ships first (ATDD-first for the data-integrity/contract
-parts).** Contents: **D7** select≠commit selection model (BUG-99) · **D1** cached-first routing (the cache reuses,
-never selects) · **D8** invisible cache/live merge presentation + trigger policy · **D3/P2** expose
-`osm_type`/`osm_id` on the `GET /api/cities` search + FE identity-matching (the one additive API field) · **D4**
-region backfill (BUG-98's D4 half) · **D5** message states (BUG-73). Tests `[S1]`: 1, 4, 5, 6, 7, 8, 9, 10.
-Likely brief split: **Brief A (backend/shared)** — the `osm_type`/`osm_id` search-projection field + D4 region
+parts).** Contents: **D7** select≠commit selection model (BUG-99) + **N3** held-selection invalidation on an
+identity-field edit + **N4** guard scope (picker, not region-narrowing) · **D1** cached-first routing (the cache
+reuses, never selects) · **D8/B1** invisible cache/live merge presentation + **autofire-on-settled-query trigger
+(no cached-first-gate)** + staleness last-query-wins + the rollback seam · **D3/P2** expose `osm_type`/`osm_id` on
+the `GET /api/cities` search + FE identity-matching (the one additive API field) + **N7** H1 note · **D4/N5**
+region backfill (BUG-98's D4 half — direct-update path only, region from the single distinct eligible
+`region_iso`) · **D5** message states (BUG-73) · **N6** the same autofire merge + guard + P2 wired into
+`ChangeCityModal`'s (cached-only) search. Tests `[S1]`: 1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13.
+Likely brief split: **Brief A (backend/shared)** — the `osm_type`/`osm_id` search-projection field + D4/N5 region
 backfill at both write sites (ATDD-first: YES); **Brief B (frontend)** — the unified surface, the invisible-merge
-trigger, the select≠commit selection model, the message states (ATDD-first: YES for the D7 selection model + the
-message-state routing + the D8 trigger; NO for pure copy/badge/grouping).
+autofire hook + staleness + rollback seam, the select≠commit selection model + N3 held-selection invalidation, the
+message states, and the N6 `ChangeCityModal` wiring (ATDD-first: YES for the D7 selection model + N3 + the
+message-state routing + the D8/B1 trigger + staleness; NO for pure copy/badge/grouping).
 
 **Slice 2 — the ε-classifier reconciliation, higher-risk fast-follow.** Contents: **D2** — one place-level
 ambiguity definition + the same-place-collapse ε, implemented in **both** `classifyCandidates` (the background
 resolver) and `decideCityDisambiguation` (the FE), pinned by the shared golden-fixture set. Tests `[S2]`: 2, 3.
 This is the only change that can *silently corrupt* (over-collapse binds two real places as one; under-collapse
 floods `needs_attention`) — it carries the full ATDD bar and is the primary aim of the fresh-eyes review (§13).
+
+**Slice 2 — carried R2 items for its own fresh-eyes (N1, N2 — NOT fixed in Slice 1).** The ε-collapse design must
+resolve two invariants the reviewer surfaced, recorded here so Slice 2's fresh-eyes reviewer receives them settled:
+- **N1 — the ε-collapse needs a DETERMINISTIC representative `osm_id` for a collapsed place.** When two
+  granularities (a `city` node + a `municipality` relation) collapse to one place, the two decision sites must
+  stamp the **same** osm ref — otherwise two resolves of "the same" collapsed place stamp **different** `osm_id`s
+  and mint a duplicate the `uniq_cities_osm_ref` index cannot catch. A deterministic tie-break — e.g. lowest
+  `(osm_type-rank, osm_id)` — chosen once and fixtured, so FE and BE pick identically.
+- **N2 — the collapse key `(name, country, region_iso)` under-collapses on a NULL-`region_iso` granularity.** When
+  one of the same-place granularities carries a NULL `region_iso`, the `(name,country,region_iso)` key does not
+  match its twin and the two fail to collapse. Fall back to `name + country + coords-within-ε` for the pair whose
+  `region_iso` differ only because one is NULL. Fixture both edges (Melbourne twins with one NULL region_iso must
+  still collapse; two genuinely-distinct same-region places must not).
 
 **The slice boundary and its interim, stamped (so it is not a silent half-ship).** After Slice 1 the user-visible
 seam is closed **at the frontend**: the merged surface + select≠commit means the FE never silently binds an
@@ -631,20 +842,33 @@ ambiguity definition** is met only at **Slice 2** (the D2 ε-collapse). If the C
 now, it should note this interim (or Slice 2's "FE and BE agree" clause enters as a **spike-gated** sub-criterion
 until the ε-collapse lands). The §10a INTERIM stamp is the record.
 
-**OP-33 note:** GE-21 does **not** rest on an unverified premise — the load-bearing dedup premise it relies on
-is verified in §2 (two probes), *including its holes*, and the design accounts for them. The R1 additions
-(select≠commit, invisible merge) rest on **verified live-code mechanisms** (BUG-99's two commit paths traced to
-`AddPlaceFlow.tsx:611-613/362/289`; the `TripForm` target pattern read directly), not on premises. So GE-21 may
-enter **approved** rather than spike-gated **if** the COO/PO accept §2's verdict and the Slice-2 interim above.
-BUG-98's D4 is a refinement of the existing GE-15/GE-16 + D12 rule-3 and needs no new ID — only a confirmed D12
-wording amendment.
+**OP-33 note (B1-corrected R2 — GE-21 stays PROPOSED / spike-gated).** GE-21 does **not** rest on an unverified
+premise — the load-bearing dedup premise is verified in §2 (two probes, *including its holes*) and the design
+accounts for them; the R1 additions (select≠commit, invisible merge) rest on **verified live-code mechanisms**
+(BUG-99's two commit paths at `AddPlaceFlow.tsx:611-613/362/289`; the `TripForm` target pattern read directly).
+
+> **SUPERSEDED (2026-08-11) by R2 — retained for history.** R1 read: *"So GE-21 may enter **approved** rather than
+> spike-gated if the COO/PO accept §2's verdict and the Slice-2 interim."* **Why walked back:** the fresh-eyes B1
+> finding showed R1's own D8 §3b(3) gate **did not deliver** GE-21's core "presents saved + live candidates
+> together" criterion — a single cached Newport suppressed the live alternatives. GE-21 rested on a mechanism the
+> spec asserted but had **not** verified against the gate's own behaviour.
+
+**R2 stance.** With B1 fixed (invisible autofire on the settled query), GE-21's *"presents saved matches and live
+candidates together and binds only by explicit selection"* **is** deliverable in Slice 1 — but GE-21 **stays
+PROPOSED / spike-gated** and is **not** promoted until the **focused OP-27 fresh-eyes Opus re-review of the B1 fix
++ its seams passes** (the reviewer's own load-bearing correction must itself clear an independent probe — reviewers'
+claims need probing too). Re-evaluate GE-21 for BRD promotion **after** that re-review clears. The two-slice interim
+(§10a — "FE and BE agree" met only after Slice 2) stands unchanged. BUG-98's D4 is a refinement of the existing
+GE-15/GE-16 + D12 rule-3 and needs no new ID — only a confirmed D12 wording amendment.
 
 ---
 
 ## §12 — Flagged open questions (OP-27 refinement 1)
 
-**Q1–Q4 are RESOLVED (PO, 2026-08-11); reconciled into the sections above. One NEW item (Q5) is flagged for the
-COO→PO before fresh-eyes.**
+**Q1–Q5 are RESOLVED (PO, 2026-08-11); reconciled into the sections above. R2: the fresh-eyes BLOCKING finding
+B1 is resolved (invisible autofire replaces R1's cached-first-gate — §3b); Q5 is confirmed (Change-city in Slice
+1, N6). What remains is the **focused OP-27 fresh-eyes Opus re-review** of the B1 fix + its seams before GE-21
+promotes (§11, §13).**
 
 - **Q1 (PO, product — scope of the surface).** *Always live + merge* vs *cached-first + escape hatch*.
   Recommendation was **cached-first**.
@@ -652,6 +876,11 @@ COO→PO before fresh-eyes.**
   > public-Nominatim budget reinforces it). Refined: the cache/live merge is **invisible/automatic** (D8 §3b),
   > not a visible "do a full lookup" button — the user sees one seamless list. D8 pins the silent-live-call
   > trigger (debounced + cached-first-gated + coalesced) so "seamless" ≠ "live on every keystroke".
+  > **B1-CORRECTED R2:** "cached-first" is now read as **"cached rows render first and ALWAYS; live ALWAYS
+  > augments,"** not "suppress live when the cache has a hit." R1's `cached-first-*gate*` reading (fire live only
+  > when the cache did not answer confidently) reintroduced BUG-97 and is removed — the live call fires on the
+  > settled query regardless of a single exact cached match (PO Option A, invisible autofire). Budget-safety comes
+  > from the debounce + min-length + per-query cache bound (≤1 call per distinct settled name), not from a gate.
 - **Q2 (PO/COO — D12 rule-3 wording).** Confirm the D4 refinement: rule-3 protects a *supplied* region, NULL is
   backfillable from an unambiguous resolve.
   > **RESOLVED (2026-08-11) by PO — BACKFILL confirmed.** A blank region is not a supplied value; backfilling it
@@ -676,6 +905,10 @@ COO→PO before fresh-eyes.**
   is settled (GE-21 binds both surfaces); the only open call is whether ChangeCityModal is in Slice 1 or deferred.
   Recommend **in Slice 1** (cheap, and leaving a second surface committing-on-pick is an inconsistency a UAT will
   find). Flagged rather than assumed because it touches a surface the PO's BUG-99 note did not name.
+  > **RESOLVED (2026-08-11) by PO — CHANGE-CITY IN SCOPE (Slice 1).** `ChangeCityModal` gets the anti-silent-commit
+  > guard + P2 identity-dedup **and** — because its search is **cached-only today** (`:55`) — the D8/B1 autofire
+  > live merge (N6, §5/§9), so the correction surface does not keep the B1 Newport hole. **No** dates/held-selection
+  > restructure (no dates in a re-point); the N3 held-selection invalidation is `AddPlaceFlow`-only.
 
 ---
 
@@ -684,9 +917,36 @@ COO→PO before fresh-eyes.**
 The weakest / highest-consequence calls, named deliberately so the review spends its pass on blind spots.
 **Scope the WHOLE amended document + the R1 seams (OP-27 refinement 2), not just the amendment.**
 
+**R2 focused re-review — aim it here first (the B1 fix + its seams; reviewers' claims need probing too).** The
+B1 fix and the six folded non-blockers are the reviewer's *own* prescriptions folded back in — a reviewer's fix
+can itself be wrong, so the re-review must probe, not confirm:
+- **(R2-a) Does invisible autofire actually close BUG-97 without a new budget or race problem?** The claim is
+  that firing once per settled query (debounce + min-length + per-query cache) is budget-safe at current scale
+  and that last-query-wins keying makes it staleness-safe. Stress: is there a keystroke pattern that defeats the
+  per-query coalescing (e.g. type→delete→retype the same query); does the abandoned-query response truly never
+  render; is the "cache renders instantly, live augments" claim honoured when the live call is slow?
+- **(R2-b) Walk the D5 seam again.** R2 struck the R1 claim "no live call on a confident cache hit → S2/S4/S5
+  don't arise" in §0/§3b/§7/§10. Did the strike reach *every* place, and does the new "cache-hit + live-augmenting
+  S1" state hold together (does any copy still imply the cached row is the only match)?
+- **(R2-c) N3 held-selection invalidation.** Is "invalidate on identity-field edit" the complete set of
+  identity-bearing fields, or is there a fourth field (region? the search query itself?) whose edit could leave a
+  stale held `osm_id` bound under a changed country? Probe `createOrReuseCarriedCity`'s caller inputs.
+- **(R2-d) N5 D4 backfill.** Confirm the merge-branch exclusion and the single-distinct-`region_iso` derivation
+  are *both* correct against `commitResolvedOrMerge` / the create-path insert — a backfill that reads
+  `best.regionIso` would silently miss the AU-VIC case.
+- **(R2-e) N6 Change-city.** Does wiring the autofire into `ChangeCityModal`'s cached-only search introduce any
+  re-point-specific hazard (it has no dates, but it *does* mutate an existing place's city_id)?
+- **(R2-f) Dedup invariance under B1.** Autofire changes *when/whether* the live call fires, not *what row a pick
+  resolves to* — confirm no reuse-by-id / osm-ref guarantee (§2/§3/§5, §3a fork a) is disturbed by the merge or
+  by the N6 extension.
+
 1. **§4 `classifyCandidates` → place-level + the collapse ε (Slice 2).** The only change that can *silently
    corrupt* (over-collapse binds two real places as one). Stress the ε at both edges and against real captured
-   fixtures. Still the primary aim.
+   fixtures. Still the primary aim — but this is **Slice 2's** fresh-eyes, not the focused R2 re-review above.
+   Carry the R2 items **N1** (deterministic representative `osm_id` for a collapsed place — else two resolves
+   stamp different `osm_id`s and mint an index-invisible duplicate) and **N2** (the `(name,country,region_iso)`
+   collapse key under-collapses on a NULL `region_iso` granularity — fall back to name+country+coords-ε) into
+   that review; both are recorded in §10a.
 2. **§2 H1 disposition.** Is "accept + self-heal" actually acceptable, or does the legacy NULL-osm_id
    population make duplicate pollution likely enough to warrant the §5 best-effort collapse day one? Probe the
    real staging population if reachable.
@@ -710,3 +970,22 @@ The weakest / highest-consequence calls, named deliberately so the review spends
    PO-reported symptom without Slice 2 — or does closing BUG-97's Newport actually depend on the Slice-2 BE
    place-level classifier in some path the FE surface doesn't cover? The interim stamp rests on Slice 1 being
    self-sufficient for the *reported* bugs; test that claim.
+
+---
+
+## §14 — R2 probe record (reviewer prescriptions verified against live code before folding)
+
+The COO's brief was explicit: *"the non-blocker prescriptions are the fresh-eyes REVIEWER's — probe them, don't
+apply blind (a reviewer's fix can itself be wrong)."* Each fold was checked against live code this session (paths
+are as-read on branch `chore/adl-bug97-cached-live-seam`). All six verified as stated; none was off.
+
+| Prescription | Probe (live code read) | Verdict |
+|---|---|---|
+| **B1** — cached-first-gate reintroduces BUG-97 | The live lookup fires **only** on the "+ Add new" click today (`handleOpenNewCityForm`, `AddPlaceFlow.tsx:392,405-410`); R1's D8 §3b(3) would gate the *moved* autofire on a single exact cached match. A single cached "Newport, Oregon" is exactly such a match → live suppressed → alternatives unfetched. | **VALID** — gate cannot distinguish "only real" from "only cached." Fixed via Option A autofire. |
+| **B1 staleness mechanics** | Backend `nominatim-client.ts:48` `REQUEST_TIMEOUT_MS=5000` + `:239-240` `AbortController`/`controller.abort()`; FE `useCitySearch` keys React Query by query string (`useCities.ts:160`), but the live `lookupCityCountry` (`:108`) is an **imperative promise**, not keyed. | **VALID** — last-query-wins must be *added* for the live merge; recommended via a query-keyed hook (§3b item 6). |
+| **N3** — held selection survives country edit → wrong-country store | `createOrReuseCarriedCity` inserts with the **caller-supplied** `countryCode`/`regionId` (`cityIdentityService.ts:210,223-224`); the canonical `/lookup` supplies name/coords/osm only. Main resets picker state on Country `onChange` (`AddPlaceFlow.tsx:695-715`) but D7's pick→hold window is new. | **VALID** — a new hazard D7 introduces; mirror the existing reset onto the held selection. |
+| **N4** — guard scope: picker vs region-narrowing | Region `<select>` is mode `region` (`AddPlaceFlow.tsx:781-838`); an Add with no region → `handleCreateCity` → `createCity({region_id: undefined})` (`:335-342`) → `resolveCityName` re-derives → `pending`/`needs_attention` (GE-19), not a silent bind. | **VALID** — lower harm; guard scoped to mode `picker` only, region-null-pending acceptable. |
+| **N5** — backfill placement + derivation | `commitResolvedOrMerge` try-block updates *this* row (`geocoding.service.ts:297-316`); `catch`→`mergeIntoWinner` (`:321`) repoints onto a pre-existing winner. `classifyCandidates` returns `best=eligible[0]` (`:192`), which can carry NULL `regionIso` while `distinctRegionIsos(eligible).length===1`. | **VALID** — backfill success-path only; derive from single distinct eligible `region_iso`, not `best`. |
+| **N6** — Change-city live merge | `ChangeCityModal` search is `useCitySearch(debouncedQuery)` cached-only (`ChangeCityModal.tsx:55`); its live lookup fires only on "+ Add new" (`:124`); `repointTo` commits on pick (`:103-114,199-201`). | **VALID** — the B1 hole exists on the correction surface; autofire must be wired here, not just the P2 field. |
+| **N7** — H1 exposure rises with autofire | `uniq_cities_osm_ref` is partial `WHERE osm_id IS NOT NULL` (§2, verified R1); autofire surfaces NULL-osm_id cached rows alongside live twins on every settled query. | **VALID (note)** — day-one disposition unchanged; §5 collapse has a clearer trigger to come forward. |
+| **N1/N2** (Slice 2 — carried, not fixed) | `classifyCandidates` collapse is Slice-2 work; N1 (deterministic representative osm_id) and N2 (NULL-region_iso under-collapse) recorded for Slice 2's fresh-eyes (§10a). | **VALID** — carried to Slice 2 scope. |
