@@ -1,0 +1,63 @@
+TO: COO
+FROM: Architect
+DATE: 2026-08-11 (late)
+RE: ADL-56 R2 amendment complete — B1 resolved, N1–N7 folded, CI green
+
+HEADER
+- ADL-56 (BUG-97/98/99/73) · PR #528 (updated, not new) · BRD GE-21 (PROPOSED/spike-gated)
+- Branch: chore/adl-bug97-cached-live-seam (continued) · commit 2bbcfe5
+
+WHAT WAS DONE
+Amended ADL-56 R1 -> R2 in place. Resolved the OP-27 fresh-eyes BLOCKING finding B1 and folded the
+six reviewer non-blockers. Docs-only (no source, no migration). R1 text preserved under SUPERSEDED
+stamps (OP-28). CI: all 18 checks green on #528.
+
+B1 FIRE-POLICY AS SPECIFIED (what you asked me to report)
+- Fire condition: the live lookup fires on the SETTLED query (existing debounce 300ms + min-2-chars)
+  REGARDLESS of a single exact cached match. Fires once per distinct settled query; a per-query
+  session cache means a repeat/re-rendered query does not re-fire. Cached rows still render instantly;
+  the one live call folds alternatives into the same surface. Bounded (<=1 call per distinct settled
+  name) and budget-safe at current scale. Multi-user AGGREGATE budget = the PARKED D-33 thread, NOT
+  designed here.
+- Staleness handling: last-query-wins. The live merge is keyed to the current settled query; a
+  superseded/abandoned response is DISCARDED; in-flight cancelled. Recommended shape: a React-Query
+  hook keyed by (settledQuery, countrySet), mirroring useCitySearch — last-query-wins/coalesce/abort
+  come for free. Last-query-wins is MANDATORY; abort is a recommended optimisation. ATDD test 11.
+- Rollback seam: one isolated policy point (enabled: auto|manual flag / the single hook) so switching
+  to an explicit "search live" affordance is localized, not a rewrite.
+
+N4 GUARD-SCOPE DECISION (you asked me to decide)
+The anti-silent-commit guard covers the PLACE picker (mode 'picker') ONLY, not the region-narrowing
+'region' control. An Add with mode 'region' showing and no region picked writes a region-null PENDING
+row that the backend re-derives via the GE-19 lifecycle (not a silent wrong-bind); region is also UI-
+optional. So region-null-pending there is acceptable and self-heals (later resolve + D4 backfill).
+§6a's "every path ends with a region" is now scoped to the picker case.
+
+NON-BLOCKER FOLDS DON'T BREAK D5/DEDUP (confirmed)
+- D5: corrected the now-false "no live call on a confident cache hit -> S2/S4/S5 don't arise" claim in
+  all five places (seam knock-on of B1); added the cache-hit + live-augmenting S1 state. States intact.
+- Dedup: B1 autofire changes when/whether the live CALL fires, not what a pick RESOLVES to — dedup
+  fires at createCity/pick time regardless (new §5 P2-R2 bullet). N6 ChangeCityModal inherits it
+  unchanged. Flagged as R2-f for the re-review to probe, not merely assert.
+
+PRESCRIPTIONS PROBED — ALL VERIFIED, NONE OFF (new §14 records the trail)
+Each reviewer fix was checked against live code before folding. Confirmations: N3 (createOrReuseCarried
+City uses caller-supplied countryCode, cityIdentityService.ts:210,223-224 — a held live pick surviving
+a country edit stores wrong-country); N4 (mode 'region' :781-838 routes through GE-19); N5 (backfill
+belongs on the direct-update path :297-316 not mergeIntoWinner :321; derive from single distinct
+eligible region_iso, not best.regionIso which can be NULL while unambiguous); N6 (ChangeCityModal search
+is cached-only :55 — autofire must be wired, not just the P2 field). N1/N2 carried to Slice 2 scope.
+
+OPEN ISSUES / BLOCKERS
+- GE-21 stays PROPOSED / spike-gated (OP-33). NEXT ACTION IS YOURS: dispatch the FOCUSED OP-27
+  fresh-eyes Opus re-review of the B1 fix + its seams (§13 R2-a..R2-f). Opus, never Fable
+  (identity/dedup reads as security-adjacent). Do not promote GE-21 until it clears.
+- No BUG-97/98/99 GitHub issue exists yet — raise + cross-ref per CLAUDE.md before the build wave.
+- Q2's D12 rule-3 one-line wording amendment is your BRD-gate task.
+
+WHAT IS NOW UNBLOCKED
+- The focused fresh-eyes re-review can run (the spec is settled; §13 aims it).
+- After it clears: GE-21 BRD promotion + the ATDD-first Slice-1 build (Brief A backend/shared,
+  Brief B frontend), per §10a. Slice 2 (D2 + N1/N2) is the fast-follow with its own review.
+
+Detail: park doc jobs/architect/park-docs/20260811-ARCHITECT-park-adl56-r2.txt; spec §3b/§14.
