@@ -1,3 +1,124 @@
+FRONTEND CONTEXT — as of 2026-08-11 (BUG-86 round 2 — review-trip round-trip
+navigation regression, fix/bug86-review-navigation-roundtrip branch, GitHub
+#526)
+
+STATUS: fix/bug86-review-navigation-roundtrip branch off main, GitHub #526,
+  PR #527 open, CI green (18/18 checks — scripts/ci-wait.sh pr 527 -> PASS).
+  Tracker BUG-86 (reopened from PO UAT 2026-08-11). COO dispatch gate framed
+  this as OP-32 regression class — the prior fix (PR #458, 2026-08-08) fixed
+  BUG-58/BUG-86's original "status transition deselects the trip" bug but,
+  per PO UAT, only in one direction. Full detail in the 2026-08-11 (this
+  thread) park doc and the amended tech doc (see below).
+
+  ROOT CAUSE (verified by inspecting PR #458's actual diff, not inherited
+  from the brief's lead): useReviewPanelVisibility's dismissal was scoped to
+  the (tripId, status) VALUE pair recorded at dismiss time, not to a genuine
+  ENTRY into review_pending. A trip cycling locked -> review_pending
+  (Unlock) lands back on the exact same 'review_pending' enum value it was
+  dismissed at earlier in the session, so the stale (tripId,
+  'review_pending') pair matched again and showReviewPanel stayed false —
+  Unlock silently landed on the trip view instead of ReviewPanel. Separately,
+  since a status change was the ONLY way to clear a dismissal, a trip that
+  stayed review_pending the whole time (no lock/unlock excursion) had no
+  route back to ReviewPanel at all once dismissed — the other half of the
+  PO's 2026-08-11 finding.
+
+  FIX (builds on #458's hook per the brief's reuse instruction — not
+  reverted):
+    1. `dismissed` is now a plain boolean, reset via a React-docs-sanctioned
+       "adjust state when a prop changes" render-phase pattern whenever
+       (tripId, status) actually differs from the last render — not just
+       whenever it differs from one specific stored value. Any genuine
+       status transition, including a round trip back to a prior value
+       (Unlock), now always clears a stale dismissal. Lands in the SAME
+       render as the transition, so there's no stale-panel flash a
+       useEffect-based reset would introduce.
+    2. New `returnToReview()` on the same hook — undoes a dismissal with NO
+       status change required. Wired to a new "Back to Review" control,
+       rendered on TripDetail.tsx (desktop, in the stepper card next to
+       Unlock) and MobileTripDetailView.tsx (mobile, its own callout box,
+       same treatment as the Unlock callout) — both ONLY when
+       trip.status === 'review_pending' (the only state with a ReviewPanel
+       to return to). TripDetailPage.tsx and MobileTripsLayout.tsx thread
+       `returnToReview` through as the new `onReturnToReview` prop.
+
+  GUARD AGAINST THE REPEAT (brief's explicit instruction, this being the
+  SECOND one-directional fix on this control): the prior hook's own test
+  file reasoned a dismiss-then-lock-then-unlock sequence was "not reachable
+  through the real UI" — it is (Back to Trip -> Lock Trip from the
+  now-showing trip view -> Unlock), and that's exactly PO's sequence. That
+  comment was an unprobed absence claim. This thread's regression tests
+  cover BOTH directions AND the lock/unlock reversal: +4 tests in
+  useReviewPanelVisibility.test.ts (the dismiss->lock->unlock cycle twice,
+  plus returnToReview unit coverage), +4 each in TripDetail.test.tsx and
+  MobileTripDetailView.test.tsx (the new button's render/hide/click
+  contract), and a NEW integration test file
+  TripDetailPage.bug86RoundTrip.test.tsx that mounts the real TripDetailPage
+  component tree with only apiGet/apiPatch mocked at the network boundary —
+  real useReviewPanelVisibility, real useLockTrip/useUnlockTrip mutations,
+  real react-query invalidation — and click-drives Back to Trip -> Lock Trip
+  -> Unlock through actual buttons. VERIFIED AS A REAL REGRESSION TEST, not
+  just a plausible one: swapped in the pre-fix (PR #458) hook body, confirmed
+  7 of the new/affected tests failed against it, then restored the fix and
+  confirmed all 13 pass.
+
+  COORDINATION: a sibling frontend agent was concurrently dispatched for
+  BUG-91 (TripForm create-modal regression, the other PR #458 defect) — no
+  file overlap encountered; this thread touched
+  TripDetail.tsx/MobileTripDetailView.tsx/TripDetailPage.tsx/
+  MobileTripsLayout.tsx/useReviewPanelVisibility.ts, none of which BUG-91's
+  brief named (TripForm.tsx).
+
+  VERIFICATION: npm run check (biome) — clean after `biome check --write
+  src/` (scoped, per this file's own documented caution below never to run
+  it bare against repo root) fixed formatting in the 2 files this thread's
+  edits reformatted; 5 pre-existing infos remain in the same backend test
+  file every recent thread has already noted, untouched here. npm run
+  type:check:all — clean (one test-file fix needed: an explicit union type
+  annotation on renderHook's initialProps, TS was narrowing it from the
+  literal `as const` value rather than the callback's own param type).
+  npm run test:backend — 871/871 (unaffected, no backend files touched).
+  npm run test:frontend — 418/418 (+16 new: 4 useReviewPanelVisibility, 4
+  TripDetail, 4 MobileTripDetailView, 3 TripDetailPage.bug86RoundTrip
+  [new file], plus 1 pre-existing test's initialProps type fix). npm run
+  status:check / tracker:check — clean; tracker.json BUG-86 notes appended
+  (not rewritten) with the round-2 root cause, fix summary, and GitHub #526
+  cross-reference — status field left as COO's job at merge, matching this
+  file's established pattern.
+
+  KEY FILE LOCATIONS (changed this thread)
+    src/frontend/hooks/useReviewPanelVisibility.ts (the actual fix — boolean
+      dismissed + render-phase reset + returnToReview)
+    src/frontend/hooks/__tests__/useReviewPanelVisibility.test.ts (+4 tests)
+    src/frontend/components/TripDetail/TripDetail.tsx (onReturnToReview
+      prop, "Back to Review" button in the stepper card)
+    src/frontend/components/TripDetail/__tests__/TripDetail.test.tsx (+4)
+    src/frontend/components/TripDetail/MobileTripDetailView.tsx
+      (onReturnToReview prop, "Back to Review" callout box)
+    src/frontend/components/TripDetail/__tests__/MobileTripDetailView.test.tsx (+4)
+    src/frontend/pages/TripDetailPage.tsx (threads returnToReview through)
+    src/frontend/components/TripList/MobileTripsLayout.tsx (threads
+      returnToReview through)
+    src/frontend/pages/__tests__/TripDetailPage.bug86RoundTrip.test.tsx (new
+      integration test)
+    jobs/frontend/tech/20260808-bug58-86-review-panel-visibility.md (amended
+      in place — API/Behaviour sections updated with old text struck through
+      per the document-lifecycle rule, new "Round 2" section added)
+    _project/tracker.json (BUG-86 notes appended)
+
+  NEXT STEPS (when resumed)
+    COO: review PR #527 (branch fix/bug86-review-navigation-roundtrip,
+    closes #526), merge via /coo-merge-and-close (CI already green), flip
+    BUG-86 tracker status to done_pending_uat with PR #527. PO: re-UAT the
+    full round trip (review -> trip -> review via "Back to Review", AND
+    review -> trip -> lock -> unlock -> review) on staging before this
+    closes for real — this is the third pass at this control.
+
+========================================================================
+PRIOR THREAD — retained in full below per this file's established
+newest-first pattern.
+========================================================================
+
 FRONTEND CONTEXT — as of 2026-08-08 (BUG-87/GE-20 Brief B — trip-country
 picker filter, feat/bug87-ge20-picker-country-filter branch, PR #469)
 

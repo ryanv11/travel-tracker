@@ -1,0 +1,43 @@
+BUG-86 (round 2) · GitHub #526 · PR #527 · BRD n/a · Branch fix/bug86-review-navigation-roundtrip
+
+WHAT WAS BUILT: Restored the review<->trip round-trip navigation PR #458
+left broken in one direction. Root cause: useReviewPanelVisibility's
+dismissal was scoped to a (tripId, status) VALUE pair, so Unlock
+(locked -> review_pending) matched a stale dismissal from before the
+lock/unlock cycle and landed on the trip view instead of ReviewPanel. Fixed
+by resetting the dismissal on any real (tripId, status) render-phase change
+(not just a mismatch against one stored value), and added a new
+returnToReview() + explicit "Back to Review" control on TripDetail/
+MobileTripDetailView so the round trip doesn't depend on a status
+transition happening at all. Built on #458's hook, did not revert it.
+
+ACCEPTANCE CRITERIA:
+- review/review_pending -> "Back to trip" -> active trip view, no blank
+  panel (keeps #458's win): PASS
+- Trip view has a path back to review (new "Back to Review" control): PASS
+- Unlock returns to REVIEW, not trip view; re-locking still works: PASS
+- Regression test covers both directions AND the lock/unlock reversal: PASS
+  (verified as a REAL regression test — ran it against the pre-fix PR #458
+  hook first, confirmed it fails there, then confirmed it passes against
+  this fix)
+
+CI: scripts/ci-wait.sh pr 527 -> PASS, 18/18 checks green.
+
+TESTS: +16 across 4 files (4 hook, 4 TripDetail, 4 MobileTripDetailView, 3
+  new integration test TripDetailPage.bug86RoundTrip.test.tsx + 1 type fix).
+  Full suite: frontend 418/418, backend 871/871 (untouched), type-check and
+  biome clean (5 pre-existing infos unrelated, same backend file every
+  recent thread has noted).
+
+COORDINATION: sibling BUG-91 agent working TripForm.tsx concurrently — no
+  file overlap with this thread's changes (TripDetail.tsx,
+  MobileTripDetailView.tsx, TripDetailPage.tsx, MobileTripsLayout.tsx,
+  useReviewPanelVisibility.ts).
+
+OPEN ISSUES / BLOCKERS: none. tracker.json BUG-86 notes appended (status
+  field left for COO to flip at merge, per this project's established
+  pattern).
+
+WHAT'S UNBLOCKED: BUG-86 ready for PR review/merge. PO can re-UAT the full
+  round trip on staging once merged — this is the third pass at this exact
+  control, worth a careful re-check.

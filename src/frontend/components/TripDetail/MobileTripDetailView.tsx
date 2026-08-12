@@ -22,6 +22,9 @@
  * BUG-50/TR-14: adds a third icon-only button (Delete/TrashIcon) alongside
  * Edit/Photos, same reachable-even-when-locked rule as desktop — see
  * TripDetail.tsx's module doc for the full rationale.
+ *
+ * BUG-86 (round 2, 2026-08-11 UAT): same "Back to Review" callout as desktop
+ * TripDetail — see that file's module doc for why this view needs it.
  */
 import type { TripDetail } from '../../types/api';
 import { formatDate } from '../../utils/formatDate';
@@ -41,6 +44,13 @@ interface MobileTripDetailViewProps {
   trip: TripDetail;
   /** Called when the user taps the back bar to return to the list. */
   onBack: () => void;
+  /**
+   * BUG-86 (round 2): returns to ReviewPanel for a review_pending trip whose
+   * review surface was dismissed via "Back to Trip". Only rendered when
+   * trip.status === 'review_pending' — optional so existing non-review call
+   * sites/tests don't need to pass a no-op.
+   */
+  onReturnToReview?: () => void;
 }
 
 const ICON_BUTTON_CLASS =
@@ -52,8 +62,14 @@ const ICON_BUTTON_CLASS =
  *
  * @param trip - Full trip detail including nested places and items.
  * @param onBack - Navigates back to the mobile list view.
+ * @param onReturnToReview - BUG-86 round 2: returns to ReviewPanel for a
+ *   dismissed review_pending trip.
  */
-export function MobileTripDetailView({ trip, onBack }: MobileTripDetailViewProps) {
+export function MobileTripDetailView({
+  trip,
+  onBack,
+  onReturnToReview,
+}: MobileTripDetailViewProps) {
   const c = useTripDetailController(trip);
 
   // TR-14: the confirmation step must name what will be lost — trip, places, items.
@@ -192,6 +208,23 @@ export function MobileTripDetailView({ trip, onBack }: MobileTripDetailViewProps
                 className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-primary text-white hover:bg-wp-primary-hover disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex-shrink-0"
               >
                 {c.isPending ? 'Updating…' : c.nextStep.label}
+              </button>
+            </div>
+          )}
+
+          {/* BUG-86 (round 2): this view renders for a review_pending trip
+              whose ReviewPanel was dismissed via "Back to Trip" — this is the
+              way back, same callout treatment as the next-step/Unlock boxes,
+              so the round-trip doesn't depend on a lock/unlock transition. */}
+          {trip.status === 'review_pending' && onReturnToReview && (
+            <div className="rounded-[14px] bg-wp-bg-subtle px-4 py-3.5 mb-4 flex items-center justify-between gap-3">
+              <span className="font-ui text-[11.5px] text-wp-ink-muted">Dismissed the review?</span>
+              <button
+                type="button"
+                onClick={onReturnToReview}
+                className="font-ui font-semibold text-sm rounded-wp px-3.5 py-2 bg-wp-bg-surface text-wp-ink border border-wp-border hover:bg-wp-bg-chip cursor-pointer flex-shrink-0"
+              >
+                Back to Review
               </button>
             </div>
           )}

@@ -12,14 +12,20 @@ import { useTrip } from '../hooks/useTrips';
  * BUG-58/BUG-86: which surface renders is decided by useReviewPanelVisibility,
  * not by navigating away — see that hook's doc comment for why ReviewPanel's
  * onClose used to deselect the trip on both the Lock (BUG-58) and "Back to
- * Trip" (BUG-86) paths.
+ * Trip" (BUG-86) paths. BUG-86 round 2 (2026-08-11 UAT): the hook's
+ * `returnToReview` is threaded into TripDetail as `onReturnToReview` so a
+ * dismissed review_pending trip has an explicit way back to ReviewPanel that
+ * doesn't depend on a lock/unlock status transition happening first.
  */
 export function TripDetailPage() {
   const { id } = useParams<{ id: string }>();
   const tripId = Number(id);
 
   const { data: trip, isLoading, error } = useTrip(tripId);
-  const { showReviewPanel, dismissReview } = useReviewPanelVisibility(trip?.id, trip?.status);
+  const { showReviewPanel, dismissReview, returnToReview } = useReviewPanelVisibility(
+    trip?.id,
+    trip?.status,
+  );
 
   if (isLoading) {
     return (
@@ -45,5 +51,5 @@ export function TripDetailPage() {
     );
   }
 
-  return <TripDetail trip={trip} />;
+  return <TripDetail trip={trip} onReturnToReview={returnToReview} />;
 }

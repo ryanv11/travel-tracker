@@ -221,3 +221,87 @@ describe('TripDetail — delete affordance (BUG-50/TR-14)', () => {
     expect(screen.getByText('Unlock this trip?')).toBeInTheDocument();
   });
 });
+
+// ----------------------------------------------------------------
+// BUG-86 round 2 (2026-08-11 UAT reopen): "Back to Review" control
+// ----------------------------------------------------------------
+//
+// TripDetail is what renders for a review_pending trip once ReviewPanel has
+// been dismissed via "Back to Trip" (useReviewPanelVisibility). Without an
+// explicit way back, a trip that never changes status again had no route to
+// ReviewPanel at all — this is that route. Only meaningful (and only
+// rendered) when trip.status === 'review_pending'; every other status has no
+// ReviewPanel to return to.
+describe('TripDetail — "Back to Review" (BUG-86 round 2)', () => {
+  it('renders when status is review_pending and onReturnToReview is provided', () => {
+    const onReturnToReview = vi.fn();
+    render(
+      <TripDetail
+        trip={makeTrip({ status: 'review_pending' })}
+        onReturnToReview={onReturnToReview}
+      />,
+      {
+        wrapper: ({ children }) => (
+          <MemoryRouter>
+            <QueryClientProvider
+              client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+            >
+              {children}
+            </QueryClientProvider>
+          </MemoryRouter>
+        ),
+      },
+    );
+    expect(screen.getByRole('button', { name: 'Back to Review' })).toBeInTheDocument();
+  });
+
+  it('calls onReturnToReview when clicked', async () => {
+    const onReturnToReview = vi.fn();
+    render(
+      <TripDetail
+        trip={makeTrip({ status: 'review_pending' })}
+        onReturnToReview={onReturnToReview}
+      />,
+      {
+        wrapper: ({ children }) => (
+          <MemoryRouter>
+            <QueryClientProvider
+              client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+            >
+              {children}
+            </QueryClientProvider>
+          </MemoryRouter>
+        ),
+      },
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Review' }));
+    expect(onReturnToReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render for any other status', () => {
+    const onReturnToReview = vi.fn();
+    for (const status of ['planning', 'active', 'locked'] as const) {
+      const { unmount } = render(
+        <TripDetail trip={makeTrip({ status })} onReturnToReview={onReturnToReview} />,
+        {
+          wrapper: ({ children }) => (
+            <MemoryRouter>
+              <QueryClientProvider
+                client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+              >
+                {children}
+              </QueryClientProvider>
+            </MemoryRouter>
+          ),
+        },
+      );
+      expect(screen.queryByRole('button', { name: 'Back to Review' })).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('does not render when onReturnToReview is omitted, even in review_pending', () => {
+    renderTrip(makeTrip({ status: 'review_pending' }));
+    expect(screen.queryByRole('button', { name: 'Back to Review' })).not.toBeInTheDocument();
+  });
+});
