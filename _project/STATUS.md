@@ -55,9 +55,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | done_pending_uat |
 | BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
-| BUG-91 | Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow) | frontend | done_pending_uat |
 | QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | done_pending_uat |
 | BUG-97 | Add-place ambiguity is pre-empted by a single cached city match (the cached-vs-live seam) | architect | ⬜ Pending |
+| BUG-99 | Add Place: picking a result from either picker commits immediately, bypassing the optional dates | architect | ⬜ Pending |
 | QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 | OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
@@ -117,7 +117,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `█████████████░░░░░░░` 37/57 | 37 | 20 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `███████████████░░░░░` 70/91 | 70 | 21 | 3 |
+| bug | `███████████████░░░░░` 71/92 | 71 | 21 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
 | chore | `████████████░░░░░░░░` 38/64 | 38 | 26 | 1 |
 
@@ -153,4 +153,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_198 done · 9 deferred · 5 closed · 77 open — 289 tracked items_
+_199 done · 9 deferred · 5 closed · 77 open — 290 tracked items_
