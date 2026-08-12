@@ -1,0 +1,90 @@
+COO SESSION PARK — 2026-08-11/12 — ADL-56 ADD-PLACE SEAM DESIGN SHIPPED (authored → R1 → R2 → TWO fresh-eyes reviews → merged) + BUG-86/91 ROUND-2 FIXES + BUG-99/QUAL-51 FILED
+6 PRs merged (#527, #530, #532, #533, #534, #528) · main green after every one · #531 closed (superseded)
+================================================================================
+
+## READ THIS FIRST — where to pick up
+
+**The add-place seam (BUG-97) is DESIGN-COMPLETE and MERGED (ADL-56, PR #528), NOT YET BUILT.**
+Next session's job is the **Slice-1 build**. The complete build-pickup lives in the **BUG-97 tracker
+note** — read it; it carries the phasing, the 7 non-blocking review items, the OPEN NB-1 PO decision,
+GE-21's BRD promotion, and the GitHub-issue TODO. In brief:
+
+- **Slice 1** (fixes EVERY PO-reported bug, lower risk, ATDD-first): select≠commit (BUG-99) +
+  cached-first routing + invisible autofire + region backfill (BUG-98/D4) + message states (BUG-73).
+  QA writes the **13 red acceptance tests in ADL-56 §10** first, then FE + BE.
+- **Slice 2** (higher-risk fast-follow): the ε-classifier FE/BE reconciliation (D2).
+- **BEFORE dispatching Slice 1:** (a) get the PO's **NB-1** decision — the in-flight "searching for
+  more…" cue (COO rec = YES; a fast click during live latency can otherwise still bind the cached row
+  and miss the alternatives); (b) promote **GE-21** PROPOSED→BRD (spike-gate cleared: dedup verified +
+  B1 fixed + two reviews on record) + the one-line **D12 rule-3** wording amendment (Q2); (c) raise
+  **GitHub issues for BUG-97/98/99** + tracker cross-refs (none exist); (d) fold **NB-1..NB-7** into
+  the Slice-1 brief (NB-2 staleTime, NB-3 no placeholderData, NB-4 region derived-not-editable for a
+  held pick, NB-5 pin surface composition step-1-merged-vs-step-2-picker, NB-6/7 ADL doc-hygiene).
+
+## What shipped this session
+
+- **BUG-86 round-2 (#527)** → done_pending_uat: review⇄trip round-trip nav restored. Root was a stale
+  `(tripId,status)` dismissal in useReviewPanelVisibility; fix proven by reverting the old hook.
+- **BUG-91 round-2 (#530)** → **done** (PO UAT PASS): trip-create made structurally submit-proof (no
+  submit button in the form). The premature-commit the PO first reported was actually the ADD-PLACE
+  surface — a DIFFERENT mechanism (picker onClick commits directly) → filed as BUG-99. PO confirmed
+  trip-create is fine.
+- **BUG-99 filed (#533, P2)**: add-place select-vs-commit — picking from EITHER add-place picker
+  (cached dropdown or disambiguation list) commits immediately, bypassing the optional dates. Folds
+  into BUG-97 Slice 1. PO directive: "removing the submit button isn't the answer" → pick SELECTS, an
+  explicit Add COMMITS (button stays).
+- **QUAL-51 filed (#534, P3, deferred)**: demand-driven geocode response cache — cache the Nominatim
+  search result per (name,country) with a TTL. THE lever that drops the interactive live-call rate as
+  usage grows (a cached ROW can't reveal completeness — that's BUG-97 — so always-fire-live is flat
+  until this caches the ambiguity). PO framing: a demand-driven local gazetteer. Pulls with multi-user.
+- **ADL-56 (#528)**: the cached-vs-live seam design. Authored → R1 (folded PO decisions) → R2 (fixed
+  the R1-review's blocking finding) → focused re-review SOUND → merged.
+
+## Key PO decisions this session
+
+- Q1 cached-first · Q2 backfill-a-blank-region · Q3 trust-the-cache · Q4 phase it (Slice 1 first).
+- Invisible cache/live merge (NOT a visible escape hatch).
+- **select≠commit**: picking a result SELECTS/populates; an explicit Add commits (button stays).
+- B1 fix trigger: **invisible autofire on the settled query**, staleness-safe (last-query-wins), with
+  a tunable/reversible `auto|manual` seam ("try it, roll back if it's an issue").
+- NB-1 in-flight cue: OPEN (surfaced, not yet answered — COO rec YES).
+- Multi-user response cache: **defer + track** → QUAL-51.
+
+## Process notes worth keeping
+
+- **OP-27 fresh-eyes earned its keep, twice.** The R1 review caught a BLOCKING self-contradiction (B1
+  — the invisible-merge trigger's "cached-first-gate" would have shipped a fix that REINTRODUCED the
+  Newport bug on a single cached match). R2 fixed it (always-fire-live); the focused re-review
+  confirmed SOUND and could not break it.
+- **The PO caught a real internal inconsistency (question-the-frame).** My "cache growth drops the
+  live-call rate" reassurance contradicted B1 (a cached row can't self-report completeness). Corrected
+  D-33's premise and tracked the actual lever as QUAL-51.
+- **Verify-against-artifacts held, and caught a gate fail-open.** Every merge cross-checked via
+  `gh pr checks` + `mergeStateStatus`, NOT the ci-wait exit code — which on #532's first run exited 0
+  while a required check had failed (D-34, watch-for-recurrence; root cause UNVERIFIED, likely the
+  duplicate-CI-trigger).
+- **#531 closed, not force-resolved.** The BUG-86 agent had appended its OWN round-2 note to
+  tracker.json; my chore branch (built on a stale local main) conflicted on that line. Redone cleanly
+  on current main (#532/#533) rather than resolving conflict markers inside a shared record (OP-28).
+
+## State of play (durable — tracker.json / STATUS.md)
+
+- **Open PRs:** none. **Worktrees:** none. **Local branches:** main only. **Main:** green @ this close.
+- **done_pending_uat (4), in the UAT log awaiting the PO:** BUG-86, BUG-74, QUAL-43, QUAL-49.
+- **The seam BUILD (the pickup):** BUG-97/98/99/73 + GE-21 + Slice 1 (ATDD-first). UX-13/UX-15 ride it.
+  QUAL-51 deferred.
+- **Pre-existing, untouched:** QUAL-18 (CSP E2E blindspot, P1), QUAL-45, the broader backlog.
+
+## Open threads
+
+See jobs/COO/open-dialogues.md — Open = D-05/14/23/27/28/30/33; Parked = D-03/08/09/13/26/34.
+D-32 resolved+removed this session; D-33 corrected (call-rate premise); D-34 new (ci-wait fail-open
+watch).
+
+## Suggested next
+
+(a) Get the PO's NB-1 cue decision → dispatch Slice 1 (GE-21 BRD gate + D12 wording + BUG-97/98/99
+    issues → QA red bar → FE + BE build).
+(b) Process any UAT verdicts on BUG-86 / BUG-74 / QUAL-43 / QUAL-49.
+(c) Force a BUG-74 upstream-geocoder-error test if the PO wants it.
+================================================================================
