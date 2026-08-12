@@ -2751,12 +2751,12 @@
       "id": "BUG-86",
       "type": "bug",
       "title": "\"Back to trip\" button in review status deselects the trip instead of returning to the active view",
-      "status": "pending",
+      "status": "done_pending_uat",
       "owner": "frontend",
       "priority": "P3",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-08-08 owner UAT (finding 1.5, PO 'yes'). In review/review_pending status the 'Back to trip' control deselects the trip entirely (blank panel) rather than returning to the active-status trip view the PO expects. Small frontend fix. Same 'status transition drops the selection' family as BUG-58 (locking a trip also deselects it) — consider fixing together. || FIXED PR #458 (done_pending_uat): same root as BUG-58 (ReviewPanel onClose navigation); 'Back to trip' now returns to the trip view via the shared visibility hook, not a deselecting navigate. Awaiting PO re-UAT. || UAT PARTIAL/REGRESSION 2026-08-11 (PO): 'Back to trip' from review works, but breaks the path BACK to review — no way to return to the review page or reverse to active; re-locking works but unlocking goes to trip view, not review. The fix (shared visibility hook, no navigation) removed the return path. Reopened."
+      "notes": "Found 2026-08-08 owner UAT (finding 1.5, PO 'yes'). In review/review_pending status the 'Back to trip' control deselects the trip entirely (blank panel) rather than returning to the active-status trip view the PO expects. Small frontend fix. Same 'status transition drops the selection' family as BUG-58 (locking a trip also deselects it) — consider fixing together. || FIXED PR #458 (done_pending_uat): same root as BUG-58 (ReviewPanel onClose navigation); 'Back to trip' now returns to the trip view via the shared visibility hook, not a deselecting navigate. Awaiting PO re-UAT. || UAT PARTIAL/REGRESSION 2026-08-11 (PO): 'Back to trip' from review works, but breaks the path BACK to review — no way to return to the review page or reverse to active; re-locking works but unlocking goes to trip view, not review. The fix (shared visibility hook, no navigation) removed the return path. Reopened. || FIXED (round 2) PR #527, closes #526, 2026-08-12 -> done_pending_uat. Root (found by reading #458's diff): useReviewPanelVisibility dismissal was keyed on the (tripId,status) VALUE pair, so a locked->review_pending unlock returned to a value dismissed earlier and stayed suppressed. Fix resets dismissal on any real (tripId,status) change + adds an explicit 'Back to Review' control (TripDetail/MobileTripDetailView); regression test proven real by reverting #458's hook (7 tests fail against it). CI green. Awaiting PO re-UAT."
     },
 
     {
@@ -2823,12 +2823,12 @@
       "id": "BUG-91",
       "type": "bug",
       "title": "Trip-create form saves and closes prematurely when selecting from the picker (can't set dates in the same flow)",
-      "status": "pending",
+      "status": "done_pending_uat",
       "owner": "frontend",
       "priority": "P2",
       "brdRefs": [],
       "phase": 6,
-      "notes": "Found 2026-08-08 non-owner UAT (finding N1). Adding a trip and selecting from the picker (country) saves and closes the whole create form, forcing the user to re-open the trip to edit dates — breaks the single add-trip flow. Observed as non-owner; owner-scope UNVERIFIED (re-check whether it also affects the owner path — the PO listed it only under non-owner). Rising importance: BUG-87 makes the trip's declared country set authoritative for place-picker filtering, so the trip-create country step (this form) is now doubly load-bearing. frontend. || FIXED PR #458 (done_pending_uat): reproduced against TripForm — clicking a country was already safe; pressing ENTER in the country search fell through to native form submission, saving/closing the create modal. Fixed with a scoped onKeyDown preventDefault. Confirmed NOT owner-scoped. Awaiting PO re-UAT. || UAT FAIL 2026-08-11 (PO): clicking a country selection auto-saves+closes the trip-create form before dates can be set. The fix stopped Enter->submit only; the click-select path still submits early. Reopened."
+      "notes": "Found 2026-08-08 non-owner UAT (finding N1). Adding a trip and selecting from the picker (country) saves and closes the whole create form, forcing the user to re-open the trip to edit dates — breaks the single add-trip flow. Observed as non-owner; owner-scope UNVERIFIED (re-check whether it also affects the owner path — the PO listed it only under non-owner). Rising importance: BUG-87 makes the trip's declared country set authoritative for place-picker filtering, so the trip-create country step (this form) is now doubly load-bearing. frontend. || FIXED PR #458 (done_pending_uat): reproduced against TripForm — clicking a country was already safe; pressing ENTER in the country search fell through to native form submission, saving/closing the create modal. Fixed with a scoped onKeyDown preventDefault. Confirmed NOT owner-scoped. Awaiting PO re-UAT. || UAT FAIL 2026-08-11 (PO): clicking a country selection auto-saves+closes the trip-create form before dates can be set. The fix stopped Enter->submit only; the click-select path still submits early. Reopened. || FIXED (round 2) PR #530, closes #529, 2026-08-12 -> done_pending_uat. Root: structural fix — the Create/Save button is now type=button calling handleSave directly, so no submit button exists in the form and no field can implicitly submit (click OR Enter, any browser). Agent could not reproduce a native click-submit via 3 differently-failing probes (jsdom+user-event with fields filled, live Chromium E2E, E2E with overlapping dropdown); WebKit/Safari left UNVERIFIED (no sudo to install Playwright libs) but the fix is mechanism-agnostic so it holds regardless. Trade-off flagged: Enter-in-Name no longer submits (never a PO/BRD requirement). CI green. Awaiting PO re-UAT."
     },
 
     {
