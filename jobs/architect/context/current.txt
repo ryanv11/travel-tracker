@@ -1,4 +1,52 @@
 =============================================================================
+ADL-56 R1 AMENDMENT (BUG-97/98/99/73) — PREPENDED 2026-08-11, DOES NOT REPLACE ANY BLOCK BELOW
+=============================================================================
+Deliverable: AMENDED jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (+ its ADL-56 log entry).
+Branch: chore/adl-bug97-cached-live-seam (PR #528 — CONTINUED, not a fresh branch). DESIGN ONLY.
+Task: fold ALL FOUR §12 PO decisions + two new live-staging UAT directives into a settled, seam-walked spec.
+
+PO DECISIONS FOLDED (all RESOLVED 2026-08-11):
+  Q1 → CACHED-FIRST + INVISIBLE auto-merge (new D8 §3b pins the silent-live trigger: debounced +
+       cached-first-gated + coalesced, fires during search not on submit — so "seamless" ≠ live-per-keystroke).
+  Q2 → BACKFILL confirmed (D4; COO records the one-line D12 rule-3 wording amendment at BRD-gate).
+  Q3 → TRUST THE CACHE (no step-2b live-agreement gate).
+  Q4 → PHASE IT (new D9 §10a): Slice 1 = D7+D1+D8+D3/P2+D4+D5 (all PO-reported bugs, ATDD-first); Slice 2 =
+       D2 ε-classifier reconciliation. GE-21 "FE and BE agree" met only after Slice 2 — STAMPED interim.
+  BUG-99 → SELECT ≠ COMMIT (new D7 §3a): pick SELECTS & populates, single explicit "Add City & Place" COMMITS.
+
+TWO FLAGGED FORKS I WAS ASKED TO PROBE — both probed, neither PO directive is wrong:
+  (a) createCity/addPlace TIMING vs dedup: RESOLVED = defer BOTH writes to the explicit Add ("Design B").
+      DEDUP-INVARIANT — every dedup mechanism (createOrReuseCarriedCity.findByOsmRef, findOrUpgradeCity
+      identity-key reuse, insertCityOrReuse re-select, osm-ref partial unique index) fires AT createCity time;
+      deferral only moves WHEN createCity runs, never WHAT row it resolves. Strictly fewer speculative rows.
+  (b) Melbourne "dismiss-without-select saves region-null": DISSOLVES under D7. Traced live: the CityPicker is
+      advisory but the form's "Add" submit stays present → handleCreateCity region-null plain-name save
+      (AddPlaceFlow.tsx picker@761 + submit@892). Under D7's anti-silent-commit guard, a bare Add with the
+      picker showing is invalid; user must pick or "none of these — add as new". Region-null fully closed in
+      SLICE 1 (D7 removes the no-pick commit; D4 backfills AU-VIC on the unambiguous resolve). Slice 2's
+      ε-collapse only removes the spurious 2-option picker (cosmetic). BUG-98 → Slice 1; picker cosmetics → S2.
+
+SEAMS WALKED (OP-27 refinement 2, whole doc not just the amendment):
+  - select≠commit through §2/§3/§5 dedup → §3a fork(a) + §5 P2-R1 (dedup-invariant).
+  - invisible-merge trigger through D5 states → §3b + §7 R1 (5 states key off the live OUTCOME, survive auto-fire).
+  - Melbourne through BUG-98 §6 mechanism + ADL-55 needs_attention re-open → §6a (disjoint branches: wildcard
+    upgrade fires only when regionId!=null; D4 backfill only when NULL — no collision).
+  - §10 tests split [S1]/[S2] + tests 7-10 added (select≠commit BOTH pickers + Melbourne guard + D8 trigger).
+
+NEW FLAGGED OPEN (COO→PO before fresh-eyes) — the ONE genuine new item:
+  Q5 (§12): does the D7 anti-silent-commit guard + P2 dedup extend to ChangeCityModal in Slice 1? It shares the
+     SAME commit-on-pick anti-pattern (ChangeCityModal.tsx:105/127/155) + the P2 seam, both consume the shared
+     decideCityDisambiguation + buildCreateCityDataFromCandidate utils. REC: yes for the guard + P2 (near-zero
+     via shared utils), NO full dates/held-selection restructure (a re-point has no dates). Scope confirmation,
+     not a product fork — flagged because it touches a surface BUG-99's note did not name.
+
+VERIFIED LIVE-CODE (not inherited): BUG-99 two commit paths (AddPlaceFlow.tsx:611-613 cached-search;
+  :362→:289 picker); TripForm target pattern (selectedCountryCodes + handleSubmit) read directly; mobile reuses
+  AddPlaceFlow (import:32/render:280); D4 site routes/cities.ts step-4b regionId:region_id??null; classify
+  region_iso test geocoding.service.ts:188-190; identity algebra cityIdentityService.ts read in full.
+
+STATUS: AMENDED, pending Q5 resolution + OP-27 fresh-eyes Opus (WHOLE doc + seam). PR #528 updated. No code merges.
+=============================================================================
 ADL-56 CACHED-VS-LIVE ADD-PLACE SEAM (BUG-97/98/73) — PREPENDED 2026-08-11, DOES NOT REPLACE ANY BLOCK BELOW
 =============================================================================
 Deliverable: jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (+ ADL-56 log entry).

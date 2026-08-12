@@ -4673,16 +4673,18 @@ D10 refinement (ambiguous terminal-on-first)? OQ-4 (COO/frontend): retire NR-06 
 (Backend): endpoint path. No code or migration merges from this ADL until the OQs are settled and
 fresh-eyes clears it.
 
-## ADL-56 — The cached-vs-live add-place disambiguation seam (BUG-97 / BUG-98 / BUG-73)
+## ADL-56 — The cached-vs-live add-place disambiguation seam (BUG-97 / BUG-98 / BUG-99 / BUG-73)
 
-**Date:** 2026-08-11 · **Author:** Architect · **Status:** DESIGN — pending (a) COO→PO resolution of the
-flagged open questions, (b) OP-27 fresh-eyes **Opus** review (HIGH: data-integrity/dedup invariant + shared
-FE/BE contract — **never Fable**), (c) an ATDD-first implementation wave. No production code, no migration.
-Full design + tables + probes: `jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md`.
-**Tracker:** BUG-97 (primary) · BUG-98 · BUG-73 (message copy) · **BRD:** refines GE-15/GE-16/GE-19/D12/D14,
-proposes **GE-21** (PROPOSED, COO→PO gate). **Reuses (no parallel path):** `classifyCandidates`,
-`decideCityDisambiguation`, `findOrUpgradeCity`/`createOrReuseCarriedCity`, GE-19 `needs_attention` (ADL-55),
-`CityPicker`, `GET /api/cities` + `GET /api/geocode`. **Zero new routes / tables / indexes.**
+**Date:** 2026-08-11 · **Author:** Architect · **Status:** DESIGN — **AMENDED R1 2026-08-11** (PO resolved all
+four flagged open questions + two new live-staging UAT directives folded in; slice phasing defined). Pending
+(a) OP-27 fresh-eyes **Opus** review of the WHOLE amended document + seam (HIGH: data-integrity/dedup invariant
++ shared FE/BE contract — **never Fable**), (b) an ATDD-first **Slice-1** implementation wave. No production
+code, no migration. Full design + tables + probes: `jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md`.
+**Tracker:** BUG-97 (primary) · BUG-98 · **BUG-99 (add-place select≠commit — folds in via D7)** · BUG-73
+(message copy) · **BRD:** refines GE-15/GE-16/GE-19/D12/D14, proposes **GE-21** (PROPOSED, COO→PO gate).
+**Reuses (no parallel path):** `classifyCandidates`, `decideCityDisambiguation`, `findOrUpgradeCity`/
+`createOrReuseCarriedCity`, GE-19 `needs_attention` (ADL-55), `CityPicker`, `GET /api/cities` + `GET
+/api/geocode`, the `TripForm` select-then-commit pattern (D7 target). **Zero new routes / tables / indexes.**
 
 **Trigger.** PO UAT 2026-08-11: "Newport" auto-resolved to Oregon with no ambiguity prompt while
 "Springfield" prompts. Two verified defects in one seam: (1) the create path's cache short-circuit
@@ -4713,12 +4715,26 @@ resolved by the BE. Plus BUG-98: a region-tier city with the region left blank r
   cache-empty message never implies the place is absent; escape hatch always present. Copy → UX.
 - **D6:** ADL owns the behavioral/data contract; UX owns picker/label copy, cached-vs-live badge, escape-hatch
   wording, message strings.
+- **D7 (R1) select ≠ commit (BUG-99):** every selection path (cached-search result, disambiguation picker,
+  new-city form) **selects & populates**; a single explicit "Add City & Place" button is the **only** write.
+  Both `createCity` and `addPlace` **defer** to that commit — **dedup-invariant** (osm-ref + identity-key reuse
+  fire at `createCity` time regardless of when it's called). Mirrors `TripForm`. Mobile = same component;
+  `ChangeCityModal` shares the anti-silent-commit guard (§12 Q5). Closes the Melbourne silent region-null save.
+- **D8 (R1) invisible cache/live merge + trigger policy:** the live lookup fires **automatically** so the
+  surface is one seamless cached ∪ live list — **debounced + cached-first-gated + coalesced**, during the search
+  (not on submit), so "seamless" never becomes "live on every keystroke". Pixels/copy → UX. D5's five states
+  survive (they key off the live outcome, not the trigger time).
+- **D9 (R1) slice phasing (Q4):** **Slice 1** = D7 + D1 + D8 + D3/P2 + D4 + D5 (all PO-reported bugs, ATDD-first);
+  **Slice 2** = the D2 ε-classifier reconciliation. GE-21's "FE and BE agree" met only after Slice 2 — stamped
+  interim (each slice independently green, ADL-47 discipline).
 
 **ATDD-first:** YES (backend/shared-contract — silent-and-plausible dedup + shared FE/BE contract); NO for pure
 presentation except the message-state routing. Six red acceptance tests specified in the standalone file §10.
 
-**Flagged open questions (resolve before fresh-eyes).** Q1 (PO): always-live-picker vs cached-first
-(rec: cached-first — cost/latency). Q2 (PO/COO): confirm the D12 rule-3 wording refinement. Q3 (cost): gate
-step-2b reuse behind a live-agreement check? (rec: no). Q4 (phasing): cut line if the ε collapse work is
-deferred. No new BUG-97/BUG-98 GitHub issue exists yet (COO to raise + cross-ref). No code or migration merges
-until the OQs settle and fresh-eyes clears it.
+**Flagged open questions — Q1–Q4 RESOLVED by PO 2026-08-11 (R1); reconciled into the standalone file's
+sections.** Q1 → **cached-first** (+ invisible auto-merge, D8). Q2 → **backfill confirmed** (COO records the
+one-line D12 wording amendment at BRD-gate). Q3 → **trust the cache** (no step-2b live-agreement gate).
+Q4 → **phase it, Slice 1 first** (D9). **NEW Q5 (COO→PO before fresh-eyes):** does the D7 anti-silent-commit
+guard + P2 dedup extend to `ChangeCityModal` in Slice 1 (rec: yes for the guard + P2 via shared utils; no full
+restructure — no dates)? No BUG-97/BUG-98/BUG-99 GitHub issue exists yet (COO to raise + cross-ref). No code or
+migration merges until Q5 settles and fresh-eyes clears the amended document.

@@ -1,0 +1,41 @@
+TO: COO
+FROM: Architect
+RE: ADL-56 R1 amendment complete — PO decisions folded, seams walked
+
+Header: ADL-56 (R1 amendment) · PR #528 · BRD GE-15/16/19/D12/D14 refine, GE-21 PROPOSED ·
+        Branch chore/adl-bug97-cached-live-seam · Tracker BUG-97/98/99/73
+
+WHAT WAS DONE
+Amended ADL-56 IN PLACE (not appended) to fold all four PO §12 resolutions + the two new live-staging
+UAT directives into a settled, internally-reconciled spec, walking the whole-document seams (OP-27 ref 2).
+Three new decisions (D7 select≠commit, D8 invisible-merge trigger, D9 slice phasing) + a Melbourne re-scope.
+
+PER-DECISION VERDICT
+- Q1 → cached-first + INVISIBLE auto-merge (D8): ADOPTED. Trigger pinned (debounced + cached-first-gated +
+  coalesced, during search not submit) so "seamless" ≠ live-per-keystroke. Budget-safe.
+- Q2 → region backfill (D4): ADOPTED. COO records the one-line D12 rule-3 wording amendment at BRD-gate.
+- Q3 → trust the cache, no step-2b live-agreement gate: ADOPTED.
+- Q4 → phase it (D9): ADOPTED. Slice 1 = all PO-reported bugs (ATDD-first); Slice 2 = D2 ε-classifier.
+- BUG-99 → SELECT ≠ COMMIT (D7): ADOPTED. Pick selects; one explicit "Add" commits.
+
+THE TWO FORKS YOU ASKED ME TO PROBE — both probed; neither PO directive is wrong:
+(a) createCity/addPlace TIMING: defer BOTH writes to the explicit Add. DEDUP-INVARIANT — every dedup
+    mechanism fires at createCity time, so deferral moves only WHEN, never WHAT row resolves (proof §3a/§5).
+(b) Melbourne dismiss-without-select: DISSOLVES under D7. Traced live — the CityPicker is advisory but the
+    form's "Add" submit stays present → region-null plain-name save. D7's guard makes a no-pick Add invalid;
+    D4 backfills AU-VIC on the unambiguous resolve. BUG-98 region-null CLOSED IN SLICE 1; the spurious
+    2-option picker is Slice 2 (cosmetic). ADL-55 re-open path is a DISJOINT branch — no collision.
+
+CI: pushing to PR #528 now; will confirm scripts/ci-wait.sh pr 528 green before this is trusted (see note below).
+
+OPEN ISSUES / BLOCKERS
+- ONE new flagged item, Q5 (§12): does D7's anti-silent-commit guard + P2 dedup extend to ChangeCityModal in
+  Slice 1? It shares the SAME commit-on-pick anti-pattern + the P2 seam via shared utils. REC: yes for the
+  guard + P2 (near-zero cost), NO full restructure (no dates). Resolve with the PO BEFORE fresh-eyes.
+- Fresh-eyes: scope the WHOLE amended doc + the R1 seams (§13 re-aimed). Opus, NEVER Fable.
+
+WHAT IS NOW UNBLOCKED
+- After Q5 + fresh-eyes: the Slice-1 ATDD wave (QA writes [S1] tests 1,4,5,6,7,8,9,10; Brief A backend/shared
+  ATDD-first:YES, Brief B frontend). GE-21 BRD gate (amended §11) + the D12 wording amendment.
+- Detail: park doc jobs/architect/park-docs/20260811-ARCHITECT-park-adl56-r1.txt; spec
+  jobs/architect/tech/ADL-56-cached-live-disambiguation-seam.md (§3a/§3b/§6a/§10a are the R1 additions).
