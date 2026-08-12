@@ -39,7 +39,7 @@ confirm the `commit` matches the latest `main`. If it doesn't, staging is stale 
 These came out of the 2026-08-11 round as fails/partials or new findings. They're tracked and go back to
 dev; they'll reappear above for re-testing when fixed.
 
-- **BUG-97** *(the big one)* — add-place ambiguity is pre-empted by a single cached city match (why "Newport" silently went to Oregon). Also folds in **BUG-73**'s misleading "no matches" message and the frontend/backend disagreement on what counts as ambiguous. **Architect design first.**
+- **BUG-97** *(the big one)* — add-place ambiguity is pre-empted by a single cached city match (why "Newport" silently went to Oregon). Also folds in **BUG-73**'s misleading "no matches" message and the frontend/backend disagreement on what counts as ambiguous. **Architect design DONE (ADL-56 merged, twice fresh-eyes-reviewed); the Slice-1 build — which also closes BUG-98 & BUG-99 — is the next dev step.**
 - **BUG-98** — a city resolved in a region-tier country with the state left blank saves as "no state set" instead of using the region the geocoder already knew (Melbourne → "Australia, no state set"). Architect policy call; likely folds into BUG-97.
 - **BUG-99** — on Add Place, picking a result from *either* picker (the cached dropdown or the disambiguation list) adds the place immediately, before you can set dates. Folded into BUG-97 as **Slice 1** (select ≠ commit: picking *selects*, an explicit "Add" button *commits*).
 - **UX-13** — city name stays editable on the picker screen but editing it does nothing; grey it out. (Re-confirmed this round.)
