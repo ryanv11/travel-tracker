@@ -32,14 +32,6 @@ confirm the `commit` matches the latest `main`. If it doesn't, staging is stale 
    shows a blank panel.
    - Result:
 
-4. **BUG-91 — trip-create form no longer saves early when you click a country (round-2 fix, PR #530).**
-   Steps: start creating a new trip → in the country picker, **click** a country to select it. The form should
-   **stay open** so you can set dates in the same flow → set dates → **Save**. (Also: pressing **Enter** in the
-   country search no longer submits either.)
-   Expected: clicking a country does **not** save/close the form; you complete dates in one flow; the form
-   saves only when you click Save.
-   - Result:
-
 ---
 
 ## In the dev pipeline — will return here once fixed (no action from you now)
@@ -49,6 +41,7 @@ dev; they'll reappear above for re-testing when fixed.
 
 - **BUG-97** *(the big one)* — add-place ambiguity is pre-empted by a single cached city match (why "Newport" silently went to Oregon). Also folds in **BUG-73**'s misleading "no matches" message and the frontend/backend disagreement on what counts as ambiguous. **Architect design first.**
 - **BUG-98** — a city resolved in a region-tier country with the state left blank saves as "no state set" instead of using the region the geocoder already knew (Melbourne → "Australia, no state set"). Architect policy call; likely folds into BUG-97.
+- **BUG-99** — on Add Place, picking a result from *either* picker (the cached dropdown or the disambiguation list) adds the place immediately, before you can set dates. Folded into BUG-97 as **Slice 1** (select ≠ commit: picking *selects*, an explicit "Add" button *commits*).
 - **UX-13** — city name stays editable on the picker screen but editing it does nothing; grey it out. (Re-confirmed this round.)
 - **UX-15** — the blue-date tooltip wording ("set explicitly for this place") is unclear — reword.
 
