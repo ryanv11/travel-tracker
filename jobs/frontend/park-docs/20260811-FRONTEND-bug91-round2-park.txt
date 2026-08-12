@@ -1,0 +1,160 @@
+FRONTEND PARK DOCUMENT — 2026-08-11
+Thread: BUG-91 round 2 — trip-create form still submits on country CLICK-select
+Branch: fix/bug91-trip-create-click-submit
+Issue: #529 (new — #457 was closed and bundled 4 other, now-resolved bugs)
+Component: src/frontend/components/TripDetail/TripForm.tsx
+
+=========================================================================
+WHAT HAPPENED
+=========================================================================
+
+COO dispatch brief framed this as OP-32 regression: PR #458 (round 1) fixed
+only the Enter-in-country-search-field path; PO UAT 2026-08-11 reported the
+CLICK-select path still auto-saves+closes the trip-create form. The brief's
+lead hypothesis — a picker button lacking type="button" — was explicitly
+flagged as "a LEAD, not a fact; verify it and report if it's wrong."
+
+It's wrong. Verified by reading: every interactive element in the country
+picker (dropdown row buttons, chip-remove buttons) already has
+type="button", explicit, unambiguous.
+
+=========================================================================
+INVESTIGATION — THREE PROBES, ALL NEGATIVE
+=========================================================================
+
+Went looking for the actual mechanism rather than assuming the brief's lead
+or dismissing the PO's report. Three independent, differently-failing
+probes, all failed to reproduce a native submit from a plain click:
+
+1. jsdom + user-event component test, Name/dates PRE-FILLED before the
+   click. This is the important gap in round 1's OWN test: its click test
+   left Name/dates empty, so even if a submit event genuinely fired, the
+   custom JS validation in handleSubmit would swallow it before
+   createTrip/onClose ran — createTrip:0, onClose:0 either way. The round-1
+   test could never have told "click doesn't submit" apart from "click
+   submits but validation eats it." Filling required fields first — the
+   scenario PO would have actually hit — still shows zero submission.
+
+2. Live Chromium E2E (Playwright) against the real running dev app, same
+   flow, real click. No submission, modal stays open, screenshot confirmed
+   visually.
+
+3. Live Chromium E2E with a deliberately broad country search ("a" — many
+   matches) to force the results dropdown to its max-h-48 cap and visually
+   overlap the Create Trip button beneath it (confirmed via boundingBox()
+   on both elements — dropdown bottom edge extended ~65px past the
+   button's top edge). document.elementFromPoint at the exact overlap
+   coordinate returned the dropdown ROW button, not the button underneath
+   — correct CSS stacking (z-10 absolute wins), so even this edge case
+   doesn't misdirect the click.
+
+FLAGGING TO COO: could not confirm the PO-reported mechanism. The one
+untested angle is a genuine WebKit/Safari implicit-submission quirk — this
+container has no sudo password, so `playwright install webkit firefox`
+downloaded binaries but failed the --with-deps system-library check
+(missing libgstreamer*, libepoxy, etc. — apt-get needs a password I don't
+have) and could not launch either engine. Every other angle (jsdom, real
+Chromium plain click, real Chromium overlap click, grep for any global
+click/keydown/requestSubmit handler in App.tsx/ModalOverlay.tsx/elsewhere)
+came back clean. This is reported as an explicit negative finding per the
+two-probe rule, not silently upgraded to "the PO was wrong" — the fix below
+is deliberately mechanism-agnostic so it holds regardless of which
+explanation (if any) turns out to be right.
+
+=========================================================================
+A DEAD END WORTH FLAGGING TO ANY FUTURE READER
+=========================================================================
+
+First attempt at a mechanism-agnostic fix used the native SubmitEvent's
+`.submitter` property in handleSubmit as an allow-list: only honour a
+submission if submitter === the actual Create Trip button ref, reasoning
+Enter-implicit-submission would carry submitter===null.
+
+Tested this empirically in jsdom BEFORE committing to it, and it's flat
+wrong: per spec, Enter-implicit-submission simulates a CLICK on the form's
+DEFAULT button, so submitter equals that SAME button for both an explicit
+click and an Enter-triggered implicit submission when there's only one
+submit button in the form (confirmed: a two-case jsdom test showed
+submitter===button===true in BOTH the explicit-click case AND the
+type-then-Enter case). This guard would have been a complete no-op —
+never rejecting anything — indistinguishable from having no guard. Reverted
+before commit. Recorded in the tech doc and here so nobody reaches for
+submitter as a shortcut for this class of problem again.
+
+=========================================================================
+THE FIX
+=========================================================================
+
+Structural, not another deny-listed element: the Create Trip/Save Changes
+button is now type="button" with an explicit onClick calling handleSave
+(renamed, no longer takes a FormEvent) directly. No button anywhere in the
+form is type="submit" anymore. <form onSubmit> stays only as an inert
+preventDefault safety net.
+
+Per the HTML implicit-submission algorithm, a form with no default
+(submit-type) button does nothing on Enter, in ANY field, in ANY browser —
+this closes the original Enter-in-search bug, the still-unexplained click
+regression, AND any future implicit-submission trigger, all at once,
+instead of chasing the next specific one by hand.
+
+TRADE-OFF flagged explicitly, not silently absorbed: Enter-in-the-Name-
+field no longer submits (it was round 1's own "expected/desired" judgment
+call, never a BRD/PO requirement). Saving now always requires an explicit
+click/activation of the Save button. Worth a one-line mention in PO UAT
+re-testing in case this reads as a regression rather than the deliberate
+trade-off it is.
+
+=========================================================================
+TESTS
+=========================================================================
+
+TripForm.test.tsx +5 (8 total, all pass):
+  - click-select with fields ALREADY filled (the real round-2 case)
+  - two countries selected by click in sequence
+  - removing a chip by click
+  - Enter-in-Name no longer submits (documents the trade-off)
+  - structural invariant: no type="submit" element exists in the form
+    (pins the actual fix mechanism against a future silent regression)
+
+trips-crud.spec.ts +1 permanent E2E test (BUG-91): real-Chromium click flow
+end to end — form stays open after picker click, explicit Create Trip
+click still saves. Not throwaway — since the reported mechanism was never
+reproduced under jsdom, a jsdom-only regression test alone wouldn't be
+convincing if it does turn out to be browser-specific.
+
+=========================================================================
+VERIFICATION
+=========================================================================
+
+npm run test:frontend    408/408 (+5 vs 403 baseline)
+npm run test:backend     871/871 (unchanged, frontend-only thread)
+npx playwright test      53/53 (+1 new; other 52 unaffected, including
+                          edit-trip-via-detail-panel and mobile edit flows
+                          that also render TripForm in edit mode)
+npm run type:check:all   clean
+npm run check (biome)    exit 0, same 5 pre-existing infos in an unrelated
+                          backend test file, noted in every recent thread
+status/tracker/scope:check   all PASS
+
+=========================================================================
+COORDINATION NOTE
+=========================================================================
+
+Sibling BUG-86 fix (issue #526) touches ReviewPanel/trip-detail navigation
+— a different component (TripDetail area, not TripForm). No file overlap
+with this thread's changes (TripForm.tsx, TripForm.test.tsx,
+trips-crud.spec.ts). No shared file (App.tsx, a shared hook) touched here,
+so no merge-conflict risk expected between the two PRs.
+
+=========================================================================
+NOT DONE / OUT OF SCOPE
+=========================================================================
+
+- tracker.json BUG-91 entry update — left to COO per the standing pattern
+  (COO flips status from the completion report, doesn't get hand-edited by
+  the implementing agent in this codebase's recent history).
+- The unexplained WebKit/Safari angle stays UNVERIFIED — flagged, not
+  chased further given the environment constraint (no sudo password to
+  install missing system libs for playwright's webkit/firefox binaries).
+  If PO still sees this after the fix ships, the next useful datum is
+  which browser they're using.

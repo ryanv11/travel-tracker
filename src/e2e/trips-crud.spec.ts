@@ -24,6 +24,34 @@ test('create trip via form — appears in list', async ({ page }) => {
   await expect(page.getByText('Barcelona 2026').first()).toBeVisible();
 });
 
+test('BUG-91: selecting a country by click keeps the create-trip form open', async ({ page }) => {
+  // Regression coverage for the round-2 fix — PO UAT 2026-08-11 found the
+  // create-trip form still saved and closed when a country was CLICKED (not
+  // typed+Enter, which PR #458 had already fixed). Unlike TripForm.test.tsx's
+  // jsdom coverage, this exercises a real browser: the actual mechanism was
+  // never reproduced even under jsdom + a live Chromium click, so this test
+  // is the durable, real-DOM check that the picker categorically cannot
+  // submit the form, independent of jsdom's event-simulation fidelity.
+  await page.goto('http://localhost:5173/trips');
+  await page.getByRole('button', { name: '+ New' }).click();
+  await expect(page.getByRole('heading', { name: 'New Trip' })).toBeVisible();
+
+  await page.locator('form input').first().fill('Click Regression Trip');
+  await page.locator('form input[type="date"]').first().fill('2026-08-01');
+  await page.locator('form input[type="date"]').nth(1).fill('2026-08-10');
+
+  await page.getByPlaceholder('Search countries…').fill('united k');
+  await page.getByText('United Kingdom', { exact: false }).first().click();
+
+  // The picker click must not have submitted or closed the form.
+  await expect(page.getByRole('heading', { name: 'New Trip' })).toBeVisible();
+  await expect(page.getByText('Click Regression Trip')).not.toBeVisible();
+
+  // The explicit Save action still works after using the picker.
+  await page.getByRole('button', { name: 'Create Trip' }).click();
+  await expect(page.getByText('Click Regression Trip').first()).toBeVisible();
+});
+
 test('form rejects end date before start date', async ({ page }) => {
   await page.goto('http://localhost:5173/trips');
   await page.getByRole('button', { name: '+ New' }).click();

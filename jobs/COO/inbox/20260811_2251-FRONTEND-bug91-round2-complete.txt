@@ -1,0 +1,62 @@
+Header: BUG-91 (round 2) · Issue #529 · PR <pending — see below> · BRD n/a ·
+Branch fix/bug91-trip-create-click-submit
+
+WHAT WAS BUILT: TripForm's Create Trip/Save Changes button is now
+type="button" calling handleSave directly instead of type="submit" — the
+form has NO type="submit" element left, so it cannot implicit-submit from
+ANY field via Enter, structurally, in any browser. Replaces round 1's
+(#458) per-field onKeyDown deny-list, which is exactly the shape of gap
+that let the click path through undetected.
+
+IMPORTANT — LEAD HYPOTHESIS WAS WRONG, MECHANISM UNCONFIRMED: the brief's
+lead (a picker button lacking type="button") is false — every picker
+element already has type="button" (confirmed by reading). I could NOT
+reproduce a native submit from a plain click via three independent probes
+that could fail differently: (1) jsdom+user-event with Name/dates
+pre-filled before the click — the exact case round 1's own click test
+missed, since it left required fields empty, masking a real submit behind
+the JS validation guard either way; (2) live Chromium E2E against the real
+app; (3) live Chromium E2E with a broad search forcing the results
+dropdown to visually overlap the Create Trip button — elementFromPoint at
+the overlap confirmed the dropdown row (not the button beneath) correctly
+receives the click. One angle stays UNVERIFIED: WebKit/Safari — this
+container has no sudo password, so playwright install webkit/firefox
+downloaded binaries but failed the system-library check and couldn't run.
+The fix is deliberately mechanism-agnostic (removes the whole implicit-
+submission class rather than the one trigger) so it holds regardless.
+
+TRADE-OFF FLAGGED FOR PO AWARENESS: Enter-in-the-Name-field no longer
+submits either (it was round 1's own "nice to have" call, never a BRD/PO
+requirement) — saving now always requires an explicit click on Save. Worth
+a one-line mention if PO notices this in re-UAT.
+
+ACCEPTANCE CRITERIA:
+- Country selected by CLICK keeps the form open, dates can still be set — PASS
+- Form saves/closes ONLY on explicit Save/submit action — PASS (now
+  structurally true: no type="submit" element exists at all)
+- Enter-in-search stays fixed (round 1) — PASS
+- Regression test covers the CLICK path — PASS (TripForm.test.tsx, fields
+  pre-filled this time — the round-1 test's gap)
+- New permanent E2E test (trips-crud.spec.ts) covers the real-browser click
+  flow end to end — PASS
+
+CI: scripts/ci-wait.sh pr 530 — PASS, all 18 checks green
+(cc2af35f4bb8a846c5ef957ad7c66924146e5094).
+
+TESTS: frontend 408/408 (+5), backend 871/871 (untouched), full E2E
+53/53 (+1 new), type:check:all clean, biome exit 0 (5 pre-existing infos,
+unrelated file), status/tracker/scope:check all PASS.
+
+COORDINATION: sibling BUG-86 fix (issue #526) touches ReviewPanel/
+trip-detail nav — different component, no file overlap with this thread
+(TripForm.tsx, TripForm.test.tsx, trips-crud.spec.ts). No shared file
+(App.tsx, a shared hook) touched.
+
+OPEN ISSUES: none blocking. tracker.json BUG-91 entry left for COO to flip
+per the standing pattern. WebKit/Safari angle UNVERIFIED as noted above —
+if PO still sees this post-fix, browser used is the next useful datum
+(though the structural fix should hold even under an unconfirmed mechanism).
+
+WHAT'S UNBLOCKED: BUG-91 ready for PO re-UAT once merged. Full detail in
+jobs/frontend/park-docs/20260811-FRONTEND-bug91-round2-park.txt and
+jobs/frontend/tech/20260811-bug91-round2-click-submit.md.
