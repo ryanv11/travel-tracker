@@ -222,6 +222,24 @@ export interface City {
   latitude: number | null;
   longitude: number | null;
   geocode_status: GeocodeStatus;
+  /**
+   * ADL-56 §9 / D3-P2 (GE-21, Slice 1) — the OSM reference this catalogue row
+   * carries, added to the `GET /api/cities` search projection so the merged
+   * cached ∪ live surface can match a cached row to a live candidate BY
+   * IDENTITY rather than by fragile name text (see
+   * `utils/mergeLiveCandidates.ts`). Public OpenStreetMap identifiers, not user
+   * data — the GE-16 creator-visibility containment predicate on the search is
+   * unchanged by their addition.
+   *
+   * Nullable: the §2 H1 population (legacy rows resolved before BUG-75, rows
+   * that never resolved, seeded rows) carries neither. Typed OPTIONAL as well
+   * as nullable because the field is only on the search projection — responses
+   * that never selected it (serializeCity on POST/PATCH, and every pre-existing
+   * hand-written fixture) must keep type-checking, and `undefined` there means
+   * "this response never carried the field", not "this city has no osm ref".
+   */
+  osm_type?: 'node' | 'way' | 'relation' | null;
+  osm_id?: number | null;
 }
 
 /**

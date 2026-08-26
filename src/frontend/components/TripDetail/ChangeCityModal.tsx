@@ -17,16 +17,34 @@
  * (`buildCreateCityDataFromCandidate`, review MAJOR-1, AC-12). Deliberately
  * has NO date fields and NO carry-forward chrome (UX spec §12.1) — this is a
  * single-purpose city-correction surface, not a second AddPlaceFlow.
+ *
+ * ── ADL-56 SLICE 1 (N6 / §12-Q5) — WHY THIS SURFACE IS IN SCOPE ──────────────
+ * Its search step was CACHED-ONLY: the live lookup fired only behind the
+ * "+ Add new" click. So the surface whose entire job is to CORRECT a wrong
+ * disambiguation was itself vulnerable to the same wrong disambiguation — a
+ * user fixing "Newport" saw only whatever the catalogue happened to hold, which
+ * is the B1 hole verbatim. Slice 1 therefore wires in the same three things
+ * AddPlaceFlow gets, through the same shared modules:
+ *   • the autofire live merge (`useLiveCityLookup`) on the SEARCH step;
+ *   • the §5 P2 identity dedup (`dedupeLiveAgainstCached`);
+ *   • the §3a anti-silent-commit guard — on `main`, "Change City" clicked with
+ *     the picker showing and nothing picked minted a city and re-pointed the
+ *     place to it.
+ * It deliberately does NOT get the dates / held-selection restructure: a
+ * re-point has no dates, so BUG-99's premature-dates defect cannot arise here,
+ * and N3's held-selection window does not exist (§12-Q5 scope limit).
  */
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useCountries, useCountryRegions } from '../../hooks/useAdmin';
+import { fetchCountryRegions, useCountries, useCountryRegions } from '../../hooks/useAdmin';
 import { type CreateCityData, useCitySearch, useCreateCity } from '../../hooks/useCities';
 import { useCityDisambiguation } from '../../hooks/useCityDisambiguation';
+import { useLiveCityLookup } from '../../hooks/useLiveCityLookup';
 import { useChangeCity } from '../../hooks/usePlaces';
 import type { City, GeocodeCandidate } from '../../types/api';
 import { buildCreateCityDataFromCandidate } from '../../utils/buildCreateCityDataFromCandidate';
 import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
+import { dedupeLiveAgainstCached } from '../../utils/mergeLiveCandidates';
 import { capitalizeFirst } from '../../utils/textFormat';
 import { CityPicker } from '../shared/CityPicker';
 import { ErrorMessage } from '../shared/ErrorMessage';
@@ -49,10 +67,19 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
   const [newCityRegionId, setNewCityRegionId] = useState<number | null>(null);
   const [countryIsSuggested, setCountryIsSuggested] = useState(false);
   const [regionIsSuggested, setRegionIsSuggested] = useState(false);
+  // ADL-56 §3a escape hatch — an explicit "none of these — add as new" satisfies
+  // the anti-silent-commit guard below, so the guard can never trap the user.
+  const [addAsNewChosen, setAddAsNewChosen] = useState(false);
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: searchResults = [], isLoading: searching } = useCitySearch(debouncedQuery);
+  // ADL-56 N6/D8 — the live half of the merged correction surface, on the SAME
+  // settled query the cached search uses. Unconstrained by country, matching
+  // this surface's existing `useCitySearch(debouncedQuery)` (ADL-54 D6 keeps
+  // the re-point flow outside GE-20's trip-country filter).
+  const live = useLiveCityLookup(debouncedQuery);
+  const mergedLiveCandidates = dedupeLiveAgainstCached(searchResults, live.candidates);
   const { data: countries = [] } = useCountries();
   const selectedCountry = countries.find((c) => c.country_code === newCityCountryCode);
   const showRegionDropdown = selectedCountry?.region_tier_enabled ?? false;
@@ -120,8 +147,39 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
     setNewCityRegionId(null);
     setCountryIsSuggested(false);
     setRegionIsSuggested(false);
+    setAddAsNewChosen(false);
     cityDisambig.reset();
     cityDisambig.runLookup(cityName);
+  };
+
+  /**
+   * ADL-56 N6 — a live candidate chosen straight from the merged search
+   * surface. This surface commits on the pick (its existing model: the cached
+   * rows above do the same, and §12-Q5 keeps the select≠commit restructure to
+   * AddPlaceFlow, where the dates make the distinction matter). The pick is
+   * explicit, which is what the guard actually requires.
+   *
+   * The region is derived from the candidate's OWN `region_iso` through the
+   * shared mapping, with the seeded list awaited so a fast pick cannot silently
+   * drop it.
+   */
+  const handleSelectLiveCandidate = async (candidate: GeocodeCandidate) => {
+    const countryCode = candidate.country_code ?? live.countryCode;
+    if (!countryCode) return;
+    const regions = await fetchCountryRegions(countryCode);
+    const data = buildCreateCityDataFromCandidate(
+      candidate,
+      capitalizeFirst(query.trim()),
+      regions,
+      countryCode,
+    );
+    if (!data) return;
+    try {
+      const city = await createCity.mutateAsync(data);
+      await repointTo(city);
+    } catch {
+      /* shown via createCity.error */
+    }
   };
 
   const handleSelectPickerCandidate = async (candidate: GeocodeCandidate) => {
@@ -146,6 +204,12 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
   const handleCreateAndRepoint = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCityName.trim() || !newCityCountryCode) return;
+    // ADL-56 §3a anti-silent-commit guard (§12-Q5 binds it to this surface
+    // too). On `main` this submit stayed live while the picker was showing and,
+    // clicked without a pick, minted a city and re-pointed the place onto it —
+    // the same guess-without-a-pick write as AddPlaceFlow's Melbourne save, on
+    // the surface that exists to CORRECT a wrong city.
+    if (pickerAwaitingChoice) return;
     const data: CreateCityData = {
       name: newCityName.trim(),
       country_code: newCityCountryCode,
@@ -166,6 +230,8 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
   const labelClass = 'block text-xs font-semibold text-gray-700 mb-1';
 
   const disambiguation = cityDisambig.disambiguation;
+  /** §3a/N4 — place-level ambiguity only; the region `<select>` is unaffected. */
+  const pickerAwaitingChoice = disambiguation.mode === 'picker' && !addAsNewChosen;
 
   return (
     <ModalOverlay
@@ -189,8 +255,22 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
             <div className="py-2 text-xs text-gray-500">Searching…</div>
           )}
 
+          {/* ADL-56 N6 — the merged correction surface: saved rows UNIONED with
+              live candidates for the same settled query, deduped by identity.
+              Cached-only here was the B1 hole on the correction surface. */}
           {debouncedQuery.length >= 2 && (
             <div className="border border-gray-200 rounded-md mt-2 overflow-hidden">
+              {/* NB-1, same condition and same reason as AddPlaceFlow's cue —
+                  it announces an augmentation still arriving, which only means
+                  anything once the saved list is on screen. */}
+              {live.pending && !searching && (
+                <div
+                  data-testid="change-city-live-inflight"
+                  className="px-3 py-2 text-xs text-gray-500 bg-gray-50 border-b border-gray-100"
+                >
+                  Looking online for more places…
+                </div>
+              )}
               {searchResults.map((city) => (
                 <div
                   key={city.id}
@@ -204,6 +284,27 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
                   <span className="text-gray-500">— {formatCitySubtitle(city, countries)}</span>
                 </div>
               ))}
+              {mergedLiveCandidates.length > 0 && (
+                <div className="border-b border-gray-100">
+                  <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    Found online
+                  </div>
+                  <div className="px-3 pb-2 pt-1">
+                    {/* The same shared CityPicker both disambiguation call
+                        sites use (BUG-75/UX-12 AC-9) — one component, now three
+                        call sites, never a fork. */}
+                    <CityPicker
+                      candidates={mergedLiveCandidates}
+                      onSelect={(candidate) => {
+                        void handleSelectLiveCandidate(candidate);
+                      }}
+                      truncated={live.truncated}
+                      testIdPrefix="change-city-live-option"
+                      disabled={createCity.isPending || changeCity.isPending}
+                    />
+                  </div>
+                </div>
+              )}
               <div
                 className="px-3 py-2.5 cursor-pointer text-sm text-teal-600 font-semibold hover:bg-teal-50 border-b border-gray-100 last:border-b-0"
                 onClick={() => handleOpenNewCityForm(query)}
@@ -289,6 +390,18 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
                 truncated={cityDisambig.truncated}
                 disabled={createCity.isPending || changeCity.isPending}
               />
+              {/* §3a — the escape hatch that keeps the guard from trapping the
+                  user: an explicit add-as-new is a choice, not a guess. */}
+              <div
+                className={`mt-2 px-3 py-2 rounded-md border cursor-pointer text-sm ${
+                  addAsNewChosen
+                    ? 'bg-teal-50 border-teal-200 font-semibold text-teal-800'
+                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+                onClick={() => setAddAsNewChosen(true)}
+              >
+                None of these — add "{newCityName}" as a new place
+              </div>
             </div>
           ) : (
             showRegionDropdown && (
@@ -344,8 +457,8 @@ export function ChangeCityModal({ tripId, placeId, onClose }: ChangeCityModalPro
             </button>
             <button
               type="submit"
-              disabled={createCity.isPending || changeCity.isPending}
-              className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
+              disabled={createCity.isPending || changeCity.isPending || pickerAwaitingChoice}
+              className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {createCity.isPending || changeCity.isPending
                 ? 'Saving…'

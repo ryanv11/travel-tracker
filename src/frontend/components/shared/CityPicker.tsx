@@ -65,6 +65,18 @@ export interface CityPickerProps {
   truncated?: boolean;
   /** Disables selection while a pick is being submitted (e.g. city creation in flight). */
   disabled?: boolean;
+  /**
+   * ADL-56 §10 / QA red bar §5.4 — emits `data-testid="<prefix>-<osm_type>-<osm_id>"`
+   * on each row that carries a real OSM identity. The prescribed prefixes are
+   * `add-place-live-option` and `change-city-live-option`; the testid is the
+   * seam that lets the Slice-1 acceptance suites pin WHICH candidate is
+   * rendered without pinning UX's row copy (D6 owns the label text, which
+   * `composeCandidateLabels` produces). Omitted → no testid, which is the
+   * existing new-city-form call site, unchanged.
+   */
+  testIdPrefix?: string;
+  /** Marks the row for this candidate as the currently held selection (D7). */
+  selectedKey?: string | null;
 }
 
 /** Stable key for a candidate: prefers its carried OSM identity, falls back
@@ -77,7 +89,14 @@ function candidateKey(candidate: GeocodeCandidate, index: number): string {
   return `${candidate.display_name}:${index}`;
 }
 
-export function CityPicker({ candidates, onSelect, truncated, disabled }: CityPickerProps) {
+export function CityPicker({
+  candidates,
+  onSelect,
+  truncated,
+  disabled,
+  testIdPrefix,
+  selectedKey,
+}: CityPickerProps) {
   const labels = composeCandidateLabels(candidates);
   return (
     <div>
@@ -88,17 +107,27 @@ export function CityPicker({ candidates, onSelect, truncated, disabled }: CityPi
           rows at this row height before scrolling kicks in. */}
       <div className="border border-gray-200 rounded-md overflow-hidden">
         <div className="max-h-72 overflow-y-auto">
-          {candidates.map((candidate, index) => (
-            <div
-              key={candidateKey(candidate, index)}
-              className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50 last:border-b-0"
-              onClick={() => {
-                if (!disabled) onSelect(candidate);
-              }}
-            >
-              {labels[index]}
-            </div>
-          ))}
+          {candidates.map((candidate, index) => {
+            const identity =
+              candidate.osm_type && candidate.osm_id != null
+                ? `${candidate.osm_type}-${candidate.osm_id}`
+                : null;
+            const isSelected = selectedKey != null && candidateKey(candidate, index) === selectedKey;
+            return (
+              <div
+                key={candidateKey(candidate, index)}
+                data-testid={testIdPrefix && identity ? `${testIdPrefix}-${identity}` : undefined}
+                className={`px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm last:border-b-0 ${
+                  isSelected ? 'bg-teal-50 font-semibold' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => {
+                  if (!disabled) onSelect(candidate);
+                }}
+              >
+                {labels[index]}
+              </div>
+            );
+          })}
         </div>
       </div>
       {/* BUG-79 (v3 §B5 m1): carried into the picker — matches the phrasing

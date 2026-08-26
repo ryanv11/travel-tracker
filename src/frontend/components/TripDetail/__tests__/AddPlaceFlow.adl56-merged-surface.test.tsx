@@ -98,7 +98,7 @@ async function typeQuery(text: string) {
 // through two fresh-eyes rounds, so it is asserted at both layers: the live
 // call is MADE (egress), and the alternatives are SHOWN (surface).
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 1 — one exact cached match does NOT suppress the live lookup (B1)', () => {
+describe('[S1][RED-BAR] ADL-56 test 1 — one exact cached match does NOT suppress the live lookup (B1)', () => {
   beforeEach(() => {
     // Exactly ONE cached row for "Newport" — "Newport, Oregon". This is the
     // precise cache state R1's removed gate called a "confident single exact
@@ -159,7 +159,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 1 — one exact cached match does NOT s
 // a NON-duplicate live candidate IS rendered — so the dedup assertion can only
 // pass once the merge actually exists.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 4 — identity dedup: a live twin of a cached row is shown once (AddPlaceFlow)', () => {
+describe('[S1][RED-BAR] ADL-56 test 4 — identity dedup: a live twin of a cached row is shown once (AddPlaceFlow)', () => {
   beforeEach(() => {
     router.setCachedRows([CACHED_NEWPORT_OREGON]);
     router.setLiveResponse(newportUsResponse(), 'Newport');
@@ -240,7 +240,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 4 — identity dedup: a live twin of a 
 // the identical "No matches in United States." line, because that line reflects
 // the CACHED search only and no live call is made from this step at all.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 6 — cache-empty (S2), live-empty (S4) and live-failed (S5) are individually distinguishable', () => {
+describe('[S1][RED-BAR] ADL-56 test 6 — cache-empty (S2), live-empty (S4) and live-failed (S5) are individually distinguishable', () => {
   it('S2 — an empty catalogue search renders the cache-empty state, scoped to SAVED places, with the live merge still running', async () => {
     router.setCachedRows([]);
     router.setLiveResponse(newportUsResponse(), 'Newport');
@@ -332,7 +332,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 6 — cache-empty (S2), live-empty (S4)
 // properties (present iff in flight; does not block the surface underneath) are
 // both falsifiable and both invisible to a copy review.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] GE-21 NB-1 — an in-flight live lookup is visibly indicated, without blocking interaction', () => {
+describe('[S1][RED-BAR] GE-21 NB-1 — an in-flight live lookup is visibly indicated, without blocking interaction', () => {
   beforeEach(() => {
     router.setCachedRows([CACHED_NEWPORT_OREGON]);
     router.deferLiveFor('Newport');

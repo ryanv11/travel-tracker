@@ -240,6 +240,34 @@ export function useCountryRegions(countryCode: string | undefined) {
 }
 
 /**
+ * The same GET the hook above issues, callable imperatively.
+ *
+ * ADL-56 D7: under select≠commit the region a live pick carries is derived at
+ * COMMIT time from the pick's own `region_iso` (via
+ * `buildCreateCityDataFromCandidate`), and the held candidate's country is only
+ * known once the user picks — so the seeded region list for THAT country may
+ * not be loaded yet when the explicit Add is pressed. Awaiting the list here
+ * makes the derivation deterministic instead of racing a hook's fetch: without
+ * it, a fast Add silently drops the region and re-opens exactly the
+ * "Australia (no state set)" outcome BUG-98 is about.
+ *
+ * Best-effort, never blocking (GE-15 parity): a failure resolves to `[]`, which
+ * leaves `region_id` undefined and still creates the city, identical to the
+ * unseeded-region fallback the shared mapping already implements.
+ */
+export async function fetchCountryRegions(
+  countryCode: string,
+): Promise<import('../types/api').Region[]> {
+  try {
+    return await apiGet<import('../types/api').Region[]>(
+      `/api/admin/countries/${countryCode}/regions`,
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Updates a country's region tier settings.
  * PATCH /api/admin/countries/:countryCode
  *

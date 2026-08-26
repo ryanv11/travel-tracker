@@ -93,7 +93,7 @@ async function typeQuery(text: string) {
 // BUG-99's core: on `main` the click on a cached result posts the place
 // immediately, so the optional dates are structurally unreachable.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 7 — a cached-search pick SELECTS and populates; it does not commit', () => {
+describe('[S1][RED-BAR] ADL-56 test 7 — a cached-search pick SELECTS and populates; it does not commit', () => {
   beforeEach(() => {
     router.setCachedRows([CACHED_NEWPORT_OREGON]);
     router.setLiveResponse(newportUsResponse(), 'Newport');
@@ -150,7 +150,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 7 — a cached-search pick SELECTS and 
 // explicitly, on the recorded call sequence, not inferred from two independent
 // call counts (which would pass on the wrong order).
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 8 — a disambiguation pick SELECTS; the explicit Add runs createCity then addPlace, in that order, once', () => {
+describe('[S1][RED-BAR] ADL-56 test 8 — a disambiguation pick SELECTS; the explicit Add runs createCity then addPlace, in that order, once', () => {
   beforeEach(() => {
     router.setCachedRows([]);
     router.setLiveResponse(newportGbResponse(), 'Newport');
@@ -211,7 +211,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 8 — a disambiguation pick SELECTS; th
 // admission gate and both carry AU-VIC, so `distinctOsmIds.size === 2` fires
 // the picker while `distinctRegionIsos` is length 1.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 9 — with a choice shown and nothing chosen, the commit writes no guessed record', () => {
+describe('[S1][RED-BAR] ADL-56 test 9 — with a choice shown and nothing chosen, the commit writes no guessed record', () => {
   beforeEach(() => {
     router.setCachedRows([]);
     router.setLiveResponse(melbourneAuResponse(), 'Melbourne');
@@ -304,7 +304,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 9 — with a choice shown and nothing c
 // countryCode (`cityIdentityService.ts:210,223-224` — the canonical /lookup
 // supplies name/coords/osm only). That files a Wales place under France.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 12 — editing an identity-bearing field invalidates a held live selection', () => {
+describe('[S1][RED-BAR] ADL-56 test 12 — editing an identity-bearing field invalidates a held live selection', () => {
   beforeEach(() => {
     router.setCachedRows([]);
     router.setLiveResponse(newportGbResponse(), 'Newport');
