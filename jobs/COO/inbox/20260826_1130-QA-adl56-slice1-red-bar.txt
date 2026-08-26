@@ -4,7 +4,7 @@ DATE: 2026-08-26
 RE: ADL-56 / GE-21 Slice 1 red acceptance bar — COMPLETE
 
 Tracker: BUG-97 (home) / BUG-98 / BUG-99 / BUG-73 / GE-21 · BRD: GE-21 v3.22
-Issues: #536 #537 #538 · Branch: test/adl56-slice1-red-bar · PR: see below
+Issues: #536 #537 #538 · Branch: test/adl56-slice1-red-bar · PR: #540
 Detail: jobs/qa/tech/20260826-ADL56-slice1-red-bar.md (full red table, §3)
 Park:   jobs/qa/park-docs/20260826-QA-park.txt
 
@@ -117,9 +117,10 @@ FINDINGS:
      trees run. Separate TS build trees means two inline copies today — itself
      the drift risk §4 names. Not pre-empted here; it is Slice-2 design work.
 
-CI: main suites green with the bar committed — frontend 425 passed / 41 skipped,
-backend 879 passed / 10 skipped, type:check:all clean. /pre-push run. PR CI
-confirmed green before filing (see PR body). Do NOT use gh run view --log-failed.
+CI: PR #540 — ci-wait.sh reports PASS, all 18 checks green @ 141eb22 (incl. E2E,
+Contract, Semgrep, Gitleaks, npm audit). Local: frontend 425 passed / 41 skipped,
+backend 879 passed / 10 skipped, type:check:all clean, status/tracker/scope all
+pass. /pre-push run in full. (gh run view --log-failed not used — QUAL-27.)
 
 BLOCKERS: none. Nothing uncommitted.
 NEXT: Brief A (backend: the osm projection + D4/N5 backfill at both write sites)

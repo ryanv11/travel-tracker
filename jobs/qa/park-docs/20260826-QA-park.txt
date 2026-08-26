@@ -150,4 +150,6 @@ edit the committed file to obtain evidence.
 npm run test:frontend    425 passed | 41 skipped | 0 failed
 npm run test:backend     879 passed | 10 skipped | 0 failed
 npm run type:check:all   clean
-Nothing uncommitted. PR opened against main; COO reviews and merges.
+status:check / tracker:check / scope:check   all pass
+PR #540 against main — ci-wait.sh PASS, all 18 checks green @ 141eb22.
+Nothing uncommitted. COO reviews and merges; I do not merge my own PR.
