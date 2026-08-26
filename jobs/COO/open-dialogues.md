@@ -170,14 +170,3 @@ before being killed. Deferred, not adopted: the team is already process-rich, an
 premise-before-probe gate) may catch the runaway-spike class at its source, making this redundant.
 Revisit only if a second uncontrolled spike appears after OP-33 is in force.
 
-### D-34: `ci-wait.sh` exited 0 while a required check had failed — watch (possible QUAL-46-class fail-open)
-2026-08-12. On PR #532's FIRST run, `scripts/ci-wait.sh pr 532` exited **0**, but `gh pr checks`
-showed the "Biome (lint + format)" job **failed** (its `status:check` step — a stale STATUS.md) and the
-merge was `BLOCKED`. Caught only because the COO checks `gh pr checks` + `mergeStateStatus` before
-merging, not the exit code alone. **Root cause UNVERIFIED** — the likely-benign explanation is the
-known duplicate-CI-trigger ([[project_ci_duplicate_trigger_accepted]]): ci-wait watched the passing
-branch-run while the `refs/pull/532/merge` run carried the failure. But it is the exact fail-open shape
-QUAL-46 was meant to close, so it is NOT dismissed. Did not recur across the session's other ~6
-ci-waits (each cross-checked against `gh pr checks`). Disposition: treat `gh pr checks` +
-`mergeStateStatus` as the authoritative merge gate, not the ci-wait exit code; probe ci-wait's
-run-selection logic if this recurs. No standing rule (D-03 precedent: one contained incident).
