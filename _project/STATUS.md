@@ -51,14 +51,14 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 | QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
-| BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | ⬜ Pending |
+| BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | done_pending_uat |
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | done_pending_uat |
 | BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
 | QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | done_pending_uat |
-| BUG-97 | Add-place ambiguity is pre-empted by a single cached city match (the cached-vs-live seam) | architect | ⬜ Pending |
-| GE-21 | Add-place disambiguation is explicit — merged saved+live list, select is not commit, region backfill, distinguishable lookup states | architect | ⬜ Pending |
-| BUG-99 | Add Place: picking a result from either picker commits immediately, bypassing the optional dates | architect | ⬜ Pending |
+| BUG-97 | Add-place ambiguity is pre-empted by a single cached city match (the cached-vs-live seam) | architect | done_pending_uat |
+| GE-21 | Add-place disambiguation is explicit — merged saved+live list, select is not commit, region backfill, distinguishable lookup states | architect | done_pending_uat |
+| BUG-99 | Add Place: picking a result from either picker commits immediately, bypassing the optional dates | architect | done_pending_uat |
 | QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 | OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
@@ -95,11 +95,11 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-86 | "Back to trip" button in review status deselects the trip instead of returning to the active view | frontend | done_pending_uat |
 | BUG-88 | Post-trip review has no trip-level or place-level rating (only item-level) | architect | ⬜ Pending |
 | BUG-89 | Country/city geocode lookup is intolerant of misspellings and informal spellings | backend | ⬜ Pending |
-| UX-13 | Grey out / lock the city name on the disambiguation picker screen (editing it there doesn't re-run the lookup) | frontend | ⬜ Pending |
+| UX-13 | Grey out / lock the city name on the disambiguation picker screen (editing it there doesn't re-run the lookup) | frontend | done_pending_uat |
 | BUG-92 | Companions are not seeded from a global starting list | architect | ⬜ Pending |
 | BUG-94 | GE-20 bypass: the manual '+Add new' country dropdown in the picker isn't restricted to the trip's countries | frontend | ⬜ Pending |
 | QUAL-44 | Stale file:line cross-references in comments — remaining low-value ones + adopt cite-symbols-not-lines | unassigned | ⬜ Pending |
-| BUG-98 | City resolved in a region-tier country with state left blank is saved region-null, not backfilled (Melbourne -> 'Australia, no state set') | architect | ⬜ Pending |
+| BUG-98 | City resolved in a region-tier country with state left blank is saved region-null, not backfilled (Melbourne -> 'Australia, no state set') | architect | done_pending_uat |
 | BUG-100 | Region derivation has THREE write sites and only two carry D4 — a resolved-insert with a missed region map is never revisited (region-null forever) | architect | ⬜ Pending |
 | QUAL-52 | Newport test fixtures assert an OSM node id (26700978) that upstream no longer serves — stale identity across 6 test files | qa | ⬜ Pending |
 | UX-15 | Blue-date tooltip copy 'set explicitly for this place' is unclear to users | frontend | ⬜ Pending |
