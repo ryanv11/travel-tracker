@@ -383,10 +383,7 @@ export const citiesRepository = {
    * removes a silent-miss mode (a differently-cased seed would just skip the
    * backfill, with no error anywhere to notice).
    */
-  async findRegionByIsoInCountry(
-    iso: string,
-    countryCode: string,
-  ): Promise<{ id: number } | null> {
+  async findRegionByIsoInCountry(iso: string, countryCode: string): Promise<{ id: number } | null> {
     const db = getDb();
     const rows = await db
       .select({ id: regions.id })
