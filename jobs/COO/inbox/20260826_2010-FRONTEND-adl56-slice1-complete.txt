@@ -1,0 +1,107 @@
+TO: COO
+FROM: Frontend
+DATE: 2026-08-26
+RE: ADL-56 / GE-21 Slice 1 (frontend) — COMPLETE
+
+Tracker: BUG-97 (home) · BUG-98 · BUG-99 · BUG-73 · UX-13
+GitHub: PR #545 (refs #536, #538) · BRD: GE-21 (v3.22)
+Branch: feat/adl56-slice1-frontend
+
+WHAT WAS BUILT
+The merged cached ∪ live add-place surface with select≠commit. The live lookup
+moved into hooks/useLiveCityLookup.ts — keyed by (settledQuery, countrySet),
+which is also the §3b(7) rollback seam; §5 P2 identity dedup went into
+utils/mergeLiveCandidates.ts, shared by both surfaces.
+
+ACCEPTANCE CRITERIA
+- All [S1][RED-BAR] describes un-skipped and green, NB-1 included: PASS (37 tests)
+- [S1][GUARD] GE-20 country filter green: PASS
+- [INTERIM] tripwire green; [S2] describe still skipped: PASS
+- UX-13 folded in (name edit invalidates identity, same rule as N3): PASS
+- Full frontend suite green: PASS — 469 passed | 4 skipped (base 425 | 41)
+- /pre-push run and iterated: PASS
+- Committed to the branch, nothing uncommitted: PASS
+- No red-bar assertion altered: PASS (diff shows only describe.skip -> describe)
+
+CI: all 18 checks green on PR #545 @ 86387a8 (scripts/ci-wait.sh pr 545).
+One iteration: E2E `add place via city search` asserted the pick closes the
+modal — the exact behaviour GE-21 changes. Updated in-PR to click
+add-place-commit, which makes it the real-browser check of select≠commit.
+Verified locally against the CI env before pushing: 53/53 E2E green.
+
+VERDICTS ON YOUR THREE ADDITIONS
+1. Merge order — agreed, no objection. My suites are green against the harness
+   either way; the live surface's dedup needs the backend fields to be real.
+2. NB-1 is behavioural — agreed, and it changed my implementation. Building it
+   surfaced a real design question the tests forced me to answer properly: the
+   cue is gated on `live.pending && !searching`, i.e. it appears only once the
+   saved list is on screen. It claims "more is still coming", which is only
+   meaningful once there is something to augment, and the click-too-early race
+   it warns about cannot occur while nothing is clickable. I did NOT disable
+   anything during the lookup, per your instruction.
+3. Rollback seam untested — I disagree with the framing but not the decision,
+   and I'd rather say so than return a token constant. An untested structural
+   requirement does decay; the honest mitigation is that it is a whole module
+   whose only exported policy is LIVE_LOOKUP_MODE, so "one isolated policy
+   point" is visible in the file list, not just in a comment. Cheap future
+   option if you want it enforced: a lint/scope-style check that
+   `lookupCityCountry` has exactly one caller outside useLiveCityLookup.ts. Not
+   worth a brief on its own; worth noting before someone adds a second caller.
+
+WHERE THE DESIGN FOUGHT THE CODE (two, both resolved, both declared)
+- ADL-56 §3a says "every add-place entry path" selects rather than commits. The
+  MANUAL "+ Add new" form's CityPicker still commits on the pick. Deliberate:
+  its date fields are reachable BEFORE the pick, so BUG-99's actual defect
+  (dates structurally unreachable) does not exist there, and converting it would
+  have meant rewriting two green BUG-75/UX-12 suites for no BRD-demanded gain.
+  It DID get the §3a guard, its own escape row, and UX-13. Your call if you want
+  it converted — it is a follow-up, not a hole.
+- §3a N3 says the held selection "reverts to no selection". I DEGRADE it to a
+  plain-name selection instead. Identical safety property (the osm_id cannot
+  ride under a new country or name), but the user's typing survives and the
+  surface is still on screen. Both pass the tests; I think degrading is the
+  better product behaviour, and I want it visible rather than assumed.
+
+TWO THINGS YOU SHOULD KNOW, NEITHER A BLOCKER
+- Test 12.1 is VACUOUS — it passes with N3 fully removed, because the merged
+  surface stays rendered while a selection is held. QA predicted this in
+  red-bar §3.9. I probed N3 directly as you asked: neutralising the
+  invalidation turns 12.2 and 12.3 red, so N3 is genuinely load-bearing. I also
+  probed the AddPlaceFlow commit guard — forcing disabled={false} leaves test
+  9.1 GREEN, because the behavioural guard is handleCommit's own early return,
+  not the attribute. Worth recording before a reviewer reads that as a gap.
+- The surface renders TWO escape rows: `add-place-none-of-these` (selects in
+  place) and the existing `+ Add new: "X"` (opens the manual form). They cannot
+  be merged — making "+ Add new" the explicit add-as-new choice pre-satisfies
+  the manual form's guard and re-opens the Melbourne region-null save through
+  that path, and nine suites depend on it opening the form. Visible redundancy;
+  UX owns the copy under D6 and may want to look at it.
+
+TESTS I TOUCHED THAT WERE NOT MINE (both declared, neither weakened)
+- Nine legacy suites gained a vi.mock holding useLiveCityLookup idle. They mock
+  the hook layer wholesale and render with no QueryClientProvider, so the real
+  hook throws there; idle also keeps geocodeFailure's lookupCityCountry
+  call-COUNT assertion honest.
+- Three ge20-country-filter copy assertions moved to the D5/S2 wording ("No
+  saved places match in X."). The old line asserted an absence the catalogue
+  cannot know; the behaviour that test owns is unchanged.
+- CityPicker's header said "TWO call sites" and that UX-12 was not wired to one.
+  Both are facts this change alters, so both were updated and the superseded
+  text stamped, per the document lifecycle rule.
+
+NO FULL-FILE SOURCE REWRITES. No new scanner suppressions. QUAL-52 untouched.
+
+WHAT IS NOW UNBLOCKED
+- Slice 2: decideCityDisambiguation was NOT touched, so the ε-collapse lands in
+  one place. When it does, the [INTERIM] tripwire goes red — that is Slice 2
+  working; delete it, un-skip [S2], re-stamp the interim in ADL-56 §10a + BRD.
+  The merged surface needs no change for it: it renders whatever candidate set
+  it is given, so collapsed Melbourne twins simply show as one row.
+- UAT on staging, once the backend Slice-1 PR merges first (per your order).
+  Suggested focus: Newport with one cached row (the PO's original case), the
+  date-after-pick sequence, and Melbourne's two-option picker + the guard.
+  Note OP-32: run the deployment shakedown first — this wave adds a new
+  outbound call pattern on the search step.
+
+DETAIL: jobs/frontend/park-docs/20260826-FRONTEND-adl56-slice1-park.txt
+COMPONENT NOTES: jobs/frontend/tech/20260826-ADL56-slice1-merged-surface.md
