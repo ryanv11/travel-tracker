@@ -1,3 +1,54 @@
+BACKEND CONTEXT — 2026-08-26 (ADL-56 / GE-21 Slice 1 backend — BUG-97/BUG-98, latest)
+PROJECT: Travel Tracker
+CURRENT STATUS: greened the ADL-56 Slice-1 backend red bar (#540) on branch
+  feat/adl56-slice1-backend. All 6 `[S1][RED-BAR]` tests across the three backend
+  ADL-56 files un-skipped and GREEN; every `[S1][GUARD]` green; the `[INTERIM]`
+  tripwires still green and the `[S2]` describes still skipped. No assertion
+  touched — the test-file diff is exactly three describe.skip→describe tokens.
+  1. D3/P2 — GET /api/cities search projection gains osm_type + osm_id
+     (repositories/cities.ts `search`). Additive; nullable for the §2 H1
+     NULL-osm_id population. This is ADL-56's ONE additive API field and a
+     CROSS-TREE CONTRACT: the parallel frontend brief matches cached rows to
+     live candidates on these exact snake_case names (golden values Newport
+     Oregon = relation / 186468). Renaming either is a COO negotiation.
+     PROJECTION ONLY — the GE-16 containment predicate is untouched.
+  2. D4/N5 — blank-region backfill at BOTH write sites. New exported
+     singleDistinctRegionIso(eligible) in geocoding.service.ts is the single
+     home for the derivation rule; new citiesRepository.findRegionByIsoInCountry
+     (inverse of findRegionInCountry) is the single home for ISO→region_id.
+     - Create path (routes/cities.ts step 4b): derives from
+       resolution.candidates (which IS classifyCandidates' eligible set).
+     - Resolver: commitResolvedOrMerge gained a `regionBackfillId` param applied
+       ONLY in the try-block direct UPDATE (§6b(1)); deriveRegionBackfill() gates
+       on regionId==null → single distinct iso → region-tier → seeded.
+  3. §6b(1) is load-bearing and structural: because the backfill rides the SAME
+     single UPDATE as the OSM stamp, a unique violation rolls both back
+     atomically, so the caught-violation mergeIntoWinner branch inherits nothing
+     and a pre-existing winner's user-supplied region is never touched.
+  4. §6b(2)/N5(b) is the trap: `best = eligible[0]` can carry a NULL regionIso
+     while the eligible SET names exactly one region. Deriving from best.regionIso
+     passes the naive test and silently reproduces BUG-98. Derive from the SET.
+  5. EXTENDED BEYOND THE RED BAR (declared): the carried-OSM branch of resolveCity
+     also backfills (single candidate = unambiguous by construction, §B1.2). Not
+     pinned by any test; ADL-56 §6a path (A) expects that path to end with a
+     region. Flagged to COO.
+  6. COO ADDITION 2 (§3b(7) rollback seam) is ENTIRELY FRONTEND — two probes that
+     fail differently: (a) grep of all backend source for
+     autofire/debounce/auto|manual/settledQuery → zero hits; (b) reading
+     routes/geocode.ts in full — a stateless per-request proxy with no trigger,
+     no debounce, no session cache, no policy switch. Backend owns the RATE
+     chokepoint (nominatim-client, 1 req/s), never the TRIGGER.
+  VERIFICATION: test:backend 61 files / 885 passed | 4 skipped (was 879|10 —
+  exactly the 6 un-skipped). test:frontend 425|41, identical to the QA baseline.
+  type:check:all clean. scope:check PASS all 3 checks.
+  NOT DONE (other briefs): the whole frontend Slice 1 (merged surface, autofire
+  hook, select≠commit, message states, ChangeCityModal); all of Slice 2 (the D2
+  ε-collapse in classifyCandidates — tests 2/3 stay skipped); QUAL-52 (stale
+  Newport fixture osm id) deliberately deferred per brief.
+  Park doc: jobs/backend/park-docs/20260826-BACKEND-adl56-slice1-park.txt
+
+================================================================
+
 BACKEND CONTEXT — 2026-08-11 (GE-19 / BUG-85 backend — geocode status lifecycle, latest)
 PROJECT: Travel Tracker
 CURRENT STATUS: implemented the GE-19 backend (ADL-55 §3/§4/§5/§8/§R) on branch

@@ -1,0 +1,276 @@
+BACKEND PARK DOCUMENT — ADL-56 / GE-21 Slice 1, BACKEND half (BUG-97 / BUG-98)
+Date: 2026-08-26
+Branch: feat/adl56-slice1-backend  (off main @ c4d5047)
+Tracker: BUG-97 (home) · BUG-98   BRD: GE-21 (v3.22, approved)
+Design: ADL-56 §5/§6/§6b/§9/§10 · Red bar: jobs/qa/tech/20260826-ADL56-slice1-red-bar.md
+Class (OP-32): gap   ATDD-first (OP-35): yes — bar pre-existed (PR #540)
+
+================================================================
+WHAT WAS BUILT
+================================================================
+Two behaviours, both from ADL-56, plus the six [S1][RED-BAR] describes un-skipped.
+No new route, no schema change, no migration, no index — exactly as §9 scopes it.
+
+--- 1. D3/P2 — the ONE additive API field (ADL-56 §9) ---
+repositories/cities.ts `search` projection gains:
+    osm_type: cities.osmType      // string | null
+    osm_id:   cities.osmId        // number | null
+Additive: every pre-existing field is untouched ([S1][GUARD] pins this).
+Nullable for the §2 H1 population (legacy / pending / terminal / seeded rows
+carry no ref) and PRESENT-but-null, so a client can tell "cannot be
+identity-matched" from "this response predates the field".
+
+CROSS-TREE CONTRACT — these exact snake_case names and the golden values
+(Newport Oregon = 'relation' / 186468) are what the parallel FRONTEND brief
+matches cached rows to live candidates on. Renaming either field would leave
+BOTH suites green while integration silently broke; it is a COO negotiation,
+not a unilateral call. Not renamed.
+
+--- 2. D4/N5 — the region backfill at BOTH write sites (§6 / §6b) ---
+BUG-98: a blank region in a region-tier country saved as "Australia (no state
+set)" although the geocoder unambiguously knew the region. Now backfilled.
+D12 rule-3 is REFINED, not crossed: rule-3 protects a SUPPLIED region; blank is
+the absence of one (PO-confirmed 2026-08-11, ADL-46 §4.3.1).
+
+Two new single-home helpers so the two write sites cannot drift:
+  * geocoding.service.ts `singleDistinctRegionIso(eligible)` (exported) — THE
+    derivation rule.
+  * citiesRepository.findRegionByIsoInCountry(iso, countryCode) — THE ISO→
+    region_id lookup; the deliberate inverse of the existing
+    findRegionInCountry. Returns null as a NORMAL outcome (unseeded region),
+    never as an error. Scoped by country as well as ISO (the ISO is globally
+    unique, but scoping means a mis-attributed candidate can never file a city
+    under another country's region). NOCASE compare — the values agree today,
+    but a differently-cased seed would otherwise silently skip the backfill with
+    nothing red anywhere.
+
+  a) CREATE PATH — routes/cities.ts step 4b. `regionId: region_id ?? null`
+     becomes a derived `resolvedRegionId`, computed only when region_id is blank
+     AND regionTierEnabled === 1. Derived from `resolution.candidates`, which IS
+     classifyCandidates' ELIGIBLE set (see resolveCityName's 'ok' return).
+  b) RESOLVER — commitResolvedOrMerge gained a third param
+     `regionBackfillId: number | null = null`, applied ONLY in the try-block
+     direct UPDATE. New private deriveRegionBackfill(city, eligible) gates, in
+     order: regionId != null → null (D12 rule-3); not exactly one distinct
+     eligible region_iso → null (region-ambiguous is a picker case, never a
+     guess); country not region-tier → null; ISO not seeded → null (GE-15
+     best-effort — the city still resolves). resolveCity's SELECT now also reads
+     cities.regionId (the rule is about the column, not the joined ISO).
+
+================================================================
+THE TWO N5 TRAPS — WHY THE OBVIOUS IMPLEMENTATION GETS BOTH WRONG
+================================================================
+§6b(1) PLACEMENT. The backfill must never reach the caught-violation
+mergeIntoWinner branch: that branch repoints trip_places onto a PRE-EXISTING
+winner (someone else's row, which may hold a user-SUPPLIED region) and deletes
+the loser. Backfilling there overwrites a user value while nominally "filling a
+blank" — a D12 rule-3 breach on the path where it is least visible.
+
+  The structural reason it holds: the backfill rides the SAME single UPDATE
+  statement as the OSM stamp. A uniq_cities_osm_ref violation rolls the whole
+  statement back atomically, so the catch branch inherits nothing. This is not
+  defensive ordering, it is why §6b(1) says "the try-block direct update" rather
+  than "remember not to". The [S1][GUARD] test exercises the REAL partial unique
+  index against real libSQL (the loser row is genuinely deleted), so the branch
+  is proven taken, not simulated.
+
+§6b(2) DERIVATION. classifyCandidates returns `best = eligible[0]`, and
+eligible[0] CAN carry a NULL region_iso while the resolve is region-unambiguous:
+  eligible = [ {regionIso: null}, {regionIso: 'AU-VIC'} ]
+  → distinctRegionIsos = ['AU-VIC'] (length 1 → verdict 'ok')
+  → best.regionIso === null
+Reading `best.regionIso` passes the headline test and silently reproduces BUG-98
+for exactly the rows D4 exists to fix, with nothing red anywhere. Derive from the
+SET. Both N5(b) tests (create path and resolver) exist solely to tell those two
+implementations apart, and both are green.
+
+================================================================
+ADDENDUM 2026-08-26 — THE CARRIED-OSM-REF PATH IS NOW PINNED (COO-directed)
+================================================================
+The COO confirmed the carried-osm-ref backfill (keep it) and directed that the
+gap be closed properly: code shipping unpinned inside an ATDD slice is a hole in
+the bar, not just in the PR. Two tests added to
+services/__tests__/geocoding.adl56-region-backfill.test.ts:
+
+  [S1][RED-BAR] "ADL-56 §6a path (A) — a carried-OSM-ref resolve backfills a
+                 blank region too"
+  [S1][GUARD]   "D12 rule-3 holds on the carried-OSM-ref path too"
+
+--- Assertion derived from the SPEC, not from the implementation ---
+§6a path (A) says a picked Melbourne ends with AU-VIC "via the pick's
+region_iso→region_id map AND/OR D4". Walking that "and/or" before writing the
+assertion changed what the test may legitimately claim:
+  * ONLINE pick — createOrReuseCarriedCity canonicalizes AT CREATE TIME and
+    inserts 'resolved' with the CALLER's regionId. The region arrives via the FE
+    half: buildCreateCityDataFromCandidate maps candidate.region_iso onto a
+    loaded regions row (read directly — src/frontend/utils/). So §6a path (A) is
+    ALREADY satisfied there and D4 owes it nothing. Not this test's subject.
+  * DEGRADED pick (M-B) — canonicalization failed at create time, so
+    createOrReuseCarriedCity branch (c)/(d) inserts PENDING carrying the ref,
+    region-null. The FE map has had its only chance. When the 15-minute queue
+    later resolves that row via resolveCity's carried-ref branch, D4 is the ONLY
+    remaining mechanism. That is the half that was neither implemented nor pinned
+    before, and it is what the new test asserts.
+The resolve is region-unambiguous by construction on this branch (§B1.2 — /lookup
+is queried BY the chosen object), so the §6 precondition holds without a
+distinctness computation over a candidate set.
+
+--- Red-then-green evidence (both observations run, not asserted) ---
+RED: temporarily reverted ONLY the :571 call to
+     `commitResolvedOrMerge(cityId, candidate)`. Result:
+       × [S1][RED-BAR] ADL-56 §6a path (A) … carrying its region
+         → AssertionError: expected null to be 1 // Object.is equality
+         at geocoding.adl56-region-backfill.test.ts:290:27
+       Tests  1 failed | 5 passed (6)
+     Line 290 is `expect(row?.regionId).toBe(regions['AU-VIC'])` — it failed on
+     the ASSERTION, not on setup. The three assertions ABOVE it in the same test
+     (geocodeStatus 'resolved', osmId 4246124, osmType 'relation') all PASSED,
+     which is the anti-vacuous evidence: the resolve genuinely ran through the
+     carried-ref branch and only the region was missing. The other five tests —
+     including the new D12 guard — stayed green, confirming the revert was
+     surgical.
+GREEN: restored. 6 passed (6). `git diff --stat` on geocoding.service.ts is
+     EMPTY — the source is byte-identical to the committed version, so the
+     temporary revert left no trace.
+
+--- Mock fidelity of the new double (QUAL-22) ---
+The /lookup body is the REAL captured `place/city` relation row lifted verbatim
+from melbourne_au.json, returned as a ONE-element array. The derivation is only
+the FRAMING, and it is the correct one: /lookup is "queried BY the exact
+object(s) requested" (nominatim-client), so a /search-shaped multi-row body would
+be the wrong shape for this branch. The helper throws if the fixture moves, so it
+can never silently degrade into an empty lookup. Real parseCandidate, real
+isAcceptedSettlement ('city' passes), real nominatimLookup, real libSQL.
+
+--- The D12 guard is green BOTH ways, deliberately ---
+Before the change: no region write on that branch at all. After: gate 1 of
+deriveRegionBackfill returns null on a non-null region_id. A boundary guard
+should be green either way — it exists to fail if a future refactor removes the
+gate, which is exactly the hazard adding a write to a previously write-free
+branch creates.
+
+--- RESIDUAL FINDING, reported not fixed (COO's call) ---
+There is a THIRD write site §6 does not name: createOrReuseCarriedCity's own
+resolved insert (cityIdentityService, branch (c)/(d)'s `canonical` path). It
+stores the CALLER's regionId with no D4 derivation. When the FE map misses —
+buildCreateCityDataFromCandidate returns `region_id: undefined` if the
+candidate's region_iso is not in the loaded regions list — the row is inserted
+'resolved' AND region-null, and resolveCity early-returns on a 'resolved' row
+(geocoding.service.ts:518), so the queue NEVER revisits it. That row stays
+region-null until a user corrects it via PATCH/Change-city. Narrow (needs an FE
+regions-list miss, the BUG-30 incomplete-seed class) and NOT a regression — it is
+today's behaviour, unchanged by this PR. Deliberately not fixed here: it is a
+third write site outside §6's stated scope and outside the red bar, and inventing
+scope after the bar is exactly what the ATDD discipline exists to prevent. Flagged
+for the COO to decide — Slice 2, a follow-up, or accept.
+
+================================================================
+DECLARED — EXTENDED SLIGHTLY BEYOND THE ORIGINAL RED BAR (OP-28)
+================================================================
+resolveCity's CARRIED-OSM branch also backfills (deriveRegionBackfill(city,
+[candidate])). COO-CONFIRMED 2026-08-26 (keep it) and now pinned by the addendum
+tests above — no longer unpinned.
+  Reason: a /lookup by osm ref returns ONE candidate and is region-unambiguous by
+  construction (ADL-56 §B1.2 — the carried ref IS the query). ADL-56 §6a path (A)
+  states a picked Melbourne "ends with a region ... via the pick's region_iso→
+  region_id map AND/OR D4"; leaving this caller un-backfilled would keep BUG-98's
+  symptom alive on the picker path §6a says it closes. It is the same rule at the
+  same write site, behind the same four gates.
+  Flagged for COO review as a deliberate extension, not a drift.
+
+No full-file source rewrites. All edits targeted. No new scanner suppressions.
+
+================================================================
+SECURITY CHECKLIST (OP-06) — modified route GET /api/cities
+================================================================
+1. AUTH — unchanged. requireAuth is applied globally via app.use('/api/',
+   requireAuth); this change touches neither the middleware nor the mount. No
+   route added, so no new auth obligation.
+2. SCOPING / GE-16 CONTAINMENT — UNCHANGED, and this is the dangerous version of
+   this task, so it was checked rather than assumed. The predicate
+   `geocodeStatus='resolved' OR createdByUserId=caller OR createdByUserId IS
+   NULL` is a separate `or(...)` composed into the same `.where(and(...conditions,
+   containment))`; the edit added two columns to `.select({...})` and touched
+   nothing in the WHERE. A projection change did NOT become a visibility change.
+   Pinned live by the [S1][GUARD] block (another user's pending city stays
+   invisible; a resolved city is global; a NULL-creator pending row stays global).
+3. NEW USER-DATA FK notNull — N/A. No schema change, no new column, no new table.
+   `cities` remains GLOBAL REFERENCE DATA under GE-16 creator-VISIBILITY
+   containment, not row ownership (ADL-46 §9.2) — deliberately not routed through
+   the ownership chokepoint.
+4. DATA SENSITIVITY — osm_type/osm_id are public OpenStreetMap identifiers, not
+   user data, and were already returned by POST /api/cities via serializeCity.
+   Exposing them on search leaks nothing creator-scoped.
+5. scope:check PASS — Check 1 (ownership) 0 residuals; Check 2 (getDb in routes)
+   0 mentions across 13 route files (the route delegates to the repository — the
+   new region lookup was added to citiesRepository, not inlined into the handler);
+   Check 3 (ownership classification) 21 tables classified.
+
+================================================================
+RED BAR — un-skipped, GREEN, no assertion weakened
+================================================================
+3 `describe.skip` → `describe` (6 tests):
+  routes/__tests__/cities.adl56-search-osm-identity.test.ts   (§10 test 4, BE half)
+  routes/__tests__/cities.adl56-region-backfill.test.ts       (§10 test 5, create)
+  services/__tests__/geocoding.adl56-region-backfill.test.ts  (§6b, resolver)
+`git diff` over the three test files shows ONLY those three tokens — zero
+assertion lines changed. That diff IS the verification the convention exists for.
+Zero `describe.skip('[S1]` occurrences remain repo-wide (COO ADDITION 3).
+
+Still correctly skipped: the two `[S2]` describes in cities.adl56-s2-name-path.ts
+(4 tests). Still GREEN: both `[INTERIM][GE-21 Slice 1→2]` tripwires — the backend
+one (same-region ambiguity still resolves to eligible[0]) and the frontend one
+(the two Melbourne granularities still show a picker). Neither was made to pass
+by accident; the backend interim is untouched because Slice 1 does not go near
+classifyCandidates' region_iso test.
+
+================================================================
+COO ADDITION 2 — VERDICT: §3b(7)'s ROLLBACK SEAM IS ENTIRELY FRONTEND
+================================================================
+Backend holds NO part of the live-lookup trigger policy. Two probes that fail
+differently:
+  (a) grep of all backend source (excluding __tests__) for
+      autofire|auto_fire|LIVE_AUTOFIRE|debounce|'auto'..'manual'|settledQuery
+      → zero hits.
+  (b) read src/backend/routes/geocode.ts in full — a stateless per-request proxy:
+      validateQuery → pick DISCOVERY_LIMIT/CONSTRAINED_LIMIT → nominatimSearch →
+      serialize. No trigger, no debounce, no session cache, no policy switch, no
+      state between requests. Its own header describes the cadence as the
+      CALLER's ("one upstream request per keystroke-settle").
+  Corroborating: every caller of lookupCityCountry is in src/frontend
+  (AddPlaceFlow.tsx:410, useCityDisambiguation.ts:59).
+The backend owns the RATE chokepoint (nominatim-client's serialized 1 req/s
+egress) — a different control from the TRIGGER §3b(7) is about, and one that is
+already isolated. So there is no backend `enabled: 'auto' | 'manual'` seam to
+build, and inventing a backend flag nothing reads would be the token constant the
+COO explicitly did not want. COO to carry §3b(7) into the frontend brief.
+
+================================================================
+VERIFICATION
+================================================================
+- test:backend  61 files / 885 passed | 4 skipped. Baseline at red-bar commit was
+  879 | 10 — the delta is exactly the 6 tests un-skipped here, nothing else moved.
+- test:frontend 425 passed | 41 skipped — IDENTICAL to the QA baseline (§6 of the
+  red-bar doc), confirming a backend-only change and the FE interim tripwire green.
+- type:check:all clean. scope:check PASS (all 3). /pre-push run to green.
+- CI: see the PR / completion report.
+
+================================================================
+NOT DONE — downstream, out of this brief's scope
+================================================================
+- FRONTEND Slice 1 (separate brief, merges AFTER this one per COO ADDITION 1):
+  the merged cached ∪ live surface, the D8/B1 autofire hook + staleness +
+  §3b(7) rollback seam, D7 select≠commit + N3 held-selection invalidation, the
+  D5 message states, NB-1 in-flight cue, and the N6 ChangeCityModal wiring.
+  The FE `City` type still needs osm_type/osm_id added — deliberately NOT touched
+  here (backend-only brief; it is the FE brief's field).
+- SLICE 2 entirely: the D2 ε-collapse in classifyCandidates AND
+  decideCityDisambiguation, plus N1 (deterministic representative osm_id) and N2
+  (NULL-region_iso under-collapse). Tests 2/3 stay skipped until then.
+- QUAL-52 (legacy Newport fixture carries an osm node id upstream no longer
+  serves) — deliberately deferred per the brief; re-pointing shared fixtures
+  mid-build would churn the bar being built against.
+
+Bugs discovered: none. ADL-56 did not fight the code anywhere — see the
+completion report for the one place the spec was slightly under-specified
+(which caller of commitResolvedOrMerge §6 means) and how it was resolved.

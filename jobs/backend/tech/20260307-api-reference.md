@@ -1,7 +1,12 @@
 # Travel Tracker — Backend API Reference
 
-**Version:** 1.9
-**Date:** 2026-08-11 (updated: GE-19/BUG-85, ADL-55 — new `geocode_status: "needs_attention"`
+**Version:** 1.10
+**Date:** 2026-08-26 (updated: GE-21/BUG-97/BUG-98, ADL-56 Slice 1 — `osm_type` / `osm_id` added to
+the `GET /api/cities` search projection, the one additive API field of ADL-56 (§9), so the frontend
+can collapse a live geocoder candidate against an already-catalogued row by identity instead of by
+name text; and the D4/N5 region backfill documented on `POST /api/cities` — a blank region in a
+region-tier country is now filled from a region-unambiguous resolve at both write sites)
+**Previously:** 1.9, 2026-08-11 (updated: GE-19/BUG-85, ADL-55 — new `geocode_status: "needs_attention"`
 terminal state + its `geocode_cause` discriminator documented; new `GET /api/geocode-queue`
 endpoint documented — the derived, userId-scoped per-user set of unresolved cities that drives the
 geocode-status indicator, replacing the NR-06 localStorage retry queue as source of truth, with the
@@ -1033,7 +1038,9 @@ Search cities by name. Returns local database results only (Nominatim is not que
     "region_iso": null,
     "latitude": 48.8566,
     "longitude": 2.3522,
-    "geocode_status": "resolved"
+    "geocode_status": "resolved",
+    "osm_type": "relation",
+    "osm_id": 71525
   },
   {
     "id": 2,
@@ -1044,7 +1051,9 @@ Search cities by name. Returns local database results only (Nominatim is not que
     "region_iso": "US-IL",
     "latitude": 39.7817,
     "longitude": -89.6501,
-    "geocode_status": "resolved"
+    "geocode_status": "resolved",
+    "osm_type": null,
+    "osm_id": null
   }
 ]
 ```
@@ -1066,6 +1075,28 @@ region list is only loaded for one selected country at a time. Both are `null` w
 `region_id` is `null` (non-region-tier country, or a region-tier city not yet assigned a
 region) — a `LEFT JOIN`, so a region-less row is never dropped from results. `region_id`
 itself is unchanged and still present for existing consumers.
+
+`osm_type` / `osm_id` (GE-21 / ADL-56 §9 D3-P2, GitHub #536, 2026-08-26) — the row's
+OpenStreetMap identity pair, the **one additive API field of ADL-56**. Types are
+`string | null` (`"node"` | `"way"` | `"relation"`) and `number | null`.
+
+- **Why they are here.** The add-place surface shows saved catalogue rows and live geocoder
+  candidates as one merged list, and a live candidate that IS a shown cached row must appear
+  **once**. Matching the two requires an identity key; without this pair the only key available to
+  the frontend is the name text, which is exactly the wrong key — two distinct real places
+  routinely share a name (two Newports, two Springfields), which is the premise of the whole
+  BUG-97/BUG-98/BUG-99 feature family. Match on `(osm_type, osm_id)`, **never** on `name`.
+- **Both are `null` together, and `null` is meaningful.** A `CHECK` constraint
+  (`chk_cities_osm_both_or_neither`) guarantees they are both set or both absent. `null` means
+  "this row carries no OSM ref and therefore **cannot** be identity-matched" — the legacy /
+  never-resolved / seeded population (ADL-56 §2 H1). The fields are always **present** in the
+  response so a client can tell that case from "this response predates the field".
+- **Additive.** Every field listed above is unchanged; existing consumers are unaffected.
+- **Not a visibility change.** This widens the *projection* only. The GE-16 creator-visibility
+  containment predicate (`geocode_status = 'resolved' OR created_by_user_id = caller OR
+  created_by_user_id IS NULL`) is untouched, so *which rows* are returned to whom does not move.
+  OSM ids are public OpenStreetMap identifiers, not user data, and `POST /api/cities` already
+  returned them via `serializeCity`.
 
 **Errors:**
 - `400` — `q` is missing or fewer than 2 characters
@@ -1129,6 +1160,33 @@ may have `geocode_status: "pending"` if the server is offline.
 **Response: `200 OK`** — an existing city matched `(name, country_code)` case-insensitively;
 no row was created. Same body shape, reflecting the existing row (its stored `name`
 casing, `region_id`, and geocode state — not the values from this request).
+
+#### Region backfill on a blank `region_id` (D4/N5 — ADL-56 §6/§6b, GitHub #537, 2026-08-26)
+
+**BUG-98:** a city added to a region-tier country with the region left blank used to save as
+"Australia (no state set)" even when the geocoder had unambiguously identified the region. It now
+carries that region. What the caller sees: the `region_id` in the `201` response body **may be
+non-null even though the request omitted it.**
+
+Frontend contract — the four conditions, all of which must hold before a value is written:
+
+1. **The request left `region_id` blank.** A **supplied** `region_id` is never overwritten (D12
+   rule-3 — the user has ground truth about where they went). Backfilling a blank is not
+   overwriting, because blank is the *absence* of a supplied value, not a value (PO-confirmed
+   2026-08-11, recorded in ADL-46 §4.3.1).
+2. **The country is region-tier** (`region_tier_enabled = 1`).
+3. **The resolve is region-UNAMBIGUOUS** — the eligible candidates name exactly one distinct
+   `region_iso`. A region-ambiguous name backfills nothing and stays a picker /
+   `needs_attention` case; the server never guesses a region.
+4. **The region is seeded.** An ISO 3166-2 code with no matching `regions` row (the BUG-30
+   incomplete-seed class) leaves `region_id` `null` and **still creates the city** — best-effort,
+   never blocking, identical to the frontend's GE-15 fallback.
+
+The same rule is applied by the background resolver, so a city that was created while the geocoder
+was unreachable (`geocode_status: "pending"`) also gains its region when the 15-minute queue later
+resolves it — no second request needed. A row that instead merges into a pre-existing duplicate is
+**not** backfilled: that surviving row belongs to someone else's create and may hold a
+user-supplied region.
 
 **Errors:**
 - `400` — validation failure, or `region_id` provided for a non-region-tier country

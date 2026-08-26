@@ -25,7 +25,11 @@ import {
   findOrUpgradeCity,
   insertCityOrReuse,
 } from '../services/cityIdentityService.js';
-import { resolveCity, resolveCityName } from '../services/geocoding.service.js';
+import {
+  resolveCity,
+  resolveCityName,
+  singleDistinctRegionIso,
+} from '../services/geocoding.service.js';
 import {
   CityItemsQuerySchema,
   CreateCitySchema,
@@ -182,13 +186,42 @@ citiesRouter.post(
       // re-select-and-reuse (M1) — a concurrent same-place add merges instead
       // of 500ing.
       const best = resolution.best;
+
+      // ADL-56 D4 / §6 — BUG-98's create-path half. The user left the region
+      // blank in a region-tier country and the resolve named exactly one region;
+      // record it instead of saving "Australia (no state set)" for a city the
+      // geocoder fully identified. Backfilling a NULL is not overwriting: D12
+      // rule-3 protects a SUPPLIED region, and blank is the absence of one
+      // (PO-confirmed 2026-08-11, ADL-46 §4.3.1) — which is why the derivation
+      // below is skipped outright the moment region_id is non-null.
+      //
+      // N5(b): derived from resolution.candidates (which IS classifyCandidates'
+      // ELIGIBLE set — see resolveCityName's 'ok' return), never from
+      // `best.regionIso`. `best = eligible[0]` can carry a NULL region_iso while
+      // another eligible candidate carries the single distinct one; reading
+      // `best` silently skips the backfill in exactly that case.
+      //
+      // §6b(1): this decorates the row being INSERTED. The insertCityOrReuse
+      // fallback below re-selects an EXISTING row on a caught unique violation
+      // and deliberately does not mutate it — that row is not ours to backfill.
+      // GE-15 best-effort (§6): an unseeded region resolves to null here and the
+      // city is still created.
+      let resolvedRegionId: number | null = region_id ?? null;
+      if (resolvedRegionId == null && regionTierEnabled === 1) {
+        const backfillIso = singleDistinctRegionIso(resolution.candidates);
+        if (backfillIso != null) {
+          const region = await citiesRepository.findRegionByIsoInCountry(backfillIso, country_code);
+          resolvedRegionId = region?.id ?? null;
+        }
+      }
+
       const now = new Date().toISOString();
       const { row: insertedRow, created } = await insertCityOrReuse(
         () =>
           citiesRepository.insert({
             name: canonicalName,
             countryCode: country_code,
-            regionId: region_id ?? null,
+            regionId: resolvedRegionId,
             latitude: best.latitude,
             longitude: best.longitude,
             osmType: best.osmType ?? null,

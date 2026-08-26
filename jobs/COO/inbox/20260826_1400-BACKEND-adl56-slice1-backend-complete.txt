@@ -1,0 +1,124 @@
+ADL-56 / GE-21 Slice 1 — BACKEND half COMPLETE
+Tracker: BUG-97 (home) · BUG-98 | Issues: #536, #537 | BRD: GE-21 (v3.22)
+Branch: feat/adl56-slice1-backend (off main @ c4d5047) | PR: see below
+Park doc: jobs/backend/park-docs/20260826-BACKEND-adl56-slice1-park.txt
+
+WHAT WAS BUILT
+Greened the ADL-56 Slice-1 backend red bar: osm_type/osm_id on the GET /api/cities
+search projection (§9 D3-P2), and the D4/N5 blank-region backfill at both write
+sites (the create-path insert and commitResolvedOrMerge). No new route, no schema
+change, no migration, no index.
+
+ACCEPTANCE CRITERIA
+- All 6 [S1][RED-BAR] tests in the three backend files un-skipped and GREEN: PASS
+- All [S1][GUARD] blocks green (GE-20 filter, GE-16 containment, additive
+  projection, region-ambiguous-backfills-nothing, §6b(1) merge branch): PASS
+- [INTERIM] tripwires still green (backend AND frontend); [S2] still skipped: PASS
+- Full backend suite green — 885 passed | 4 skipped (was 879|10; delta is exactly
+  the 6 un-skipped): PASS
+- scope:check all 3 checks / type:check:all / /pre-push: PASS
+- Zero `describe.skip('[S1]` remaining repo-wide (COO ADDITION 3): PASS
+- No assertion weakened — the test-file diff is exactly three
+  describe.skip→describe tokens, nothing else: PASS
+
+SECURITY CHECKLIST (OP-06) — modified GET /api/cities
+1. Auth middleware: UNCHANGED. requireAuth applied globally via
+   app.use('/api/', requireAuth); no route added, middleware untouched.
+2. Scoping / GE-16 containment: UNCHANGED and verified, not assumed. The edit added
+   two columns to .select({...}); the containment or(...) in .where() was not
+   touched. A projection change did not become a visibility change — pinned live by
+   the [S1][GUARD] block. No hand-rolled userId predicate added; the new region
+   lookup went into citiesRepository, so Check 2 (getDb in routes) stays at 0.
+3. New user-data FK notNull: N/A — no schema change, no new column. cities remains
+   global reference data under GE-16 creator-VISIBILITY containment (ADL-46 §9.2).
+   osm_type/osm_id are public OSM identifiers, already returned by POST /api/cities.
+
+VERDICTS ON YOUR THREE ADDITIONS
+1. Merge order — AGREE, nothing needed from me. My change is purely additive and
+   green standalone; the field must be real in production before the FE dedup
+   lands, or FE tests pass against a mock while the live surface fails to dedup.
+2. Rollback seam — the seam is ENTIRELY FRONTEND; please carry §3b(7) there. Two
+   probes that fail differently: (a) grep of all backend source for
+   autofire/debounce/'auto'|'manual'/settledQuery → zero hits; (b) reading
+   routes/geocode.ts in full — a stateless per-request proxy (validate → limit →
+   nominatimSearch → serialize), no trigger, no debounce, no session cache, no
+   state between requests; its own header calls the cadence the CALLER's.
+   Corroborating: every lookupCityCountry caller is in src/frontend. The backend
+   owns the RATE chokepoint (nominatim-client, serialized 1 req/s) — a different
+   control from the TRIGGER, and already isolated. I did NOT add a backend
+   auto|manual flag: nothing would read it, and that is the token constant you
+   said you did not want. I agree with §3b(7) on the frontend, with the caveat you
+   raised yourself — an untested seam can rot, so it is worth naming in the FE
+   brief as a code-review item rather than assuming the reviewer spots it.
+3. Un-skip as deliverable — done; zero [S1] skips remain. Agreed it is the point,
+   not an afterthought.
+
+WHERE THE DESIGN FOUGHT THE CODE — one small under-specification, resolved
+§6 says the backfill "applies at both write sites: the create-time resolved insert
+and the background commitResolvedOrMerge". commitResolvedOrMerge has TWO callers:
+the name-search branch and the carried-OSM branch. The red bar only pins the
+name-search one. I implemented BOTH (declared, OP-28): a /lookup by osm ref returns
+one candidate and is region-unambiguous by construction (§B1.2), and §6a path (A)
+expects a picked Melbourne to end with a region — leaving that caller un-backfilled
+would keep BUG-98's symptom alive on the very path §6a says it closes. Same rule,
+same write site, same four gates. Please confirm you want it; it is a 1-line
+revert if not. Otherwise ADL-56 fought me nowhere — §6b's two traps are stated
+precisely enough that the correct implementation was obvious once read.
+
+COULD NOT IMPLEMENT AS SPECIFIED: nothing.
+
+FOLLOW-UP 2026-08-26 — CARRIED-OSM-REF PATH NOW PINNED (your direction)
+Two tests added to services/__tests__/geocoding.adl56-region-backfill.test.ts:
+  [S1][RED-BAR] "ADL-56 §6a path (A) — a carried-OSM-ref resolve backfills a
+                 blank region too"
+  [S1][GUARD]   "D12 rule-3 holds on the carried-OSM-ref path too"
+
+RED-THEN-GREEN EVIDENCE (both run, with the fix reverted / restored)
+RED — reverted ONLY the :571 call to commitResolvedOrMerge(cityId, candidate):
+  × [S1][RED-BAR] ADL-56 §6a path (A) … ends the queue resolve carrying its region
+    → AssertionError: expected null to be 1 // Object.is equality
+      at geocoding.adl56-region-backfill.test.ts:290:27
+  Tests  1 failed | 5 passed (6)
+  Line 290 is `expect(row?.regionId).toBe(regions['AU-VIC'])` — failed on the
+  ASSERTION, not setup. Anti-vacuous: the three assertions ABOVE it in the same
+  test (geocodeStatus 'resolved', osmId 4246124, osmType 'relation') all PASSED,
+  so the resolve really did run the carried-ref branch and only the region was
+  missing. Other five tests stayed green — the revert was surgical.
+GREEN — restored: 6 passed (6). `git diff --stat` on geocoding.service.ts EMPTY,
+  so the source is byte-identical to the committed version.
+Suite: backend 887 | 4 skipped (was 885 — exactly the two added). Frontend
+unchanged 425 | 41. All pre-push checks PASS.
+
+ASSERTION DERIVED FROM THE SPEC — and walking it changed what I could claim.
+§6a path (A) says the region arrives "via the pick's region_iso→region_id map
+AND/OR D4". That "and/or" is load-bearing. The ONLINE pick is already satisfied by
+the FE half — buildCreateCityDataFromCandidate maps candidate.region_iso onto a
+loaded regions row (read directly, not assumed) — so D4 owes it nothing there. The
+path D4 actually owns is the DEGRADED (M-B) pick: createOrReuseCarriedCity branch
+(c)/(d) inserts PENDING carrying the ref when create-time canonicalization fails,
+and when the queue later resolves it D4 is the ONLY mechanism left. That is what
+the test asserts. Spec and implementation agree; no conflict to escalate.
+
+NEW FINDING — reported, NOT fixed, your call
+There is a THIRD write site §6 does not name: createOrReuseCarriedCity's own
+resolved insert. It stores the caller's regionId with no D4 derivation. If the FE
+map misses (buildCreateCityDataFromCandidate returns region_id: undefined when the
+candidate's region_iso is not in the loaded regions list), the row is inserted
+'resolved' AND region-null — and resolveCity early-returns on 'resolved'
+(geocoding.service.ts:518), so the queue never revisits it. It stays region-null
+until a user corrects it. Narrow (needs an FE regions-list miss, BUG-30 class) and
+NOT a regression — today's behaviour, unchanged by this PR. I did not fix it: it is
+outside §6's stated two sites and outside the bar, and inventing scope after the
+bar is what this discipline exists to prevent. Slice 2, follow-up, or accept —
+your decision.
+
+OPEN ISSUES / BLOCKERS: none.
+
+NOW UNBLOCKED
+- FRONTEND Slice 1 can build against osm_type/osm_id as specified — exact
+  snake_case names, nullable, golden values unchanged (Newport Oregon =
+  'relation'/186468). The FE `City` type still needs the two fields added; I left
+  it deliberately (backend-only brief), so it is the FE brief's field.
+- Slice 2 is unaffected — classifyCandidates' region_iso test is untouched, so the
+  ε-collapse work starts from the same baseline the interim stamp describes.
+- QUAL-52 left alone per the brief.

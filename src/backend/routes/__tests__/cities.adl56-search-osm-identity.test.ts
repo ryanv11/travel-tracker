@@ -140,7 +140,7 @@ afterEach(() => {
 // ═════════════════════════════════════════════════════════════════════════════
 // RED-BAR (Slice 1) — ADL-56 §10 test 4, backend half.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 §9/D3-P2 — GET /api/cities search exposes the OSM identity pair', () => {
+describe('[S1][RED-BAR] ADL-56 §9/D3-P2 — GET /api/cities search exposes the OSM identity pair', () => {
   it('returns osm_type and osm_id on a resolved catalogue row', async () => {
     const res = await supertest(app).get('/api/cities?q=Newport&country_codes=US');
 
