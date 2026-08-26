@@ -32,6 +32,34 @@ confirm the `commit` matches the latest `main`. If it doesn't, staging is stale 
    shows a blank panel.
    - Result:
 
+4. **GE-21 Slice 1 — the add-place rebuild. *This is the big one, and it replaces five separate findings.***
+   Shipped 2026-08-26 (PRs #540 red bar → #542 backend → #545 frontend). Closes **BUG-97, BUG-98, BUG-99,
+   BUG-73** and **UX-13** in one piece of work rather than five patches. Four things to try, in this order:
+
+   **4a. Newport — the one that started this (BUG-97).** Add a place called **Newport** to a US trip.
+   Expected: you are **shown the choice** — saved places and online results together in one list — and
+   nothing is picked for you. Previously a single cached "Newport, Oregon" silently won. Watch for a brief
+   *"searching for more…"* style cue while it looks online — that's the in-flight indicator you approved;
+   it must not block you from clicking.
+
+   **4b. Picking no longer saves (BUG-99).** On **both** pickers — the search list *and* the "+ Add new"
+   form's "multiple places match" list — click a result. Expected: it **fills the form and stays put**;
+   the place is **not** saved yet. Set the dates, then press **"Add City & Place"**. Expected: the saved
+   place **carries the dates you set after choosing**. *(This is the half I sent back once — the "+ Add new"
+   form's picker was initially left out.)*
+
+   **4c. Melbourne keeps its state (BUG-98).** Add **Melbourne** to an Australia trip and **leave the state
+   blank**. Expected: it saves carrying **Victoria** — not "Australia, no state set".
+
+   **4d. The message tells the truth (BUG-73).** Type **Melbourne** into a **US**-country trip. Expected:
+   it no longer claims there are no matches; it says no *saved* places match, and still offers the path to
+   widen countries. Previously it said "No matches in United States of America" while "Add new" would then
+   return many.
+
+   Also folded in: **UX-13** — editing the city name after picking now clears that pick rather than silently
+   sending the old place's identity under a new name.
+   - Result:
+
 ---
 
 ## In the dev pipeline — will return here once fixed (no action from you now)
@@ -39,11 +67,19 @@ confirm the `commit` matches the latest `main`. If it doesn't, staging is stale 
 These came out of the 2026-08-11 round as fails/partials or new findings. They're tracked and go back to
 dev; they'll reappear above for re-testing when fixed.
 
-- **BUG-97** *(the big one)* — add-place ambiguity is pre-empted by a single cached city match (why "Newport" silently went to Oregon). Also folds in **BUG-73**'s misleading "no matches" message and the frontend/backend disagreement on what counts as ambiguous. **Architect design DONE (ADL-56 merged, twice fresh-eyes-reviewed); the Slice-1 build — which also closes BUG-98 & BUG-99 — is the next dev step.**
-- **BUG-98** — a city resolved in a region-tier country with the state left blank saves as "no state set" instead of using the region the geocoder already knew (Melbourne → "Australia, no state set"). Architect policy call; likely folds into BUG-97.
-- **BUG-99** — on Add Place, picking a result from *either* picker (the cached dropdown or the disambiguation list) adds the place immediately, before you can set dates. Folded into BUG-97 as **Slice 1** (select ≠ commit: picking *selects*, an explicit "Add" button *commits*).
-- **UX-13** — city name stays editable on the picker screen but editing it does nothing; grey it out. (Re-confirmed this round.)
 - **UX-15** — the blue-date tooltip wording ("set explicitly for this place") is unclear — reword.
+- **Slice 2** — the last piece of the add-place rebuild: the frontend and backend still define "ambiguous"
+  slightly differently, so a request that bypasses the app's own screens (a direct API call) can still resolve
+  without asking. Nothing you can hit through the UI — Slice 1 closed every symptom you reported. Tracked
+  under **GE-21**, and two live "tripwire" tests will go red the moment it lands, so it can't be quietly
+  forgotten.
+- **BUG-100** — a third place in the code where a region gets set was found during the build and left alone
+  deliberately. Needs a regions-list gap to trigger, so you're unlikely to see it. Deferred so it can be fixed
+  as one consolidation rather than a fourth patch.
+- **QUAL-52** — some test fixtures name an OpenStreetMap id that has since changed upstream. Invisible to you;
+  housekeeping after Slice 1.
+
+*(BUG-97, BUG-98, BUG-99, BUG-73 and UX-13 all moved up to item 4 above — they shipped together.)*
 
 ---
 
