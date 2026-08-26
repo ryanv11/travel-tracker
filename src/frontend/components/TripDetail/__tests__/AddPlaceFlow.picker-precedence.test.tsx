@@ -177,6 +177,14 @@ describe('AC-1 spanning-region — the picker fires, the region <select> does NO
     const iow = await screen.findByText(/Newport, Isle of Wight/i, {}, { timeout: 2000 });
     await user.click(iow);
 
+    // ADL-56 D7 / GE-21 (BRD v3.22), 2026-08-26: the pick SELECTS; the
+    // explicit control commits. This suite's subject is the identity CARRY
+    // (that an England pick sends England's osm_id and region, never Wales'),
+    // which is asserted unchanged below — only the step that triggers the
+    // write moved, from the row's onClick to the explicit Add.
+    expect(mockCreateCity).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /Add City & Place/i }));
+
     await waitFor(() => expect(mockCreateCity).toHaveBeenCalled());
     const body = mockCreateCity.mock.calls[0][0];
     expect(body).toMatchObject({

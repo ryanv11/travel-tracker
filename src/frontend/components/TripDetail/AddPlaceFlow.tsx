@@ -262,6 +262,12 @@ export function AddPlaceFlow({
   // as new" IS a selection, so it satisfies the anti-silent-commit guard. Reset
   // whenever a new lookup runs.
   const [addAsNewChosen, setAddAsNewChosen] = useState(false);
+  // D7 (BUG-99), manual-form half: the candidate picked from the form's own
+  // CityPicker, HELD rather than committed. Distinct state from the merged
+  // surface's `heldSelection` because the two screens hold different things —
+  // this one always resolves to a create (the form has no cached-row branch)
+  // and its name/country/region come from the form's own fields.
+  const [formHeldCandidate, setFormHeldCandidate] = useState<GeocodeCandidate | null>(null);
   const [addedPlaceId, setAddedPlaceId] = useState<number | null>(null);
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
   const [showCarryForward, setShowCarryForward] = useState(false);
@@ -491,7 +497,13 @@ export function AddPlaceFlow({
    * outcome, and region is explicitly optional in this UI.
    */
   const pickerAwaitingChoice =
-    placePickerCandidates !== null && placePickerCandidates.length > 1 && !addAsNewChosen;
+    placePickerCandidates !== null &&
+    placePickerCandidates.length > 1 &&
+    !addAsNewChosen &&
+    // D7: holding a picked candidate IS the explicit choice the guard waits
+    // for — the guard blocks a commit with NOTHING chosen, not a commit that
+    // has not yet happened.
+    formHeldCandidate === null;
 
   /** §3a — a bare commit with a choice shown and nothing chosen is not a valid action. */
   const canCommit =
@@ -561,41 +573,24 @@ export function AddPlaceFlow({
     // not depend on an affordance UX may restyle (D6 owns the affordance; the
     // rule is the contract).
     if (pickerAwaitingChoice) return;
-    const data: CreateCityData = {
-      name: newCityName.trim(),
-      country_code: newCityCountryCode,
-      region_id: newCityRegionId ?? undefined,
-    };
-    try {
-      const city = await createCity.mutateAsync(data);
-      await handleSelectCity(city);
-    } catch {
-      /* shown via createCity.error — Retry button available (Class B, NR-06) */
-    }
-  };
 
-  /**
-   * BUG-75/UX-12 (v3 §1.3/§B4) — the shared CityPicker's onSelect target.
-   * Carries the chosen candidate's identity ({osm_type, osm_id,
-   * display_name}) into POST /api/cities, plus region_id DERIVED FROM the
-   * pick's region_iso via the seeded region map (same pattern as the UX-04
-   * auto-select effect below) — never the stale form-selector value (v3
-   * §B4's confirmed problem: a pick submitted with the selector's leftover
-   * region_id can disagree with the pick's own region). Respects the
-   * incomplete-seed fallback: a region_iso with no seeded row leaves
-   * region_id undefined rather than inventing one.
-   */
-  const handleSelectPickerCandidate = async (candidate: GeocodeCandidate) => {
-    if (!newCityName.trim()) return;
-    // BUG-75/UX-12 (review MAJOR-1): the identity-carry mapping now lives in
-    // exactly one place, shared with ChangeCityModal — see the module doc
-    // comment on buildCreateCityDataFromCandidate.ts.
-    const data = buildCreateCityDataFromCandidate(
-      candidate,
-      newCityName.trim(),
-      countryRegions,
-      newCityCountryCode,
-    );
+    // D7 — the second of BUG-99's two commit paths. When a picker candidate is
+    // held, THIS submit is what carries its identity into POST /api/cities;
+    // the pick itself wrote nothing. The identity-carry mapping is unchanged
+    // and still lives in exactly one place (review MAJOR-1) — only the moment
+    // it runs moved, from the row's onClick to here.
+    const data: CreateCityData | null = formHeldCandidate
+      ? buildCreateCityDataFromCandidate(
+          formHeldCandidate,
+          newCityName.trim(),
+          countryRegions,
+          newCityCountryCode,
+        )
+      : {
+          name: newCityName.trim(),
+          country_code: newCityCountryCode,
+          region_id: newCityRegionId ?? undefined,
+        };
     if (!data) return;
     try {
       const city = await createCity.mutateAsync(data);
@@ -604,6 +599,35 @@ export function AddPlaceFlow({
     } catch {
       /* shown via createCity.error — Retry button available (Class B, NR-06) */
     }
+  };
+
+  /**
+   * BUG-75/UX-12 (v3 §1.3/§B4) — the shared CityPicker's onSelect target.
+   *
+   * ── D7 (BUG-99), 2026-08-26: THIS PICK NO LONGER COMMITS ─────────────────
+   * It used to run `createCity` then `handleSelectCity` → `addPlace` inline,
+   * which is the SECOND of the two commit paths BUG-99 names by symbol
+   * ("picking a result from EITHER picker … the cached search dropdown OR the
+   * disambiguation list (handleSelectPickerCandidate ~:362 → handleSelectCity
+   * ~:289) … COMMITS the place, bypassing the 'Optional: set arrival/departure
+   * dates' fields shown in the same view"). The defect was never that the
+   * dates were unreachable — they are in this same view — but that picking
+   * commits, which destroys the natural order: choose the city, THEN set the
+   * dates. GE-21 states it directly: "choosing a result populates the form but
+   * writes nothing until the explicit Add."
+   *
+   * So the pick now HOLDS the candidate and populates; `handleCreateCity`
+   * above is the only writer, exactly as on the merged surface. The carried
+   * identity is unchanged — `buildCreateCityDataFromCandidate` still derives
+   * `region_id` from the PICK's own `region_iso` via the seeded region map
+   * (never the stale form-selector value, v3 §B4's confirmed problem), and an
+   * unseeded `region_iso` still leaves `region_id` undefined rather than
+   * inventing one.
+   */
+  const handleSelectPickerCandidate = (candidate: GeocodeCandidate) => {
+    if (!newCityName.trim()) return;
+    setFormHeldCandidate(candidate);
+    setDateValidationError(null);
   };
 
   // UX-04: auto-select region once both ISO code and regions list are available
@@ -632,6 +656,7 @@ export function AddPlaceFlow({
     // add-as-new choice has been made against its results yet.
     setNameEditedSinceLookup(false);
     setAddAsNewChosen(false);
+    setFormHeldCandidate(null);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
       // GE-20: same country_codes filter as the search above, so the
@@ -1111,6 +1136,10 @@ export function AddPlaceFlow({
                 setPlacePickerCandidates(null);
                 setCandidateRegionIsos(null);
                 setAddAsNewChosen(false);
+                // D7/N3: a held candidate's identity belongs to the name it
+                // was chosen for. This is the very carry UX-13 reported —
+                // an edited name submitted with the old candidate's osm_id.
+                setFormHeldCandidate(null);
               }}
               required
             />
@@ -1153,6 +1182,11 @@ export function AddPlaceFlow({
                 // Same reasoning for the BUG-75 place-level picker — it was
                 // computed for the auto-detected country's candidates.
                 setPlacePickerCandidates(null);
+                // D7/N3: and so was any candidate held from it. Country is the
+                // most dangerous identity-bearing field — a surviving pick
+                // would file its place under the newly-chosen country.
+                setFormHeldCandidate(null);
+                setAddAsNewChosen(false);
                 // BUG-79: the truncation signal was computed for the
                 // auto-detected country's lookup — it says nothing about a
                 // country the user is now picking by hand.
@@ -1214,10 +1248,14 @@ export function AddPlaceFlow({
               </label>
               <CityPicker
                 candidates={placePickerCandidates}
-                onSelect={(candidate) => {
-                  void handleSelectPickerCandidate(candidate);
-                }}
+                onSelect={handleSelectPickerCandidate}
                 truncated={lookupTruncated}
+                testIdPrefix="add-place-form-option"
+                selectedKey={
+                  formHeldCandidate?.osm_type
+                    ? `${formHeldCandidate.osm_type}:${formHeldCandidate.osm_id}`
+                    : null
+                }
                 disabled={createCity.isPending || addPlace.isPending}
               />
               {/* §3a — the escape hatch that keeps the guard from trapping the
@@ -1231,10 +1269,24 @@ export function AddPlaceFlow({
                     ? 'bg-teal-50 border-teal-200 font-semibold text-teal-800'
                     : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                 }`}
-                onClick={() => setAddAsNewChosen(true)}
+                onClick={() => {
+                  setAddAsNewChosen(true);
+                  // Mutually exclusive with a held candidate — "none of these"
+                  // means none of these.
+                  setFormHeldCandidate(null);
+                }}
               >
                 None of these — add "{newCityName}" as a new place
               </div>
+              {/* D7 — the pick populates rather than saves, so the form must
+                  say what is now held and that the explicit control is what
+                  saves it. Without this the screen looks unchanged after a
+                  click, which reads as "nothing happened". */}
+              {formHeldCandidate && (
+                <p className="mt-2 text-xs text-teal-800">
+                  Selected — set dates below if you want them, then choose Add City &amp; Place.
+                </p>
+              )}
             </div>
           ) : (
             /* Region dropdown — shown only when country has region_tier_enabled */

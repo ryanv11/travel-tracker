@@ -1608,3 +1608,61 @@ TESTS TOUCHED THAT ARE NOT MINE (both declared, neither weakened)
   to "No saved places match in X." — D5/S2 requires the cache-empty state
   be scoped to SAVED places, and the old line asserted an absence the
   catalogue cannot know. The behaviour that test owns is unchanged.
+
+--- 2026-08-26 (later) — COO RULING: deviation 1 overturned, manual-form
+--- picker CONVERTED to select≠commit. Merged onto main (backend #542 in).
+My "BUG-99's defect doesn't exist on the manual form because its dates are
+reachable" premise was WRONG, and the COO corrected it with the tracker text.
+BUG-99's title is "picking a result from EITHER picker commits immediately";
+its note says "confirmed on BOTH add-place pickers" and names the second path
+by symbol — handleSelectPickerCandidate ~:362 -> handleSelectCity ~:289, which
+IS the manual form's picker. It also says the commit bypasses the date fields
+"shown in the same view" — so same-view reachability was never the exemption I
+read it as. The defect is that PICKING COMMITS, which destroys the natural
+order (choose city, then set dates). GE-21 states it flatly: "choosing a result
+populates the form but writes nothing until the explicit Add."
+LESSON FOR NEXT TIME: I derived a scope boundary from my own reading of what a
+bug "really" was instead of reading the tracker note. The note was one grep
+away and it named the exact symbol I was excluding.
+
+WHAT CHANGED
+- handleSelectPickerCandidate now HOLDS the candidate (formHeldCandidate) and
+  writes nothing; handleCreateCity is the only writer on that screen and
+  carries the held candidate's identity through the same shared
+  buildCreateCityDataFromCandidate. Identity-carry logic is byte-identical —
+  only the moment it runs moved.
+- pickerAwaitingChoice now also clears on a held candidate (holding IS the
+  explicit choice the guard waits for).
+- formHeldCandidate is invalidated by: name edit (UX-13/N3), country change,
+  "none of these", and any re-run of handleOpenNewCityForm.
+- CityPicker on that screen gained testIdPrefix="add-place-form-option" and
+  selectedKey, plus a "Selected — set dates below…" line so the screen doesn't
+  look inert after a click.
+
+NEW ACCEPTANCE BLOCK: [S1][GAP] in AddPlaceFlow.adl56-select-not-commit.test.tsx
+(3 tests) — pick writes nothing / explicit Add commits in order once carrying
+dates set AFTER choosing / the §3a guard still blocks with nothing picked.
+Assertions derived from GE-21's criteria, not from the implementation.
+PROVEN RED by reverting the conversion:
+  AssertionError: expected [ Array(2) ] to deeply equal []
+    - []  + [ "/api/cities", "/api/trips/1/places" ]
+  AssertionError: expected [] to have a length of 2 but got +0
+The guard test stays GREEN under the revert — correct, it pins a different rule.
+
+TWO EXISTING SUITES UPDATED (subject preserved, nothing weakened): the identity
+-carry tests in city-picker + picker-precedence now click "Add City & Place"
+between the pick and the payload assertion. Their subject is the identity CARRY
+(England's osm_id/region, never Wales'), asserted unchanged; write TIMING was
+incidental. Both now additionally assert mockCreateCity NOT called on the pick,
+so they got stronger.
+
+INTEGRATION (first contact with the real backend contract, #542 merged):
+repositories/cities.ts:156-157 returns osm_type/osm_id snake_case nullable —
+exactly what types/api.ts City and osmIdentityKey read. No disagreement.
+Frontend 472 passed | 4 skipped. Backend 887 | 4. E2E 53/53 local. All gates PASS.
+
+STILL DELIBERATELY UNCONVERTED (unchanged, and I believe correctly so):
+ChangeCityModal's pickers commit on the pick. ADL-56 §12-Q5 scopes that surface
+to guard + P2 + live merge and explicitly excludes a held-selection/dates
+restructure — a re-point has no dates and no "Add", so GE-21's "populates the
+form … until the explicit Add" has no referent there. Flagged for COO confirm.

@@ -224,6 +224,13 @@ describe('BUG-75 #1 carry — the chosen candidate identity is carried into POST
     const iow = await screen.findByText(/Newport, Isle of Wight/i, {}, { timeout: 2000 });
     await user.click(iow);
 
+    // ADL-56 D7 / GE-21 (BRD v3.22), 2026-08-26: the pick SELECTS; the
+    // explicit control commits. The subject here — that the pick's own
+    // osm_type/osm_id/display_name and its GB-ENG-derived region_id reach
+    // createCity — is asserted unchanged below.
+    expect(mockCreateCity).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /Add City & Place/i }));
+
     await waitFor(() => expect(mockCreateCity).toHaveBeenCalled());
     const body = mockCreateCity.mock.calls[0][0];
     expect(body).toMatchObject({
