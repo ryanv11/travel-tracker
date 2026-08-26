@@ -639,6 +639,15 @@ it.**
    created from them. Rationale: the user has ground truth about where they went, the geocoder has a
    ranked guess, and `country_code` has already been validated against our own `countries` table. A
    silent overwrite of an explicit user choice is the worst available outcome.
+
+   > **AMENDED (2026-08-26) by ADL-56 D4 / BRD v3.22 GE-21 — PO-confirmed 2026-08-11.** Rule 3
+   > protects a **supplied** value, and a blank field is the absence of one. Where the user left
+   > `region_id` **NULL** in a region-tier country and the country-constrained lookup resolves
+   > **region-unambiguously**, the resolved region is **backfilled** — that is not overwriting a user
+   > choice, and withholding it is what produced BUG-98 ("Australia, no state set" for a Melbourne the
+   > geocoder had already placed in Victoria). A region-**ambiguous** resolve still does not backfill;
+   > it is a disambiguation case under rule 4 / GE-21. The prohibition on overriding a value the user
+   > actually supplied is unchanged.
 4. **Ambiguity that survives 1–3 does not resolve.** If the country- and region-constrained lookup
    still returns multiple comparable candidates, **create from the user's text as `'pending'`** rather
    than picking first. That routes it into containment — creator-private, correctable, no global

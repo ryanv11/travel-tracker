@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (78)
+## Open work (79)
 
 ### P1 — Critical (1)
 
@@ -25,7 +25,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 
-### P2 — Important (36)
+### P2 — Important (37)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -57,6 +57,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-90 | "Scotland" and other UK home nations not selectable in the add-trip country picker | architect | ⬜ Pending |
 | QUAL-43 | Structural userId-scoping chokepoint + citiesRepository (design-reflection R1) | architect | done_pending_uat |
 | BUG-97 | Add-place ambiguity is pre-empted by a single cached city match (the cached-vs-live seam) | architect | ⬜ Pending |
+| GE-21 | Add-place disambiguation is explicit — merged saved+live list, select is not commit, region backfill, distinguishable lookup states | architect | ⬜ Pending |
 | BUG-99 | Add Place: picking a result from either picker commits immediately, bypassing the optional dates | architect | ⬜ Pending |
 | QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
@@ -116,7 +117,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 | Type | Progress | Done | Open | Deferred/Closed |
 |---|---|---|---|---|
-| feature | `█████████████░░░░░░░` 37/57 | 37 | 20 | 4 |
+| feature | `█████████████░░░░░░░` 37/58 | 37 | 21 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 71/92 | 71 | 21 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
@@ -154,4 +155,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_199 done · 9 deferred · 5 closed · 78 open — 291 tracked items_
+_199 done · 9 deferred · 5 closed · 79 open — 292 tracked items_
