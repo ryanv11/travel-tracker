@@ -484,3 +484,71 @@ component tests; crit 11 (nextGeocodeState table) = Backend, with the function.
 Completion report: jobs/COO/inbox/20260811_0013-QA-ge19-red-bar-complete.txt
 NEXT: Backend un-skips + greens each red block; a weakened assertion shows in
 that diff. Do NOT merge — COO reviews/merges.
+
+═══════════════════════════════════════════════════════════════════════════
+2026-08-26 — ADL-56 / GE-21 SLICE 1 ATDD RED BAR (§10 tests 1, 4-13 + NB-1)
+═══════════════════════════════════════════════════════════════════════════
+Branch test/adl56-slice1-red-bar off main e72a3cd (GE-21 promoted to BRD v3.22).
+PR #540 — all 18 CI checks green. ATDD-first, no implementer briefed yet.
+I write the bar, I do NOT implement.
+Issues #536 (BUG-97) / #537 (BUG-98) / #538 (BUG-99).
+
+8 test files. Frontend (4): AddPlaceFlow.adl56-merged-surface / -select-not-commit
+/ -live-trigger, ChangeCityModal.adl56-live-merge. Backend (3):
+cities.adl56-search-osm-identity, cities.adl56-region-backfill,
+geocoding.adl56-region-backfill. Slice-2 markers (2): cities.adl56-s2-name-path,
+decideCityDisambiguation.adl56-s2. Support: fixtures/adl56Geocode.ts,
+fixtures/adl56Harness.tsx, and three RAW Nominatim captures (2026-08-26) under
+services/__tests__/fixtures/nominatim/adl56/ with a provenance README.
+
+MECHANISM: same as the GE-19 bar — describe.skip + [S1][RED-BAR] marker, CI
+green. Each red demonstrated by running un-skipped throwaway *.redcheck copies
+(sed describe.skip->describe, run, delete; no prod code, no git stash). Full
+red-for-the-right-reason table: jobs/qa/tech/20260826-ADL56-slice1-red-bar.md.
+
+KEY CALL — THE MOCK BOUNDARY MOVED. Every pre-existing AddPlaceFlow suite mocks
+hooks/useCities wholesale. That boundary CANNOT express D8/B1 (a claim about
+GET /api/geocode egress), hard-codes today's imperative lookupCityCountry shape
+that ADL-56 3b(6) recommends replacing, and erases the `status` discriminator
+D5's S4-vs-S5 routing depends on. These suites double utils/apiClient instead —
+React Query, useCitySearch, the 300ms debounce and lookupCityCountry's own
+retry/status mapping all run FOR REAL. Response bodies derived by replaying real
+captures through the real parseCandidate / admission gate / route serializer.
+
+GREEN GUARDS, NOT DRESSED AS REDS (same call as the GE-19 bar): GE-20 country
+filter; additive projection; GE-16 containment (the OP-06 SEC line); D12 rule-3
+supplied-region; GE-15 unseeded-region fallback; the 6b(1) mergeIntoWinner
+exclusion; region-ambiguous-resolve-backfills-nothing.
+
+FINDINGS -> COO:
+  1. ADL-56 line refs: two drifted. geocoding.service.ts:158 is
+     classifyCandidates, NOT resolveCityName (that is :214) — the two are
+     conflated in 1. :188-190 is actually :189-191. Neither invalidates 10.
+     Every other cite verified exact by symbol.
+  2. Pre-existing fixture drift: newportGeocode.ts NEWPORT_IOW is node 26700978;
+     today's live capture returns node 2386521 for Isle of Wight and contains no
+     26700978 (2 probes: raw per-row dump; grep -c = 0). LEFT UNTOUCHED (green
+     BUG-75 suites depend on it) — flagged in the adl56 fixture README.
+  3. Test 12 (N3) is red for the SAME reason as test 8 (a pick IS the commit
+     today), so it adds no independent red evidence now — value is prospective.
+     Anti-vacuous guards added so it cannot pass by the hold never existing.
+  4. Test 1's "nothing auto-bound" half is currently VACUOUS (nothing is bound
+     because nothing is surfaced); it is red on its precondition. Recorded.
+  5. Slice-2 open item: 4 wants ONE golden fixture set both trees run; separate
+     TS build trees means two inline copies today — itself the drift risk 4
+     names. Belongs in the Slice-2 brief.
+
+COO ADDITIONS — verdicts: (1) .skip IS the repo convention, adopted, BUT vitest's
+default reporter prints only a skip COUNT not names, so skipped markers alone do
+NOT answer the "interim hides on a green board" concern. Added two LIVE un-skipped
+INTERIM TRIPWIRES that assert today's interim and go RED when Slice 2 lands.
+(2) NB-1 cue accepted as behavioural (real in-flight state + the mis-commit race
+it closes), pinned. (3) Ordering asserted on the recorded write sequence via
+toEqual, which also catches a double-fire and an extra write.
+
+NOT MY SCOPE: 3b(7) rollback seam (structural, not observable — code review);
+D6 copy/affordance; mobile (same component, auto-covered).
+
+Completion report: jobs/COO/inbox/20260826_1130-QA-adl56-slice1-red-bar.txt
+NEXT: Brief A (backend) + Brief B (frontend) un-skip and green each [S1][RED-BAR]
+block. Do NOT un-skip anything marked [S2]. Do NOT merge — COO reviews/merges.
