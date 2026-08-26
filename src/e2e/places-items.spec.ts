@@ -22,8 +22,16 @@ test('add place via city search', async ({ page, request }) => {
   await page.getByPlaceholder('Search city name…').fill('Testv');
 
   // Wait for debounce + API response
-  await expect(page.getByText('Testville')).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText('Testville').first()).toBeVisible({ timeout: 5_000 });
   await page.getByText('Testville').first().click();
+
+  // ADL-56 D7 / GE-21 (BRD v3.22): the pick now SELECTS and populates — it no
+  // longer commits. The modal deliberately stays open so the optional date
+  // fields are reachable before the place is saved; their being unreachable was
+  // BUG-99. A single explicit control is the only writer, and this assertion is
+  // the real-browser half of that contract (the unit bar covers it in jsdom).
+  await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
+  await page.getByTestId('add-place-commit').click();
 
   // Modal closes; city appears in trip detail
   await expect(page.getByRole('heading', { name: 'Add Place' })).not.toBeVisible({
