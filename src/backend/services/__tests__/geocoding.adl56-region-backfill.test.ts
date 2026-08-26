@@ -127,6 +127,57 @@ async function seedPendingMelbourne(db: TestDb): Promise<number> {
   return city.id;
 }
 
+/**
+ * The real captured `place/city` relation row, alone in an array — the body
+ * Nominatim's `/lookup?osm_ids=R4246124` returns.
+ *
+ * DERIVED, and the derivation is only the FRAMING: the row itself is lifted
+ * verbatim from `melbourne_au.json` (no field edited), and it is presented as a
+ * one-element response because that is what `/lookup` is — "queried BY the exact
+ * object(s) requested … it cannot exclude the pick the way a constrained top-N
+ * name search can" (`nominatim-client.ts` `nominatimLookup`). A `/search` body
+ * would be the wrong shape for this branch. Throws loudly if the fixture moves,
+ * so this can never silently degrade into an empty lookup.
+ */
+function melbourneLookupBody(): unknown[] {
+  const row = (melbourneRaw() as { osm_id?: number }[]).find(
+    (r) => r.osm_id === MELBOURNE_CITY_OSM_ID,
+  );
+  if (!row) {
+    throw new Error('[TEST] Melbourne fixture shape changed — no place/city relation row');
+  }
+  return [row];
+}
+
+/**
+ * A region-null PENDING Melbourne that already CARRIES its OSM ref — the M-B
+ * shape, and a real production row, not a contrived one.
+ *
+ * `createOrReuseCarriedCity` branch (c)/(d): when a user picks a candidate but
+ * the create-time `/lookup` canonicalization fails (offline, geocoder error, or
+ * a stale/reclassified id), the row is inserted **pending carrying the ref** and
+ * its own doc comment names the recovery — "the standing 15-minute queue picks it
+ * up via resolveCity's carried-ref branch". That branch is the write site these
+ * two blocks cover.
+ */
+async function seedCarriedPendingMelbourne(
+  db: TestDb,
+  regionId: number | null = null,
+): Promise<number> {
+  const [city] = await db
+    .insert(schema.cities)
+    .values({
+      name: 'Melbourne',
+      countryCode: 'AU',
+      geocodeStatus: 'pending',
+      regionId,
+      osmType: 'relation',
+      osmId: MELBOURNE_CITY_OSM_ID,
+    })
+    .returning();
+  return city.id;
+}
+
 async function cityById(db: TestDb, id: number) {
   const rows = await db.select().from(schema.cities).where(eq(schema.cities.id, id)).limit(1);
   return rows[0] ?? null;
@@ -181,6 +232,65 @@ describe('[S1][RED-BAR] ADL-56 §6b — the background resolver backfills a blan
   });
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// RED-BAR (Slice 1) — the CARRIED-OSM-REF resolve path.
+//
+// ADDED DURING IMPLEMENTATION (2026-08-26, PR #542), closing a gap in the
+// ADL-56 §10 set. §6 names two write sites, "the create-time resolved insert
+// and the background commitResolvedOrMerge" — but commitResolvedOrMerge has TWO
+// callers inside resolveCity: the name-search verdict-ok path, and the
+// carried-OSM-ref path that canonicalizes an already-chosen place by id. The
+// original bar pinned only the first. Backfilling the second is required (see
+// the derivation below) yet shipped unpinned, which inside an ATDD slice means
+// code with no acceptance test. This block is that test.
+//
+// THE ASSERTION IS DERIVED FROM THE SPEC, NOT FROM THE IMPLEMENTATION.
+// ADL-56 §6a path (A): "user picks one Melbourne → the osm_id →
+// createOrReuseCarriedCity → canonical resolve → AU-VIC (region set via the
+// pick's region_iso→region_id map and/or D4)", and §6a's net — "in EVERY Slice-1
+// path Melbourne ends WITH its region".
+//
+// Walking that "and/or" honestly, because it decides what this test may claim:
+//   • ONLINE pick — createOrReuseCarriedCity canonicalizes at create time and
+//     inserts 'resolved' with the CALLER's regionId. The region arrives via the
+//     FE half of the "and/or": buildCreateCityDataFromCandidate maps the
+//     candidate's region_iso onto a loaded regions row. So §6a path (A) is
+//     already satisfied there and D4 owes it nothing. NOT this test's subject.
+//   • DEGRADED pick (M-B) — canonicalization failed at create time, so the row
+//     is inserted PENDING carrying the ref and region-null. The FE map has
+//     already had its only chance. When the queue later resolves that row
+//     through resolveCity's carried-ref branch, **D4 is the only remaining
+//     mechanism** — so §6a's "every Slice-1 path ends with a region" is a claim
+//     ABOUT THIS PATH, and it is the half that was neither implemented nor
+//     pinned before. That is what these tests assert.
+//
+// The resolve is region-unambiguous by construction here — /lookup is queried BY
+// the chosen object and returns that one place (§B1.2, "it can never re-derive
+// an ambiguous verdict for an already-chosen place") — so the §6 precondition
+// holds without needing a distinctness computation over a candidate set.
+// ═════════════════════════════════════════════════════════════════════════════
+describe('[S1][RED-BAR] ADL-56 §6a path (A) — a carried-OSM-ref resolve backfills a blank region too', () => {
+  it('a region-null pending city carrying an OSM ref ends the queue resolve carrying its region', async () => {
+    const db = testDb!;
+    const regions = await seedAu(db);
+    const cityId = await seedCarriedPendingMelbourne(db);
+    stubFetchWith(melbourneLookupBody());
+
+    await expect(resolveCity(cityId)).resolves.toBe(true);
+
+    const row = await cityById(db, cityId);
+    expect(row?.geocodeStatus).toBe('resolved');
+    // The carried ref is preserved by the canonicalization (unchanged behaviour) …
+    expect(row?.osmId).toBe(MELBOURNE_CITY_OSM_ID);
+    expect(row?.osmType).toBe('relation');
+    // … and §6a's "ends WITH its region" is satisfied on the one path where D4
+    // is the only mechanism left. Without the backfill on this branch the row
+    // resolves region-null and STAYS region-null forever: resolveCity
+    // early-returns on a 'resolved' row, so the queue never revisits it.
+    expect(row?.regionId).toBe(regions['AU-VIC']);
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LIVE GUARDS (green on main) — the two boundaries D4 must not cross.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -228,6 +338,29 @@ describe('[S1][GUARD] §6b(1) — the caught-violation merge branch never touche
     // assertion a backfill placed in the wrong branch breaks.
     const winnerAfter = await cityById(db, winner.id);
     expect(winnerAfter?.regionId).toBe(regions['AU-NSW']);
+  });
+});
+
+describe('[S1][GUARD] D12 rule-3 holds on the carried-OSM-ref path too', () => {
+  it('a carried-ref resolve never overwrites the region the user supplied on the pick', async () => {
+    // Paired deliberately with the carried-ref red block above: that block adds
+    // a write to a branch which previously wrote no region at all, so the
+    // boundary it must not cross needs pinning on the SAME branch. The user
+    // chose New South Wales; the geocoder's canonical answer for this object is
+    // Victoria. D12 rule-3 — the user has ground truth — so NSW survives.
+    // Green before and after the backfill (before: no write; after: gate 1 of
+    // deriveRegionBackfill returns null on a non-null region_id), which is
+    // exactly what a boundary guard should be.
+    const db = testDb!;
+    const regions = await seedAu(db);
+    const cityId = await seedCarriedPendingMelbourne(db, regions['AU-NSW']);
+    stubFetchWith(melbourneLookupBody());
+
+    await expect(resolveCity(cityId)).resolves.toBe(true);
+
+    const row = await cityById(db, cityId);
+    expect(row?.geocodeStatus).toBe('resolved');
+    expect(row?.regionId).toBe(regions['AU-NSW']);
   });
 });
 

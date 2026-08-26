@@ -67,6 +67,51 @@ precisely enough that the correct implementation was obvious once read.
 
 COULD NOT IMPLEMENT AS SPECIFIED: nothing.
 
+FOLLOW-UP 2026-08-26 — CARRIED-OSM-REF PATH NOW PINNED (your direction)
+Two tests added to services/__tests__/geocoding.adl56-region-backfill.test.ts:
+  [S1][RED-BAR] "ADL-56 §6a path (A) — a carried-OSM-ref resolve backfills a
+                 blank region too"
+  [S1][GUARD]   "D12 rule-3 holds on the carried-OSM-ref path too"
+
+RED-THEN-GREEN EVIDENCE (both run, with the fix reverted / restored)
+RED — reverted ONLY the :571 call to commitResolvedOrMerge(cityId, candidate):
+  × [S1][RED-BAR] ADL-56 §6a path (A) … ends the queue resolve carrying its region
+    → AssertionError: expected null to be 1 // Object.is equality
+      at geocoding.adl56-region-backfill.test.ts:290:27
+  Tests  1 failed | 5 passed (6)
+  Line 290 is `expect(row?.regionId).toBe(regions['AU-VIC'])` — failed on the
+  ASSERTION, not setup. Anti-vacuous: the three assertions ABOVE it in the same
+  test (geocodeStatus 'resolved', osmId 4246124, osmType 'relation') all PASSED,
+  so the resolve really did run the carried-ref branch and only the region was
+  missing. Other five tests stayed green — the revert was surgical.
+GREEN — restored: 6 passed (6). `git diff --stat` on geocoding.service.ts EMPTY,
+  so the source is byte-identical to the committed version.
+Suite: backend 887 | 4 skipped (was 885 — exactly the two added). Frontend
+unchanged 425 | 41. All pre-push checks PASS.
+
+ASSERTION DERIVED FROM THE SPEC — and walking it changed what I could claim.
+§6a path (A) says the region arrives "via the pick's region_iso→region_id map
+AND/OR D4". That "and/or" is load-bearing. The ONLINE pick is already satisfied by
+the FE half — buildCreateCityDataFromCandidate maps candidate.region_iso onto a
+loaded regions row (read directly, not assumed) — so D4 owes it nothing there. The
+path D4 actually owns is the DEGRADED (M-B) pick: createOrReuseCarriedCity branch
+(c)/(d) inserts PENDING carrying the ref when create-time canonicalization fails,
+and when the queue later resolves it D4 is the ONLY mechanism left. That is what
+the test asserts. Spec and implementation agree; no conflict to escalate.
+
+NEW FINDING — reported, NOT fixed, your call
+There is a THIRD write site §6 does not name: createOrReuseCarriedCity's own
+resolved insert. It stores the caller's regionId with no D4 derivation. If the FE
+map misses (buildCreateCityDataFromCandidate returns region_id: undefined when the
+candidate's region_iso is not in the loaded regions list), the row is inserted
+'resolved' AND region-null — and resolveCity early-returns on 'resolved'
+(geocoding.service.ts:518), so the queue never revisits it. It stays region-null
+until a user corrects it. Narrow (needs an FE regions-list miss, BUG-30 class) and
+NOT a regression — today's behaviour, unchanged by this PR. I did not fix it: it is
+outside §6's stated two sites and outside the bar, and inventing scope after the
+bar is what this discipline exists to prevent. Slice 2, follow-up, or accept —
+your decision.
+
 OPEN ISSUES / BLOCKERS: none.
 
 NOW UNBLOCKED

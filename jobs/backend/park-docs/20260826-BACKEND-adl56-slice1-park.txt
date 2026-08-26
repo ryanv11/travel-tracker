@@ -85,10 +85,91 @@ SET. Both N5(b) tests (create path and resolver) exist solely to tell those two
 implementations apart, and both are green.
 
 ================================================================
-DECLARED — EXTENDED SLIGHTLY BEYOND THE RED BAR (OP-28)
+ADDENDUM 2026-08-26 — THE CARRIED-OSM-REF PATH IS NOW PINNED (COO-directed)
+================================================================
+The COO confirmed the carried-osm-ref backfill (keep it) and directed that the
+gap be closed properly: code shipping unpinned inside an ATDD slice is a hole in
+the bar, not just in the PR. Two tests added to
+services/__tests__/geocoding.adl56-region-backfill.test.ts:
+
+  [S1][RED-BAR] "ADL-56 §6a path (A) — a carried-OSM-ref resolve backfills a
+                 blank region too"
+  [S1][GUARD]   "D12 rule-3 holds on the carried-OSM-ref path too"
+
+--- Assertion derived from the SPEC, not from the implementation ---
+§6a path (A) says a picked Melbourne ends with AU-VIC "via the pick's
+region_iso→region_id map AND/OR D4". Walking that "and/or" before writing the
+assertion changed what the test may legitimately claim:
+  * ONLINE pick — createOrReuseCarriedCity canonicalizes AT CREATE TIME and
+    inserts 'resolved' with the CALLER's regionId. The region arrives via the FE
+    half: buildCreateCityDataFromCandidate maps candidate.region_iso onto a
+    loaded regions row (read directly — src/frontend/utils/). So §6a path (A) is
+    ALREADY satisfied there and D4 owes it nothing. Not this test's subject.
+  * DEGRADED pick (M-B) — canonicalization failed at create time, so
+    createOrReuseCarriedCity branch (c)/(d) inserts PENDING carrying the ref,
+    region-null. The FE map has had its only chance. When the 15-minute queue
+    later resolves that row via resolveCity's carried-ref branch, D4 is the ONLY
+    remaining mechanism. That is the half that was neither implemented nor pinned
+    before, and it is what the new test asserts.
+The resolve is region-unambiguous by construction on this branch (§B1.2 — /lookup
+is queried BY the chosen object), so the §6 precondition holds without a
+distinctness computation over a candidate set.
+
+--- Red-then-green evidence (both observations run, not asserted) ---
+RED: temporarily reverted ONLY the :571 call to
+     `commitResolvedOrMerge(cityId, candidate)`. Result:
+       × [S1][RED-BAR] ADL-56 §6a path (A) … carrying its region
+         → AssertionError: expected null to be 1 // Object.is equality
+         at geocoding.adl56-region-backfill.test.ts:290:27
+       Tests  1 failed | 5 passed (6)
+     Line 290 is `expect(row?.regionId).toBe(regions['AU-VIC'])` — it failed on
+     the ASSERTION, not on setup. The three assertions ABOVE it in the same test
+     (geocodeStatus 'resolved', osmId 4246124, osmType 'relation') all PASSED,
+     which is the anti-vacuous evidence: the resolve genuinely ran through the
+     carried-ref branch and only the region was missing. The other five tests —
+     including the new D12 guard — stayed green, confirming the revert was
+     surgical.
+GREEN: restored. 6 passed (6). `git diff --stat` on geocoding.service.ts is
+     EMPTY — the source is byte-identical to the committed version, so the
+     temporary revert left no trace.
+
+--- Mock fidelity of the new double (QUAL-22) ---
+The /lookup body is the REAL captured `place/city` relation row lifted verbatim
+from melbourne_au.json, returned as a ONE-element array. The derivation is only
+the FRAMING, and it is the correct one: /lookup is "queried BY the exact
+object(s) requested" (nominatim-client), so a /search-shaped multi-row body would
+be the wrong shape for this branch. The helper throws if the fixture moves, so it
+can never silently degrade into an empty lookup. Real parseCandidate, real
+isAcceptedSettlement ('city' passes), real nominatimLookup, real libSQL.
+
+--- The D12 guard is green BOTH ways, deliberately ---
+Before the change: no region write on that branch at all. After: gate 1 of
+deriveRegionBackfill returns null on a non-null region_id. A boundary guard
+should be green either way — it exists to fail if a future refactor removes the
+gate, which is exactly the hazard adding a write to a previously write-free
+branch creates.
+
+--- RESIDUAL FINDING, reported not fixed (COO's call) ---
+There is a THIRD write site §6 does not name: createOrReuseCarriedCity's own
+resolved insert (cityIdentityService, branch (c)/(d)'s `canonical` path). It
+stores the CALLER's regionId with no D4 derivation. When the FE map misses —
+buildCreateCityDataFromCandidate returns `region_id: undefined` if the
+candidate's region_iso is not in the loaded regions list — the row is inserted
+'resolved' AND region-null, and resolveCity early-returns on a 'resolved' row
+(geocoding.service.ts:518), so the queue NEVER revisits it. That row stays
+region-null until a user corrects it via PATCH/Change-city. Narrow (needs an FE
+regions-list miss, the BUG-30 incomplete-seed class) and NOT a regression — it is
+today's behaviour, unchanged by this PR. Deliberately not fixed here: it is a
+third write site outside §6's stated scope and outside the red bar, and inventing
+scope after the bar is exactly what the ATDD discipline exists to prevent. Flagged
+for the COO to decide — Slice 2, a follow-up, or accept.
+
+================================================================
+DECLARED — EXTENDED SLIGHTLY BEYOND THE ORIGINAL RED BAR (OP-28)
 ================================================================
 resolveCity's CARRIED-OSM branch also backfills (deriveRegionBackfill(city,
-[candidate])). Not pinned by any test.
+[candidate])). COO-CONFIRMED 2026-08-26 (keep it) and now pinned by the addendum
+tests above — no longer unpinned.
   Reason: a /lookup by osm ref returns ONE candidate and is region-unambiguous by
   construction (ADL-56 §B1.2 — the carried ref IS the query). ADL-56 §6a path (A)
   states a picked Melbourne "ends with a region ... via the pick's region_iso→
