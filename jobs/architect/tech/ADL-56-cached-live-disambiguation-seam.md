@@ -853,6 +853,15 @@ accounts for them; the R1 additions (select≠commit, invisible merge) rest on *
 > together" criterion — a single cached Newport suppressed the live alternatives. GE-21 rested on a mechanism the
 > spec asserted but had **not** verified against the gate's own behaviour.
 
+> **SPIKE-GATE CLEARED / GE-21 PROMOTED (2026-08-26) — BRD v3.22.** The condition the R2 stance below sets
+> ("not promoted until the focused OP-27 fresh-eyes Opus re-review of the B1 fix + its seams passes") **was
+> met**: that re-review returned **SOUND**, no blocking findings, dedup invariance holding under attack. GE-21
+> therefore entered the BRD as **approved** at v3.22 with the §10a Slice-1/Slice-2 interim stamped into the
+> requirement text itself (PO decision 2026-08-26 — promote now with the interim documented, rather than wait
+> for Slice 2). The D12 rule-3 wording amendment (Q2) is recorded in **ADL-46 §4.3.1**. **NB-1 is resolved: the
+> in-flight cue is ADOPTED** (PO 2026-08-26) and is part of GE-21's success criteria — build it in Slice 1.
+> The paragraph below is retained for history.
+
 **R2 stance.** With B1 fixed (invisible autofire on the settled query), GE-21's *"presents saved matches and live
 candidates together and binds only by explicit selection"* **is** deliverable in Slice 1 — but GE-21 **stays
 PROPOSED / spike-gated** and is **not** promoted until the **focused OP-27 fresh-eyes Opus re-review of the B1 fix
