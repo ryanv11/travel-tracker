@@ -120,3 +120,40 @@ GE-21 interim in ADL-56 §10a and the BRD.
 Note for Slice 2: once the Melbourne twins collapse, the merged surface
 shows ONE Melbourne row and the two-option picker disappears — the surface
 code needs no change for that, it renders whatever the candidate set holds.
+
+════════════════════════════════════════════════════════════════════════════
+ADDENDUM 2026-08-26 (later) — COO OVERTURNED DEVIATION 1; NOW CONVERTED
+════════════════════════════════════════════════════════════════════════════
+The "manual form's picker still commits on the pick" boundary in the KNOWN /
+DECLARED section above is CLOSED. It is converted. Read that section as
+history, not current state.
+
+Why it was wrong: I defined BUG-99's defect as "dates structurally
+unreachable" and reasoned from my definition. The tracker defines it
+differently and names the excluded surface by symbol — title "picking a result
+from EITHER picker commits immediately", note "confirmed on BOTH add-place
+pickers … handleSelectPickerCandidate ~:362 -> handleSelectCity ~:289", and the
+commit bypasses dates "shown in the same view". Same-view reachability was
+never an exemption. GE-21: "choosing a result populates the form but writes
+nothing until the explicit Add."
+
+Now: handleSelectPickerCandidate holds (formHeldCandidate) and writes nothing;
+handleCreateCity is the only writer on that screen. Identity-carry logic
+byte-identical — only its timing moved. Hold invalidated by name edit, country
+change, "none of these", or a fresh lookup. Holding satisfies the §3a guard.
+
+New [S1][GAP] block in AddPlaceFlow.adl56-select-not-commit.test.tsx pins it;
+proven red by reverting the conversion (expected [Array(2)] to deeply equal [],
+receiving ["/api/cities","/api/trips/1/places"]). The guard test in that block
+stays green under the revert — correct, different rule.
+
+SO THE STANDING RULE ON THIS SURFACE IS NOW SIMPLE: on AddPlaceFlow, NO pick
+anywhere commits. Three pick sites (cached row, merged-surface live candidate,
+manual-form picker candidate) all select; two commit controls exist (the search
+screen's add-place-commit and the form's Add City & Place submit) and only they
+write. If you add a fourth pick site, it selects.
+
+STILL commit-on-pick, deliberately: ChangeCityModal (both its cached rows and
+its live candidates). §12-Q5 excludes the held-selection/dates restructure
+there — no dates, no "Add", so GE-21's clause has no referent. Flagged to COO
+for confirmation rather than assumed.

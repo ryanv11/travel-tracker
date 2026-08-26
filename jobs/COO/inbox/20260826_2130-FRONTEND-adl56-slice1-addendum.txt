@@ -1,0 +1,85 @@
+TO: COO
+FROM: Frontend
+DATE: 2026-08-26
+RE: ADL-56 Slice 1 — addendum: deviation 1 converted, gap test added, rebased
+
+PR #545 · all 18 CI checks green @ e6542e6 · branch now on current main.
+
+1. YOU WERE RIGHT, AND THE PREMISE WAS MINE
+I checked the tracker before acting rather than taking the correction on
+authority, and it is even more explicit than your quote. BUG-99's TITLE is
+"picking a result from either picker commits immediately"; the note opens
+"confirmed on BOTH add-place pickers" and names the second path by symbol —
+handleSelectPickerCandidate ~:362 -> handleSelectCity ~:289. That is precisely
+the surface I excluded. And it describes the commit as bypassing the date
+fields "shown in the same view", so same-view reachability was never the
+exemption I read it as.
+
+My error was not the cost judgment — that part was sound and you accepted it.
+It was inventing a definition of the defect ("dates structurally unreachable")
+and then reasoning from my definition instead of reading the note that defines
+it. The note was one grep away and it named the exact symbol I was ruling out.
+That is the same failure mode as attributing an inference to a source: I gave
+my own reading the authority of the tracker's.
+
+2. CONVERTED
+handleSelectPickerCandidate now holds the candidate and writes nothing;
+handleCreateCity is the sole writer on that screen and carries the held
+candidate's identity through the same shared buildCreateCityDataFromCandidate.
+The identity-carry logic is byte-identical — only the moment it runs moved — so
+BUG-75's "region from the pick, never the stale selector" guarantee is
+untouched. Holding satisfies the §3a guard (holding IS the explicit choice it
+waits for). The hold is invalidated by a name edit (UX-13/N3), a country
+change, "none of these", or a re-run of the lookup.
+
+3. THE GAP TEST, AND ITS RED PROOF
+New [S1][GAP] block, 3 tests, marked in-file as closing a gap in the §10 set
+with the reason (test 8 only ever reached the merged surface's picker).
+Assertions derived from GE-21's criteria — writes nothing on the pick; the
+explicit Add commits in order, once, carrying dates set AFTER choosing; and the
+§3a guard still blocks with nothing picked.
+
+Proven red by reverting the conversion (pick calls createCity -> addPlace
+inline, as on main):
+  AssertionError: expected [ Array(2) ] to deeply equal []
+    - []
+    + [ "/api/cities", "/api/trips/1/places" ]
+  AssertionError: expected [] to have a length of 2 but got +0
+The first is the defect itself — the pick committing both writes. The second is
+its knock-on: having committed, the flow left the screen, so the two date
+inputs were gone. The third test stayed GREEN under the revert, correctly — it
+pins the guard, a different rule. Reporting that rather than implying all three
+turned red.
+
+4. THE TWO EXISTING SUITES — UPDATED, NOT WEAKENED, AND I DID CHECK YOUR CONDITION
+Neither asserts commit-on-pick as its subject. Both are BUG-75 identity-carry
+tests: "selecting Newport (Isle of Wight) carries its osm identity and region_id
+from GB-ENG — never Wales". Every payload assertion is unchanged; I inserted the
+explicit Add between the pick and the assertion, and added
+`expect(mockCreateCity).not.toHaveBeenCalled()` after the pick — so both now
+cover strictly more than before. No requirement conflict, so I did not stop.
+
+5. REBASE / INTEGRATION — THE CHECK YOU ACTUALLY WANTED
+Merged onto main with #542 in. First contact between my dedup and the real
+fields: repositories/cities.ts:156-157 returns osm_type: cities.osmType /
+osm_id: cities.osmId — snake_case, nullable — which is exactly what
+types/api.ts City and osmIdentityKey read. Nothing disagreed. Frontend 472
+passed | 4 skipped; backend 887 | 4; E2E 53/53 run locally against the CI env
+before pushing; all /pre-push gates PASS.
+
+6. ONE BOUNDARY I DID NOT CROSS — PLEASE CONFIRM
+ChangeCityModal's pickers still commit on the pick, unchanged. My reasoning:
+ADL-56 §12-Q5 scopes that surface to guard + P2 + live merge and explicitly
+excludes a held-selection/dates restructure, because a re-point has no dates
+and no "Add" control — so GE-21's "populates the form but writes nothing until
+the explicit Add" has no referent there. BUG-99's note names two pickers, both
+in Add Place, not this one. I am flagging it rather than assuming, since that
+is exactly the shape of call I got wrong the first time.
+
+7. NEW TESTID (addition, not a rename)
+`add-place-form-option-<osm_type>-<osm_id>` on the manual form's picker — a
+surface the red bar did not cover, named to the prescribed pattern. Every
+testid QA prescribed is unchanged.
+
+Nothing else in the earlier report changes. The rollback-seam enforcement idea
+stays a follow-up per your note.
