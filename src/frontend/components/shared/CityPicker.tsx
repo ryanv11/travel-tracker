@@ -20,24 +20,35 @@
  * module's doc comment for the full rule — this component just maps
  * candidates through it by index.
  *
- * ONE component, TWO call sites (v3 §A "Shared CityPicker reuse plan",
- * carried unchanged from v2 §8):
+ * ONE component, now THREE call sites (v3 §A "Shared CityPicker reuse plan",
+ * carried unchanged from v2 §8; the third added by ADL-56 Slice 1, 2026-08-26 —
+ * see item 3 below):
  *   1. BUG-75 — AddPlaceFlow's new-city form, when the geocode lookup
  *      resolves an ambiguous name to 2+ distinct-identity candidates that a
  *      region select cannot separate (AddPlaceFlow.tsx's
  *      `handleOpenNewCityForm`/`handleSelectPickerCandidate`).
- *   2. UX-12 — the "Change city" re-point flow (D11 `city_id` re-point,
- *      backend already on main). NOT wired to a concrete call site in this
- *      brief — UX-12 has no existing frontend surface to attach to yet (no
- *      "Change city" control exists anywhere in the frontend; verified by a
- *      `grep` for "Change city"/"ChangeCity" across src/frontend and a
- *      directory listing of every Place-related component, both turning up
- *      nothing — same conclusion the UX-12 tracker note already recorded via
- *      its own two probes). This component's prop surface (a generic
- *      `candidates`/`onSelect`/`truncated` contract, no AddPlaceFlow-specific
- *      state) is deliberately call-site-agnostic so a future UX-12 brief can
- *      consume it without changes here — see the BUG-75 frontend completion
- *      report for the full flag to COO.
+ *   2. UX-12 — the "Change city" re-point flow's new-city form
+ *      (`ChangeCityModal.handleSelectPickerCandidate`).
+ *
+ *      > SUPERSEDED (2026-08-26) by ADL-56 Slice 1 — retained for history.
+ *      > This item read: *"NOT wired to a concrete call site in this brief —
+ *      > UX-12 has no existing frontend surface to attach to yet (no 'Change
+ *      > city' control exists anywhere in the frontend; verified by a `grep`
+ *      > for 'Change city'/'ChangeCity' across src/frontend and a directory
+ *      > listing of every Place-related component, both turning up nothing)."*
+ *      > `ChangeCityModal` has since shipped and consumes this component, so
+ *      > the call site is now concrete. The design intent that made it possible
+ *      > — the deliberately call-site-agnostic prop surface — held: adding the
+ *      > two call sites since has needed only optional, additive props.
+ *
+ *   3. ADL-56 / GE-21 Slice 1 — the merged cached ∪ live disambiguation
+ *      surface, on BOTH `AddPlaceFlow` and `ChangeCityModal`'s search steps.
+ *      This is the reason `testIdPrefix` and `selectedKey` exist: the merged
+ *      surface needs its rows individually addressable (QA's testid seam) and
+ *      needs to show which row is the currently HELD selection, since under
+ *      D7 picking no longer commits. Forking a second picker for the merged
+ *      surface was explicitly ruled out — it would re-open exactly the drift
+ *      that putting both disambiguation call sites on one component closed.
  *
  * Visual/interaction pattern reused from AddPlaceFlow's existing city
  * search-results list (AddPlaceFlow.tsx ~:422-444) — same bordered
@@ -112,7 +123,8 @@ export function CityPicker({
               candidate.osm_type && candidate.osm_id != null
                 ? `${candidate.osm_type}-${candidate.osm_id}`
                 : null;
-            const isSelected = selectedKey != null && candidateKey(candidate, index) === selectedKey;
+            const isSelected =
+              selectedKey != null && candidateKey(candidate, index) === selectedKey;
             return (
               <div
                 key={candidateKey(candidate, index)}

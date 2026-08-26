@@ -59,9 +59,6 @@ import {
 import { useLiveCityLookup } from '../../hooks/useLiveCityLookup';
 import { useAddPlace } from '../../hooks/usePlaces';
 import type { City, GeocodeCandidate } from '../../types/api';
-// ADL-56 §5 P2 — reuse-first identity dedup of cached ∪ live, shared with
-// ChangeCityModal so the two surfaces cannot drift.
-import { dedupeLiveAgainstCached } from '../../utils/mergeLiveCandidates';
 // BUG-75/UX-12 (design §9/§6, review MAJOR-1/MINOR-1): the shared
 // precedence decision and the shared candidate->city identity-carry mapping,
 // each extracted to exactly one place so AddPlace and ChangeCityModal cannot
@@ -77,6 +74,9 @@ import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 // GE-20 (BUG-87, ADL-54 D5/Q3): one shared formatter for the "filtered to"
 // note and the off-country empty-state's country list — see its doc comment.
 import { formatCountriesFilterNote } from '../../utils/formatCountriesFilterNote';
+// ADL-56 §5 P2 — reuse-first identity dedup of cached ∪ live, shared with
+// ChangeCityModal so the two surfaces cannot drift.
+import { dedupeLiveAgainstCached } from '../../utils/mergeLiveCandidates';
 import { capitalizeFirst } from '../../utils/textFormat';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { CityPicker } from '../shared/CityPicker';

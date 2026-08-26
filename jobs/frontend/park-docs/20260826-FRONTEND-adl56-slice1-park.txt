@@ -1,0 +1,122 @@
+PARK DOCUMENT — FRONTEND — 2026-08-26
+ADL-56 / GE-21 Slice 1 (frontend half) — BUG-97 / BUG-98 / BUG-99 / BUG-73 / UX-13
+Branch: feat/adl56-slice1-frontend   Issues: #536, #538   BRD: GE-21 (v3.22)
+
+════════════════════════════════════════════════════════════════════════════
+STATE AT PARK
+════════════════════════════════════════════════════════════════════════════
+Complete. All four frontend ADL-56 red-bar suites un-skipped and green with
+every assertion intact (no assertion was edited — verified by the diff: the
+only test-file changes are (a) `describe.skip(` -> `describe(` on the
+[S1][RED-BAR] blocks, (b) an idle vi.mock added to nine legacy suites,
+(c) three D5 copy assertions in ge20-country-filter).
+
+  npm run test:frontend   462 passed | 4 skipped   (base: 425 | 41)
+  npm run type:check:all  clean
+  The 4 remaining skips are the [S2] describe in
+  decideCityDisambiguation.adl56-s2.test.ts — still skipped, as required.
+  The [INTERIM] Slice-1→2 tripwire in that same file is GREEN, as required.
+  The [S1][GUARD] GE-20 country-filter block is GREEN, as required.
+
+════════════════════════════════════════════════════════════════════════════
+THE SHAPE OF WHAT WAS BUILT (detail lives in
+jobs/frontend/tech/20260826-ADL56-slice1-merged-surface.md)
+════════════════════════════════════════════════════════════════════════════
+NEW  src/frontend/hooks/useLiveCityLookup.ts
+     The live geocode lookup lifted out of an imperative
+     `lookupCityCountry(...).then()` into a React-Query hook keyed by
+     (settledQuery, countrySet). Keying is what delivers §3b's coalescing
+     AND its last-query-wins staleness AND the in-flight cue, rather than
+     three hand-rolled mechanisms. Also THE rollback seam: LIVE_LOOKUP_MODE
+     ('auto'|'manual') read in exactly one place.
+NEW  src/frontend/utils/mergeLiveCandidates.ts  (+ its own unit suite)
+     §5 P2 identity dedup on the (osm_type, osm_id) PAIR.
+MOD  AddPlaceFlow.tsx      merged surface, D7 select≠commit, D5 states,
+                           NB-1 cue, N3 invalidation, UX-13.
+MOD  ChangeCityModal.tsx   merged surface, dedup, §3a guard (N6/§12-Q5).
+MOD  CityPicker.tsx        +testIdPrefix, +selectedKey. Still ONE picker
+                           component, now three call sites — no fork.
+MOD  useAdmin.ts           +fetchCountryRegions() (imperative twin).
+MOD  types/api.ts          City.osm_type / City.osm_id (the additive field).
+
+════════════════════════════════════════════════════════════════════════════
+IF YOU PICK THIS UP: THE FIVE THINGS THAT WILL BITE
+════════════════════════════════════════════════════════════════════════════
+1. NEVER let the cache's ANSWER become an input to useLiveCityLookup.
+   "The cache returned one confident match, skip the lookup" IS BUG-97. It
+   was designed in once (ADL-56 R1 §3b(3)) and caught only by a fresh-eyes
+   review. Tests 1 and 10 are the regression tests; if you find yourself
+   making either of them pass by another route, stop.
+
+2. The NB-1 cue's `!searching` half is load-bearing, not tidiness.
+   `live.pending && !searching`. The cue announces an augmentation still
+   arriving — a claim that is only meaningful once the saved list is on
+   screen, and the click-too-early race it warns about cannot happen while
+   nothing is clickable. Remove it and NB-1's non-blocking test goes red
+   for a genuine reason.
+
+3. handleCommit awaits fetchCountryRegions() on purpose.
+   The held candidate's country is only known at pick time, so the
+   useCountryRegions hook may not have fetched it yet. Reading the hook
+   instead races it and silently drops the region — which IS BUG-98's
+   symptom ("Australia (no state set)").
+
+4. N3 degrades a held live selection to 'plain'; it does not clear it.
+   Same safety property (the osm_id cannot ride under a new country/name),
+   better UX. Both would pass the tests. Don't "simplify" to clearing
+   without reading §3a's N3 paragraph first.
+
+5. The two escape rows are not redundant by accident.
+   `add-place-none-of-these` selects in place; `+ Add new: "X"` navigates
+   to the manual form. Merging them pre-satisfies the manual form's §3a
+   guard and re-opens the Melbourne region-null save through that path —
+   and nine existing suites depend on `+ Add new` opening the form.
+
+════════════════════════════════════════════════════════════════════════════
+PROBES RUN (guards verified load-bearing, not assumed)
+════════════════════════════════════════════════════════════════════════════
+Each guard was neutralised in the working tree, the suite re-run, then
+restored from a scratch-file copy (never `git stash` — refs/stash is shared
+across worktrees, OP-20).
+
+- Neutralise invalidateHeldIdentity  -> tests 12.2 and 12.3 go RED. N3 is
+  real. Test 12.1 passes either way — VACUOUS, exactly as QA predicted in
+  red-bar §3.9, because the merged surface stays rendered while a selection
+  is held. 12.2/12.3 carry the actual assertion.
+- Force ChangeCityModal pickerAwaitingChoice=false -> the §3a/§12-Q5 test
+  goes RED. That guard is real.
+- Force AddPlaceFlow's commit `disabled={false}` -> test 9.1 stays GREEN.
+  Not a gap: the behavioural guard is handleCommit's own
+  `if (!heldSelection) return`, with `disabled` as the affordance on top.
+  Worth knowing before someone concludes the guard is untested.
+
+════════════════════════════════════════════════════════════════════════════
+KNOWN, DECLARED, NOT FIXED HERE
+════════════════════════════════════════════════════════════════════════════
+- The MANUAL "+ Add new" form's CityPicker still commits on the pick. Its
+  dates are reachable BEFORE the pick, so BUG-99's defect cannot arise
+  there; it did get the §3a guard, an escape row, and UX-13. Converting it
+  would have meant rewriting two green BUG-75/UX-12 suites for no
+  BRD-demanded gain. Flagged to COO.
+- Clicking "+ Add new" fires a SECOND geocode call for the same name.
+  Bounded (one extra, explicit click only). Rewiring handleOpenNewCityForm
+  to reuse the hook's data would touch a function six regression suites
+  depend on; not worth it inside this brief.
+- The rollback seam (§3b item 7) is structural and deliberately untested —
+  QA's call, and I agree with it. Reviewed by eye, not by assertion.
+- QUAL-52 (legacy newportGeocode.ts osm id drift) untouched, per brief.
+- Backend half (osm_type/osm_id on the search projection; D4 region
+  backfill) is a separate PR that merges FIRST. This suite is green against
+  the harness either way, but the live surface's dedup needs those fields.
+
+════════════════════════════════════════════════════════════════════════════
+WHAT SLICE 2 INHERITS
+════════════════════════════════════════════════════════════════════════════
+Nothing here blocks it. decideCityDisambiguation was NOT touched, so the
+ε-collapse lands in one place; when it does, the [INTERIM] tripwire in
+decideCityDisambiguation.adl56-s2.test.ts goes red — that is Slice 2
+working. Delete that block, un-skip the [S2] describe, and re-stamp the
+GE-21 interim in ADL-56 §10a and the BRD.
+Note for Slice 2: once the Melbourne twins collapse, the merged surface
+shows ONE Melbourne row and the two-option picker disappears — the surface
+code needs no change for that, it renders whatever the candidate set holds.
