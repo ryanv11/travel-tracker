@@ -20,24 +20,35 @@
  * module's doc comment for the full rule — this component just maps
  * candidates through it by index.
  *
- * ONE component, TWO call sites (v3 §A "Shared CityPicker reuse plan",
- * carried unchanged from v2 §8):
+ * ONE component, now THREE call sites (v3 §A "Shared CityPicker reuse plan",
+ * carried unchanged from v2 §8; the third added by ADL-56 Slice 1, 2026-08-26 —
+ * see item 3 below):
  *   1. BUG-75 — AddPlaceFlow's new-city form, when the geocode lookup
  *      resolves an ambiguous name to 2+ distinct-identity candidates that a
  *      region select cannot separate (AddPlaceFlow.tsx's
  *      `handleOpenNewCityForm`/`handleSelectPickerCandidate`).
- *   2. UX-12 — the "Change city" re-point flow (D11 `city_id` re-point,
- *      backend already on main). NOT wired to a concrete call site in this
- *      brief — UX-12 has no existing frontend surface to attach to yet (no
- *      "Change city" control exists anywhere in the frontend; verified by a
- *      `grep` for "Change city"/"ChangeCity" across src/frontend and a
- *      directory listing of every Place-related component, both turning up
- *      nothing — same conclusion the UX-12 tracker note already recorded via
- *      its own two probes). This component's prop surface (a generic
- *      `candidates`/`onSelect`/`truncated` contract, no AddPlaceFlow-specific
- *      state) is deliberately call-site-agnostic so a future UX-12 brief can
- *      consume it without changes here — see the BUG-75 frontend completion
- *      report for the full flag to COO.
+ *   2. UX-12 — the "Change city" re-point flow's new-city form
+ *      (`ChangeCityModal.handleSelectPickerCandidate`).
+ *
+ *      > SUPERSEDED (2026-08-26) by ADL-56 Slice 1 — retained for history.
+ *      > This item read: *"NOT wired to a concrete call site in this brief —
+ *      > UX-12 has no existing frontend surface to attach to yet (no 'Change
+ *      > city' control exists anywhere in the frontend; verified by a `grep`
+ *      > for 'Change city'/'ChangeCity' across src/frontend and a directory
+ *      > listing of every Place-related component, both turning up nothing)."*
+ *      > `ChangeCityModal` has since shipped and consumes this component, so
+ *      > the call site is now concrete. The design intent that made it possible
+ *      > — the deliberately call-site-agnostic prop surface — held: adding the
+ *      > two call sites since has needed only optional, additive props.
+ *
+ *   3. ADL-56 / GE-21 Slice 1 — the merged cached ∪ live disambiguation
+ *      surface, on BOTH `AddPlaceFlow` and `ChangeCityModal`'s search steps.
+ *      This is the reason `testIdPrefix` and `selectedKey` exist: the merged
+ *      surface needs its rows individually addressable (QA's testid seam) and
+ *      needs to show which row is the currently HELD selection, since under
+ *      D7 picking no longer commits. Forking a second picker for the merged
+ *      surface was explicitly ruled out — it would re-open exactly the drift
+ *      that putting both disambiguation call sites on one component closed.
  *
  * Visual/interaction pattern reused from AddPlaceFlow's existing city
  * search-results list (AddPlaceFlow.tsx ~:422-444) — same bordered
@@ -65,6 +76,18 @@ export interface CityPickerProps {
   truncated?: boolean;
   /** Disables selection while a pick is being submitted (e.g. city creation in flight). */
   disabled?: boolean;
+  /**
+   * ADL-56 §10 / QA red bar §5.4 — emits `data-testid="<prefix>-<osm_type>-<osm_id>"`
+   * on each row that carries a real OSM identity. The prescribed prefixes are
+   * `add-place-live-option` and `change-city-live-option`; the testid is the
+   * seam that lets the Slice-1 acceptance suites pin WHICH candidate is
+   * rendered without pinning UX's row copy (D6 owns the label text, which
+   * `composeCandidateLabels` produces). Omitted → no testid, which is the
+   * existing new-city-form call site, unchanged.
+   */
+  testIdPrefix?: string;
+  /** Marks the row for this candidate as the currently held selection (D7). */
+  selectedKey?: string | null;
 }
 
 /** Stable key for a candidate: prefers its carried OSM identity, falls back
@@ -77,7 +100,14 @@ function candidateKey(candidate: GeocodeCandidate, index: number): string {
   return `${candidate.display_name}:${index}`;
 }
 
-export function CityPicker({ candidates, onSelect, truncated, disabled }: CityPickerProps) {
+export function CityPicker({
+  candidates,
+  onSelect,
+  truncated,
+  disabled,
+  testIdPrefix,
+  selectedKey,
+}: CityPickerProps) {
   const labels = composeCandidateLabels(candidates);
   return (
     <div>
@@ -88,17 +118,28 @@ export function CityPicker({ candidates, onSelect, truncated, disabled }: CityPi
           rows at this row height before scrolling kicks in. */}
       <div className="border border-gray-200 rounded-md overflow-hidden">
         <div className="max-h-72 overflow-y-auto">
-          {candidates.map((candidate, index) => (
-            <div
-              key={candidateKey(candidate, index)}
-              className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50 last:border-b-0"
-              onClick={() => {
-                if (!disabled) onSelect(candidate);
-              }}
-            >
-              {labels[index]}
-            </div>
-          ))}
+          {candidates.map((candidate, index) => {
+            const identity =
+              candidate.osm_type && candidate.osm_id != null
+                ? `${candidate.osm_type}-${candidate.osm_id}`
+                : null;
+            const isSelected =
+              selectedKey != null && candidateKey(candidate, index) === selectedKey;
+            return (
+              <div
+                key={candidateKey(candidate, index)}
+                data-testid={testIdPrefix && identity ? `${testIdPrefix}-${identity}` : undefined}
+                className={`px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm last:border-b-0 ${
+                  isSelected ? 'bg-teal-50 font-semibold' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => {
+                  if (!disabled) onSelect(candidate);
+                }}
+              >
+                {labels[index]}
+              </div>
+            );
+          })}
         </div>
       </div>
       {/* BUG-79 (v3 §B5 m1): carried into the picker — matches the phrasing

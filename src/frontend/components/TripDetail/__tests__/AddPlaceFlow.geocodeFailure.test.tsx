@@ -31,6 +31,27 @@ import { AddPlaceFlow } from '../AddPlaceFlow';
 
 const mockLookupCityCountry = vi.fn();
 
+// ADL-56 / GE-21 Slice 1: this suite predates the merged cached ∪ live surface
+// and mocks the hook layer wholesale, so it renders with no QueryClientProvider.
+// The live-lookup hook is therefore held IDLE here, deliberately: this file's
+// subject is the new-city form / region narrowing, and the merged surface has
+// its own suites at the apiClient boundary (AddPlaceFlow.adl56-*.test.tsx,
+// ChangeCityModal.adl56-live-merge.test.tsx) where the real hook runs. Holding
+// it idle also keeps any lookupCityCountry call-count assertion in this file
+// measuring only the lookup this suite is actually about.
+vi.mock('../../../hooks/useLiveCityLookup', () => ({
+  LIVE_LOOKUP_MODE: 'auto',
+  useLiveCityLookup: () => ({
+    candidates: [],
+    countryCode: null,
+    regionIso: null,
+    truncated: false,
+    failed: false,
+    pending: false,
+    settled: false,
+  }),
+}));
+
 vi.mock('../../../hooks/useCities', () => ({
   lookupCityCountry: (cityName: string) => mockLookupCityCountry(cityName),
   useCitySearch: () => ({ data: [], isLoading: false }),

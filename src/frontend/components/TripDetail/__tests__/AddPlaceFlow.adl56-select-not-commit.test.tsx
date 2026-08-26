@@ -93,7 +93,7 @@ async function typeQuery(text: string) {
 // BUG-99's core: on `main` the click on a cached result posts the place
 // immediately, so the optional dates are structurally unreachable.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 7 — a cached-search pick SELECTS and populates; it does not commit', () => {
+describe('[S1][RED-BAR] ADL-56 test 7 — a cached-search pick SELECTS and populates; it does not commit', () => {
   beforeEach(() => {
     router.setCachedRows([CACHED_NEWPORT_OREGON]);
     router.setLiveResponse(newportUsResponse(), 'Newport');
@@ -150,7 +150,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 7 — a cached-search pick SELECTS and 
 // explicitly, on the recorded call sequence, not inferred from two independent
 // call counts (which would pass on the wrong order).
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 8 — a disambiguation pick SELECTS; the explicit Add runs createCity then addPlace, in that order, once', () => {
+describe('[S1][RED-BAR] ADL-56 test 8 — a disambiguation pick SELECTS; the explicit Add runs createCity then addPlace, in that order, once', () => {
   beforeEach(() => {
     router.setCachedRows([]);
     router.setLiveResponse(newportGbResponse(), 'Newport');
@@ -211,7 +211,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 8 — a disambiguation pick SELECTS; th
 // admission gate and both carry AU-VIC, so `distinctOsmIds.size === 2` fires
 // the picker while `distinctRegionIsos` is length 1.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 9 — with a choice shown and nothing chosen, the commit writes no guessed record', () => {
+describe('[S1][RED-BAR] ADL-56 test 9 — with a choice shown and nothing chosen, the commit writes no guessed record', () => {
   beforeEach(() => {
     router.setCachedRows([]);
     router.setLiveResponse(melbourneAuResponse(), 'Melbourne');
@@ -304,7 +304,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 9 — with a choice shown and nothing c
 // countryCode (`cityIdentityService.ts:210,223-224` — the canonical /lookup
 // supplies name/coords/osm only). That files a Wales place under France.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 12 — editing an identity-bearing field invalidates a held live selection', () => {
+describe('[S1][RED-BAR] ADL-56 test 12 — editing an identity-bearing field invalidates a held live selection', () => {
   beforeEach(() => {
     router.setCachedRows([]);
     router.setLiveResponse(newportGbResponse(), 'Newport');
@@ -384,5 +384,124 @@ describe.skip('[S1][RED-BAR] ADL-56 test 12 — editing an identity-bearing fiel
     for (const body of router.bodiesFor('/api/cities') as Record<string, unknown>[]) {
       expect(body.osm_id).not.toBe(26700977);
     }
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// GAP-CLOSING ACCEPTANCE BLOCK — added 2026-08-26 by Frontend at COO direction.
+// NOT one of ADL-56 §10's 13 tests: it closes a gap in that set.
+//
+// §10 test 8 pins select≠commit on the MERGED SURFACE's picker
+// (`add-place-live-option-…`). BUG-99, though, was reported and code-verified
+// on BOTH add-place pickers — its tracker note names the two commit paths by
+// symbol: the cached search dropdown (`handleSelectCity ~:612`) AND "the
+// disambiguation list (`handleSelectPickerCandidate ~:362 → handleSelectCity
+// ~:289)". That second path is the MANUAL "+ Add new" form's own CityPicker,
+// which no test in the §10 set reaches — so it was neither converted nor
+// pinned, and a regression there would be invisible.
+//
+// The assertions below are derived from GE-21's success criteria (BRD v3.22),
+// not from the implementation:
+//   • "choosing a result populates the form but writes nothing until the
+//      explicit Add"
+//   • "the place saved carries the dates the user set after choosing"
+//   • the ordering oracle is `router.writePaths()`, same as test 8, so a wrong
+//     order / a double fire / an extra write all fail.
+//
+// PROVEN RED before being committed green: with the conversion reverted (the
+// pick calling createCity → addPlace inline again, as on `main`), the first
+// two tests fail with
+//     AssertionError: expected [ Array(2) ] to deeply equal []
+//       - []
+//       + [ "/api/cities", "/api/trips/1/places" ]
+//     AssertionError: expected [] to have a length of 2 but got +0
+// The first caught the pick committing BOTH writes — exactly the defect. The
+// second is the knock-on: having committed on the pick, the flow left the
+// search step, so the form's two date inputs were no longer on screen to set
+// dates in. The third test (the §3a guard) stays green under the revert, which
+// is correct — it pins a different rule. Recorded in the completion report.
+//
+// TESTID NOTE: `add-place-form-option-<osm_type>-<osm_id>` is an ADDITION for a
+// surface the red bar did not cover, following the prescribed naming pattern —
+// not a rename of any testid QA specified. Flagged to the COO.
+// ═════════════════════════════════════════════════════════════════════════════
+describe('[S1][GAP] BUG-99 second commit path — the MANUAL form picker also selects rather than commits', () => {
+  beforeEach(() => {
+    router.setCachedRows([]);
+    router.setLiveResponse(newportGbResponse(), 'Newport');
+  });
+
+  /** Reaches the manual form's own CityPicker via the "+ Add new" affordance. */
+  async function openFormPicker() {
+    renderAddPlaceFlow({ tripCountries: [{ country_code: 'GB', name: 'United Kingdom' }] });
+    const user = await typeQuery('Newport');
+    await user.click(await screen.findByText('+ Add new: "Newport"'));
+    // Guard: the form's place-level picker really is showing. Without this the
+    // assertions below could pass because nothing was ever pickable.
+    await screen.findByText(/Multiple places match/i, undefined, { timeout: 3000 });
+    return user;
+  }
+
+  it('clicking a candidate in the form picker writes nothing', async () => {
+    const user = await openFormPicker();
+
+    await user.click(
+      await screen.findByTestId('add-place-form-option-node-26700977', undefined, {
+        timeout: 3000,
+      }),
+    );
+    await waitMs(SETTLE_MS);
+
+    // GE-21: "choosing a result populates the form but writes nothing until
+    // the explicit Add."
+    expect(router.writePaths()).toEqual([]);
+  });
+
+  it('the explicit Add commits the pick, in order, once, carrying the dates set AFTER choosing', async () => {
+    const user = await openFormPicker();
+
+    await user.click(
+      await screen.findByTestId('add-place-form-option-node-26700977', undefined, {
+        timeout: 3000,
+      }),
+    );
+
+    // Dates set AFTER the pick — the sequence BUG-99 destroyed.
+    const dateInputs = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+    );
+    expect(dateInputs).toHaveLength(2);
+    await user.type(dateInputs[0], '2026-05-02');
+    await user.type(dateInputs[1], '2026-05-06');
+
+    await user.click(screen.getByRole('button', { name: /Add City & Place/i }));
+
+    await waitFor(() => expect(router.countCalls('/api/trips/1/places', 'POST')).toBe(1));
+    expect(router.writePaths()).toEqual(['/api/cities', '/api/trips/1/places']);
+
+    // The pick's carried identity survives the deferral to the explicit Add.
+    expect(router.bodiesFor('/api/cities')[0]).toMatchObject({
+      name: 'Newport',
+      country_code: 'GB',
+      osm_type: 'node',
+      osm_id: 26700977,
+    });
+    // GE-21: "the place saved carries the dates the user set after choosing."
+    expect(router.bodiesFor('/api/trips/1/places')[0]).toMatchObject({
+      city_id: 5001,
+      arrived_on: '2026-05-02',
+      departed_on: '2026-05-06',
+    });
+  });
+
+  it('the guard still blocks a commit while the form picker shows and nothing is picked', async () => {
+    const user = await openFormPicker();
+
+    await user.click(screen.getByRole('button', { name: /Add City & Place/i }));
+    await waitMs(SETTLE_MS);
+
+    // §3a: no guessed plain-name row. This is BUG-98's mechanism on this exact
+    // surface, and it must survive the D7 conversion above.
+    expect(router.writePaths()).toEqual([]);
   });
 });

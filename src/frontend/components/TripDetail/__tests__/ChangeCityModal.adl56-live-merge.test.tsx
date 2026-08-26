@@ -88,7 +88,7 @@ async function typeQuery(text: string) {
 // ═════════════════════════════════════════════════════════════════════════════
 // RED-BAR (Slice 1) — ADL-56 §10 test 13 (D8/N6).
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 13 — the correction surface fires the live merge too (the B1 hole is closed here, not only in AddPlaceFlow)', () => {
+describe('[S1][RED-BAR] ADL-56 test 13 — the correction surface fires the live merge too (the B1 hole is closed here, not only in AddPlaceFlow)', () => {
   beforeEach(() => {
     router.setCachedRows([CACHED_NEWPORT_OREGON]);
     router.setLiveResponse(newportUsResponse(), 'Newport');
@@ -133,7 +133,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 13 — the correction surface fires the
 // trivially true while zero live candidates appear, so each test first asserts
 // that a NON-duplicate live candidate is rendered.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 4 — identity dedup holds on the correction surface (ChangeCityModal)', () => {
+describe('[S1][RED-BAR] ADL-56 test 4 — identity dedup holds on the correction surface (ChangeCityModal)', () => {
   beforeEach(() => {
     router.setCachedRows([CACHED_NEWPORT_OREGON]);
     router.setLiveResponse(newportUsResponse(), 'Newport');
@@ -183,7 +183,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 4 — identity dedup holds on the corre
 // as AddPlaceFlow's Melbourne save (§6a), on the surface whose entire job is to
 // CORRECT a wrong city.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 §3a/§12-Q5 — the correction surface never commits a guess while a choice is showing', () => {
+describe('[S1][RED-BAR] ADL-56 §3a/§12-Q5 — the correction surface never commits a guess while a choice is showing', () => {
   beforeEach(() => {
     router.setCachedRows([]);
     router.setLiveResponse(melbourneAuResponse(), 'Melbourne');

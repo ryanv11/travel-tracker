@@ -70,7 +70,7 @@ const US_AU_TRIP = [
 // ═════════════════════════════════════════════════════════════════════════════
 // RED-BAR (Slice 1) — ADL-56 §10 test 10 (D8/B1 trigger policy).
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 10 — the silent live lookup fires once per settled query', () => {
+describe('[S1][RED-BAR] ADL-56 test 10 — the silent live lookup fires once per settled query', () => {
   beforeEach(() => {
     router.setCachedRows([CACHED_NEWPORT_OREGON]);
     router.setLiveResponse(newportUsResponse(), 'Newport');
@@ -166,7 +166,7 @@ describe.skip('[S1][RED-BAR] ADL-56 test 10 — the silent live lookup fires onc
 // (`AddPlaceFlow.tsx:410`) with no keying at all — whichever promise resolves
 // last wins, which is the defect this pins.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 11 — a superseded live response never renders (last-query-wins)', () => {
+describe('[S1][RED-BAR] ADL-56 test 11 — a superseded live response never renders (last-query-wins)', () => {
   beforeEach(() => {
     router.setCachedRows([]);
     router.deferLiveFor('Newport');

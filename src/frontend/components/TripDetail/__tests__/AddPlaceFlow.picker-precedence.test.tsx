@@ -32,6 +32,27 @@ const mockCreateCity = vi.fn();
 
 // FIDELITY: mirror useCities' real export surface — lookupCityCountry is a plain
 // async function, the hooks return { mutateAsync/isPending/error }.
+// ADL-56 / GE-21 Slice 1: this suite predates the merged cached ∪ live surface
+// and mocks the hook layer wholesale, so it renders with no QueryClientProvider.
+// The live-lookup hook is therefore held IDLE here, deliberately: this file's
+// subject is the new-city form / region narrowing, and the merged surface has
+// its own suites at the apiClient boundary (AddPlaceFlow.adl56-*.test.tsx,
+// ChangeCityModal.adl56-live-merge.test.tsx) where the real hook runs. Holding
+// it idle also keeps any lookupCityCountry call-count assertion in this file
+// measuring only the lookup this suite is actually about.
+vi.mock('../../../hooks/useLiveCityLookup', () => ({
+  LIVE_LOOKUP_MODE: 'auto',
+  useLiveCityLookup: () => ({
+    candidates: [],
+    countryCode: null,
+    regionIso: null,
+    truncated: false,
+    failed: false,
+    pending: false,
+    settled: false,
+  }),
+}));
+
 vi.mock('../../../hooks/useCities', () => ({
   lookupCityCountry: (cityName: string) => mockLookupCityCountry(cityName),
   useCitySearch: () => ({ data: [], isLoading: false }),
@@ -155,6 +176,14 @@ describe('AC-1 spanning-region — the picker fires, the region <select> does NO
 
     const iow = await screen.findByText(/Newport, Isle of Wight/i, {}, { timeout: 2000 });
     await user.click(iow);
+
+    // ADL-56 D7 / GE-21 (BRD v3.22), 2026-08-26: the pick SELECTS; the
+    // explicit control commits. This suite's subject is the identity CARRY
+    // (that an England pick sends England's osm_id and region, never Wales'),
+    // which is asserted unchanged below — only the step that triggers the
+    // write moved, from the row's onClick to the explicit Add.
+    expect(mockCreateCity).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /Add City & Place/i }));
 
     await waitFor(() => expect(mockCreateCity).toHaveBeenCalled());
     const body = mockCreateCity.mock.calls[0][0];

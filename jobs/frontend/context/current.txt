@@ -1527,3 +1527,142 @@ what round 2 actually was. Full frontend suite 408/408 green (+5), backend
 before), type:check:all clean, biome check exit 0 (same 5 pre-existing
 infos), status/tracker/scope:check all PASS. See completion report for PR
 number.
+
+═══════════════════════════════════════════════════════════════════════════
+2026-08-26 — ADL-56 / GE-21 SLICE 1 (FRONTEND) — BUG-97/98/99/73 + UX-13
+Branch feat/adl56-slice1-frontend. Issues #536 / #538. BRD GE-21 (v3.22).
+═══════════════════════════════════════════════════════════════════════════
+ATDD-first: the red bar (PR #540) was already merged; this thread made it
+green without touching an assertion. All 37 [S1][RED-BAR] tests across the
+four frontend ADL-56 suites are un-skipped and green; the [S1][GUARD] block
+and the [INTERIM] Slice-1->2 tripwire stayed green; the [S2] describe stays
+skipped. Frontend 462 passed / 4 skipped (was 425/41).
+
+WHAT WAS BUILT
+- NEW hooks/useLiveCityLookup.ts — the live geocode lookup as a React-Query
+  hook keyed by (settledQuery, countrySet), and THE single policy point
+  (ADL-56 §3b item 7) with a LIVE_LOOKUP_MODE 'auto'|'manual' rollback seam.
+  Keying gives last-query-wins staleness, per-query coalescing and
+  abort-by-irrelevance for free — main had an unkeyed
+  lookupCityCountry(...).then() where whichever promise resolved last won.
+  IMPORTANT: cache state is NOT an input to this hook, by construction —
+  that is the B1 correction. Any future "the cache answered, skip the
+  lookup" gate re-creates BUG-97.
+- NEW utils/mergeLiveCandidates.ts — §5 P2 identity dedup, shared by both
+  surfaces. Keys on the (osm_type, osm_id) PAIR, never on name text (name
+  matching would re-open B2). NULL-osm cached rows (the §2 H1 population)
+  cannot collapse their live twin and both are shown — the accept-and-
+  self-heal disposition, deliberately not the best-effort name collapse.
+- AddPlaceFlow: merged cached-∪-live surface; D7 select≠commit with a held
+  selection and ONE explicit add-place-commit control; D5 S2/S4/S5 states;
+  NB-1 in-flight cue; N3 identity invalidation; UX-13 folded in.
+- ChangeCityModal: same merge + dedup + anti-silent-commit guard (N6/Q5).
+  No dates/held-selection restructure — a re-point has no dates.
+- CityPicker gained testIdPrefix/selectedKey. ONE picker component, now
+  three call sites — no fork (BUG-75/UX-12 AC-9 preserved).
+
+THREE THINGS A FUTURE READER SHOULD NOT "SIMPLIFY"
+1. The NB-1 cue is gated on `live.pending && !searching`. Not cosmetic: the
+   cue claims "more is still coming", which is only true/meaningful once
+   the saved list it augments is on screen, and the click-too-early race it
+   warns about cannot occur while nothing is clickable yet. Removing
+   `!searching` makes NB-1's non-blocking test red for a genuine reason.
+2. handleCommit awaits fetchCountryRegions() rather than reading the
+   useCountryRegions hook. The held candidate's country is only known once
+   the user picks, so the hook may not have fetched it — racing it silently
+   drops the region, which is BUG-98's symptom exactly.
+3. N3 DEGRADES a held live selection to 'plain' rather than clearing it.
+   The safety property (the osm_id can never ride under a new country/name)
+   is identical; the user's typing survives; the surface is still on screen
+   so the choice is re-offered. Clearing outright would also pass the tests
+   and be worse UX.
+
+VERIFIED BY PROBE, NOT ASSUMED (each guard neutralised, suite re-run)
+- N3: neutralising invalidateHeldIdentity turns tests 12.2 and 12.3 red.
+  Test 12.1 is VACUOUS as QA predicted — it passes either way, because the
+  merged surface stays rendered while a selection is held. 12.2/12.3 carry
+  the real assertion.
+- ChangeCityModal guard: forcing pickerAwaitingChoice=false turns the
+  §3a/§12-Q5 test red.
+- AddPlaceFlow guard: NOT carried by the disabled attribute alone —
+  handleCommit's own `if (!heldSelection) return` is the behavioural guard,
+  so removing `disabled` leaves test 9.1 green. Both are deliberate.
+
+DELIBERATE SCOPE BOUNDARIES (see completion report for the full argument)
+- The MANUAL "+ Add new" form's CityPicker still commits on the pick. Its
+  date fields are reachable BEFORE the pick, so BUG-99's defect (dates
+  structurally unreachable) does not exist there. It did get the §3a guard
+  and the UX-13 name invalidation. Changing its pick semantics would have
+  meant rewriting two green BUG-75/UX-12 suites for no BRD-demanded gain.
+- Clicking "+ Add new" fires a SECOND geocode call for the same name (the
+  form runs its own lookupCityCountry). Bounded — one extra call, only on
+  an explicit click — and left alone rather than rewiring a function six
+  regression suites depend on.
+
+TESTS TOUCHED THAT ARE NOT MINE (both declared, neither weakened)
+- Nine legacy suites gained a vi.mock holding useLiveCityLookup IDLE. They
+  mock the hook layer wholesale and render with no QueryClientProvider, so
+  the real hook crashes there; holding it idle also keeps
+  geocodeFailure's lookupCityCountry call-COUNT assertion honest.
+- ge20-country-filter: three copy assertions moved from "No matches in X."
+  to "No saved places match in X." — D5/S2 requires the cache-empty state
+  be scoped to SAVED places, and the old line asserted an absence the
+  catalogue cannot know. The behaviour that test owns is unchanged.
+
+--- 2026-08-26 (later) — COO RULING: deviation 1 overturned, manual-form
+--- picker CONVERTED to select≠commit. Merged onto main (backend #542 in).
+My "BUG-99's defect doesn't exist on the manual form because its dates are
+reachable" premise was WRONG, and the COO corrected it with the tracker text.
+BUG-99's title is "picking a result from EITHER picker commits immediately";
+its note says "confirmed on BOTH add-place pickers" and names the second path
+by symbol — handleSelectPickerCandidate ~:362 -> handleSelectCity ~:289, which
+IS the manual form's picker. It also says the commit bypasses the date fields
+"shown in the same view" — so same-view reachability was never the exemption I
+read it as. The defect is that PICKING COMMITS, which destroys the natural
+order (choose city, then set dates). GE-21 states it flatly: "choosing a result
+populates the form but writes nothing until the explicit Add."
+LESSON FOR NEXT TIME: I derived a scope boundary from my own reading of what a
+bug "really" was instead of reading the tracker note. The note was one grep
+away and it named the exact symbol I was excluding.
+
+WHAT CHANGED
+- handleSelectPickerCandidate now HOLDS the candidate (formHeldCandidate) and
+  writes nothing; handleCreateCity is the only writer on that screen and
+  carries the held candidate's identity through the same shared
+  buildCreateCityDataFromCandidate. Identity-carry logic is byte-identical —
+  only the moment it runs moved.
+- pickerAwaitingChoice now also clears on a held candidate (holding IS the
+  explicit choice the guard waits for).
+- formHeldCandidate is invalidated by: name edit (UX-13/N3), country change,
+  "none of these", and any re-run of handleOpenNewCityForm.
+- CityPicker on that screen gained testIdPrefix="add-place-form-option" and
+  selectedKey, plus a "Selected — set dates below…" line so the screen doesn't
+  look inert after a click.
+
+NEW ACCEPTANCE BLOCK: [S1][GAP] in AddPlaceFlow.adl56-select-not-commit.test.tsx
+(3 tests) — pick writes nothing / explicit Add commits in order once carrying
+dates set AFTER choosing / the §3a guard still blocks with nothing picked.
+Assertions derived from GE-21's criteria, not from the implementation.
+PROVEN RED by reverting the conversion:
+  AssertionError: expected [ Array(2) ] to deeply equal []
+    - []  + [ "/api/cities", "/api/trips/1/places" ]
+  AssertionError: expected [] to have a length of 2 but got +0
+The guard test stays GREEN under the revert — correct, it pins a different rule.
+
+TWO EXISTING SUITES UPDATED (subject preserved, nothing weakened): the identity
+-carry tests in city-picker + picker-precedence now click "Add City & Place"
+between the pick and the payload assertion. Their subject is the identity CARRY
+(England's osm_id/region, never Wales'), asserted unchanged; write TIMING was
+incidental. Both now additionally assert mockCreateCity NOT called on the pick,
+so they got stronger.
+
+INTEGRATION (first contact with the real backend contract, #542 merged):
+repositories/cities.ts:156-157 returns osm_type/osm_id snake_case nullable —
+exactly what types/api.ts City and osmIdentityKey read. No disagreement.
+Frontend 472 passed | 4 skipped. Backend 887 | 4. E2E 53/53 local. All gates PASS.
+
+STILL DELIBERATELY UNCONVERTED (unchanged, and I believe correctly so):
+ChangeCityModal's pickers commit on the pick. ADL-56 §12-Q5 scopes that surface
+to guard + P2 + live merge and explicitly excludes a held-selection/dates
+restructure — a re-point has no dates and no "Add", so GE-21's "populates the
+form … until the explicit Add" has no referent there. Flagged for COO confirm.

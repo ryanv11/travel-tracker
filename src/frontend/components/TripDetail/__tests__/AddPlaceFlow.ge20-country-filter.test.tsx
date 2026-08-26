@@ -33,6 +33,27 @@ import { AddPlaceFlow } from '../AddPlaceFlow';
 const mockUseCitySearch = vi.fn();
 const mockLookupCityCountry = vi.fn();
 
+// ADL-56 / GE-21 Slice 1: this suite predates the merged cached ∪ live surface
+// and mocks the hook layer wholesale, so it renders with no QueryClientProvider.
+// The live-lookup hook is therefore held IDLE here, deliberately: this file's
+// subject is the new-city form / region narrowing, and the merged surface has
+// its own suites at the apiClient boundary (AddPlaceFlow.adl56-*.test.tsx,
+// ChangeCityModal.adl56-live-merge.test.tsx) where the real hook runs. Holding
+// it idle also keeps any lookupCityCountry call-count assertion in this file
+// measuring only the lookup this suite is actually about.
+vi.mock('../../../hooks/useLiveCityLookup', () => ({
+  LIVE_LOOKUP_MODE: 'auto',
+  useLiveCityLookup: () => ({
+    candidates: [],
+    countryCode: null,
+    regionIso: null,
+    truncated: false,
+    failed: false,
+    pending: false,
+    settled: false,
+  }),
+}));
+
 vi.mock('../../../hooks/useCities', () => ({
   useCitySearch: (query: string, countryCodes: string[]) => mockUseCitySearch(query, countryCodes),
   lookupCityCountry: (cityName: string, countryCodes: string[]) =>
@@ -175,8 +196,14 @@ describe('AddPlaceFlow — GE-20 country filter', () => {
 
     await typeQuery(user, 'boston');
 
+    // ADL-56 D5/S2 (BUG-73, PR for #536/#538): this line used to read "No
+    // matches in United Kingdom." — an absolute claim the CATALOGUE cannot
+    // make, and one the live lookup may be about to contradict. D5 requires the
+    // cache-empty state to be scoped to SAVED places. The assertion this test
+    // actually owns is unchanged: the state names the trip's countries and
+    // offers the widen-countries path.
     await waitFor(() => {
-      expect(screen.getByText(/No matches in United Kingdom\./)).toBeInTheDocument();
+      expect(screen.getByText(/No saved places match in United Kingdom\./)).toBeInTheDocument();
     });
     // "+ Add new" stays available — a genuinely new in-set city is still addable.
     expect(screen.getByText('+ Add new: "boston"')).toBeInTheDocument();
@@ -191,7 +218,8 @@ describe('AddPlaceFlow — GE-20 country filter', () => {
     );
 
     await typeQuery(user, 'boston');
-    await screen.findByText(/No matches in United Kingdom\./);
+    // ADL-56 D5/S2 copy change — see the test above.
+    await screen.findByText(/No saved places match in United Kingdom\./);
 
     await user.click(screen.getByRole('button', { name: 'Add a different country to this trip' }));
 
@@ -205,6 +233,6 @@ describe('AddPlaceFlow — GE-20 country filter', () => {
 
     await typeQuery(user, 'boston');
 
-    expect(screen.queryByText(/No matches in/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No saved places match in/)).not.toBeInTheDocument();
   });
 });

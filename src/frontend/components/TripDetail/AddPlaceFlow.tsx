@@ -1,16 +1,52 @@
 /**
  * AddPlaceFlow — multi-step modal for adding a city to a trip.
  *
- * Step 1: city search (GET /api/cities?q=...) with debounce.
- * Step 2: select existing city or "Add new city" form.
- * Step 3: POST /api/trips/:tripId/places (with optional arrived_on / departed_on — UX-02).
+ * Step 1: the merged disambiguation surface — cached catalogue rows
+ *         (GET /api/cities?q=…, debounced) UNIONED with live geocode
+ *         candidates (GET /api/geocode, same settled query), deduped by
+ *         identity. Choosing anything SELECTS; it never writes.
+ * Step 2: optionally, the manual "+ Add new" form (country/region entry).
+ * Step 3: the single explicit "Add City & Place" control commits —
+ *         POST /api/cities (live/plain selections only) then
+ *         POST /api/trips/:tripId/places with the dates set AFTER choosing.
  * Step 4: check carry-forward candidates; open CarryForwardModal if any.
  *
- * Reference: spec §6.3 (Add Place flow), AC-07.
+ * Reference: spec §6.3 (Add Place flow), AC-07; ADL-56 / GE-21 (BRD v3.22).
+ *
+ * ── ADL-56 SLICE 1 (GE-21) — WHAT CHANGED AND WHY ────────────────────────────
+ * This surface accumulated nine PO-reported defects (BUG-71…BUG-99, UX-12/13)
+ * because two jobs were conflated: the catalogue was both a DEDUP mechanism
+ * (reuse a place already identified) and a SELECTION mechanism (decide which
+ * place an un-disambiguated name meant). ADL-56 splits them:
+ *
+ *   D1  The cache is shown, never preemptive. One surface unions cached rows
+ *       and live candidates; a place binds only by explicit selection.
+ *   D8  The live lookup fires automatically on the SETTLED query — and
+ *       critically, REGARDLESS of what the cache answered. A single cached
+ *       "Newport, Oregon" row carries zero information about whether other
+ *       Newports exist, so any "the cache answered confidently, skip the
+ *       lookup" gate re-creates BUG-97 (fresh-eyes finding B1). See
+ *       `hooks/useLiveCityLookup.ts` — the one policy point, and the rollback
+ *       seam.
+ *   D7  Select ≠ commit (BUG-99). On `main` the pick WAS the write, at three
+ *       call sites, so the optional date fields were structurally unreachable:
+ *       by the time the user could see them the place was already saved. A pick
+ *       now populates a HELD selection; one explicit control writes. The PO was
+ *       explicit that removing the button is not the fix — it stays, and
+ *       becomes the only writer.
+ *   N3  A held live selection carries an `osm_id`. Editing an identity-bearing
+ *       field afterwards (Country, or the city Name) drops that identity, so a
+ *       Wales `osm_id` can never be committed under a newly-chosen `FR` —
+ *       `createOrReuseCarriedCity` files the row under the CALLER-supplied
+ *       country, which would produce a Welsh place in France. Also closes
+ *       UX-13 on the manual form below.
+ *   D5  cache-empty ≠ live-empty ≠ live-failed (BUG-73). Three states that were
+ *       one line of copy; the cache-empty message may never imply the place
+ *       does not exist, because a live augment may still be in flight.
  */
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useCountries, useCountryRegions } from '../../hooks/useAdmin';
+import { fetchCountryRegions, useCountries, useCountryRegions } from '../../hooks/useAdmin';
 import {
   type CreateCityData,
   lookupCityCountry,
@@ -18,6 +54,9 @@ import {
   useCitySearch,
   useCreateCity,
 } from '../../hooks/useCities';
+// ADL-56 §3b (D8/B1) — the live half of the merged surface, and the single
+// isolated policy point that decides when it fires (the rollback seam).
+import { useLiveCityLookup } from '../../hooks/useLiveCityLookup';
 import { useAddPlace } from '../../hooks/usePlaces';
 import type { City, GeocodeCandidate } from '../../types/api';
 // BUG-75/UX-12 (design §9/§6, review MAJOR-1/MINOR-1): the shared
@@ -35,6 +74,9 @@ import { formatCitySubtitle } from '../../utils/formatCitySubtitle';
 // GE-20 (BUG-87, ADL-54 D5/Q3): one shared formatter for the "filtered to"
 // note and the off-country empty-state's country list — see its doc comment.
 import { formatCountriesFilterNote } from '../../utils/formatCountriesFilterNote';
+// ADL-56 §5 P2 — reuse-first identity dedup of cached ∪ live, shared with
+// ChangeCityModal so the two surfaces cannot drift.
+import { dedupeLiveAgainstCached } from '../../utils/mergeLiveCandidates';
 import { capitalizeFirst } from '../../utils/textFormat';
 import { CarryForwardModal } from '../CarryForward/CarryForwardModal';
 import { CityPicker } from '../shared/CityPicker';
@@ -78,8 +120,36 @@ interface AddPlaceFlowProps {
   onManageCountries: () => void;
 }
 
-/** Debounce delay for city search (ms). */
+/** Debounce delay for city search (ms). ADL-56 §3b item 1: the live lookup
+ *  reuses this same settled value, so it is one call per typing pause, never
+ *  one per keystroke. */
 const DEBOUNCE_MS = 300;
+
+/**
+ * ADL-56 D7 — what the user has CHOSEN but not yet committed.
+ *
+ * The three kinds are the three binding paths §5 P3 defines, and they differ in
+ * what the explicit Add has to do:
+ *   • `cached` — a catalogue row. Reused BY `id`; no city is minted at all, so
+ *     this is the path that makes "always show the choice" dedup-safe.
+ *   • `live`   — a geocode candidate carrying `(osm_type, osm_id)`. The commit
+ *     creates-or-reuses by that identity (`createOrReuseCarriedCity`).
+ *   • `plain`  — "none of these — add as new". A creator-private plain-name
+ *     pending row (GE-12/GE-16); the backend's GE-19 lifecycle re-derives it.
+ *     A held `live` selection DEGRADES to this when N3 invalidates its
+ *     identity, which is why it carries no fields of its own: the name and
+ *     country live in `selectionName`/`selectionCountryCode`, editable
+ *     throughout.
+ *
+ * `null` means no explicit choice has been made — and per §3a's
+ * anti-silent-commit guard that is exactly when the commit control must not
+ * write. That is the Melbourne bug (BUG-98): a picker was showing, the PO chose
+ * neither option, and the form's own submit saved a region-null guess anyway.
+ */
+type HeldSelection =
+  | { kind: 'cached'; city: City }
+  | { kind: 'live'; candidate: GeocodeCandidate }
+  | { kind: 'plain' };
 
 /**
  * Renders the multi-step Add Place modal. Handles city search, city creation,
@@ -173,6 +243,31 @@ export function AddPlaceFlow({
   // unpopulated, same as before). Never blocks the form; manual entry stays
   // available in every case (GE-15/GE-16 contract).
   const [geocodeLookupFailed, setGeocodeLookupFailed] = useState(false);
+  // ADL-56 D7 — the held selection, and the name/country it carries. Kept
+  // separate from the manual form's own newCityName/newCityCountryCode: only
+  // one of the two screens renders at a time, and entangling them would mean a
+  // `handleOpenNewCityForm` reset silently clearing a selection made on the
+  // other screen.
+  const [heldSelection, setHeldSelection] = useState<HeldSelection | null>(null);
+  const [selectionName, setSelectionName] = useState('');
+  const [selectionCountryCode, setSelectionCountryCode] = useState('');
+  // UX-13 / N3 on the MANUAL form: the City Name input stays editable while the
+  // place picker is showing, but nothing watched it — so an edited name was
+  // submitted with the OLD candidate's osm_id. True once the name has been
+  // edited since the lookup that produced the current candidates, which
+  // withdraws those candidates (they describe a different name) and offers a
+  // re-check instead.
+  const [nameEditedSinceLookup, setNameEditedSinceLookup] = useState(false);
+  // ADL-56 §3a escape hatch, manual-form half: an explicit "none of these — add
+  // as new" IS a selection, so it satisfies the anti-silent-commit guard. Reset
+  // whenever a new lookup runs.
+  const [addAsNewChosen, setAddAsNewChosen] = useState(false);
+  // D7 (BUG-99), manual-form half: the candidate picked from the form's own
+  // CityPicker, HELD rather than committed. Distinct state from the merged
+  // surface's `heldSelection` because the two screens hold different things —
+  // this one always resolves to a create (the form has no cached-row branch)
+  // and its name/country/region come from the form's own fields.
+  const [formHeldCandidate, setFormHeldCandidate] = useState<GeocodeCandidate | null>(null);
   const [addedPlaceId, setAddedPlaceId] = useState<number | null>(null);
   const [addedCityId, setAddedCityId] = useState<number | null>(null);
   const [showCarryForward, setShowCarryForward] = useState(false);
@@ -205,6 +300,17 @@ export function AddPlaceFlow({
     debouncedQuery,
     countryCodes,
   );
+  // ADL-56 §3b (D8/B1) — the live half of the merged surface. Fires on the SAME
+  // settled query the catalogue search uses, and nothing about `searchResults`
+  // is an input to it: a confident cache hit must never suppress the lookup,
+  // which is the entire B1 correction (see the hook's doc comment).
+  const live = useLiveCityLookup(debouncedQuery, countryCodes);
+
+  // §5 P2 — a live candidate that IS a shown cached row (same `(osm_type,
+  // osm_id)`) is represented once, as the cached row, so picking it reuses by
+  // `id` and mints nothing.
+  const mergedLiveCandidates = dedupeLiveAgainstCached(searchResults, live.candidates);
+
   const { data: countries = [] } = useCountries();
 
   // Derive the selected country's tier config to conditionally show region dropdown
@@ -332,14 +438,123 @@ export function AddPlaceFlow({
     }
   };
 
-  const handleCreateCity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCityName.trim() || !newCityCountryCode) return;
-    const data: CreateCityData = {
-      name: newCityName.trim(),
-      country_code: newCityCountryCode,
-      region_id: newCityRegionId ?? undefined,
-    };
+  // ───────────────────────────────────────────────────────────────────────────
+  // ADL-56 D7 — select ≠ commit. Everything below SELECTS; only handleCommit
+  // writes.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** A catalogue row: reused by `id` at commit, so no city is ever minted. */
+  const handleSelectCachedRow = (city: City) => {
+    setDateValidationError(null);
+    setHeldSelection({ kind: 'cached', city });
+  };
+
+  /** A live candidate: its `(osm_type, osm_id)` is carried to the commit. */
+  const handleSelectLiveCandidate = (candidate: GeocodeCandidate) => {
+    setDateValidationError(null);
+    setSelectionName(capitalizeFirst(query.trim()));
+    setSelectionCountryCode(candidate.country_code ?? live.countryCode ?? '');
+    setHeldSelection({ kind: 'live', candidate });
+  };
+
+  /**
+   * §3a's escape hatch — "none of these — add as new". Itself an explicit
+   * selection, which is what stops the anti-silent-commit guard from ever
+   * trapping the user: there is always a way forward that is a CHOICE rather
+   * than a guess.
+   */
+  const handleSelectAddAsNew = () => {
+    setDateValidationError(null);
+    setSelectionName(capitalizeFirst(query.trim()));
+    setSelectionCountryCode(live.countryCode ?? '');
+    setHeldSelection({ kind: 'plain' });
+  };
+
+  /**
+   * N3 — an edit to an identity-bearing field invalidates a held LIVE
+   * selection's identity.
+   *
+   * It degrades to `plain` rather than clearing outright: the surface is still
+   * on screen (so the choice is re-offered, which is what §3a asks for), the
+   * user's typing is not thrown away, and — the actual safety property — the
+   * candidate's `osm_id` can no longer reach `createCity` under a country or
+   * name it does not belong to. A plain-name create is the low-harm outcome
+   * §3a/N4 already sanctions: the backend re-derives identity through the GE-19
+   * lifecycle instead of binding a wrong real place.
+   */
+  const invalidateHeldIdentity = () => {
+    setHeldSelection((prev) => (prev?.kind === 'live' ? { kind: 'plain' } : prev));
+  };
+
+  /**
+   * §3a anti-silent-commit guard, scoped by N4 to PLACE-level ambiguity only.
+   *
+   * It covers the `CityPicker` (≥2 distinct real places), where committing
+   * without a pick would silently bind the WRONG REAL PLACE. It deliberately
+   * does NOT cover the region-narrowing `<select>`: committing there writes a
+   * region-null pending row, which the backend re-derives through the GE-19
+   * lifecycle and a later resolve backfills — a self-healing, lower-harm
+   * outcome, and region is explicitly optional in this UI.
+   */
+  const pickerAwaitingChoice =
+    placePickerCandidates !== null &&
+    placePickerCandidates.length > 1 &&
+    !addAsNewChosen &&
+    // D7: holding a picked candidate IS the explicit choice the guard waits
+    // for — the guard blocks a commit with NOTHING chosen, not a commit that
+    // has not yet happened.
+    formHeldCandidate === null;
+
+  /** §3a — a bare commit with a choice shown and nothing chosen is not a valid action. */
+  const canCommit =
+    heldSelection !== null &&
+    (heldSelection.kind === 'cached' ||
+      (selectionName.trim() !== '' && selectionCountryCode !== ''));
+
+  /**
+   * THE only write on this surface (D7). Resolves the held selection to a city
+   * — reuse by `id`, or create-by-identity, or create-by-name — and then adds
+   * the place with the dates as they stand NOW, which is the whole point:
+   * BUG-99 committed on the pick, before the user could reach the date fields.
+   */
+  const handleCommit = async () => {
+    if (!heldSelection) return;
+    setDateValidationError(null);
+    if (arrivedOn && departedOn && arrivedOn > departedOn) {
+      setDateValidationError('Arrival date cannot be after departure date.');
+      return;
+    }
+
+    if (heldSelection.kind === 'cached') {
+      await handleSelectCity(heldSelection.city);
+      return;
+    }
+
+    const name = selectionName.trim();
+    if (!name || !selectionCountryCode) return;
+
+    let data: CreateCityData | null;
+    if (heldSelection.kind === 'live') {
+      // The region is derived from the PICK's own region_iso via the seeded
+      // map (the shared mapping, unchanged) — never from a form selector that
+      // may disagree with the pick. Awaited rather than read from the
+      // `useCountryRegions` hook because the held candidate's country is only
+      // known once the user picks, so that hook may not have fetched it yet;
+      // racing it would silently drop the region (BUG-98's symptom).
+      const regions = await fetchCountryRegions(selectionCountryCode);
+      data = buildCreateCityDataFromCandidate(
+        heldSelection.candidate,
+        name,
+        regions,
+        selectionCountryCode,
+      );
+    } else {
+      // Plain-name create: carries no candidate identity by construction
+      // (§3 P3, third branch).
+      data = { name, country_code: selectionCountryCode };
+    }
+    if (!data) return;
+
     try {
       const city = await createCity.mutateAsync(data);
       await handleSelectCity(city);
@@ -348,28 +563,34 @@ export function AddPlaceFlow({
     }
   };
 
-  /**
-   * BUG-75/UX-12 (v3 §1.3/§B4) — the shared CityPicker's onSelect target.
-   * Carries the chosen candidate's identity ({osm_type, osm_id,
-   * display_name}) into POST /api/cities, plus region_id DERIVED FROM the
-   * pick's region_iso via the seeded region map (same pattern as the UX-04
-   * auto-select effect below) — never the stale form-selector value (v3
-   * §B4's confirmed problem: a pick submitted with the selector's leftover
-   * region_id can disagree with the pick's own region). Respects the
-   * incomplete-seed fallback: a region_iso with no seeded row leaves
-   * region_id undefined rather than inventing one.
-   */
-  const handleSelectPickerCandidate = async (candidate: GeocodeCandidate) => {
-    if (!newCityName.trim()) return;
-    // BUG-75/UX-12 (review MAJOR-1): the identity-carry mapping now lives in
-    // exactly one place, shared with ChangeCityModal — see the module doc
-    // comment on buildCreateCityDataFromCandidate.ts.
-    const data = buildCreateCityDataFromCandidate(
-      candidate,
-      newCityName.trim(),
-      countryRegions,
-      newCityCountryCode,
-    );
+  const handleCreateCity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCityName.trim() || !newCityCountryCode) return;
+    // §3a anti-silent-commit guard, manual-form half. This is the exact path
+    // that produced BUG-98: the picker was advisory, and this submit wrote a
+    // region-null plain-name row for a place the user never chose. The button
+    // is also disabled, but the guard is repeated here so the behaviour does
+    // not depend on an affordance UX may restyle (D6 owns the affordance; the
+    // rule is the contract).
+    if (pickerAwaitingChoice) return;
+
+    // D7 — the second of BUG-99's two commit paths. When a picker candidate is
+    // held, THIS submit is what carries its identity into POST /api/cities;
+    // the pick itself wrote nothing. The identity-carry mapping is unchanged
+    // and still lives in exactly one place (review MAJOR-1) — only the moment
+    // it runs moved, from the row's onClick to here.
+    const data: CreateCityData | null = formHeldCandidate
+      ? buildCreateCityDataFromCandidate(
+          formHeldCandidate,
+          newCityName.trim(),
+          countryRegions,
+          newCityCountryCode,
+        )
+      : {
+          name: newCityName.trim(),
+          country_code: newCityCountryCode,
+          region_id: newCityRegionId ?? undefined,
+        };
     if (!data) return;
     try {
       const city = await createCity.mutateAsync(data);
@@ -378,6 +599,35 @@ export function AddPlaceFlow({
     } catch {
       /* shown via createCity.error — Retry button available (Class B, NR-06) */
     }
+  };
+
+  /**
+   * BUG-75/UX-12 (v3 §1.3/§B4) — the shared CityPicker's onSelect target.
+   *
+   * ── D7 (BUG-99), 2026-08-26: THIS PICK NO LONGER COMMITS ─────────────────
+   * It used to run `createCity` then `handleSelectCity` → `addPlace` inline,
+   * which is the SECOND of the two commit paths BUG-99 names by symbol
+   * ("picking a result from EITHER picker … the cached search dropdown OR the
+   * disambiguation list (handleSelectPickerCandidate ~:362 → handleSelectCity
+   * ~:289) … COMMITS the place, bypassing the 'Optional: set arrival/departure
+   * dates' fields shown in the same view"). The defect was never that the
+   * dates were unreachable — they are in this same view — but that picking
+   * commits, which destroys the natural order: choose the city, THEN set the
+   * dates. GE-21 states it directly: "choosing a result populates the form but
+   * writes nothing until the explicit Add."
+   *
+   * So the pick now HOLDS the candidate and populates; `handleCreateCity`
+   * above is the only writer, exactly as on the merged surface. The carried
+   * identity is unchanged — `buildCreateCityDataFromCandidate` still derives
+   * `region_id` from the PICK's own `region_iso` via the seeded region map
+   * (never the stale form-selector value, v3 §B4's confirmed problem), and an
+   * unseeded `region_iso` still leaves `region_id` undefined rather than
+   * inventing one.
+   */
+  const handleSelectPickerCandidate = (candidate: GeocodeCandidate) => {
+    if (!newCityName.trim()) return;
+    setFormHeldCandidate(candidate);
+    setDateValidationError(null);
   };
 
   // UX-04: auto-select region once both ISO code and regions list are available
@@ -402,6 +652,11 @@ export function AddPlaceFlow({
     setLookupTruncated(false);
     setGeocodeLookupFailed(false);
     setCreationStatusMessage(null);
+    // UX-13 / §3a: this lookup describes the name as it is NOW, and no explicit
+    // add-as-new choice has been made against its results yet.
+    setNameEditedSinceLookup(false);
+    setAddAsNewChosen(false);
+    setFormHeldCandidate(null);
     if (cityName.trim().length >= 2) {
       setCountryLookupPending(true);
       // GE-20: same country_codes filter as the search above, so the
@@ -573,7 +828,13 @@ export function AddPlaceFlow({
             className={inputClass}
             placeholder="Search city name…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              // A held selection belongs to the query it was chosen from —
+              // changing the query abandons it rather than letting a stale
+              // choice ride into the commit.
+              setHeldSelection(null);
+            }}
             autoFocus
           />
 
@@ -581,19 +842,48 @@ export function AddPlaceFlow({
             <div className="py-2 text-xs text-gray-500">Searching…</div>
           )}
 
+          {/* ADL-56 D1/D8 — THE MERGED SURFACE. Saved catalogue rows and live
+              lookup candidates in one list, deduped by identity, binding
+              nothing. Ordering and the saved-vs-online treatment are UX's
+              under D6; what is fixed here is that both halves are present and
+              neither is chosen for the user. */}
           {debouncedQuery.length >= 2 && (
             <div className="border border-gray-200 rounded-md mt-2 overflow-hidden">
-              {/* GE-20 (ADL-54 D4a/Q2): a filtered search that came back empty
-                  gets a static, non-blank explanation naming the trip's
-                  countries and a discoverable path to widen them — never a
-                  silent empty list. "+ Add new" below stays available
-                  regardless (a genuinely new in-set city is still addable
-                  this way — this message can't tell "not in the catalogue
-                  yet" apart from "genuinely outside the trip's countries",
-                  so it informs without blocking). */}
+              {/* NB-1 (PO, 2026-08-26; a GE-21 success criterion): an in-flight
+                  live lookup is VISIBLY INDICATED but never blocks. It exists
+                  to warn about the race where a fast click binds the cached row
+                  a moment before the alternatives land — warning about that
+                  race must not become forbidding the interaction, so nothing
+                  below is disabled while this shows.
+
+                  `!searching` is part of the condition, not decoration: the cue
+                  says "there is MORE still coming", which is only a meaningful
+                  (or true) claim once the saved list it augments is on screen.
+                  While the catalogue search is itself in flight the surface
+                  already shows its own "Searching…", and the click-too-early
+                  race NB-1 warns about cannot occur yet — there is nothing
+                  clickable to bind. */}
+              {live.pending && !searching && (
+                <div
+                  data-testid="add-place-live-inflight"
+                  className="px-3 py-2 text-xs text-gray-500 bg-gray-50 border-b border-gray-100"
+                >
+                  Looking online for more places…
+                </div>
+              )}
+
+              {/* D5 S2 (BUG-73) — CACHE-EMPTY, and scoped to SAVED places. The
+                  old copy ("No matches in X.") asserted the place does not
+                  exist, which the catalogue cannot know and which the live
+                  lookup may be about to contradict. GE-20 (ADL-54 D4a/Q2): the
+                  countries are still named and the widen-countries path is
+                  still offered. */}
               {!searching && searchResults.length === 0 && tripCountries.length > 0 && (
-                <div className="px-3 py-2.5 text-xs text-gray-600 bg-gray-50 border-b border-gray-100">
-                  No matches in {formatCountriesFilterNote(tripCountries)}.{' '}
+                <div
+                  data-testid="add-place-state-cache-empty"
+                  className="px-3 py-2.5 text-xs text-gray-600 bg-gray-50 border-b border-gray-100"
+                >
+                  No saved places match in {formatCountriesFilterNote(tripCountries)}.{' '}
                   <button
                     type="button"
                     onClick={onManageCountries}
@@ -603,24 +893,155 @@ export function AddPlaceFlow({
                   </button>
                 </div>
               )}
+
+              {/* Saved rows. A click SELECTS (D7) — on `main` this line was
+                  `void handleSelectCity(city)`, i.e. the click posted the
+                  place, which is BUG-99 in one statement. */}
               {searchResults.map((city) => (
                 <div
                   key={city.id}
                   data-testid={`city-search-result-${city.id}`}
-                  className="px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm hover:bg-gray-50"
-                  onClick={() => {
-                    void handleSelectCity(city);
-                  }}
+                  className={`px-3 py-2.5 cursor-pointer border-b border-gray-100 text-sm ${
+                    heldSelection?.kind === 'cached' && heldSelection.city.id === city.id
+                      ? 'bg-teal-50 font-semibold'
+                      : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => handleSelectCachedRow(city)}
                 >
                   {city.name}{' '}
                   <span className="text-gray-500">— {formatCitySubtitle(city, countries)}</span>
                 </div>
               ))}
+
+              {/* The live half, through the SAME shared CityPicker both
+                  disambiguation call sites already use (BUG-75/UX-12 put them
+                  on one component deliberately — a second picker here would
+                  re-open exactly the drift that decision closed). */}
+              {mergedLiveCandidates.length > 0 && (
+                <div className="border-b border-gray-100">
+                  <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    Found online
+                  </div>
+                  <div className="px-3 pb-2 pt-1">
+                    <CityPicker
+                      candidates={mergedLiveCandidates}
+                      onSelect={handleSelectLiveCandidate}
+                      truncated={live.truncated}
+                      testIdPrefix="add-place-live-option"
+                      selectedKey={
+                        heldSelection?.kind === 'live' && heldSelection.candidate.osm_type
+                          ? `${heldSelection.candidate.osm_type}:${heldSelection.candidate.osm_id}`
+                          : null
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* D5 S5 — LIVE-FAILED. Distinct from S4 because it leads
+                  somewhere else: "we couldn't look" invites a retry or manual
+                  entry, "we looked and found nothing" does not. Rendered even
+                  when saved rows are present (the B1 correction to §7: the live
+                  call now always fires, so its outcome layers on top of a cache
+                  hit rather than being skipped). */}
+              {live.settled && live.failed && (
+                <div
+                  data-testid="add-place-state-live-failed"
+                  className="px-3 py-2.5 text-xs text-amber-800 bg-amber-50 border-b border-gray-100"
+                >
+                  We couldn't look this name up online just now — you can still add it below and
+                  enter the details yourself.
+                </div>
+              )}
+
+              {/* D5 S4 — LIVE-EMPTY. The geocoder answered and genuinely found
+                  nothing; the plain-name create stays reachable. */}
+              {live.settled && !live.failed && live.candidates.length === 0 && (
+                <div
+                  data-testid="add-place-state-live-empty"
+                  className="px-3 py-2.5 text-xs text-gray-600 bg-gray-50 border-b border-gray-100"
+                >
+                  We looked online and found no match for "{query}" — you can still add it as a new
+                  place.
+                </div>
+              )}
+
+              {/* §3a's escape hatch. Always present, so the anti-silent-commit
+                  guard can never trap the user: this is a CHOICE, which is what
+                  distinguishes it from the bare submit BUG-98 allowed. */}
+              <div
+                data-testid="add-place-none-of-these"
+                className={`px-3 py-2.5 cursor-pointer text-sm border-b border-gray-100 ${
+                  heldSelection?.kind === 'plain'
+                    ? 'bg-teal-50 font-semibold text-teal-800'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+                onClick={handleSelectAddAsNew}
+              >
+                None of these — add "{query}" as a new place
+              </div>
+
               <div
                 className="px-3 py-2.5 cursor-pointer text-sm text-teal-600 font-semibold hover:bg-teal-50 border-b border-gray-100 last:border-b-0"
                 onClick={() => handleOpenNewCityForm(query)}
               >
                 + Add new: "{query}"
+              </div>
+            </div>
+          )}
+
+          {/* D7 — the held selection, populated and editable BEFORE anything is
+              written. A cached row's identity is fixed (it is already in the
+              catalogue), so it is shown as a summary; a live or plain-name
+              selection exposes the two identity-bearing fields N3 guards. */}
+          {heldSelection?.kind === 'cached' && (
+            <div className="mt-4 px-3 py-2.5 bg-teal-50 border border-teal-200 rounded-md text-sm text-teal-900">
+              Selected: {heldSelection.city.name} —{' '}
+              {formatCitySubtitle(heldSelection.city, countries)}
+            </div>
+          )}
+          {heldSelection && heldSelection.kind !== 'cached' && (
+            <div className="mt-4 px-3 py-3 bg-teal-50 border border-teal-200 rounded-md">
+              <p className="text-xs text-teal-900 mb-2.5">
+                {heldSelection.kind === 'live'
+                  ? 'Selected — check the details, set dates, then add it.'
+                  : 'Adding as a new place — check the details, set dates, then add it.'}
+              </p>
+              <div className="mb-3">
+                <label className={labelClass}>City Name</label>
+                <input
+                  data-testid="add-place-city-name-input"
+                  className={inputClass}
+                  value={selectionName}
+                  onChange={(e) => {
+                    setSelectionName(capitalizeFirst(e.target.value));
+                    // N3/UX-13 — the name is identity-bearing.
+                    invalidateHeldIdentity();
+                  }}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Country</label>
+                <select
+                  data-testid="add-place-country-select"
+                  className={inputClass}
+                  value={selectionCountryCode}
+                  onChange={(e) => {
+                    setSelectionCountryCode(e.target.value);
+                    // N3 — the country is identity-bearing, and this is the
+                    // dangerous one: `createOrReuseCarriedCity` stores the row
+                    // under the CALLER-supplied country, so a surviving Wales
+                    // osm_id under FR would file a Welsh place in France.
+                    invalidateHeldIdentity();
+                  }}
+                >
+                  <option value="">Select country…</option>
+                  {countries.map((c) => (
+                    <option key={c.country_code} value={c.country_code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
@@ -666,6 +1087,30 @@ export function AddPlaceFlow({
               </div>
             )}
           </div>
+
+          {/* D7 — THE single explicit commit. The PO was explicit that removing
+              this button is not the fix (that was BUG-91's mechanism, a
+              different bug): once picking no longer saves, this is the only way
+              to save and close. Inactive until an explicit choice exists, which
+              is §3a's anti-silent-commit guard stated at the write layer —
+              whether it reads as disabled or merely inert is UX's call (D6);
+              that it writes nothing is the contract. */}
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="button"
+              data-testid="add-place-commit"
+              disabled={!canCommit || createCity.isPending || addPlace.isPending}
+              onClick={() => {
+                void handleCommit();
+              }}
+              className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {createCity.isPending || addPlace.isPending ? 'Adding…' : 'Add City & Place'}
+            </button>
+            {!canCommit && debouncedQuery.length >= 2 && (
+              <span className="text-xs text-gray-500">Choose a place above to continue.</span>
+            )}
+          </div>
         </>
       ) : (
         <form
@@ -678,9 +1123,38 @@ export function AddPlaceFlow({
             <input
               className={inputClass}
               value={newCityName}
-              onChange={(e) => setNewCityName(capitalizeFirst(e.target.value))}
+              onChange={(e) => {
+                setNewCityName(capitalizeFirst(e.target.value));
+                // UX-13 (folded into ADL-56 N3 rather than patched separately —
+                // it is the same identity-invalidation rule on the same
+                // surface). This input was editable while the place picker was
+                // showing and NOTHING watched it, so an edited name was
+                // submitted carrying the previous name's candidate `osm_id`.
+                // The candidates describe the old name, so they are withdrawn
+                // and a re-check is offered instead of silently mismatching.
+                setNameEditedSinceLookup(true);
+                setPlacePickerCandidates(null);
+                setCandidateRegionIsos(null);
+                setAddAsNewChosen(false);
+                // D7/N3: a held candidate's identity belongs to the name it
+                // was chosen for. This is the very carry UX-13 reported —
+                // an edited name submitted with the old candidate's osm_id.
+                setFormHeldCandidate(null);
+              }}
               required
             />
+            {nameEditedSinceLookup && newCityName.trim().length >= 2 && (
+              <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-500">
+                <span>The name changed since the last lookup.</span>
+                <button
+                  type="button"
+                  onClick={() => handleOpenNewCityForm(newCityName)}
+                  className="shrink-0 text-teal-700 font-semibold underline hover:text-teal-800 cursor-pointer"
+                >
+                  Re-check "{newCityName.trim()}"
+                </button>
+              </div>
+            )}
           </div>
           <div className="mb-4">
             <label className={labelClass}>
@@ -708,6 +1182,11 @@ export function AddPlaceFlow({
                 // Same reasoning for the BUG-75 place-level picker — it was
                 // computed for the auto-detected country's candidates.
                 setPlacePickerCandidates(null);
+                // D7/N3: and so was any candidate held from it. Country is the
+                // most dangerous identity-bearing field — a surviving pick
+                // would file its place under the newly-chosen country.
+                setFormHeldCandidate(null);
+                setAddAsNewChosen(false);
                 // BUG-79: the truncation signal was computed for the
                 // auto-detected country's lookup — it says nothing about a
                 // country the user is now picking by hand.
@@ -769,12 +1248,45 @@ export function AddPlaceFlow({
               </label>
               <CityPicker
                 candidates={placePickerCandidates}
-                onSelect={(candidate) => {
-                  void handleSelectPickerCandidate(candidate);
-                }}
+                onSelect={handleSelectPickerCandidate}
                 truncated={lookupTruncated}
+                testIdPrefix="add-place-form-option"
+                selectedKey={
+                  formHeldCandidate?.osm_type
+                    ? `${formHeldCandidate.osm_type}:${formHeldCandidate.osm_id}`
+                    : null
+                }
                 disabled={createCity.isPending || addPlace.isPending}
               />
+              {/* §3a — the escape hatch that keeps the guard from trapping the
+                  user on this screen too. Choosing it IS a selection, so the
+                  submit below unblocks and writes a creator-private plain-name
+                  pending row (GE-12/GE-16) — never a guess at which of the
+                  shown places was meant. */}
+              <div
+                className={`mt-2 px-3 py-2 rounded-md border cursor-pointer text-sm ${
+                  addAsNewChosen
+                    ? 'bg-teal-50 border-teal-200 font-semibold text-teal-800'
+                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+                onClick={() => {
+                  setAddAsNewChosen(true);
+                  // Mutually exclusive with a held candidate — "none of these"
+                  // means none of these.
+                  setFormHeldCandidate(null);
+                }}
+              >
+                None of these — add "{newCityName}" as a new place
+              </div>
+              {/* D7 — the pick populates rather than saves, so the form must
+                  say what is now held and that the explicit control is what
+                  saves it. Without this the screen looks unchanged after a
+                  click, which reads as "nothing happened". */}
+              {formHeldCandidate && (
+                <p className="mt-2 text-xs text-teal-800">
+                  Selected — set dates below if you want them, then choose Add City &amp; Place.
+                </p>
+              )}
             </div>
           ) : (
             /* Region dropdown — shown only when country has region_tier_enabled */
@@ -891,8 +1403,8 @@ export function AddPlaceFlow({
             {/* NR-06 Class B: when there's an error, button becomes "Retry" affordance */}
             <button
               type="submit"
-              disabled={createCity.isPending || addPlace.isPending}
-              className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
+              disabled={createCity.isPending || addPlace.isPending || pickerAwaitingChoice}
+              className="px-4.5 py-2 bg-teal-600 text-white border-none rounded-md text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {createCity.isPending || addPlace.isPending
                 ? 'Adding…'
