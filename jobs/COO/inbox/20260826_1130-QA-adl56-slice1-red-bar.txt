@@ -1,0 +1,128 @@
+TO: COO
+FROM: QA
+DATE: 2026-08-26
+RE: ADL-56 / GE-21 Slice 1 red acceptance bar — COMPLETE
+
+Tracker: BUG-97 (home) / BUG-98 / BUG-99 / BUG-73 / GE-21 · BRD: GE-21 v3.22
+Issues: #536 #537 #538 · Branch: test/adl56-slice1-red-bar · PR: see below
+Detail: jobs/qa/tech/20260826-ADL56-slice1-red-bar.md (full red table, §3)
+Park:   jobs/qa/park-docs/20260826-QA-park.txt
+
+SCOPE TESTED — ADL-56 §10 tests 1,4,5,6,7,8,9,10,11,12,13 [S1] + GE-21 NB-1.
+Tests 2,3 authored as [S2]. Tests only; no production change was needed to make
+anything observable. 8 test files, 2 fixture modules, 3 raw Nominatim captures.
+
+VERDICT PER CRITERION — all [S1] blocks RED, each verified by running un-skipped
+throwaway *.redcheck copies (never mutating the committed file, never git stash).
+The sharpest observed behaviours:
+  t7  clicking a cached result POSTED the place immediately — "expected 1 to be
+      +0". BUG-99's mechanism, caught directly.
+  §12-Q5 in ChangeCityModal: picker showing, nothing picked, "Change City"
+      clicked → ['/api/cities','/api/trips/1/places/77']. It silently minted a
+      city and re-pointed the place, on the surface whose job is to CORRECT one.
+  t1/t10/t11/t13 all red on the same root fact: ZERO GET /api/geocode calls are
+      issued from either search step. The live lookup only fires on "+ Add new".
+  t5/§6b  region backfill absent at BOTH write sites — "expected null to be 1",
+      including the N5(b) case that separates a best.regionIso implementation
+      from a distinctRegionIsos(eligible) one.
+  t6  all three D5 states render the identical "No matches in United States."
+  t4  GET /api/cities returns 9 fields; neither osm field is among them.
+
+TWO HONEST QUALIFICATIONS (both recorded in the tech doc, not buried):
+  - t1's "nothing auto-bound" half is currently VACUOUS — nothing is bound
+    because nothing is surfaced. It is red on its precondition; the headline
+    half is a guard that must survive the build.
+  - t12 (N3) is red for the SAME reason as t8 (a pick IS the commit today), so
+    it adds no independent red evidence now. Its value is prospective. Each of
+    its tests carries an anti-vacuous guard so it cannot pass by the hold never
+    existing.
+
+COO ADDITION 1 (skipped S2 markers) — ADOPTED, AND ARGUED PAST.
+  .skip is genuinely this repo's convention (GE-19/ADL-55 bar, three files,
+  markers still in their headers). But it does NOT answer your actual concern:
+  vitest's default reporter prints only "41 skipped", never the names, so a
+  skipped marker is invisible on exactly the green board you are worried about.
+  So I did both. The [S2] specs are skipped and titled
+  "[S2][INTERIM — Slice 2 only]", AND I added two LIVE un-skipped INTERIM
+  TRIPWIRES (one per tree) that assert today's interim behaviour, pass now, and
+  go RED the moment Slice 2 lands — at which point closing them out requires
+  deleting the block, un-skipping its [S2] twin, and re-stamping the §10a / BRD
+  interim. A skipped marker records an intention; a green test that will break
+  creates an obligation. Both blocks carry that instruction inline.
+
+COO ADDITION 2 (NB-1 in-flight cue) — AGREED, PINNED. Behavioural, not
+  presentation: it is bound to a real in-flight state and exists to close a
+  specific mis-commit race. Three assertions — present while in flight, absent
+  once settled (including on FAILURE, so it is bound to in-flight and not to
+  success), and non-blocking (the cached row stays clickable, which is the race
+  it warns about and must not forbid).
+
+COO ADDITION 3 (explicit ordering in t8) — DONE AS ASKED. The oracle is the
+  recorded sequence of non-GET calls, asserted toEqual(['/api/cities',
+  '/api/trips/1/places']). That also catches a double-fire and an extra write,
+  which two toHaveBeenCalledTimes(1) assertions would not.
+
+ADL-56 LINE-REFERENCE DRIFT (checked by symbol against live code):
+  - geocoding.service.ts:158 is cited in §1 as "resolveCityName→classifyCandidates".
+    :158 IS classifyCandidates; resolveCityName is :214. The two symbols are
+    conflated. The §1 claim itself (step 2b returns before the classifier runs)
+    is unaffected.
+  - §1 cites :188-190 for the multi-region test; it is :189-191.
+  Every other cite verified exact: AddPlaceFlow.tsx :611-613/:362/:289/:892/:82/
+  :405/:695-715/:781-838, cityIdentityService.ts:142, routes/cities.ts:138,
+  geocoding.service.ts :192/:290-323/:297-316/:321, nominatim-client.ts :48/
+  :239-240, repositories/cities.ts :127-142/:278-285.
+
+COULD NOT PIN AS WRITTEN:
+  - §3b(7) the rollback seam ("one isolated policy point", enabled: auto|manual).
+    Structural property of the source, not observable behaviour. Faking an
+    assertion would pin a shape §3b deliberately leaves open. Belongs in the
+    implementer's brief + code review. NOT in the bar.
+  - D6 copy/affordance, incl. whether the guard disables the commit control or
+    merely makes it inert. §10 marks presentation ATDD-no; the tests assert WHICH
+    state renders, never what it says. That required prescribing 11 data-testids
+    as contract — listed in the park doc §5. A rename is your call, not the
+    implementer's; they are the only thing keeping copy out of these tests.
+
+FINDINGS:
+  1. MOCK BOUNDARY MOVED (deliberate, and the biggest call in this brief). Every
+     pre-existing AddPlaceFlow suite mocks hooks/useCities wholesale. That
+     boundary cannot express D8/B1 (a claim about egress), hard-codes the
+     imperative lookupCityCountry shape §3b(6) recommends replacing, and erases
+     the `status` discriminator D5's S4-vs-S5 routing depends on. These suites
+     double utils/apiClient instead; React Query, useCitySearch, the 300ms
+     debounce and lookupCityCountry's retry/status mapping all run FOR REAL.
+     Response bodies were derived by replaying three REAL 2026-08-26 Nominatim
+     captures through the real parseCandidate / admission gate / route serializer.
+     Nominatim was reachable (probed, HTTP 200) — these are captures, not guesses.
+  2. The real Melbourne capture CONFIRMS ADL-56 §6a's mechanism against live
+     data: city relation 4246124 + municipality relation 2404870, both accepted,
+     both AU-VIC → two distinct osm_ids (picker fires) but ONE region_iso
+     (resolve is unambiguous, so D4 is correct). §6a was reasoning; it is now
+     evidence.
+  3. MOCK-FIDELITY DRIFT, pre-existing, FLAGGED NOT FIXED: newportGeocode.ts
+     gives Newport (Isle of Wight) as node 26700978. Today's capture returns node
+     2386521 and contains no 26700978. Two probes that fail differently: raw
+     per-row dump, and grep -c 26700978 = 0. Left untouched — load-bearing for
+     green BUG-75/UX-12 suites. Recorded in the new fixture README.
+  4. N5(b) reachability vs frequency, stated precisely: the shape (eligible[0]
+     region-null while one distinct region_iso exists) is reachable BY
+     CONSTRUCTION and real responses do contain accepted rows lacking the key
+     (4 of 31 in springfield_global.json). Its frequency AT INDEX 0 is
+     UNVERIFIED — 23 live captures across 15 countries produced none. Blind spot:
+     small, English-biased sample of well-known cities. The derived fixture is
+     built in test source, never committed as JSON, so nothing can be mistaken
+     for upstream ground truth.
+  5. SLICE-2 OPEN ITEM for that brief: §4 requires ONE golden fixture set both
+     trees run. Separate TS build trees means two inline copies today — itself
+     the drift risk §4 names. Not pre-empted here; it is Slice-2 design work.
+
+CI: main suites green with the bar committed — frontend 425 passed / 41 skipped,
+backend 879 passed / 10 skipped, type:check:all clean. /pre-push run. PR CI
+confirmed green before filing (see PR body). Do NOT use gh run view --log-failed.
+
+BLOCKERS: none. Nothing uncommitted.
+NEXT: Brief A (backend: the osm projection + D4/N5 backfill at both write sites)
+and Brief B (frontend: merged surface, autofire + staleness, select≠commit + N3,
+message states, NB-1 cue, ChangeCityModal wiring) un-skip and green each
+[S1][RED-BAR] block. Nothing marked [S2] is theirs to touch. I do not merge.

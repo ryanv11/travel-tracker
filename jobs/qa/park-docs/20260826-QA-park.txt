@@ -1,0 +1,153 @@
+QA PARK DOCUMENT — 2026-08-26
+ADL-56 / GE-21 Slice 1 ATDD red bar
+Branch: test/adl56-slice1-red-bar (off main e72a3cd)
+
+═══════════════════════════════════════════════════════════════════════════
+1. WHAT THIS THREAD DID
+═══════════════════════════════════════════════════════════════════════════
+Authored the red acceptance bar for ADL-56 Slice 1 (GE-21, BRD v3.22) BEFORE
+any implementer was briefed (OP-35 ATDD-first). Tests only — no production
+code touched, and none needed to be: nothing in the bar required a production
+change to make behaviour observable.
+
+Scope covered: ADL-56 §10 tests 1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 (all [S1])
+plus the GE-21 NB-1 in-flight cue (adopted by the PO 2026-08-26, after §10 was
+written). Tests 2 and 3 authored as explicitly-marked [S2] Slice-2 specs.
+
+═══════════════════════════════════════════════════════════════════════════
+2. FILES (all committed on the branch)
+═══════════════════════════════════════════════════════════════════════════
+Frontend suites
+  src/frontend/components/TripDetail/__tests__/
+    AddPlaceFlow.adl56-merged-surface.test.tsx     tests 1, 4(FE), 6, NB-1
+    AddPlaceFlow.adl56-select-not-commit.test.tsx  tests 7, 8, 9, 12
+    AddPlaceFlow.adl56-live-trigger.test.tsx       tests 10, 11
+    ChangeCityModal.adl56-live-merge.test.tsx      test 13, 4(ChangeCity), §12-Q5 guard
+  src/frontend/utils/__tests__/
+    decideCityDisambiguation.adl56-s2.test.ts      test 3 (FE half) [S2] + tripwire
+
+Backend suites
+  src/backend/routes/__tests__/
+    cities.adl56-search-osm-identity.test.ts       test 4 (the additive projection)
+    cities.adl56-region-backfill.test.ts           test 5, create path
+    cities.adl56-s2-name-path.test.ts              tests 2, 3(BE half) [S2] + tripwire
+  src/backend/services/__tests__/
+    geocoding.adl56-region-backfill.test.ts        test 5, queue path + §6b(1) guard
+
+Support (not test files — not collected by either vitest config)
+  src/frontend/components/TripDetail/__tests__/fixtures/adl56Geocode.ts
+  src/frontend/components/TripDetail/__tests__/fixtures/adl56Harness.tsx
+  src/backend/services/__tests__/fixtures/nominatim/adl56/
+      newport_us.json  newport_gb.json  melbourne_au.json  README.md
+
+Records
+  jobs/qa/tech/20260826-ADL56-slice1-red-bar.md   (full red-for-the-right-reason table)
+  jobs/qa/context/current.txt                      (appended, not rewritten)
+  jobs/COO/inbox/20260826_1130-QA-adl56-slice1-red-bar.txt
+
+═══════════════════════════════════════════════════════════════════════════
+3. THE THREE DECISIONS A SUCCESSOR MOST NEEDS TO KNOW
+═══════════════════════════════════════════════════════════════════════════
+(a) THE MOCK BOUNDARY MOVED, ON PURPOSE.
+    Every pre-existing AddPlaceFlow suite mocks hooks/useCities wholesale.
+    These suites mock utils/apiClient instead. Three reasons, in full in
+    fixtures/adl56Harness.tsx's header: D8/B1 is a claim about GET /api/geocode
+    EGRESS (a useCities stub measures the wrong event); ADL-56 §3b(6)
+    recommends replacing the imperative lookupCityCountry with a query-keyed
+    hook, and a stub of it would go red on that refactor for non-behavioural
+    reasons; and a useCities stub erases the `status` discriminator D5's
+    S4-vs-S5 routing depends on. Do NOT "simplify" these back to a useCities
+    mock — it silently removes the contract.
+
+(b) THE RED BAR IS CARRIED AS describe.skip + [S1][RED-BAR], NOT AS RED CI.
+    Repo convention, established by the GE-19/ADL-55 bar. The implementer
+    un-skips each block as they green it, so a weakened assertion shows in
+    that diff. Every block was verified red by running throwaway sibling
+    *.redcheck.test.* copies with describe.skip rewritten to describe — the
+    committed file was never mutated to obtain the evidence, and no git stash
+    was used (OP-20: refs/stash is shared across worktrees).
+
+(c) ASSERTIONS THAT ARE GREEN TODAY LIVE IN [S1][GUARD] BLOCKS, UN-SKIPPED.
+    Parking a green test inside a red block is how a red bar becomes
+    decorative. Seven guards are split out; the sharpest is the §6b(1)
+    mergeIntoWinner exclusion, which is green today only because no backfill
+    exists yet and is the assertion a careless D4 implementation will break.
+
+═══════════════════════════════════════════════════════════════════════════
+4. THE INTERIM TRIPWIRES — DO NOT DELETE CASUALLY
+═══════════════════════════════════════════════════════════════════════════
+Two un-skipped, currently-GREEN tests encode the GE-21 Slice-1 -> Slice-2
+interim:
+  cities.adl56-s2-name-path.test.ts  ->  "[INTERIM][GE-21 Slice 1->2] the
+      backend name path still resolves a same-region ambiguity"
+  decideCityDisambiguation.adl56-s2.test.ts  ->  "[INTERIM][GE-21 Slice 1->2]
+      the frontend still shows a picker for the two Melbourne granularities"
+
+WHEN EITHER TURNS RED, THAT IS SLICE 2 WORKING. The correct response is:
+delete the tripwire block, un-skip its [S2] twin, and re-stamp the interim
+closed in ADL-56 §10a and the BRD v3.22 GE-21 row. The WRONG response is to
+relax the assertion. Both blocks carry that instruction inline.
+
+Rationale (this is the part that is easy to lose): a skipped marker records an
+intention; a green test that will break creates an obligation. Vitest's default
+reporter prints only a skip COUNT, never the names, so skipped markers alone
+cannot make an interim visible on a green board.
+
+═══════════════════════════════════════════════════════════════════════════
+5. PRESCRIBED TESTIDS — THE CONTRACT THAT KEEPS COPY OUT OF THE TESTS
+═══════════════════════════════════════════════════════════════════════════
+D5's state ROUTING is behavioural and pinned; the strings are UX's under D6.
+The seam is data-testid (the repo already uses city-search-result-<id>):
+
+  add-place-commit                        the single explicit commit control
+  add-place-none-of-these                 the "none of these — add as new" row
+  add-place-country-select                identity-bearing field (N3)
+  add-place-city-name-input               identity-bearing field (N3)
+  add-place-live-option-<type>-<id>       a LIVE candidate in the merged surface
+  add-place-state-cache-empty             S2
+  add-place-state-live-empty              S4
+  add-place-state-live-failed             S5
+  add-place-live-inflight                 NB-1
+  change-city-live-option-<type>-<id>     ChangeCityModal live candidate
+  change-city-live-inflight               ChangeCityModal NB-1
+
+Existing testids unchanged. A rename is a COO negotiation, not a unilateral
+implementer call — these names are the only thing keeping the tests
+independent of UX's wording.
+
+═══════════════════════════════════════════════════════════════════════════
+6. OPEN ITEMS / WHAT I DID NOT DO
+═══════════════════════════════════════════════════════════════════════════
+- §3b(7) rollback seam ("one isolated policy point", enabled: auto|manual):
+  a structural property of the source, not observable behaviour. NOT pinned;
+  belongs in the implementer's brief and code review. Faking an assertion for
+  it would pin an implementation shape §3b deliberately leaves open.
+- D6 copy, badge, grouping, and whether the guard disables the commit control
+  or merely makes it inert: presentation, ATDD-no per §10.
+- Mobile: MobileTripDetailView renders the same AddPlaceFlow component
+  (ADL-56 §3a, verified), so it is auto-covered. No mobile-specific suite.
+- Slice-2 carry: §4 wants ONE golden fixture set both trees run. Separate TS
+  build trees means the three golden cases are declared inline in both the FE
+  and BE [S2] files today. Two inline copies IS the drift risk §4 names.
+  Collapsing them is Slice-2 design work — flagged, not pre-empted.
+- Pre-existing fixture drift left unfixed by design: newportGeocode.ts's
+  NEWPORT_IOW osm_id 26700978 does not appear in today's live capture (Isle of
+  Wight is node 2386521). Load-bearing for green BUG-75/UX-12 suites; flagged
+  in the adl56 fixture README instead of changed.
+
+═══════════════════════════════════════════════════════════════════════════
+7. HOW TO RE-VERIFY A RED WITHOUT BREAKING ANYTHING
+═══════════════════════════════════════════════════════════════════════════
+  sed -e 's/describe\.skip(/describe(/g' <file> > <file-with-.redcheck.test.>
+  npx vitest run --config vitest.config.{frontend|backend}.ts <tmp>
+  rm -f <tmp>
+Never bare `git stash` (refs/stash is shared across worktrees, OP-20). Never
+edit the committed file to obtain evidence.
+
+═══════════════════════════════════════════════════════════════════════════
+8. STATE AT PARK
+═══════════════════════════════════════════════════════════════════════════
+npm run test:frontend    425 passed | 41 skipped | 0 failed
+npm run test:backend     879 passed | 10 skipped | 0 failed
+npm run type:check:all   clean
+Nothing uncommitted. PR opened against main; COO reviews and merges.
