@@ -117,8 +117,10 @@ FINDINGS:
      trees run. Separate TS build trees means two inline copies today — itself
      the drift risk §4 names. Not pre-empted here; it is Slice-2 design work.
 
-CI: PR #540 — ci-wait.sh reports PASS, all 18 checks green @ 141eb22 (incl. E2E,
-Contract, Semgrep, Gitleaks, npm audit). Local: frontend 425 passed / 41 skipped,
+CI: PR #540 — ci-wait.sh reports PASS, all 18 checks green (incl. E2E, Contract,
+Semgrep, Gitleaks, npm audit), re-run and re-confirmed on the FINAL head after
+the docs-only follow-up commits, not on a superseded SHA. Local: frontend 425
+passed / 41 skipped,
 backend 879 passed / 10 skipped, type:check:all clean, status/tracker/scope all
 pass. /pre-push run in full. (gh run view --log-failed not used — QUAL-27.)
 
