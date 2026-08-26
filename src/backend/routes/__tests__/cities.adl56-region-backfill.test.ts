@@ -212,7 +212,7 @@ afterEach(() => {
 // ═════════════════════════════════════════════════════════════════════════════
 // RED-BAR (Slice 1) — ADL-56 §10 test 5 / §6b, create-path write site.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 test 5 — POST /api/cities backfills a blank region from an unambiguous resolve', () => {
+describe('[S1][RED-BAR] ADL-56 test 5 — POST /api/cities backfills a blank region from an unambiguous resolve', () => {
   it('a region-tier country with the region left blank is saved carrying the resolved region', async () => {
     const db = testDb!;
     const regions = await seedAu(db);

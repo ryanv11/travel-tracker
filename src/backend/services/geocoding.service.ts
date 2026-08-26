@@ -53,6 +53,7 @@
 
 import { and, asc, eq, lt } from 'drizzle-orm';
 import { cities, getDb, regions, tripPlaces } from '../db/index.js';
+import { citiesRepository } from '../repositories/cities.js';
 import { isUniqueViolation } from './db-errors.js';
 import {
   type NominatimCandidate,
@@ -122,6 +123,32 @@ function distinctRegionIsos(candidates: NominatimCandidate[]): string[] {
         .map((c) => c.regionIso.toUpperCase()),
     ),
   ];
+}
+
+/**
+ * ADL-56 §6b(2) / N5(b) — THE region-derivation rule for the D4 backfill, in one
+ * place so both write sites (the create-path insert in `routes/cities.ts` and
+ * `commitResolvedOrMerge` below) cannot drift apart.
+ *
+ * Returns the single distinct `region_iso` across the ELIGIBLE candidate set, or
+ * null when the set does not name exactly one (zero → nothing to backfill from;
+ * two or more → a region-AMBIGUOUS resolve, which §6 says backfills nothing
+ * because it is a D1/D2 picker case and guessing there is what D12 rule-3 exists
+ * to forbid).
+ *
+ * WHY NOT `best.regionIso` — the trap this function exists to close. The natural
+ * implementation reads the region off the winning candidate, and it is wrong:
+ * `classifyCandidates` returns `best = eligible[0]`, and `eligible[0]` can carry
+ * a NULL `regionIso` while the resolve is still region-unambiguous. The real
+ * captured shape is `eligible = [{regionIso: null}, {regionIso: 'AU-VIC'}]` —
+ * `distinctRegionIsos` is `['AU-VIC']` (length 1, so the verdict is 'ok'), yet
+ * `best.regionIso` is null. Deriving from `best` silently skips the backfill and
+ * reproduces BUG-98 for exactly the rows it was meant to fix, with nothing red
+ * anywhere. Derive from the SET, never from the winner.
+ */
+export function singleDistinctRegionIso(eligible: NominatimCandidate[]): string | null {
+  const isos = distinctRegionIsos(eligible);
+  return isos.length === 1 ? isos[0] : null;
 }
 
 /**
@@ -286,10 +313,26 @@ export async function resolveByOsmId(
  * (`uniq_cities_osm_ref`) — the merge branch repoints trip_places from the
  * loser onto the surviving winner and removes the loser, so two users
  * resolving the same real place always converge to ONE row.
+ *
+ * ADL-56 D4 / §6b(1) — `regionBackfillId` is the PLACEMENT half of the region
+ * backfill, and the placement is the whole point. It is applied ONLY inside the
+ * try-block direct UPDATE, the branch that writes THIS row. The `catch` →
+ * {@link mergeIntoWinner} branch repoints trip_places onto a PRE-EXISTING winner
+ * and deletes this row — that winner is someone else's row and may hold a
+ * user-SUPPLIED region, so backfilling there would overwrite a user value while
+ * nominally "filling a blank", breaking D12 rule-3 on the one path where it is
+ * least visible. Because the backfill rides the same single UPDATE statement as
+ * the OSM stamp, a unique-violation rolls both back atomically and the merge
+ * branch inherits nothing.
+ *
+ * Callers pass null (the default) whenever the row already carries a region, the
+ * resolve is region-ambiguous, or the ISO has no seeded `regions` row — see
+ * {@link deriveRegionBackfill}.
  */
 async function commitResolvedOrMerge(
   cityId: number,
   candidate: NominatimCandidate,
+  regionBackfillId: number | null = null,
 ): Promise<boolean> {
   const db = getDb();
   const resolvedAt = new Date().toISOString();
@@ -306,6 +349,12 @@ async function commitResolvedOrMerge(
         // GE-19 / ADL-55 §3.2: a resolved row carries no cause — clear any prior
         // 'unreachable' a recoverable attempt may have written before this one won.
         geocodeCause: null,
+        // ADL-56 D4: spread, so a null backfill omits the column from the SET
+        // entirely rather than writing NULL over whatever is there. Belt and
+        // braces — the caller only ever produces a non-null id for a row whose
+        // region_id is already NULL — but it makes "no backfill" mean "do not
+        // touch the column" at the SQL layer too.
+        ...(regionBackfillId != null ? { regionId: regionBackfillId } : {}),
         geocodeAttemptedAt: resolvedAt,
         updatedAt: resolvedAt,
       })
@@ -356,6 +405,49 @@ async function mergeIntoWinner(loserId: number, osmType: string, osmId: number):
     );
   }
   return true;
+}
+
+/**
+ * ADL-56 D4 / §6 — decides whether a resolve backfills this row's blank region,
+ * and to which seeded `regions.id`. Returns null for "do not touch the column",
+ * which is the answer for every case except the narrow one D4 opens.
+ *
+ * The four gates, in the order they fail:
+ *
+ *  1. **A supplied region is never overwritten (D12 rule-3).** This is the
+ *     boundary D4 REFINES rather than crosses. Rule-3 protects a value the user
+ *     supplied — its motivating hazard is a geocoder overriding "Springfield,
+ *     Missouri" with Illinois. NULL is the ABSENCE of a supplied value, so
+ *     filling it is not an overwrite (PO-confirmed 2026-08-11, recorded in
+ *     ADL-46 §4.3.1). Anything non-null is the user's ground truth and stops
+ *     here.
+ *  2. **Region-UNAMBIGUOUS resolves only** — see {@link singleDistinctRegionIso}
+ *     for why this reads the eligible SET and not the winning candidate. A
+ *     region-ambiguous resolve backfills nothing: it is a D1/D2 picker case, and
+ *     guessing a region under ambiguity is precisely what rule-3 exists to
+ *     forbid.
+ *  3. **Region-tier countries only (§6).** A `region_id` on a country with
+ *     `region_tier_enabled = 0` is a shape the POST route rejects outright, so
+ *     the background resolver must not mint one either.
+ *  4. **Best-effort, never blocking (GE-15 parity, §6).** An ISO with no seeded
+ *     `regions` row — the BUG-30 incomplete-seed class — leaves `region_id` NULL
+ *     and the city still resolves normally. A missing seed degrades the result;
+ *     it never fails the resolve.
+ */
+async function deriveRegionBackfill(
+  city: { regionId: number | null; countryCode: string },
+  eligible: NominatimCandidate[],
+): Promise<number | null> {
+  if (city.regionId != null) return null;
+
+  const iso = singleDistinctRegionIso(eligible);
+  if (iso == null) return null;
+
+  const country = await citiesRepository.findCountryRegionTier(city.countryCode);
+  if (country?.regionTierEnabled !== 1) return null;
+
+  const region = await citiesRepository.findRegionByIsoInCountry(iso, city.countryCode);
+  return region?.id ?? null;
 }
 
 // ================================================================
@@ -493,6 +585,12 @@ export async function resolveCity(cityId: number): Promise<boolean> {
       geocodeAttempts: cities.geocodeAttempts,
       geocodeCause: cities.geocodeCause,
       countryCode: cities.countryCode,
+      // ADL-56 D4: the backfill decision needs the raw region_id, not only the
+      // joined ISO. They agree today (regions.iso_3166_2 is NOT NULL, so a
+      // non-null region_id always yields a non-null regionIso), but reading the
+      // column the rule is actually about keeps the gate honest if that ever
+      // stops being true.
+      regionId: cities.regionId,
       regionIso: regions.iso3166_2,
       osmType: cities.osmType,
       osmId: cities.osmId,
@@ -568,7 +666,11 @@ export async function resolveCity(cityId: number): Promise<boolean> {
       return false;
     }
 
-    return commitResolvedOrMerge(cityId, candidate);
+    // ADL-56 D4: the carried-ref path resolves ONE candidate by id, so it is
+    // region-unambiguous by construction (§B1.2 — the carried ref IS the query).
+    // A user who picked this place from the picker but left the region blank is
+    // exactly the BUG-98 shape §6a path (A) expects to end up carrying a region.
+    return commitResolvedOrMerge(cityId, candidate, await deriveRegionBackfill(city, [candidate]));
   }
 
   // Non-carried — the existing name-search path. M-A (delta review, v2 §7
@@ -625,7 +727,14 @@ export async function resolveCity(cityId: number): Promise<boolean> {
   }
 
   // verdict.status === 'ok'
-  return commitResolvedOrMerge(cityId, verdict.best);
+  // ADL-56 D4/N5(b): derive the backfill from verdict.ELIGIBLE, never from
+  // verdict.best — `best = eligible[0]` can carry a NULL regionIso while the
+  // set names exactly one region (see singleDistinctRegionIso).
+  return commitResolvedOrMerge(
+    cityId,
+    verdict.best,
+    await deriveRegionBackfill(city, verdict.eligible),
+  );
 }
 
 /**

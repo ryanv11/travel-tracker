@@ -135,6 +135,26 @@ export const citiesRepository = {
         latitude: cities.latitude,
         longitude: cities.longitude,
         geocode_status: cities.geocodeStatus,
+        // ADL-56 §9 / D3-P2 — the ONE additive API field of this ADL. The merged
+        // cached-∪-live disambiguation surface must collapse a live geocoder
+        // candidate against an already-catalogued row BY IDENTITY; without the
+        // OSM pair the only key left to the frontend is the name text, which is
+        // precisely the fragile key §2/§5 rules out (two distinct real places
+        // routinely share a name — the premise of this whole feature family).
+        //
+        // ADDITIVE ONLY: every field above is unchanged, so existing consumers
+        // are unaffected ([S1][GUARD] pins this). NULL for the §2 H1 population
+        // (legacy / pending / terminal / seeded rows carry no ref) — present-but-
+        // null, so the client can tell "this row cannot be identity-matched" from
+        // "this response never carried the field".
+        //
+        // SECURITY (OP-06, ADL-56 §9): this widens the PROJECTION, never the
+        // containment predicate below — the GE-16 creator-visibility rule is
+        // untouched, and which rows are visible to whom does not move. osm_type /
+        // osm_id are public OpenStreetMap identifiers, not user data, and are
+        // already returned by POST /api/cities via serializeCity.
+        osm_type: cities.osmType,
+        osm_id: cities.osmId,
       })
       .from(cities)
       .leftJoin(regions, eq(regions.id, cities.regionId))
@@ -337,6 +357,46 @@ export const citiesRepository = {
       .select({ id: regions.id, iso: regions.iso3166_2 })
       .from(regions)
       .where(and(eq(regions.id, regionId), eq(regions.countryCode, countryCode)))
+      .limit(1);
+    return rows[0] ?? null;
+  },
+
+  /**
+   * ADL-56 D4/§6 — the seeded region carrying this ISO 3166-2 code within this
+   * country, or null. The inverse of {@link findRegionInCountry}: that maps a
+   * user-supplied region_id to its ISO for the geocoder lookup; this maps a
+   * geocoder-reported ISO back to a seeded region_id for the D4 backfill.
+   *
+   * Returning null is a NORMAL, non-exceptional outcome, not an error: §6's
+   * GE-15 best-effort parity says an ISO with no seeded `regions` row (the
+   * BUG-30 incomplete-seed class) leaves region_id NULL and the city still
+   * saves. Callers must treat null as "no backfill", never as a failure.
+   *
+   * Scoped by countryCode as well as ISO even though `uniq_regions_iso_3166_2`
+   * makes the code globally unique — the country is already known at both call
+   * sites, and scoping means a mis-attributed candidate can never map a city
+   * into another country's region.
+   *
+   * NOCASE: `distinctRegionIsos` upper-cases what it returns and the seeds are
+   * canonical upper-case ISO, so a binary match would agree today. The
+   * case-insensitive compare costs a scan of a small reference table and
+   * removes a silent-miss mode (a differently-cased seed would just skip the
+   * backfill, with no error anywhere to notice).
+   */
+  async findRegionByIsoInCountry(
+    iso: string,
+    countryCode: string,
+  ): Promise<{ id: number } | null> {
+    const db = getDb();
+    const rows = await db
+      .select({ id: regions.id })
+      .from(regions)
+      .where(
+        and(
+          eq(regions.countryCode, countryCode),
+          sql`${regions.iso3166_2} = ${iso} COLLATE NOCASE`,
+        ),
+      )
       .limit(1);
     return rows[0] ?? null;
   },

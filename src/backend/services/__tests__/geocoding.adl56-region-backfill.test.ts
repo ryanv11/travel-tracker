@@ -148,7 +148,7 @@ afterEach(() => {
 // ═════════════════════════════════════════════════════════════════════════════
 // RED-BAR (Slice 1) — §6b(1) direct-update success path + §6b(2) derivation.
 // ═════════════════════════════════════════════════════════════════════════════
-describe.skip('[S1][RED-BAR] ADL-56 §6b — the background resolver backfills a blank region on the direct-update path', () => {
+describe('[S1][RED-BAR] ADL-56 §6b — the background resolver backfills a blank region on the direct-update path', () => {
   it('a region-null pending city resolved by the queue is left carrying the resolved region', async () => {
     const db = testDb!;
     const regions = await seedAu(db);
