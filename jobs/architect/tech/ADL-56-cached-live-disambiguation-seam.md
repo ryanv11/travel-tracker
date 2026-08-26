@@ -89,7 +89,11 @@ Two independent defects live in one seam. Both were traced to live code this ses
 With no region requested, that falls to **step 2b** (`cityIdentityService.ts:142-145`):
 `findByNameAndCountry(name, country)` (capped at 2, `repositories/cities.ts:278-285`) →
 `sameName.length === 1` **returns that row blind**, *before* `resolveCityName`→`classifyCandidates`
-(`geocoding.service.ts:158`) ever runs. Springfield has 2+ cached rows → `length !== 1` → falls through
+(`geocoding.service.ts` — `resolveCityName` at `:214`, `classifyCandidates` at `:158`) ever runs.
+<!-- LINE-REF CORRECTED 2026-08-26 (COO, from the QA red-bar dispatch; re-verified independently
+     against live code): this cite read `geocoding.service.ts:158` for the pair, which conflated the
+     two symbols — `:158` is `classifyCandidates` alone. The mechanism described is unaffected. -->
+ Springfield has 2+ cached rows → `length !== 1` → falls through
 to the live classifier → multi-region ambiguous → `needs_attention`. Newport has exactly one cached row
 ("Newport, Oregon") → reused with zero geocoding. The cache **short-circuits** the classifier; it does not
 feed it.
@@ -97,7 +101,8 @@ feed it.
 **Defect 2 — FE and BE disagree on what "ambiguous" means.**
 The frontend picker fires on **place-level** distinctness — `distinctOsmIds.size > 1`
 (`decideCityDisambiguation.ts:60`). The backend background resolver fires `needs_attention` on
-**region-level** distinctness — `distinctRegionIsos(...).length > 1` (`geocoding.service.ts:188-190`).
+**region-level** distinctness — `distinctRegionIsos(...).length > 1` (`geocoding.service.ts:189-191`;
+corrected 2026-08-26 from `:188-190`, which started one line early on the `distinctRegionIsos` assignment).
 So two same-state Newports (distinct `osm_id`, one `region_iso`) get a picker from the FE yet are
 **silently resolved to `eligible[0]`** by the BE name path. Same-region distinct places are exactly the case
 the FE picker exists to catch (`decideCityDisambiguation.ts:11-21`) and the BE classifier still misses.
