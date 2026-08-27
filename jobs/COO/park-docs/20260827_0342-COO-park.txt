@@ -1,0 +1,125 @@
+COO SESSION PARK — 2026-08-26/27 — GE-21 SLICE 1 SHIPPED (BRD promotion → ATDD red bar → backend → frontend)
+8 PRs merged (#539, #540, #541, #542, #544, #545, #546, #547) · main green after every one · no open PRs
+================================================================================
+
+## READ THIS FIRST — where to pick up
+
+**GE-21 Slice 1 is BUILT and MERGED. It is NOT yet UAT-verified.** The next move is the PO's UAT
+round, not more building. The COO recommendation on record (PO has not ruled): **hold Slice 2 until
+Slice 1 passes UAT** — ADL-56 calls the Slice-2 ε-classifier "the one change that can silently
+corrupt", and stacking that on an unexercised add-place surface gives a compound failure with two
+candidate causes and no clean attribution. Slicing was bought precisely so Slice 1 could be validated
+alone; skipping ahead spends that for nothing.
+
+**Suggested next, in order:**
+(a) Process the PO's UAT verdicts on **item 4** of jobs/PO/uat-log.md (the add-place rebuild — four
+    ordered checks: Newport / select-vs-commit on BOTH pickers / Melbourne's region / the honest
+    message), plus BUG-86, QUAL-43+49 smoke, BUG-74.
+(b) If UAT passes → dispatch **Slice 2** (the D2 ε-classifier FE/BE reconciliation). ATDD-first: YES —
+    ADL-56 §10 tests 2 and 3 are ALREADY WRITTEN and sitting skipped on main; the implementer un-skips
+    them. The two INTERIM TRIPWIRES go red when Slice 2 lands — that is by design, and re-stamping the
+    GE-21 interim closed (in the BRD requirement text) is part of Slice 2's definition of done.
+(c) While waiting on UAT, **QUAL-53** (ci-wait run-selection) is the best-value non-blocked work: P2,
+    self-contained, no product code, and it repairs the gate every future dispatch depends on.
+(d) Deferred-until-after-Slice-1, now unblocked: **QUAL-52** (stale Newport fixture ids), **BUG-100**
+    (third region-derivation write site), **UX-15 + UX-16** (add-place copy, could ride one UX pass).
+
+## What shipped this session
+
+**GE-21 promoted to the BRD (v3.22, PR #539).** Spike-gate cleared per OP-33: ADL-56 §11 held it at
+PROPOSED until the focused OP-27 fresh-eyes re-review of the B1 fix passed — it returned SOUND. Two PO
+decisions at the gate: the NB-1 in-flight cue ADOPTED (now a GE-21 success criterion), and GE-21 enters
+NOW carrying the documented Slice-1/Slice-2 interim rather than waiting for Slice 2. The interim is
+stamped INSIDE the requirement text so a half-ship cannot read as complete. D12 rule-3 wording amended
+in ADL-46 §4.3.1 (a blank region is not a supplied value, so backfilling it is not overwriting) — that
+is BUG-98's root cause closed at the policy layer.
+
+**ATDD red bar (PR #540, QA, Opus).** 16 `[S1][RED-BAR]` suites + the NB-1 cue test, each verified red
+for the right reason with observed current behaviour recorded. Plus six un-prompted `[S1][GUARD]` blocks
+pinning GE-20's country filter and GE-16's containment against Slice-1 regressions.
+
+**Backend (PR #542, Opus).** Additive `osm_type`/`osm_id` on the GET /api/cities search projection;
+D4/N5 region backfill at BOTH resolveCity write sites. Two single-home helpers so the sites cannot drift.
+
+**Frontend (PR #545, Opus).** Merged cached ∪ live surface deduped on (osm_type, osm_id); select≠commit
+uniform across AddPlaceFlow (three pick sites, two commit controls); trigger policy + last-query-wins
+staleness + the NB-1 cue delivered as ONE mechanism by keying useLiveCityLookup on
+(settledQuery, countrySet) with cache state deliberately not an input — the B1 correction made
+structural rather than remembered. D5 message states. UX-13 folded in.
+
+**Closeout (PRs #541, #544, #546, #547).** Status flips with closing stamps; BUG-100, QUAL-52, QUAL-53,
+UX-16 filed; ADL-56 line-refs corrected; D-34 promoted and deleted from open-dialogues.
+
+## Process notes worth keeping
+
+- **The COO's verify-against-artifacts duty caught what self-reports would not have.** Every agent claim
+  was re-probed: the red-bar diff was checked to be skip-tokens ONLY (13 flips, zero assertions altered);
+  a spot-check un-skip of test 7 reproduced BUG-99's mechanism ("expected 1 to be +0") BEFORE the fix;
+  the "no geocode call fires from either search step" claim was confirmed by two probes that fail
+  differently (running the test, and reading the only call site). Zero [S1] skips remain on main.
+
+- **A frame error was caught and corrected mid-build — the shape the PO has caught 4× on this thread.**
+  The Frontend agent left the manual "+ Add new" picker committing on the pick, justified as "BUG-99's
+  actual defect (dates structurally unreachable) does not exist there". The tracker says otherwise: the
+  defect is committing "bypassing the date fields SHOWN IN THE SAME VIEW" — reachability was never it —
+  and the PO's report confirmed the bug on BOTH pickers, the second being exactly the excluded surface.
+  Sent back; converted; an [S1][GAP] test added and proven red. The agent's own diagnosis is the keeper:
+  it INVENTED a definition of the defect and reasoned from that instead of the recorded one, giving its
+  own reading the tracker's authority. Same shape as attributing an inference to a source.
+
+- **Both implementers extended the spec at exactly one point each, and both flagged rather than
+  assumed.** Backend: the red bar pinned only one of two resolveCity write sites; leaving the second out
+  would have kept BUG-98 alive on the very path §6a says it closes — confirmed by COO probe, and the
+  under-specification was closed with a regression test proven red by reverting one line. Frontend:
+  flagged that ChangeCityModal's pickers still commit — COO checked ADL-56 §12-Q5 and that is explicitly
+  PO-sanctioned (a re-point has no dates, so "until the explicit Add" has no referent). Flagging beat
+  guessing both times.
+
+- **QA improved on a COO instruction rather than complying with it.** Asked for skipped Slice-2 markers
+  so the interim could not hide behind a green board, QA pointed out that vitest prints only a skipped
+  COUNT — so a skipped marker is invisible on exactly that board — and added two LIVE interim tripwires
+  that pass now and go red when Slice 2 lands. "A skipped test records an intention; a green test that
+  will break creates an obligation."
+
+- **Deriving a test from the spec instead of the implementation narrowed a claim.** Instructed to write
+  the backfill regression test from ADL-56 §6a rather than from its own code, the Backend agent found
+  §6a's "and/or" was load-bearing and the path D4 actually owns is the degraded pick — "narrower than
+  the claim I'd have written from my own code." The constraint did its job in the open.
+
+- **D-34 recurred and was promoted (QUAL-53, P2).** ci-wait watches ONE run per SHA while GitHub creates
+  two. Occurrence 1 (#532) was the DANGEROUS direction: exit 0 while a check had failed. Occurrence 2
+  (#546) was fail-closed and noisy — and querying actions/runs?head_sha=<sha> showed four runs with one
+  still in flight when ci-wait returned, the direct evidence occurrence 1 lacked. Interim control stays
+  in force and is what caught both: gh pr checks + mergeStateStatus are authoritative, never the exit
+  code alone.
+
+## State of play (durable — tracker.json / STATUS.md)
+
+- **Open PRs:** none. **Worktrees:** none. **Local branches:** main only. **Main:** green at this close.
+- **done_pending_uat (10, but 4 actual tests):** BUG-97/98/99/73/UX-13 + GE-21 all = UAT item 4;
+  QUAL-43+QUAL-49 = one smoke test; BUG-86; BUG-74.
+- **Filed this session, all deferred:** BUG-100 (P3), QUAL-52 (P3), QUAL-53 (P2), UX-16 (P3).
+- **Slice 2 open** under GE-21; its tests exist skipped on main; tripwires will fire when it lands.
+- **Only open P1: QUAL-18** (E2E serves the frontend from vite preview, so CSP defects are invisible in
+  CI by construction). Pre-existing, untouched, and drifting — worth pulling forward soon.
+
+## Open threads
+
+See jobs/COO/open-dialogues.md — Open = D-05/14/23/27/28/30/33 and **D-35 (new)**. Parked =
+D-03/08/09/13/26. D-34 resolved+removed this session (→ QUAL-53).
+
+**D-35 is the one to re-read at pickup.** An ATDD red bar ships as `describe.skip`, so a slice shipped
+WITHOUT un-skipping looks identical to one that passes — green board either way. This session it was
+closed by instruction and by the COO counting skips before each merge: a discipline living in one
+person's head. **Slice 2's tests are sitting skipped on main right now**, so the exposure is live, not
+hypothetical. COO recommendation is one line in /coo-merge-and-close (assert no `describe.skip('[S<n>]`
+remains before merging) rather than a hook. **Offered to the PO at close and NOT taken up — left as a
+flagged proposal, deliberately, not forgotten.**
+
+## Also worth a decision at pickup
+
+- **D-28 (UAT WIP limit)** became concrete this session: 10 items sit done_pending_uat and the PO is the
+  bottleneck. The proposal has never had an N set. Worth deciding, or dropping.
+- **BUG-74** still needs an upstream geocoder failure forced to be testable — the COO has offered this
+  twice; the PO has not taken it up. Standing offer, not a blocker.
+================================================================================
