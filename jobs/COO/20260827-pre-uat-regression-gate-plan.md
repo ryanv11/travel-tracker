@@ -28,7 +28,7 @@ six times, failed six times, and has not run at all since **4 August** — 137 m
 marked `done` in the tracker on a closing note claiming it was *"verified by ... green runs."*
 There have never been any green runs. That was a COO sign-off and it was wrong.
 
-**2. Your own past findings are not encoded as tests.** There are **85 resolved findings** in
+**2. Your own past findings are not encoded as tests.** There are roughly **80 resolved findings** in
 [uat-archive.md](../PO/uat-archive.md). The browser test suite has **52 tests total**, written
 around general flows rather than around what you actually found broken. Your UAT sessions are
 the project's de facto regression suite, and you are the bottleneck in the pipeline.
@@ -69,7 +69,7 @@ last.
 
 #### B1. Coverage — turn past findings into tests
 
-The 85 archived findings are the raw material. They are not all worth encoding: some are
+The archived findings are the raw material. They are not all worth encoding: some are
 duplicates, some cosmetic one-offs, some already covered. The work is to triage them into
 *must-be-a-test* / *already covered* / *not worth it*, then write the missing ones as browser
 tests.
@@ -217,11 +217,11 @@ Genuinely new behaviour still needs your eyes, and always will. If the expectati
 becomes a formality", that expectation will be wrong.
 
 **Test time is a budget.** The browser suite runs in 85 seconds today, so there is real headroom
-— but a pack built from 85 findings could erode it. Proposal: keep total CI under about five
+— but a pack built from ~80 findings could erode it. Proposal: keep total CI under about five
 minutes, and split the suite across parallel runners rather than trimming coverage if it gets
 close.
 
-**Triage is a judgment call.** Deciding which of the 85 findings deserve a permanent test is
+**Triage is a judgment call.** Deciding which of the ~80 findings deserve a permanent test is
 genuinely debatable, which is why B1 makes the reasoning visible per item instead of letting it
 happen silently.
 
