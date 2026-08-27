@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (89)
+## Open work (90)
 
 ### P1 — Critical (2)
 
@@ -26,7 +26,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | QUAL-56 | Environment parity has no owner — the July enumeration rotted and two new divergences were found by accident in one session | architect | ⬜ Pending |
 
-### P2 — Important (41)
+### P2 — Important (42)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -67,6 +67,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
 | BUG-101 | Two hand-copied CSP configs have drifted — 37 backend test files run against different security rules than the app ships, under a comment claiming exact parity | backend | ⬜ Pending |
 | QUAL-54 | Worker-sourced browser console entries are DROPPED by Playwright — CSP violations inside the Clerk blob: worker are invisible to every browser test we have | qa | ⬜ Pending |
+| QUAL-57 | The bundle under test is not the bundle that ships — VITE_BYPASS_AUTH is baked in at build time, so E2E never exercises the real auth path at either end | qa | ⬜ Pending |
 | QUAL-37 | Backup posture — COO memory dir + Turso DBs are unversioned/reseed-only; back up before non-disposable UAT data | coo | ⬜ Pending |
 | QUAL-38 | Goal-6 scorecard — one recurring PO-readable health report (escape/rework/flow/hook-violations/token-burn) | coo | ⬜ Pending |
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
@@ -131,7 +132,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 71/94 | 71 | 23 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 38/70 | 38 | 32 | 1 |
+| chore | `███████████░░░░░░░░░` 38/71 | 38 | 33 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -165,4 +166,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_199 done · 9 deferred · 5 closed · 89 open — 302 tracked items_
+_199 done · 9 deferred · 5 closed · 90 open — 303 tracked items_

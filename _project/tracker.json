@@ -3422,6 +3422,18 @@
       "notes": "Filed 2026-08-27 at PO request ('note that we need to investigate visual comparison testing'). CONTEXT: the QA review of the pre-UAT gate plan identified three classes of PO finding with NO cheap test tier, and this is one of them — 'the Suggested: caption is not bold enough to notice', 'status pill colours do not match the map' and similar. There is no visual-comparison tooling in the project, so these are the PO's eyes forever, and the gate plan states that out loud rather than pretending the tiering rule absorbs them. INVESTIGATION, not a commitment to build: does visual-comparison testing earn its place here — what would it catch that a human would not, what is the false-positive cost (these suites are notorious for going red on font rendering and anti-aliasing differences between machines), and does it work at all given the map CANNOT RENDER in CI today (no VITE_MAPTILER_KEY at build time — see QUAL-56), which removes a large share of the visual surface from any snapshot. Deliverable: a recommendation with a cost, not an implementation. Sequenced AFTER the QUAL-39 journeys; explicitly not urgent."
     },
 
+    {
+      "id": "QUAL-57",
+      "type": "chore",
+      "title": "The bundle under test is not the bundle that ships — VITE_BYPASS_AUTH is baked in at build time, so E2E never exercises the real auth path at either end",
+      "status": "pending",
+      "owner": "qa",
+      "priority": "P2",
+      "brdRefs": [],
+      "phase": 6,
+      "notes": "Filed 2026-08-27 at the Architect's request (ADL-57 open question Q3; issue #550). Vite statically replaces import.meta.env.VITE_* AT BUILD TIME, so the CI E2E build bakes VITE_BYPASS_AUTH=true into the artifact — playwright.config.ts:102 says so in its own comment. The artifact E2E exercises is therefore a DIFFERENT BUILD from the one deployed, which is a fidelity limit no amount of test-writing inside that build can close. || COO-VERIFIED AND WIDER THAN THE ARCHITECT STATED, two probes that fail differently: (1) main.tsx:52-58 — when bypassAuth is true the app tree renders WITHOUT ClerkProvider and WITHOUT TokenRegistrar, so setTokenGetter is never called; (2) apiClient.ts:61-66 — authHeaders() returns {} when no token getter is registered. Therefore NO E2E REQUEST HAS EVER CARRIED AN Authorization HEADER, and on the backend BYPASS_AUTH short-circuits at auth.ts:102 before any JWT verification. BOTH ENDS OF THE AUTH PATH ARE STUBBED: the NR-14 auth work has ZERO end-to-end coverage. The previously-recorded framing ('E2E runs as one hardcoded user', QUAL-56) is a SYMPTOM of this, not the finding — the single identity is one consequence of the entire path being absent. || CONSEQUENCE FOR PLANNING: no E2E test can catch a regression in token attachment, token refresh, JWT verification, azp/issuer validation, or the signed-out redirect. Those are covered at other tiers (contract tests, unit tests) — this item is about naming the limit honestly in the fidelity register (ADL-57 T4 non-goal) so it is an ADMITTED unknown rather than a silent gap, not necessarily about closing it. Closing it would need a real Clerk test credential, which ADL-33 §4 declined on credential-scope grounds. || RELATED: QUAL-56 (fidelity register), QUAL-18b (single-origin logged-in — ADL-57 §3.1 notes single-origin logged-in E2E STILL would not exercise the Clerk half of the CSP, because CLERK_ISSUER is unset in CI and the provider never mounts)."
+    },
+
     // ─── STANDALONE-DOC MIGRATION (2026-08-08) — review-execution-queue + cleanup-wave-plan ──
     // ─── retired into the tracker (one canonical home). Both files deleted in the same PR. ──
     {
