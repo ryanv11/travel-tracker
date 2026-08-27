@@ -108,11 +108,19 @@ Reuse audit: <what was checked / what is reused>
 COO additions: <what in this brief is COO-added vs Architect spec — agent is invited to probe these | none>
 Isolation: <worktree | read-only>
 Fresh-eyes (OP-27): <planned | n/a>
+Plain-terms line (OP-41): <the 2-3 plain-English sentences to open the issue/PR body with>
 =========================
 ```
 
 The receiving agent **must refuse to start** a deliverable-producing brief that lacks this header and
 flag it to the COO outbox (frameworks.txt standard 31).
+
+**On the plain-terms line (OP-41, added 2026-08-27).** Every issue and PR body opens with a short
+`**In plain terms:**` block written for the PO — plain English, no tracker IDs used as nouns, saying
+what a user would actually experience. The COO drafts it here so the agent carries it into the PR body
+rather than inventing one; the agent may improve it once it knows what it actually built, but must not
+drop it. Full rule and a worked example: CLAUDE.md, *Every issue and PR body opens in plain language*.
+The COO's broader PO-facing writing standard is in `/coo-startup` (*Writing for the PO*).
 
 ## Canonical home (R3, design-reflection)
 

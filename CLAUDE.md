@@ -244,12 +244,54 @@ and CI) hard-fails on any duplicate ID, missing required field, or `brdRefs` val
 isn't a real BRD requirement ID. A duplicate tracker ID has slipped three times and git
 never catches it — this gate does.
 
+### Every issue and PR body opens in plain language (mandatory, OP-41)
+
+Issue and PR bodies land in the **PO's** notifications, and he is not in the code every day.
+Today they are written entirely for the receiving engineer: precise, evidenced, and
+impenetrable to anyone who hasn't memorised the tracker.
+
+**The rule.** Every `gh issue create` / `gh pr create` body opens with a short
+**`**In plain terms:**`** block — two or three sentences, no tracker IDs as nouns, no jargon,
+saying what a user would actually experience and what the change does about it. The existing
+technical body then follows **unchanged**, below it. The engineer reads past the block; the
+PO reads only it.
+
+```
+**In plain terms:** when you pick a place from the search results it saves straight away —
+before you can fill in the arrival and departure dates sitting right there on the same
+screen. It does this on both search screens. The fix is that picking should just fill in
+the form and wait for you to press "Add City & Place".
+
+**Tracker:** BUG-99 (P2) · **BRD:** GE-21 (v3.22) · **Design:** ADL-56 D1/D7, Slice 1
+## Symptom
+...technical body continues exactly as before...
+```
+
+**Titles are deliberately unchanged** — they feed squash commit messages and are referenced
+from tracker notes, so the `type(ID): description` convention stays exactly as specified
+above. This rule adds a block; it removes and reformats nothing.
+
+**Scope.** Issue and PR bodies only. Code comments, tracker notes, ADLs, the BRD and
+completion reports are unaffected — they are read by engineers and machine-checked, and they
+stay precise. The COO's full PO-facing writing standard lives in `/coo-startup`
+(*Writing for the PO*); this is the one clause of it that binds every role.
+
+**Not machine-enforced, and that is a known weakness.** A hook cannot tell whether prose is
+plain English — a regex attempting it would misfire the way the warn-only
+`negative-findings-guard.sh` does. This rule relies on the `/coo-dispatch` brief header and
+on COO review at merge. The failure mode is only "an issue is hard to read", never silent
+corruption, which is why it is accepted rather than mechanised.
+
 ### Opening a PR
 ```bash
 git checkout -b feat/your-slug
 # ... do work, commit ...
 git push -u origin feat/your-slug
-gh pr create --title "feat: description (#N)" --body "Closes #N\nBRD §X.X TR-XX"
+gh pr create --title "feat: description (#N)" \
+  --body "**In plain terms:** <2-3 sentences, plain English, per OP-41>
+
+Closes #N
+BRD §X.X TR-XX"
 ```
 
 ### After opening a PR
