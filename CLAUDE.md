@@ -92,6 +92,15 @@ serving the frontend from `vite preview` with no CSP header where production ser
 *with* helmet's CSP, making every `connect-src` violation unobservable in CI — is in memory
 [[project_env_parity_csp_blindspot]].
 
+> **SUPERSEDED (2026-08-27) by ADL-57 — retained for history.** The enumeration above ran once
+> (2026-07-28) and produced QUAL-18/19/20; two further divergences (BUG-101, QUAL-54) were then found
+> by accident, and ADL-57 found four more. ADL-57's finding is that *"enumerate every way the test
+> environment differs from production"* has **no stopping condition**, so it cannot be completed or
+> owned — it is replaced by enumerating each test tier's **fidelity claims** and **declared
+> non-goals**, which is bounded. **Canonical home:
+> [`jobs/architect/tech/test-environment-fidelity.md`](./jobs/architect/tech/test-environment-fidelity.md)**
+> (QUAL-56). The paragraph above is no longer the current list and must not be treated as complete.
+
 ### Negative findings need two probes (mandatory)
 Positive findings self-verify — the thing is there, you can see it. Negative findings don't, and they
 are disproportionately load-bearing because designs get built on "X doesn't exist" without anyone
