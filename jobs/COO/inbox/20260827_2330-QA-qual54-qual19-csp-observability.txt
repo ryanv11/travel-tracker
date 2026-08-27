@@ -1,0 +1,70 @@
+TO: COO
+FROM: QA
+DATE: 2026-08-27
+RE: QUAL-54 + QUAL-19 — CSP observability
+
+Tracker: QUAL-54, QUAL-19 (BUG-101 red bar) · Issue #551 · PR: see below
+BRD: n/a (internal quality) · Branch: fix/qual54-qual19-csp-observability
+Detail: jobs/qa/tech/20260827-qual54-qual19-csp-observability.md
+
+SCOPE TESTED
+The shakedown console check (src/e2e-shakedown/shakedown.spec.ts) and a new static
+CSP allowlist test (src/backend/__tests__/csp-allowlist.test.ts). Verified by 5
+browser probes and 5 end-to-end scenarios running the real spec against a local
+fixture serving server.ts's exact directive set. Staging not reachable.
+
+VERDICT PER SUCCESS CRITERION
+(1) console check no longer fails on third-party noise, own-origin violation still
+    fails, failure names directive + blocked URI as fields ......... PASS (locally)
+(2) fast no-browser test asserts frontend origins are in the CSP ............ PASS
+(3) same test asserts the two CSP configs agree — RED on arrival ..... AS BRIEFED
+(4) local reproduction evidence for (1) ................................... PASS
+Backend suite: 891 passed, 1 expected fail (the BUG-101 bar), 4 skipped.
+
+I CHALLENGED THE DIAGNOSIS AND IT DOES NOT HOLD — please read tech doc §3.
+The staging message reproduces ONLY under a policy with no script-src. server.ts
+sets scriptSrc at the deployed commit 0dac8e8 (line 122, both ternary branches),
+and under an explicit script-src a blocked eval emits ZERO console output. So the
+violating context is not governed by our CSP — it is a third party's iframe or
+worker with its own policy. This PREDICTS origin-scoping clears the permanent red.
+UNVERIFIED against staging; one workflow_dispatch run settles it.
+
+SECOND-ORDER FINDING: because server.ts always sets scriptSrc, the OLD check was
+structurally blind to every own-origin eval violation — it would have passed one
+silently. Demonstrated, not argued: the 'ours-eval' scenario passes the old check
+and fails the new one.
+
+SCOPING DECISION — WHAT MY FILTER LETS THROUGH (your instruction to defend it)
+Fails only on errors attributable to the origin under test, via the offending
+script's URL. Cost: third-party SDK violations (BUG-68 class) no longer fail the
+check — they are printed and annotated, demoted from fatal to visible, not
+silenced. Unattributable errors count as OURS (fail closed). blob: workers inherit
+our origin, so a Clerk worker's violation is attributed to us — conservative
+direction, and a plausible red on the first real run that should be READ, not
+assumed to be a regression.
+
+RED BAR MECHANISM: it.fails, not describe.skip. The 2026-08-26 QA session already
+established vitest prints only a skip COUNT, not names. it.fails stays live and
+named, and inverts automatically when BUG-101 is fixed. Added a live green drift
+fence too, since it.fails would absorb any NEW divergence silently. Both
+mutation-verified.
+
+BUGS FOUND
+[MAJOR] shakedown console check blind to own-origin eval violations — FIXED here.
+[MINOR] src/e2e-shakedown/** and src/e2e/** are in NEITHER tsconfig, so
+        type:check:all never type-checks either Playwright suite. Pre-existing,
+        out of scope. NEEDS A TRACKER ENTRY — flagging for your decision.
+
+KNOWN LIMITATION, STATED PLAINLY
+The deployed check is EXPECTED to be fixed. It has NOT been OBSERVED fixed.
+Staging is down (billing lapse) and I did not attempt to reach it. The single
+action that would confirm it: a workflow_dispatch run of the Post-Deploy Shakedown
+once staging returns. Do not re-enable the push-to-main trigger.
+
+ALSO NOTE: jobs/COO/20260827-pre-uat-regression-gate-plan.md does not exist in the
+repo (checked by ls and by git ls-tree against origin/main), and QUAL-54, BUG-101
+and QUAL-56 are absent from _project/tracker.json. I worked from issue #551
+instead. If those tracker entries are still unwritten, the BRD/tracker rule has an
+open item before session close.
+
+CI: green before filing this report. Did not merge.

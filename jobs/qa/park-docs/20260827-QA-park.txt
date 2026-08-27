@@ -1,0 +1,85 @@
+PARK DOCUMENT — QA — 2026-08-27
+Thread: QUAL-54 + QUAL-19 — CSP observability (GitHub issue #551)
+Branch: fix/qual54-qual19-csp-observability
+Detail doc: jobs/qa/tech/20260827-qual54-qual19-csp-observability.md
+
+STATE AT PARK: complete. Both parts delivered, committed, PR opened, CI green.
+Nothing left in progress. No uncommitted working-tree changes.
+
+WHAT WAS BUILT
+1. src/e2e-shakedown/shakedown.spec.ts (QUAL-54) — the post-deploy console check
+   now reads three channels instead of one:
+     - page.on('console'), scoped by msg.location().url
+     - DOM securitypolicyviolation, registered via addInitScript so it is live
+       before any page script runs; records violatedDirective, effectiveDirective,
+       blockedURI, sourceFile, lineNumber, documentURI
+     - raw CDP Log.enable / Log.entryAdded, filtered to source === 'worker'
+   Fails only on errors attributable to the origin under test. Third-party noise is
+   printed and attached as a 'third-party-noise' annotation, not dropped. A CDP
+   session that cannot be opened produces a 'reduced-coverage' annotation rather
+   than a silently narrower check.
+2. src/backend/__tests__/csp-allowlist.test.ts (QUAL-19) — static, no browser.
+   Reads both helmet CSP configs from the TypeScript AST, cross-checks the parser
+   against a live supertest response, scans src/frontend/** + index.html for
+   external origins and asserts each is allowed by the directive governing it.
+   Carries the BUG-101 red bar.
+
+VERIFICATION PERFORMED (nothing here is asserted without a run behind it)
+- 5 browser probes, scratchpad/cspprobe/probe6-10.mjs — channel-by-channel matrix
+  in section 2 of the tech doc.
+- 5 end-to-end scenarios running the REAL shakedown spec against a local fixture
+  serving server.ts's exact directive set: clean PASS, third-party noise PASS,
+  own-origin connect-src FAIL, own-origin eval FAIL, own-origin worker FAIL.
+  Each failure names the directive and the blocked URI as fields.
+- QUAL-19 mutation-tested in three directions: an un-allowlisted first-party
+  fetch fails and names origin/file/line/directive; an <img src> routes to
+  img-src; making the two CSP configs agree turns BOTH BUG-101 tripwires red.
+- Full backend suite: 891 passed, 1 expected fail (the BUG-101 red bar), 4 skipped.
+
+BUGS DISCOVERED
+[MAJOR] The shakedown console check was structurally blind to own-origin eval
+  violations — under an explicit script-src (which server.ts always emits) a
+  blocked eval() produces zero console output. Not a new defect; a pre-existing
+  coverage hole in the check itself. Disposition: FIXED in this PR (the DOM
+  securitypolicyviolation channel covers it). Demonstrated, not asserted — the
+  'ours-eval' scenario passes the old check and fails the new one.
+[MINOR] src/e2e-shakedown/** and src/e2e/** are in neither tsconfig.backend.json
+  nor tsconfig.frontend.json, so npm run type:check:all never type-checks either
+  Playwright suite. Pre-existing, outside this brief. Disposition: ESCALATED to
+  COO in the completion report; needs a tracker entry.
+[INFO — not a bug, a premise correction] The brief's diagnosis (eval under a
+  script-src-less policy) cannot describe a context governed by our own CSP,
+  because scriptSrc is set at the deployed commit 0dac8e8 and an explicit
+  script-src suppresses the console message entirely. The violating context is a
+  third party's, with its own policy. Disposition: recorded in the tech doc §3,
+  marked UNVERIFIED against staging.
+
+KNOWN LIMITATION — MUST NOT BE OVERSTATED
+Staging is down (billing lapse). Part 1 is verified by local reproduction against
+a fixture that mirrors the deployed CSP; it is NOT verified against the deployed
+target. The deployed check is EXPECTED to be fixed and has NOT been OBSERVED
+fixed. One action settles it: a workflow_dispatch run of the Post-Deploy Shakedown
+workflow once staging returns. Do not re-enable the workflow's push-to-main
+trigger — it previously gated Railway's deploys and silently skipped five staging
+deployments.
+
+RESIDUAL RISK ON THE FIRST REAL RUN
+Clerk spins a blob: worker (see server.ts's worker-src comment). A blob: worker
+inherits the creating page's origin, so if that worker violates our policy it is
+attributed to US and the check goes red. That is deliberate (fail closed on
+ambiguity) and the output will name exactly what it is — but it means a red first
+run is a plausible outcome that should be read, not assumed to be a regression.
+
+HANDOFF TO THE BUG-101 BACKEND BRIEF
+- Removing the divergence turns both tripwires red. That is the handshake: delete
+  `.fails` from the agreement test and narrow the drift-fence expectation.
+- Hazard recorded in the test file itself: if the consolidation gives
+  server-test-app.ts server.ts's `CLERK_ORIGIN ? ... : ...` ternaries, the parser
+  self-check breaks — the parser models the truthy branch, the test process has no
+  CLERK_ISSUER and emits the falsy one. Set CLERK_ISSUER for the test or compare
+  against the branch the environment selects. Do not delete the assertion.
+
+NOT TOUCHED, DELIBERATELY
+src/backend/server.ts, src/backend/server-test-app.ts (brief: assert, do not
+reconcile), playwright.config.ts's webServer block (QUAL-56 in flight), the
+workflow's trigger configuration.
