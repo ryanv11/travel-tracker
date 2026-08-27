@@ -1,7 +1,37 @@
 # Plan — environment parity and a pre-UAT regression gate
 
 **Written:** 2026-08-27 · **Author:** COO · **Status:** PROPOSED — awaiting PO approval
-**Supersedes nothing.** Amends the framing of QUAL-39; proposes OP-42 and QUAL-54.
+**Revision 2**, after a QA review that overturned two of revision 1's conclusions.
+
+> **DECLARED BULK REVISION (OP-28).** Revision 1 was restructured rather than amended in place,
+> because QA's review changed the *order of the work* and the *definition of two workstreams* —
+> an errata list appended to the old order would have been harder to act on than a corrected
+> plan. Nothing is dropped: every revision-1 position that changed is stated below alongside
+> what replaced it and why. Revision 1 is in git history (commits `474d48f`, `42fa67f`, `47cd228`).
+
+---
+
+## What changed in revision 2, in one place
+
+QA was dispatched to stress-test this plan rather than bless it. It conceded the plan's central
+argument, overturned two of its conclusions, and found two live problems the plan had not looked
+for. Every claim below was then **re-probed by the COO**, because a reviewer's findings are not
+pre-verified either — one of QA's own findings did not survive that and was retracted.
+
+| Revision 1 said | Revision 2 says | Who caught it |
+|---|---|---|
+| The security-allowlist test is now *preventive* — no live fault | **Curative.** There is a live violation in CI on every run | QA |
+| The deployed-build check is wholly broken | **4 of 5 checks pass.** One check has never passed | QA |
+| Its failure is undiagnosable because it records only a message string | True, but the prescribed fix (capture "all args") **cannot work** — args are always empty for this class | QA, then COO |
+| …and the capture is therefore lossy | QA first said the capture was complete; **COO challenged; QA retracted and reproduced the real failure exactly** | COO |
+| The single-origin work is one blocked thing | **Two things. The signed-out half works today**, no design decision needed | QA |
+| 52 tests, ~85s, "a few hundred is ten-plus minutes" | **53 tests, 45.7s of test time**, ~0.4s marginal; ~700 tests to reach 5 min, and not on the critical path | QA |
+| Time budget bounds the suite | It cannot — it will never fire. **The maintenance tax is the real bound** | QA |
+| "Cheapest tier that can catch it" | Flawed — that is decided *after* you know the fault. Replaced | QA |
+| Build a named journey pack | **Don't.** Tag the existing suite | QA |
+| Gate blocks on all three checks | **Split it** by whether a check is hermetic | QA |
+| — | **Two copies of the security config exist and have drifted** | QA |
+| — | **Worker-sourced browser errors are invisible to every test in the project** | QA |
 
 ---
 
@@ -14,277 +44,280 @@ Restated plainly: **when work reaches you for testing, it should already have be
 against everything we know can break — so your testing time goes on new things, not on
 re-finding old ones.**
 
-That is the goal this plan is built around. The environment-parity work turns out to be part
-of the same problem rather than a separate errand, which is why they are planned together.
-
 ---
 
 ## Where we actually are
 
-Four gaps, all verified today rather than inherited from the docs.
+Six gaps. All verified by the COO directly, not inherited from the docs.
 
-**1. Nothing checks that a deployed build works.** The automated post-deploy check has run
-six times, failed six times, and has not run at all since **4 August** — 137 merges ago. It is
-marked `done` in the tracker on a closing note claiming it was *"verified by ... green runs."*
-There have never been any green runs. That was a COO sign-off and it was wrong.
+**1. There is a live security-policy violation in CI right now, and we have been looking past it
+for 23 days.** The deployed-build check runs five checks; four pass every time — including the
+one confirming the deployed app *does* carry its security headers. One has never passed: *"the
+browser console is clean."* It fails because something on the deployed sign-in page calls
+`eval()` and the browser refuses it.
 
-**2. Your own past findings are not encoded as tests.** There are roughly **80 resolved findings** in
-[uat-archive.md](../PO/uat-archive.md). The browser test suite has **52 tests total**, written
-around general flows rather than around what you actually found broken. Your UAT sessions are
-the project's de facto regression suite, and you are the bottleneck in the pipeline.
+**This was reproduced exactly.** Serving a page under a policy with no `script-src` and calling
+`eval()` produces character-for-character the message sitting in our CI logs. The browser's
+structured event names it: `violatedDirective: script-src`, `blockedURI: **eval**`.
 
-**3. CI cannot see one whole class of defect.** Confirmed two ways today: the tests serve the
-app from `vite preview` on one port with the backend on another, while production serves
-everything from Express as a single origin with security headers applied. Those headers are
-Express middleware, so in the test run they structurally cannot exist. Every
-Content-Security-Policy fault — the class that caused BUG-55 — is invisible to CI by
-construction.
+Our own policy *does* set `script-src`, so the policy being violated is not our main document's
+— most plausibly a worker or a third-party-served context. **UNVERIFIED which**; staging is down
+and the August run's artifacts expired. One dispatched run settles it once staging returns.
 
-**4. "Ready for UAT" is a judgment call, not a checked state.** Nothing mechanical stands
-between "an engineer says it's done" and "it appears in your UAT log". Today that gap is
-filled by the COO remembering to check things.
+**2. Nothing has run the deployed-build check since 4 August** — 137 merges ago — and it is
+marked `done` in the tracker on a closing note claiming *"verified by ... green runs."* There
+have never been any green runs. That was a COO sign-off and it was wrong.
+
+**3. Two copies of the security configuration exist, and they have drifted.** The real app has
+one; the backend tests have a hand-copied duplicate that is four rules out of date. Its own
+header comment claims it *"exercises exactly the same request pipeline as production"* — false.
+**37 files depend on it.** So a whole tier of tests runs against different security rules than
+the app ships, while a comment says otherwise.
+
+**4. Worker-sourced browser errors are invisible to every browser test we have.** The test
+framework silently discards any console entry originating inside a Web Worker
+([crPage.js:681](../../node_modules/playwright-core/lib/server/chromium/crPage.js#L681)). Our
+policy carries a worker rule *specifically* because the sign-in SDK spins one up — so violations
+in exactly that context cannot be seen. Confirmed live: a page producing two violations
+delivered one. **This is the same shape as gap 5 — the environment cannot express the failure.**
+
+**5. CI cannot see security-policy faults at all**, because tests serve the app from a
+development preview server while production serves it from Express with the headers applied.
+
+**6. "Ready for UAT" is a judgement call, not a checked state.** Nothing mechanical stands
+between an engineer saying "done" and an item appearing in your UAT log.
 
 ---
 
-## The four workstreams
+## The workstreams
 
-### A — Tell the truth about what we have *(minutes, do first)*
+### A — Tell the truth about what we have *(hours)*
 
-Reopen the post-deploy check, and record in its notes exactly why the closing verification was
-false. This is not bookkeeping: a `done` item is one that future planning treats as solid
-ground, and this one is not. Left alone it will mislead the next session the same way it
-misled this one.
+Three tracker corrections, not one: the item closed on a false verification; an honest note that
+the deployed-build check is 4/5 passing rather than wholly broken; and QA reports a further item
+the tracker calls unfixed while the code shows it fixed — **to be COO-verified before acting, not
+taken on report.** Plus filing the newly-found problems (gaps 3 and 4) and the untracked
+test-selector debt.
 
-Also file the currently-untracked test-selector debt (see workstream B) so it can be
-scheduled rather than living in a memory note.
-
-**Deliverable:** corrected tracker. **Owner:** COO. **Blocked by:** nothing.
+**Owner:** COO. **Blocked by:** nothing.
 
 ---
 
 ### B — The pre-UAT regression gate *(the main event)*
 
-This is the piece you asked for. It has three parts, and the third is the one that makes it
-last.
+#### B1. What gets tested where
 
-#### B1. Coverage — a handful of journeys, not one test per finding
+> **Revision 1's rule was "push each finding to the cheapest tier that can catch it." QA
+> identified the flaw and it is a real one:** that judgement is made *after* you already know
+> what the bug was. Once you know it was one function failing, of course a small test catches
+> it — but that test catches *that* bug, not its class. Regression suites exist for faults
+> nobody has seen yet, so the rule systematically underinvests in the only tier that catches
+> the unpredicted.
 
-> **CORRECTED 2026-08-27** after the PO asked *"what's stopping us from just having an
-> infinite number of test cases over time?"* — a flaw in the first draft, which said to
-> turn the archived findings into browser tests. That rule only ever adds, never removes,
-> at the most expensive tier. Followed literally it grows without bound. The corrected
-> version is below; the four bounding rules it rests on are in *What bounds the suite*.
+**The replacement rule:** *write the cheap test only if it would fail for the right reason
+**without** knowing the fault in advance. If a cheap test could pass while the app is visibly
+broken, it stays at the browser tier.*
 
-The archived findings are **the raw material for deciding what to check** — not a list of
-tests to write. The work is:
+**Only a real browser can catch these** — pushing them down loses them silently:
+- one screen not updating after another changed something (the companion-rename fault)
+- anything the browser itself blocks — by definition invisible outside a browser
+- selection, focus and navigation surviving an action
+- a form pre-filling from data a *different* component loaded
+- layout and overflow at a given screen size *(already well covered — keep it)*
 
-1. **Push each finding down to the cheapest tier that can catch it.** What the PO reports is a
-   *symptom*; the fault itself usually lives somewhere much smaller. *"Melbourne loses its
-   state"* looks like a browser journey, but the real defect was one function not backfilling a
-   region — a test that runs in milliseconds and never flakes. A browser test there costs a lot
-   and protects almost nothing. This is already how the team worked on the add-place rebuild:
-   mostly small tests near the code, a few at the browser level. The first draft was stricter
-   than the existing practice, and the practice was right.
-2. **Choose a small number of journeys** for what genuinely needs a real browser — several
-   components co-ordinating, navigation, the browser itself blocking a request. Candidates:
-   add a place · create → lock → unlock a trip · the admin screen. Each journey walks through
-   the territory of many past findings at once.
-3. **Findings decide what a journey asserts along the way** — they do not each earn a test.
+**These have no tier at all, and are declared out of scope rather than quietly tiered away:**
+- **The map.** It cannot render in CI at all — no map key in the test build — and the one
+  existing map test discards every map error to stay green. Any journey touching the map today
+  tests a blank canvas. *But QA makes a good catch here:* the layer ordering and zoom thresholds
+  are **our own data** before the map library draws anything, so the
+  marker-hidden-behind-shading and zoom-threshold findings **do** have a cheap tier after all.
+- **Look-and-feel judgements.** No visual-comparison tooling exists. These stay yours,
+  permanently, and this plan says so rather than implying otherwise.
+- **Anything needing a second login.** The tests run as one hardcoded user. Every finding from
+  your second account is currently unautomatable — see J7, which needs a rig change revision 1
+  budgeted nothing for.
 
-**Triage authority:** QA proposes the tier and the journey set with a one-line reason per
-finding, COO reviews, PO can veto. The judgment stays visible rather than silent.
+#### B2. Don't build a pack — tag the suite you have
 
-#### What bounds the suite *(new — answers the PO's question directly)*
+Revision 1 asked for a new named pack. There are already **53 tests** covering trips, filters,
+status, navigation, admin, places, plus 15 mobile-viewport tests. A separate pack duplicates
+that and creates a second thing to maintain and a second place to drift — **the same shape as
+gap 3.** Tag the existing tests instead, so the gate can name a subset without forking a suite.
+This is also what the project's standing preference for reuse over duplication points at.
 
-Four rules, adopted as rules with **no machinery built to enforce them** — the suite is small
-enough that over-engineering a bound now is the bigger risk.
+**QA's proposed journeys — eight, about 20 new browser tests on top of the 53:**
 
-1. **Cheapest tier that can catch it.** The one that matters from day one; get it wrong at the
-   start and you build a slow, brittle suite you then have to unpick.
-2. **Bound by the product, not the bug history.** Bug history only grows — it accumulates
-   forever. The product's surface does not: it is however many distinct paths exist through the
-   app, and it grows with features, not defects. Ten good journeys can cover eighty findings'
-   worth of ground.
-3. **Deleting a test is normal.** A test whose feature is gone, or which a better test now
-   subsumes, goes — no justification memo. Never deleting is the actual reason suites rot; this
-   project already applies the equivalent discipline to documents.
-4. **Going over the time budget triggers a clear-out, not a bigger machine.** Adding runners
-   buys another year of growth and removes the pressure that keeps the suite healthy.
+| | Journey | Ground it covers | New |
+|---|---|---|---|
+| J1 | Add a place, ambiguous new city — offered a choice, pick, fields fill, save, no duplicate on repeat | The biggest cluster in your archive | 5 |
+| J2 | Trip lifecycle — create → advance → move back (stays selected) → lock → edit refused → unlock → delete, with confirm *and* cancel | The P1 delete finding, lock behaviour, the deselect bug | 4 |
+| J3 | Items on a dated trip — date defaults, directions link, rating sort and filter | The date-defaulting cluster | 4 |
+| J4 | Admin change propagates — rename a companion used on two trips, both reflect it with no refresh | The P1 data-integrity finding | 2 |
+| J5 | **Signed-out page loads clean from the real server**, production-shaped, headers applied | The whole policy-violation class — **available today**, see C | 2 |
+| J6 | Edit-then-see-it — change a place's dates, list reflects it; delete a place holding items, prompted | The "saved but didn't show" class | 2 |
+| J7 | Second account — non-owner sees the right tabs, no owner-only controls | **Needs a rig change (unbudgeted in rev 1)** | 2 |
+| J8 | Mobile list ↔ detail | **Already exists — keep, don't rebuild** | 0 |
 
-**Why the budget binds sooner than it looks:** the browser suite runs strictly one test at a
-time, deliberately — the tests share a single database and trip over each other in parallel
-([playwright.config.ts:38](../../playwright.config.ts#L38)). So cost is a straight line: double
-the tests, double the wait. 52 tests take ~85s today, which is comfortable; a few hundred is
-ten-plus minutes, and that is where people start routing around it.
+#### B3. The gate — split by whether a check is hermetic
 
-**And runtime is not even the main cost.** Every test is glued to part of the interface, so a
-legitimate change to that part means updating every test touching it. A large suite quietly
-taxes changing the product — that is how a test suite stops protecting the app and starts
-resisting it.
+> Revision 1 recommended blocking on all three checks. QA's correction is better and the
+> reasoning is structural rather than cautious.
 
-**Revisit if the suite passes about five minutes.** Until then these are rules, not systems.
+**Block on the hermetic checks** — the normal CI suite and the tagged journeys. They only fail
+when our own code is wrong, so whoever is blocked can always act on it.
 
-#### B2. The gate — a checkable definition of "ready for you"
+**Do not block on the deployed-build check.** It depends on the host, the sign-in provider, a
+third party's console output and a live deployment. A check that can go red for reasons the
+blocked person cannot fix gets overridden the first time, then permanently — **which is exactly
+what already happened.** The repo learned this one level down (a post-deploy check must not sit
+inside the pre-deploy gate); this extends it to the human handoff.
 
-Proposed rule: **an item does not enter your UAT log until three things are green** —
+**Gate on classification instead:** *no UAT round begins without a deployed-build run from the
+current build, with every failure classified — environment, third-party, or product.*
+Classification survives a red day. "Green" does not, and gap 1 is the proof.
 
-1. the normal CI suite,
-2. the PO-journey pack from B1,
-3. the post-deploy check, run against the actual deployed build (workstream D).
+#### B4. The feedback loop
 
-Today only the first exists, and the third is broken. This rule is what converts a pile of
-tests into a gate.
+Every new finding you report gets a test before its fix merges, at the tier B1's rule selects,
+with the tier stated as a deliberate choice rather than a default. A finding earns a browser
+test only when the fault genuinely needs one.
 
-**Advisory or blocking?** I recommend **blocking** — an advisory gate is one people learn to
-step around, and we have a live example of exactly that in this repo (see the risks below).
-This needs your decision.
+#### What bounds the suite
 
-#### B3. The feedback loop — the part that stops it ageing
+> Your question — *"what's stopping us from just having an infinite number of test cases?"* —
+> and revision 1's answer leaned on a time budget. **QA showed the numbers were wrong by 3–4×,
+> which makes that bound one that can never fire.** The real bound was already in revision 1,
+> buried as a footnote. It is promoted here.
 
-Every new finding you report becomes a test **before** its fix is merged, **at the cheapest tier
-that can catch it** — which is usually *not* the browser. The project already does this under
-its test-first rule, so this is a clarification rather than a new discipline: what B3 adds is
-that a PO finding must not be closed without a test *somewhere*, and that the tier is a
-deliberate choice with a stated reason rather than a default.
+1. **The maintenance tax is the bound.** Every test is glued to part of the interface, so a
+   legitimate change means updating every test touching it. That bites at ~80 tests, not 700 —
+   it is how a suite stops protecting the app and starts resisting it.
+2. **Bound by the product, not the bug history.** Bug history only grows. The product's surface
+   does not. **And your findings cluster by surface**: eleven consecutive items on one of your
+   own checklists were all inside "add a place" — one journey, eleven findings' worth of ground.
+3. **Deleting a test is normal.** No justification memo. Never deleting is why suites rot.
+4. ~~Over budget triggers a clear-out~~ — **retracted.** Tests take 45.7s of a 53-test run,
+   marginal cost ~0.4s, and the browser job finishes four minutes before the slowest CI job.
+   Reaching five minutes needs ~700 tests. The budget is not a real constraint.
 
-A finding only earns a place in the journey pack when the fault genuinely needs a real browser
-to reproduce. Most do not.
-
-Without B3, we do one big catch-up push and drift straight back. With it, the pack grows on its
-own and your findings compound instead of evaporating.
-
-**Deliverable:** a small named PO-journey pack running in CI, the tiering rule, plus the gate rule.
-**Owner:** QA. **Blocked by:** nothing — see the reframe immediately below.
-
-#### The reframe: this is *not* blocked on the P1, and treating it as blocked is why it doesn't exist
-
-QUAL-39's notes name two prerequisites: the single-origin test topology (the blocked P1) and
-the test-selector debt. **I think the first is wrong and it has cost us a month.**
-
-- The P1 changes *how the app is served* during tests — one origin instead of two.
-- PO-journey tests care about *product behaviour*, which today's rig exercises perfectly well.
-  52 tests already do exactly that, and the suite has been green on ten consecutive runs.
-- What today's rig cannot catch is CSP faults. That is **one defect class**, not the pack's
-  value — and it is the class the post-deploy check was separately built to cover.
-- So the prerequisite trades a month of no regression coverage for one class of defect that
-  something else was already meant to catch.
-
-**And the decoupling is free rather than a compromise:** when the P1 lands, the same pack
-starts catching CSP faults too, with no rewriting. The tests don't change — only the topology
-underneath them does. Build it now on today's rig; it gets strictly better later.
-
-The **second** prerequisite is more real but much smaller than it looks. Only tests that need
-to tell the same control apart in two different panels need stable selectors, and only 13 of
-87 component files currently have any. That is genuine debt (tracked as QUAL-54 by this plan),
-but it is scoped by *which journeys we pick* — so it belongs inside the pack work, added where
-the chosen journeys need it, rather than standing in front of it as a gate.
+*Also confirmed in the plan's favour: the tests genuinely cannot be parallelised, and for a
+bigger reason than the shared database file — each test wipes all trips against one shared
+backend as one user. Declining to fix that is right.*
 
 ---
 
-### C — Make the invisible class visible *(the P1)*
+### C — Single-origin testing: two things, only one blocked
 
-The stated fix — run the test browser against Express in production mode — **would crash the
-server on startup**, and this was never checked in the month the item has been open.
+Revision 1 treated this as one item needing an Architect decision. **It splits:**
 
-`SERVE_STATIC` is gated on `NODE_ENV=production`
-([server.ts:88](../../src/backend/server.ts#L88)), but a deliberate security guard
-([server.ts:290](../../src/backend/server.ts#L290)) makes `BYPASS_AUTH=true` a **fatal error**
-whenever production mode is set — and the browser tests depend on that bypass to run without a
-real login. The two requirements are mutually exclusive as the code stands.
+**The signed-out half works today.** Serving the app from Express *without* the test-login
+bypass needs no design decision, no new credential and no Architect. That delivers J5 now: a
+test loading the real signed-out page from a production-shaped server with real security headers
+applied, in CI. **It would have caught gap 1 without staging existing at all.**
 
-Resolving it means either decoupling "serve the built frontend" from the production flag, or
-giving the tests a real authentication path — which was declined once already, at ADL-33 §4,
-on credential-scope grounds. That is a design decision touching a security gate, so it needs an
-**Architect pass**, not an implementation brief.
-
-**Deliverable:** an ADL settling the topology, then implementation.
-**Owner:** Architect, then QA/Backend. **Blocked by:** nothing.
-
-#### C-adjacent — the cheap static check
-
-A separate, much smaller item asserts that every external address the app fetches is present
-in the security allowlist. No browser, no deployment, runs in milliseconds.
-
-**Its value case has decayed and I want that on record rather than inherited.** It was rated
-highest-yield because it would have caught two live faults. One is gone — the browser no longer
-calls the geocoder directly, that moved server-side. The other is Clerk's telemetry beacon,
-which is low-priority console noise from a third-party bundle that a scan of our own code
-wouldn't catch anyway. I checked today's actual state: the only external address our own
-frontend reaches is the map tile service, and it *is* correctly allowlisted.
-
-So this is now **preventive, not curative**. Still cheap, still worth having, no longer the
-obvious first pick. Recommend doing it, but after B.
+**Only the logged-in half needs the design call.** Serving statically requires production mode;
+production mode makes the test-login bypass a fatal startup error
+([server.ts:88](../../src/backend/server.ts#L88),
+[server.ts:290](../../src/backend/server.ts#L290)) — verified in code and by running it.
+Resolving that means decoupling static-serving from the production flag, or giving the tests a
+real login path, which was declined once already on credential-scope grounds. **Scope the
+Architect pass to that half only** — handing over the whole thing wastes the pass on a question
+already answered.
 
 ---
 
-### D — Check the deployed build *(partly blocked)*
+### C-adjacent — the allowlist test, moved from 4th to 2nd
 
-Fix the post-deploy check so its one failing test is diagnosable — it currently records only a
-message string, which is why a failure from 4 August was never resolved. Widen it to capture the
-full context, then re-run.
+**It is curative, not preventive.** Revision 1 downgraded it on a COO check of the app's source
+that found nothing broken — while a live violation sat in our own CI history. The lesson is
+worth keeping: *checking the code is not the same as checking the evidence.*
 
-**The code change can be made now. It cannot be proven fixed until staging is back**, because
-diagnosing it needs a real browser hitting the real deployed origin. I'd rather say that
-plainly than ship a fix and call it verified.
+**And its scope grows:** as well as asserting every address the app fetches is allowlisted, it
+should assert **the two copies of the config agree** (gap 3). Minutes of work, closes a drift
+class permanently.
 
-**One design question this workstream must answer:** what triggers it. It originally ran on
-every merge to main — and because Railway gates deployment on the commit's checks, its red
-status **silently skipped five staging deploys**, leaving staging five commits stale while every
-PR showed green. The trigger was correctly removed; nothing replaced it, so nobody has run it
-since. A post-deploy check must report somewhere the deployment platform does not read as a
-pre-deploy gate.
+---
 
-**Deliverable:** diagnosable check + a trigger that can't deadlock deploys.
-**Owner:** QA. **Blocked by:** staging (for verification only).
+### D — Make the deployed-build check diagnosable *(now precisely specified)*
+
+Revision 1 said "widen the capture". **That prescription cannot work** and would have looked
+like diligence while doing nothing. Verified by reading the framework's source and reproducing:
+
+| capture method | yields |
+|---|---|
+| what the check does today | `" Note that 'script-src' was not explicitly set…"` — a dangling clause |
+| `msg.args()` — what rev 1 prescribed | **always empty.** Hardcoded at [crPage.js:687](../../node_modules/playwright-core/lib/server/chromium/crPage.js#L687) |
+| the browser's `securitypolicyviolation` event | `violatedDirective: script-src`, `blockedURI: **eval**` |
+
+**The fix, in order of what each adds:**
+1. **Scope console errors to our own origin** — as the existing map test already does. Stops the
+   permanent red.
+2. **Listen for the browser's structured violation event**, registered before any page script
+   runs. **This is what names the fault.**
+3. **Read the raw browser log stream directly** — the only channel that sees worker-sourced
+   violations (gap 4).
+4. Keep the message location. **Drop `msg.args()` from the prescription.**
+
+This is no longer speculative: it has a reproduction behind it and a known target.
 
 ---
 
 ## Sequencing
 
-Staging is down, so there is nothing to deploy to — which makes this an unusually good window,
-because A, B and C are entirely local and CI-side, and C is the only item that could destabilise
-the test suite. Doing that while nobody is testing is as safe as it gets.
+Staging is down, so nothing can be deployed to — which makes this a good window, since
+everything below except D's verification is local and CI-side.
 
-| Order | Work | Why here |
+| | Work | Why here |
 |---|---|---|
-| 1 | **A** — correct the tracker | Minutes; stops a false `done` misleading the next session |
-| 2 | **B** — the regression gate | Your ask; unblocked by the reframe above; the highest-value item |
-| 3 | **C** — Architect pass on the P1 | Runs in parallel with B; needs a design call before any coding |
-| 4 | **C-adjacent** — the static allowlist check | Cheap, independent, no longer urgent |
-| 5 | **D** — the deployed-build check | Code now, verification when staging returns |
+| 1 | **A** — tracker corrections | Hours. Stops false `done` states misleading the next session |
+| 2 | **C-adjacent** — allowlist test + config-parity assertion | **Moved up from 4th.** Curative, not preventive; closes two live problems |
+| 3 | **D** — make the check diagnosable | **Moved up.** Few hours, known target, converts a 23-day unresolvable red into a diagnosable one |
+| 4 | **B** — the tagged journeys, including J5 and the selector debt | The main event. J5 available now per C |
+| 5 | **C** — Architect pass, **logged-in half only** | Scoped down; the signed-out half needs no decision |
+
+The three ahead of your ask are hours each, and two close live faults.
 
 ---
 
-## Risks, stated rather than buried
+## Risks
 
-**A gate that goes flaky gets ignored — and we have a live example.** The post-deploy check
-went permanently red and was then quietly ignored for 23 days across 137 merges. That is the
-exact failure mode a blocking gate invites. Mitigation: the project already forbids retrying
-flakiness away (`retries: 0`); to that add a standing rule that a flaky test is **fixed or
-deleted the same day, never muted**.
+**A gate that goes red for reasons you can't fix gets ignored.** Live example in this repo: 23
+days, 137 merges, red the whole time, unowned. B3's hermetic split is the structural answer.
 
-**This reduces your testing load; it does not remove it.** The pack catches *known* regressions.
-Genuinely new behaviour still needs your eyes, and always will. If the expectation is "UAT
-becomes a formality", that expectation will be wrong.
+**Nobody owns a red check.** The existing failure was not muted — it was *unowned*. A rule about
+muting does not address that. Needs a named owner and an escalation clock.
 
-**The suite grows monotonically unless something bounds it.** Raised by the PO, and the first
-draft had no answer — it is now answered in full under *What bounds the suite* in workstream B.
-Note the correction there reverses the earlier proposal to add parallel runners: the browser
-tests cannot currently run in parallel at all (shared database), and adding runners would in any
-case remove the pressure that keeps the suite pruned. Over budget triggers a clear-out instead.
+**No alarm for a gate that stops running.** The real root cause of the 23-day silence was not the
+trigger or the diagnosability — it was that nothing noticed the check had **stopped running at
+all.** A staleness alarm is a different mechanism from a pass/fail alarm, and it is the one
+missing.
 
-**Triage is a judgment call.** Deciding which of the ~80 findings deserve a permanent test is
-genuinely debatable, which is why B1 makes the reasoning visible per item instead of letting it
-happen silently.
+**`done` in the tracker has no defined meaning.** One entry was marked done on a verification
+never performed. Worth asking whether `done` should require a named artifact — a run id, a PR
+number — rather than a prose claim.
+
+**This reduces your testing load; it does not remove it.** Genuinely new behaviour always needs
+your eyes. Map and visual work stay yours permanently.
+
+**"~80 findings" is an inflated denominator.** A large share of the archive is feature requests —
+multi-leg flights, Wallet import, category colours. Those cannot regress and will never earn a
+test. Honest version: *of ~80 archived items, roughly half are defects that could recur, and most
+of those belong below the browser.*
+
+**Unanswered: what happens when a journey fails during your UAT round?** If the gate blocks, work
+stops. Who diagnoses, on what clock, what is the override? An undefined override is how gates get
+bypassed informally rather than deliberately.
 
 ---
 
 ## What I need from you
 
-1. **Approve the decoupling** — build the regression pack now on today's rig, rather than waiting
-   for the P1. This is the decision that unlocks everything else.
-2. **Blocking or advisory gate?** I recommend blocking.
-3. **Anything you want explicitly in or out of the pack** — you know which of your past findings
-   actually mattered better than the archive does.
+1. **Approve the decoupling** — build the journeys now rather than waiting on the single-origin
+   work. QA set the prerequisite this overturns and has conceded it.
+2. **Approve the split gate** — blocking on our own tests, classification-gated on the deployed
+   check.
+3. **Approve the reordering** — three short items ahead of the journeys, two of which close live
+   faults.
+4. **Anything you want explicitly in or out of the journey set.**
 
-Nothing here is started. This is a proposal.
+Nothing is started.
