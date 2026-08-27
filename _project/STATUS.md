@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (82)
+## Open work (83)
 
 ### P1 — Critical (1)
 
@@ -68,7 +68,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (43)
+### P3 — Minor (44)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -103,6 +103,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-98 | City resolved in a region-tier country with state left blank is saved region-null, not backfilled (Melbourne -> 'Australia, no state set') | architect | done_pending_uat |
 | BUG-100 | Region derivation has THREE write sites and only two carry D4 — a resolved-insert with a missed region map is never revisited (region-null forever) | architect | ⬜ Pending |
 | QUAL-52 | Newport test fixtures assert an OSM node id (26700978) that upstream no longer serves — stale identity across 6 test files | qa | ⬜ Pending |
+| UX-16 | Add Place shows TWO escape rows — 'none of these - add as new' and '+ Add new: "X"' — visible redundancy on the merged surface | ux | ⬜ Pending |
 | UX-15 | Blue-date tooltip copy 'set explicitly for this place' is unclear to users | frontend | ⬜ Pending |
 | QUAL-51 | Demand-driven geocode response cache — cache Nominatim search results per (name, country) with a TTL (the multi-user live-call-rate lever) | architect | ⬜ Pending |
 | QUAL-48 | Spike — does a file-backed libSQL test client honour db.transaction() (unblocks items base+extension atomicity)? | backend | ⬜ Pending |
@@ -158,4 +159,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_199 done · 9 deferred · 5 closed · 82 open — 295 tracked items_
+_199 done · 9 deferred · 5 closed · 83 open — 296 tracked items_

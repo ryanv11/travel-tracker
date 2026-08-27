@@ -132,6 +132,38 @@ PO is the UAT bottleneck, and an unbounded pending-UAT queue is where staleness 
 accumulate. The PO sets N. If adopted it's one CLAUDE.md line. Migrated here 2026-08-08 (queue retired);
 held as a proposal until the PO sets N (or declines).
 
+### D-35: An ATDD red bar ships SKIPPED — what stops an implementer shipping without un-skipping it?
+**Raised:** 2026-08-26 (COO, during the GE-21 Slice-1 build) · **Status:** observation + a proposed cheap
+guard; no rule adopted. Surfaced because the same shape recurs immediately in Slice 2.
+
+The repo convention (GE-19 / ADL-55 precedent, followed by the ADL-56 bar) is that a QA-authored red bar is
+committed as `describe.skip` so CI stays green until the implementer lands the behaviour. That is sensible —
+but it means **a shipped slice with the tests left skipped looks identical to a shipped slice that passes
+them.** Green board either way.
+
+This session it was closed by *instruction and inspection*, not by mechanism: both implementer briefs made
+un-skipping an explicit deliverable, and the COO counted remaining `describe.skip('[S1]` occurrences before
+each merge (backend 3 files → 0, frontend 4 files → 0, and 0 repo-wide on `main` after). That worked, but it
+is a discipline living in one person's head — exactly the shape the project has repeatedly found insufficient.
+
+**Why it is live rather than hypothetical:** Slice 2's tests (ADL-56 §10 tests 2 and 3) are sitting skipped on
+`main` right now.
+
+**What QA already contributed, and why it is only half the answer.** Asked to make the Slice-1→2 interim
+visible, QA argued the COO's own suggestion (skipped markers) does not achieve it — vitest's default reporter
+prints only `N skipped`, never the names — and instead added two **live interim tripwires** that assert
+today's behaviour, pass now, and go RED when Slice 2 lands. That is a genuinely better mechanism (*"a skipped
+test records an intention; a green test that will break creates an obligation"*), and it protects the
+**interim**. It does not protect the **bar**: a tripwire fires when the next slice arrives, not when an
+implementer forgets to un-skip the current one.
+
+**Proposed guard (cheap, not yet adopted):** at merge time, assert that no `describe.skip('[S<current
+slice>]` remains — either a line in `/pre-push`, or a `/coo-merge-and-close` checklist item. Roughly one
+grep. The open question is whether it is worth a standing rule at all, given D-03's precedent that a single
+contained incident (here: a near-miss that did not even occur) does not justify one. **COO recommendation:**
+a checklist line in `/coo-merge-and-close`, not a hook — it costs nothing, and the failure it prevents is
+silent by construction.
+
 ## Parked
 
 _Decided not-now / watch-for-recurrence, with no other home. Each stays only so it can be
