@@ -28,6 +28,32 @@ Checked at every `/coo-startup` pickup and by the Restart Preview step in `/coo-
 
 ## Open
 
+### D-36: Three governance gaps exposed by the 2026-08-27 shakedown finding — parked by PO for a dedicated conversation
+**Raised:** 2026-08-27 (COO, from the pre-UAT gate work) · **Status:** PO chose to park these for their own
+thread rather than decide them as a footnote to the testing plan. Not decided, not tracked as work.
+
+All three come out of one concrete failure: the post-deploy check (QUAL-20) sat red for **23 days across
+137 merges**, and was marked `done` by the COO on a verification never performed. They are separable from
+the testing plan and each other.
+
+1. **Nothing notices when a check STOPS RUNNING.** This — not the trigger, not the diagnosability — is
+   the actual root cause of the 23-day silence. A *staleness* alarm ("this check has not run since X") is
+   a different mechanism from a pass/fail alarm, and it is the one that was missing. Note the shape is
+   already familiar here: OP-40's own cadence gate was rebuilt for exactly this class after its counter
+   froze silently. Candidate homes: `/coo-startup`, or the drift-cadence gate itself.
+2. **Nobody owns a red check.** The failing check was not muted — it was **unowned**. The gate plan's rule
+   ("a flaky test is fixed or deleted the same day, never muted") does not address that: it names no owner
+   and no escalation clock. Related to the standing rule that red `main` is fixed immediately, which
+   evidently did not generalise to a non-blocking workflow.
+3. **`done` in the tracker has no defined meaning.** It currently means *someone wrote that it is done*.
+   QUAL-20 is the worked example. **COO proposal (not adopted):** `done` requires a NAMED ARTIFACT — a run
+   id, a PR number, a UAT PASS line — rather than a prose claim. Note the machinery to check this partly
+   exists: `tracker:check` already hard-fails on structural problems, and the drift canary's Check E
+   already looks at status-vs-note. This would be a third assertion in the same family, not new machinery.
+   Counter-argument to weigh: the project is already rule-dense, and D-03's precedent says a single
+   contained incident does not justify a standing rule — though this one is not contained, it is a COO
+   sign-off failure that propagated into planning a fortnight later.
+
 ### D-33: Multi-user geocoding scaling — does the shared cache suffice, or do we need coalescing / a hosted source?
 **Raised:** 2026-08-11 · **Status:** parked (PO agreed) — capture now, pull into an Architect ADL only when multi-user is actually on the roadmap. Sibling of D-30 (build-vs-buy).
 
