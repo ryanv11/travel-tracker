@@ -101,6 +101,27 @@ serving the frontend from `vite preview` with no CSP header where production ser
 > [`jobs/architect/tech/test-environment-fidelity.md`](./jobs/architect/tech/test-environment-fidelity.md)**
 > (QUAL-56). The paragraph above is no longer the current list and must not be treated as complete.
 
+**The replacement rule (2026-08-27, COO per ADL-57 §8 Q4):**
+
+> **A test tier is trusted only for what it explicitly claims.** Every tier states its
+> **fidelity claims** — the properties it genuinely exercises the same way production does —
+> and its **declared non-goals**. Anything on neither list is **out of contract**: an admitted
+> unknown, not a covered surface. Before relying on a tier to catch a defect class, check that
+> the class is on that tier's claim list; if it is on neither list, that is the finding.
+
+Why the change: the old rule asked for something uncompletable. The difference set between a
+`jsdom` unit test and Chrome-on-Railway is effectively infinite, and most of it is the reason
+the cheap tier is cheap — so no one could ever finish it, and "give it an owner" would not have
+helped. Claims and non-goals are bounded, which is what makes the register maintainable and the
+gap *visible* rather than silent.
+
+**The register is the canonical home and this file does not duplicate it:**
+[`jobs/architect/tech/test-environment-fidelity.md`](./jobs/architect/tech/test-environment-fidelity.md).
+Live divergences are tracked as QUAL-18 (serving topology), QUAL-19 (allowlist contract),
+QUAL-20 (post-deploy check), BUG-101 (duplicated config), QUAL-54 (worker-sourced errors
+unobservable) and QUAL-57 (the bundle under test is not the bundle that ships). **Do not
+maintain a second list here** — a copy in two places is exactly the failure BUG-101 records.
+
 ### Negative findings need two probes (mandatory)
 Positive findings self-verify — the thing is there, you can see it. Negative findings don't, and they
 are disproportionately load-bearing because designs get built on "X doesn't exist" without anyone

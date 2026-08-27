@@ -5029,3 +5029,58 @@ here, not performed.
   implementation brief.
 
 **ATDD-first summary:** B1 **yes**, B2 **yes**, B3 **no**, B4 **yes** (gated on Q1).
+
+#### 8.1 RESOLUTIONS (COO, 2026-08-27) — all four closed before the fresh-eyes dispatch
+
+Recorded per OP-27 refinement 1: the reviewer receives a settled spec, so its one pass goes on blind
+spots rather than on gaps the author already surfaced. **Reviewer: treat §8.1 as part of the document
+under review, not as settled fact — including the seam between these resolutions and §§1–7, which they
+were not written alongside.**
+
+- **Q1 — ADOPTED (PO decision, 2026-08-27).** Request-selectable bypass identity proceeds. B4 is
+  un-gated. The PO was given the Architect's own risk assessment (header path strictly inside the
+  existing `BYPASS_AUTH === 'true'` branch; inert in production, which cannot set that flag because
+  `server.ts:290` throws) alongside the cost of rejecting (second-account journeys stay permanently
+  manual). **The ATDD red bar for B4 is unchanged and binding:** the header is read *only* when
+  `BYPASS_AUTH === 'true'`; with the flag unset or absent the header has **no effect whatsoever**;
+  `isOwner` still derives from `OWNER_CLERK_ID`. **Reviewer: stress-test this specifically** — it is
+  the one item in ADL-57 that adds a code path to authentication middleware, and PO approval of a
+  direction is not evidence that the *mechanism* is sound.
+
+- **Q2 — RESOLVED DIFFERENTLY, AND MORE CHEAPLY THAN ASKED. Do not add `DEPLOY_ENV`; do not consult
+  the dashboard.** The question assumed the only route was confirming `RAILWAY_ENVIRONMENT` /
+  `RAILWAY_ENVIRONMENT_NAME` from the Railway UI. A marker with *working evidence* already exists:
+  `RAILWAY_GIT_COMMIT_SHA`, consumed in production code at `src/backend/services/build-info.ts:128`.
+  **COO-verified by two probes that fail differently:** (1) the production code path reads it and
+  QUAL-26 shipped on it; (2) the deployed shakedown's check *"/health answers and reports the build
+  SHA within the deploy-propagation window"* **passed against real staging** on run 30941449115
+  (2026-08-04) — a green SHA-match is only possible if Railway injected the variable into the running
+  deployment. So the marker's presence is established by observed behaviour, not by a dashboard
+  screenshot. **Consequence for B1:** base the compensating startup assertion on
+  `RAILWAY_GIT_COMMIT_SHA` and drop the `DEPLOY_ENV` prerequisite; B1 is no longer gated on a
+  dashboard visit, which also means it is not blocked by staging currently being down (billing
+  lapse). **Residual UNVERIFIED, stated rather than hidden:** whether `RAILWAY_ENVIRONMENT` is *also*
+  present is still unknown and now moot; and neither probe distinguishes staging from production
+  injection, since only staging was observed. **Reviewer: this is a COO substitution of a different
+  marker for the one the Architect specified — probe it rather than inherit it.**
+
+- **Q3 — DONE. Filed as QUAL-57** (P2, owner QA), merged to `main` in PR #554. **COO verification made
+  the finding materially wider than reported, and §§3.1/T4 should be read against this:** it is not
+  only that the bundle under test differs from the bundle that ships. Two probes that fail
+  differently — (1) `main.tsx:52-58`, the `bypassAuth` branch renders the app tree with **no**
+  `ClerkProvider` and **no** `TokenRegistrar`, so `setTokenGetter` is never called; (2)
+  `apiClient.ts:61-66`, `authHeaders()` returns `{}` when no token getter is registered. Therefore
+  **no E2E request has ever carried an `Authorization` header**, and on the backend `BYPASS_AUTH`
+  short-circuits at `auth.ts:102` before any JWT work. **Both ends of the auth path are absent, not
+  merely stubbed to one identity** — the single hardcoded user is a symptom. This confirms and
+  strengthens §3.1's boundary. **Reviewer: check whether any claim in §§1–7 assumes E2E exercises
+  *any* part of authentication; if so, that claim is void.**
+
+- **Q4 — CONFIRMED, and the edit is made in this PR** (COO-authored, not delegated to an
+  implementation brief). `CLAUDE.md` *Deployment shakedown before UAT* now carries the Architect's
+  supersession stamp **plus** a COO-written replacement rule — *a test tier is trusted only for what
+  it explicitly claims; anything on neither the claim list nor the non-goal list is out of contract* —
+  and points at the register as canonical without duplicating it, per delete-and-point. **Reviewer:
+  the replacement rule is COO prose, not Architect spec. Check it is faithful to §2's model and does
+  not overclaim; a governance sentence that drifts from the design it encodes is the failure mode this
+  whole ADL exists to close.**
