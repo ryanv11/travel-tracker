@@ -67,15 +67,62 @@ scheduled rather than living in a memory note.
 This is the piece you asked for. It has three parts, and the third is the one that makes it
 last.
 
-#### B1. Coverage — turn past findings into tests
+#### B1. Coverage — a handful of journeys, not one test per finding
 
-The archived findings are the raw material. They are not all worth encoding: some are
-duplicates, some cosmetic one-offs, some already covered. The work is to triage them into
-*must-be-a-test* / *already covered* / *not worth it*, then write the missing ones as browser
-tests.
+> **CORRECTED 2026-08-27** after the PO asked *"what's stopping us from just having an
+> infinite number of test cases over time?"* — a flaw in the first draft, which said to
+> turn the archived findings into browser tests. That rule only ever adds, never removes,
+> at the most expensive tier. Followed literally it grows without bound. The corrected
+> version is below; the four bounding rules it rests on are in *What bounds the suite*.
 
-**Triage authority:** QA proposes the split with a one-line reason per item, COO reviews, you
-can veto anything. That way the judgment is visible rather than silent.
+The archived findings are **the raw material for deciding what to check** — not a list of
+tests to write. The work is:
+
+1. **Push each finding down to the cheapest tier that can catch it.** What the PO reports is a
+   *symptom*; the fault itself usually lives somewhere much smaller. *"Melbourne loses its
+   state"* looks like a browser journey, but the real defect was one function not backfilling a
+   region — a test that runs in milliseconds and never flakes. A browser test there costs a lot
+   and protects almost nothing. This is already how the team worked on the add-place rebuild:
+   mostly small tests near the code, a few at the browser level. The first draft was stricter
+   than the existing practice, and the practice was right.
+2. **Choose a small number of journeys** for what genuinely needs a real browser — several
+   components co-ordinating, navigation, the browser itself blocking a request. Candidates:
+   add a place · create → lock → unlock a trip · the admin screen. Each journey walks through
+   the territory of many past findings at once.
+3. **Findings decide what a journey asserts along the way** — they do not each earn a test.
+
+**Triage authority:** QA proposes the tier and the journey set with a one-line reason per
+finding, COO reviews, PO can veto. The judgment stays visible rather than silent.
+
+#### What bounds the suite *(new — answers the PO's question directly)*
+
+Four rules, adopted as rules with **no machinery built to enforce them** — the suite is small
+enough that over-engineering a bound now is the bigger risk.
+
+1. **Cheapest tier that can catch it.** The one that matters from day one; get it wrong at the
+   start and you build a slow, brittle suite you then have to unpick.
+2. **Bound by the product, not the bug history.** Bug history only grows — it accumulates
+   forever. The product's surface does not: it is however many distinct paths exist through the
+   app, and it grows with features, not defects. Ten good journeys can cover eighty findings'
+   worth of ground.
+3. **Deleting a test is normal.** A test whose feature is gone, or which a better test now
+   subsumes, goes — no justification memo. Never deleting is the actual reason suites rot; this
+   project already applies the equivalent discipline to documents.
+4. **Going over the time budget triggers a clear-out, not a bigger machine.** Adding runners
+   buys another year of growth and removes the pressure that keeps the suite healthy.
+
+**Why the budget binds sooner than it looks:** the browser suite runs strictly one test at a
+time, deliberately — the tests share a single database and trip over each other in parallel
+([playwright.config.ts:38](../../playwright.config.ts#L38)). So cost is a straight line: double
+the tests, double the wait. 52 tests take ~85s today, which is comfortable; a few hundred is
+ten-plus minutes, and that is where people start routing around it.
+
+**And runtime is not even the main cost.** Every test is glued to part of the interface, so a
+legitimate change to that part means updating every test touching it. A large suite quietly
+taxes changing the product — that is how a test suite stops protecting the app and starts
+resisting it.
+
+**Revisit if the suite passes about five minutes.** Until then these are rules, not systems.
 
 #### B2. The gate — a checkable definition of "ready for you"
 
@@ -94,15 +141,19 @@ This needs your decision.
 
 #### B3. The feedback loop — the part that stops it ageing
 
-Every new finding you report becomes a test **before** its fix is merged. The project already
-does this at the unit level under its test-first rule, so this is a tightening rather than a
-new discipline: the test must live in the PO-journey pack, at the browser level, not only as a
-unit test near the code.
+Every new finding you report becomes a test **before** its fix is merged, **at the cheapest tier
+that can catch it** — which is usually *not* the browser. The project already does this under
+its test-first rule, so this is a clarification rather than a new discipline: what B3 adds is
+that a PO finding must not be closed without a test *somewhere*, and that the tier is a
+deliberate choice with a stated reason rather than a default.
+
+A finding only earns a place in the journey pack when the fault genuinely needs a real browser
+to reproduce. Most do not.
 
 Without B3, we do one big catch-up push and drift straight back. With it, the pack grows on its
 own and your findings compound instead of evaporating.
 
-**Deliverable:** a named PO-journey pack running in CI, plus the gate rule.
+**Deliverable:** a small named PO-journey pack running in CI, the tiering rule, plus the gate rule.
 **Owner:** QA. **Blocked by:** nothing — see the reframe immediately below.
 
 #### The reframe: this is *not* blocked on the P1, and treating it as blocked is why it doesn't exist
@@ -216,10 +267,11 @@ deleted the same day, never muted**.
 Genuinely new behaviour still needs your eyes, and always will. If the expectation is "UAT
 becomes a formality", that expectation will be wrong.
 
-**Test time is a budget.** The browser suite runs in 85 seconds today, so there is real headroom
-— but a pack built from ~80 findings could erode it. Proposal: keep total CI under about five
-minutes, and split the suite across parallel runners rather than trimming coverage if it gets
-close.
+**The suite grows monotonically unless something bounds it.** Raised by the PO, and the first
+draft had no answer — it is now answered in full under *What bounds the suite* in workstream B.
+Note the correction there reverses the earlier proposal to add parallel runners: the browser
+tests cannot currently run in parallel at all (shared database), and adding runners would in any
+case remove the pressure that keeps the suite pruned. Over budget triggers a clear-out instead.
 
 **Triage is a judgment call.** Deciding which of the ~80 findings deserve a permanent test is
 genuinely debatable, which is why B1 makes the reasoning visible per item instead of letting it
