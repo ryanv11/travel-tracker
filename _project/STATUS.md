@@ -17,15 +17,16 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (83)
+## Open work (89)
 
-### P1 — Critical (1)
+### P1 — Critical (2)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
+| QUAL-56 | Environment parity has no owner — the July enumeration rotted and two new divergences were found by accident in one session | architect | ⬜ Pending |
 
-### P2 — Important (38)
+### P2 — Important (41)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -51,6 +52,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
 | QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
+| QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | ⬜ Pending |
 | BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | done_pending_uat |
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | done_pending_uat |
 | BUG-84 | requireAuth catch{} swallows ALL errors into an unlogged 401 (config/JWKS/DB indistinguishable from a bad token) | backend | ⬜ Pending |
@@ -63,12 +65,14 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-45 | Admin name-list BACKEND consolidation — repo+router factory keeping validateOwnership explicit (QUAL-29 part b) | architect | ⬜ Pending |
 | ENV-02 | Staging 502s — Railway proxy 'connection dial timeout' to a single-replica service; app-side causes ruled out | coo | ⬜ Pending |
 | OP-36 | Capture ADL-49 recorded replay fixtures for Nominatim (allowlist half already applied — ENV-01) | coo | ⬜ Pending |
+| BUG-101 | Two hand-copied CSP configs have drifted — 37 backend test files run against different security rules than the app ships, under a comment claiming exact parity | backend | ⬜ Pending |
+| QUAL-54 | Worker-sourced browser console entries are DROPPED by Playwright — CSP violations inside the Clerk blob: worker are invisible to every browser test we have | qa | ⬜ Pending |
 | QUAL-37 | Backup posture — COO memory dir + Turso DBs are unversioned/reseed-only; back up before non-disposable UAT data | coo | ⬜ Pending |
 | QUAL-38 | Goal-6 scorecard — one recurring PO-readable health report (escape/rework/flow/hook-violations/token-burn) | coo | ⬜ Pending |
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (44)
+### P3 — Minor (46)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -113,6 +117,8 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-35 | Lean the /coo-startup audit — gate heavy checks on a change-probe; de-inline UAT + open-dialogues | coo | ⬜ Pending |
 | OP-37 | gh CLI has no persistent auth in the devcontainer — bridged by hand each session | coo | ⬜ Pending |
 | QUAL-36 | Three BRD-wording open questions from the QUAL-05 sweep — import scope + MB-01 mobile scope, awaiting PO decision | coo | ⬜ Pending |
+| QUAL-55 | data-testid debt — 13 of 93 component files carry any stable selector, and the panels worth testing are the worst-instrumented | frontend | ⬜ Pending |
+| UX-17 | Investigate visual-comparison testing — look-and-feel findings currently have no tier and stay with the PO permanently | ux | ⬜ Pending |
 | QUAL-41 | Coverage visibility — vitest coverage as a per-area CI artifact, NO threshold gates | qa | ⬜ Pending |
 | QUAL-42 | Architect review batch — DB_TYPE=postgres scaffolding (U13), transaction convention (U10), asyncHandler vestigiality (U15) | architect | ⬜ Pending |
 | DEP-07 | Minor/patch dependency batch bump — biome, clerk, playwright, tailwind, tanstack-query, helmet, jose, etc. | coo | ⬜ Pending |
@@ -123,9 +129,9 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 |---|---|---|---|---|
 | feature | `█████████████░░░░░░░` 37/58 | 37 | 21 | 4 |
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
-| bug | `███████████████░░░░░` 71/93 | 71 | 22 | 3 |
+| bug | `███████████████░░░░░` 71/94 | 71 | 23 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `████████████░░░░░░░░` 39/66 | 39 | 27 | 1 |
+| chore | `███████████░░░░░░░░░` 38/70 | 38 | 32 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -159,4 +165,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_200 done · 9 deferred · 5 closed · 83 open — 297 tracked items_
+_199 done · 9 deferred · 5 closed · 89 open — 302 tracked items_
