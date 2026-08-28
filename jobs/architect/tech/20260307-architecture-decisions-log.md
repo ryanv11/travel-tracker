@@ -4858,6 +4858,11 @@ what the topology question was actually for without touching the credential deci
 differently: `package.json` carries `@clerk/react` and no `@clerk/testing`; and `middleware/auth.ts` verifies
 against JWKS with issuer and `azp` checks, so no non-bypass path exists that a locally-forged token satisfies.)
 
+> **SUPERSEDED (2026-08-27) by §3.2 — retained for history.** The OP-27 fresh-eyes review (findings
+> F1/F2, both blocking) showed this paragraph's control is fail-open and its safety argument judges
+> the removed canary against the wrong criterion. The paragraph below stands as written for the
+> record; §3.2 is the operative control.
+
 **A compensating control, because the decoupling removes an accidental one.** Today, a deployment that mis-set
 `NODE_ENV` would fail to serve the SPA and be *loudly* broken — an accidental canary. Note carefully that this
 canary was never protection against unauthenticated production: the `:291` guard reads the same variable, so a
@@ -4868,6 +4873,53 @@ platform-provided variable; blind spot: this container cannot read Railway's inj
 implementer must confirm a Railway-injected marker exists (`RAILWAY_ENVIRONMENT` / `RAILWAY_ENVIRONMENT_NAME`)
 and, if it does not, add an explicit `DEPLOY_ENV` variable to both Railway environments instead. **This
 strengthening ships in the same PR as the decoupling** — the decoupling must not land alone.
+
+#### 3.2 The compensating control, REVISED per the OP-27 review (2026-08-27; findings F1/F2) — operative
+
+**Why the original was insufficient, in two parts.** (F2) The paragraph above dismisses the accidental
+canary as "never protection" because it never made the *guard* fire — but making the guard fire was
+never its property. Its property was making the misconfiguration **loud**: a deployment with `NODE_ENV`
+mis-set stops serving the site. After the decoupling, that same deployment serves the real site, real
+CSP, **authentication disabled** — and, because `BYPASS_AUTH` also relaxes the rate limiter
+(`server.ts:178,189`: 5000/500 per min vs 300/20), the same single misconfiguration removes the lock
+and the throttle together. Every existing check passes in that state. (F1) The §8.1 Q2 amendment then
+keyed the replacement check to `RAILWAY_GIT_COMMIT_SHA` on evidence that does not hold — see the
+retraction at §8.1 Q2-R — and the check as specified ("if marker present and `NODE_ENV` wrong, throw")
+does **nothing when the marker is absent**. A safety check whose off-state is silence is not a safety
+check.
+
+**The revised control — state the property in terms the unsafe configuration cannot satisfy:**
+
+1. **An explicit `DEPLOY_ENV` variable is set by hand on both Railway environments**
+   (`production` / `staging`) — the Architect's original specification, restored. No reliance on any
+   platform-injected variable; presence is guaranteed by us setting it, not by Railway documentation.
+2. **Fail closed on absence:** at startup, a process that is serving the built site (`SERVE_STATIC`
+   active) with **neither** `DEPLOY_ENV` **nor** the explicit E2E marker (`E2E_RIG=true`, set only by
+   `playwright.config.ts`) present → **throw.** A deployment that forgets its marker is loudly broken —
+   the canary's one good property, restored deliberately instead of by accident.
+3. **The bypass/serving collision is guarded directly:** at startup, `BYPASS_AUTH === 'true'` while
+   serving the built site → **throw unless `E2E_RIG=true`.** This is the F2 property stated positively:
+   the dangerous *combination* is unreachable except in the one configuration that declares itself the
+   test rig. The `server.ts:290` guard stays untouched on top.
+4. **Ships in the same PR as the decoupling** (unchanged from the original), and the Railway variables
+   are set **before** that PR merges — the control must never be pending while the decoupling is live.
+
+**Same-PR document updates (F2, per the document-lifecycle rule).** Six artifacts assert the guarantee
+the decoupling changes, and the B1 PR must update every one, citing the PR: the shakedown's
+"PROVES: … production code path" comment (`src/e2e-shakedown/shakedown.spec.ts:167-171` — already
+overstated today, since helmet is mounted unconditionally); `_project/security-spec.md:239` (the
+rate-limit justification); `CODEBASE.md:282`; `README.md:47`; `_project/hardening-gate.md:59`; and the
+QUAL-20 tracker note.
+
+**B1's red bar gains two pins (F2, F3):** (e) starting with `SERVE_STATIC=true` and neither
+`DEPLOY_ENV` nor `E2E_RIG` set **throws**; starting with `BYPASS_AUTH=true` + `SERVE_STATIC=true`
+without `E2E_RIG` **throws**; and (f) **no E2E navigation resolves to an origin other than the Express
+origin** — the 55 hardcoded `localhost:5173` URLs across all 9 spec files are in-scope work for B1, not
+incidental, because the cheapest wrong implementation adds the new server alongside the old and leaves
+53 tests green against the header-less topology. Also in B1's scope (F8): correct the stale
+`playwright.config.ts:93-100` comment claiming `VITE_API_BASE_URL` has no fallback — `apiClient.ts:21`
+coerces with `?? ''`, and the comment as written would cause the next reader to reintroduce the
+variable this ruling removes.
 
 #### 3.1 The boundary this ruling does NOT close — read this before believing the class is shut
 
@@ -5004,7 +5056,7 @@ here, not performed.
 |---|---|---|---|
 | **B1** | `SERVE_STATIC` decoupling + the deployment-marker startup assertion + E2E single-origin webServer (drop `VITE_API_BASE_URL`) + a red-proven CSP-allowlist E2E assertion | QUAL-18 | **YES** — a wrong implementation is silent-and-plausible (the suite goes green while the document is still served without a CSP), and the behaviour is precisely specifiable. Red tests must pin: (a) the document response carries a `Content-Security-Policy` header; (b) removing `*.maptiler.com` from `connect-src` **fails** the suite; (c) starting with `NODE_ENV=production BYPASS_AUTH=true` still **throws**; (d) starting with a deployment marker and `NODE_ENV` unset **throws**. **MOCK-FIDELITY:** no doubles for the Express app — assert against the real process |
 | **B2** | One shared helmet/pipeline config imported by `server.ts` and `server-test-app.ts`; delete the prose parity comment; add T1-C1..C4 assertions | BUG-101 | **YES** — shared security contract; a wrong implementation leaves 37 files testing a weaker policy while the assertion passes. Red tests must pin directive-by-directive equality **and** middleware order |
-| **B3** | Drift-canary **Check F1/F2/F3** + the `SCAN_DIRS` widening | QUAL-56 | **NO** — warn-only output, visible and recoverable; failures are cosmetic false positives |
+| **B3** | Drift-canary **Check F1/F2/F3** + the `SCAN_DIRS` widening. **Two traps (OP-27 review F8):** (i) the canary filters by extension — `EXTS = (".md", ".txt", ".json")` at `drift-canary.sh:24` — so widening `SCAN_DIRS` to `src/`/`.github/` without widening `EXTS` to `.ts/.tsx/.yml` scans nothing; (ii) the parity-language check will flag this ADL and the register themselves, which quote parity phrasing — warn-only so acceptable, but the check's output must say so or its first run reads as broken. **Check F1 must require a test-file *path* in a claim's proof cell, not any non-empty cell** (review F6: prose like "the suite itself" reads as proof and proves nothing) | QUAL-56 | **NO** — warn-only output, visible and recoverable; failures are cosmetic false positives |
 | **B4** | Request-selectable bypass identity (D-4b) | new item needed | **YES** — auth-adjacent. Red tests must pin: the header is read **only** when `BYPASS_AUTH === 'true'`; with `BYPASS_AUTH` unset or absent the header has **no effect whatsoever**; and `isOwner` still derives from `OWNER_CLERK_ID`. **Gated on Q1** |
 
 ---
@@ -5047,22 +5099,37 @@ were not written alongside.**
   the one item in ADL-57 that adds a code path to authentication middleware, and PO approval of a
   direction is not evidence that the *mechanism* is sound.
 
-- **Q2 — RESOLVED DIFFERENTLY, AND MORE CHEAPLY THAN ASKED. Do not add `DEPLOY_ENV`; do not consult
-  the dashboard.** The question assumed the only route was confirming `RAILWAY_ENVIRONMENT` /
-  `RAILWAY_ENVIRONMENT_NAME` from the Railway UI. A marker with *working evidence* already exists:
-  `RAILWAY_GIT_COMMIT_SHA`, consumed in production code at `src/backend/services/build-info.ts:128`.
-  **COO-verified by two probes that fail differently:** (1) the production code path reads it and
-  QUAL-26 shipped on it; (2) the deployed shakedown's check *"/health answers and reports the build
-  SHA within the deploy-propagation window"* **passed against real staging** on run 30941449115
-  (2026-08-04) — a green SHA-match is only possible if Railway injected the variable into the running
-  deployment. So the marker's presence is established by observed behaviour, not by a dashboard
-  screenshot. **Consequence for B1:** base the compensating startup assertion on
-  `RAILWAY_GIT_COMMIT_SHA` and drop the `DEPLOY_ENV` prerequisite; B1 is no longer gated on a
-  dashboard visit, which also means it is not blocked by staging currently being down (billing
-  lapse). **Residual UNVERIFIED, stated rather than hidden:** whether `RAILWAY_ENVIRONMENT` is *also*
-  present is still unknown and now moot; and neither probe distinguishes staging from production
-  injection, since only staging was observed. **Reviewer: this is a COO substitution of a different
-  marker for the one the Architect specified — probe it rather than inherit it.**
+- ~~**Q2 — RESOLVED DIFFERENTLY, AND MORE CHEAPLY THAN ASKED.**~~ **RETRACTED — see Q2-R below.
+  Retained struck-through for the record.** ~~The question assumed the only route was confirming
+  `RAILWAY_ENVIRONMENT` from the Railway UI. A marker with working evidence already exists:
+  `RAILWAY_GIT_COMMIT_SHA`, consumed at `build-info.ts:128`; the deployed shakedown's SHA-match check
+  passed against real staging on run 30941449115, which is only possible if Railway injected the
+  variable into the running deployment.~~
+
+- **Q2-R — the retraction (COO, 2026-08-27, from OP-27 review finding F1 — blocking).** The
+  substitution above was **wrong, and its "two probes" were not independent.**
+  `resolveBuildInfo()` (`build-info.ts:122-147`) resolves the SHA through a three-way fallback ending
+  in a value **baked into the image at build time** (`scripts/generate-build-info.js`, the `prebuild`
+  hook) — so a green SHA-match is produced identically whether or not Railway injects the variable at
+  runtime, and `/health` deliberately omits which source won. Both of the COO's "probes" observed the
+  same output through the same blind spot: **that is one probe written down twice**, from the author
+  of the rule that forbids exactly this. Worse, the repo already recorded the opposite conclusion:
+  `generate-build-info.js:10-18` states the variable's runtime presence *"could not be confirmed …
+  (which is why a COO check found it absent)"* and that *"expected is not verified"* — the baked
+  fallback **exists because of** that uncertainty. The COO asserted the contrary without reading it.
+  **Resolution: the Architect's original specification is restored** — an explicit `DEPLOY_ENV` set by
+  hand on both Railway environments, inverted to fail closed. Operative text: **§3.2.** B1 is gated on
+  those two Railway variables being set (a two-minute dashboard action for the PO, possible while the
+  service itself is down), which supersedes Q2's claim that no dashboard action was needed.
+
+- **Q1 — CONTINGENCY ADDED (2026-08-27, from OP-27 review).** The adoption stands, but its safety
+  rationale as written leaned on *"production cannot set `BYPASS_AUTH` — `server.ts:290` throws"* —
+  and §3 is the decision that stops `NODE_ENV` being a reliable signal of "production". **B4's safety
+  is therefore contingent on §3.2 landing as specified** (the bypass/serving collision guard), and B4
+  must not merge before B1. One pin added to B4's red bar (review F8): the selectable identity is
+  confined to an **allowlist of known test identities**, not free-form header values. The review also
+  confirmed one worry closed: both `server.ts:290` and `auth.ts:102` compare strictly `=== 'true'`,
+  so a truthy-but-not-`'true'` value leaves the bypass inactive — fail-closed, no finding.
 
 - **Q3 — DONE. Filed as QUAL-57** (P2, owner QA), merged to `main` in PR #554. **COO verification made
   the finding materially wider than reported, and §§3.1/T4 should be read against this:** it is not

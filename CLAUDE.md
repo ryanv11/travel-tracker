@@ -115,12 +115,17 @@ the cheap tier is cheap — so no one could ever finish it, and "give it an owne
 helped. Claims and non-goals are bounded, which is what makes the register maintainable and the
 gap *visible* rather than silent.
 
-**The register is the canonical home and this file does not duplicate it:**
+One scoping clause (OP-27 review F7): the deployed tier is the exception that proves the rule — its
+fidelity is 1:1 by construction because it *is* the environment, so its limits are limits of
+**observability**, not of what it reproduces. And to be explicit: **the shakedown-before-UAT
+requirement at the top of this section is unchanged** — what is superseded is the enumeration rule,
+not the gate.
+
+**The register is the canonical home and this file deliberately carries no list of divergences —
+not even a summary one** (the first draft of this paragraph did, two sentences after forbidding it;
+OP-27 review F7 caught it). Register, tier contracts, live divergences and the **reopen triggers**
+that keep it alive:
 [`jobs/architect/tech/test-environment-fidelity.md`](./jobs/architect/tech/test-environment-fidelity.md).
-Live divergences are tracked as QUAL-18 (serving topology), QUAL-19 (allowlist contract),
-QUAL-20 (post-deploy check), BUG-101 (duplicated config), QUAL-54 (worker-sourced errors
-unobservable) and QUAL-57 (the bundle under test is not the bundle that ships). **Do not
-maintain a second list here** — a copy in two places is exactly the failure BUG-101 records.
 
 ### Negative findings need two probes (mandatory)
 Positive findings self-verify — the thing is there, you can see it. Negative findings don't, and they

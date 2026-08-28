@@ -56,6 +56,32 @@ is a **per-tier contract**, not a global property of the project.
 
 ---
 
+## 1.1 The completeness criterion (added 2026-08-27, OP-27 review F4)
+
+The review's finding against this document's central move, accepted: a claim list is bounded only
+because we choose what goes on it, and a tier with zero claims is trivially complete — so a *missing*
+property produced no signal at all, and the four reopen triggers in §3 are all reactive. The fix keeps
+the shape and adds a completeness criterion:
+
+**Every tier must answer for every axis below — as a claim, a declared non-goal, or an explicit
+`out-of-contract` — and a blank cell is a defect in this register**, visible as a blank rather than as
+nothing:
+
+| Axis |
+|---|
+| Origin / serving topology |
+| Response headers |
+| Authentication (token issuance, attachment, verification) |
+| Database driver and schema |
+| External network calls |
+| Build-time flags (is the artifact the shipped artifact?) |
+| Error observability (console, workers, structured events) |
+| Rate limits |
+
+This list is closed and short by design; extending it is a deliberate act recorded in the change log.
+The axes are distilled from ADL-57 §4's own 11-row divergence table — every divergence found to date
+falls under one of them.
+
 ## 2. Tier contracts
 
 ### T1 — backend integration (`server-test-app.ts`)
@@ -90,7 +116,7 @@ is a **per-tier contract**, not a global property of the project.
 
 | ID | Claim | Proven by | Proved red |
 |---|---|---|---|
-| T2-C1 | Component render decisions match the shipped components (same source files, no test-only forks) | the suite itself | n/a — structural |
+| T2-C1 | Component render decisions match the shipped components (same source files, no test-only forks) | **UNVERIFIED** — "the suite itself" names no checkable artifact (OP-27 review F6). Replace with a file path or leave marked | n/a — structural |
 
 **Non-goals** — declared, permanently:
 
@@ -107,7 +133,7 @@ is a **per-tier contract**, not a global property of the project.
 | ID | Claim | Proven by | Proved red |
 |---|---|---|---|
 | T3-C1 | The process starts through `server.ts`'s real startup path, including its startup guards | `.github/workflows/ci.yml` `test-contract` job boots `npm run start` | n/a — structural |
-| T3-C2 | Response headers observed are the headers Express actually emits | the suite's own assertions | — |
+| T3-C2 | Response headers observed are the headers Express actually emits | **UNVERIFIED** — no header assertion exists anywhere in `tests/` (OP-27 review F6: two greps that fail differently found none). A claim row must name a real test **file path**; prose is not proof | — |
 
 **Non-goals**
 
@@ -122,7 +148,7 @@ is a **per-tier contract**, not a global property of the project.
 
 | ID | Claim | Proven by | Proved red |
 |---|---|---|---|
-| T4-C1 | The frontend under test is built from the shipped source | `playwright.config.ts` webServer builds with `npm run build` in CI | n/a — structural |
+| T4-C1 | The frontend under test is built from the same **source files** as production, with **build-time flags that differ from it** — `VITE_BYPASS_AUTH=true` is baked in, so the artifact is NOT the shipped artifact (QUAL-57; corrected per OP-27 review F5, which found the original wording contradicted ADL-57 §4 D-3 written in the same pass) | `playwright.config.ts` webServer builds with `npm run build` in CI | n/a — structural |
 | T4-C2 | *(pending ADL-57 D3)* The document is served by Express with helmet applied, from the same origin as the API — matching production topology | *pending* — QUAL-18b brief | — |
 | T4-C3 | *(pending ADL-57 D3)* A first-party origin removed from the CSP allowlist fails the suite | *pending* — QUAL-18b brief | — |
 | T4-C4 | *(pending QUAL-54)* Worker-sourced browser errors are observable | *pending* — QUAL-54 brief | — |
