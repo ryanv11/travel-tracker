@@ -552,3 +552,46 @@ D6 copy/affordance; mobile (same component, auto-covered).
 Completion report: jobs/COO/inbox/20260826_1130-QA-adl56-slice1-red-bar.txt
 NEXT: Brief A (backend) + Brief B (frontend) un-skip and green each [S1][RED-BAR]
 block. Do NOT un-skip anything marked [S2]. Do NOT merge — COO reviews/merges.
+
+================================================================================
+2026-08-27 — QUAL-54 + QUAL-19: CSP observability (issue #551)
+Branch: fix/qual54-qual19-csp-observability
+Detail: jobs/qa/tech/20260827-qual54-qual19-csp-observability.md
+================================================================================
+
+DELIVERED
+1. src/e2e-shakedown/shakedown.spec.ts — console check now reads THREE channels
+   (console scoped by msg.location().url, DOM securitypolicyviolation via
+   addInitScript, raw CDP Log.entryAdded for worker-sourced entries) and fails
+   only on errors attributable to the origin under test. msg.args() deliberately
+   NOT added — Playwright hardcodes it empty for this message class.
+2. src/backend/__tests__/csp-allowlist.test.ts — QUAL-19 static allowlist test,
+   plus the BUG-101 red bar. 4 pass + 1 expected fail.
+
+KEY PROBE FINDINGS (probe6-10 in scratchpad/cspprobe, table in the tech doc)
+- msg.location().url attributes to the OFFENDING SCRIPT, not the document — this
+  is what makes origin-scoping precise. The dangling-note message contains no URL
+  at all, so text matching could never have worked.
+- A blocked eval() emits ZERO console messages when script-src is explicitly set.
+  server.ts always sets it, so the OLD check was structurally blind to every
+  own-origin eval violation. Demonstrated: ours-eval scenario passes the old
+  check, fails the new one.
+- Worker violations reach ONLY the raw CDP stream (3 entries vs 0 vs 0).
+
+CORRECTION TO THE BRIEF'S DIAGNOSIS
+The staging message reproduces only under a policy with NO script-src.
+git show 0dac8e8:src/backend/server.ts has scriptSrc set (line 122), and under an
+explicit script-src the console channel emits nothing for eval. So the violating
+context is NOT governed by our CSP — it is a third-party iframe/worker with its
+own policy. That predicts origin-scoping clears the permanent red. UNVERIFIED
+against staging (down, billing lapse); settled by one workflow_dispatch run.
+
+NOT MY SCOPE / HANDOFFS
+- BUG-101 consolidation (backend). Hazard recorded in the test file: giving
+  server-test-app.ts server.ts's CLERK_ORIGIN ternaries breaks the parser
+  self-check unless CLERK_ISSUER is set for the test.
+- NEW GAP FOUND, not fixed: src/e2e-shakedown/** and src/e2e/** are in NEITHER
+  tsconfig, so type:check:all never checks either Playwright suite. Needs a
+  tracker entry.
+
+Completion report: jobs/COO/inbox/20260827_2330-QA-qual54-qual19-csp-observability.txt

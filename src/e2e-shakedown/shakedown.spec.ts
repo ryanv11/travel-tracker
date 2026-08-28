@@ -27,7 +27,7 @@
  * reason, on an environment it never actually touched.
  */
 
-import { expect, type Page, test } from '@playwright/test';
+import { type CDPSession, expect, type Page, test } from '@playwright/test';
 
 /** A response is treated as a genuine 5xx signal only above this. 3xx/4xx are not this
  * check's concern (4xx on `/` would be a real product surprise, but this suite's job is the
@@ -36,16 +36,194 @@ const SERVER_ERROR_FLOOR = 500;
 
 type CapturedResponse = { url: string; status: number };
 
-/** Navigates to `path` and collects every console message, uncaught page error, and
- * response status seen during that single navigation + a short settle window. Shared by
- * every check below so "what counts as an error" is defined exactly once. */
-async function loadAndObserve(page: Page, path: string) {
-  const consoleErrors: string[] = [];
+/**
+ * A CSP violation as the DOM reports it — the structured form, with the directive and the
+ * blocked URI as FIELDS rather than buried in prose.
+ *
+ * WHY THIS TYPE EXISTS AT ALL (QUAL-54). The console check failed on every one of its six
+ * runs between 2026-08-04 and 2026-08-26 and nobody could tell what it was complaining
+ * about, because the only thing `page.on('console')` delivered was this, in full:
+ *
+ *     " Note that 'script-src' was not explicitly set, so 'default-src' is used as a fallback."
+ *
+ * A dangling subordinate clause with no subject. That is not truncation and it is not a
+ * Playwright bug — for a blocked `eval()` Chromium genuinely never emits the first
+ * sentence naming what was blocked. `msg.args()` cannot recover it either: Playwright
+ * hardcodes an empty args array for this message class (`crPage.js:687`), so the tracker's
+ * original "capture all args" prescription is inert. The DOM `securitypolicyviolation`
+ * event is a different channel entirely and carries the facts as structured fields.
+ */
+type CspViolation = {
+  violatedDirective: string;
+  effectiveDirective: string;
+  blockedURI: string;
+  sourceFile: string;
+  lineNumber: number;
+  documentURI: string;
+};
+
+/** A raw Chromium log entry, read over CDP — see `attachCdpLogReader` for why. */
+type RawLogEntry = { source: string; level: string; url: string; text: string };
+
+/** Where a captured error came from, relative to the origin under test. */
+type Attribution = 'ours' | 'third-party' | 'unattributable';
+
+/**
+ * Attributes a captured error to whoever's CODE INITIATED THE BLOCKED ACTION.
+ *
+ * THIS IS THE SCOPING DECISION AND IT DESERVES SCRUTINY — narrowing what a check fails on
+ * is the same move as suppressing a scanner, and it can hide a real defect just as easily.
+ * What is being drawn here is a line between "our first-party bundle did something the
+ * deployed environment refuses" (a defect we own, must fail) and "a third-party SDK we
+ * load did something the deployed environment refuses" (noise we cannot fix in this repo,
+ * already tracked, must not fail the deployment gate forever).
+ *
+ * WHAT THIS DELIBERATELY LETS THROUGH — the honest cost, stated rather than buried:
+ * a violation caused by third-party SDK code no longer fails this check. Concretely that
+ * is the BUG-68 class (clerk.browser.js's telemetry beacon hitting our connect-src). Those
+ * are still CAPTURED, PRINTED and ATTACHED as annotations on every run — they are demoted
+ * from fatal to visible, not silenced. If one ever needs to be fatal, it is one line here.
+ *
+ * FAIL CLOSED ON DOUBT. Anything with no attributable source URL counts as OURS, because
+ * an unidentifiable error is exactly the kind this check exists to surface — treating
+ * "don't know" as "not our problem" is how a real defect gets filtered away.
+ *
+ * BLOB URLs ARE A KNOWN AMBIGUITY. A `blob:` worker inherits the creating page's origin,
+ * so a worker spun up by a third-party SDK (Clerk does exactly this for token handling —
+ * see server.ts's worker-src comment) reports as `blob:<our-origin>/…` and is therefore
+ * attributed to US. That is the conservative direction: it can produce a failure that
+ * needs a human to reclassify, never a silent pass.
+ */
+function attribute(rawUrl: string | undefined, ourOrigin: string): Attribution {
+  if (!rawUrl) return 'unattributable';
+  // blob:http://host/uuid — the inner URL carries the origin that created the blob.
+  const url = rawUrl.startsWith('blob:') ? rawUrl.slice('blob:'.length) : rawUrl;
+  try {
+    return new URL(url).origin === ourOrigin ? 'ours' : 'third-party';
+  } catch {
+    return 'unattributable';
+  }
+}
+
+/** True when an error must fail the check rather than merely be reported. */
+function isFatal(attribution: Attribution): boolean {
+  return attribution !== 'third-party';
+}
+
+/** Renders a violation as a single line with the directive and blocked URI as fields. */
+function formatViolation(v: CspViolation): string {
+  return (
+    `CSP ${v.effectiveDirective || v.violatedDirective} blocked ${v.blockedURI || '<unnamed>'}` +
+    ` — from ${v.sourceFile || '<no source file>'}:${v.lineNumber}`
+  );
+}
+
+/**
+ * Registers a document-level `securitypolicyviolation` listener before any page script
+ * runs.
+ *
+ * `addInitScript` (rather than an `evaluate` after load) is load-bearing: the violations
+ * worth catching happen while the page's own bundles are still executing, so a listener
+ * attached after `goto` resolves would miss them entirely.
+ *
+ * The script is idempotent because `loadAndObserve` may be called more than once on the
+ * same page (the 5xx check retries), and `addInitScript` accumulates — without the guard,
+ * a second registration would double every recorded violation on the next navigation.
+ */
+async function attachCspViolationListener(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __cspViolations?: CspViolation[] };
+    if (w.__cspViolations) return;
+    w.__cspViolations = [];
+    document.addEventListener('securitypolicyviolation', (e) => {
+      w.__cspViolations?.push({
+        violatedDirective: e.violatedDirective,
+        effectiveDirective: e.effectiveDirective,
+        blockedURI: e.blockedURI,
+        sourceFile: e.sourceFile,
+        lineNumber: e.lineNumber,
+        documentURI: e.documentURI,
+      });
+    });
+  });
+}
+
+/**
+ * Opens a raw CDP `Log` stream — the ONLY channel that sees worker-sourced violations.
+ *
+ * Established by local reproduction, not assumed: a `blob:` worker that violates the
+ * inherited policy produces entries on this stream and on NEITHER of the other two.
+ * Playwright drops worker-sourced entries before they reach `page.on('console')`
+ * (`crPage.js:681`), and the document's `securitypolicyviolation` listener never sees them
+ * because a worker has no document. In a three-violation worker reproduction the counts
+ * were: CDP 3, `page.on('console')` 0, DOM event 0.
+ *
+ * Chromium-only. Both Playwright suites in this repo are Chromium-only, so this is not a
+ * portability compromise — but if the CDP session cannot be opened the caller records that
+ * fact rather than quietly losing a channel.
+ */
+async function attachCdpLogReader(
+  page: Page,
+  sink: RawLogEntry[],
+): Promise<{ session: CDPSession } | { error: string }> {
+  try {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Log.enable');
+    session.on('Log.entryAdded', ({ entry }) => {
+      sink.push({
+        source: entry.source ?? '',
+        level: entry.level ?? '',
+        url: entry.url ?? '',
+        text: entry.text ?? '',
+      });
+    });
+    return { session };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
+}
+
+/** Per-page instrumentation, attached once and reused across repeat navigations. */
+type Instrumentation = { rawLogs: RawLogEntry[]; cdpError?: string };
+const instrumented = new WeakMap<Page, Instrumentation>();
+
+async function instrument(page: Page): Promise<Instrumentation> {
+  const existing = instrumented.get(page);
+  if (existing) return existing;
+
+  const rawLogs: RawLogEntry[] = [];
+  await attachCspViolationListener(page);
+  const cdp = await attachCdpLogReader(page, rawLogs);
+  const state: Instrumentation = {
+    rawLogs,
+    cdpError: 'error' in cdp ? cdp.error : undefined,
+  };
+  instrumented.set(page, state);
+  return state;
+}
+
+/** Navigates to `path` and collects every console message, uncaught page error, CSP
+ * violation, raw Chromium log entry, and response status seen during that single
+ * navigation + a short settle window. Shared by every check below so "what counts as an
+ * error" is defined exactly once. */
+async function loadAndObserve(page: Page, path: string, ourOrigin: string) {
+  const consoleErrors: { text: string; url: string; attribution: Attribution }[] = [];
   const pageErrors: string[] = [];
   const responses: CapturedResponse[] = [];
 
+  const state = await instrument(page);
+  // A fresh navigation must not inherit the previous attempt's worker logs (the 5xx check
+  // navigates twice); the DOM violation array resets by itself since navigation replaces
+  // `window`.
+  state.rawLogs.length = 0;
+
   page.on('console', (msg) => {
-    if (msg.type() === 'error') consoleErrors.push(msg.text());
+    if (msg.type() !== 'error') return;
+    // `msg.location()` is retained — for the dangling-clause message it is the ONLY thing
+    // identifying the offending script (the text names nothing at all). `msg.args()` is
+    // deliberately NOT read: Playwright hardcodes it empty for this class.
+    const url = msg.location().url;
+    consoleErrors.push({ text: msg.text(), url, attribution: attribute(url, ourOrigin) });
   });
   page.on('pageerror', (err) => {
     pageErrors.push(err.message);
@@ -62,7 +240,28 @@ async function loadAndObserve(page: Page, path: string) {
   // would otherwise be silently missed.
   await page.waitForTimeout(1500);
 
-  return { navResponse, consoleErrors, pageErrors, responses };
+  // Read the structured violations the in-page listener collected. Wrapped because a
+  // navigation that failed outright leaves the page on about:blank, where evaluate throws
+  // — losing the whole check to an incidental error would be worse than an empty list,
+  // and the navigation failure is reported by the load check regardless.
+  let cspViolations: CspViolation[] = [];
+  try {
+    cspViolations = await page.evaluate(
+      () => (window as unknown as { __cspViolations?: CspViolation[] }).__cspViolations ?? [],
+    );
+  } catch {
+    cspViolations = [];
+  }
+
+  return {
+    navResponse,
+    consoleErrors,
+    pageErrors,
+    responses,
+    cspViolations,
+    rawLogs: [...state.rawLogs],
+    cdpError: state.cdpError,
+  };
 }
 
 /**
@@ -75,8 +274,8 @@ async function loadAndObserve(page: Page, path: string) {
  * DOES NOT PROVE: that the app is usable. This is the sign-in screen, not the product —
  * reaching product surfaces needs auth this suite does not have (see file header).
  */
-test('the app loads and returns a document', async ({ page }) => {
-  const { navResponse } = await loadAndObserve(page, '/');
+test('the app loads and returns a document', async ({ page, baseURL }) => {
+  const { navResponse } = await loadAndObserve(page, '/', new URL(baseURL ?? '/').origin);
   expect(
     navResponse,
     'navigation produced no response at all (DNS/TLS/connection failure)',
@@ -101,11 +300,89 @@ test('the app loads and returns a document', async ({ page }) => {
  * BUG-68's clerk-telemetry.com violation both fired from authenticated, in-product actions
  * (adding a place) that this suite cannot reach. QUAL-19's static allowlist test is the
  * complementary check for that class of defect from source instead of from a browser.
+ *
+ * QUAL-54 — WHAT CHANGED HERE AND WHY. This check failed on all six of its runs and never
+ * once said what was wrong; its entire output was a subjectless clause about a fallback
+ * directive. Two things were wrong with it. It read only ONE of the three channels a
+ * Chromium CSP violation is reported on, and that channel is the one that carries the
+ * least information. And it failed on ANY console error from ANY origin, so a third-party
+ * SDK's own noise held the deployment gate red permanently — which is how a check stops
+ * being read at all. It now reads all three channels, reports the directive and blocked
+ * URI as structured fields, and fails only on errors attributable to our own code (see
+ * `attribute` for exactly what that lets through, and what it costs).
  */
-test('browser console is free of errors on load', async ({ page }) => {
-  const { consoleErrors, pageErrors } = await loadAndObserve(page, '/');
-  const allErrors = [...consoleErrors, ...pageErrors];
-  expect(allErrors, `console/page errors on load:\n${allErrors.join('\n')}`).toHaveLength(0);
+test('browser console is free of errors on load', async ({ page, baseURL }, testInfo) => {
+  const ourOrigin = new URL(baseURL ?? '/').origin;
+  const { consoleErrors, pageErrors, cspViolations, rawLogs, cdpError } = await loadAndObserve(
+    page,
+    '/',
+    ourOrigin,
+  );
+
+  // ---- Channel 1: console errors, attributed by the script that logged them ----
+  const fatalConsole = consoleErrors.filter((e) => isFatal(e.attribution));
+  const noisyConsole = consoleErrors.filter((e) => !isFatal(e.attribution));
+
+  // ---- Channel 2: DOM securitypolicyviolation — the channel that NAMES the fault ----
+  const violations = cspViolations.map((v) => ({
+    v,
+    attribution: attribute(v.sourceFile, ourOrigin),
+  }));
+  const fatalViolations = violations.filter((x) => isFatal(x.attribution));
+  const noisyViolations = violations.filter((x) => !isFatal(x.attribution));
+
+  // ---- Channel 3: raw CDP log — worker-sourced entries, invisible to channels 1 and 2 ----
+  // Only `worker` entries are taken from this stream. Everything else it carries is
+  // already delivered by channel 1, and double-counting would make the failure output
+  // harder to read for no added detection.
+  const workerLogs = rawLogs.filter((r) => r.source === 'worker' && r.level === 'error');
+  const fatalWorker = workerLogs.filter((r) => isFatal(attribute(r.url, ourOrigin)));
+  const noisyWorker = workerLogs.filter((r) => !isFatal(attribute(r.url, ourOrigin)));
+
+  // Third-party noise is demoted to an annotation, never dropped silently — the whole
+  // reason this check went unread is that its output stopped being informative.
+  const noise = [
+    ...noisyConsole.map((e) => `console (${e.url}): ${e.text}`),
+    ...noisyViolations.map((x) => `csp: ${formatViolation(x.v)}`),
+    ...noisyWorker.map((r) => `worker (${r.url}): ${r.text}`),
+  ];
+  if (noise.length > 0) {
+    const summary = `Third-party console noise (NOT failing this check, recorded for visibility):\n${noise.join('\n')}`;
+    console.info(`[shakedown] ${summary}`);
+    testInfo.annotations.push({ type: 'third-party-noise', description: summary });
+  }
+
+  // A lost channel is reported rather than silently absent: if the CDP session could not
+  // be opened, worker-sourced violations are unobservable for this run and a green result
+  // means less than it appears to.
+  if (cdpError) {
+    testInfo.annotations.push({
+      type: 'reduced-coverage',
+      description:
+        `CDP Log channel unavailable (${cdpError}) — worker-sourced CSP violations were ` +
+        'NOT observable on this run. A pass here does not cover that class.',
+    });
+  }
+
+  const failures = [
+    ...fatalConsole.map(
+      (e) => `console error (from ${e.url || 'unattributable source'}): ${e.text}`,
+    ),
+    ...fatalViolations.map((x) => formatViolation(x.v)),
+    ...fatalWorker.map((r) => `worker error (from ${r.url || 'unattributable source'}): ${r.text}`),
+    ...pageErrors.map((m) => `uncaught page error: ${m}`),
+  ];
+
+  expect(
+    failures,
+    `${failures.length} error(s) attributable to ${ourOrigin} on the anonymous landing surface:\n` +
+      `${failures.map((f) => `  - ${f}`).join('\n')}\n\n` +
+      'Each CSP line names the violated directive and the blocked URI as fields — if one ' +
+      'says `blocked eval`, a script is calling eval() under a policy without ' +
+      "'unsafe-eval'; if it names a URL, that origin is missing from the directive shown " +
+      "(fix it in helmet's config in src/backend/server.ts, and note QUAL-19's unit test " +
+      'should have caught it pre-deploy if the origin is referenced in first-party source).',
+  ).toEqual([]);
 });
 
 /**
@@ -128,9 +405,10 @@ test('browser console is free of errors on load', async ({ page }) => {
  * (a per-connection edge timeout, not a sustained condition) and the check FAILS as a
  * probable product/deployment defect.
  */
-test('no 5xx in the page network lifecycle (ENV-02-aware)', async ({ page }, testInfo) => {
+test('no 5xx in the page network lifecycle (ENV-02-aware)', async ({ page, baseURL }, testInfo) => {
+  const ourOrigin = new URL(baseURL ?? '/').origin;
   const attempt = async () => {
-    const { responses } = await loadAndObserve(page, '/');
+    const { responses } = await loadAndObserve(page, '/', ourOrigin);
     return responses.filter((r) => r.status >= SERVER_ERROR_FLOOR);
   };
 
