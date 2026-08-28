@@ -1,0 +1,188 @@
+ARCHITECT PARK DOCUMENT — 2026-08-27
+Session: ADL-57 — test-environment fidelity (QUAL-56, GitHub issue #550)
+Branch: chore/qual56-test-environment-fidelity
+Worktree: /workspace/.claude/worktrees/agent-aa0177b7909fb20bb
+
+--------------------------------------------------------------------------------
+1. WHAT THE BRIEF ASKED, AND WHAT SHIPPED
+--------------------------------------------------------------------------------
+Asked for exactly four things: (1) a RULING on the blocked logged-in single-origin
+question (QUAL-18b); (2) a deliberate-or-accident CLASSIFICATION of the known
+divergences; (3) a MECHANISM that surfaces a NEW divergence; (4) an explicit
+NON-GOALS list. All four are in ADL-57. The brief also invited attack on its own
+framing; §1 of the ADL does that and partially overturns it.
+
+Deliverables, all committed on the branch:
+  - jobs/architect/tech/20260307-architecture-decisions-log.md  -> ADL-57 appended
+  - jobs/architect/tech/test-environment-fidelity.md            -> NEW canonical
+    live artifact (the register the mechanism needs; without it the mechanism is
+    a description rather than a thing)
+  - CLAUDE.md -> a SUPERSEDED stamp on the "Deployment shakedown before UAT"
+    enumeration sentence. STAMP ONLY. The delete-and-point rewrite is governance
+    text and is left to the COO (open question Q4).
+
+NO source code, NO config, NO migration was changed. Nothing was merged.
+
+--------------------------------------------------------------------------------
+2. THE ARGUMENT, IN SHORT
+--------------------------------------------------------------------------------
+The COO's "one pattern, not four incidents" framing is UPHELD, and the cheaper
+alternative it offered (re-enumerate once more) is REJECTED — a second one-time
+enumeration has the same half-life as the first.
+
+But the COO's diagnosis is incomplete in a way that changes the fix. It said the
+artifact rotted because a one-time list was used for an ongoing problem. The
+deeper defect is that the RULE GENERATING THE LIST HAS NO STOPPING CONDITION.
+"Enumerate every way the test environment differs from production" is not a
+completable instruction — the difference set between vitest+jsdom and
+Chrome-on-Railway is effectively infinite, and most of it is the entire reason the
+tier is cheap. Nobody can be assigned an uncompletable task, so "give it an owner"
+alone would not have worked.
+
+The fix inverts it: enumerate each tier's FIDELITY CLAIMS (a short, closed list of
+production properties it asserts it reproduces) plus its DECLARED NON-GOALS.
+Everything on neither list is out-of-contract — an admitted unknown rather than a
+silent gap. That is bounded, therefore ownable.
+
+Second framing correction: "the test environment" is FIVE environments (T1 backend
+integration, T2 frontend unit, T3 contract, T4 E2E, T5 shakedown), each a model of
+something different. Fidelity is a per-tier contract, never a global property.
+BUG-101 is a T1 defect; QUAL-18 is T4; QUAL-54 is a T4/T5 tooling property. They
+were filed as though they were the same kind of thing.
+
+--------------------------------------------------------------------------------
+3. THE RULING (QUAL-18b) — AND ITS DELIBERATE BOUNDARY
+--------------------------------------------------------------------------------
+ADOPTED: an ADDITIVE SERVE_STATIC flag.
+    SERVE_STATIC = (process.env.SERVE_STATIC === 'true'
+                    || process.env.NODE_ENV === 'production')
+                   && fs.existsSync(DIST_DIR)
+
+server.ts:290's guard is NOT touched, NOT conditionalised, NOT bypassed. E2E never
+sets NODE_ENV=production. Railway needs no configuration change.
+
+The blocker was re-probed independently rather than inherited: NODE_ENV has EXACTLY
+TWO consumers in backend source (two probes that fail differently — a grep across
+src/backend and src/frontend, and a read of both sites): server.ts:88 and
+server.ts:291. One variable is doing two unrelated jobs. THAT is the blocker, not
+the guard.
+
+REJECTED: a real-auth CI path. It needs a Clerk-minted token, i.e. credential
+provisioning against the identity provider, which ADL-33 §4 declined. THE RULING
+DOES NOT DEPEND ON REVISITING THAT DECISION — stated explicitly because the brief
+asked.
+
+COMPENSATING CONTROL, ships in the same PR: decoupling removes an ACCIDENTAL canary
+(today a mis-set NODE_ENV fails to serve the SPA and is loudly broken). Replace it
+with an explicit, strictly stronger one — a deployment marker present plus
+NODE_ENV !== 'production' throws at startup. Which marker is UNVERIFIED (Q2).
+
+>>> THE PART MOST LIKELY TO BE LOST DOWNSTREAM — ADL-57 §3.1 <<<
+Single-origin logged-in E2E will STILL never exercise the Clerk half of the CSP,
+which is exactly where the live 23-day violation sits. Two independent reasons,
+either sufficient: (a) CLERK_ORIGIN derives from CLERK_ISSUER (server.ts:80), unset
+in CI, so the header under test is not the header production emits; (b) the bundle
+under test contains NO Clerk code — main.tsx:51-75 puts ClerkProvider,
+RedirectToSignIn, TokenRegistrar and setTokenGetter only in the non-bypass branch,
+and apiClient.ts:61-66 returns an empty header object with no token getter
+registered. No E2E request has ever carried an Authorization header.
+An implementation report saying "single-origin done, CSP class closed" would be
+WRONG. §3.1 exists so that report is catchable.
+
+--------------------------------------------------------------------------------
+4. FINDINGS THAT WERE NOT IN THE BRIEF
+--------------------------------------------------------------------------------
+D-3  THE BUNDLE UNDER TEST IS NOT THE BUNDLE THAT SHIPS. VITE_BYPASS_AUTH=true is
+     baked in at BUILD time and removes the entire Clerk subtree from the React
+     tree. On no prior list. Needs a tracker item (Q3).
+D-4  The brief's item 4 is REFRAMED. It is not "one hardcoded user" — that (D-4b)
+     is a symptom. The divergence is that the ENTIRE AUTHENTICATION PATH, BOTH
+     ENDS, is absent from the artifact under test.
+D-4b The single identity IS cheaply fixable and needs NO credential: make the
+     bypass identity request-selectable inside the existing BYPASS_AUTH branch.
+     That unblocks QA's J7 non-owner journeys. Security-adjacent — Q1.
+D-2  The CI cross-origin API call. The divergence runs BOTH WAYS: CI exercises a
+     CORS path production never takes, and never exercises the same-origin path
+     production always takes.
+D-5  BUG-101's scope is wider than CSP. Verified by reading both files: the
+     rate-limit configuration ALSO differs (server.ts:178,189 carry the OP-11
+     BYPASS_AUTH headroom; server-test-app.ts:97,106 are flat). Route mounts and
+     body limits currently match — but nothing asserts they continue to. The fix
+     is one shared config, not two files kept in step.
+D-8  Local SQLite file vs remote libSQL in production (db/index.ts:109).
+     Deliberate and correct; named as an untested surface, not closed.
+
+--------------------------------------------------------------------------------
+5. THE MECHANISM, AND ITS HONEST LIMIT
+--------------------------------------------------------------------------------
+M2 is the load-bearing rule: A FIDELITY CLAIM IS AN EXECUTABLE ASSERTION, OR IT IS
+NOT A CLAIM. Prose parity claims are banned. server-test-app.ts:1-11 is the
+exemplar of the harm — a reader has no reason to re-check a file that asserts its
+own parity. Each parity assertion is also demonstrated RED once, which is the only
+cheap defence against a vacuous assertion (QUAL-22 one level up).
+
+M3 extends OP-40's EXISTING machinery, as the brief required: one new Check F in
+scripts/drift-canary.sh (F1 unbacked claim / F2 prose parity language / F3
+green-by-suppression), on the existing drift-cadence slot. No new script, cadence
+or job. It needs SCAN_DIRS widened to src/ and .github/ for F2/F3.
+
+VERIFIED, not inherited: the COO's claim that the drift machinery could not have
+caught these HOLDS, and the reason is drift-canary.sh's SCAN_DIRS/EXTS at lines
+22-24 — it reads only .md/.txt/.json under .claude, _shared and jobs, plus
+CLAUDE.md/CODEBASE.md. It never opens src/, .github/ or playwright.config.ts. A
+scope limit, not a defect, and it is the seam M3 extends.
+
+THE LIMIT, STATED IN THE ADL RATHER THAN HIDDEN: none of F1-F3 can detect a
+divergence in a property NOBODY HAS EVER NAMED. QUAL-54 would NOT have been caught
+by Check F, and neither would D-3. The mechanism closes the RECURRENCE of a named
+divergence and the SILENT DECAY of a stated claim. That is a smaller promise than
+the brief hoped for and it is the true one. M4's four human triggers exist for
+precisely that residue.
+
+--------------------------------------------------------------------------------
+6. BUGS DISCOVERED THIS THREAD
+--------------------------------------------------------------------------------
+[MINOR]  D-3 — the E2E bundle is a different build artifact from the shipped one.
+         Disposition: escalated to COO, needs a tracker item (Q3).
+[MINOR]  D-5 extension — server-test-app.ts's rate-limit configuration has also
+         drifted from server.ts, beyond the four CSP directives BUG-101 records.
+         Disposition: escalated to COO; fold into BUG-101's scope, do not file
+         separately.
+[TRIVIAL] map.spec.ts:13-14's error filter is broad enough to hide first-party
+         errors as well as tile-service ones. Re-evaluated per framework #26:
+         it does not touch shared state or persist data, but it CAN mask a real
+         defect class, so it is recorded as D-7's disposition (narrow the filter)
+         rather than left as cosmetic. Disposition: deferred into brief B1's tier.
+No CRITICAL or MAJOR bugs found.
+
+--------------------------------------------------------------------------------
+7. OPEN QUESTIONS — SETTLE BEFORE THE FRESH-EYES DISPATCH (OP-27 refinement 1)
+--------------------------------------------------------------------------------
+Q1 D-4b/B4 adds a header-controlled identity path inside the auth middleware.
+   RECOMMEND ADOPT (inert in production; the only credential-free route to
+   non-owner journeys) but it is a PO/security call, OP-30 shape.
+Q2 Confirm the Railway deployment marker (RAILWAY_ENVIRONMENT /
+   RAILWAY_ENVIRONMENT_NAME). If absent, add an explicit DEPLOY_ENV to both
+   environments BEFORE B1 merges.
+Q3 File a tracker item for D-3.
+Q4 Confirm the COO writes the CLAUDE.md delete-and-point replacement; I stamped
+   the section but deliberately did not rewrite the governance sentence.
+
+--------------------------------------------------------------------------------
+8. WHAT I DELIBERATELY DID NOT DO
+--------------------------------------------------------------------------------
+- Did not edit _project/tracker.json. This branch predates the COO's uncommitted
+  QUAL-54/55/56 and BUG-101 entries; editing here would have collided. Tracker
+  sync is the COO's.
+- Did not implement Check F. It is specified (brief B3), not built.
+- Did not touch the journey set / gate design (QA owns), UX-17, or the three
+  governance questions parked at open-dialogues D-36 — all out of scope per brief.
+- Did not rewrite any shared record. ADL log and context/current.txt were APPENDED
+  via Edit; CLAUDE.md was amended additively (OP-28).
+
+--------------------------------------------------------------------------------
+9. NEXT
+--------------------------------------------------------------------------------
+PO resolves Q1-Q4 -> COO amends the ADL -> FULL fresh-eyes OPUS review, freshly
+dispatched, high-stakes tier (security-gate topology; NEVER Fable, per CLAUDE.md)
+-> then briefs B1/B2/B3/B4. ADL-57 stays DESIGN until that review clears it.

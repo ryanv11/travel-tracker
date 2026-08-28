@@ -92,6 +92,42 @@ serving the frontend from `vite preview` with no CSP header where production ser
 *with* helmet's CSP, making every `connect-src` violation unobservable in CI — is in memory
 [[project_env_parity_csp_blindspot]].
 
+> **SUPERSEDED (2026-08-27) by ADL-57 — retained for history.** The enumeration above ran once
+> (2026-07-28) and produced QUAL-18/19/20; two further divergences (BUG-101, QUAL-54) were then found
+> by accident, and ADL-57 found four more. ADL-57's finding is that *"enumerate every way the test
+> environment differs from production"* has **no stopping condition**, so it cannot be completed or
+> owned — it is replaced by enumerating each test tier's **fidelity claims** and **declared
+> non-goals**, which is bounded. **Canonical home:
+> [`jobs/architect/tech/test-environment-fidelity.md`](./jobs/architect/tech/test-environment-fidelity.md)**
+> (QUAL-56). The paragraph above is no longer the current list and must not be treated as complete.
+
+**The replacement rule (2026-08-27, COO per ADL-57 §8 Q4):**
+
+> **A test tier is trusted only for what it explicitly claims.** Every tier states its
+> **fidelity claims** — the properties it genuinely exercises the same way production does —
+> and its **declared non-goals**. Anything on neither list is **out of contract**: an admitted
+> unknown, not a covered surface. Before relying on a tier to catch a defect class, check that
+> the class is on that tier's claim list; if it is on neither list, that is the finding.
+
+Why the change: the old rule asked for something uncompletable. The difference set between a
+`jsdom` unit test and Chrome-on-Railway is effectively infinite, and most of it is the reason
+the cheap tier is cheap — so no one could ever finish it, and "give it an owner" would not have
+helped. Claims and non-goals are bounded, which is what makes the register maintainable and the
+gap *visible* rather than silent.
+
+One scoping clause (OP-27 review F7): the deployed tier is the exception that proves the rule — its
+fidelity is 1:1 by construction because it *is* the environment, so its limits are limits of
+**observability**, not of what it reproduces. And to be explicit: **the shakedown-before-UAT
+requirement at the top of this section is unchanged** — what is superseded is the enumeration rule,
+not the gate.
+
+**The register is the canonical home and this file deliberately carries no list of divergences —
+not even a summary one** (the first draft of this paragraph did, two sentences after forbidding it;
+OP-27 review F7 caught it). Tier contracts, the completeness matrix and the **reopen triggers** that keep it alive are in the
+register; the live divergence table is ADL-57 §4 (re-check corrected this pointer — the first draft
+sent readers to the register for a list it does not hold):
+[`jobs/architect/tech/test-environment-fidelity.md`](./jobs/architect/tech/test-environment-fidelity.md).
+
 ### Negative findings need two probes (mandatory)
 Positive findings self-verify — the thing is there, you can see it. Negative findings don't, and they
 are disproportionately load-bearing because designs get built on "X doesn't exist" without anyone

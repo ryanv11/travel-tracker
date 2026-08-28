@@ -1,0 +1,55 @@
+TO: COO
+FROM: Architect
+ADL-57 · tracker QUAL-56 · GitHub issue #550 · PR (see branch) · BRD: none
+Branch: chore/qual56-test-environment-fidelity
+
+WHAT WAS DECIDED
+Test-environment fidelity is a PER-TIER contract (five tiers), not a global property, and
+the enumeration is inverted: we register each tier's FIDELITY CLAIMS + declared NON-GOALS
+(bounded) instead of its differences from production (unbounded, uncompletable). Delivered
+as ADL-57 plus a new canonical live artifact, jobs/architect/tech/test-environment-fidelity.md.
+
+PER-DECISION VERDICT
+D1 COO's "one pattern" framing — ADOPTED (upheld); its DIAGNOSIS partially overturned: the
+   list rotted because "enumerate every difference" has no stopping condition, not only
+   because it was unowned. Your cheaper alternative (re-enumerate once more) — REJECTED.
+D2 "The test environment" is five tiers — ADOPTED. Wrong unit of analysis in the brief.
+D3 QUAL-18b RULING — ADOPTED: additive SERVE_STATIC flag; server.ts:290 untouched.
+   A Clerk credential for CI — REJECTED; ADL-33 §4 stands and this ruling does NOT depend
+   on revisiting it. A compensating startup assertion ships in the same PR.
+D4 Divergence register, 11 rows — ADOPTED. 6 accidents / 1 mixed / 1 external / 4 deliberate.
+D5 Mechanism — ADOPTED: one new Check F in scripts/drift-canary.sh on OP-40's existing
+   cadence. No new script, cadence or job.
+D6 Ten explicit non-goals — ADOPTED.
+D7 Architect owns the register; each claim owned by the tier's test author — ADOPTED.
+
+CI: green — see the PR's ci-wait result. No source code changed; docs only.
+
+THREE THINGS YOU NEED TO SEE
+1. ADL-57 §3.1 — the ruling does NOT close the Clerk-origin CSP class. Two independent
+   reasons; the biggest is that under VITE_BYPASS_AUTH the bundle contains no Clerk code at
+   all, so no E2E request has ever carried an Authorization header. A brief reporting
+   "single-origin done, CSP class closed" would be wrong.
+2. The brief's item 4 is REFRAMED. Not "one hardcoded user" — the ENTIRE auth path, both
+   ends, is absent from the artifact under test. The single user is a symptom, and it IS
+   separately fixable without any credential (D-4b).
+3. Check F provably CANNOT detect a divergence in a property nobody has named. QUAL-54
+   would not have been caught by it. Stated in the ADL, deliberately; do not let a reviewer
+   or a brief quietly upgrade the promise.
+
+BLOCKERS / OPEN ISSUES — four questions, per OP-27 refinement 1 settle these with the PO
+BEFORE dispatching the fresh-eyes reviewer:
+Q1 D-4b/B4 adds a header-controlled identity path inside the auth middleware. I RECOMMEND
+   ADOPT (inert in production) but it is a PO/security call, OP-30 shape.
+Q2 Confirm the Railway deployment marker exists (UNVERIFIED from this container).
+Q3 D-3 needs a tracker item — "the bundle under test is not the bundle that ships".
+Q4 The CLAUDE.md delete-and-point replacement is yours to write; I stamped the section
+   SUPERSEDED but did not rewrite the governance sentence.
+Also: I did NOT edit _project/tracker.json — this branch predates your uncommitted
+QUAL-54/55/56 and BUG-101 entries and editing here would have collided.
+
+NOW UNBLOCKED
+Four briefs, ATDD-first pre-marked: B1 QUAL-18 single-origin (YES) · B2 BUG-101 shared
+config (YES) · B3 Check F (NO) · B4 selectable bypass identity (YES, gated on Q1).
+B4 is what unblocks QA's J7 non-owner journeys, which the gate plan budgeted nothing for.
+ADL-57 stays DESIGN until a full fresh-eyes OPUS review clears it — never Fable.

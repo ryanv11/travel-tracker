@@ -2420,3 +2420,92 @@ a pick RESOLVES to — dedup fires at createCity/pick time regardless. New P2-R2
 it; R2-f flags it for the re-review. GE-21 stays PROPOSED/spike-gated until the FOCUSED fresh-eyes
 Opus re-review of the B1 fix + seams passes (§11/§13 re-stamped). §10 grew to 13 ATDD tests.
 CI: all 18 green on #528 @ 2bbcfe5. NEXT: COO dispatches the focused Opus re-review (§13 R2-a..R2-f).
+
+================================================================================
+2026-08-27 — ADL-57: TEST-ENVIRONMENT FIDELITY (QUAL-56, issue #550, branch
+chore/qual56-test-environment-fidelity)
+================================================================================
+BRIEF: COO asked four things — a RULING on the blocked logged-in single-origin question
+(QUAL-18b), a deliberate-or-accident CLASSIFICATION of the known divergences, a MECHANISM
+that surfaces a NEW divergence, and an explicit NON-GOALS list. It invited attack on its
+own framing. Nothing merged; no code, no config, no migration.
+
+DELIVERED: ADL-57 in the main log + a new canonical live artifact
+jobs/architect/tech/test-environment-fidelity.md + a SUPERSEDED stamp on CLAUDE.md's
+"Deployment shakedown before UAT" enumeration sentence (stamp only; the delete-and-point
+rewrite is left to the COO — flagged as Q4).
+
+COO FRAMING: UPHELD (one pattern, not four incidents) but its DIAGNOSIS is incomplete and
+the missing half changes the fix. "Enumerate every way the test env differs from prod" has
+NO STOPPING CONDITION — the difference set is effectively infinite and most of it is the
+reason a tier is cheap. An uncompletable instruction cannot be owned, which is why the
+July list rotted. Fix = INVERT: enumerate each tier's FIDELITY CLAIMS (bounded) + declared
+NON-GOALS; everything else is out-of-contract (an admitted unknown, not a silent gap).
+Second framing fix: "the test environment" is FIVE tiers (T1 backend integration / T2
+frontend unit / T3 contract / T4 E2E / T5 shakedown), each a model of something different.
+Fidelity is a per-tier contract, never a global property.
+
+QUAL-18b RULING (High): ADOPT an additive SERVE_STATIC=true flag —
+  SERVE_STATIC = (env.SERVE_STATIC==='true' || NODE_ENV==='production') && dist exists
+The server.ts:290 guard is NOT touched/conditionalised/bypassed. Re-probed: NODE_ENV has
+EXACTLY TWO consumers in backend source (grep across src/backend+src/frontend AND a read of
+both sites) — server.ts:88 SERVE_STATIC and server.ts:291 inside the BYPASS_AUTH guard. One
+variable doing two unrelated jobs is the actual blocker, not the guard. E2E then runs
+SERVE_STATIC=true BYPASS_AUTH=true with NODE_ENV unset. VITE_API_BASE_URL must be DROPPED
+from the E2E build (apiClient.ts:21 coerces unset to '' = same origin = production's own
+config). REJECTED a real-auth CI path; ADL-33 §4 stands and the ruling does NOT depend on
+revisiting it. COMPENSATING CONTROL ships in the same PR: decoupling removes an ACCIDENTAL
+canary (a mis-set NODE_ENV today fails to serve the SPA and is loudly broken), so add an
+explicit startup assertion — deployment marker present + NODE_ENV!=='production' => throw.
+Which marker is UNVERIFIED (probe: read of server.ts startup block, no platform variable
+referenced; blind spot: cannot read Railway's injected env) — Q2.
+
+THE BOUNDARY THE RULING DOES NOT CLOSE (§3.1, the load-bearing catch): single-origin
+logged-in E2E STILL never exercises the Clerk half of the CSP, which is where the live
+23-day violation sits. Two independent reasons: (1) CLERK_ORIGIN derives from CLERK_ISSUER
+(server.ts:80) which CI does not set, so the header under test is not the header prod
+emits; (2) main.tsx:51-75 puts ClerkProvider/RedirectToSignIn/TokenRegistrar/setTokenGetter
+ONLY in the non-bypass branch and apiClient.ts:61-66 returns {} with no token getter — NO
+E2E REQUEST HAS EVER CARRIED AN Authorization HEADER.
+
+REGISTER (11 rows, §4): 6 accidents / 1 mixed / 1 external / 4 deliberate.
+NEW FINDINGS FROM THIS PASS, not on any prior list:
+ - D-3 THE BUNDLE UNDER TEST IS NOT THE BUNDLE THAT SHIPS (VITE_BYPASS_AUTH baked in at
+   build time removes the whole Clerk subtree). Needs a tracker item — Q3.
+ - D-2 the CI cross-origin API call — divergence runs BOTH ways (CI exercises a CORS path
+   prod never takes; never exercises the same-origin path prod always takes).
+ - D-5 widened: server-test-app.ts drift is NOT only CSP — the rate-limit config also
+   differs (server.ts:178,189 carry the OP-11 BYPASS_AUTH headroom; :97,106 are flat).
+   Route mounts and body limits currently MATCH, but nothing asserts they continue to.
+ - D-8 local SQLite file vs remote libSQL (db/index.ts:109) — deliberate, named, not closed.
+REFRAMED: the brief's item 4 is not "one hardcoded user" (D-4b, a symptom) — it is D-4,
+the entire authentication path on BOTH ends is absent from the artifact under test.
+
+MECHANISM (§5): M1 invert the enumeration · M2 A FIDELITY CLAIM IS AN EXECUTABLE ASSERTION
+OR IT IS NOT A CLAIM (+ each parity assertion demonstrated RED once — the only cheap defence
+against a vacuous assertion, QUAL-22's shape one level up) · M3 ONE new drift-canary Check F
+(F1 unbacked claim / F2 prose parity language / F3 green-by-suppression) on OP-40's EXISTING
+cadence, needing only a SCAN_DIRS widening to src/ + .github/ — no new script, cadence or job
+· M4 four human triggers for the class no scanner can see · M5 delete-and-point in CLAUDE.md
+(COO's edit; I stamped, did not rewrite). STATED FAILURE MODES: F1 cannot see a vacuous
+assertion; F2 fails on rephrasing; F3 false-positives; and NONE of F1-F3 can detect a
+divergence in a property nobody has ever named — QUAL-54 would NOT have been caught by it,
+and neither would D-3. That honesty is deliberate and must survive review.
+
+VERIFIED AGAINST THE COO'S CLAIM that the drift machinery could not see these: TRUE, and the
+reason is drift-canary.sh SCAN_DIRS/EXTS (lines 22-24) reads only .md/.txt/.json under
+.claude/_shared/jobs + CLAUDE.md/CODEBASE.md — it never opens src/, .github/ or
+playwright.config.ts. Scope limit, not defect; it is the seam M3 extends.
+
+BRIEFS SPAWNED: B1 QUAL-18 (ATDD yes) · B2 BUG-101 (ATDD yes) · B3 QUAL-56 canary (ATDD no)
+· B4 D-4b selectable bypass identity (ATDD yes, GATED ON Q1).
+
+OPEN QUESTIONS FOR THE PO, to settle BEFORE the fresh-eyes dispatch (OP-27 refinement 1):
+Q1 B4 touches the auth middleware — recommend ADOPT, but it is a PO/security call.
+Q2 confirm the Railway deployment marker. Q3 file a tracker item for D-3. Q4 confirm the
+COO writes the CLAUDE.md delete-and-point replacement.
+
+TRACKER NOT EDITED: this branch predates the COO's uncommitted QUAL-54/55/56/BUG-101 entries;
+editing tracker.json here would have collided. Tracker sync is the COO's.
+NEXT: PO resolves Q1-Q4 -> COO amends -> FULL fresh-eyes OPUS review (security-gate
+topology; NEVER Fable) -> then the four briefs.
