@@ -4752,3 +4752,411 @@ Q4 → **phase it, Slice 1 first** (D9). Q5 → **RESOLVED — Change-city in Sl
 live merge; no dates/held-selection restructure). **R2: the OP-27 fresh-eyes BLOCKING finding B1 is resolved**
 (§3b) and six non-blockers folded. No BUG-97/BUG-98/BUG-99 GitHub issue exists yet (COO to raise + cross-ref).
 No code or migration merges until the **focused fresh-eyes re-review** of the B1 fix clears the amended document.
+
+---
+
+## ADL-57 — Test-environment fidelity: per-tier contracts, the QUAL-18b single-origin ruling, and how a new divergence surfaces
+
+**Date:** 2026-08-27 · **Author:** Architect · **Status:** DESIGN — no code, no config, no migration in this
+entry. Pending (a) an **OP-27 fresh-eyes Opus review** (HIGH stakes: security-gate topology — **never Fable**),
+(b) the four implementation briefs in §7. **Tracker:** QUAL-56 (primary) · QUAL-18 · QUAL-19 · QUAL-20 ·
+QUAL-54 · QUAL-55 · BUG-101 · **BRD:** none — internal quality/process, no product requirement.
+**Canonical live artifact:** `jobs/architect/tech/test-environment-fidelity.md` (created with this entry).
+**Reuses (no parallel mechanism):** OP-40's `scripts/drift-canary.sh` + `scripts/drift-cadence.sh` +
+`/coo-startup` step 0.5 — one new canary check on the existing cadence. **Zero new scripts, jobs or cadences.**
+
+**Trigger.** COO brief (issue #550): the CLAUDE.md rule *"enumerate every way the test environment differs from
+production, and treat each difference as an untested surface"* ran once, 2026-07-28, producing QUAL-18/19/20.
+Two further divergences (BUG-101, QUAL-54) were found by accident on 2026-08-27, each by someone looking for
+something else. The brief asked for a ruling on the blocked logged-in single-origin question, a
+deliberate-or-accidental classification of the known divergences, a mechanism that surfaces a new one, and an
+explicit non-goals list — and invited attack on its own framing.
+
+### Summary
+
+| # | Decision | Recommendation | Confidence |
+|---|---|---|---|
+| **D1** | Is this one pattern or four incidents? | **One pattern — the COO's framing is UPHELD. But its diagnosis is incomplete, and the incomplete half is the load-bearing one:** the artifact rotted because the *rule generating it has no stopping condition*, not only because nobody owned it | High |
+| **D2** | What is "the test environment" a model of? | **Wrong unit of analysis.** There are **five** tiers, each a model of something different. Fidelity is a **per-tier contract**, never a global property | High |
+| **D3** | **RULING — QUAL-18b, logged-in single-origin** | **ADOPT: decouple static-serving from `NODE_ENV` with an additive `SERVE_STATIC=true` flag.** The `server.ts:290` guard is **not touched, not conditionalised, not bypassed**. **REJECT** a Clerk credential for CI — ADL-33 §4 stands and this ruling does not depend on revisiting it. **Bounded:** this closes the *first-party* CSP class only; the Clerk-origin class stays T5-only | High |
+| **D4** | Classification of the divergence register | **11 rows, §4.** 6 accidents, 1 mixed, 1 external, 4 deliberate. **Two rows are new findings from this pass, and one materially reframes the brief's item 4** | High |
+| **D5** | The mechanism | **Invert the enumeration**: register *fidelity claims* (bounded), not *differences* (unbounded). **A claim is an executable assertion or it is not a claim.** One new drift-canary check (F1/F2/F3) on the existing cadence + four human triggers for the class no scanner can see | High |
+| **D6** | Non-goals | **Ten, §6** — explicit, so a future reader can tell an admitted limit from a gap | High |
+| **D7** | Ownership | **Architect owns the register; each fidelity claim is owned by the tier's test author.** Ownership is made real by the canary reporting unbacked claims every 5th session | Medium |
+
+---
+
+### 1. D1 — the COO framing, probed
+
+**Upheld.** These are one class, and the alternative the brief offered (four unrelated bugs, re-enumerate once
+more, cheaply) is **rejected**: a second one-time enumeration has the same half-life as the first, and the
+evidence for the class is that the rule's own artifact is what failed, not the people using it.
+
+**But the COO's diagnosis — *"a rule whose artifact is a one-time list for an ongoing problem"* — is incomplete,
+and the missing half changes the fix.** Making an unbounded list *living* makes it an unbounded chore. The set
+of ways `vitest` + `jsdom` differs from Chrome-on-Railway is effectively infinite, and **most of those
+differences are the entire reason the tier is cheap.** A rule with no stopping condition will be executed once,
+will return whatever was salient that day, and will then be abandoned — which is precisely the observed history.
+So the failure is not (only) unowned maintenance; it is that **"enumerate the differences" is not a completable
+instruction**, and no owner can be assigned an uncompletable task.
+
+The COO's second claim — that the drift machinery could not have caught these because the canary is cheap regex
+over docs and the deep-audit lens points at doc-rot and tracker status — **holds, and I verified the reason
+rather than the statement**: `scripts/drift-canary.sh` Checks A–E read only `.md`/`.txt`/`.json` under
+`.claude`, `_shared`, `jobs`, plus `CLAUDE.md`/`CODEBASE.md` (`SCAN_DIRS`/`EXTS`, lines 22-24). It does not
+open `src/`, `.github/` or `playwright.config.ts` at all, so no configuration divergence is inside its reach by
+construction. **That is a scope limit, not a defect — and it is also the seam D5 extends.**
+
+### 2. D2 — five tiers, not one environment
+
+Full contracts live in `jobs/architect/tech/test-environment-fidelity.md` §1–§2. In brief: **T1** backend
+integration models the Express request pipeline; **T2** frontend unit models component render decisions;
+**T3** contract models the real server process on a real socket; **T4** E2E models the browser and the built
+frontend against a live backend; **T5** shakedown models the deployed artifact — and *is* the environment, so
+its limits are limits of **observability**, never of fidelity.
+
+This matters immediately: the known divergences were filed as though they were properties of "the test
+environment," when each belongs to a different tier with a different owner and a different fix. BUG-101 is a
+**T1** defect; QUAL-18 is **T4**; QUAL-54 is a **T4-and-T5** tooling property.
+
+---
+
+### 3. D3 — RULING on QUAL-18b (logged-in single-origin)
+
+**The blocking constraint, re-probed independently and confirmed.** `NODE_ENV` has exactly **two** consumers in
+backend source (two probes that fail differently: a grep across `src/backend` and `src/frontend`, and a read of
+both sites): `server.ts:88` `SERVE_STATIC = process.env.NODE_ENV === 'production' && fs.existsSync(DIST_DIR)`,
+and `server.ts:291` inside the startup guard that throws when `BYPASS_AUTH === 'true'`. So a single environment
+variable is doing **two unrelated jobs** — "should I serve the SPA" and "am I a real deployment" — and E2E needs
+the first while being forbidden the second. That coupling, not the guard, is the actual blocker.
+
+**RULING — ADOPTED.** Make static-serving **explicitly requestable**, additively:
+
+```
+const SERVE_STATIC =
+  (process.env.SERVE_STATIC === 'true' || process.env.NODE_ENV === 'production')
+  && fs.existsSync(DIST_DIR);
+```
+
+- **The `server.ts:290` guard is untouched.** It still throws on `NODE_ENV=production && BYPASS_AUTH=true`.
+  Nothing about it is weakened, conditionalised or bypassed, and E2E never sets `NODE_ENV=production`.
+- **Additive — no deployment configuration changes.** Railway keeps `NODE_ENV=production` and keeps serving
+  static exactly as today. (That `NODE_ENV=production` is genuinely set in both deployed environments is
+  established by two probes that fail differently: the code path above is the only one that serves the SPA, and
+  the deployed app demonstrably serves it — the PO uses it.)
+- **E2E runs `SERVE_STATIC=true BYPASS_AUTH=true E2E_RIG=true` with `NODE_ENV` unset** *(amended 2026-08-27: `E2E_RIG` added — without it this exact command throws under §3.2's third guard, by design)*, single-origin on `:3001`, helmet
+  applied to the document.
+- **`VITE_API_BASE_URL` must be dropped from the E2E build** — `apiClient.ts:21` coerces unset to `''`, meaning
+  same origin, which is production's own configuration. Leaving it set would make every API call a cross-origin
+  fetch to `localhost:3001` and the new CSP would correctly block it. This is a *feature* of the ruling: the
+  E2E build stops being configured differently from the shipped one in one more respect.
+
+**REJECTED — a real-auth path for CI.** It requires a Clerk-minted token, which requires either a real account's
+credentials in CI or Clerk's testing-token API, and both are credential provisioning against the identity
+provider. **ADL-33 §4 declined exactly that, and this ruling does not depend on revisiting it** — D3 delivers
+what the topology question was actually for without touching the credential decision. (Two probes that fail
+differently: `package.json` carries `@clerk/react` and no `@clerk/testing`; and `middleware/auth.ts` verifies
+against JWKS with issuer and `azp` checks, so no non-bypass path exists that a locally-forged token satisfies.)
+
+> **SUPERSEDED (2026-08-27) by §3.2 — retained for history.** The OP-27 fresh-eyes review (findings
+> F1/F2, both blocking) showed this paragraph's control is fail-open and its safety argument judges
+> the removed canary against the wrong criterion. The paragraph below stands as written for the
+> record; §3.2 is the operative control.
+
+**A compensating control, because the decoupling removes an accidental one.** Today, a deployment that mis-set
+`NODE_ENV` would fail to serve the SPA and be *loudly* broken — an accidental canary. Note carefully that this
+canary was never protection against unauthenticated production: the `:291` guard reads the same variable, so a
+mis-set `NODE_ENV` already defeats it today. **Replace the accident with an explicit check that is strictly
+stronger:** at startup, if a deployment marker is present and `NODE_ENV !== 'production'`, throw. **UNVERIFIED —
+which marker.** Probe run: a read of `src/backend/server.ts`'s startup block, which references no
+platform-provided variable; blind spot: this container cannot read Railway's injected environment. The
+implementer must confirm a Railway-injected marker exists (`RAILWAY_ENVIRONMENT` / `RAILWAY_ENVIRONMENT_NAME`)
+and, if it does not, add an explicit `DEPLOY_ENV` variable to both Railway environments instead. **This
+strengthening ships in the same PR as the decoupling** — the decoupling must not land alone.
+
+#### 3.2 The compensating control, REVISED per the OP-27 review (2026-08-27; findings F1/F2) — operative
+
+**Why the original was insufficient, in two parts.** (F2) The paragraph above dismisses the accidental
+canary as "never protection" because it never made the *guard* fire — but making the guard fire was
+never its property. Its property was making the misconfiguration **loud**: a deployment with `NODE_ENV`
+mis-set stops serving the site. After the decoupling, that same deployment serves the real site, real
+CSP, **authentication disabled** — and, because `BYPASS_AUTH` also relaxes the rate limiter
+(`server.ts:178,189`: 5000/500 per min vs 300/20), the same single misconfiguration removes the lock
+and the throttle together. Every existing check passes in that state. (F1) The §8.1 Q2 amendment then
+keyed the replacement check to `RAILWAY_GIT_COMMIT_SHA` on evidence that does not hold — see the
+retraction at §8.1 Q2-R — and the check as specified ("if marker present and `NODE_ENV` wrong, throw")
+does **nothing when the marker is absent**. A safety check whose off-state is silence is not a safety
+check.
+
+**The revised control — state the property in terms the unsafe configuration cannot satisfy:**
+
+1. **An explicit `DEPLOY_ENV` variable is set by hand on both Railway environments**
+   (`production` / `staging`) — the Architect's original specification, restored. No reliance on any
+   platform-injected variable; presence is guaranteed by us setting it, not by Railway documentation.
+2. **Fail closed on absence:** at startup, a process that is serving the built site (`SERVE_STATIC`
+   active) with **neither** `DEPLOY_ENV` **nor** the explicit E2E marker (`E2E_RIG=true`, set only by
+   `playwright.config.ts`) present → **throw.** A deployment that forgets its marker is loudly broken —
+   the canary's one good property, restored deliberately instead of by accident.
+3. **The bypass/serving collision is guarded directly:** at startup, `BYPASS_AUTH === 'true'` while
+   serving the built site → **throw unless `E2E_RIG=true`.** This is the F2 property stated positively:
+   the dangerous *combination* is unreachable except in the one configuration that declares itself the
+   test rig. The `server.ts:290` guard stays untouched on top.
+3a. **`DEPLOY_ENV` and `E2E_RIG` both present → throw** *(added 2026-08-27, re-check strengthening)*:
+   since `DEPLOY_ENV` is set by hand on both Railway environments, this makes the unsafe state
+   genuinely unreachable on a real deployment rather than one mistakenly-set variable away from it.
+
+**Stated limit, not a regression (re-check):** all guards are conditioned on the process serving the
+built site, so a process with auth bypassed and **no** site still starts quietly — unchanged from
+today, and loud in practice (there is no website). Side effect worth one sentence so it is not
+reported as a bug: a developer running locally in production mode with a built `dist/` and no
+`DEPLOY_ENV` will now be thrown; that is the control working.
+4. **Ships in the same PR as the decoupling** (unchanged from the original), and the Railway variables
+   are set **before** that PR merges — the control must never be pending while the decoupling is live.
+
+**Same-PR document updates (F2, per the document-lifecycle rule).** Six artifacts assert the guarantee
+the decoupling changes, and the B1 PR must update every one, citing the PR: the shakedown's
+"PROVES: … production code path" comment (`src/e2e-shakedown/shakedown.spec.ts:167-171` — already
+overstated today, since helmet is mounted unconditionally); `_project/security-spec.md:239` (the
+rate-limit justification); `CODEBASE.md:282`; `README.md:47`; `_project/hardening-gate.md:59`; and the
+QUAL-20 tracker note.
+
+**B1's red bar gains two pins (F2, F3):** (e) starting with `SERVE_STATIC=true` and neither
+`DEPLOY_ENV` nor `E2E_RIG` set **throws**; starting with `BYPASS_AUTH=true` + `SERVE_STATIC=true`
+without `E2E_RIG` **throws**; and (f) **no E2E navigation resolves to an origin other than the Express
+origin** — the 55 hardcoded `localhost:5173` URLs across all 9 spec files are in-scope work for B1, not
+incidental, because the cheapest wrong implementation adds the new server alongside the old and leaves
+53 tests green against the header-less topology. Also in B1's scope (F8): correct the stale
+`playwright.config.ts:93-100` comment claiming `VITE_API_BASE_URL` has no fallback — `apiClient.ts:21`
+coerces with `?? ''`, and the comment as written would cause the next reader to reintroduce the
+variable this ruling removes.
+
+#### 3.1 The boundary this ruling does NOT close — read this before believing the class is shut
+
+**Single-origin logged-in E2E will still never exercise the Clerk half of the CSP,** and that is where the
+project's one live, unresolved violation sits (QUAL-20's 23-day red). Two independent reasons, either sufficient:
+
+1. **`CLERK_ORIGIN` derives from `CLERK_ISSUER` (`server.ts:80`), which CI does not set** — so the CSP header
+   emitted in CI would carry neither `CLERK_ORIGIN` in `script-src`/`connect-src` nor `img.clerk.com`. The
+   header under test is not the header production emits.
+2. **The bundle under test contains no Clerk code at all.** `main.tsx:51-75` puts `ClerkProvider`,
+   `RedirectToSignIn`, `TokenRegistrar` and the `setTokenGetter` call **only in the non-bypass branch**;
+   `apiClient.ts:61-66` then returns an empty header object when no token getter was registered. **No E2E
+   request has ever carried an `Authorization` header.**
+
+So: D3 closes the **first-party** CSP class — `connect-src` to our own API and `*.maptiler.com`, `img-src`
+`data:`/`blob:`, `style-src` inline — for authenticated journeys. That *is* the BUG-55 class and it is worth
+having. **The Clerk-origin class is not closeable in CI at any topology without the credential D3 rejects, and
+its only observation point is T5 and the PO's own session.** An implementation brief that reports "single-origin
+done, CSP class closed" would be wrong, and this paragraph exists so that report is catchable.
+
+---
+
+### 4. D4 — the divergence register: deliberate vs accident, with dispositions
+
+**Legend.** *Accident* = nobody chose it; it fell out of a change made for another reason and its consequence
+was never walked. *Deliberate* = chosen, and correctly so. **A deliberate divergence is not a defect — it is
+what makes a tier cheap.** The defect is a deliberate divergence that was never written down, which is
+indistinguishable from an accident to everyone downstream.
+
+| # | Tier | Divergence | Verdict | Disposition |
+|---|---|---|---|---|
+| **D-1** | T4 | Document served by `vite preview`, so no CSP is ever applied to it (`playwright.config.ts:100-102`) | **Accident** — a genuine performance fix (OP-11, dev-server timeouts on 2-vCPU runners) whose security consequence was never walked | **CLOSE.** Signed-out half available today; logged-in half per D3. QUAL-18 |
+| **D-2** | T4 | API calls are cross-origin (`VITE_API_BASE_URL=http://localhost:3001`); production is same-origin | **Accident** — a consequence of D-1. **Runs both ways:** CI exercises a CORS path production never takes, and never exercises the same-origin path production always takes | **CLOSE with D-1** (drop the variable in the E2E build) |
+| **D-3** | T4 | **The bundle under test is not the bundle that ships.** `VITE_BYPASS_AUTH=true` is baked in at *build* time and removes the entire Clerk subtree from the React tree | **Accident** — nobody chose "test a different artifact"; it fell out of the bypass mechanism. **NEW — on no prior list** | **ACCEPT AND BOUND.** No CI-side fix exists without the credential D3 rejects. Recorded as a T4 non-goal; its observation point is T5. **Needs a new tracker item — Q3** |
+| **D-4** | T1/T3/T4 | Backend auth is the `BYPASS_AUTH` branch (`middleware/auth.ts:102-110`): no JWT verification, no `azp` check, no `Authorization` header ever sent | **Deliberate in intent, accidental in scope.** It was scoped as "skip JWT verification"; it in fact **removes identity**, which is a much larger claim | **ACCEPT with the limit named.** **This reframes the brief's item 4:** the divergence is not "one hardcoded user" — it is *the entire authentication path, both ends, is absent from the artifact under test.* The single user is a symptom |
+| **D-4b** | T4 | Exactly one identity exists per run — `'test_clerk_id'` is hardcoded, ownership derived from `OWNER_CLERK_ID` | **Accident** — a hardcoded constant, not a decision | **FIXABLE CHEAPLY AND WITHOUT ANY CREDENTIAL:** make the bypass identity request-selectable via a test-only header, read **only** inside the existing `BYPASS_AUTH === 'true'` branch. Unblocks QA's J7 (non-owner journeys). **Security-adjacent — see Q1** |
+| **D-5** | T1 | `server-test-app.ts` is a **hand-copied reconstruction** of `server.ts`'s pipeline, under a comment claiming exact parity (`:1-11`). 37 files import it | **Accident** | **CLOSE — and widen the scope from CSP to the whole pipeline.** Verified by reading both files: the CSP block differs in four directives *and* the rate-limit configuration differs (`server.ts:178,189` carry the OP-11 `BYPASS_AUTH` headroom; `server-test-app.ts:97,106` are flat). Route mounts and body limits currently match — but nothing asserts they continue to. BUG-101 |
+| **D-6** | T4/T5 | Playwright drops worker-sourced console entries (`crPage.js:681`) and hardcodes empty `args` (`:687`) | **Neither** — a property of a tool we did not choose. **What was ours** was the unexamined assumption that `page.on('console')` is a complete error channel | **CLOSE** — QUAL-54 (raw CDP `Log.entryAdded`) |
+| **D-7** | T4 | The map cannot render: no `VITE_MAPTILER_KEY` in the CI build; `map.spec.ts:13-14` filters errors to stay green | **Accident** (key absence) + **deliberate-but-unrecorded** (the filter) | **ACCEPT AND DECLARE** as a T4 non-goal — with the filter narrowed so it cannot also hide *first-party* errors, which today it can |
+| **D-8** | T1/T3/T4 | Database is a local SQLite **file**; production is remote libSQL over the network (`db/index.ts:109`, `TURSO_DATABASE_URL`) | **Deliberate** — hermeticity | **ACCEPT, name it, do not close it.** Latency, partial failure and transaction semantics under a remote driver are untested surfaces. Relevant to the BUG-15 transaction class |
+| **D-9** | T1/T3/T4 | `GEOCODING_ENABLED=false`; no live geocoder egress | **Deliberate** — ADL-10 | **ACCEPT** — already carries a compensating control (ADL-49 replay fixtures) |
+| **D-10** | T2 | `jsdom` is not a browser: no layout, no CSP, no workers | **Deliberate** — definitional | **ACCEPT** — permanent non-goal |
+| **D-11** | T5 | Only the anonymous surface is exercised; no session | **Deliberate** — ADL-33 §4 | **ACCEPT.** D3 re-affirms it |
+
+**Score: 6 accidents (D-1, D-2, D-3, D-4b, D-5, D-7), 1 mixed-origin (D-4), 1 external (D-6), 4 deliberate.**
+The accident-to-deliberate ratio is itself the finding — a healthy register is mostly deliberate, because
+deliberate divergences are what a tier *is*.
+
+---
+
+### 5. D5 — the mechanism
+
+**M1 — invert the enumeration.** Stop enumerating *differences* (unbounded, uncompletable). Enumerate each
+tier's **fidelity claims** — the short, closed list of production properties it asserts it reproduces — and its
+**declared non-goals**. Everything on neither list is *out of contract*: an admitted unknown rather than a
+silent gap. This is what makes the task completable, and therefore ownable.
+
+**M2 — a fidelity claim is an executable assertion, or it is not a claim.** Prose parity claims are banned;
+`server-test-app.ts:1-11` is the exemplar of the harm — *a reader has no reason to re-check a file that asserts
+its own parity.* Each claim names the test that proves it, and **each parity assertion is demonstrated RED
+once** against a deliberately-broken input, with that PR recorded. An assertion nobody has seen fail specifies
+nothing — QUAL-22's failure mode, one level up.
+
+**M3 — one new drift-canary check, on the existing cadence. Where it lives:** `scripts/drift-canary.sh`, as
+**Check F**, alongside A–E; run by `/coo-startup` step 0.5 when `scripts/drift-cadence.sh` reports the canary
+DUE. **No new script, no new cadence, no scheduled job.** It requires widening the canary's `SCAN_DIRS` to reach
+`src/` and `.github/` for F2/F3 only — a deliberate, minimal extension of the scope limit identified in §1.
+
+- **F1 — unbacked claim.** Every claim row in the register must name a test file that exists on disk. A missing
+  file, or an empty `Proven by` cell on a non-structural claim, is reported.
+- **F2 — prose parity claim.** Grep source and docs for parity language (*"same as production"*, *"exactly the
+  same … as production"*, *"mirrors production"*, *"identical to prod"*, *"kept in sync"*). Each hit must cite a
+  register claim ID on an adjacent line, or it is reported.
+- **F3 — green-by-suppression.** Grep spec files for suppression shapes: a `.filter(` over a collected
+  console/error array, `test.skip`, `test.fixme`, an empty `catch {}`. Each must carry an adjacent `PARITY:`
+  note naming a register entry, or an `UNVERIFIED` marker, or it is reported.
+
+**What it costs:** three regex passes plus file-existence checks over a tree the script already walks — the same
+order as Checks A–E, sub-second, **warn-only, always exits 0, never gates.** Consistent with
+`drift-canary.sh`'s stated design and with `negative-findings-guard.sh`.
+
+**How it fails — stated, not hidden:**
+
+- **F1 cannot see a *vacuous* assertion** — a named test that exists and asserts nothing. Regex has no reach
+  here. The `Proved red` column is the only cheap defence, and it is a discipline, not a check.
+- **F2 fails on rephrasing.** Someone writes *"kept aligned with the real server"* and the regex misses it.
+  Accepted: F2 is a net, not a gate.
+- **F3 will false-positive** on legitimate filters. Accepted for the same reason `negative-findings-guard.sh`
+  is warn-only.
+- **None of F1–F3 can detect a divergence in a property nobody has ever named.** This is structural.
+  **QUAL-54 would NOT have been caught by Check F**, and neither would D-3. Any claim that this mechanism
+  "closes the class" is false; it closes the *recurrence* of a named divergence and the *silent decay* of a
+  stated claim. That is a smaller promise, and it is the true one.
+
+**M4 — four human triggers, for exactly the class M3 provably cannot see.** Each opens a mandatory parity
+question with a written answer appended to the register (a "no new divergence" answer is valid and useful).
+Derived from how the known divergences were actually found, and listed in the register §3: (1) a defect reached
+a deployed environment while the tier that should have caught it was green — folds into OP-32's classification
+step; (2) a test was weakened, filtered, skipped or tolerance-widened to go green — partly mechanical via F3;
+(3) a PO/UAT finding was declared unautomatable — folds into UAT close-out; (4) a check has been red, skipped,
+or unexplained for more than 14 days.
+
+**M5 — delete-and-point in CLAUDE.md.** The standing rule's sentence — *"enumerate every way the test
+environment differs from production…"* — is the uncompletable instruction. Replace it with a pointer to
+`jobs/architect/tech/test-environment-fidelity.md` as the canonical home, per the project's delete-and-point
+discipline. **This is a CLAUDE.md governance edit and is the COO's to make, not the Architect's** — specified
+here, not performed.
+
+---
+
+### 6. D6 — NON-GOALS (explicit)
+
+1. **Making any tier a faithful replica of production.** Tiers are cheap *because* they diverge.
+2. **Enumerating differences.** Superseded by enumerating claims (D5/M1).
+3. **Rendering the map in CI.** Layer ordering and zoom thresholds are our own data and *do* have a cheap tier;
+   the rendered canvas does not.
+4. **Real Clerk authentication in CI.** ADL-33 §4 stands, unrevisited.
+5. **A second Clerk-authenticated account.** D-4b makes a second *identity* selectable; a second real account is
+   out of scope.
+6. **Visual-comparison testing.** UX-17.
+7. **The journey set and gate design.** QA owns it — the COO's pre-UAT regression gate plan, revision 2
+   (`jobs/COO/20260827-pre-uat-regression-gate-plan.md`; *uncommitted in the working tree when this entry was
+   written — verified by `ls` on this branch* — so the path resolves only once the COO commits it).
+8. **Making the shakedown a blocking gate.** The gate plan's hermetic split stands.
+9. **Testing remote-libSQL network behaviour** (D-8). Named as an untested surface, not closed.
+10. **Any new script, cadence, scheduled job, or parallel drift mechanism.** OP-40's machinery is extended,
+    not duplicated.
+
+---
+
+### 7. Implementation briefs this spawns
+
+| Brief | Scope | Tracker | ATDD-first |
+|---|---|---|---|
+| **B1** | `SERVE_STATIC` decoupling + **the §3.2 fail-closed startup control** (row corrected 2026-08-27 per the OP-27 re-check — the earlier "deployment-marker startup assertion" wording carried the control Q2-R retracted) + E2E single-origin webServer (drop `VITE_API_BASE_URL`; fix the stale `playwright.config.ts:93-100` comment, §3.2) + a red-proven CSP-allowlist E2E assertion + the six same-PR document updates listed in §3.2. **Gate: the two Railway `DEPLOY_ENV` variables are set before this merges.** | QUAL-18 | **YES** — a wrong implementation is silent-and-plausible (the suite goes green while the document is still served without a CSP), and the behaviour is precisely specifiable. Red tests must pin: (a) the document response carries a `Content-Security-Policy` header; (b) removing `*.maptiler.com` from `connect-src` **fails** the suite; (c) starting with `NODE_ENV=production BYPASS_AUTH=true` still **throws**; (d) *(replaced 2026-08-27 — the original pin asserted the retracted fail-open control, backwards under §3.2)* starting with `SERVE_STATIC=true` and **neither** `DEPLOY_ENV` **nor** `E2E_RIG` set **throws**; (e) starting with `BYPASS_AUTH=true` + `SERVE_STATIC=true` **without** `E2E_RIG` **throws**; (f) **no E2E navigation resolves to an origin other than the Express origin** — the 55 hardcoded `localhost:5173` URLs are in-scope; (g) `DEPLOY_ENV` and `E2E_RIG` **both present → throws** (re-check strengthening: makes the unsafe state unreachable on a real deployment, not one variable away). **MOCK-FIDELITY:** no doubles for the Express app — assert against the real process |
+| **B2** | One shared helmet/pipeline config imported by `server.ts` and `server-test-app.ts`; delete the prose parity comment; add T1-C1..C4 assertions | BUG-101 | **YES** — shared security contract; a wrong implementation leaves 37 files testing a weaker policy while the assertion passes. Red tests must pin directive-by-directive equality **and** middleware order |
+| **B3** | Drift-canary **Check F1/F2/F3** + the `SCAN_DIRS` widening. **Two traps (OP-27 review F8):** (i) the canary filters by extension — `EXTS = (".md", ".txt", ".json")` at `drift-canary.sh:24` — so widening `SCAN_DIRS` to `src/`/`.github/` without widening `EXTS` to `.ts/.tsx/.yml` scans nothing; (ii) the parity-language check will flag this ADL and the register themselves, which quote parity phrasing — warn-only so acceptable, but the check's output must say so or its first run reads as broken. **Check F1 must require a test-file *path* in a claim's proof cell, not any non-empty cell** (review F6: prose like "the suite itself" reads as proof and proves nothing). **Also in B3's scope (re-check): fill the register's §1.1 completeness matrix** — answer all eight axes for all five tiers; until then the register is, by its own rule, forty blanks with no owner | QUAL-56 | **NO** — warn-only output, visible and recoverable; failures are cosmetic false positives |
+| **B4** | Request-selectable bypass identity (D-4b) | new item needed | **YES** — auth-adjacent. Red tests must pin: the header is read **only** when `BYPASS_AUTH === 'true'`; with `BYPASS_AUTH` unset or absent the header has **no effect whatsoever**; and `isOwner` still derives from `OWNER_CLERK_ID`. **Q1 ADOPTED (§8.1) — the operative constraint is now: B4 must not merge before B1** (its safety rationale depends on §3.2's guards; §8.1 Q1 contingency). Identity values confined to an allowlist of known test identities |
+
+---
+
+### 8. Flagged open questions — for the COO to resolve with the PO BEFORE the fresh-eyes reviewer is dispatched (OP-27 refinement 1)
+
+- **Q1 — D-4b / brief B4.** Making the bypass identity request-selectable adds a **header-controlled identity
+  path** inside the authentication middleware. It sits strictly inside the existing `BYPASS_AUTH === 'true'`
+  branch and is inert in production (which cannot set `BYPASS_AUTH` — `server.ts:290` throws), so I assess the
+  residual risk as low and **I recommend adopting it**: it is the only route to automating non-owner journeys
+  that needs no credential. **But it touches the auth middleware and that is a PO/security call, not an
+  implementation choice** (OP-30 shape). Adopt, defer, or reject?
+- **Q2 — the deployment marker (§3, UNVERIFIED). *(→ The §8.1 resolution of this was RETRACTED — see §8.1 Q2-R. The specification in this bullet, `DEPLOY_ENV` set explicitly, is what stands.)*** Confirm from the Railway dashboard whether
+  `RAILWAY_ENVIRONMENT` / `RAILWAY_ENVIRONMENT_NAME` is injected into both environments. If it is not, an
+  explicit `DEPLOY_ENV` must be added to both **before** B1 merges, since the compensating control ships with
+  the decoupling and must not be skipped.
+- **Q3 — D-3 needs a tracker item.** "The bundle under test is not the bundle that ships" is a new finding with
+  no tracker home. Recommend filing it as a QUAL item pointing at the T4 non-goal, so the limit is visible to
+  anyone reading the tracker rather than only to anyone reading the register.
+- **Q4 — M5 is a CLAUDE.md edit.** The uncompletable sentence in *Deployment shakedown before UAT* is
+  governance text and its replacement is the COO's to write. Confirm the COO makes that edit rather than an
+  implementation brief.
+
+**ATDD-first summary:** B1 **yes**, B2 **yes**, B3 **no**, B4 **yes** (gated on Q1).
+
+#### 8.1 RESOLUTIONS (COO, 2026-08-27) — all four closed before the fresh-eyes dispatch
+
+Recorded per OP-27 refinement 1: the reviewer receives a settled spec, so its one pass goes on blind
+spots rather than on gaps the author already surfaced. **Reviewer: treat §8.1 as part of the document
+under review, not as settled fact — including the seam between these resolutions and §§1–7, which they
+were not written alongside.**
+
+- **Q1 — ADOPTED (PO decision, 2026-08-27).** Request-selectable bypass identity proceeds. B4 is
+  un-gated. The PO was given the Architect's own risk assessment (header path strictly inside the
+  existing `BYPASS_AUTH === 'true'` branch; inert in production, which cannot set that flag because
+  `server.ts:290` throws) alongside the cost of rejecting (second-account journeys stay permanently
+  manual). **The ATDD red bar for B4 is unchanged and binding:** the header is read *only* when
+  `BYPASS_AUTH === 'true'`; with the flag unset or absent the header has **no effect whatsoever**;
+  `isOwner` still derives from `OWNER_CLERK_ID`. **Reviewer: stress-test this specifically** — it is
+  the one item in ADL-57 that adds a code path to authentication middleware, and PO approval of a
+  direction is not evidence that the *mechanism* is sound.
+
+- ~~**Q2 — RESOLVED DIFFERENTLY, AND MORE CHEAPLY THAN ASKED.**~~ **RETRACTED — see Q2-R below.
+  Retained struck-through for the record.** ~~The question assumed the only route was confirming
+  `RAILWAY_ENVIRONMENT` from the Railway UI. A marker with working evidence already exists:
+  `RAILWAY_GIT_COMMIT_SHA`, consumed at `build-info.ts:128`; the deployed shakedown's SHA-match check
+  passed against real staging on run 30941449115, which is only possible if Railway injected the
+  variable into the running deployment.~~
+
+- **Q2-R — the retraction (COO, 2026-08-27, from OP-27 review finding F1 — blocking).** The
+  substitution above was **wrong, and its "two probes" were not independent.**
+  `resolveBuildInfo()` (`build-info.ts:122-147`) resolves the SHA through a three-way fallback ending
+  in a value **baked into the image at build time** (`scripts/generate-build-info.js`, the `prebuild`
+  hook) — so a green SHA-match is produced identically whether or not Railway injects the variable at
+  runtime, and `/health` deliberately omits which source won. Both of the COO's "probes" observed the
+  same output through the same blind spot: **that is one probe written down twice**, from the author
+  of the rule that forbids exactly this. Worse, the repo already recorded the opposite conclusion:
+  `generate-build-info.js:10-18` states the variable's runtime presence *"could not be confirmed …
+  (which is why a COO check found it absent)"* and that *"expected is not verified"* — the baked
+  fallback **exists because of** that uncertainty. The COO asserted the contrary without reading it.
+  **Resolution: the Architect's original specification is restored** — an explicit `DEPLOY_ENV` set by
+  hand on both Railway environments, inverted to fail closed. Operative text: **§3.2.** B1 is gated on
+  those two Railway variables being set (a two-minute dashboard action for the PO, possible while the
+  service itself is down), which supersedes Q2's claim that no dashboard action was needed.
+
+- **Q1 — CONTINGENCY ADDED (2026-08-27, from OP-27 review).** The adoption stands, but its safety
+  rationale as written leaned on *"production cannot set `BYPASS_AUTH` — `server.ts:290` throws"* —
+  and §3 is the decision that stops `NODE_ENV` being a reliable signal of "production". **B4's safety
+  is therefore contingent on §3.2 landing as specified** (the bypass/serving collision guard), and B4
+  must not merge before B1. One pin added to B4's red bar (review F8): the selectable identity is
+  confined to an **allowlist of known test identities**, not free-form header values. The review also
+  confirmed one worry closed: both `server.ts:290` and `auth.ts:102` compare strictly `=== 'true'`,
+  so a truthy-but-not-`'true'` value leaves the bypass inactive — fail-closed, no finding.
+
+- **Q3 — DONE. Filed as QUAL-57** (P2, owner QA), merged to `main` in PR #554. **COO verification made
+  the finding materially wider than reported, and §§3.1/T4 should be read against this:** it is not
+  only that the bundle under test differs from the bundle that ships. Two probes that fail
+  differently — (1) `main.tsx:52-58`, the `bypassAuth` branch renders the app tree with **no**
+  `ClerkProvider` and **no** `TokenRegistrar`, so `setTokenGetter` is never called; (2)
+  `apiClient.ts:61-66`, `authHeaders()` returns `{}` when no token getter is registered. Therefore
+  **no E2E request has ever carried an `Authorization` header**, and on the backend `BYPASS_AUTH`
+  short-circuits at `auth.ts:102` before any JWT work. **Both ends of the auth path are absent, not
+  merely stubbed to one identity** — the single hardcoded user is a symptom. This confirms and
+  strengthens §3.1's boundary. **Reviewer: check whether any claim in §§1–7 assumes E2E exercises
+  *any* part of authentication; if so, that claim is void.**
+
+- **Q4 — CONFIRMED, and the edit is made in this PR** (COO-authored, not delegated to an
+  implementation brief). `CLAUDE.md` *Deployment shakedown before UAT* now carries the Architect's
+  supersession stamp **plus** a COO-written replacement rule — *a test tier is trusted only for what
+  it explicitly claims; anything on neither the claim list nor the non-goal list is out of contract* —
+  and points at the register as canonical without duplicating it, per delete-and-point. **Reviewer:
+  the replacement rule is COO prose, not Architect spec. Check it is faithful to §2's model and does
+  not overclaim; a governance sentence that drifts from the design it encodes is the failure mode this
+  whole ADL exists to close.**
