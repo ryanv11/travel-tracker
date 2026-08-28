@@ -441,7 +441,7 @@ describe('BUG-75 #5 M-B — a carried id whose /lookup returns zero rows lands i
     const engId = await seedRegion(testDb!, 'England', 'GB-ENG');
     // Stale/deleted/reclassified OSM object: HTTP 200, zero candidates → NOT
     // 'error'/'disabled' (that is the offline case) but an empty ok.
-    lookupResultFor['N99999999'] = { status: 'ok', candidates: [] };
+    lookupResultFor.N99999999 = { status: 'ok', candidates: [] };
 
     const res = await supertest(app).post('/api/cities').send({
       name: 'Ghosttown',
@@ -564,7 +564,7 @@ describe('BUG-75 #7 carry-overs — containment, no client coords, D12 rule 3, a
   it('pending containment holds: a pending row created by user A is invisible in user B search, visible to A', async () => {
     const engId = await seedRegion(testDb!, 'England', 'GB-ENG');
     // Force a pending outcome: offline lookup for the carried id.
-    lookupResultFor['N424242'] = { status: 'disabled' };
+    lookupResultFor.N424242 = { status: 'disabled' };
     defaultLookupResult = { status: 'disabled' };
     nextSearchResult = { status: 'disabled' };
 

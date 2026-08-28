@@ -168,7 +168,7 @@ describe('BUG-75 F1 — resolveByOsmId canonicalizes a carried pick by /lookup (
   });
 
   it('maps node/way/relation → N/W/R and returns the single canonical candidate from /lookup', async () => {
-    lookupResultFor['N26700978'] = {
+    lookupResultFor.N26700978 = {
       status: 'ok',
       candidates: [candidate({ osmType: 'node', osmId: 26700978, lat: 50.7, lon: -1.29 })],
     };
@@ -196,7 +196,7 @@ describe('BUG-75 F1/M-B — resolveCity on a pending row carrying an osm_id', ()
   it('resolves deterministically via /lookup (not the constrained name search)', async () => {
     const engId = await seedGbEng(testDb!);
     const cityId = await seedPendingWithOsm(testDb!, engId, 26700978);
-    lookupResultFor['N26700978'] = {
+    lookupResultFor.N26700978 = {
       status: 'ok',
       candidates: [candidate({ osmType: 'node', osmId: 26700978, lat: 50.7, lon: -1.29 })],
     };
@@ -215,7 +215,7 @@ describe('BUG-75 F1/M-B — resolveCity on a pending row carrying an osm_id', ()
     const engId = await seedGbEng(testDb!);
     const cityId = await seedPendingWithOsm(testDb!, engId, 99999999);
     // Stale/deleted/reclassified object: 200 OK, zero candidates.
-    lookupResultFor['N99999999'] = { status: 'ok', candidates: [] };
+    lookupResultFor.N99999999 = { status: 'ok', candidates: [] };
 
     // Must not throw (no 500-equivalent at the service).
     const ok = await resolveCity(cityId);
