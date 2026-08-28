@@ -1,0 +1,103 @@
+COO SESSION PARK — 2026-08-27/28 — OP-41 PLAIN LANGUAGE · ENVIRONMENT-PARITY DIG · ADL-57 CYCLE · PRE-UAT GATE PLAN
+6 PRs merged (#549, #552, #553, #554, #555 + close-out) · main green after every one · no open PRs
+================================================================================
+
+## READ THIS FIRST — where to pick up
+
+**The next move is dispatching the PO-journey regression pack (QUAL-39, QA), alongside or ahead of
+brief B1 — NOT after all four ADL-57 briefs.** PO-confirmed at close: the four briefs build the RIG
+(topology, config consolidation, scanner, selectable identity) plus their own acceptance tests; none
+of them writes the product journeys. J1–J4 and J6 run on TODAY'S rig; only J5 wants B1 and J7 wants
+B4. QA's 8-journey table (~20 new tests, tag-the-existing-suite-not-a-new-pack) is recorded in
+QUAL-39's notes. The gate rule's CLAUDE.md wording (blocking on hermetic checks; classification-gated
+on the deployed check) gets written when the pack exists to point at — PO approved the direction.
+
+**Blocked on the PO, standing:**
+(a) **Railway billing** — staging has no live deployment (trial lapsed; PO aware). Blocks the PO's
+    add-place UAT round (uat-log item 4 + 3 others), and blocks OBSERVING the QUAL-54 shakedown fix
+    (which is why QUAL-54 sits shipped-but-pending, deliberately).
+(b) **Set DEPLOY_ENV=production / DEPLOY_ENV=staging on the two Railway environments** — two-minute
+    dashboard action, possible while the service is down. GATES brief B1 (ADL-57 §3.2 / B1 row).
+
+## Suggested next, in order
+1. Dispatch QUAL-39 (QA): triage the UAT archive per the corrected tiering rule (ADL-57-consistent:
+   "write the cheap test only if it would fail without knowing the fault in advance"), tag existing
+   suite, write J1–J4+J6 (~15 tests). /coo-dispatch gate applies; ATDD-first n/a (it IS the tests).
+2. Dispatch B1 (backend/QA, Opus) once DEPLOY_ENV is set — ADL-57 §3.2 + §7 B1 row is the brief; red
+   bar pins (a)–(g) already specified. B4 must not merge before B1. B2/B3 parallel-safe.
+3. When staging returns: workflow_dispatch the Post-Deploy Shakedown → if the console check goes
+   green, flip QUAL-54 to done and the 23-day mystery is closed observed, not just expected.
+4. PO UAT round (uat-log items 1–4) after a shakedown-classified deploy.
+
+## What shipped this session
+
+**OP-41 — write for the PO (PR #549).** Root cause was our own persona line ("concise" unopposed).
+Six rules in /coo-startup; every issue/PR body opens **In plain terms**; dispatch header carries the
+line. Mechanism note: output styles are deprecated (verified) — landed in skill+CLAUDE.md instead.
+
+**The environment-parity dig.** Re-probed the QUAL-18/19/20 trio instead of inheriting it. Found:
+QUAL-20 falsely closed (6 runs, 6 failures, zero green ever — reopened, with the honest 4/5-pass
+correction); the 23-day red identified (CSP-blocked eval; QA corrected the COO's attribution — our
+policy sets script-src in both branches, so the violating context is a THIRD PARTY's; COO re-verified
+with an independent probe); BUG-101 (two hand-copied CSP configs drifted four directives + rate
+limits, 37 importers, under a false parity comment); QUAL-54 (Playwright drops worker-sourced console
+entries + hardcodes empty args — reproduced); QUAL-57 (no E2E request has EVER carried an
+Authorization header — both ends of the auth path absent, not one-user-stubbed).
+
+**The pre-UAT gate plan (PR #554, revision 2).** PO question ("what stops infinite tests?") killed
+rev-1's browser-first rule; QA review overturned two more conclusions (allowlist test is CURATIVE not
+preventive; time budget can never fire — maintenance tax is the real bound) and conceded the QUAL-18
+prerequisite it had itself set. Bound by product surface, not bug history; tag don't fork; delete
+freely.
+
+**QUAL-54 + QUAL-19 shipped (PR #553, QA).** Origin-scoped fail-closed console attribution;
+securitypolicyviolation structured capture; raw CDP reader (sole channel for worker violations);
+allowlist test + BUG-101 red bar as LIVE it.fails + green drift fence (backend suite deliberately
+reads "891 passed | 1 expected fail"). QUAL-19 CLOSED; QUAL-54 stays pending until observed.
+
+**ADL-57 + fidelity register merged (PR #552) after the full OP-27 cycle.** Fresh-eyes Opus review:
+SOUND WITH CHANGES, 3 blocking — F1 killed the COO's own Q2 amendment ("two probes" that were one
+probe twice; generate-build-info.js had already recorded the variable as unconfirmed); F2 the
+loudness-removal (misconfigured prod would serve with auth off and relaxed rate limits, all checks
+green); F3 the 55 hardcoded URLs. All folded in (§3.2 fail-closed control, guard 3a, Q2-R
+retraction). RE-CHECK by same reviewer: NOT CLEAR (the §7 B1 row still carried the retracted control
+— fix landed everywhere except the row implementers copy) → corrected → CLEAR → merged. CLAUDE.md
+parity rule replaced (claims + non-goals per tier; the enumeration rule had no stopping condition).
+
+## Process notes worth keeping
+
+- **The verify-the-reviewer discipline paid twice.** COO challenged QA's "capture is full-fidelity"
+  claim (QA had reproduced the wrong violation class) → QA retracted, reproduced the REAL failure
+  byte-for-byte, and found the worker-drop blind spot in the process. Then the OP-27 reviewer killed
+  the COO's Q2 amendment — the instruction "this is a COO substitution, probe it rather than inherit
+  it" is the only reason it was caught. Convergence among three chains was explicitly flagged to the
+  reviewer as correlated reasoning, and the reviewer still found fresh blockers.
+- **Two COO errors this session, both recorded in place rather than papered over:** the Q2
+  "two probes" that weren't independent (retraction at ADL-57 §8.1 Q2-R), and two red CI rounds
+  misdiagnosed from a JOB name when the failing STEP was status:check three steps later (memory:
+  feedback_diagnose_from_step_log_not_job_name; a phantom "biome exit-code anomaly" was claimed in
+  one commit message and corrected in the next).
+- **Stale-main lesson:** the COO held the plan unmerged "pending PO input" while building on it, so
+  both dispatched agents worked from a main missing the plan and half the tracker IDs. Merge the
+  record; keep the decisions open.
+
+## State of play (durable — tracker.json / STATUS.md)
+
+- Open PRs: none. Branches: main only. Worktrees: none. Main: green at close.
+- **Closed this session:** QUAL-19 (done). OP-41 (done). QUAL-56 (ADL-57 merged; briefs pending).
+- **Shipped-pending-observation:** QUAL-54 (flips on first green shakedown run).
+- **Filed:** BUG-101, QUAL-54, QUAL-55, QUAL-56, QUAL-57, QUAL-58 (Playwright suites in no tsconfig —
+  planted-error-verified), UX-17 (visual comparison, PO-requested investigation).
+- **Reopened:** QUAL-20 (was falsely done).
+- **ADL-57 briefs B1–B4 defined, none dispatched.** B1 gated on DEPLOY_ENV; B4 after B1.
+- Memories written: feedback_write_for_the_po_plain_language, reference_output_styles_deprecated,
+  feedback_diagnose_from_step_log_not_job_name.
+- done_pending_uat unchanged from last session (4 actual tests in uat-log) — blocked on staging.
+
+## Open threads
+
+See jobs/COO/open-dialogues.md — **D-36 (new): three governance gaps parked by the PO for a dedicated
+conversation** (staleness alarm for checks that stop running · red checks need an owner · `done`
+should require a named artifact — QUAL-20 is the worked example). Plus prior: D-05/14/23/27/28/30/33/35.
+D-28 (UAT WIP limit) and D-35 (skip guard) still await PO calls.
+================================================================================

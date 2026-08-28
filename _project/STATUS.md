@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (89)
+## Open work (90)
 
 ### P1 — Critical (2)
 
@@ -72,7 +72,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-39 | PO-journey Playwright pack — encode the PO's UAT checklist flows as E2E specs | qa | ⬜ Pending |
 | QUAL-40 | react-hook-form + shared zod schemas in ItemForm — real client validation + retires several folded cleanups (Architect ADL first) | frontend | ⬜ Pending |
 
-### P3 — Minor (46)
+### P3 — Minor (47)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -119,6 +119,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-36 | Three BRD-wording open questions from the QUAL-05 sweep — import scope + MB-01 mobile scope, awaiting PO decision | coo | ⬜ Pending |
 | QUAL-55 | data-testid debt — 13 of 93 component files carry any stable selector, and the panels worth testing are the worst-instrumented | frontend | ⬜ Pending |
 | UX-17 | Investigate visual-comparison testing — look-and-feel findings currently have no tier and stay with the PO permanently | ux | ⬜ Pending |
+| QUAL-58 | Neither Playwright suite is type-checked — src/e2e/** and src/e2e-shakedown/** are in no tsconfig, so type:check:all never sees them | qa | ⬜ Pending |
 | QUAL-41 | Coverage visibility — vitest coverage as a per-area CI artifact, NO threshold gates | qa | ⬜ Pending |
 | QUAL-42 | Architect review batch — DB_TYPE=postgres scaffolding (U13), transaction convention (U10), asyncHandler vestigiality (U15) | architect | ⬜ Pending |
 | DEP-07 | Minor/patch dependency batch bump — biome, clerk, playwright, tailwind, tanstack-query, helmet, jose, etc. | coo | ⬜ Pending |
@@ -131,7 +132,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 71/94 | 71 | 23 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 39/71 | 39 | 32 | 1 |
+| chore | `███████████░░░░░░░░░` 39/72 | 39 | 33 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -165,4 +166,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_200 done · 9 deferred · 5 closed · 89 open — 303 tracked items_
+_200 done · 9 deferred · 5 closed · 90 open — 304 tracked items_
