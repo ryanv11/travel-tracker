@@ -17,7 +17,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | PHASE-5 | Integrations — Notification Engine | ⬜ Pending |
 | PHASE-6 | v3 Planning-First Delivery | ⬜ Pending |
 
-## Open work (90)
+## Open work (89)
 
 ### P1 — Critical (2)
 
@@ -26,7 +26,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | QUAL-18 | E2E serves the frontend from vite preview, not Express — so no CSP header is ever under test | qa | ⬜ Pending |
 | QUAL-56 | Environment parity has no owner — the July enumeration rotted and two new divergences were found by accident in one session | architect | ⬜ Pending |
 
-### P2 — Important (42)
+### P2 — Important (41)
 
 | ID | Title | Owner | Status |
 |---|---|---|---|
@@ -51,7 +51,6 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | BUG-66 | ReviewPanel's forward Lock path repeats BUG-58's onClose()-after-mutation pattern | frontend | ⬜ Pending |
 | QUAL-08 | sanitiseUrl() has zero call sites and photo_album_ref has no server-side scheme validation | fullstack | ⬜ Pending |
 | QUAL-12 | Concurrent role dispatches collide on the single shared jobs/<role>/context/current.txt | coo | ⬜ Pending |
-| QUAL-19 | No test asserts that external origins the frontend fetches are present in the CSP allowlist | backend | ⬜ Pending |
 | QUAL-20 | No post-deploy smoke check — nothing verifies the deployed build behaves like main | qa | ⬜ Pending |
 | BUG-73 | Geocode lookup failure is silent — user cannot distinguish 'picked Virginia' from 'lookup failed' | frontend | done_pending_uat |
 | BUG-74 | BUG-73's failure signal covers only the browser↔backend hop — an upstream geocoder failure still reports as 'found nothing' | backend | done_pending_uat |
@@ -132,7 +131,7 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 | requirement | `███████████████████░` 32/33 | 32 | 1 | 6 |
 | bug | `███████████████░░░░░` 71/94 | 71 | 23 | 3 |
 | task | `██████████████████░░` 11/12 | 11 | 1 | 0 |
-| chore | `███████████░░░░░░░░░` 38/71 | 38 | 33 | 1 |
+| chore | `███████████░░░░░░░░░` 39/71 | 39 | 32 | 1 |
 
 <details>
 <summary>Deferred (9)</summary>
@@ -166,4 +165,4 @@ _Tracker last updated: 2026-07-28 (B9 merged — QUAL-03 + QUAL-11 done, PR #292
 
 ---
 
-_199 done · 9 deferred · 5 closed · 90 open — 303 tracked items_
+_200 done · 9 deferred · 5 closed · 89 open — 303 tracked items_
