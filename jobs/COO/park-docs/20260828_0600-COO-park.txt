@@ -16,8 +16,17 @@ on the deployed check) gets written when the pack exists to point at — PO appr
 (a) **Railway billing** — staging has no live deployment (trial lapsed; PO aware). Blocks the PO's
     add-place UAT round (uat-log item 4 + 3 others), and blocks OBSERVING the QUAL-54 shakedown fix
     (which is why QUAL-54 sits shipped-but-pending, deliberately).
-(b) **Set DEPLOY_ENV=production / DEPLOY_ENV=staging on the two Railway environments** — two-minute
-    dashboard action, possible while the service is down. GATES brief B1 (ADL-57 §3.2 / B1 row).
+(b) ~~Set DEPLOY_ENV on the two Railway environments~~ **DONE post-close (2026-08-28): the PO set
+    DEPLOY_ENV on both environments, and the COO VERIFIED both directly** via the read-only Railway
+    GraphQL `variables()` query (names only, values never read) — staging confirmed on first probe;
+    prod was ABSENT on first probe, PO re-did it, second probe confirmed PRESENT. **B1's gate is
+    cleared on direct evidence; B1 is dispatchable with no preconditions left.** Two probe notes for
+    whoever runs B1: (1) this variables query DOES list Railway-injected names (RAILWAY_ENVIRONMENT
+    etc.), and `RAILWAY_GIT_COMMIT_SHA` is NOT among stored config — consistent with ADL-57 Q2-R's
+    finding that it is build-time-injected and unreliable as a runtime marker; the explicit
+    DEPLOY_ENV decision stands vindicated. (2) A first probe finding a variable absent after a
+    dashboard edit is worth one re-check before concluding anything — the prod save simply hadn't
+    taken the first time.
 
 ## Suggested next, in order
 1. Dispatch QUAL-39 (QA): triage the UAT archive per the corrected tiering rule (ADL-57-consistent:
