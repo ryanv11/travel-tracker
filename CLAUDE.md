@@ -123,8 +123,9 @@ not the gate.
 
 **The register is the canonical home and this file deliberately carries no list of divergences —
 not even a summary one** (the first draft of this paragraph did, two sentences after forbidding it;
-OP-27 review F7 caught it). Register, tier contracts, live divergences and the **reopen triggers**
-that keep it alive:
+OP-27 review F7 caught it). Tier contracts, the completeness matrix and the **reopen triggers** that keep it alive are in the
+register; the live divergence table is ADL-57 §4 (re-check corrected this pointer — the first draft
+sent readers to the register for a list it does not hold):
 [`jobs/architect/tech/test-environment-fidelity.md`](./jobs/architect/tech/test-environment-fidelity.md).
 
 ### Negative findings need two probes (mandatory)

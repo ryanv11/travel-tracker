@@ -4844,7 +4844,7 @@ const SERVE_STATIC =
   static exactly as today. (That `NODE_ENV=production` is genuinely set in both deployed environments is
   established by two probes that fail differently: the code path above is the only one that serves the SPA, and
   the deployed app demonstrably serves it — the PO uses it.)
-- **E2E runs `SERVE_STATIC=true BYPASS_AUTH=true` with `NODE_ENV` unset**, single-origin on `:3001`, helmet
+- **E2E runs `SERVE_STATIC=true BYPASS_AUTH=true E2E_RIG=true` with `NODE_ENV` unset** *(amended 2026-08-27: `E2E_RIG` added — without it this exact command throws under §3.2's third guard, by design)*, single-origin on `:3001`, helmet
   applied to the document.
 - **`VITE_API_BASE_URL` must be dropped from the E2E build** — `apiClient.ts:21` coerces unset to `''`, meaning
   same origin, which is production's own configuration. Leaving it set would make every API call a cross-origin
@@ -4901,6 +4901,15 @@ check.
    serving the built site → **throw unless `E2E_RIG=true`.** This is the F2 property stated positively:
    the dangerous *combination* is unreachable except in the one configuration that declares itself the
    test rig. The `server.ts:290` guard stays untouched on top.
+3a. **`DEPLOY_ENV` and `E2E_RIG` both present → throw** *(added 2026-08-27, re-check strengthening)*:
+   since `DEPLOY_ENV` is set by hand on both Railway environments, this makes the unsafe state
+   genuinely unreachable on a real deployment rather than one mistakenly-set variable away from it.
+
+**Stated limit, not a regression (re-check):** all guards are conditioned on the process serving the
+built site, so a process with auth bypassed and **no** site still starts quietly — unchanged from
+today, and loud in practice (there is no website). Side effect worth one sentence so it is not
+reported as a bug: a developer running locally in production mode with a built `dist/` and no
+`DEPLOY_ENV` will now be thrown; that is the control working.
 4. **Ships in the same PR as the decoupling** (unchanged from the original), and the Railway variables
    are set **before** that PR merges — the control must never be pending while the decoupling is live.
 
@@ -5054,10 +5063,10 @@ here, not performed.
 
 | Brief | Scope | Tracker | ATDD-first |
 |---|---|---|---|
-| **B1** | `SERVE_STATIC` decoupling + the deployment-marker startup assertion + E2E single-origin webServer (drop `VITE_API_BASE_URL`) + a red-proven CSP-allowlist E2E assertion | QUAL-18 | **YES** — a wrong implementation is silent-and-plausible (the suite goes green while the document is still served without a CSP), and the behaviour is precisely specifiable. Red tests must pin: (a) the document response carries a `Content-Security-Policy` header; (b) removing `*.maptiler.com` from `connect-src` **fails** the suite; (c) starting with `NODE_ENV=production BYPASS_AUTH=true` still **throws**; (d) starting with a deployment marker and `NODE_ENV` unset **throws**. **MOCK-FIDELITY:** no doubles for the Express app — assert against the real process |
+| **B1** | `SERVE_STATIC` decoupling + **the §3.2 fail-closed startup control** (row corrected 2026-08-27 per the OP-27 re-check — the earlier "deployment-marker startup assertion" wording carried the control Q2-R retracted) + E2E single-origin webServer (drop `VITE_API_BASE_URL`; fix the stale `playwright.config.ts:93-100` comment, §3.2) + a red-proven CSP-allowlist E2E assertion + the six same-PR document updates listed in §3.2. **Gate: the two Railway `DEPLOY_ENV` variables are set before this merges.** | QUAL-18 | **YES** — a wrong implementation is silent-and-plausible (the suite goes green while the document is still served without a CSP), and the behaviour is precisely specifiable. Red tests must pin: (a) the document response carries a `Content-Security-Policy` header; (b) removing `*.maptiler.com` from `connect-src` **fails** the suite; (c) starting with `NODE_ENV=production BYPASS_AUTH=true` still **throws**; (d) *(replaced 2026-08-27 — the original pin asserted the retracted fail-open control, backwards under §3.2)* starting with `SERVE_STATIC=true` and **neither** `DEPLOY_ENV` **nor** `E2E_RIG` set **throws**; (e) starting with `BYPASS_AUTH=true` + `SERVE_STATIC=true` **without** `E2E_RIG` **throws**; (f) **no E2E navigation resolves to an origin other than the Express origin** — the 55 hardcoded `localhost:5173` URLs are in-scope; (g) `DEPLOY_ENV` and `E2E_RIG` **both present → throws** (re-check strengthening: makes the unsafe state unreachable on a real deployment, not one variable away). **MOCK-FIDELITY:** no doubles for the Express app — assert against the real process |
 | **B2** | One shared helmet/pipeline config imported by `server.ts` and `server-test-app.ts`; delete the prose parity comment; add T1-C1..C4 assertions | BUG-101 | **YES** — shared security contract; a wrong implementation leaves 37 files testing a weaker policy while the assertion passes. Red tests must pin directive-by-directive equality **and** middleware order |
-| **B3** | Drift-canary **Check F1/F2/F3** + the `SCAN_DIRS` widening. **Two traps (OP-27 review F8):** (i) the canary filters by extension — `EXTS = (".md", ".txt", ".json")` at `drift-canary.sh:24` — so widening `SCAN_DIRS` to `src/`/`.github/` without widening `EXTS` to `.ts/.tsx/.yml` scans nothing; (ii) the parity-language check will flag this ADL and the register themselves, which quote parity phrasing — warn-only so acceptable, but the check's output must say so or its first run reads as broken. **Check F1 must require a test-file *path* in a claim's proof cell, not any non-empty cell** (review F6: prose like "the suite itself" reads as proof and proves nothing) | QUAL-56 | **NO** — warn-only output, visible and recoverable; failures are cosmetic false positives |
-| **B4** | Request-selectable bypass identity (D-4b) | new item needed | **YES** — auth-adjacent. Red tests must pin: the header is read **only** when `BYPASS_AUTH === 'true'`; with `BYPASS_AUTH` unset or absent the header has **no effect whatsoever**; and `isOwner` still derives from `OWNER_CLERK_ID`. **Gated on Q1** |
+| **B3** | Drift-canary **Check F1/F2/F3** + the `SCAN_DIRS` widening. **Two traps (OP-27 review F8):** (i) the canary filters by extension — `EXTS = (".md", ".txt", ".json")` at `drift-canary.sh:24` — so widening `SCAN_DIRS` to `src/`/`.github/` without widening `EXTS` to `.ts/.tsx/.yml` scans nothing; (ii) the parity-language check will flag this ADL and the register themselves, which quote parity phrasing — warn-only so acceptable, but the check's output must say so or its first run reads as broken. **Check F1 must require a test-file *path* in a claim's proof cell, not any non-empty cell** (review F6: prose like "the suite itself" reads as proof and proves nothing). **Also in B3's scope (re-check): fill the register's §1.1 completeness matrix** — answer all eight axes for all five tiers; until then the register is, by its own rule, forty blanks with no owner | QUAL-56 | **NO** — warn-only output, visible and recoverable; failures are cosmetic false positives |
+| **B4** | Request-selectable bypass identity (D-4b) | new item needed | **YES** — auth-adjacent. Red tests must pin: the header is read **only** when `BYPASS_AUTH === 'true'`; with `BYPASS_AUTH` unset or absent the header has **no effect whatsoever**; and `isOwner` still derives from `OWNER_CLERK_ID`. **Q1 ADOPTED (§8.1) — the operative constraint is now: B4 must not merge before B1** (its safety rationale depends on §3.2's guards; §8.1 Q1 contingency). Identity values confined to an allowlist of known test identities |
 
 ---
 
@@ -5069,7 +5078,7 @@ here, not performed.
   residual risk as low and **I recommend adopting it**: it is the only route to automating non-owner journeys
   that needs no credential. **But it touches the auth middleware and that is a PO/security call, not an
   implementation choice** (OP-30 shape). Adopt, defer, or reject?
-- **Q2 — the deployment marker (§3, UNVERIFIED).** Confirm from the Railway dashboard whether
+- **Q2 — the deployment marker (§3, UNVERIFIED). *(→ The §8.1 resolution of this was RETRACTED — see §8.1 Q2-R. The specification in this bullet, `DEPLOY_ENV` set explicitly, is what stands.)*** Confirm from the Railway dashboard whether
   `RAILWAY_ENVIRONMENT` / `RAILWAY_ENVIRONMENT_NAME` is injected into both environments. If it is not, an
   explicit `DEPLOY_ENV` must be added to both **before** B1 merges, since the compensating control ships with
   the decoupling and must not be skipped.
