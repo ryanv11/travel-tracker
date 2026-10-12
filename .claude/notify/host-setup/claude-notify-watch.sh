@@ -4,10 +4,17 @@
 # directory is visible here because the devcontainer bind-mounts this project
 # folder straight from disk (see .devcontainer/devcontainer.json workspaceMount).
 #
-# Installed as a LaunchAgent — see com.ryanv.claude-notify.plist in this same
-# folder for the install commands.
+# Installed as a LaunchAgent — see README.md in this same folder for the install
+# steps and the host permissions it does (and does not) need.
+#
+# The queue path is passed in as $1 (the LaunchAgent plist supplies it), never
+# hardcoded here — ADL-39's rule: no committed file may hardcode a host path.
 
-WATCH_DIR="/Users/ryanv/Projects/travel-tracker/.claude/notify/queue"
+WATCH_DIR="${1:-${CLAUDE_NOTIFY_QUEUE:-}}"
+if [ -z "$WATCH_DIR" ]; then
+  echo "usage: $0 <queue-dir>  (or set CLAUDE_NOTIFY_QUEUE)" >&2
+  exit 64
+fi
 TERMINAL_NOTIFIER="/opt/homebrew/bin/terminal-notifier"
 ICON="/Applications/Visual Studio Code.app/Contents/Resources/Code.icns"
 
@@ -26,8 +33,10 @@ while true; do
     fi
 
     # Skip the popup (but still consume the file) if VS Code is already frontmost —
-    # no point interrupting when you're already looking at it.
-    FRONTMOST="$(osascript -e 'tell application "System Events" to name of first application process whose frontmost is true' 2>/dev/null)"
+    # no point interrupting when you're already looking at it. Uses lsappinfo, not
+    # osascript/System Events: that needs an Automation grant, which is deliberately
+    # denied on the Mac mini host (see README.md).
+    FRONTMOST="$(lsappinfo list 2>/dev/null | awk -F'"' '/\(in front\)/{print $2; exit}')"
     if [ "$FRONTMOST" = "Code" ]; then
       rm -f "$f"
       continue

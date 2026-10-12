@@ -1,0 +1,117 @@
+TO: COO
+FROM: Claude, Ryan's Pokemon-EA session on the Mac mini host (outside this project), at Ryan's request
+RE: Follow-ups from moving travel-tracker to the Mac mini, 10–11 Oct 2026
+
+READ THIS FIRST: REVIEW AGAINST EVIDENCE BEFORE IMPLEMENTING
+This is a brief, not a ruling. Every claim below comes from a session outside
+this project, which doesn't know your workflow, ADLs or tracker. Before acting
+on any item, check it against the evidence named for it. Where the evidence
+says something different, the evidence wins: tell Ryan what you found, and
+don't implement the brief as written.
+
+Some evidence is on the Mac host, which the container can't see (anything under
+~ outside /workspace, launchd, macOS settings). Those items are marked HOST. You
+can't verify them yourself, so ask Ryan to run the check given, or treat the
+claim as unverified. Nothing here authorises deleting branches or committing to
+main. Your normal PR workflow applies.
+
+Background: on 10 Oct the project was copied from the MacBook Air (the
+authoritative copy; the Studio's copy was changed by Qwen and wasn't used).
+It now runs in this dev container on the Mac mini (user ryanmini). Your own
+post-migration check that day found everything intact except desktop
+notifications.
+
+1. HOST NOTIFICATION WATCHER: THE REPO COPY IS OUT OF DATE
+Claim: .claude/notify/host-setup/claude-notify-watch.sh asks System Events (via
+osascript) which app is in front. On the mini, Automation for System Events is
+deliberately denied: it's one of the Pokemon-EA project's no-send controls,
+because its scheduled jobs also run through bash. The prompt would get Don't
+Allow, and the lookup would return nothing. The script also hard-codes
+/Users/ryanv. Your 10 Oct report said to re-grant "Automation for System
+Events". Please drop that step: it was not granted, and won't be.
+What's installed on the mini instead (HOST, not from the repo):
+  - ~/.local/share/travel-tracker/notify-watch.sh: the repo script with two
+    changes, shown below
+  - ~/.local/bin/travel-tracker-notify: a named copy of Homebrew's bash that runs
+    the script, so Login Items and Activity Monitor show a readable name. (A
+    copy of /bin/bash is killed by macOS on launch; Homebrew's bash works.)
+  - ~/Library/LaunchAgents/com.travel-tracker.notify.plist, which replaces
+    com.ryanv.claude-notify (removed)
+The two changes, exactly (diff of repo vs installed):
+  10c10
+  < WATCH_DIR="/Users/ryanv/Projects/travel-tracker/.claude/notify/queue"
+  > WATCH_DIR="/Users/ryanmini/Projects/travel-tracker/.claude/notify/queue"
+  30c30,32
+  < FRONTMOST="$(osascript -e 'tell application "System Events" to name of first application process whose frontmost is true' 2>/dev/null)"
+  > FRONTMOST="$(lsappinfo list 2>/dev/null | awk -F'"' '/\(in front\)/{print $2; exit}')"
+Evidence: the repo file (you can read it). HOST: `diff` of the repo file against
+~/.local/share/travel-tracker/notify-watch.sh; `launchctl list | grep
+travel-tracker`; `lsappinfo list | grep "in front"` returns "Code" when VS Code
+is in front. Not yet confirmed: a banner actually appearing on screen. The
+watcher has consumed 4 queued items, but VS Code was in front each time, so the
+banners were correctly suppressed.
+Ask: a PR that brings the repo copy in line: lsappinfo instead of System Events,
+no hard-coded user path (your design), and install notes that match the layout
+above. Your call on whether the repo should hold the named-launcher setup.
+
+2. MEMORY: project_macos_notification_bridge.md PRESCRIBES THE WRONG GRANT
+Claim: this memory lists Automation for System Events as a setup step, and the
+next reinstall would repeat it. It should say the watcher uses lsappinfo and
+needs no Automation grant. Separately, the watcher probably doesn't need Full
+Disk Access either, because its queue is under ~/Projects, which isn't a
+protected location. That's UNVERIFIED: bash already has FDA on the mini for
+Pokemon-EA's jobs, so nothing has tested the watcher without it.
+Evidence: the memory file itself; item 1's evidence.
+Ask: update the memory once you've checked item 1.
+
+3. FYI: YOUR CLAUDE MEMORY NOW HAS A NIGHTLY BACKUP (HOST)
+Why it exists: your memory lives in the claude-code-config-* Docker volume,
+inside Docker's VM disk, and that disk is excluded from Time Machine (it changes
+constantly). So a LaunchAgent, com.travel-tracker.memory-backup, runs at 02:30.
+It copies projects/*/memory from any claude-code-config-* volume that holds a
+-workspace memory (read-only mount, no network) to
+~/Backups/travel-tracker-claude-memory/<date>-<volume id>.tgz. It keeps 90
+days, prunes only after a good run, and puts up a banner if 3 days pass without
+a backup. It needs Docker Desktop running. Its first run (11 Oct) copied 54
+files, and the memory on the mini was byte-identical to the Air's export.
+Ask: record this wherever you document host setup, so a future rebuild or move
+knows the memory is backed up and where. A rebuild that changes the
+devcontainerId creates a new volume, which the script picks up automatically.
+
+4. UNCOMMITTED CHANGE IN .devcontainer/devcontainer.json (RYAN'S)
+Ryan added "claudeCode.allowDangerouslySkipPermissions": true to
+customizations.vscode.settings. The VS Code extension won't open in bypass mode
+without it, whatever .claude/settings.json says. It's a machine-scoped setting,
+so set here it applies only inside the container. The diff also reformats
+runArgs onto one line (format on save). It's his change: confirm with him before
+committing it, and commit it through your normal PR workflow, not directly to
+main.
+Evidence: `git diff .devcontainer/devcontainer.json`.
+
+5. NINE STALE BRANCHES ON GITHUB: TRIAGE, DON'T DELETE
+Your 10 Oct report said 11. GitHub lists 9 besides main and production:
+  chore/adl53-fresh-eyes-review   PR #461 CLOSED, not merged
+  chore/adl55-fresh-eyes-review   no PR
+  docs/bug76-op27-review          no PR
+  feat/bug75-backend              no PR
+  feat/bug75-frontend             no PR
+  feat/bug75-migration            no PR
+  feat/bug75-qa-verify            no PR
+  feat/bug76-accept-rule-design   no PR
+  feat/bug76-accept-rule-fix      no PR
+None is an ancestor of origin/main. BUG-75 and BUG-76 don't appear by name in
+main's commit messages, so some of these may hold work that never landed. Or
+it landed under other names: ADL-55's GE-19 work did land (#511–#517). The
+dates run from 5 to 10 Aug, so the move didn't create them.
+Evidence: `gh pr list --state all --head <branch>`; `git log origin/main
+--grep`; the tracker entries for BUG-75, BUG-76, ADL-53 and ADL-55.
+Ask: check each against the tracker and give Ryan a delete-or-keep
+recommendation per branch. Delete nothing without his OK.
+
+6. NO ACTION: .planning/drift-ledger.jsonl
+The three uncommitted lines are automatic session_end entries (2 Sep, and two
+from 10 Oct). As you said, they can go out with the next chore PR.
+
+REPLY
+Report back to Ryan which items held up against the evidence, which didn't, and
+what you changed.
